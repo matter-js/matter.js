@@ -69,6 +69,12 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
         }
     }
 
+    // The MaxPathsPerInvoke attribute defines zero as "assume one", and the MAX_PATHS_PER_INVOKE session parameter
+    // carries that same attribute
+    if (typeof sanitizedConfig.maxPathsPerInvoke === "number" && sanitizedConfig.maxPathsPerInvoke < 1) {
+        delete sanitizedConfig.maxPathsPerInvoke;
+    }
+
     return { ...SessionParameters.fallbacks, ...sanitizedConfig, supportedTransports, maxTcpMessageSize };
 }
 
@@ -104,8 +110,10 @@ export namespace SessionParameters {
         specificationVersion: 0,
 
         /**
-         * Fallback value for the maximum number of paths that can be included in a single invoke message when not provided in
-         * Session parameters.
+         * Fallback value for the maximum number of paths that can be included in a single invoke message when not
+         * provided in, or reported as zero by, Session parameters.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.1.5.23
          */
         maxPathsPerInvoke: 1,
 

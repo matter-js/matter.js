@@ -14,6 +14,20 @@ describe("SessionParameters", () => {
         expect(params.activeInterval).equal(Hours(2));
     });
 
+    describe("maxPathsPerInvoke", () => {
+        it("honors a peer-reported limit above one", () => {
+            expect(SessionParameters({ maxPathsPerInvoke: 9 }).maxPathsPerInvoke).equal(9);
+        });
+
+        it("assumes one when the peer reports zero", () => {
+            expect(SessionParameters({ maxPathsPerInvoke: 0 }).maxPathsPerInvoke).equal(1);
+        });
+
+        it("assumes one when the peer reports no limit", () => {
+            expect(SessionParameters({ maxPathsPerInvoke: undefined }).maxPathsPerInvoke).equal(1);
+        });
+    });
+
     describe("TCP spec-version gate", () => {
         it("keeps TCP support for peers reporting spec version >= 1.5.0", () => {
             const params = SessionParameters({

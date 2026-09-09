@@ -67,6 +67,13 @@ function assertActiveThreshold(activeThreshold: Duration) {
     }
 }
 
+/** Reject a locally-configured MaxPathsPerInvoke below the specification's minimum of one. */
+function assertMaxPathsPerInvoke(maxPathsPerInvoke: number) {
+    if (maxPathsPerInvoke < 1) {
+        throw new ImplementationError(`Max Paths Per Invoke of ${maxPathsPerInvoke} is below the minimum of 1`);
+    }
+}
+
 /** Resumption record without a fabric reference but relevant lookup data used internally in SessionManager */
 interface InternalResumptionRecord {
     sharedSecret: Bytes;
@@ -228,6 +235,9 @@ export class SessionManager {
         const {
             fabrics: { crypto },
         } = context;
+        if (context.parameters?.maxPathsPerInvoke !== undefined) {
+            assertMaxPathsPerInvoke(context.parameters.maxPathsPerInvoke);
+        }
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
         assertActiveThreshold(this.#sessionParameters.activeThreshold);
         this.#nextSessionId = crypto.randomUint16;
@@ -336,6 +346,9 @@ export class SessionManager {
     set sessionParameters(parameters: Partial<SessionParameters>) {
         if (parameters.activeThreshold !== undefined) {
             assertActiveThreshold(parameters.activeThreshold);
+        }
+        if (parameters.maxPathsPerInvoke !== undefined) {
+            assertMaxPathsPerInvoke(parameters.maxPathsPerInvoke);
         }
         for (const [key, value] of Object.entries(parameters)) {
             if (value !== undefined) {

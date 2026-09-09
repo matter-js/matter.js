@@ -297,7 +297,7 @@ describe("Invoke largeMessage flag", () => {
                 request.largeMessage = true;
             }
             if (!request.largeMessage) {
-                if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
+                if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke > 1) {
                     const endpointId = request.invokeRequests[0].commandPath.endpointId;
                     if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
                         return "batched";

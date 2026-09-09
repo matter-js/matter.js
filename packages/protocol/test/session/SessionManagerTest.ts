@@ -564,6 +564,39 @@ describe("SessionManager", () => {
         });
     });
 
+    describe("max paths per invoke validation", () => {
+        function newManager(parameters: Partial<SessionParameters>) {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            return new SessionManager({
+                parameters: parameters as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+        }
+
+        it("rejects a local max paths per invoke of zero on construction", () => {
+            expect(() => newManager({ maxPathsPerInvoke: 0 })).throws(ImplementationError, "Max Paths Per Invoke");
+        });
+
+        it("rejects a local max paths per invoke of zero via the setter", async () => {
+            const sessionManager = newManager({});
+            await sessionManager.construction.ready;
+
+            expect(() => (sessionManager.sessionParameters = { maxPathsPerInvoke: 0 })).throws(
+                ImplementationError,
+                "Max Paths Per Invoke",
+            );
+        });
+
+        it("accepts a local max paths per invoke of one", async () => {
+            const sessionManager = newManager({ maxPathsPerInvoke: 1 });
+            await sessionManager.construction.ready;
+
+            expect(sessionManager.sessionParameters.maxPathsPerInvoke).equals(1);
+        });
+    });
+
     describe("session parameter setter", () => {
         function newManager(parameters: Partial<SessionParameters>) {
             const storage = new MemoryStorageDriver();
