@@ -1033,9 +1033,3 @@ export class SessionManager {
         if (this.#nextSessionId === 0) this.#nextSessionId++;
     }
 }
-
-namespace SessionManager {
-    export interface Options {
-        maxPathsPerInvoke?: number;
-    }
-}
