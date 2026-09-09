@@ -20,6 +20,7 @@ import {
     Duration,
     EcdsaSignature,
     Logger,
+    Diagnostic,
     MatterError,
     NetworkError,
     PublicKey,
@@ -93,7 +94,7 @@ export class CaseClient {
                     // The CASE failure this reports is what the caller needs; a failure to report it
                     // must not take its place
                     MatterError.accept(e);
-                    logger.debug("Failed to send InvalidParam on CASE error:", e);
+                    logger.debug("Failed to send InvalidParam on CASE error:", Diagnostic.errorMessage(e));
                 }
             }
             throw error;
