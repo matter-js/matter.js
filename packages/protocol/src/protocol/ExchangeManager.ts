@@ -629,6 +629,9 @@ export class ExchangeManager implements Transport.Provider {
         for (const session of this.#sessionsOnChannel(channel)) {
             logger.debug("Evicting session due to TCP disconnect:", session.via);
 
+            // An in-flight subscription update has to be settled before initiateForceClose's
+            // subscription teardown awaits it; on a dead connection only closing its exchange settles
+            // it, and nothing else would for the peer's full response time
             for (const exchange of [...session.exchanges]) {
                 await exchange.close(new TransportClosedError("TCP connection dropped"));
             }
