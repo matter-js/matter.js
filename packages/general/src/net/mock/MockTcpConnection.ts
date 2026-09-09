@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { InternalError } from "#MatterError.js";
 import { Time } from "#time/Time.js";
 import { Bytes } from "#util/Bytes.js";
 import { TransportClosedError } from "../Network.js";
@@ -56,14 +57,14 @@ export class MockTcpConnection implements TcpConnection {
             throw new TransportClosedError("Connection is closed");
         }
         const peer = this.#peer;
-        if (!peer || peer.#closed) {
-            throw new TransportClosedError("Peer connection is closed");
+        if (peer === undefined) {
+            throw new InternalError("A mock TCP connection has no peer, which only createPair can produce");
         }
 
         // Deliver asynchronously
         await Time.macrotask;
 
-        // Re-check after yield — peer may have closed during the macrotask
+        // A peer closed before the yield closed us too, so only the yield can have lost it
         if (peer.#closed) return;
 
         // Push to peer's iterator queue
