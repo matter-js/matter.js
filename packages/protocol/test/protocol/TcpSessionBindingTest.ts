@@ -181,7 +181,6 @@ describe("TCP Session-Connection Binding", () => {
 
             const crypto = new StandardCrypto();
             const sessions = new SessionManager({
-                parameters: {} as SessionParameters,
                 fabrics: new FabricManager(crypto),
                 storage: new StorageContext(storage, ["context"]),
             });

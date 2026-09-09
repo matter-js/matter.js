@@ -15,6 +15,7 @@ import {
     Crypto,
     InternalError,
     Logger,
+    Diagnostic,
     MatterError,
     NetworkError,
     PbkdfParameters,
@@ -90,7 +91,7 @@ export class PaseClient {
                     await messenger.sendError(SecureChannelStatusCode.InvalidParam);
                 } catch (e) {
                     MatterError.accept(e);
-                    logger.debug("Failed to send InvalidParam on PASE error:", e);
+                    logger.debug("Failed to send InvalidParam on PASE error:", Diagnostic.errorMessage(e));
                 }
             }
             throw error;
