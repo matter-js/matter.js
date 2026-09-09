@@ -67,10 +67,16 @@ function assertActiveThreshold(activeThreshold: Duration) {
     }
 }
 
-/** Reject a locally-configured MaxPathsPerInvoke below the specification's minimum of one. */
+/**
+ * Reject a locally-configured MaxPathsPerInvoke that is not a whole count of at least one. The setter installs the
+ * value we advertise without normalizing it, and a fractional count encodes truncated while our own limit keeps the
+ * remainder.
+ */
 function assertMaxPathsPerInvoke(maxPathsPerInvoke: number) {
-    if (maxPathsPerInvoke < 1) {
-        throw new ImplementationError(`Max Paths Per Invoke of ${maxPathsPerInvoke} is below the minimum of 1`);
+    if (!Number.isInteger(maxPathsPerInvoke) || maxPathsPerInvoke < 1) {
+        throw new ImplementationError(
+            `Max Paths Per Invoke of ${maxPathsPerInvoke} is not a whole number of at least 1`,
+        );
     }
 }
 

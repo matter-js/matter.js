@@ -589,6 +589,16 @@ describe("SessionManager", () => {
             );
         });
 
+        it("rejects a local max paths per invoke that is not a whole count", async () => {
+            const sessionManager = newManager({});
+            await sessionManager.construction.ready;
+
+            expect(() => (sessionManager.sessionParameters = { maxPathsPerInvoke: 2.5 })).throws(
+                ImplementationError,
+                "Max Paths Per Invoke",
+            );
+        });
+
         it("accepts a local max paths per invoke of one", async () => {
             const sessionManager = newManager({ maxPathsPerInvoke: 1 });
             await sessionManager.construction.ready;
