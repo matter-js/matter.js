@@ -40,6 +40,7 @@ import {
     Environment,
     Forever,
     ImplementationError,
+    InternalError,
     Instant,
     isObject,
     Lifetime,
@@ -584,6 +585,11 @@ export class ClientInteraction<
         maxPathsPerInvoke: number,
         session?: SessionT,
     ): DecodedInvokeResult {
+        // Batches of zero would never consume a command and allocate without end
+        if (maxPathsPerInvoke < 1) {
+            throw new InternalError(`Cannot split an invoke into batches of ${maxPathsPerInvoke} paths`);
+        }
+
         // Split commands into batches
         const allCommands = [...request.commands.entries()];
         const batches = new Array<ClientInvoke["commands"]>();
