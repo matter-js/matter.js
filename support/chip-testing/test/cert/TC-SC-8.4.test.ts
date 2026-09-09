@@ -49,7 +49,7 @@ async function reestablishTheSession(cx: CertStepContext) {
     if (beforeSever === undefined) {
         throw new CertCheckFailedError("step 2 took no mark before severing");
     }
-    session.set(await recordReestablishedSession(cx, commissioned.require("th"), severed.require(), beforeSever));
+    await recordReestablishedSession(cx, commissioned.require("th"), severed.require(), beforeSever);
 }
 
 certTest("TC-SC-8.4", {

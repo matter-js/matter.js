@@ -771,7 +771,7 @@ export async function recordReestablishedSession(
     ref: TcpRef,
     previous: TcpSessionFacts,
     from: number,
-): Promise<TcpSessionFacts> {
+) {
     // A read the peer must answer over TCP: it re-establishes the session and refuses to travel over
     // MRP, so this step cannot pass on a fallback the plan does not describe
     await cx.controllers.th
@@ -797,8 +797,6 @@ export async function recordReestablishedSession(
         },
         { check: () => further, what: "the DUT accepted a further session over TCP" },
     ]);
-
-    return { tag: further.matched ?? previous.tag, channel: previous.channel, controllerSessionId: id };
 }
 
 /**

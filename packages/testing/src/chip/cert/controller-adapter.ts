@@ -303,7 +303,12 @@ export interface CertSessionInfo {
      */
     largePayload: boolean;
 
-    /** Largest encoded message the session's channel accepts, in bytes. */
+    /**
+     * The session channel's payload ceiling, in bytes.
+     *
+     * A frame's own header counts against it, so the largest message a channel accepts is this less
+     * that header — four bytes for TCP.
+     */
     maxPayloadSize: number;
 }
 

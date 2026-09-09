@@ -247,7 +247,7 @@ describe("InProcessControllerAdapter", () => {
         }
     });
 
-    it("reports no sessions once the peer is gone", async function () {
+    it("refuses to report sessions once the peer is gone", async function () {
         this.timeout(30_000);
 
         const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
