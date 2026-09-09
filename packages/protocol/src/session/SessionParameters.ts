@@ -5,6 +5,7 @@
  */
 
 import { SupportedTransportsBitmap, SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
+import { UINT16_MAX } from "@matter/general";
 import { Specification } from "@matter/model";
 import { SessionIntervals } from "./SessionIntervals.js";
 
@@ -70,9 +71,15 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
     }
 
     // The MaxPathsPerInvoke attribute defines zero as "assume one", and the MAX_PATHS_PER_INVOKE session parameter
-    // carries that same attribute. Persisted parameters reach us untyped, so anything but a number of at least one
-    // takes the fallback.
-    if (!(typeof sanitizedConfig.maxPathsPerInvoke === "number" && sanitizedConfig.maxPathsPerInvoke >= 1)) {
+    // carries that same attribute as a uint16. Persisted parameters reach us untyped, so anything the wire could not
+    // have carried takes the fallback.
+    const maxPathsPerInvoke = sanitizedConfig.maxPathsPerInvoke;
+    if (
+        typeof maxPathsPerInvoke !== "number" ||
+        !Number.isInteger(maxPathsPerInvoke) ||
+        maxPathsPerInvoke < 1 ||
+        maxPathsPerInvoke > UINT16_MAX
+    ) {
         delete sanitizedConfig.maxPathsPerInvoke;
     }
 
