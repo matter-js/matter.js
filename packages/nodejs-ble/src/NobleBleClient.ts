@@ -67,6 +67,9 @@ export class NobleBleClient {
         noble.on("stateChange", state => {
             this.nobleState = state;
             logger.debug(`Noble state changed to ${state}`);
+            if (this.#closing) {
+                return;
+            }
             if (state === "poweredOn") {
                 if (this.shouldScan) {
                     const deferred = this.#scanDeferred;
@@ -176,11 +179,9 @@ export class NobleBleClient {
         }
         this.#closing = true;
 
-        if (this.nobleState === "poweredOn") {
-            logger.debug("Stopping Noble");
+        logger.debug("Stopping Noble");
 
-            // noble.stop() hangs when BLE isn't powered on (https://github.com/stoprocent/noble/issues/30).
-            // Only attempt the full stop sequence when BLE is actually available.
+        if (this.nobleState === "poweredOn") {
             try {
                 // Workaround: start scanning first so stop gets the HCI response it needs (Linux HCI driver).
                 // TODO Remove when https://github.com/stoprocent/noble/issues/30 got fixed
@@ -190,21 +191,17 @@ export class NobleBleClient {
             } catch (error) {
                 logger.info("Error starting scan during close, proceeding to stop:", error);
             }
-
-            try {
-                noble.stop();
-            } catch (error) {
-                logger.info("Error stopping Noble:", error);
-            }
-
-            // Defer listener removal so noble.stop() can finish its internal event roundtrip
-            Time.getTimer("noble-cleanup", Instant, () => noble.removeAllListeners()).start();
-        } else {
-            logger.debug(`Skip stopping noble because state is "${this.nobleState}"`);
-
-            // No stop needed — remove listeners immediately to release the event loop
-            noble.removeAllListeners();
         }
+
+        try {
+            // Windows holds a referenced handle from the first listener on, radio or not, and only stop() releases it
+            noble.stop();
+        } catch (error) {
+            logger.info("Error stopping Noble:", error);
+        }
+
+        // Defer listener removal so noble.stop() can finish its internal event roundtrip
+        Time.getTimer("noble-cleanup", Instant, () => noble.removeAllListeners()).start();
     }
 
     [Diagnostic.name] = "BLE client";

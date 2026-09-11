@@ -253,6 +253,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
     - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
     - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
+    - Fix: Shutdown no longer hangs when Bluetooth is enabled but no adapter is usable; the Bluetooth driver is now always stopped, which releases the handle that kept the process alive
 
 - @matter/nodejs-shell
     - Fix: A cluster whose ID lies outside the ranges the specification allows is addressable instead of raising an error
