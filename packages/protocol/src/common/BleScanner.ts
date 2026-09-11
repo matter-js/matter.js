@@ -33,6 +33,14 @@ export interface BleScannerClient {
     setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void): void;
     startScanning(): Promise<void>;
     stopScanning(): Promise<void>;
+
+    /**
+     * Whether a peripheral discovered earlier can still be reached. A transport that routes through remote proxies
+     * loses access to a peripheral when the proxy that reported it goes away, and a peripheral it cannot reach is no
+     * candidate for commissioning. A client that omits this keeps every discovered peripheral available; the record
+     * stays either way, so a peripheral becomes a candidate again as soon as it is reachable again.
+     */
+    isPeripheralReachable?(address: string): boolean;
 }
 
 export type CommissionableDeviceData = CommissionableDevice & {
@@ -81,7 +89,14 @@ export class BleScanner implements Scanner {
         if (device === undefined) {
             throw new BleError(`No device found for address ${address}`);
         }
+        if (!this.#isReachable(address)) {
+            throw new BleError(`Device with address ${address} is currently not reachable`);
+        }
         return device;
+    }
+
+    #isReachable(address: string) {
+        return this.#client.isPeripheralReachable?.(address) ?? true;
     }
 
     /**
@@ -264,9 +279,9 @@ export class BleScanner implements Scanner {
 
     #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers) {
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
-        const storedRecords = Array.from(this.#discoveredMatterDevices.values()).sort(
-            (a, b) => b.lastSeen - a.lastSeen,
-        );
+        const storedRecords = Array.from(this.#discoveredMatterDevices.values())
+            .filter(({ peripheral }) => this.#isReachable(peripheral.address))
+            .sort((a, b) => b.lastSeen - a.lastSeen);
 
         const foundRecords = new Array<DiscoveredBleDevice>();
         if ("instanceId" in identifier || "deviceType" in identifier) {

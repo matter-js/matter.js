@@ -26,6 +26,15 @@ class MockBleScannerClient implements BleScannerClient {
     }
 }
 
+/** A client of a transport that can lose access to a peripheral, such as one routing through proxies. */
+class MockProxyingBleScannerClient extends MockBleScannerClient {
+    readonly unreachable = new Set<string>();
+
+    isPeripheralReachable(address: string) {
+        return !this.unreachable.has(address);
+    }
+}
+
 describe("BleScanner", () => {
     before(() => MockTime.enable());
 
@@ -97,6 +106,53 @@ describe("BleScanner", () => {
 
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(1);
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1000 })).to.have.lengthOf(1);
+        });
+    });
+
+    describe("reachability", () => {
+        it("stops offering a peripheral the transport can no longer reach", () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(1);
+
+            client.unreachable.add("aa:aa:aa:aa:aa:aa");
+
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(0);
+        });
+
+        it("refuses to hand out a peripheral the transport can no longer reach", () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            client.unreachable.add("aa:aa:aa:aa:aa:aa");
+
+            expect(() => scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.throw("is currently not reachable");
+        });
+
+        it("offers a peripheral again once the transport reaches it again", () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            client.unreachable.add("aa:aa:aa:aa:aa:aa");
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(0);
+
+            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
+
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(1);
+            expect(scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.exist;
+        });
+
+        it("keeps offering peripherals for a client that states no reachability", () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(1);
         });
     });
 
