@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Instant, Logger, Time } from "@matter/general";
+import { Bytes, Diagnostic, Logger } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
 import { MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
@@ -207,9 +207,6 @@ export class NobleBleClient {
         } catch (error) {
             logger.info("Error stopping Noble:", error);
         }
-
-        // Defer listener removal so noble.stop() can finish its internal event roundtrip
-        Time.getTimer("noble-cleanup", Instant, () => noble.removeAllListeners()).start();
     }
 
     [Diagnostic.name] = "BLE client";
