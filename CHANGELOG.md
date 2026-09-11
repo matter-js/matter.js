@@ -26,8 +26,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
+- @matter/general
+    - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
+
 - @matter/protocol
     - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
+    - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
+    - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
 
 - @matter/model
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children

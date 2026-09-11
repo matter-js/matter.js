@@ -36,6 +36,21 @@ export class NetworkError extends MatterError {
 
 export class TcpDisconnectError extends NetworkError {}
 
+/**
+ * Thrown when an operation needs a transport connection that is already closed, and when a session or
+ * exchange ends because the connection beneath it went.
+ *
+ * Deliberately **not** a {@link NetworkError} and not a `TransientPeerCommunicationError`. An
+ * in-flight exchange failing with either of those reports the peer as *lost*, which closes every
+ * session with that peer regardless of transport, and a `NetworkError` additionally flags the peer
+ * for mDNS rediscovery. A connection this node has already closed, or one that dropped while the
+ * sessions bound to it are being torn down, establishes none of that: the peer may still be
+ * reachable, and the sessions to invalidate are the ones bound to that connection.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.15.1
+ */
+export class TransportClosedError extends MatterError {}
+
 export class NoAddressAvailableError extends NetworkError {}
 
 export class BindError extends NetworkError {}
