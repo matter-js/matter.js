@@ -1665,13 +1665,25 @@ export class TaskManagerBehavior extends Behavior {
                 const retiringNow = changes.filter(
                     change => change.next?.state !== undefined && isTerminal(change.next.state),
                 ).length;
-                evictable = this.internal.runs.evictableRetired(self.state.historyLimit, retiringNow);
-                for (const record of evictable) {
-                    delete runs[runKey(record.runId)];
-                }
+                evictable = this.internal.runs.evictableRetired(
+                    self.state.historyLimit,
+                    retiringNow,
+                    // The priors this write discharges, so a record it unpins is evictable by this retirement
+                    // rather than by whatever retires next.
+                    new Set(
+                        changes
+                            .filter(change => change.next?.changeSet?.length === 0)
+                            .map(change => change.record.runId),
+                    ),
+                );
             }
             for (const [key, persisted] of records) {
                 runs[key] = persisted;
+            }
+            // After the writes, never before: this transaction writes the very record whose priors it
+            // discharges, and a record evicted first would be written straight back.
+            for (const record of evictable) {
+                delete runs[runKey(record.runId)];
             }
             self.state.runs = runs;
             // High-water marks: never `consumed + 1`, or a write that lands out of allocation order lowers the

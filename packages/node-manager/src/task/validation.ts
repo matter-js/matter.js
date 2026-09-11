@@ -45,6 +45,19 @@ export const Require = {
         }
     },
 
+    /**
+     * An identifier a group task may manage: like {@link uint}, but zero is not one.
+     *
+     * Group id 0 is "no group" — the Groups cluster constrains `AddGroup`/`RemoveGroup` to `min 1` — and group
+     * key set 0 is the IPK, which commissioning owns and the reconciler refuses.
+     */
+    id(field: string, value: unknown, max: number): void {
+        Require.uint(field, value, max);
+        if (value === 0) {
+            throw new ImplementationError(`"${field}" must not be 0`);
+        }
+    },
+
     /** An object with named fields, so a definition may read them at all. An array has none. */
     params(type: string, value: unknown): void {
         if (typeof value !== "object" || value === null || Array.isArray(value)) {

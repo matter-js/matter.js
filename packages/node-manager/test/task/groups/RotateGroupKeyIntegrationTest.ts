@@ -601,7 +601,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         expect(intentStarts(peerA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
     });
 
-    it("runs a second rotation of the same key set to a different key to a different key", async () => {
+    it("runs a second rotation of the same key set to a different key", async () => {
         await using site = new MockSite();
         const { controller, deviceA, deviceB } = await twoMemberGroup(site);
 

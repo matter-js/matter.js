@@ -126,7 +126,7 @@ describe("run observation", () => {
         await using node = (await makeNode("observer-throws")).node;
 
         node.events.taskManager.runChanged.on(() => {
-            throw new Error("observer failed");
+            throw new InternalError("observer failed");
         });
 
         SyntheticTask.phasesByTag["throwing"] = [{ name: "one", run: async () => {} }];

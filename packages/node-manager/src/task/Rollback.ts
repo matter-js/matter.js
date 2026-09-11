@@ -40,6 +40,12 @@ export const Rollback: TaskDefinition<RollbackParams> = {
             if (typeof entry.key !== "string") {
                 throw new ImplementationError(`"entries[].key" must be a string`);
             }
+            if (entry.prior !== undefined) {
+                Require.params(ROLLBACK_TYPE, entry.prior);
+                if (entry.prior.mode !== "converge" && entry.prior.mode !== "maintain") {
+                    throw new ImplementationError(`"entries[].prior.mode" must be "converge" or "maintain"`);
+                }
+            }
         }
     },
 

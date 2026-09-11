@@ -81,8 +81,11 @@ nothing, so a caller still handles the refusals `run` throws.
 A rollback is a run of its own, so it too can fail — a peer that goes offline mid-undo, for instance. When it
 does, the device is left part-changed and only an operator can decide what happens next:
 
-- `retryRollback(runId)` drives the undo again, from what the original recorded.
-- `abandon(runId, reason)` gives up on it, leaving the device as it is.
+- `retryRollback(originalRunId)` drives the undo again, from what the original recorded.
+- `abandon(rollbackRunId, reason)` gives up on it, leaving the device as it is.
+
+The two take different identities: a retry is asked of the run that was undone, an abandonment of the undo
+itself. `failedRollbacks` hands you the rollback; its `status.rollbackOf` names the original.
 
 ## Seeing what is outstanding
 

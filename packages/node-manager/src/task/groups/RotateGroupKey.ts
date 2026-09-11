@@ -47,7 +47,7 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
     type: ROTATE_GROUP_KEY_TYPE,
     validate(params) {
         Require.params(ROTATE_GROUP_KEY_TYPE, params);
-        Require.uint("groupKeySetId", params.groupKeySetId, 0xffff);
+        Require.id("groupKeySetId", params.groupKeySetId, 0xffff);
         Require.bytes("newEpochKey", params.newEpochKey, 16);
     },
 
