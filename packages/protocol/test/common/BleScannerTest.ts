@@ -208,6 +208,81 @@ describe("BleScanner", () => {
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(0);
         });
 
+        it("hands a running discovery a peripheral the transport reaches again", async () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const discovery = scanner.findCommissionableDevicesContinuously(
+                { longDiscriminator: 1737 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            await settleDiscovery();
+
+            client.unreachable.add("aa:aa:aa:aa:aa:aa");
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+            expect(candidates).to.have.lengthOf(0);
+
+            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await discovery;
+        });
+
+        it("hands a discovery a peripheral that became unreachable before the discovery started", async () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            // Discovered through a transport that is gone by the time commissioning starts, which is what a BLE
+            // proxy power-cycled between two commissioning runs looks like.
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            client.unreachable.add("aa:aa:aa:aa:aa:aa");
+
+            const candidates = new Array<string>();
+            const discovery = scanner.findCommissionableDevicesContinuously(
+                { longDiscriminator: 1737 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            await settleDiscovery();
+            expect(candidates).to.have.lengthOf(0);
+
+            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await discovery;
+        });
+
+        it("offers a peripheral once however often it advertises", async () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const discovery = scanner.findCommissionableDevicesContinuously(
+                { longDiscriminator: 1737 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            await settleDiscovery();
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await discovery;
+        });
+
         it("keeps offering peripherals for a client that states no reachability", () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);

@@ -396,7 +396,10 @@ export class BleScanner implements Scanner {
                 }
             }
 
-            await this.#registerWaiterPromise(queryKey, remainingTime, false, queryResolver);
+            // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
+            // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
+            // tracking why it was not one before.
+            await this.#registerWaiterPromise(queryKey, remainingTime, true, queryResolver);
         }
         await this.#client.stopScanning();
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
