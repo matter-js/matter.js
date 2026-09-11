@@ -270,6 +270,24 @@ describe("BleScanner", () => {
             await discovery;
         });
 
+        it("purges an unreachable cached peripheral when a discovery asks to ignore existing records", async () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            client.unreachable.add("aa:aa:aa:aa:aa:aa");
+
+            const discovery = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10), true);
+            await settleDiscovery();
+
+            // The purged record must not come back through a reachability change alone.
+            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
+            await MockTime.advance(Seconds(11));
+
+            expect(await discovery).to.have.lengthOf(0);
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(0);
+        });
+
         it("keeps offering peripherals for a client that states no reachability", () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);
