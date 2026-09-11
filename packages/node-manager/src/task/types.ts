@@ -64,6 +64,11 @@ export interface TaskStatus {
     type: string;
     state: TaskState;
     phaseIndex: number;
+    /**
+     * Whether the run reached the device. A run can fail, be cancelled or be abandoned having changed nothing,
+     * and an operator acts on those two cases differently.
+     */
+    wrote: boolean;
     /** Id the caller of `run` asked for this task under, if it supplied one. */
     externalId?: string;
     error?: string;

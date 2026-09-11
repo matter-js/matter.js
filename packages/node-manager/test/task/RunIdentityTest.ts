@@ -23,7 +23,7 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { kindOf, FakePeer, onTerminalWrite, recordFor, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, onTerminalWrite, pumpUntil, recordFor, SyntheticTask } from "./helpers.js";
 
 /** Resolves peers to fakes, so a phase records a real changeSet and its rollback has something to undo. */
 class TestTaskManager extends TaskManagerBehavior {
@@ -51,16 +51,6 @@ function touchingPeer(id: string) {
     TestTaskManager.peers.set(id, peer);
     TestTaskManager.reconcilerPeer = peer;
     return peer;
-}
-
-async function pumpUntil(name: string, condition: () => Promise<boolean>) {
-    for (let i = 0; i < 10_000; i++) {
-        if (await condition()) {
-            return;
-        }
-        await MockTime.advance(1);
-    }
-    throw new Error(`Condition "${name}" never held`);
 }
 
 /** Refuses to be rebuilt from its persisted parameters, as a custom task validating them might. */

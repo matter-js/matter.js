@@ -7,7 +7,7 @@
 import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
-import { Immutable, InternalError, Observable } from "@matter/general";
+import { Immutable, InternalError, MaybePromise, Observable } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 import { Status } from "@matter/types";
 
@@ -48,6 +48,16 @@ export const SyntheticTask: TaskDefinition<{ tag: string }> & {
  * Mirrors `TERMINAL_STATES` in `RunStore`. One place, because a waiter that misses a state polls for a run
  * that has already finished — and every copy of this list except this one omitted `abandoned`.
  */
+export async function pumpUntil(name: string, condition: () => MaybePromise<boolean>): Promise<void> {
+    for (let i = 0; i < 10_000; i++) {
+        if (await condition()) {
+            return;
+        }
+        await MockTime.advance(1);
+    }
+    throw new InternalError(`Condition "${name}" never held`);
+}
+
 export function isTerminalState(state: string): boolean {
     return ["completed", "failed", "cancelled", "abandoned"].includes(state);
 }
