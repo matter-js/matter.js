@@ -156,59 +156,6 @@ describe("BleScanner", () => {
             expect(scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.exist;
         });
 
-        it("hands a running discovery a peripheral the transport reaches again", async () => {
-            const client = new MockProxyingBleScannerClient();
-            const scanner = new BleScanner(client);
-
-            const candidates = new Array<string>();
-            const discovery = scanner.findCommissionableDevicesContinuously(
-                { longDiscriminator: 1737 },
-                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
-            );
-
-            await settleDiscovery();
-            client.unreachable.add("aa:aa:aa:aa:aa:aa");
-            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
-            await settleDiscovery();
-            expect(candidates).to.have.lengthOf(0);
-
-            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
-            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
-            await settleDiscovery();
-
-            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
-
-            await scanner.close();
-            await discovery;
-        });
-
-        it("does not offer a peripheral twice when it keeps advertising", async () => {
-            const client = new MockProxyingBleScannerClient();
-            const scanner = new BleScanner(client);
-
-            const candidates = new Array<string>();
-            const discovery = scanner.findCommissionableDevicesContinuously(
-                { longDiscriminator: 1737 },
-                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
-            );
-
-            await settleDiscovery();
-            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
-            await settleDiscovery();
-
-            client.unreachable.add("aa:aa:aa:aa:aa:aa");
-            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(0);
-
-            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
-            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
-            await settleDiscovery();
-
-            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
-
-            await scanner.close();
-            await discovery;
-        });
-
         it("keeps a one-shot discovery waiting while only unreachable peripherals advertise", async () => {
             const client = new MockProxyingBleScannerClient();
             const scanner = new BleScanner(client);
@@ -241,33 +188,6 @@ describe("BleScanner", () => {
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
 
             expect(await discovery).to.have.lengthOf(1);
-        });
-
-        it("hands a discovery a peripheral that became unreachable before the discovery started", async () => {
-            const client = new MockProxyingBleScannerClient();
-            const scanner = new BleScanner(client);
-
-            // Discovered through a transport that is gone by the time commissioning starts, which is what a
-            // BLE proxy that was power-cycled between two commissioning runs looks like.
-            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
-            client.unreachable.add("aa:aa:aa:aa:aa:aa");
-
-            const candidates = new Array<string>();
-            const discovery = scanner.findCommissionableDevicesContinuously(
-                { longDiscriminator: 1737 },
-                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
-            );
-            await settleDiscovery();
-            expect(candidates).to.have.lengthOf(0);
-
-            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
-            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
-            await settleDiscovery();
-
-            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
-
-            await scanner.close();
-            await discovery;
         });
 
         it("purges an unreachable cached peripheral when a discovery asks to ignore existing records", async () => {

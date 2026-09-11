@@ -56,8 +56,6 @@ export type DiscoveredBleDevice = {
 type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
     serviceDataHex: string;
     lastSeen: number;
-    /** Set while the transport cannot reach the peripheral, so its return counts as a new discovery. */
-    withheld: boolean;
 };
 
 /** Entries older than this are treated as dead addresses when matching service data arrives from a new address. */
@@ -87,12 +85,11 @@ export class BleScanner implements Scanner {
     }
 
     public getDiscoveredDevice(address: string): DiscoveredBleDevice {
-        this.#refreshReachability();
         const device = this.#discoveredMatterDevices.get(address);
         if (device === undefined) {
             throw new BleError(`No device found for address ${address}`);
         }
-        if (device.withheld) {
+        if (!this.#isReachable(address)) {
             throw new BleError(`Device with address ${address} is currently not reachable`);
         }
         return device;
@@ -100,20 +97,6 @@ export class BleScanner implements Scanner {
 
     #isReachable(address: string) {
         return this.#client.isPeripheralReachable?.(address) ?? true;
-    }
-
-    /**
-     * Reconcile every record with what the transport reaches now. Reachability is a property of the record, updated
-     * here and when an advertisement writes one, so matching a record and deciding whether it may be offered stay
-     * separate concerns.
-     */
-    #refreshReachability() {
-        if (this.#client.isPeripheralReachable === undefined) {
-            return;
-        }
-        for (const record of this.#discoveredMatterDevices.values()) {
-            record.withheld = !this.#isReachable(record.peripheral.address);
-        }
     }
 
     /**
@@ -184,12 +167,7 @@ export class BleScanner implements Scanner {
                 CM: 1, // Can be no other mode,
                 addresses: [{ type: "ble", peripheralAddress: address }],
             };
-            const existing = this.#discoveredMatterDevices.get(address);
-            const deviceExisting = existing !== undefined;
-            const withheld = !this.#isReachable(address);
-            // A peripheral withheld as unreachable was never offered, so its advertisement resolves waiters that
-            // ignore updates — otherwise a continuous discovery would never learn the transport reaches it again.
-            const isUpdatedRecord = deviceExisting && !existing.withheld;
+            const deviceExisting = this.#discoveredMatterDevices.has(address);
             const serviceDataHex = Bytes.toHex(manufacturerServiceData);
             const now = Time.nowMs;
 
@@ -214,12 +192,12 @@ export class BleScanner implements Scanner {
                 hasAdditionalAdvertisementData,
                 serviceDataHex,
                 lastSeen: now,
-                withheld,
             });
 
             const queryKey = this.#findCommissionableQueryIdentifier(deviceData);
-            if (queryKey !== undefined && !withheld) {
-                this.#finishWaiter(queryKey, true, isUpdatedRecord);
+            // An unreachable peripheral is no candidate, so its advertisement must not end a discovery's wait.
+            if (queryKey !== undefined && this.#isReachable(address)) {
+                this.#finishWaiter(queryKey, true, deviceExisting);
             }
         } catch (error) {
             logger.debug(
@@ -300,10 +278,10 @@ export class BleScanner implements Scanner {
         } else return "*";
     }
 
-    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeWithheld = false) {
+    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnreachable = false) {
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
         const storedRecords = Array.from(this.#discoveredMatterDevices.values())
-            .filter(record => includeWithheld || !record.withheld)
+            .filter(({ peripheral }) => includeUnreachable || this.#isReachable(peripheral.address))
             .sort((a, b) => b.lastSeen - a.lastSeen);
 
         const foundRecords = new Array<DiscoveredBleDevice>();
@@ -350,7 +328,6 @@ export class BleScanner implements Scanner {
             return [];
         }
 
-        this.#refreshReachability();
         if (ignoreExistingRecords) {
             // We want to have a fresh discovery result, so clear out the stored records because they might be outdated
             for (const record of this.#getCommissionableDevices(identifier, true)) {
@@ -362,7 +339,6 @@ export class BleScanner implements Scanner {
             await this.#client.startScanning();
             await this.#registerWaiterPromise(queryKey, timeout);
 
-            this.#refreshReachability();
             storedRecords = this.#getCommissionableDevices(identifier);
             await this.#client.stopScanning();
         }
@@ -404,7 +380,6 @@ export class BleScanner implements Scanner {
         );
 
         while (!canceled && !this.#closed) {
-            this.#refreshReachability();
             this.#getCommissionableDevices(identifier).forEach(({ deviceData }) => {
                 const { deviceIdentifier } = deviceData;
                 if (!discoveredDevices.has(deviceIdentifier)) {
@@ -424,12 +399,10 @@ export class BleScanner implements Scanner {
             await this.#registerWaiterPromise(queryKey, remainingTime, false, queryResolver);
         }
         await this.#client.stopScanning();
-        this.#refreshReachability();
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
     }
 
     getDiscoveredCommissionableDevices(identifier: CommissionableDeviceIdentifiers): CommissionableDevice[] {
-        this.#refreshReachability();
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
     }
 
