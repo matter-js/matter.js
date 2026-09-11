@@ -703,7 +703,10 @@ describe("run identity", () => {
             refusal = e;
         }
         expect(refusal).instanceOf(TaskParamsRejectedError);
-        expect((refusal as Error).message).contains("malformed persisted parameters");
+        // The reason travels as the cause. A definition's `validate` is application code and may name a value
+        // in its message, and parameters carry raw group keys, so the refusal itself must not repeat it.
+        expect((refusal as Error).message).not.contains("malformed persisted parameters");
+        expect(((refusal as Error).cause as Error | undefined)?.message).contains("malformed persisted parameters");
         expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.state)).equals("running");
     });
 });

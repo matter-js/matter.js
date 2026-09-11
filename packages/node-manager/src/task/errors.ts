@@ -260,7 +260,7 @@ export class TaskNotInFlightError extends TaskRefusedError {
 }
 
 /**
- * There is no undo of this run to retry: nothing was written, the task declined to be reverted, or the write
+ * There is no undo of this run to retry: nothing was written, the task declined to be rolled back, or the write
  * that would have recorded the undo was refused.
  *
  * Ordinary state rather than a caller's mistake: a run that completes cleanly never gets a rollback.
