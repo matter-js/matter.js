@@ -56,6 +56,7 @@ export class Environment implements ServiceProvider, Lifetime.Owner {
     #services?: Map<Environmental.ServiceType, Environmental.Service | null>;
     #name: string;
     #parent?: Environment;
+    #logOrigin?: Diagnostic.Origin;
     #lifetime: Lifetime;
     #added = Observable<[type: Environmental.ServiceType, instance: {}]>();
     #deleted = Observable<[type: Environmental.ServiceType, instance: {}]>();
@@ -245,6 +246,30 @@ export class Environment implements ServiceProvider, Lifetime.Owner {
      */
     get name() {
         return this.#name;
+    }
+
+    /**
+     * This environment as the origin of a log message.
+     *
+     * A name and its place in the hierarchy, frozen: a log message travels to destinations the application installs,
+     * and an environment would hand each of them every service it holds.  Parentage is fixed at construction, so the
+     * view cannot drift from the environment it describes.
+     */
+    get logOrigin(): Diagnostic.Origin {
+        if (this.#logOrigin === undefined) {
+            this.#logOrigin = Object.freeze({ name: this.#name, parent: this.#parent?.logOrigin });
+        }
+        return this.#logOrigin;
+    }
+
+    /**
+     * Create a {@link Logger} whose messages name this environment as their origin.
+     *
+     * Use this rather than {@link Logger.get} for components that belong to a specific node, so a destination can
+     * attribute their messages even when they emit from a socket or timer callback.
+     */
+    logger(facility: string) {
+        return Logger.get(facility, this.logOrigin);
     }
 
     /**

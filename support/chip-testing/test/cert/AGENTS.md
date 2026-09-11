@@ -2306,29 +2306,26 @@ an exchange still open it suspends before marking the session closed. `recordSev
 controller's sessions until the severed id is gone or `EVICTION_TIMEOUT` expires — a single immediate
 read passes only by luck of the synchronous prefix.
 
-A device-log check for the same event was written first and **cannot work**. The finding is worth
-recording, because the symptom looks exactly like a device that fails to evict:
+**The device half reads from the DUT's own log.** `sessionEvictionCheck` matches an ordered pair —
+the DUT naming the connection that dropped, then the session it dropped with it — because either line
+alone is ambiguous: a device may reuse a session tag it has closed, and it may drop a connection of
+its own accord. The check returns its record rather than recording it, so `recordSeveredSession` puts
+both halves of the step in the evidence whichever one fails. `sessionGoneCheck` remains the gating
+claim, because it is the controller's held state the plan speaks about.
 
-- A matter.js device *does* drop the session. An in-process reproduction (two nodes in one process
-  over a real TCP session) clears it within tens of milliseconds of the sever, and `ExchangeManager`
-  writes `TCP connection dropped, evicting bound sessions: <channel>` followed by `Evicting session
-  due to TCP disconnect: <session>` for the inbound channel.
-- Those lines never reach the device's log, and this is **measured, not deduced** — reasoning from how
-  `AsyncLocalStorage` ought to propagate through a socket created under a tagged `listen()` leads to
-  the opposite (wrong) conclusion, so it has been re-raised in review more than once. The two
-  measurements: a socket's `'close'` handler runs with no store at all, even when the close is
-  initiated synchronously from inside `als.run()`; and in an actual run the pair appears in the run's
-  stdout while `device-dut.log` contains neither line. This package's attribution is keyed by the
-  device whose `initialize()`/`start()`/`stop()`/`close()` is on the stack (`src/cert/index.ts`), so an
-  unattributed line falls through to `console.error`.
-- The controller's identical lines *are* attributed, because a step severs inside the adapter's own
-  tagged call and `TcpChannel.close()` reaches `ExchangeManager` synchronously from there. The
-  asymmetry between the two logs is attribution, not behaviour — do not read it as a device ignoring a
-  dropped connection.
+**Which lines a device-log check may rest on.** A device's eviction lines are written from its
+socket's close callback, and a socket's `'close'` handler runs with no `AsyncLocalStorage` store at
+all — even when the close is initiated synchronously inside `als.run()`. Attribution keyed on the
+device whose `initialize()`/`start()`/`stop()`/`close()` is on the stack therefore loses them to the
+run's console, which is why this check could not be written before.
 
-`sessionEvictionUnreadableCheck` records the device half as an `accepted` gap, which leaves the step
-passing while keeping the gap in the bundle. Any device-log check for something a device does from a
-socket or timer callback, rather than while serving an interaction, has the same problem.
+`ExchangeManager` and `SessionManager` — and only those two so far — log through
+`Environment.logger()`, so their messages name the environment they originate from and
+`src/cert/log-origins.ts` routes them whatever the call stack says. A device-log check for something
+one of those two does from a socket or timer callback is therefore ordinary. Every other component
+still logs through a module-level `Logger.get()`, keeps the old attribution, and keeps the old
+limitation: do not rest a check on a callback-written line from a component that has not been
+converted.
 
 **What `TC-SC-8.2`'s controller-side check does and does not prove.** `CertSessionInfo`'s three
 payload fields are not independent evidence: all come from the session's channel, and the channel type

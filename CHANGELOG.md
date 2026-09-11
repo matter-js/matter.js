@@ -27,10 +27,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/general
+    - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
+    - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
     - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
 
 - @matter/protocol
+    - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
     - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
     - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone
     - Fix: A running BLE discovery is woken by any advertisement of a device matching its query, not only by an address it has never seen, so a device that becomes a candidate again during the discovery is handed to it. Each device is still offered once per discovery

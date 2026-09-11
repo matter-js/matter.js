@@ -15,6 +15,12 @@ import { Bytes } from "#util/Bytes.js";
 
 const LOGGER_NAME = "UnitTest";
 
+/** ANSI text with its escapes removed, so an assertion reads the characters a person sees. */
+function plainly(text: string) {
+    // eslint-disable-next-line no-control-regex
+    return text.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
 type LogOptions = {
     format?: string;
     levels?: typeof Logger.logLevels;
@@ -690,6 +696,74 @@ describe("Logger", () => {
             );
         });
     }
+
+    describe("origin", () => {
+        function captureMessages(fn: () => void) {
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const captured = new Array<Diagnostic.Message>();
+            dest.add = message => {
+                captured.push(message);
+            };
+            try {
+                fn();
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+            }
+            return captured;
+        }
+
+        const origin = { name: "node-1", parent: { name: "root" } };
+
+        it("stamps the origin bound to the logger", () => {
+            const [message] = captureMessages(() => Logger.get("OriginTest", origin).info("hello"));
+            expect(message.origin).equals(origin);
+        });
+
+        it("leaves the origin undefined when the logger has none", () => {
+            const [message] = captureMessages(() => Logger.get("OriginTest").info("hello"));
+            expect(message.origin).equals(undefined);
+        });
+
+        it("renders the origin ahead of the facility", () => {
+            const line = captureOne(() => Logger.get("OriginTest", origin).info("hello"));
+            expect(line.message).match(/INFO \[node-1\] OriginTest hello$/);
+        });
+
+        it("renders nothing for a message with no origin", () => {
+            const line = captureOne(() => Logger.get("OriginTest").info("hello"));
+            expect(line.message).match(/INFO OriginTest hello$/);
+        });
+
+        it("keeps siblings apart in a format that pads the label to a column", () => {
+            function ansiLabel(name: string) {
+                const [message] = captureMessages(() =>
+                    Logger.get("OriginTest", { name, parent: { name: "root" } }).info("hello"),
+                );
+                return plainly(LogFormat.formats.ansi(message)).replace(/^\S+ \S+\s+/, "");
+            }
+
+            const one = ansiLabel("controller-one");
+            const two = ansiLabel("controller-two");
+
+            expect(one).not.equals(two);
+            expect(one.indexOf("OriginTest")).equals(two.indexOf("OriginTest"));
+        });
+
+        it("brackets the origin in every format", () => {
+            const [message] = captureMessages(() => Logger.get("OriginTest", origin).info("hello"));
+
+            expect(LogFormat.formats.plain(message)).contains("[node-1]");
+            expect(plainly(LogFormat.formats.ansi(message))).contains("[node-1]");
+            expect(LogFormat.formats.html(message)).contains("[node-1]");
+        });
+
+        // The outermost environment names every message of a single-node process, which distinguishes nothing
+        it("renders nothing for an origin with no parent", () => {
+            const line = captureOne(() => Logger.get("OriginTest", { name: "root" }).info("hello"));
+            expect(line.message).match(/INFO OriginTest hello$/);
+        });
+    });
 
     describe("console logging", () => {
         itUsesCorrectConsoleMethod("debug");
