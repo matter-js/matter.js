@@ -27,7 +27,7 @@ import {
     InProcessControllerAdapter,
     MATTERJS_CONTROLLER_PICS,
 } from "./InProcessControllerAdapter.js";
-import { registerLogOwner, registrationForOwner, unregisterLogOwner } from "./log-owners.js";
+import { registerLogOwner, routeOwnedLine } from "./log-owners.js";
 
 registerControllerAdapterFactory(
     "matterjs",
@@ -78,11 +78,8 @@ Boot.init(() => {
         write(text: string, message) {
             // The message names the node that wrote it, so a line from a socket or timer callback -- which no call
             // stack attributes -- still reaches that node's log
-            const owned = registrationForOwner(message.owner);
-            if (owned !== undefined) {
-                if (owned.kind === "device") {
-                    owned.queue.push(text);
-                }
+            const routing = routeOwnedLine(message, "device", text);
+            if (routing !== "unowned") {
                 return;
             }
 
@@ -106,7 +103,11 @@ Boot.init(() => {
     });
 });
 
-function runTaggedForDevice<T>(id: string, fn: () => Promise<T>): Promise<T> {
+/**
+ * Runs `fn` with `id` as the fallback attribution for any log line it produces, for the components that do not yet
+ * name their own owner.
+ */
+export function runTaggedForDevice<T>(id: string, fn: () => Promise<T>): Promise<T> {
     return activeDeviceId.run(id, fn);
 }
 
@@ -115,19 +116,19 @@ function runTaggedForDevice<T>(id: string, fn: () => Promise<T>): Promise<T> {
  * subject by delegation, so `cert-dsl.ts` (which cannot depend on matter.js) never needs to
  * construct or cast one itself.
  *
- * Log attribution is best-effort: `initialize()`/`start()`/`stop()`/`close()` tag the matter.js
- * `Logger` sink with this device's id via `AsyncLocalStorage`, which Node propagates through any
- * async work descending from those calls (including most of a server node's own background
- * activity).
+ * A line reaches this device's log by either of two routes. A component that logs through
+ * `Environment.logger()` — `ExchangeManager` and `SessionManager` today — names its own environment on
+ * every message, and `log-owners.ts` routes by that whatever the call stack holds, which is what makes
+ * a line written from a socket or timer callback readable. Everything else still logs through a
+ * module-level `Logger.get()` and is attributed by the `AsyncLocalStorage` tag that
+ * `initialize()`/`start()`/`stop()`/`close()` install.
  *
- * **A cert test may now declare several devices, so several of these do run concurrently.** Each
- * node's own transport and storage are created inside `runTaggedForDevice`, so its own lines carry
- * its own tag. What this cannot tag correctly is a service resolved lazily from the shared parent
- * environment during whichever device happened to start first: that resolution captures the first
- * device's tag for good, and lines it later emits on behalf of another device land in the first
- * device's log. Attribution is therefore reliable for a device's own interactions — which is what a
- * step's device-log checks read — and not for shared-service chatter. A step that must attribute a
- * line to one of several devices should assert on something only that device says.
+ * **A cert test may declare several devices, so several of these run concurrently.** The tag route has
+ * a limit the owner route does not: a service resolved lazily from the shared parent environment
+ * during whichever device happened to start first captures that device's tag for good, and lines it
+ * later emits on behalf of another device land in the first device's log. For a component on the tag
+ * route, a step that must attribute a line to one of several devices should assert on something only
+ * that device says.
  */
 class MatterJsCertDevice implements CertDevice {
     readonly flavor: DeviceFlavor = "matterjs";
@@ -139,7 +140,7 @@ class MatterJsCertDevice implements CertDevice {
     #inner: Subject;
     #id: string;
     #queue: LineQueue;
-    #env: Environment;
+    #releaseLogOwner: () => void;
 
     constructor(inner: Subject, id: string, env: Environment) {
         if (deviceQueues.has(id)) {
@@ -152,10 +153,9 @@ class MatterJsCertDevice implements CertDevice {
 
         this.#inner = inner;
         this.#id = id;
-        this.#env = env;
         this.#queue = new LineQueue();
         deviceQueues.set(id, this.#queue);
-        registerLogOwner(env, "device", this.#queue);
+        this.#releaseLogOwner = registerLogOwner(env, "device", this.#queue);
         this.log = new LogFollower(this.#queue, id);
     }
 
@@ -191,7 +191,7 @@ class MatterJsCertDevice implements CertDevice {
         try {
             await runTaggedForDevice(this.#id, () => this.#inner.close());
         } finally {
-            unregisterLogOwner(this.#env);
+            this.#releaseLogOwner();
             deviceQueues.delete(this.#id);
             this.#queue.close();
         }

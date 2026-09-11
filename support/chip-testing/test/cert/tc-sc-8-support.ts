@@ -662,7 +662,12 @@ export async function recordLargePayloadSession(cx: CertStepContext, ref: TcpRef
  * The gating claim for the plan's "the secure session with DUT is inactive" remains the TH's held
  * state ({@link sessionGoneCheck}); this is the device half of the same fact.
  */
-export async function recordSessionEviction(cx: CertStepContext, severed: TcpSessionFacts, from: number) {
+export async function recordSessionEviction(
+    cx: CertStepContext,
+    severed: TcpSessionFacts,
+    from: number,
+    timeout: Duration = LOG_TIMEOUT,
+) {
     const dut = cx.devices.dut;
 
     const eviction = await expectSequence(
@@ -671,7 +676,7 @@ export async function recordSessionEviction(cx: CertStepContext, severed: TcpSes
         `the DUT evicting session ${severed.tag} on the connection from ${severed.channel}`,
         { matterjs: [new RegExp(`Evicting session due to TCP disconnect: ${literally(severed.tag)}`)] },
         from,
-        LOG_TIMEOUT,
+        timeout,
     );
 
     record(cx, eviction, `the DUT dropped session ${severed.tag}`);
@@ -711,7 +716,7 @@ const EVICTION_POLL = Millis(50);
  * Severs the connection beneath the session `session` names and records that the TH no longer holds it,
  * plus the DUT's own eviction ({@link recordSessionEviction}).
  *
- * `timeout` bounds the wait for the eviction; a case against a slower device may widen it.
+ * `timeout` bounds both halves of the wait — the controller's poll and the DUT's own log line.
  */
 export async function recordSeveredSession(
     cx: CertStepContext,
@@ -720,7 +725,9 @@ export async function recordSeveredSession(
     timeout: Duration = EVICTION_TIMEOUT,
 ) {
     const severed = session.require();
-    const from = cx.devices.dut.log.mark();
+    // Settled, not just marked: the pump ingests asynchronously, so a line the device wrote before the sever could
+    // otherwise land after the mark and be read as the eviction this step causes
+    const from = await cx.devices.dut.log.markSettled();
 
     await cx.controllers.th.node(ref).severTransportConnection(severed.controllerSessionId);
 
@@ -739,7 +746,7 @@ export async function recordSeveredSession(
         },
     ]);
 
-    await recordSessionEviction(cx, severed, from);
+    await recordSessionEviction(cx, severed, from, timeout);
 }
 
 /**

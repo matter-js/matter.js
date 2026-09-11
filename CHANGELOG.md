@@ -27,10 +27,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/general
-    - Enhancement: A log message names the component that emitted it via `Diagnostic.Message.owner`, and `Environment.logger()` creates a logger that stamps its environment, so a log destination can attribute a line written from a socket or timer callback
+    - Enhancement: A log message names the component that emitted it via `Diagnostic.Message.owner`, and `Environment.logger()` creates a logger that stamps its environment, so a log destination can attribute a line written from a socket or timer callback. `Logger.get()` takes the owner directly, and `Environment.parent` exposes the enclosing environment
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
 
 - @matter/protocol
+    - Enhancement: `ExchangeManager` and `SessionManager` take a logger through their context and are given one bound to their node's environment, so their log lines name the node that wrote them
     - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
     - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
     - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error

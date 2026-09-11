@@ -71,7 +71,7 @@ const UDP_HELD: CertSessionInfo = {
 };
 
 const evictionLine = (session = SESSION) =>
-    `${at(5)} DEBUG ExchangeManager Evicting session due to TCP disconnect: ${session}(tcp)`;
+    `${at(5)} INFO ExchangeManager Evicting session due to TCP disconnect: ${session}(tcp)`;
 
 const INVOKE_EXCHANGE = "2c57";
 
@@ -553,7 +553,7 @@ describe("tcpSessionIdOf", () => {
 
 describe("recordSeveredSession", () => {
     /** A TH whose `sessions()` answers each element of `reads` in turn, and the last one thereafter. */
-    function thReading(reads: CertSessionInfo[][], deviceLines: string[] = [evictionLine()]) {
+    function thReading(reads: CertSessionInfo[][], onSever: string[] = [evictionLine()]) {
         const severed = new Array<number>();
         let call = 0;
         const th = {
@@ -569,20 +569,26 @@ describe("recordSeveredSession", () => {
             node: () =>
                 fakeCertNode({
                     sessions: async () => reads[Math.min(call++, reads.length - 1)],
-                    severTransportConnection: async id => void severed.push(id),
+                    // The device writes its eviction line in reaction to the sever, which is what lets a case
+                    // distinguish it from an eviction that predates the step
+                    severTransportConnection: async id => {
+                        severed.push(id);
+                        for (const text of onSever) {
+                            source.push(text);
+                        }
+                        source.close();
+                    },
                 }),
             group: (): never => {
                 throw new InternalError("not used by these tests");
             },
         } satisfies ControllerAdapter;
 
+        // Seeded with an eviction of the same session from before the step, so a check that reads the log without
+        // separating cause from effect matches the wrong line
         const source = new LineQueue();
-        for (const text of deviceLines) {
-            source.push(text);
-        }
-        // The log ends where these lines do, so a pattern that cannot match fails at once rather than
-        // waiting out the follower's budget
-        source.close();
+        source.push(evictionLine());
+
         const dut: CertDevice = {
             id: "dut",
             app: "all-clusters",
@@ -662,6 +668,16 @@ describe("recordSeveredSession", () => {
 
         expect(checks[0].verdict).equal("pass");
         expect(reads()).equal(3);
+    });
+
+    // The device's log already holds an eviction of this session from earlier in the case; only one written after
+    // the sever is evidence for this step
+    it("does not accept an eviction that predates the sever", async () => {
+        const { cx, checks } = thReading([[]], []);
+
+        await expect(recordSeveredSession(cx, "ref", refHolding(), POLL_BOUND)).rejectedWith(CertCheckFailedError);
+
+        expect(checks.map(check => check.verdict)).deep.equal(["pass", "fail"]);
     });
 
     // A timeout must not read as success — the severed session still being held is the failure

@@ -2312,16 +2312,19 @@ session on the same device is not mistaken for this one. It is the device half o
 `sessionGoneCheck` remains the gating claim, because it is the controller's held state the plan
 speaks about.
 
-This check was impossible until matter.js began naming a message's owner. A device's eviction lines
-are written from its socket's close callback, and attribution used to key on the device whose
-`initialize()`/`start()`/`stop()`/`close()` was on the stack — a socket's `'close'` handler runs with
-no `AsyncLocalStorage` store at all, even when the close is initiated synchronously inside `als.run()`,
-so those lines fell through to the run's console and `device-dut.log` held neither of them. Each node
-now logs through `Environment.logger()`, every message carries the environment that emitted it, and
-`src/cert/log-owners.ts` routes it to that node's log whatever the call stack says. A device-log check
-for something a device does from a socket or timer callback is therefore ordinary now — but only for a
-component that logs through its environment; one still using a module-level `Logger.get()` writes
-lines nobody can attribute.
+**Which lines a device-log check may rest on.** A device's eviction lines are written from its
+socket's close callback, and a socket's `'close'` handler runs with no `AsyncLocalStorage` store at
+all — even when the close is initiated synchronously inside `als.run()`. Attribution keyed on the
+device whose `initialize()`/`start()`/`stop()`/`close()` is on the stack therefore loses them to the
+run's console, which is why this check could not be written before.
+
+`ExchangeManager` and `SessionManager` — and only those two so far — log through
+`Environment.logger()`, so their messages name the environment that emitted them and
+`src/cert/log-owners.ts` routes them whatever the call stack says. A device-log check for something
+one of those two does from a socket or timer callback is therefore ordinary. Every other component
+still logs through a module-level `Logger.get()`, keeps the old attribution, and keeps the old
+limitation: do not rest a check on a callback-written line from a component that has not been
+converted.
 
 **What `TC-SC-8.2`'s controller-side check does and does not prove.** `CertSessionInfo`'s three
 payload fields are not independent evidence: all come from the session's channel, and the channel type

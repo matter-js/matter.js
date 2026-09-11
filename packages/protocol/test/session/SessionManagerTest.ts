@@ -18,6 +18,7 @@ import {
     ImplementationError,
     Key,
     Logger,
+    LogLevel,
     MemoryStorageDriver,
     Millis,
     PrivateKey,
@@ -355,6 +356,8 @@ describe("SessionManager", () => {
             const dest = Logger.destinations.default;
             const original = { ...dest };
             const owners = new Array<unknown>();
+            // The level is process-global and other suites move it; the line under test is INFO
+            dest.level = LogLevel.INFO;
             dest.add = message => {
                 if (String(message.values[1]).startsWith("Closing least recently used session")) {
                     owners.push(message.owner);
@@ -383,7 +386,10 @@ describe("SessionManager", () => {
                 await sessionManager.close();
             }
 
-            expect(owners).deep.equals([environment]);
+            // Identity, not deep equality: an Environment exposes no own enumerable properties, so deep equality
+            // holds between any two of them and would accept attribution to the wrong node
+            expect(owners.length).equals(1);
+            expect(owners[0]).equals(environment);
         });
     });
 

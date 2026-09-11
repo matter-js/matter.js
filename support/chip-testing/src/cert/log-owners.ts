@@ -4,45 +4,77 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment } from "@matter/main";
+import { Diagnostic, InternalError } from "@matter/main";
 import { LineQueue } from "@matter/testing";
 
 /**
- * What a registered log owner is, so a destination writes only the lines it owns.
+ * Which kind of participant owns a log line, so a destination writes only its own.
  */
 export type LogOwnerKind = "device" | "adapter";
+
+/**
+ * What a destination does with a message.
+ *
+ * `foreign` and `unowned` differ: a foreign line belongs to another destination and is already accounted for, while an
+ * unowned line has nobody to write it and must still reach the fallback, or a crash reported through the logger
+ * disappears.
+ */
+export type LogRouting = "claimed" | "foreign" | "unowned";
 
 interface Registration {
     kind: LogOwnerKind;
     queue: LineQueue;
 }
 
-const registrations = new Map<Environment, Registration>();
+/**
+ * Weak so an owner that is never unregistered — a device whose `initialize()` threw, a run abandoned mid-test — cannot
+ * pin its environment graph for the process lifetime.
+ */
+const registrations = new WeakMap<Diagnostic.Owner, Registration>();
 
 /**
- * Claim every log message a node's {@link Environment} emits for {@link queue}.
+ * Claim every log message `owner` emits for {@link queue}, until the returned function is called.
  *
  * matter.js stamps each message with the environment of the component that wrote it, so a line reaches the right log
  * even when it comes from a socket or timer callback, where no call stack identifies the node.
  */
-export function registerLogOwner(env: Environment, kind: LogOwnerKind, queue: LineQueue) {
-    registrations.set(env, { kind, queue });
-}
+export function registerLogOwner(owner: Diagnostic.Owner, kind: LogOwnerKind, queue: LineQueue) {
+    const existing = registrations.get(owner);
+    if (existing !== undefined) {
+        throw new InternalError(
+            `Log owner "${owner.name}" is already registered as a ${existing.kind}; two owners sharing one ` +
+                "environment would misattribute each other's logs",
+        );
+    }
 
-export function unregisterLogOwner(env: Environment) {
-    registrations.delete(env);
+    const registration: Registration = { kind, queue };
+    registrations.set(owner, registration);
+
+    return () => {
+        // Only our own registration: a later owner of the same environment keeps its routing
+        if (registrations.get(owner) === registration) {
+            registrations.delete(owner);
+        }
+    };
 }
 
 /**
- * The registration a message's owner belongs to, if any.
+ * Write `text` to the log its message belongs to.
  *
- * A node may build services in a child environment, so this searches the environment's ancestors as well.
+ * A node builds services in child environments, so this searches the message owner's ancestors as well.
  */
-export function registrationForOwner(owner: unknown): Registration | undefined {
-    for (let env = owner instanceof Environment ? owner : undefined; env !== undefined; env = env.parent) {
-        const registration = registrations.get(env);
-        if (registration !== undefined) {
-            return registration;
+export function routeOwnedLine(message: Diagnostic.Message, kind: LogOwnerKind, text: string): LogRouting {
+    for (let owner = message.owner; owner !== undefined; owner = owner.parent) {
+        const registration = registrations.get(owner);
+        if (registration === undefined) {
+            continue;
         }
+        if (registration.kind !== kind) {
+            return "foreign";
+        }
+        registration.queue.push(text);
+        return "claimed";
     }
+
+    return "unowned";
 }

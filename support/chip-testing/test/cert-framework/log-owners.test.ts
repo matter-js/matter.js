@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment, Millis, Time } from "@matter/main";
+import { Environment, InternalError, Millis, Time } from "@matter/main";
 import { LineQueue } from "@matter/testing";
 import { expect } from "chai";
-import { registerLogOwner, unregisterLogOwner } from "../../src/cert/log-owners.js";
+import { registerLogOwner } from "../../src/cert/log-owners.js";
 
-// Importing installs the destination this exercises
-import "../../src/cert/index.js";
+// Importing installs the destinations this exercises
+import { runTaggedForDevice } from "../../src/cert/index.js";
 
 async function allLines(queue: LineQueue) {
     const lines = new Array<string>();
@@ -30,9 +30,9 @@ describe("cert log attribution", () => {
     function withOwner(kind: "device" | "adapter", test: (env: Environment, queue: LineQueue) => Promise<void>) {
         const env = new Environment("log-owner-test", Environment.default);
         const queue = new LineQueue();
-        registerLogOwner(env, kind, queue);
+        const release = registerLogOwner(env, kind, queue);
         return test(env, queue).finally(() => {
-            unregisterLogOwner(env);
+            release();
             queue.close();
         });
     }
@@ -58,25 +58,81 @@ describe("cert log attribution", () => {
         });
     });
 
-    it("keeps a controller adapter's line out of the device log", async () => {
+    // The attribution a step reads must beat the one the call stack suggests, or a device's line lands in whichever
+    // device's lifecycle call happens to be running
+    it("keeps an adapter's line out of a device's log even while that device's call is on the stack", async () => {
         const deviceEnv = new Environment("device-owner-test", Environment.default);
         const deviceQueue = new LineQueue();
-        registerLogOwner(deviceEnv, "device", deviceQueue);
+        const releaseDevice = registerLogOwner(deviceEnv, "device", deviceQueue);
 
         const adapterEnv = new Environment("adapter-owner-test", Environment.default);
         const adapterQueue = new LineQueue();
-        registerLogOwner(adapterEnv, "adapter", adapterQueue);
+        const releaseAdapter = registerLogOwner(adapterEnv, "adapter", adapterQueue);
 
         try {
-            adapterEnv.logger("AdapterFacility").info("from an adapter");
+            await runTaggedForDevice("device-owner-test", async () => {
+                adapterEnv.logger("AdapterFacility").info("from an adapter");
+            });
         } finally {
-            unregisterLogOwner(deviceEnv);
-            unregisterLogOwner(adapterEnv);
+            releaseDevice();
+            releaseAdapter();
             deviceQueue.close();
             adapterQueue.close();
         }
 
         expect(await allLines(deviceQueue)).deep.equals([]);
         expect((await allLines(adapterQueue)).join("\n")).match(/from an adapter/);
+    });
+
+    // The fallback exists because matter.js reports a crashed endpoint and a crashed runtime through this logger,
+    // from work no device call encloses
+    it("still reports a line nobody owns", async () => {
+        const reported = new Array<string>();
+        const consoleError = console.error;
+        console.error = (text: string) => void reported.push(text);
+
+        try {
+            new Environment("unowned-test", Environment.default).logger("UnownedFacility").info("nobody owns this");
+        } finally {
+            console.error = consoleError;
+        }
+
+        expect(reported.join("\n")).match(/nobody owns this/);
+    });
+
+    it("refuses a second owner for one environment", () => {
+        const env = new Environment("duplicate-owner-test", Environment.default);
+        const queue = new LineQueue();
+        const release = registerLogOwner(env, "device", queue);
+
+        try {
+            expect(() => registerLogOwner(env, "adapter", new LineQueue())).throws(InternalError);
+        } finally {
+            release();
+            queue.close();
+        }
+    });
+
+    it("leaves a later owner's routing alone when an earlier one releases", async () => {
+        const env = new Environment("recycled-owner-test", Environment.default);
+
+        const firstQueue = new LineQueue();
+        const releaseFirst = registerLogOwner(env, "device", firstQueue);
+        releaseFirst();
+
+        const secondQueue = new LineQueue();
+        const releaseSecond = registerLogOwner(env, "device", secondQueue);
+
+        try {
+            releaseFirst();
+
+            env.logger("RecycledFacility").info("for the second owner");
+
+            expect(await firstLine(secondQueue)).match(/for the second owner/);
+        } finally {
+            releaseSecond();
+            firstQueue.close();
+            secondQueue.close();
+        }
     });
 });

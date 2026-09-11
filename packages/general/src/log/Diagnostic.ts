@@ -118,6 +118,18 @@ export namespace Diagnostic {
         };
     }
 
+    /**
+     * The component a log message belongs to.
+     *
+     * A process may run several matter.js nodes, and a message emitted from a socket or timer callback carries no
+     * indication of which one wrote it.  matter.js stamps an `Environment`, which satisfies this shape; the shape is
+     * structural so the log layer needs no dependency on the environment layer.
+     */
+    export interface Owner {
+        readonly name: string;
+        readonly parent?: Owner;
+    }
+
     export interface Message {
         [presentation]?: "message";
         now: Date;
@@ -127,13 +139,10 @@ export namespace Diagnostic {
         values: unknown[];
 
         /**
-         * The component the message describes, if known.
-         *
-         * A process may run several matter.js nodes, and a message emitted from a socket or timer callback carries no
-         * indication of which one it belongs to.  matter.js stamps this with the emitting component's
-         * {@link Environment} so a destination can attribute the message without relying on the call stack.
+         * The component that emitted the message, if known.  A destination attributes a message by its owner rather
+         * than by the call stack, which a socket or timer callback does not carry.
          */
-        owner?: unknown;
+        owner?: Owner;
     }
 
     /**

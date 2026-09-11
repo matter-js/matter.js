@@ -642,7 +642,9 @@ export class ExchangeManager implements Transport.Provider {
 
         // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
         for (const session of this.#sessionsOnChannel(channel)) {
-            this.#logger.debug("Evicting session due to TCP disconnect:", session.via);
+            // Same level as the summary line above it: one line per session on a connection that dropped, and the
+            // evidence a certification case reads for the eviction
+            this.#logger.info("Evicting session due to TCP disconnect:", session.via);
 
             // An in-flight subscription update has to be settled before initiateForceClose's
             // subscription teardown awaits it; on a dead connection only closing its exchange settles

@@ -71,7 +71,7 @@ export class Logger {
     static nestingLevel: number;
 
     readonly #name: string;
-    readonly #owner?: unknown;
+    readonly #owner?: Diagnostic.Owner;
 
     /**
      * Create a new logger for a facility.
@@ -80,7 +80,7 @@ export class Logger {
      * @param owner the component messages belong to, stamped on every message as {@link Diagnostic.Message.owner}
      * @returns a new facility
      */
-    static get(name: string, owner?: unknown) {
+    static get(name: string, owner?: Diagnostic.Owner) {
         return new Logger(name, owner);
     }
 
@@ -202,7 +202,7 @@ export class Logger {
         }
     }
 
-    constructor(name: string, owner?: unknown) {
+    constructor(name: string, owner?: Diagnostic.Owner) {
         this.#name = name;
         this.#owner = owner;
     }

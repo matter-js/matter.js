@@ -94,7 +94,7 @@ import type {
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
-import { registerLogOwner, registrationForOwner, unregisterLogOwner } from "./log-owners.js";
+import { registerLogOwner, routeOwnedLine } from "./log-owners.js";
 import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
@@ -194,11 +194,8 @@ Boot.init(() => {
         write(text: string, message) {
             // The message names the node that wrote it, so a line from a socket or timer callback -- which no call
             // stack attributes -- still reaches that node's log
-            const owned = registrationForOwner(message.owner);
-            if (owned !== undefined) {
-                if (owned.kind === "adapter") {
-                    owned.queue.push(text);
-                }
+            const routing = routeOwnedLine(message, "adapter", text);
+            if (routing !== "unowned") {
                 return;
             }
 
@@ -1104,6 +1101,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     readonly id: string;
     readonly log: LogFollower;
     readonly #env: Environment;
+    readonly #releaseLogOwner: () => void;
     readonly #logStream = new LineQueue();
     #controller?: ServerNode;
     #fabric?: Fabric;
@@ -1121,7 +1119,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         this.id = id;
         this.#transport = options?.transport;
         this.#env = new Environment(`cert-${id}`, Environment.default);
-        registerLogOwner(this.#env, "adapter", this.#logStream);
+        this.#releaseLogOwner = registerLogOwner(this.#env, "adapter", this.#logStream);
         new MockStorageService(this.#env);
         this.log = new LogFollower(this.#logStream.follow(), id);
 
@@ -1179,7 +1177,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 await this.#controller?.close();
             });
         } finally {
-            unregisterLogOwner(this.#env);
+            this.#releaseLogOwner();
             adapterStreams.delete(this.id);
             this.#logStream.close();
         }

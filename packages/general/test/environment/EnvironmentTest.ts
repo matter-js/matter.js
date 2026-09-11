@@ -813,12 +813,15 @@ describe("Environment", () => {
             expect(() => applyLogLevel("bogus")).to.throw();
         });
     });
+
     describe("logger", () => {
         it("binds messages to the environment that created the logger", () => {
             const env = new Environment("test-env");
             const dest = Logger.destinations.default;
             const original = { ...dest };
             let owner: unknown;
+            // The level is process-global and other suites in this file move it; the line under test is INFO
+            dest.level = LogLevel.INFO;
             dest.add = message => {
                 owner = message.owner;
             };
