@@ -342,11 +342,13 @@ export namespace Constraint {
     }
 
     /**
-     * The path a member access states, or undefined for an expression that is not one.
+     * The path an expression names: the segments of a complete member access, the one segment of a bare name, or
+     * undefined for an expression that computes a value.
      *
      * Both operands of "." name elements: the lhs names one the scope resolves and the rhs a member of it.  An access
      * to a computed value states no path, because the rhs then names a member of whatever the expression evaluates to
-     * and no scope resolves it.
+     * and no scope resolves it.  Each operand of an access is judged by this in turn, so a bare name answering it is
+     * what lets a named operand be told from a computed one.
      *
      * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
      */

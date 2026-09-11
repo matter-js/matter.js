@@ -157,10 +157,12 @@ function createNullValidator(
 }
 
 function createEnumValidator(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
+    // A value of an enumerated type is its effective ID, which is its position among its siblings where the
+    // definition states none
     const valid = new Set(
         supervisor
             .membersOf(schema)
-            .map(member => member.id)
+            .map(member => member.effectiveId)
             .filter(e => e !== undefined),
     );
 

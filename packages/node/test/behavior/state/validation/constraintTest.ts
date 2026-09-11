@@ -282,8 +282,8 @@ const AllTests = Tests({
         },
     ),
 
-    // A bitmap's bound states the magnitude its flags encode to, which is not the record of flags a value is held
-    // as, so an entry bound on a list of them enforces nothing.  "min 1" would reject the empty record if it did
+    // A bitmap's bound states the magnitude its flags encode to, so an entry bound on a list of them is judged by
+    // that magnitude: a record setting no flag encodes to 0, which "min 1" refuses
     "entry of a list of bitmaps": Tests(
         Fields({
             type: "list",
