@@ -71,17 +71,17 @@ export class Logger {
     static nestingLevel: number;
 
     readonly #name: string;
-    readonly #owner?: Diagnostic.Owner;
+    readonly #origin?: Diagnostic.Origin;
 
     /**
      * Create a new logger for a facility.
      *
      * @param name the name of the facility
-     * @param owner the component messages belong to, stamped on every message as {@link Diagnostic.Message.owner}
+     * @param origin where the messages come from, stamped on every message as {@link Diagnostic.Message.origin}
      * @returns a new facility
      */
-    static get(name: string, owner?: Diagnostic.Owner) {
-        return new Logger(name, owner);
+    static get(name: string, origin?: Diagnostic.Origin) {
+        return new Logger(name, origin);
     }
 
     /**
@@ -202,9 +202,9 @@ export class Logger {
         }
     }
 
-    constructor(name: string, owner?: Diagnostic.Owner) {
+    constructor(name: string, origin?: Diagnostic.Origin) {
         this.#name = name;
-        this.#owner = owner;
+        this.#origin = origin;
     }
 
     debug(...values: unknown[]) {
@@ -256,7 +256,7 @@ export class Logger {
                             level,
                             prefix: nestingPrefix(),
                             values,
-                            owner: this.#owner,
+                            origin: this.#origin,
                         }),
                     ),
                 );

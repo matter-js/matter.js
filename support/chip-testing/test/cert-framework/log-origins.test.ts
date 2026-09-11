@@ -7,7 +7,7 @@
 import { Environment, InternalError, Millis, Time } from "@matter/main";
 import { LineQueue } from "@matter/testing";
 import { expect } from "chai";
-import { registerLogOwner } from "../../src/cert/log-owners.js";
+import { registerLogOrigin } from "../../src/cert/log-origins.js";
 
 // Importing installs the destinations this exercises
 import { runTaggedForDevice } from "../../src/cert/index.js";
@@ -30,7 +30,7 @@ describe("cert log attribution", () => {
     function withOwner(kind: "device" | "adapter", test: (env: Environment, queue: LineQueue) => Promise<void>) {
         const env = new Environment("log-owner-test", Environment.default);
         const queue = new LineQueue();
-        const release = registerLogOwner(env, kind, queue);
+        const release = registerLogOrigin(env.logOrigin, kind, queue);
         return test(env, queue).finally(() => {
             release();
             queue.close();
@@ -63,11 +63,11 @@ describe("cert log attribution", () => {
     it("keeps an adapter's line out of a device's log even while that device's call is on the stack", async () => {
         const deviceEnv = new Environment("device-owner-test", Environment.default);
         const deviceQueue = new LineQueue();
-        const releaseDevice = registerLogOwner(deviceEnv, "device", deviceQueue);
+        const releaseDevice = registerLogOrigin(deviceEnv.logOrigin, "device", deviceQueue);
 
         const adapterEnv = new Environment("adapter-owner-test", Environment.default);
         const adapterQueue = new LineQueue();
-        const releaseAdapter = registerLogOwner(adapterEnv, "adapter", adapterQueue);
+        const releaseAdapter = registerLogOrigin(adapterEnv.logOrigin, "adapter", adapterQueue);
 
         try {
             await runTaggedForDevice("device-owner-test", async () => {
@@ -100,28 +100,28 @@ describe("cert log attribution", () => {
         expect(reported.join("\n")).match(/nobody owns this/);
     });
 
-    it("refuses a second owner for one environment", () => {
+    it("refuses a second participant for one environment", () => {
         const env = new Environment("duplicate-owner-test", Environment.default);
         const queue = new LineQueue();
-        const release = registerLogOwner(env, "device", queue);
+        const release = registerLogOrigin(env.logOrigin, "device", queue);
 
         try {
-            expect(() => registerLogOwner(env, "adapter", new LineQueue())).throws(InternalError);
+            expect(() => registerLogOrigin(env.logOrigin, "adapter", new LineQueue())).throws(InternalError);
         } finally {
             release();
             queue.close();
         }
     });
 
-    it("leaves a later owner's routing alone when an earlier one releases", async () => {
+    it("leaves a later participant's routing alone when an earlier one releases", async () => {
         const env = new Environment("recycled-owner-test", Environment.default);
 
         const firstQueue = new LineQueue();
-        const releaseFirst = registerLogOwner(env, "device", firstQueue);
+        const releaseFirst = registerLogOrigin(env.logOrigin, "device", firstQueue);
         releaseFirst();
 
         const secondQueue = new LineQueue();
-        const releaseSecond = registerLogOwner(env, "device", secondQueue);
+        const releaseSecond = registerLogOrigin(env.logOrigin, "device", secondQueue);
 
         try {
             releaseFirst();

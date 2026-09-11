@@ -337,14 +337,14 @@ describe("SessionManager", () => {
     describe("log attribution", () => {
         // Session eviction runs from a timer or transport callback, so nothing on the call stack says which node
         // it belongs to.  A process running several nodes reads these lines only if the message names its owner.
-        it("names the owning environment on the lines an eviction produces", async () => {
+        it("names the originating environment on the lines an eviction produces", async () => {
             const storage = new MemoryStorageDriver();
             storage.initialize();
 
             const storageManager = new StorageManager(storage);
             await storageManager.initialize();
 
-            const environment = new Environment("test");
+            const environment = new Environment("test", Environment.default);
             environment.set(StorageManager, storageManager);
             environment.set(FabricManager, new FabricManager(new StandardCrypto()));
 
@@ -355,12 +355,12 @@ describe("SessionManager", () => {
 
             const dest = Logger.destinations.default;
             const original = { ...dest };
-            const owners = new Array<unknown>();
+            const origins = new Array<unknown>();
             // The level is process-global and other suites move it; the line under test is INFO
             dest.level = LogLevel.INFO;
             dest.add = message => {
                 if (String(message.values[1]).startsWith("Closing least recently used session")) {
-                    owners.push(message.owner);
+                    origins.push(message.origin);
                 }
             };
 
@@ -386,10 +386,10 @@ describe("SessionManager", () => {
                 await sessionManager.close();
             }
 
-            // Identity, not deep equality: an Environment exposes no own enumerable properties, so deep equality
-            // holds between any two of them and would accept attribution to the wrong node
-            expect(owners.length).equals(1);
-            expect(owners[0]).equals(environment);
+            // Identity, not deep equality: an origin is a plain name-and-parent record, so deep equality holds
+            // between any two environments named alike and would accept attribution to the wrong node
+            expect(origins.length).equals(1);
+            expect(origins[0]).equals(environment.logOrigin);
         });
     });
 

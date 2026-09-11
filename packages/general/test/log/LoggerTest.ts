@@ -691,7 +691,7 @@ describe("Logger", () => {
         });
     }
 
-    describe("owner", () => {
+    describe("origin", () => {
         function captureMessages(fn: () => void) {
             const dest = Logger.destinations.default;
             const original = { ...dest };
@@ -707,15 +707,32 @@ describe("Logger", () => {
             return captured;
         }
 
-        it("stamps the owner bound to the logger", () => {
-            const owner = { name: "a node" };
-            const [message] = captureMessages(() => Logger.get("OwnerTest", owner).info("hello"));
-            expect(message.owner).equals(owner);
+        const origin = { name: "node-1", parent: { name: "root" } };
+
+        it("stamps the origin bound to the logger", () => {
+            const [message] = captureMessages(() => Logger.get("OriginTest", origin).info("hello"));
+            expect(message.origin).equals(origin);
         });
 
-        it("leaves the owner undefined when the logger has none", () => {
-            const [message] = captureMessages(() => Logger.get("OwnerTest").info("hello"));
-            expect(message.owner).equals(undefined);
+        it("leaves the origin undefined when the logger has none", () => {
+            const [message] = captureMessages(() => Logger.get("OriginTest").info("hello"));
+            expect(message.origin).equals(undefined);
+        });
+
+        it("renders the origin ahead of the facility", () => {
+            const line = captureOne(() => Logger.get("OriginTest", origin).info("hello"));
+            expect(line.message).match(/INFO \[node-1\] OriginTest hello$/);
+        });
+
+        it("renders nothing for a message with no origin", () => {
+            const line = captureOne(() => Logger.get("OriginTest").info("hello"));
+            expect(line.message).match(/INFO OriginTest hello$/);
+        });
+
+        // The outermost environment names every message of a single-node process, which distinguishes nothing
+        it("renders nothing for an origin with no parent", () => {
+            const line = captureOne(() => Logger.get("OriginTest", { name: "root" }).info("hello"));
+            expect(line.message).match(/INFO OriginTest hello$/);
         });
     });
 

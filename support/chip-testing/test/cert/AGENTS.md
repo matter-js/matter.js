@@ -2319,8 +2319,8 @@ device whose `initialize()`/`start()`/`stop()`/`close()` is on the stack therefo
 run's console, which is why this check could not be written before.
 
 `ExchangeManager` and `SessionManager` — and only those two so far — log through
-`Environment.logger()`, so their messages name the environment that emitted them and
-`src/cert/log-owners.ts` routes them whatever the call stack says. A device-log check for something
+`Environment.logger()`, so their messages name the environment they originate from and
+`src/cert/log-origins.ts` routes them whatever the call stack says. A device-log check for something
 one of those two does from a socket or timer callback is therefore ordinary. Every other component
 still logs through a module-level `Logger.get()`, keeps the old attribution, and keeps the old
 limitation: do not rest a check on a callback-written line from a component that has not been

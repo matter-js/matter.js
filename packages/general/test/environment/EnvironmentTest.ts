@@ -815,24 +815,41 @@ describe("Environment", () => {
     });
 
     describe("logger", () => {
-        it("binds messages to the environment that created the logger", () => {
-            const env = new Environment("test-env");
+        function captureOrigin(fn: () => void) {
             const dest = Logger.destinations.default;
             const original = { ...dest };
-            let owner: unknown;
+            let origin: unknown = "not captured";
             // The level is process-global and other suites in this file move it; the line under test is INFO
             dest.level = LogLevel.INFO;
             dest.add = message => {
-                owner = message.owner;
+                origin = message.origin;
             };
 
             try {
-                env.logger("EnvironmentLoggerTest").info("hello");
+                fn();
             } finally {
                 Object.assign(Logger.destinations.default, original);
             }
 
-            expect(owner).equals(env);
+            return origin;
+        }
+
+        it("names the environment that created the logger", () => {
+            const env = new Environment("test-env", Environment.default);
+
+            const origin = captureOrigin(() => env.logger("EnvironmentLoggerTest").info("hello"));
+
+            expect(origin).equals(env.logOrigin);
+        });
+
+        it("names the environment's place in the hierarchy, and nothing of the environment itself", () => {
+            const parent = new Environment("parent-env");
+            const child = new Environment("child-env", parent);
+
+            expect(child.logOrigin.name).equals("child-env");
+            expect(child.logOrigin.parent).equals(parent.logOrigin);
+            expect(Object.isFrozen(child.logOrigin)).true;
+            expect(Object.keys(child.logOrigin)).deep.equals(["name", "parent"]);
         });
     });
 });

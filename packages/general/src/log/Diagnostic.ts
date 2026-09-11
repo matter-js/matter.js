@@ -119,15 +119,15 @@ export namespace Diagnostic {
     }
 
     /**
-     * The component a log message belongs to.
+     * Where a log message came from.
      *
      * A process may run several matter.js nodes, and a message emitted from a socket or timer callback carries no
-     * indication of which one wrote it.  matter.js stamps an `Environment`, which satisfies this shape; the shape is
-     * structural so the log layer needs no dependency on the environment layer.
+     * indication of which one wrote it.  An origin is a name and its place in the naming hierarchy, and nothing more:
+     * the log layer holds no reference to whatever produced it.
      */
-    export interface Owner {
+    export interface Origin {
         readonly name: string;
-        readonly parent?: Owner;
+        readonly parent?: Origin;
     }
 
     export interface Message {
@@ -139,17 +139,17 @@ export namespace Diagnostic {
         values: unknown[];
 
         /**
-         * The component that emitted the message, if known.  A destination attributes a message by its owner rather
-         * than by the call stack, which a socket or timer callback does not carry.
+         * Where the message came from, if known.  A destination attributes a message by its origin rather than by the
+         * call stack, which a socket or timer callback does not carry.
          */
-        owner?: Owner;
+        origin?: Origin;
     }
 
     /**
      * Create an object representing a log message.
      */
     export function message(value: Partial<Message>): Message {
-        const { now, level, facility, prefix: nestingPrefix, values, owner } = value;
+        const { now, level, facility, prefix: nestingPrefix, values, origin } = value;
 
         return {
             [presentation]: Presentation.Message,
@@ -158,7 +158,7 @@ export namespace Diagnostic {
             facility: facility ?? "Diagnostic",
             prefix: nestingPrefix ?? "",
             values: values ?? [],
-            owner,
+            origin,
         } satisfies Message;
     }
 

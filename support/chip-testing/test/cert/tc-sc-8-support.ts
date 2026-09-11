@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, MAX_UDP_MESSAGE_SIZE, Millis, Seconds, Time } from "@matter/general";
+import { Duration, InternalError, MAX_UDP_MESSAGE_SIZE, Millis, Seconds, Time } from "@matter/general";
 import { Matter } from "@matter/model";
 import { MATTER_MESSAGE_OVERHEAD } from "@matter/protocol";
 import type { CertNodeRef, CertSessionInfo, CertStepContext, CheckRecord, DeviceFlavor } from "@matter/testing";
@@ -669,6 +669,9 @@ export async function recordSessionEviction(
     timeout: Duration = LOG_TIMEOUT,
 ) {
     const dut = cx.devices.dut;
+    if (dut === undefined) {
+        throw new InternalError("A case that records a session eviction must declare a dut device");
+    }
 
     const eviction = await expectSequence(
         dut.log,
@@ -716,7 +719,7 @@ const EVICTION_POLL = Millis(50);
  * Severs the connection beneath the session `session` names and records that the TH no longer holds it,
  * plus the DUT's own eviction ({@link recordSessionEviction}).
  *
- * `timeout` bounds both halves of the wait — the controller's poll and the DUT's own log line.
+ * `timeout` bounds each half of the wait separately — the controller's poll, then the DUT's own log line.
  */
 export async function recordSeveredSession(
     cx: CertStepContext,
@@ -725,9 +728,14 @@ export async function recordSeveredSession(
     timeout: Duration = EVICTION_TIMEOUT,
 ) {
     const severed = session.require();
+    const dut = cx.devices.dut;
+    if (dut === undefined) {
+        throw new InternalError("A case that severs a session must declare a dut device");
+    }
+
     // Settled, not just marked: the pump ingests asynchronously, so a line the device wrote before the sever could
     // otherwise land after the mark and be read as the eviction this step causes
-    const from = await cx.devices.dut.log.markSettled();
+    const from = await dut.log.markSettled();
 
     await cx.controllers.th.node(ref).severTransportConnection(severed.controllerSessionId);
 

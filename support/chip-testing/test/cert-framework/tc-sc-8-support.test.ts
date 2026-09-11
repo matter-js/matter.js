@@ -71,7 +71,7 @@ const UDP_HELD: CertSessionInfo = {
 };
 
 const evictionLine = (session = SESSION) =>
-    `${at(5)} INFO ExchangeManager Evicting session due to TCP disconnect: ${session}(tcp)`;
+    `${at(5)} DEBUG ExchangeManager Evicting session due to TCP disconnect: ${session}(tcp)`;
 
 const INVOKE_EXCHANGE = "2c57";
 

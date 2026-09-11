@@ -14,6 +14,7 @@ import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import {
+    Diagnostic,
     BasicSet,
     Bytes,
     causedBy,
@@ -52,8 +53,6 @@ import type { Session } from "./Session.js";
 import { SessionIntervals } from "./SessionIntervals.js";
 import { SessionParameters } from "./SessionParameters.js";
 import { UnsecuredSession } from "./UnsecuredSession.js";
-
-const logger = Logger.get("SessionManager");
 
 /**
  * Reject a locally-configured Session Active Threshold that cannot be encoded: SAT is a uint16 millisecond value on the
@@ -155,10 +154,10 @@ export interface SessionManagerContext {
     storage: StorageContext;
 
     /**
-     * The logger to write to.  Supply a logger bound to the owning node (see {@link Environment.logger}) so log
-     * destinations can attribute messages this manager emits from timer and transport callbacks.
+     * Where this manager's log messages come from, so a destination can attribute the ones it emits from a timer or
+     * transport callback, which carries no call stack of its own.
      */
-    logger?: Logger;
+    origin?: Diagnostic.Origin;
 
     /**
      * Parameter overrides.
@@ -245,7 +244,7 @@ export class SessionManager {
 
     constructor(context: SessionManagerContext) {
         this.#context = context;
-        this.#logger = context.logger ?? logger;
+        this.#logger = Logger.get("SessionManager", context.origin);
         const {
             fabrics: { crypto },
         } = context;
@@ -296,7 +295,7 @@ export class SessionManager {
         const instance = new SessionManager({
             storage: env.get(StorageManager).createContext("sessions"),
             fabrics: env.get(FabricManager),
-            logger: env.logger("SessionManager"),
+            origin: env.logOrigin,
         });
         env.set(SessionManager, instance);
         return instance;

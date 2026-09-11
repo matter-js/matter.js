@@ -45,8 +45,6 @@ import { DuplicateMessageError } from "./MessageReceptionState.js";
 import { MRP } from "./MRP.js";
 import { ProtocolHandler } from "./ProtocolHandler.js";
 
-const logger = Logger.get("ExchangeManager");
-
 /**
  * Maximum number of concurrent outgoing exchanges per session.
  * We chose 30 under the assumption that each exchange has one message in flight and the usual SecureSession message
@@ -62,10 +60,10 @@ export interface ExchangeManagerContext {
     lifetime: Lifetime.Owner;
 
     /**
-     * The logger to write to.  Supply a logger bound to the owning node (see {@link Environment.logger}) so log
-     * destinations can attribute messages this manager emits from transport callbacks.
+     * Where this manager's log messages come from, so a destination can attribute the ones it emits from a transport
+     * callback, which carries no call stack of its own.
      */
-    logger?: Logger;
+    origin?: Diagnostic.Origin;
 
     entropy: Entropy;
     transports: TransportSet;
@@ -88,7 +86,7 @@ export class ExchangeManager implements Transport.Provider {
     #isClosing = false;
 
     constructor(context: ExchangeManagerContext) {
-        this.#logger = context.logger ?? logger;
+        this.#logger = Logger.get("ExchangeManager", context.origin);
         this.#lifetime = context.lifetime.join("exchanges");
         this.#workers = new BasicMultiplex();
         this.#transports = context.transports;
@@ -108,7 +106,7 @@ export class ExchangeManager implements Transport.Provider {
     static [Environmental.create](env: Environment) {
         const instance = new ExchangeManager({
             lifetime: env,
-            logger: env.logger("ExchangeManager"),
+            origin: env.logOrigin,
             entropy: env.get(Entropy),
             transports: env.get(TransportSet),
             sessions: env.get(SessionManager),
@@ -642,9 +640,7 @@ export class ExchangeManager implements Transport.Provider {
 
         // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
         for (const session of this.#sessionsOnChannel(channel)) {
-            // Same level as the summary line above it: one line per session on a connection that dropped, and the
-            // evidence a certification case reads for the eviction
-            this.#logger.info("Evicting session due to TCP disconnect:", session.via);
+            this.#logger.debug("Evicting session due to TCP disconnect:", session.via);
 
             // An in-flight subscription update has to be settled before initiateForceClose's
             // subscription teardown awaits it; on a dead connection only closing its exchange settles

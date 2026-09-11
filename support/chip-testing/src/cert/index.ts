@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Boot, Environment, InternalError, LogDestination, LogFormat, Logger, RuntimeService } from "@matter/main";
+import { Boot, Environment, InternalError, Logger, RuntimeService } from "@matter/main";
 import type {
     BackchannelCommand,
     CertDevice,
@@ -27,7 +27,7 @@ import {
     InProcessControllerAdapter,
     MATTERJS_CONTROLLER_PICS,
 } from "./InProcessControllerAdapter.js";
-import { registerLogOwner, routeOwnedLine } from "./log-owners.js";
+import { OriginDestination, registerLogOrigin } from "./log-origins.js";
 
 registerControllerAdapterFactory(
     "matterjs",
@@ -72,34 +72,23 @@ const deviceQueues = new Map<string, LineQueue>();
 // Logger.ts's own Boot.init), so a one-time install at module load would stop forwarding device log
 // lines from the second cert-test file onward. Boot.init re-runs this on every reboot instead.
 Boot.init(() => {
-    Logger.destinations["cert-matterjs-device"] = LogDestination({
-        name: "cert-matterjs-device",
-        format: LogFormat.formats.plain,
-        write(text: string, message) {
-            // The message names the node that wrote it, so a line from a socket or timer callback -- which no call
-            // stack attributes -- still reaches that node's log
-            const routing = routeOwnedLine(message, "device", text);
-            if (routing !== "unowned") {
-                return;
-            }
+    Logger.destinations["cert-matterjs-device"] = OriginDestination("cert-matterjs-device", "device", text => {
+        const id = activeDeviceId.getStore();
+        const queue = id === undefined ? undefined : deviceQueues.get(id);
+        if (queue !== undefined) {
+            queue.push(text);
+            return;
+        }
 
-            const id = activeDeviceId.getStore();
-            const queue = id === undefined ? undefined : deviceQueues.get(id);
-            if (queue !== undefined) {
-                queue.push(text);
-                return;
-            }
+        if (controllerAdapterClaimsLogs()) {
+            return;
+        }
 
-            if (controllerAdapterClaimsLogs()) {
-                return;
-            }
-
-            // A line nobody claims still has to be seen. matter.js reports a crashed endpoint and a
-            // crashed runtime through this logger, and both happen outside the calls this tags — a
-            // node tearing down, a construction rejecting on its own microtask — so dropping the
-            // unattributed lines hides exactly the failures worth reading.
-            console.error(text);
-        },
+        // A line nobody claims still has to be seen. matter.js reports a crashed endpoint and a
+        // crashed runtime through this logger, and both happen outside the calls this tags — a
+        // node tearing down, a construction rejecting on its own microtask — so dropping the
+        // unattributed lines hides exactly the failures worth reading.
+        console.error(text);
     });
 });
 
@@ -118,7 +107,7 @@ export function runTaggedForDevice<T>(id: string, fn: () => Promise<T>): Promise
  *
  * A line reaches this device's log by either of two routes. A component that logs through
  * `Environment.logger()` — `ExchangeManager` and `SessionManager` today — names its own environment on
- * every message, and `log-owners.ts` routes by that whatever the call stack holds, which is what makes
+ * every message, and `log-origins.ts` routes by that whatever the call stack holds, which is what makes
  * a line written from a socket or timer callback readable. Everything else still logs through a
  * module-level `Logger.get()` and is attributed by the `AsyncLocalStorage` tag that
  * `initialize()`/`start()`/`stop()`/`close()` install.
@@ -140,9 +129,9 @@ class MatterJsCertDevice implements CertDevice {
     #inner: Subject;
     #id: string;
     #queue: LineQueue;
-    #releaseLogOwner: () => void;
+    #releaseLogOrigin: () => void;
 
-    constructor(inner: Subject, id: string, env: Environment) {
+    constructor(inner: Subject, id: string, environment: Environment) {
         if (deviceQueues.has(id)) {
             throw new InternalError(
                 `MatterJsCertDevice "${id}" is already registered; two live devices with the same id would ` +
@@ -155,7 +144,7 @@ class MatterJsCertDevice implements CertDevice {
         this.#id = id;
         this.#queue = new LineQueue();
         deviceQueues.set(id, this.#queue);
-        this.#releaseLogOwner = registerLogOwner(env, "device", this.#queue);
+        this.#releaseLogOrigin = registerLogOrigin(environment.logOrigin, "device", this.#queue);
         this.log = new LogFollower(this.#queue, id);
     }
 
@@ -191,7 +180,7 @@ class MatterJsCertDevice implements CertDevice {
         try {
             await runTaggedForDevice(this.#id, () => this.#inner.close());
         } finally {
-            this.#releaseLogOwner();
+            this.#releaseLogOrigin();
             deviceQueues.delete(this.#id);
             this.#queue.close();
         }
