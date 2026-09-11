@@ -654,35 +654,42 @@ export async function recordLargePayloadSession(cx: CertStepContext, ref: TcpRef
 }
 
 /**
- * Confirms the DUT evicted the session `severed` names when its connection dropped.
+ * The DUT's own account of evicting the session `severed` names when its connection dropped.
  *
- * Identified by the DUT's own session tag rather than by the eviction line alone: a device may hold a
- * session per connection, so an unqualified eviction line is answered by whichever session went.
+ * Both lines, in order: the DUT names the connection that went, then the session it dropped with it. Either alone is
+ * ambiguous — a device may reuse a session tag it has closed, and it may drop another connection of its own accord —
+ * so only the pair says that *this* session went with *this* connection. Other sessions on the same connection log
+ * between them, which is why the sequence is ordered rather than adjacent.
  *
- * The gating claim for the plan's "the secure session with DUT is inactive" remains the TH's held
- * state ({@link sessionGoneCheck}); this is the device half of the same fact.
+ * Returns the record rather than recording it, so a caller can put it in the evidence alongside the controller's half
+ * whichever of the two fails.
  */
-export async function recordSessionEviction(
+export async function sessionEvictionCheck(
     cx: CertStepContext,
     severed: TcpSessionFacts,
     from: number,
     timeout: Duration = LOG_TIMEOUT,
-) {
+): Promise<CheckRecord> {
     const dut = cx.devices.dut;
     if (dut === undefined) {
         throw new InternalError("A case that records a session eviction must declare a dut device");
     }
 
-    const eviction = await expectSequence(
+    return expectSequence(
         dut.log,
         dut.flavor,
         `the DUT evicting session ${severed.tag} on the connection from ${severed.channel}`,
-        { matterjs: [new RegExp(`Evicting session due to TCP disconnect: ${literally(severed.tag)}`)] },
+        {
+            matterjs: {
+                ordered: [
+                    new RegExp(`TCP connection dropped, evicting bound sessions: ${literally(severed.channel)}(?!\\S)`),
+                    new RegExp(`Evicting session due to TCP disconnect: ${literally(severed.tag)}`),
+                ],
+            },
+        },
         from,
         timeout,
     );
-
-    record(cx, eviction, `the DUT dropped session ${severed.tag}`);
 }
 
 /**
@@ -717,7 +724,7 @@ const EVICTION_POLL = Millis(50);
 
 /**
  * Severs the connection beneath the session `session` names and records that the TH no longer holds it,
- * plus the DUT's own eviction ({@link recordSessionEviction}).
+ * plus the DUT's own eviction ({@link sessionEvictionCheck}).
  *
  * `timeout` bounds each half of the wait separately — the controller's poll, then the DUT's own log line.
  */
@@ -747,14 +754,17 @@ export async function recordSeveredSession(
         sessions = await heldSessions(cx, ref);
     }
 
+    // Awaited before recording anything: recordAll throws once at the end so a step's whole claim reaches the
+    // evidence, and a device check recorded after it would be missing from the bundle exactly when the step fails
+    const eviction = await sessionEvictionCheck(cx, severed, from, timeout);
+
     recordAll(cx, [
         {
             check: () => sessionGoneCheck(severed, sessions),
             what: `the TH no longer holds session ${severed.controllerSessionId}`,
         },
+        { check: () => eviction, what: `the DUT dropped session ${severed.tag}` },
     ]);
-
-    await recordSessionEviction(cx, severed, from, timeout);
 }
 
 /**

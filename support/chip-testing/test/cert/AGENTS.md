@@ -2306,11 +2306,12 @@ an exchange still open it suspends before marking the session closed. `recordSev
 controller's sessions until the severed id is gone or `EVICTION_TIMEOUT` expires — a single immediate
 read passes only by luck of the synchronous prefix.
 
-**The device half reads from the DUT's own log.** `recordSessionEviction` matches `Evicting session
-due to TCP disconnect: <session>` for the session tag the case captured, so an eviction of some other
-session on the same device is not mistaken for this one. It is the device half of the same fact;
-`sessionGoneCheck` remains the gating claim, because it is the controller's held state the plan
-speaks about.
+**The device half reads from the DUT's own log.** `sessionEvictionCheck` matches an ordered pair —
+the DUT naming the connection that dropped, then the session it dropped with it — because either line
+alone is ambiguous: a device may reuse a session tag it has closed, and it may drop a connection of
+its own accord. The check returns its record rather than recording it, so `recordSeveredSession` puts
+both halves of the step in the evidence whichever one fails. `sessionGoneCheck` remains the gating
+claim, because it is the controller's held state the plan speaks about.
 
 **Which lines a device-log check may rest on.** A device's eviction lines are written from its
 socket's close callback, and a socket's `'close'` handler runs with no `AsyncLocalStorage` store at

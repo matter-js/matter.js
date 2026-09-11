@@ -24,7 +24,7 @@ import {
     describeSessions,
     furtherSessionCheck,
     recordSeveredSession,
-    recordSessionEviction,
+    sessionEvictionCheck,
     sessionGoneCheck,
     sessionWithId,
     tcpSessionIdOf,
@@ -70,8 +70,11 @@ const UDP_HELD: CertSessionInfo = {
     maxPayloadSize: 1280,
 };
 
+const connectionDroppedLine = (channel = CHANNEL) =>
+    `${at(5)} INFO ExchangeManager TCP connection dropped, evicting bound sessions: ${channel}`;
 const evictionLine = (session = SESSION) =>
-    `${at(5)} DEBUG ExchangeManager Evicting session due to TCP disconnect: ${session}(tcp)`;
+    `${at(6)} DEBUG ExchangeManager Evicting session due to TCP disconnect: ${session}(tcp)`;
+const evictionLines = (session = SESSION, channel = CHANNEL) => [connectionDroppedLine(channel), evictionLine(session)];
 
 const INVOKE_EXCHANGE = "2c57";
 
@@ -553,7 +556,7 @@ describe("tcpSessionIdOf", () => {
 
 describe("recordSeveredSession", () => {
     /** A TH whose `sessions()` answers each element of `reads` in turn, and the last one thereafter. */
-    function thReading(reads: CertSessionInfo[][], onSever: string[] = [evictionLine()]) {
+    function thReading(reads: CertSessionInfo[][], onSever: string[] = evictionLines()) {
         const severed = new Array<number>();
         let call = 0;
         const th = {
@@ -587,7 +590,9 @@ describe("recordSeveredSession", () => {
         // Seeded with an eviction of the same session from before the step, so a check that reads the log without
         // separating cause from effect matches the wrong line
         const source = new LineQueue();
-        source.push(evictionLine());
+        for (const text of evictionLines()) {
+            source.push(text);
+        }
 
         const dut: CertDevice = {
             id: "dut",
@@ -668,6 +673,23 @@ describe("recordSeveredSession", () => {
 
         expect(checks[0].verdict).equal("pass");
         expect(reads()).equal(3);
+    });
+
+    // The bundle is evidence, and a step that fails is when it matters most: the DUT's half has to be in it whatever
+    // the controller's half says
+    it("records both halves when the controller's check fails", async () => {
+        const { cx, checks } = thReading([[TCP_HELD]]);
+
+        await expect(
+            recordSeveredSession(
+                cx,
+                "ref",
+                refHolding({ ...SESSION_FACTS, controllerSessionId: TCP_HELD.id }),
+                POLL_BOUND,
+            ),
+        ).rejectedWith(CertCheckFailedError);
+
+        expect(checks.map(check => check.verdict)).deep.equal(["fail", "pass"]);
     });
 
     // The device's log already holds an eviction of this session from earlier in the case; only one written after
@@ -774,29 +796,39 @@ describe("describeSessions", () => {
     });
 });
 
-describe("recordSessionEviction", () => {
-    it("records the DUT's own eviction of the session the case captured", async () => {
-        await withDut([evictionLine()], async (cx, checks) => {
-            await recordSessionEviction(cx, SESSION_FACTS, 0);
+describe("sessionEvictionCheck", () => {
+    it("reads the DUT's own account of evicting the session the case captured", async () => {
+        await withDut(evictionLines(), async cx => {
+            const check = await sessionEvictionCheck(cx, SESSION_FACTS, 0);
 
-            expect(checks.map(check => check.verdict)).deep.equal(["pass"]);
+            expect(check.verdict).equals("pass");
         });
     });
 
-    // A device holds a session per connection, so an eviction of some other session is not this one
-    it("rejects an eviction of a different session", async () => {
-        await withDut([evictionLine(OTHER_SESSION)], async cx => {
-            await expect(recordSessionEviction(cx, SESSION_FACTS, 0)).rejectedWith(CertCheckFailedError);
+    // A device may reuse a session tag it has closed, so the tag alone does not say which connection went
+    it("rejects an eviction of the same session tag on another connection", async () => {
+        await withDut(evictionLines(SESSION, "tcp://[fe80::2%en0]«60222"), async cx => {
+            const check = await sessionEvictionCheck(cx, SESSION_FACTS, 0);
+
+            expect(check.verdict).equals("fail");
+        });
+    });
+
+    it("rejects an eviction of a different session on the severed connection", async () => {
+        await withDut(evictionLines(OTHER_SESSION), async cx => {
+            const check = await sessionEvictionCheck(cx, SESSION_FACTS, 0);
+
+            expect(check.verdict).equals("fail");
         });
     });
 
     it("claims nothing about a device whose log this pattern does not describe", async () => {
         await withDut(
             [],
-            async (cx, checks) => {
-                await recordSessionEviction(cx, SESSION_FACTS, 0);
+            async cx => {
+                const check = await sessionEvictionCheck(cx, SESSION_FACTS, 0);
 
-                expect(checks.map(check => check.verdict)).deep.equal(["unverified"]);
+                expect(check.verdict).equals("unverified");
             },
             "chip-local",
         );
