@@ -148,9 +148,15 @@ function originLabel(origin: Diagnostic.Origin | undefined, width?: number) {
         return `${label} `;
     }
 
-    // Padded so the facility column survives in a process logging for several nodes, which is the case the label is
-    // for
-    return `${label.length > width ? `${label.slice(0, width - 2)}~]` : label.padEnd(width)} `;
+    if (label.length > width) {
+        // Elided in the middle, as an over-long facility is: the names this distinguishes are siblings, and siblings
+        // share their leading characters
+        const tail = Math.floor((width - 3) / 2);
+        return `${label.slice(0, width - tail - 2)}~${label.slice(label.length - tail - 1)} `;
+    }
+
+    // Padded so the facility column survives in a process logging for several nodes, which is what the label is for
+    return `${label.padEnd(width)} `;
 }
 
 const ORIGIN_WIDTH = 12;
@@ -462,7 +468,7 @@ LogFormat.formats.html = function html(diagnostic: unknown) {
         message: ({ now, level, facility, prefix, values, origin }) => {
             prefix = prefix.replace(/ /g, "&nbsp;");
             const formattedValues = renderDiagnostic(values, formatter);
-            const originSpan = origin?.parent === undefined ? "" : `${htmlSpan("origin", escape(origin.name))} `;
+            const originSpan = origin?.parent === undefined ? "" : `${htmlSpan("origin", escape(`[${origin.name}]`))} `;
 
             return htmlSpan(
                 `line ${LogLevel[level].toLowerCase()}`,
