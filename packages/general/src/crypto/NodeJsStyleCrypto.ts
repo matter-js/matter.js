@@ -28,6 +28,20 @@ import { PrivateKey, PublicKey } from "./Key.js";
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
 
+/**
+ * Node's crypto API names digests the way OpenSSL does, while {@link HashAlgorithm} uses the Web Crypto spelling.
+ * Node accepts the Web Crypto spelling as an alias but stricter emulations of its API do not.
+ */
+const NODE_HASH_ALGORITHMS: Record<HashAlgorithm, string> = {
+    "SHA-1": "sha1",
+    "SHA-256": "sha256",
+    "SHA-384": "sha384",
+    "SHA-512": "sha512",
+    "SHA-512/224": "sha512-224",
+    "SHA-512/256": "sha512-256",
+    "SHA3-256": "sha3-256",
+};
+
 /** Matches the tag length range NIST SP 800-38C permits, enforced identically in aes/Ccm.ts. */
 function assertValidTagLength(tagLength: number) {
     if (tagLength < 4 || tagLength > 16 || tagLength % 2 !== 0) {
@@ -231,7 +245,11 @@ export class NodeJsStyleCrypto extends Crypto {
         data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
         algorithm: HashAlgorithm = "SHA-256",
     ): MaybePromise<Bytes> {
-        const hasher = this.#crypto.createHash(algorithm);
+        const nodeAlgorithm = NODE_HASH_ALGORITHMS[algorithm];
+        if (nodeAlgorithm === undefined) {
+            throw new CryptoInputError(`Unsupported hash algorithm ${algorithm}`);
+        }
+        const hasher = this.#crypto.createHash(nodeAlgorithm);
 
         // Handle different data types with full streaming support
         if (Array.isArray(data)) {

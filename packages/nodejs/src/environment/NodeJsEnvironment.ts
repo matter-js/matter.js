@@ -33,8 +33,6 @@ import {
     type DataNamespace,
 } from "@matter/general";
 
-import { isBunjs } from "#util/runtimeChecks.js";
-
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -42,6 +40,8 @@ import { resolve } from "node:path";
 import { NodeJsFilesystem } from "../fs/NodeJsFilesystem.js";
 import { NodeJsNetwork } from "../net/NodeJsNetwork.js";
 import { ProcessManager } from "./ProcessManager.js";
+
+const logger = Logger.get("NodeJsEnvironment");
 
 /**
  * This is the default environment implementation for Node.js:
@@ -157,14 +157,8 @@ function rootDirOf(env: Environment) {
 function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (env.vars.boolean("nodejs.crypto")) {
-            let crypto: Crypto;
-            if (!isBunjs()) {
-                // Platform implemented crypto
-                crypto = new NodeJsCrypto();
-            } else {
-                // Unsupported environment fallback
-                crypto = new StandardCrypto(global.crypto);
-            }
+            const defect = NodeJsCrypto.defect;
+            const crypto = defect === undefined ? new NodeJsCrypto() : cryptoDespite(defect);
             env.set(Entropy, crypto);
             env.set(Crypto, crypto);
             return;
@@ -177,6 +171,31 @@ function configureCrypto(env: Environment) {
             env.set(Crypto, Environment.default.get(Crypto));
         }
     });
+}
+
+/**
+ * Obtain the best crypto available where Node.js's own implementation is unusable.
+ *
+ * {@link StandardCrypto} reports an unusable Web Crypto by refusing to construct, so construction is the test.  Where
+ * it refuses too, a defective implementation still beats none at all.
+ */
+function cryptoDespite(defect: string): Crypto {
+    let standardCrypto;
+    try {
+        standardCrypto = new StandardCrypto();
+    } catch (error) {
+        logger.error(
+            `Neither crypto implementation works here. Node.js crypto offers ${defect} and standard crypto refused to` +
+                ` load (${asError(error).message}), so Matter will fail wherever it needs the missing primitive.`,
+        );
+        return new NodeJsCrypto();
+    }
+
+    logger.notice(
+        `Using matter.js's own unaudited JavaScript crypto because Node.js crypto offers ${defect}.` +
+            " Set a Crypto implementation explicitly to override this.",
+    );
+    return standardCrypto;
 }
 
 function configureNetwork(env: Environment) {

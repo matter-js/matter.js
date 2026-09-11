@@ -17,7 +17,6 @@ let trapUnhandledErrors = true;
 let setProcessExitCodeOnError = true;
 let installFilesystem = true;
 let installNetwork = true;
-// Automatic replace to `StandardCrypto` in bun.js
 let installCrypto = true;
 // Storage driver
 let storageDriver = "file";

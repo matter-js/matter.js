@@ -31,6 +31,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
     - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
+    - Fix: `NodeJsStyleCrypto.computeHash` names a digest the way Node.js's crypto API does. It passed the Web Crypto spelling, which Node.js accepts as an alias while stricter emulations of its API reject it
+    - Fix: `NodeJsStyleCrypto.computeHash` reports `CryptoInputError` naming an algorithm it does not support, where an untyped caller previously reached the underlying API with it
+
+- @matter/nodejs
+    - Fix: The Node.js environment uses standard crypto where Node.js's crypto module offers no SHA-256 digest or no `aes-128-ccm` cipher, which is the case on Bun and Deno, and says which was missing. It previously made that choice by runtime name, so it covered Bun alone and left Deno on an implementation that fails commissioning. This applies where `nodejs.crypto` is true, its default; with the variable false the environment still adopts whatever `Environment.default` holds
+    - Enhancement: `NodeJsCrypto.defect` states whether Node.js's crypto module offers the SHA-256 digest and `aes-128-ccm` cipher Matter cannot run without, and `nodeCryptoDefect` reports the same for any Node.js-style crypto API
 
 - @matter/protocol
     - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
