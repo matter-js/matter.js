@@ -259,6 +259,57 @@ export interface ReadAttributeOptions {
      * didn't itself create.
      */
     fabricFiltered?: boolean;
+
+    /**
+     * Whether the read requires a session that permits payloads larger than the IPv6 MTU, which is a
+     * session over TCP (Matter Core § 4.15.1).
+     *
+     * A hard requirement, not a preference: a controller that cannot establish such a session fails
+     * the read, or refuses it with {@link UnsupportedByControllerError}, rather than reading over MRP
+     * — so a step asking for one cannot pass on a transport it did not use. A broad read is the case
+     * for it: the peer answers in a single report where MRP would have made it chunk.
+     */
+    largeMessage?: boolean;
+}
+
+/**
+ * One live session a controller holds with a node.
+ *
+ * Held state, like {@link ClientEndpointEntry}: the controller's own view of a session it
+ * established, which is the only side that can say whether the session *permits* a large payload —
+ * a peer can only be observed carrying one.
+ *
+ * A controller may hold several sessions with one node at once, one per transport, so every claim
+ * here is about the session {@link id} names. A case that reasoned about "the session" instead would
+ * be answered by whichever session happened to be newest: a check for a severed session's absence
+ * would pass on a sibling that was never severed, and a check for a large-payload session would fail
+ * on a sibling that never claimed to be one.
+ */
+export interface CertSessionInfo {
+    /**
+     * The controller's own id for this session, unique among the sessions it holds with this node.
+     *
+     * This is the handle every other session operation takes: a step captures it once and names it
+     * afterwards, rather than re-deriving which session it meant.
+     */
+    id: number;
+
+    /** Transport beneath the session, as the controller's own channel reports it. */
+    transport: "tcp" | "udp" | "ble";
+
+    /**
+     * Whether the session permits payloads larger than the IPv6 MTU — the property a case asserting
+     * "the session allows large payloads" is about.
+     */
+    largePayload: boolean;
+
+    /**
+     * The session channel's payload ceiling, in bytes.
+     *
+     * A frame's own header counts against it, so the largest message a channel accepts is this less
+     * that header — four bytes for TCP.
+     */
+    maxPayloadSize: number;
 }
 
 /**
@@ -379,6 +430,36 @@ export interface CertNodeApi {
      * As {@link clientEndpoints}, and refused the same way.
      */
     clientAttribute(path: ClientAttributePath): Promise<unknown>;
+
+    /**
+     * Every live session the controller holds with this node, in no particular order, and empty when
+     * it holds none.
+     *
+     * As {@link clientEndpoints}, and refused the same way — a controller that does not expose its own
+     * session state throws {@link UnsupportedByControllerError}. A session the controller can no longer
+     * describe (its channel already detached) is omitted rather than reported half-known.
+     */
+    sessions(): Promise<CertSessionInfo[]>;
+
+    /**
+     * Drop the transport connection beneath the session {@link CertSessionInfo.id} names, without
+     * closing the session first, so the peer sees the connection go rather than a `CloseSession`.
+     *
+     * This is what "the TH closes the TCP connection" asks for: a session close would tell the peer
+     * to forget the session, which is the case's own expected *outcome* and so cannot be its stimulus.
+     *
+     * Naming the session is what makes the operation unambiguous when the controller holds more than
+     * one. A controller that cannot reach into its own sessions at all refuses with
+     * {@link UnsupportedByControllerError}; being handed an id it does not hold, or one whose transport
+     * has no connection to sever, is a *state* error and fails rather than refusing — a step that
+     * reached either has already established something untrue about the session it captured.
+     *
+     * The session names the target; the *connection* is what goes. Where a transport shares one
+     * connection between sessions, every session on it drops — so a case needing one session to
+     * survive the sever must not assume this touches only the one it named.
+     */
+    severTransportConnection(sessionId: number): Promise<void>;
+
     openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;

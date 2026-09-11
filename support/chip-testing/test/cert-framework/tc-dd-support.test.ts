@@ -57,6 +57,7 @@ import {
     USER_INTENT_FLOW,
 } from "../cert/tc-dd-support.js";
 import { CertCheckFailedError, CertCleanupError, CommissionedRefs } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 /**
  * `devicediscovery.adoc`'s own example payload for TC-DD-3.14: vendor id 0xFFF1, product id 0x8001,
@@ -191,23 +192,7 @@ function contextWith(
     const unused = () => Promise.reject(new InternalError("not used by these tests"));
     const noLines = async function* (): AsyncGenerator<string> {};
 
-    const nodeFor = (ref: CertNodeRef) =>
-        ({
-            invoke: unused,
-            invokeBatch: unused,
-            readAttribute: unused,
-            readAttributes: unused,
-            writeAttribute: unused,
-            writeAttributes: unused,
-            subscribe: unused,
-            readEvents: unused,
-            subscribeEvents: unused,
-            clientEndpoints: unused,
-            clientAttribute: unused,
-            openCommissioningWindow: unused,
-            operationalMdnsInstanceName: unused,
-            decommission: () => decommission(ref),
-        }) satisfies CertNodeApi;
+    const nodeFor = (ref: CertNodeRef) => fakeCertNode({ decommission: () => decommission(ref) });
 
     const dut = {
         id: "dut",
@@ -1083,28 +1068,16 @@ class UnpairFixture {
         this.#log = log;
         const unused = () => Promise.reject(new InternalError("not used by these tests"));
 
-        const node: CertNodeApi = {
-            invoke: unused,
-            invokeBatch: unused,
-            readAttributes: unused,
-            writeAttribute: unused,
-            writeAttributes: unused,
-            subscribe: unused,
-            readEvents: unused,
-            subscribeEvents: unused,
-            clientEndpoints: unused,
-            clientAttribute: unused,
-            openCommissioningWindow: unused,
+        const node: CertNodeApi = fakeCertNode({
             readAttribute: async () => {
                 this.calls.push("readFabricIndex");
                 return fabricIndex;
             },
-            operationalMdnsInstanceName: unused,
             decommission: async () => {
                 this.calls.push("decommission");
                 onDecommission();
             },
-        };
+        });
 
         const device: CertDevice = {
             id: "th",
