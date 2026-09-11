@@ -34,6 +34,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
 import { CommissionedRefs } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 async function notImplemented(..._args: unknown[]): Promise<never> {
     throw new Error("Container access is not available in this unit test");
@@ -947,23 +948,7 @@ describe("CertTest", () => {
         const commissioned = new CommissionedRefs<"dut">();
 
         function nodeFor(role: "dut"): CertNodeApi {
-            const unused = () => Promise.reject(new Error("not used by this test"));
-            return {
-                invoke: unused,
-                invokeBatch: unused,
-                readAttribute: unused,
-                readAttributes: unused,
-                writeAttribute: unused,
-                writeAttributes: unused,
-                subscribe: unused,
-                readEvents: unused,
-                subscribeEvents: unused,
-                clientEndpoints: unused,
-                clientAttribute: unused,
-                openCommissioningWindow: unused,
-                operationalMdnsInstanceName: unused,
-                decommission: async () => void decommissioned.push(role),
-            };
+            return fakeCertNode({ decommission: async () => void decommissioned.push(role) });
         }
         const noLines = async function* (): AsyncGenerator<string> {};
         const controller: ControllerAdapter = {

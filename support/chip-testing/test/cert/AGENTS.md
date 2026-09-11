@@ -2220,10 +2220,12 @@ for it — every other test keeps the transport its evidence and timing were wri
 What each side does with the request:
 
 - **matter.js controller** gets `network: { tcp: true, transportPreference: "tcp" }`, a *soft*
-  preference: it uses TCP where the peer's `SUPPORTED_TRANSPORTS.tcpServer` says it can, and silently
-  falls back to UDP otherwise. The hard `requiredTransport` lever exists in the protocol layer but is
-  not surfaced, so a test cannot yet assert "TCP or fail" — which is why the evidence below is the
-  device's, not the controller's.
+  preference: it uses TCP where the peer's `SUPPORTED_TRANSPORTS.tcpServer` says it can, and falls back
+  to UDP otherwise. The block does not rest on that preference, because a preference that fell back
+  would leave a case claiming a transport nobody used: `commissionOverTcp`'s read carries
+  `largeMessage: true`, which is the *hard* requirement — `ClientRequest.largeMessage` becomes
+  `requiredTransport: ChannelType.TCP`, and a peer that cannot serve TCP fails the read with
+  `TcpUnsupportedError` instead of answering over MRP.
 - **chip-tool** gets `--allow-large-payload 1` on every model command it builds — read, write, invoke,
   event read and both subscribes, since it decides a session's transport when it establishes one and a
   test may begin with any of them — and it is **not enough**: chip-tool
@@ -2242,12 +2244,121 @@ does not advertise TCP support, so even a TCP-preferring controller falls back t
 the case would claim a transport nobody used. `flavors: ["matterjs"]` states that, and the test skips
 before activation on the chip flavors.
 
-**What is not yet written, and why.** `TC-SC-8.2` ("the session allows large payloads") has no witness
-distinct from 8.1's on this stack: nothing logs a session's maximum payload, and a TCP-backed session
-is large-payload-capable by construction, so the two cases would rest on the same line. Its real
-witness is behavioural, and `TC-SC-8.6` below now carries it — a wildcard read arriving in a single
-`ReportData`, which UDP's ~1232-byte budget could not carry. `TC-SC-8.3`/`8.4` additionally need a way
-to sever just the TCP connection mid-test.
+**Two of the block's claims are the controller's to make, not the device's.** Nothing a device logs
+says what a session *permits* — only what it was observed carrying — so `CertNodeApi.sessions()`
+reports every live session the controller holds with a node: its id, the transport beneath it, whether
+it permits large payloads, and the payload ceiling. That is held state in the sense `clientEndpoints()`
+is, and chip-tool refuses it: a session there lives inside the process it spawns per command, and
+nothing it prints names the transport beneath one.
+
+**Every session claim names a session, and that is the load-bearing decision here.** A controller may
+hold more than one session with a peer at once — `Peer.connect` keeps one per transport — so an API
+answering about "the session" answers about whichever is newest, and a case built on it does not
+assert what it reads as asserting. Concretely, with a newest-session API: a check for a severed
+session's absence passes on a UDP sibling that was never severed; a check that a session permits large
+payloads fails on a sibling that never claimed to; and a sever aimed at "the session" can close the
+wrong one. So `sessions()` returns a list, `severTransportConnection(sessionId)` takes the session to
+sever, and `sessionGoneCheck`/`largePayloadSessionCheck` take the id the case captured in step 1 via
+`tcpSessionIdOf` — which also refuses a controller holding two TCP sessions, not a state this
+framework produces, so meeting it means the case is no longer about what it was written for.
+
+The id is also what the block needs beyond the DUT's tag. A device may reuse the id of a session it has
+closed, so an identical tag is not proof the old session survived and a differing one is not proof the
+controller established a new one — the controller's own id decides both, which is why `TcpSessionRef`
+keeps `{ tag, channel, controllerSessionId }` rather than the tag alone.
+
+**A session operation naming a session the controller does not hold is a state error, not a refusal.**
+`UnsupportedByControllerError` means "this controller cannot do this kind of thing" and the step runner
+records it as *skipped*; using it for a runtime state would turn the precise defect step 1 exists to
+rule out into a clean-looking run. The in-process adapter throws `SessionStateError` for an unknown id,
+a detached channel, or a transport with no connection to sever, so such a step fails.
+
+## The claim only the controller can make (`TC-SC-8.2`)
+
+`TC-SC-8.2` asks whether the session *allows* large payloads, which is not the same question as
+`TC-SC-8.1`'s (is the connection underneath TCP) or `TC-SC-8.6`'s (did a large payload actually
+cross). A device carrying one proves the permission after the fact; nothing it logs states the
+permission itself. So this case's own evidence is `sessions()`, and it requires all three of
+`transport: "tcp"`, `largePayload`, and a ceiling above 1280 bytes — a session claiming to permit a
+large payload with an MTU-sized ceiling permits nothing the peer could receive, and one claiming it
+over UDP is reporting something no transport it has can do.
+
+The check is a pure function of the held record (`largePayloadSessionCheck`), so each way it can be
+satisfied by the wrong thing is covered without a device.
+
+## Severing the connection, and why not the session (`TC-SC-8.3`)
+
+The stimulus is `severTransportConnection()`, which closes the session's own
+`MessageChannel.transportChannel` and nothing else. Closing the *session* would send `CloseSession`
+and the DUT would forget the session — which is this case's expected **outcome**, so it cannot also
+be its stimulus. `MessageChannel.close()` deliberately leaves a TCP channel alone (the transport owns
+it, 1:1 with the session), which is what makes reaching for the transport channel the honest way to
+express "the TH closes the TCP connection".
+
+**The claim rests on the controller, and the device half is not readable from a run.**
+`sessionGoneCheck` asks whether the *severed id* is still among the sessions the controller holds and
+passes when it is not — whatever else it holds, since a controller may reconnect on its own. What the
+plan's "the secure session with DUT is inactive" forbids is the severed session remaining usable.
+
+**The absence is waited for, not read once.** Severing closes the channel; the eviction that follows
+runs on a worker nothing a step can await (`ExchangeManager` adds it to its own multiplex), and with
+an exchange still open it suspends before marking the session closed. `recordSeveredSession` polls the
+controller's sessions until the severed id is gone or `EVICTION_TIMEOUT` expires — a single immediate
+read passes only by luck of the synchronous prefix.
+
+**The device half reads from the DUT's own log.** `sessionEvictionCheck` matches an ordered pair —
+the DUT naming the connection that dropped, then the session it dropped with it — because either line
+alone is ambiguous: a device may reuse a session tag it has closed, and it may drop a connection of
+its own accord. The check returns its record rather than recording it, so `recordSeveredSession` puts
+both halves of the step in the evidence whichever one fails. `sessionGoneCheck` remains the gating
+claim, because it is the controller's held state the plan speaks about.
+
+**Which lines a device-log check may rest on.** A device's eviction lines are written from its
+socket's close callback, and a socket's `'close'` handler runs with no `AsyncLocalStorage` store at
+all — even when the close is initiated synchronously inside `als.run()`. Attribution keyed on the
+device whose `initialize()`/`start()`/`stop()`/`close()` is on the stack therefore loses them to the
+run's console, which is why this check could not be written before.
+
+`ExchangeManager` and `SessionManager` — and only those two so far — log through
+`Environment.logger()`, so their messages name the environment they originate from and
+`src/cert/log-origins.ts` routes them whatever the call stack says. A device-log check for something
+one of those two does from a socket or timer callback is therefore ordinary. Every other component
+still logs through a module-level `Logger.get()`, keeps the old attribution, and keeps the old
+limitation: do not rest a check on a callback-written line from a component that has not been
+converted.
+
+**What `TC-SC-8.2`'s controller-side check does and does not prove.** `CertSessionInfo`'s three
+payload fields are not independent evidence: all come from the session's channel, and the channel type
+fixes them (`TcpChannel` declares `supportsLargeMessages = true` with a 64000-byte ceiling; `UdpTransport`
+and `Ble` declare `false`). Requiring all three is a consistency guard against a channel reporting a
+combination no transport should produce — not three separate findings. What makes 8.2 a distinct case
+is *who* asserts: the controller states what the session permits, where 8.1 has the device state what
+the connection is and 8.6 observes a large payload actually crossing.
+
+## Re-establishing, and what makes it a different session (`TC-SC-8.4`)
+
+Steps 1 and 2 are `TC-SC-8.3`'s. Step 3 drives a read carrying `largeMessage: true`, so the session it
+re-establishes is one the peer must serve over TCP — a step that read without it could be answered
+over MRP and still find a session to report.
+
+**Its claim is not attributable from the device's log, and trying was a dead end worth recording.**
+The cert adapter leaves sustained subscriptions on, so a controller re-establishes a session on its
+own schedule — a lost subscription reconnects by establishing one. A check that matches a
+CASE-establishment line and calls it this step's therefore races either way around whatever mark it
+takes: a mark before the reconnect matches a line the step's read did not cause, and a mark after it
+finds no line at all, because the read reused the session the reconnect had already made — failing a
+case whose outcome actually held. Both were found in review, one per round, on the same construct.
+
+Session ids carry no such window, so the step gates on them: a TCP session exists, it is not the
+severed id, and it permits large payloads — which is the whole of what the plan asks, all from
+`sessions()`. `sessionGoneCheck` is the same comparison step 2 uses, so one covered comparison
+carries both claims.
+
+The device's own line is still recorded, by `furtherSessionCheck`, as corroboration that does **not**
+gate the step: `unverified` with a reason when absent, which leaves the step passing. It is searched
+from a mark taken *before* the sever, so a reconnect that beat the read is found rather than missed,
+and it accepts `New` or `Resumed` because resumption is a CASE session establishment and a step
+demanding a full handshake would fail a DUT doing the spec-preferred thing.
 
 ## An interaction over the TCP session, bound to that session (`TC-SC-8.5`)
 
@@ -2280,9 +2391,10 @@ extraction, and each way `recordTcpInvoke`'s patterns can be satisfied by the wr
 session, another command, another endpoint, a response carrying more commands, no answer at all) —
 so a regex regression surfaces without docker and without a chip binary.
 
-Step 1's expected outcome here is the plan's "the session allows large payloads", which nothing logs —
-a TCP-backed session is large-payload-capable by construction, so this step's evidence is 8.1's and the
-distinct witness belongs to `TC-SC-8.6`, as the note above records for `TC-SC-8.2`.
+Step 1's expected outcome here is the plan's "the session allows large payloads", which nothing the
+*device* logs states: a TCP-backed session is large-payload-capable by construction, so this step's
+device evidence is 8.1's. The two distinct witnesses live elsewhere — `TC-SC-8.2` asks the controller
+what the session permits, and `TC-SC-8.6` observes a large payload actually crossing.
 
 ## The large-payload witness the earlier TCP cases lack (`TC-SC-8.6`)
 
@@ -2342,10 +2454,10 @@ invoke, no large payload — and the step's evidence is what distinguishes the c
   reject would read as a session it accepted, and an attempt inside the span whose session forms after
   it would be counted though its establishment falls outside the window this check bounds.
 
-Nothing in the controller expresses "either transport is usable" as a request flag: matter.js's
-`transportPreference` is set once, for the session, and the protocol layer's hard `requiredTransport`
-lever is not surfaced. So the plan's step text describes what an ordinary invoke already is on this
-stack, and the case's substance lives entirely in the three checks above.
+Nothing in the controller expresses "either transport is usable" as a request flag. `largeMessage`
+expresses the opposite — TCP or fail — and `transportPreference` is a per-session preference, so an
+invoke that sets neither is exactly the plan's "either is usable". The case's substance therefore
+lives entirely in the three checks above.
 
 ## The group-messaging block, and what sending one actually needed (`TC-SC-5.3`)
 

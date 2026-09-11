@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MAX_UDP_MESSAGE_SIZE } from "@matter/general";
+import { Duration, InternalError, MAX_UDP_MESSAGE_SIZE, Millis, Seconds, Time } from "@matter/general";
 import { Matter } from "@matter/model";
 import { MATTER_MESSAGE_OVERHEAD } from "@matter/protocol";
-import type { CertNodeRef, CertStepContext, CheckRecord, DeviceFlavor } from "@matter/testing";
+import type { CertNodeRef, CertSessionInfo, CertStepContext, CheckRecord, DeviceFlavor } from "@matter/testing";
 import { resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
 import {
     CertCheckFailedError,
@@ -19,6 +19,7 @@ import {
     LOG_TIMEOUT,
     matterjsCommandPath,
     record,
+    recordAll,
     requireId,
 } from "./tc-support.js";
 
@@ -66,7 +67,14 @@ export async function commissionOverTcp(cx: CertStepContext, commissioned: Commi
     });
     commissioned.set("th", ref);
 
-    await th.node(ref).readAttribute({ endpoint: 0, cluster: BASIC_INFORMATION_ID, attribute: VENDOR_NAME_ID });
+    // `largeMessage` makes the transport a hard requirement rather than a preference, so a controller
+    // that fell back to MRP fails the read instead of leaving the case claiming a transport it never used
+    await th
+        .node(ref)
+        .readAttribute(
+            { endpoint: 0, cluster: BASIC_INFORMATION_ID, attribute: VENDOR_NAME_ID },
+            { largeMessage: true },
+        );
 
     return { ref, from };
 }
@@ -97,7 +105,11 @@ export function requireTcpCapableController() {
  * Returns the DUT's own tag for that session, so a later step can bind its evidence to this session
  * rather than to any session that happens to be a TCP one.
  */
-export async function recordTcpSession(cx: CertStepContext, from: number, what: string): Promise<string> {
+export async function recordTcpSession(
+    cx: CertStepContext,
+    from: number,
+    what: string,
+): Promise<{ tag: string; channel: string }> {
     const dut = cx.devices.dut;
 
     const pairing = await expectSequence(
@@ -148,7 +160,7 @@ export async function recordTcpSession(cx: CertStepContext, from: number, what: 
         );
     }
 
-    return tag;
+    return { tag, channel };
 }
 
 /** Records `detail` as a failed device-log check and returns the error a caller throws. */
@@ -492,23 +504,37 @@ export function timeSnapshotResponseCheck(response: unknown, refusal: unknown): 
  */
 const FURTHER_SESSION = /CaseServer .*(?:New|Resumed) session with/;
 
+/**
+ * What a TCP case knows about the session its first step established, from both sides.
+ *
+ * The DUT's tag identifies the session in its own log; the channel is the only token its pairing and
+ * its eviction lines share, so a case that severs a connection needs it to say *which* connection
+ * went. The controller's session id is what tells a re-established session from the one before it —
+ * the DUT's tag alone cannot, since a peer may reuse a session id it has closed.
+ */
+export interface TcpSessionFacts {
+    tag: string;
+    channel: string;
+    controllerSessionId: number;
+}
+
 /** Where a TCP case keeps the session its first step established, for the steps that follow. */
 export class TcpSessionRef {
-    #tag?: string;
+    #facts?: TcpSessionFacts;
 
-    set(tag: string) {
-        this.#tag = tag;
+    set(facts: TcpSessionFacts) {
+        this.#facts = facts;
     }
 
-    require(): string {
-        if (this.#tag === undefined) {
+    require(): TcpSessionFacts {
+        if (this.#facts === undefined) {
             throw new CertCheckFailedError("no TCP session was captured");
         }
-        return this.#tag;
+        return this.#facts;
     }
 
     clear() {
-        this.#tag = undefined;
+        this.#facts = undefined;
     }
 }
 
@@ -527,15 +553,314 @@ export function tcpStep(run: (cx: CertStepContext) => Promise<void>) {
 /** Every TCP case starts the same way, so its first step is shared rather than copied. */
 export function tcpSessionStep(commissioned: CommissionedRefs<"th">, session: TcpSessionRef) {
     return async (cx: CertStepContext) => {
-        const { from } = await commissionOverTcp(cx, commissioned);
-        session.set(
-            await recordTcpSession(
-                cx,
-                from,
-                "the session the TH established with the DUT runs over TCP, which is what makes it large-payload-capable",
-            ),
+        const { ref, from } = await commissionOverTcp(cx, commissioned);
+        const { tag, channel } = await recordTcpSession(
+            cx,
+            from,
+            "the session the TH established with the DUT runs over TCP, which is what makes it large-payload-capable",
         );
+
+        session.set({ tag, channel, controllerSessionId: tcpSessionIdOf(await heldSessions(cx, ref)) });
     };
 }
+
+/** Every live session the TH holds with `ref`. */
+export function heldSessions(cx: CertStepContext, ref: TcpRef): Promise<CertSessionInfo[]> {
+    return cx.controllers.th.node(ref).sessions();
+}
+
+/** The session `id` names among `sessions`, and undefined when it holds no such session. */
+export function sessionWithId(sessions: CertSessionInfo[], id: number) {
+    return sessions.find(session => session.id === id);
+}
+
+/**
+ * The id of the one TCP session among `sessions`, which every later step names.
+ *
+ * Exactly one: a controller may hold a session per transport, and a case that took "the TCP session"
+ * from a set holding two of them would be reasoning about whichever came back first. Two is reachable
+ * — a peer-lost session lingers until it closes, and an inbound session is adopted into the same peer
+ * — so this refuses rather than choosing, and the step fails.
+ *
+ * Takes the sessions rather than reading them, so an id and the set it was drawn from are the same
+ * observation. Reading twice would let a check judge one read against an id from another.
+ */
+export function tcpSessionIdOf(sessions: CertSessionInfo[]): number {
+    const tcp = sessions.filter(session => session.transport === "tcp");
+    if (tcp.length !== 1) {
+        throw new CertCheckFailedError(
+            `the TH holds ${tcp.length} TCP ${tcp.length === 1 ? "session" : "sessions"} with the DUT, ` +
+                `and this case is about exactly one — it holds ${describeSessions(sessions)}`,
+        );
+    }
+    return tcp[0].id;
+}
+
+/**
+ * What the TH's own account of the session `id` names says about large payloads.
+ *
+ * The controller is the only side that can answer this: the plan asks whether the session *permits* a
+ * large payload, and a peer can only ever be observed carrying one — which is what makes this a
+ * different claim from {@link recordTcpSession}'s, where the *device* says the connection underneath
+ * is TCP.
+ *
+ * The three properties are **not independent evidence**. All three come from the session's channel,
+ * and each channel type fixes them: `TcpChannel` declares `supportsLargeMessages = true` with a
+ * 64000-byte ceiling, `UdpTransport` and `Ble` declare `false`. So requiring all three is a
+ * consistency guard — it fails a channel that reports a combination no transport should produce —
+ * rather than three separate findings. A case wanting behavioural proof that a large payload crossed
+ * needs `TC-SC-8.6`.
+ *
+ * Named rather than newest, so a sibling session over another transport can neither satisfy this nor
+ * fail it.
+ */
+export function largePayloadSessionCheck(sessions: CertSessionInfo[], id: number): CheckRecord {
+    const held = sessionWithId(sessions, id);
+    if (held === undefined) {
+        return {
+            type: "response",
+            verdict: "fail",
+            detail: `the TH holds no session ${id} with the DUT, and holds ${describeSessions(sessions)}`,
+        };
+    }
+
+    const detail =
+        `the TH holds ${held.transport} session ${held.id}, which ` +
+        `${held.largePayload ? "permits" : "denies"} large payloads, with a maximum payload of ` +
+        `${held.maxPayloadSize} bytes`;
+
+    const passes = held.transport === "tcp" && held.largePayload && held.maxPayloadSize > LARGE_PAYLOAD_FLOOR;
+    return { type: "response", verdict: passes ? "pass" : "fail", detail };
+}
+
+/**
+ * How an evidence record names the sessions a controller holds.
+ *
+ * Ordered by id, because `sessions()` promises no order and an evidence string that varied with the
+ * controller's internal iteration would differ between runs of the same case.
+ */
+export function describeSessions(sessions: CertSessionInfo[]) {
+    return sessions.length === 0
+        ? "no sessions"
+        : [...sessions]
+              .sort((a, b) => a.id - b.id)
+              .map(session => `${session.transport} session ${session.id}`)
+              .join(", ");
+}
+
+/** {@link largePayloadSessionCheck}, recorded as the step's evidence. */
+export async function recordLargePayloadSession(cx: CertStepContext, ref: TcpRef, id: number, what: string) {
+    record(cx, largePayloadSessionCheck(await heldSessions(cx, ref), id), what);
+}
+
+/**
+ * The DUT's own account of evicting the session `severed` names when its connection dropped.
+ *
+ * Both lines, in order: the DUT names the connection that went, then the session it dropped with it. Either alone is
+ * ambiguous — a device may reuse a session tag it has closed, and it may drop another connection of its own accord —
+ * so only the pair says that *this* session went with *this* connection. Other sessions on the same connection log
+ * between them, which is why the sequence is ordered rather than adjacent.
+ *
+ * Returns the record rather than recording it, so a caller can put it in the evidence alongside the controller's half
+ * whichever of the two fails.
+ */
+export async function sessionEvictionCheck(
+    cx: CertStepContext,
+    severed: TcpSessionFacts,
+    from: number,
+    timeout: Duration = LOG_TIMEOUT,
+): Promise<CheckRecord> {
+    const dut = cx.devices.dut;
+    if (dut === undefined) {
+        throw new InternalError("A case that records a session eviction must declare a dut device");
+    }
+
+    return expectSequence(
+        dut.log,
+        dut.flavor,
+        `the DUT evicting session ${severed.tag} on the connection from ${severed.channel}`,
+        {
+            matterjs: {
+                ordered: [
+                    new RegExp(`TCP connection dropped, evicting bound sessions: ${literally(severed.channel)}(?!\\S)`),
+                    new RegExp(`Evicting session due to TCP disconnect: ${literally(severed.tag)}`),
+                ],
+            },
+        },
+        from,
+        timeout,
+    );
+}
+
+/**
+ * What the TH holds once the session `severed` names is gone: anything but that session.
+ *
+ * Identified rather than counted, and identified rather than "the newest": a controller may hold a
+ * session per transport and may reconnect on its own, so neither "it holds none" nor "the newest one
+ * differs" states what the plan forbids — the *severed* session remaining usable.
+ */
+export function sessionGoneCheck(severed: TcpSessionFacts, sessions: CertSessionInfo[]): CheckRecord {
+    const held = sessionWithId(sessions, severed.controllerSessionId);
+    return {
+        type: "response",
+        verdict: held === undefined ? "pass" : "fail",
+        detail:
+            `the TH ${held === undefined ? "no longer holds" : "still holds"} session ` +
+            `${severed.controllerSessionId}, and holds ${describeSessions(sessions)}`,
+    };
+}
+
+/**
+ * How long to wait for the controller to drop a severed session.
+ *
+ * Severing closes the channel; the eviction that follows runs on a worker nothing a step can await
+ * (`ExchangeManager` adds it to its own multiplex), and with an exchange still open it suspends
+ * before marking the session closed. So the absence has to be waited for rather than read once.
+ */
+const EVICTION_TIMEOUT = Seconds(5);
+
+/** How often {@link recordSeveredSession} re-reads the controller's sessions while waiting. */
+const EVICTION_POLL = Millis(50);
+
+/**
+ * Severs the connection beneath the session `session` names and records that the TH no longer holds it,
+ * plus the DUT's own eviction ({@link sessionEvictionCheck}).
+ *
+ * `timeout` bounds each half of the wait separately — the controller's poll, then the DUT's own log line.
+ */
+export async function recordSeveredSession(
+    cx: CertStepContext,
+    ref: TcpRef,
+    session: TcpSessionRef,
+    timeout: Duration = EVICTION_TIMEOUT,
+) {
+    const severed = session.require();
+    const dut = cx.devices.dut;
+    if (dut === undefined) {
+        throw new InternalError("A case that severs a session must declare a dut device");
+    }
+
+    // Settled, not just marked: the pump ingests asynchronously, so a line the device wrote before the sever could
+    // otherwise land after the mark and be read as the eviction this step causes
+    const from = await dut.log.markSettled();
+
+    await cx.controllers.th.node(ref).severTransportConnection(severed.controllerSessionId);
+
+    let sessions = await heldSessions(cx, ref);
+    // Elapsed time, so the clock must not be one that can step
+    const deadline = Time.nowUs + timeout;
+    while (sessionWithId(sessions, severed.controllerSessionId) !== undefined && Time.nowUs < deadline) {
+        await Time.sleep("cert severed session eviction", EVICTION_POLL);
+        sessions = await heldSessions(cx, ref);
+    }
+
+    // Awaited before recording anything: recordAll throws once at the end so a step's whole claim reaches the
+    // evidence, and a device check recorded after it would be missing from the bundle exactly when the step fails
+    const eviction = await sessionEvictionCheck(cx, severed, from, timeout);
+
+    recordAll(cx, [
+        {
+            check: () => sessionGoneCheck(severed, sessions),
+            what: `the TH no longer holds session ${severed.controllerSessionId}`,
+        },
+        { check: () => eviction, what: `the DUT dropped session ${severed.tag}` },
+    ]);
+}
+
+/**
+ * Confirms a *further* CASE session over TCP, from the controller's own session ids.
+ *
+ * The claim is not attributable from the device's log. A controller re-establishes a session on its
+ * own schedule — the cert adapter leaves sustained subscriptions on, and a lost subscription
+ * reconnects by establishing one — so a check that matches a CASE-establishment line and calls it
+ * this step's races either way around whatever mark it takes: a mark before the reconnect matches a
+ * line the read did not cause, and a mark after it finds no line at all because the read reused the
+ * session the reconnect had already made, failing a case whose outcome actually held.
+ *
+ * Session ids carry no such window. "A TCP session exists, it is not the one severed, and it permits
+ * large payloads" is the whole of what the plan asks, and all three come from `sessions()`. The
+ * device's own line for a further session is still recorded — it is worth having in the bundle — but
+ * it does not gate the step, and it is searched from before the sever so a reconnect that beat the
+ * read is found rather than missed.
+ */
+export async function recordReestablishedSession(
+    cx: CertStepContext,
+    ref: TcpRef,
+    previous: TcpSessionFacts,
+    from: number,
+) {
+    // A read the peer must answer over TCP: it re-establishes the session and refuses to travel over
+    // MRP, so this step cannot pass on a fallback the plan does not describe
+    await cx.controllers.th
+        .node(ref)
+        .readAttribute(
+            { endpoint: 0, cluster: BASIC_INFORMATION_ID, attribute: VENDOR_NAME_ID },
+            { largeMessage: true },
+        );
+
+    // One read for both the id and the checks: two would let the checks judge a set the id was never
+    // drawn from
+    const sessions = await heldSessions(cx, ref);
+    const id = tcpSessionIdOf(sessions);
+    const further = await furtherSessionCheck(cx, from);
+    recordAll(cx, [
+        {
+            check: () => sessionGoneCheck(previous, sessions),
+            what: "the session the TH holds is not the one it severed",
+        },
+        {
+            check: () => largePayloadSessionCheck(sessions, id),
+            what: "the re-established session allows large payloads",
+        },
+        { check: () => further, what: "the DUT accepted a further session over TCP" },
+    ]);
+}
+
+/**
+ * The DUT's own line for a further CASE session over TCP, as corroboration rather than as a gate.
+ *
+ * Unverified rather than failing when no line is found: the session the controller holds is what the
+ * step rests on, and a device that served it without this line having reached the log has not failed
+ * the case.
+ */
+export async function furtherSessionCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
+    const dut = cx.devices.dut;
+    if (dut.flavor !== "matterjs") {
+        return { type: "device-log", verdict: "unverified", accepted: `no pattern for a ${dut.flavor} device` };
+    }
+
+    await dut.log.settled();
+    const line = dut.log
+        .window(from, dut.log.lines.length - from)
+        .find(candidate => !candidate.synthetic && FURTHER_TCP_SESSION.test(candidate.text));
+
+    const tag = line === undefined ? undefined : SESSION_TAG.exec(line.text)?.[1];
+    return {
+        type: "device-log",
+        verdict: line === undefined ? "unverified" : "pass",
+        pattern: FURTHER_TCP_SESSION.source,
+        detail:
+            line === undefined
+                ? "the DUT's log carries no further session over TCP"
+                : `the DUT accepted ${tag ?? "a further session"} over TCP`,
+        matched: tag ?? line?.text,
+        logLine: line?.index,
+        accepted:
+            line === undefined
+                ? "the controller's own session id is what this step rests on; the device's line for a " +
+                  "further session may not have reached its log"
+                : undefined,
+    };
+}
+
+/**
+ * A CASE session the DUT accepted over TCP, established or resumed. Resumption counts: it is a CASE
+ * session establishment, and a step demanding a full handshake would fail a DUT doing the
+ * spec-preferred thing.
+ *
+ * Deliberately not {@link FURTHER_SESSION}, which matches a session on any transport because the case
+ * using it asserts that *no* further session appeared.
+ */
+const FURTHER_TCP_SESSION = /CaseServer .*\(tcp\).*(?:New|Resumed) session with/;
 
 export type TcpRef = CertNodeRef;

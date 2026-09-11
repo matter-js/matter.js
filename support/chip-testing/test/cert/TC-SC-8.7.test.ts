@@ -40,7 +40,7 @@ const session = new TcpSessionRef();
  */
 async function invokeOverExistingSession(cx: CertStepContext) {
     const node = cx.controllers.th.node(commissioned.require("th"));
-    const tag = session.require();
+    const { tag } = session.require();
 
     const dut = cx.devices.dut;
     const from = await dut.log.markSettled();

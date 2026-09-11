@@ -66,6 +66,25 @@ describe("SecureSession", () => {
         });
     }
 
+    describe("session parameters", () => {
+        it("assumes one path per invoke for a peer that reports zero", () => {
+            const session = new NodeSession({
+                crypto,
+                id: 1,
+                fabric: undefined,
+                peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                peerSessionId: 0x8d4b,
+                decryptKey: DECRYPT_KEY,
+                encryptKey: ENCRYPT_KEY,
+                attestationKey: new Uint8Array(),
+                isInitiator: true,
+                sessionParameters: { maxPathsPerInvoke: 0 },
+            });
+
+            expect(session.parameters.maxPathsPerInvoke).equals(1);
+        });
+    });
+
     describe("peer loss", () => {
         it("conveys the initiating exchange to its subscriptions", async () => {
             const session = secureSession();

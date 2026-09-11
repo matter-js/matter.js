@@ -4,11 +4,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { FabricManager } from "#fabric/FabricManager.js";
+import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { Session } from "#session/Session.js";
+import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Bytes, Channel, ChannelType, Millis, Transport } from "@matter/general";
+import {
+    Bytes,
+    causedBy,
+    Channel,
+    ChannelType,
+    Entropy,
+    Environment,
+    Logger,
+    LogLevel,
+    MemoryStorageDriver,
+    Millis,
+    NetworkError,
+    StandardCrypto,
+    StorageContext,
+    Time,
+    Transport,
+    TransportClosedError,
+    TransportSet,
+} from "@matter/general";
 import { SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 
 /**
@@ -133,7 +155,7 @@ describe("TCP Session-Connection Binding", () => {
 
             expect(session.isClosing).to.be.false;
 
-            await session.initiateForceClose({ cause: new Error("TCP connection dropped") });
+            await session.initiateForceClose({ cause: new TransportClosedError("TCP connection dropped") });
 
             expect(session.isClosing).to.be.true;
         });
@@ -145,10 +167,212 @@ describe("TCP Session-Connection Binding", () => {
 
             expect(session.exchanges.size).to.equal(1);
 
-            await exchange.close(new Error("TCP connection dropped"));
+            await exchange.close(new TransportClosedError("TCP connection dropped"));
 
             // Exchange should be removed from session
             expect(session.exchanges.size).to.equal(0);
+        });
+    });
+
+    // The cases above construct the cause themselves, so they pin the shape of a disconnect rather
+    // than what a disconnect does. These drive the manager's own listener.
+    describe("the manager's own reaction to a dropped connection", () => {
+        async function managerOn(transport: MockTcpTransport) {
+            const environment = new Environment("test");
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const crypto = new StandardCrypto();
+            const sessions = new SessionManager({
+                fabrics: new FabricManager(crypto),
+                storage: new StorageContext(storage, ["context"]),
+                origin: environment.logOrigin,
+            });
+            await sessions.construction.ready;
+
+            const transports = new TransportSet();
+            environment.set(Entropy, crypto);
+            environment.set(TransportSet, transports);
+            environment.set(SessionManager, sessions);
+
+            // Through the environment rather than by construction, so the logger the environment installs is the
+            // one under test
+            const exchanges = environment.get(ExchangeManager);
+            transports.add(transport);
+
+            return {
+                environment,
+                sessions,
+                exchanges,
+                async [Symbol.asyncDispose]() {
+                    await exchanges.close();
+                    await sessions.close();
+                },
+            };
+        }
+
+        /**
+         * Waits for the disconnect the manager handles on a worker nothing here can await.
+         *
+         * Bounded rather than a fixed number of turns: the handler closes each exchange before it
+         * force-closes the session, so how many turns it needs depends on what the session carries.
+         */
+        async function settled(condition: () => boolean) {
+            for (let turn = 0; turn < 50 && !condition(); turn++) {
+                await Time.macrotask;
+            }
+        }
+
+        it("closes the sessions bound to the connection that dropped", async () => {
+            const transport = new MockTcpTransport();
+            await using manager = await managerOn(transport);
+
+            const channel = new MockTcpChannel("tcp-1");
+            const session = createSessionOnTcpChannel(channel);
+            manager.sessions.sessions.add(session);
+
+            transport.simulateDisconnect(channel);
+            await settled(() => session.isClosing);
+
+            expect(session.isClosing, "the session bound to the dropped connection is closing").true;
+        });
+
+        // A dropped connection reaches the manager from a socket callback, so nothing on the call stack
+        // says which node it belongs to.  A process running several nodes reads these lines only if the
+        // message itself names its owner.
+        it("names the originating environment on the lines the drop produces", async () => {
+            const transport = new MockTcpTransport();
+            await using manager = await managerOn(transport);
+
+            const channel = new MockTcpChannel("tcp-1");
+            const session = createSessionOnTcpChannel(channel);
+            manager.sessions.sessions.add(session);
+
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const origins = new Map<string, unknown>();
+            dest.level = LogLevel.DEBUG;
+            dest.add = message => {
+                const text = String(message.values[0]);
+                for (const line of ["TCP connection dropped", "Evicting session due to TCP disconnect"]) {
+                    if (text.startsWith(line)) {
+                        origins.set(line, message.origin);
+                    }
+                }
+            };
+
+            try {
+                transport.simulateDisconnect(channel);
+                await settled(() => session.isClosing);
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+            }
+
+            // Identity, not deep equality: an origin is a plain name-and-parent record, so deep equality holds
+            // between any two environments named alike and would accept attribution to the wrong node
+            expect([...origins.keys()]).deep.equals([
+                "TCP connection dropped",
+                "Evicting session due to TCP disconnect",
+            ]);
+            expect(origins.get("TCP connection dropped")).equals(manager.environment.logOrigin);
+            expect(origins.get("Evicting session due to TCP disconnect")).equals(manager.environment.logOrigin);
+        });
+
+        // A manager built without one still logs -- the legacy construction path has no environment to bind
+        it("names no origin when the manager is built without one", async () => {
+            const transport = new MockTcpTransport();
+            const environment = new Environment("unbound");
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const crypto = new StandardCrypto();
+            const sessions = new SessionManager({
+                fabrics: new FabricManager(crypto),
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessions.construction.ready;
+
+            const transports = new TransportSet();
+            const exchanges = new ExchangeManager({ lifetime: environment, entropy: crypto, transports, sessions });
+            transports.add(transport);
+
+            const channel = new MockTcpChannel("tcp-unbound");
+            const session = createSessionOnTcpChannel(channel);
+            sessions.sessions.add(session);
+
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const origins = new Array<unknown>();
+            dest.level = LogLevel.DEBUG;
+            dest.add = message => {
+                if (String(message.values[0]).startsWith("TCP connection dropped")) {
+                    origins.push(message.origin);
+                }
+            };
+
+            try {
+                transport.simulateDisconnect(channel);
+                for (let turn = 0; turn < 50 && !session.isClosing; turn++) {
+                    await Time.macrotask;
+                }
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+                await exchanges.close();
+                await sessions.close();
+            }
+
+            expect(origins).deep.equals([undefined]);
+        });
+
+        // Matter Core § 4.15.1 invalidates the sessions *bound to* the connection, not every session
+        // with the peer. A session on another connection has not been told anything.
+        it("leaves a session on another connection alone", async () => {
+            const transport = new MockTcpTransport();
+            await using manager = await managerOn(transport);
+
+            const dropped = new MockTcpChannel("tcp-1");
+            const surviving = new MockTcpChannel("tcp-2");
+            const onDropped = createSessionOnTcpChannel(dropped, 1);
+            const onSurviving = createSessionOnTcpChannel(surviving, 2);
+            manager.sessions.sessions.add(onDropped);
+            manager.sessions.sessions.add(onSurviving);
+
+            // Settling on *both* rather than on the dropped one: a wait that ended as soon as the
+            // dropped session closed would assert the survivor before the handler could have reached
+            // it, and would pass just as well against a handler that closes everything
+            transport.simulateDisconnect(dropped);
+            await settled(() => onDropped.isClosing && onSurviving.isClosing);
+
+            expect(onDropped.isClosing, "the session on the dropped connection is closing").true;
+            expect(onSurviving.isClosing, "the session on the other connection is untouched").false;
+        });
+
+        // The cause is a dispatch key: `causedBy` walks it, and a `TransientPeerCommunicationError`
+        // or `NetworkError` here would have consumers treat the peer as lost or unreachable, which a
+        // connection drop does not establish
+        it("gives the closed exchange a cause that claims nothing about the peer", async () => {
+            const transport = new MockTcpTransport();
+            await using manager = await managerOn(transport);
+
+            const channel = new MockTcpChannel("tcp-1");
+            const session = createSessionOnTcpChannel(channel);
+            manager.sessions.sessions.add(session);
+            const exchange = createExchange(session);
+
+            let cause: unknown;
+            try {
+                transport.simulateDisconnect(channel);
+                await settled(() => session.isClosing);
+                await exchange.nextMessage();
+            } catch (e) {
+                cause = e;
+            }
+
+            expect(cause, "the exchange rejects once its connection is gone").not.undefined;
+            expect(causedBy(cause, TransportClosedError), "the cause names a closed transport").true;
+            expect(causedBy(cause, NetworkError), "the cause does not claim the peer is unreachable").false;
+            expect(causedBy(cause, TransientPeerCommunicationError), "the cause does not claim the peer was lost")
+                .false;
         });
     });
 
