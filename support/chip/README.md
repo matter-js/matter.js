@@ -9,7 +9,8 @@ The matter.js test harness pulls this image automatically when running CHIP test
 Besides `chip-tool`, the image ships app binaries used as TH_SERVER/DUT for cert tests:
 `chip-all-clusters-app` and `chip-all-clusters-app-nlfaultinject` (built with CHIP's
 `chip_with_nlfaultinjection=true` GN arg so its FaultInjection cluster is present, as required by
-tests such as TC-SC-3.5) and `chip-bridge-app` (TC-ACT-3.2's TH).
+tests such as TC-SC-3.5), `chip-bridge-app` (TC-ACT-3.2's TH) and `chip-camera-app` (the WEBRTCR
+cases' TH, whose own build arguments already enable fault injection).
 
 The [bin](./bin) directory contains additional helper scripts you can use on the host:
 

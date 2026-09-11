@@ -29,7 +29,8 @@ RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
     --mount=type=cache,sharing=locked,target=/var/lib/apt \
     apt-get -qq update && \
     apt-get -qq -y install python3 python-is-python3 libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev \
-        libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libavformat60 libavcodec60 libavutil58 libcurl4
+        libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libavformat60 libavcodec60 libavutil58 libcurl4 \
+        gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly
 
 ################################################################################
 #
@@ -132,7 +133,11 @@ RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app
 RUN build-one bridge-app/linux chip-bridge-app
 
 # The WEBRTCR cases' TH_SERVER. Its own args.gni sets chip_with_nlfaultinjection, which is what lets a
-# case inject kFault_ModifyWebRTCOfferSessionId, so no extra GN argument here
+# case inject kFault_ModifyWebRTCOfferSessionId, so no extra GN argument here.
+#
+# The app builds its pipelines from named GStreamer elements, so the plugins carrying them have to be
+# in the final image or the factories resolve to nothing at runtime: videotestsrc/videoconvert/opus
+# (base), v4l2src/jpegenc/rtp/udp (good), x264enc (ugly)
 RUN build-one camera-app/linux chip-camera-app
 
 # Install Python stuff
