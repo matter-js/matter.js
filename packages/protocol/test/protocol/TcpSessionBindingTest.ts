@@ -17,7 +17,10 @@ import {
     causedBy,
     Channel,
     ChannelType,
+    Entropy,
     Environment,
+    Logger,
+    LogLevel,
     MemoryStorageDriver,
     Millis,
     NetworkError,
@@ -183,19 +186,22 @@ describe("TCP Session-Connection Binding", () => {
             const sessions = new SessionManager({
                 fabrics: new FabricManager(crypto),
                 storage: new StorageContext(storage, ["context"]),
+                logger: environment.logger("SessionManager"),
             });
             await sessions.construction.ready;
 
             const transports = new TransportSet();
-            const exchanges = new ExchangeManager({
-                lifetime: environment,
-                entropy: crypto,
-                transports,
-                sessions,
-            });
+            environment.set(Entropy, crypto);
+            environment.set(TransportSet, transports);
+            environment.set(SessionManager, sessions);
+
+            // Through the environment rather than by construction, so the logger the environment installs is the
+            // one under test
+            const exchanges = environment.get(ExchangeManager);
             transports.add(transport);
 
             return {
+                environment,
                 sessions,
                 exchanges,
                 async [Symbol.asyncDispose]() {
@@ -229,6 +235,37 @@ describe("TCP Session-Connection Binding", () => {
             await settled(() => session.isClosing);
 
             expect(session.isClosing, "the session bound to the dropped connection is closing").true;
+        });
+
+        // A dropped connection reaches the manager from a socket callback, so nothing on the call stack
+        // says which node it belongs to.  A process running several nodes reads these lines only if the
+        // message itself names its owner.
+        it("names the owning environment on the lines the drop produces", async () => {
+            const transport = new MockTcpTransport();
+            await using manager = await managerOn(transport);
+
+            const channel = new MockTcpChannel("tcp-1");
+            const session = createSessionOnTcpChannel(channel);
+            manager.sessions.sessions.add(session);
+
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const owners = new Array<unknown>();
+            dest.level = LogLevel.DEBUG;
+            dest.add = message => {
+                if (String(message.values[0]).startsWith("TCP connection dropped")) {
+                    owners.push(message.owner);
+                }
+            };
+
+            try {
+                transport.simulateDisconnect(channel);
+                await settled(() => session.isClosing);
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+            }
+
+            expect(owners).deep.equals([manager.environment]);
         });
 
         // Matter Core § 4.15.1 invalidates the sessions *bound to* the connection, not every session

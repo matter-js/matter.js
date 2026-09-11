@@ -654,37 +654,27 @@ export async function recordLargePayloadSession(cx: CertStepContext, ref: TcpRef
 }
 
 /**
- * The DUT's own account of dropping the session is not readable from a run, so this states that
- * rather than searching for lines that cannot arrive.
+ * Confirms the DUT evicted the session `severed` names when its connection dropped.
  *
- * A matter.js device does drop it — `ExchangeManager` writes `TCP connection dropped, evicting bound
- * sessions: <channel>` and `Evicting session due to TCP disconnect: <session>`, and an in-process
- * node clears the session within tens of milliseconds.
+ * Identified by the DUT's own session tag rather than by the eviction line alone: a device may hold a
+ * session per connection, so an unqualified eviction line is answered by whichever session went.
  *
- * Two measurements, not deductions, say why those lines cannot be read here. A socket's `'close'`
- * handler runs with **no** `AsyncLocalStorage` store — even when the close is initiated synchronously
- * from inside `als.run()` — so the device-log attribution in `src/cert/index.ts`, keyed by the device
- * whose lifecycle call is on the stack, finds no device and falls through to the run's console. And in
- * an actual run the pair appears in the run's stdout while `device-dut.log` contains neither line. The
- * controller's identical lines *are* attributed, because a step severs inside the adapter's own tagged
- * call and `TcpChannel.close()` reaches `ExchangeManager` synchronously from there.
- *
- * So this is not "nobody wrote the check yet". Reasoning from how ALS ought to propagate leads the
- * other way; the measurements above are what settle it.
- *
- * So the claim rests on the controller's held state ({@link sessionGoneCheck}), which is what the
- * plan's "the secure session with DUT is inactive" is about — the session the TH holds. This record
- * keeps the device half visible as an accepted gap rather than an unwritten check.
+ * The gating claim for the plan's "the secure session with DUT is inactive" remains the TH's held
+ * state ({@link sessionGoneCheck}); this is the device half of the same fact.
  */
-export function sessionEvictionUnreadableCheck(session: TcpSessionFacts): CheckRecord {
-    return {
-        type: "device-log",
-        verdict: "unverified",
-        detail: `the DUT's eviction of session ${session.tag} on the connection from ${session.channel}`,
-        accepted:
-            "a device's eviction lines are written from its socket's close callback, which carries no " +
-            "device attribution, so they reach the run's console rather than this device's log",
-    };
+export async function recordSessionEviction(cx: CertStepContext, severed: TcpSessionFacts, from: number) {
+    const dut = cx.devices.dut;
+
+    const eviction = await expectSequence(
+        dut.log,
+        dut.flavor,
+        `the DUT evicting session ${severed.tag} on the connection from ${severed.channel}`,
+        { matterjs: [new RegExp(`Evicting session due to TCP disconnect: ${literally(severed.tag)}`)] },
+        from,
+        LOG_TIMEOUT,
+    );
+
+    record(cx, eviction, `the DUT dropped session ${severed.tag}`);
 }
 
 /**
@@ -718,8 +708,8 @@ const EVICTION_TIMEOUT = Seconds(5);
 const EVICTION_POLL = Millis(50);
 
 /**
- * Severs the connection beneath the session `session` names and records that the TH no longer holds
- * it, plus the device-side gap {@link sessionEvictionUnreadableCheck} accounts for.
+ * Severs the connection beneath the session `session` names and records that the TH no longer holds it,
+ * plus the DUT's own eviction ({@link recordSessionEviction}).
  *
  * `timeout` bounds the wait for the eviction; a case against a slower device may widen it.
  */
@@ -730,6 +720,7 @@ export async function recordSeveredSession(
     timeout: Duration = EVICTION_TIMEOUT,
 ) {
     const severed = session.require();
+    const from = cx.devices.dut.log.mark();
 
     await cx.controllers.th.node(ref).severTransportConnection(severed.controllerSessionId);
 
@@ -746,8 +737,9 @@ export async function recordSeveredSession(
             check: () => sessionGoneCheck(severed, sessions),
             what: `the TH no longer holds session ${severed.controllerSessionId}`,
         },
-        { check: () => sessionEvictionUnreadableCheck(severed), what: `the DUT dropped session ${severed.tag}` },
     ]);
+
+    await recordSessionEviction(cx, severed, from);
 }
 
 /**

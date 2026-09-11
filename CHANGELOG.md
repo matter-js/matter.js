@@ -27,6 +27,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/general
+    - Enhancement: A log message names the component that emitted it via `Diagnostic.Message.owner`, and `Environment.logger()` creates a logger that stamps its environment, so a log destination can attribute a line written from a socket or timer callback
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
 
 - @matter/protocol

@@ -94,6 +94,7 @@ import type {
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import { registerLogOwner, registrationForOwner, unregisterLogOwner } from "./log-owners.js";
 import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
@@ -190,7 +191,17 @@ Boot.init(() => {
     Logger.destinations["cert-controller-adapter"] = LogDestination({
         name: "cert-controller-adapter",
         format: LogFormat.formats.plain,
-        write(text: string) {
+        write(text: string, message) {
+            // The message names the node that wrote it, so a line from a socket or timer callback -- which no call
+            // stack attributes -- still reaches that node's log
+            const owned = registrationForOwner(message.owner);
+            if (owned !== undefined) {
+                if (owned.kind === "adapter") {
+                    owned.queue.push(text);
+                }
+                return;
+            }
+
             const id = activeAdapterId.getStore();
             if (id === undefined) {
                 return;
@@ -1110,6 +1121,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         this.id = id;
         this.#transport = options?.transport;
         this.#env = new Environment(`cert-${id}`, Environment.default);
+        registerLogOwner(this.#env, "adapter", this.#logStream);
         new MockStorageService(this.#env);
         this.log = new LogFollower(this.#logStream.follow(), id);
 
@@ -1167,6 +1179,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 await this.#controller?.close();
             });
         } finally {
+            unregisterLogOwner(this.#env);
             adapterStreams.delete(this.id);
             this.#logStream.close();
         }

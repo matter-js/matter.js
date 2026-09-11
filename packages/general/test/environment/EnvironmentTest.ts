@@ -813,4 +813,23 @@ describe("Environment", () => {
             expect(() => applyLogLevel("bogus")).to.throw();
         });
     });
+    describe("logger", () => {
+        it("binds messages to the environment that created the logger", () => {
+            const env = new Environment("test-env");
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            let owner: unknown;
+            dest.add = message => {
+                owner = message.owner;
+            };
+
+            try {
+                env.logger("EnvironmentLoggerTest").info("hello");
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+            }
+
+            expect(owner).equals(env);
+        });
+    });
 });

@@ -27,6 +27,7 @@ import {
     InProcessControllerAdapter,
     MATTERJS_CONTROLLER_PICS,
 } from "./InProcessControllerAdapter.js";
+import { registerLogOwner, registrationForOwner, unregisterLogOwner } from "./log-owners.js";
 
 registerControllerAdapterFactory(
     "matterjs",
@@ -74,7 +75,17 @@ Boot.init(() => {
     Logger.destinations["cert-matterjs-device"] = LogDestination({
         name: "cert-matterjs-device",
         format: LogFormat.formats.plain,
-        write(text: string) {
+        write(text: string, message) {
+            // The message names the node that wrote it, so a line from a socket or timer callback -- which no call
+            // stack attributes -- still reaches that node's log
+            const owned = registrationForOwner(message.owner);
+            if (owned !== undefined) {
+                if (owned.kind === "device") {
+                    owned.queue.push(text);
+                }
+                return;
+            }
+
             const id = activeDeviceId.getStore();
             const queue = id === undefined ? undefined : deviceQueues.get(id);
             if (queue !== undefined) {
@@ -128,8 +139,9 @@ class MatterJsCertDevice implements CertDevice {
     #inner: Subject;
     #id: string;
     #queue: LineQueue;
+    #env: Environment;
 
-    constructor(inner: Subject, id: string) {
+    constructor(inner: Subject, id: string, env: Environment) {
         if (deviceQueues.has(id)) {
             throw new InternalError(
                 `MatterJsCertDevice "${id}" is already registered; two live devices with the same id would ` +
@@ -140,8 +152,10 @@ class MatterJsCertDevice implements CertDevice {
 
         this.#inner = inner;
         this.#id = id;
+        this.#env = env;
         this.#queue = new LineQueue();
         deviceQueues.set(id, this.#queue);
+        registerLogOwner(env, "device", this.#queue);
         this.log = new LogFollower(this.#queue, id);
     }
 
@@ -177,6 +191,7 @@ class MatterJsCertDevice implements CertDevice {
         try {
             await runTaggedForDevice(this.#id, () => this.#inner.close());
         } finally {
+            unregisterLogOwner(this.#env);
             deviceQueues.delete(this.#id);
             this.#queue.close();
         }
@@ -209,7 +224,7 @@ function MatterJsCertSubject(implementation: DeviceTestInstanceConstructor<NodeT
             port: options?.identity?.port,
             appArgs: options?.appArgs,
         });
-        return new MatterJsCertDevice(inner, `${inner.id}`);
+        return new MatterJsCertDevice(inner, `${inner.id}`, inner.env);
     };
 }
 

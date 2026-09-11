@@ -248,6 +248,23 @@ export class Environment implements ServiceProvider, Lifetime.Owner {
     }
 
     /**
+     * Create a {@link Logger} whose messages name this environment as their owner.
+     *
+     * Use this rather than {@link Logger.get} for components that belong to a specific node, so a destination can
+     * attribute their messages even when they emit from a socket or timer callback.
+     */
+    logger(facility: string) {
+        return Logger.get(facility, this);
+    }
+
+    /**
+     * The environment enclosing this environment, if any.
+     */
+    get parent() {
+        return this.#parent;
+    }
+
+    /**
      * Get the root environment in the hierarchy.
      *
      * Recursively traverses parent links to find the topmost environment with no parent.

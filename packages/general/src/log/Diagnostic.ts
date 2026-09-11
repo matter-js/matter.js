@@ -125,13 +125,22 @@ export namespace Diagnostic {
         facility: string;
         prefix: string;
         values: unknown[];
+
+        /**
+         * The component the message describes, if known.
+         *
+         * A process may run several matter.js nodes, and a message emitted from a socket or timer callback carries no
+         * indication of which one it belongs to.  matter.js stamps this with the emitting component's
+         * {@link Environment} so a destination can attribute the message without relying on the call stack.
+         */
+        owner?: unknown;
     }
 
     /**
      * Create an object representing a log message.
      */
     export function message(value: Partial<Message>): Message {
-        const { now, level, facility, prefix: nestingPrefix, values } = value;
+        const { now, level, facility, prefix: nestingPrefix, values, owner } = value;
 
         return {
             [presentation]: Presentation.Message,
@@ -140,6 +149,7 @@ export namespace Diagnostic {
             facility: facility ?? "Diagnostic",
             prefix: nestingPrefix ?? "",
             values: values ?? [],
+            owner,
         } satisfies Message;
     }
 

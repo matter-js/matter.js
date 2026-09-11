@@ -691,6 +691,34 @@ describe("Logger", () => {
         });
     }
 
+    describe("owner", () => {
+        function captureMessages(fn: () => void) {
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const captured = new Array<Diagnostic.Message>();
+            dest.add = message => {
+                captured.push(message);
+            };
+            try {
+                fn();
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+            }
+            return captured;
+        }
+
+        it("stamps the owner bound to the logger", () => {
+            const owner = { name: "a node" };
+            const [message] = captureMessages(() => Logger.get("OwnerTest", owner).info("hello"));
+            expect(message.owner).equals(owner);
+        });
+
+        it("leaves the owner undefined when the logger has none", () => {
+            const [message] = captureMessages(() => Logger.get("OwnerTest").info("hello"));
+            expect(message.owner).equals(undefined);
+        });
+    });
+
     describe("console logging", () => {
         itUsesCorrectConsoleMethod("debug");
         itUsesCorrectConsoleMethod("info");

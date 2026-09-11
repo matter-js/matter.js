@@ -155,6 +155,12 @@ export interface SessionManagerContext {
     storage: StorageContext;
 
     /**
+     * The logger to write to.  Supply a logger bound to the owning node (see {@link Environment.logger}) so log
+     * destinations can attribute messages this manager emits from timer and transport callbacks.
+     */
+    logger?: Logger;
+
+    /**
      * Parameter overrides.
      */
     parameters?: SessionParameters.Config;
@@ -205,6 +211,7 @@ export class ShutdownError extends ClosedError {
  * Manages Matter sessions associated with peer connections.
  */
 export class SessionManager {
+    readonly #logger: Logger;
     readonly #context: SessionManagerContext;
     readonly #unsecuredSessions = new Map<NodeId, UnsecuredSession>();
     readonly #sessions = new BasicSet<NodeSession>();
@@ -238,6 +245,7 @@ export class SessionManager {
 
     constructor(context: SessionManagerContext) {
         this.#context = context;
+        this.#logger = context.logger ?? logger;
         const {
             fabrics: { crypto },
         } = context;
@@ -288,6 +296,7 @@ export class SessionManager {
         const instance = new SessionManager({
             storage: env.get(StorageManager).createContext("sessions"),
             fabrics: env.get(FabricManager),
+            logger: env.logger("SessionManager"),
         });
         env.set(SessionManager, instance);
         return instance;
@@ -633,7 +642,7 @@ export class SessionManager {
                 return;
             }
 
-            logger.info(
+            this.#logger.info(
                 session.via,
                 `Closing least recently used session; ${PeerAddress(address)} exceeds ${MAX_SESSIONS_PER_PEER} sessions`,
             );
@@ -898,12 +907,12 @@ export class SessionManager {
             }) => {
                 const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
                 if (!fabric) {
-                    logger.warn(
+                    this.#logger.warn(
                         `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we cannot find a matching fabric`,
                     );
                     return;
                 }
-                logger.info(
+                this.#logger.info(
                     "restoring resumption record for node",
                     fabric.addressOf(nodeId).toString(),
                     "and peer node",
@@ -947,7 +956,7 @@ export class SessionManager {
             // TODO Expose this "group epoch keys must be rotated" signal to external logic instead of only logging, so
             //  the controller key-management layer can act on it.
             aboutToRolloverCallback: async () => {
-                logger.warn(
+                this.#logger.warn(
                     "Group data message counter is approaching rollover; group epoch keys should be rotated to avoid message counter reuse.",
                 );
             },
@@ -1026,7 +1035,7 @@ export class SessionManager {
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
-            logger.warn("Error closing sessions:", error),
+            this.#logger.warn("Error closing sessions:", error),
         );
     }
 
