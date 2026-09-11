@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Seconds } from "@matter/general";
 import { FieldElement } from "@matter/model";
 import { ConstraintError } from "@matter/protocol";
 import { Fields, Tests, testValidation } from "./validation-test-utils.js";
@@ -278,6 +279,174 @@ const AllTests = Tests({
                     message: 'Validating Test.test: Constraint "add, modify": Value 1 is not allowed by constraint',
                 },
             },
+        },
+    ),
+
+    // A bitmap's bound states the magnitude its flags encode to, which is not the record of flags a value is held
+    // as, so an entry bound on a list of them enforces nothing.  "min 1" would reject the empty record if it did
+    "entry of a list of bitmaps": Tests(
+        Fields({
+            type: "list",
+            constraint: "max 4[min 1]",
+            children: [
+                FieldElement(
+                    { name: "entry", type: "map8" },
+                    FieldElement({ name: "Recording", constraint: "0" }),
+                    FieldElement({ name: "Analysis", constraint: "1" }),
+                ),
+            ],
+        }),
+        {
+            "accepts an entry the bitmap defines": { record: { test: [{ recording: true }] } },
+            "accepts an entry setting no flag": { record: { test: [{}] } },
+        },
+    ),
+
+    // A struct has neither a magnitude nor a length, so an entry bound on a list of them enforces nothing
+    "entry of a list of structs": Tests(
+        Fields({
+            type: "list",
+            constraint: "max 4[0 to 65534]",
+            children: [
+                FieldElement({ name: "entry", type: "struct" }, FieldElement({ name: "Low", id: 0, type: "uint16" })),
+            ],
+        }),
+        {
+            "accepts an entry of the struct": { record: { test: [{ low: 1 }] } },
+        },
+    ),
+
+    // An index names the position in the list, which an entry holding no value occupies too
+    "entry bound after a null entry": Tests(
+        Fields({
+            type: "list",
+            quality: "X",
+            constraint: "max 4[max 2]",
+            children: [FieldElement({ name: "entry", type: "uint8", quality: "X" })],
+        }),
+        {
+            "names the position of the entry it rejects": {
+                record: { test: [1, null, 9] },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test.2: Constraint "all": Value 9 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
+
+    // The specification bounds the number a bitmap's flags encode to.  A lower bound states a flag that must be set,
+    // which the reserved-bit check cannot express
+    "bound on a bitmap": Tests(
+        Fields({
+            type: "map8",
+            constraint: "min 1",
+            children: [
+                FieldElement({ name: "Recording", constraint: "0" }),
+                FieldElement({ name: "Analysis", constraint: "1" }),
+            ],
+        }),
+        {
+            "accepts a value setting a flag": { record: { test: { recording: true } } },
+            "rejects a value setting no flag": {
+                record: { test: { recording: false, analysis: false } },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "min 1": Value 0 is not within bounds defined by constraint',
+                },
+            },
+            "rejects a value naming no flag at all": {
+                record: { test: {} },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "min 1": Value 0 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
+
+    // A flag spanning several bits states the number those bits hold, not one
+    "bound on a bitmap with a multi-bit flag": Tests(
+        Fields({
+            type: "map8",
+            constraint: "max 5",
+            children: [
+                FieldElement({ name: "Speed", constraint: "0 to 1" }),
+                FieldElement({ name: "Active", constraint: "2" }),
+            ],
+        }),
+        {
+            "accepts a value within the bound": { record: { test: { speed: 1, active: true } } },
+            "rejects a value above the bound": {
+                record: { test: { speed: 3, active: true } },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "max 5": Value 7 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
+
+    // A 32 bit shift cannot state the magnitude of a wider flag, so the bound is left unjudged rather than judged
+    // against a number that wrapped
+    "bound on a bitmap wider than a shift reaches": Tests(
+        Fields({
+            type: "map64",
+            constraint: "min 1",
+            children: [FieldElement({ name: "High", constraint: "31" })],
+        }),
+        {
+            "accepts a flag no shift reaches": { record: { test: { high: true } } },
+        },
+    ),
+
+    // A duration is held as a number of milliseconds, so a bound on one is enforced like any other magnitude
+    "bound on a duration": Tests(Fields({ type: "duration", constraint: "max 2000" }), {
+        "accepts a value within the bound": { record: { test: Seconds(1) } },
+        "rejects a value above the bound": {
+            record: { test: Seconds(30) },
+            error: {
+                type: ConstraintError,
+                message:
+                    'Validating Test.test: Constraint "max 2000": Value 30000 is not within bounds defined by constraint',
+            },
+        },
+    }),
+
+    // A duration is held as a number of milliseconds, so a bound on one is enforced like any other magnitude
+    "entry of a list of durations": Tests(
+        Fields({
+            type: "list",
+            constraint: "max 4[max 2000]",
+            children: [FieldElement({ name: "entry", type: "duration" })],
+        }),
+        {
+            "accepts an entry within the bound": { record: { test: [Seconds(1)] } },
+            "rejects an entry above the bound": {
+                record: { test: [Seconds(30)] },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test.0: Constraint "all": Value 30000 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
+
+    // The specification states this bound of a struct-typed field, which compares a number against a record.  A
+    // struct field's own constraint reaches no validator, so this states that it stays that way
+    "numeric bound on a struct": Tests(
+        Fields({
+            type: "struct",
+            constraint: "0 to 65534",
+            children: [FieldElement({ name: "Low", id: 0, type: "uint16" })],
+        }),
+        {
+            "accepts a value of the struct": { record: { test: { low: 1 } } },
         },
     ),
 

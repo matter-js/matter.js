@@ -103,3 +103,8 @@ export abstract class Aspect<D = any> {
         Object.freeze(this);
     }
 }
+
+export namespace Aspect {
+    /** What an aspect reports the faults of its definition to */
+    export type ErrorTarget = { error(code: string, message: string): void };
+}

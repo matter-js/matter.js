@@ -6,7 +6,7 @@
 
 import { type Model } from "#models/Model.js";
 import { type ValueModel } from "#models/ValueModel.js";
-import { asError, camelize, InternalError } from "@matter/general";
+import { asError, InternalError } from "@matter/general";
 import { FeatureSet, FieldValue, Metatype } from "../common/index.js";
 import { BasicToken, Lexer, TokenStream } from "../parser/index.js";
 import { Aspect } from "./Aspect.js";
@@ -307,7 +307,7 @@ export namespace Conformance {
         | "z";
 
     export type ReferenceResolver = (name: string | string[]) => Model | undefined;
-    export type ErrorTarget = { error(code: string, message: string): void };
+    export type ErrorTarget = Aspect.ErrorTarget;
 
     /**
      * Supported ways of expressing conformance (conceptually union should include Flag but that is covered by string).
@@ -352,14 +352,11 @@ export namespace Conformance {
                 if (ast.param.lhs.type === "name") {
                     const referenced = resolver(ast.param.lhs.param) as ValueModel | undefined;
                     if (referenced?.effectiveMetatype === Metatype.enum) {
-                        // Find the actual enum definition with children (may be the referenced model itself,
-                        // or its defining type for fields typed as enums)
-                        const enumDef = referenced.definingModel ?? referenced;
                         operatorResolver = (name: string | string[]) => {
                             if (typeof name === "string") {
-                                const enumValue = enumDef.member(name) ?? enumDef.member(camelize(name, true));
+                                const enumValue = referenced.memberNamed(name);
                                 if (enumValue) {
-                                    return enumValue as ValueModel;
+                                    return enumValue;
                                 }
                             }
                             return resolver(name);

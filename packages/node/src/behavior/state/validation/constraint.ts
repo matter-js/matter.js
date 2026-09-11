@@ -5,7 +5,6 @@
  */
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { InternalError } from "@matter/general";
 import { Constraint, EncodedConstraint, FieldValue, Metatype, ValueModel } from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
@@ -24,6 +23,7 @@ export function createConstraintValidator(
     constraint: Constraint,
     schema: ValueModel,
     supervisor: RootSupervisor,
+    magnitudeOf?: (value: Val) => number | undefined,
 ): ValueSupervisor.Validate | undefined {
     let nameResolvers: undefined | Record<string, undefined | ((val: Val) => Val)>;
 
@@ -43,7 +43,28 @@ export function createConstraintValidator(
         };
     };
 
-    const inner = create(EncodedConstraint(constraint, schema), schema, nameResolverFactory);
+    const encoded = EncodedConstraint(constraint, schema);
+
+    // A value stating its bound in the number it encodes to rather than in itself, as a bitmap does, is judged by
+    // that number.  The bound still resolves names and honors supervision as any other does
+    const inner = magnitudeOf
+        ? constraint.isEmpty || constraint.desc || constraint.none
+            ? undefined
+            : (value: Val, _session: ValueSupervisor.Session, location: ValidationLocation) => {
+                  const magnitude = magnitudeOf(value);
+                  if (magnitude === undefined) {
+                      return;
+                  }
+
+                  if (!encoded.test(magnitude, nameResolverFactory(location))) {
+                      throw new ConstraintError(
+                          schema,
+                          location,
+                          `Value ${magnitude} is not within bounds defined by constraint`,
+                      );
+                  }
+              }
+        : create(encoded, schema, nameResolverFactory);
     if (!inner) {
         return undefined;
     }
@@ -71,6 +92,25 @@ function create(
         return createArrayConstraintValidator(constraint, schema, nameResolverFactory);
     }
 
+    // A bound the specification states is enforceable only where the value is held as something it compares against.
+    // A bitmap is held as the record of its flags and a date as a Date, so neither a bound nor a membership set
+    // states anything this could check
+    // A flag of a bitmap states its bit position in its constraint rather than a bound, whatever type the flag takes.
+    // Such a member reaches its own validator today rather than this one, so this keeps that a choice rather than an
+    // accident
+    if (schema.parent instanceof ValueModel && schema.parent.effectiveMetatype === Metatype.bitmap) {
+        return;
+    }
+
+    const boundKind = Metatype.boundKind(metatype);
+    if (
+        !Metatype.holdsNumber(metatype) &&
+        boundKind !== Metatype.BoundKind.length &&
+        boundKind !== Metatype.BoundKind.value
+    ) {
+        return;
+    }
+
     if (constraint.in) {
         return (value, _session, location) => {
             if (!constraint.test(value as FieldValue, nameResolverFactory(location))) {
@@ -83,9 +123,10 @@ function create(
         };
     }
 
-    switch (schema.effectiveMetatype) {
+    switch (metatype) {
         case Metatype.integer:
         case Metatype.float:
+        case Metatype.duration:
             return (value, _session, location) => {
                 assertNumeric(value, location);
                 if (!constraint.test(value, nameResolverFactory(location))) {
@@ -99,12 +140,6 @@ function create(
 
         // An enumerated value is a number, and a constraint on one states the values it may take rather than a range
         case Metatype.enum:
-            // A bitmap member's constraint states its bit position, not a bound.  Such a member reaches its own
-            // validator today rather than this one, so this keeps that a choice rather than an accident
-            if (schema.parent instanceof ValueModel && schema.parent.effectiveMetatype === Metatype.bitmap) {
-                return;
-            }
-
             return (value, _session, location) => {
                 assertNumeric(value, location);
                 if (!constraint.test(value, nameResolverFactory(location))) {
@@ -167,7 +202,7 @@ function create(
             };
 
         default:
-            throw new InternalError(`Cannot define constraint for unsupported metatype ${schema.effectiveMetatype}`);
+            return;
     }
 }
 
@@ -210,13 +245,10 @@ function createArrayConstraintValidator(
 
             let pos = 0;
             for (const e of value) {
-                if (e === undefined || e === null) {
-                    // Accept nullish
-                    continue;
+                if (e !== undefined && e !== null) {
+                    sublocation.path.id = pos;
+                    validateEntryConstraint(e, session, sublocation);
                 }
-
-                sublocation.path.id = pos;
-                validateEntryConstraint(e, session, sublocation);
 
                 pos++;
             }

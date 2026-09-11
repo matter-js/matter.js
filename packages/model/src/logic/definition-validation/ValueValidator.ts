@@ -96,7 +96,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.model.conformance.validateComputation(this, this.model.owner(ClusterModel)?.definedFeatures);
 
         this.#validateAspect("constraint");
-        this.#validateConstraintReferences(this.model.constraint, this.model);
+        this.#validateConstraint(this.model.constraint, this.model);
         this.#validateAspect("access");
         this.#validateAspect("quality");
 
@@ -301,33 +301,104 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         return this.model.parent?.resolve(path, this.resolveOptions());
     }
 
-    /** Report the names a constraint states that do not resolve, an entry constraint against the type of the entry */
-    #validateConstraintReferences(constraint: Constraint, model: ValueModel) {
-        constraint.validateReferences(this, path => this.#resolveConstraintReference(path, model));
+    /**
+     * Report a constraint that states no bound the value it constrains can be judged by, an entry constraint against
+     * the type of the entry.
+     */
+    #validateConstraint(constraint: Constraint, model: ValueModel) {
+        for (const reference of Constraint.namesOf(constraint)) {
+            this.#validateConstraintReference(reference, model);
+        }
+
+        // "desc" and "none" state no bound, so they say nothing a type could fail to hold
+        if (
+            !constraint.isEmpty &&
+            !constraint.desc &&
+            !constraint.none &&
+            Metatype.boundKind(model.effectiveMetatype) === Metatype.BoundKind.none
+        ) {
+            this.error(
+                "BOUND_ON_UNORDERED_TYPE",
+                `Constraint "${constraint}" bounds a value of metatype ${model.effectiveMetatype}, which has ` +
+                    `neither a magnitude nor a length`,
+            );
+        }
+
+        // An alternative states the length the list may take, and validation applies the entry constraint of the
+        // constraint as a whole.  Which alternative's entries a value belongs to is undefined, so an entry bound an
+        // alternative states is enforced by nothing
+        if (constraint.parts?.some(part => part.entry !== undefined)) {
+            this.error(
+                "UNSUPPORTED_ENTRY_BOUND",
+                `Constraint "${constraint}" bounds the entries of a list in an alternative, which nothing enforces`,
+            );
+        }
 
         const { entry } = constraint;
         const entryModel = model.listEntry;
         if (entry !== undefined && entryModel !== undefined) {
-            this.#validateConstraintReferences(entry, entryModel);
+            this.#validateConstraint(entry, entryModel);
         }
     }
 
     /**
-     * Resolve a name a constraint states, against the constrained type's own values before the surrounding scope.
+     * Report a name a constraint states that denotes nothing, or nothing the position that states it can use.
+     *
+     * A name resolving to nothing states no bound: a limit is skipped and admits every value, while a membership set
+     * admits none.  A name resolving to a value the position cannot use is the same silence with a name attached — a
+     * limit compares a number against a record, and a membership set names one value rather than the values allowed
+     * — so the two are reported apart rather than as one.
+     *
+     * A name the constrained type's own values answer resolves against those before the surrounding scope, which only
+     * a single name in a bound may do.
      *
      * @see {@link MatterSpecification.v16.Core} § 7.18.3
      */
-    #resolveConstraintReference(path: string[], model: ValueModel) {
-        if (path.length === 1 && model.effectiveMetatype === Metatype.enum) {
-            const propertyName = camelize(path[0]);
-            for (const member of model.members) {
-                if (member.propertyName === propertyName) {
-                    return member;
-                }
+    #validateConstraintReference({ path, position }: Constraint.Reference, model: ValueModel) {
+        if (position === "bound" && path.length === 1 && model.effectiveMetatype === Metatype.enum) {
+            if (model.memberNamed(path[0]) !== undefined) {
+                return;
             }
         }
 
-        return this.resolveReference(path);
+        const target = this.resolveReference(path);
+        if (target === undefined) {
+            this.error("UNRESOLVED_CONSTRAINT_NAME", `Constraint name reference "${path.join(".")}" does not resolve`);
+            return;
+        }
+
+        const metatype = target instanceof ValueModel ? target.effectiveMetatype : undefined;
+        switch (position) {
+            case "bound":
+                if (!Metatype.holdsNumber(metatype)) {
+                    this.error(
+                        "UNUSABLE_CONSTRAINT_NAME",
+                        `Constraint name reference "${path.join(".")}" names a value of metatype ${metatype}, ` +
+                            `which no bound compares against`,
+                    );
+                }
+                break;
+
+            case "set":
+                if (metatype !== Metatype.array) {
+                    this.error(
+                        "UNUSABLE_CONSTRAINT_NAME",
+                        `Constraint name reference "${path.join(".")}" names a value of metatype ${metatype}, ` +
+                            `which holds one value rather than the values allowed`,
+                    );
+                }
+                break;
+
+            case "element":
+                if (!Metatype.holdsRecord(metatype)) {
+                    this.error(
+                        "UNUSABLE_CONSTRAINT_NAME",
+                        `Constraint name reference "${path.join(".")}" names a value of metatype ${metatype}, ` +
+                            `which defines no member to take`,
+                    );
+                }
+                break;
+        }
     }
 
     /**

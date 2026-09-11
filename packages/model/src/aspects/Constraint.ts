@@ -9,7 +9,6 @@ import { BasicToken } from "#parser/Token.js";
 import { TokenStream } from "#parser/TokenStream.js";
 import { camelize, isObject } from "@matter/general";
 import { FieldValue } from "../common/index.js";
-import type { Model } from "../models/Model.js";
 import { Aspect } from "./Aspect.js";
 
 namespace Functions {
@@ -135,24 +134,6 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
             cpMax: other.cpMax ?? this.cpMax,
             parts: other.parts ?? this.parts,
         });
-    }
-
-    /**
-     * Report any name this constraint states that does not resolve.
-     *
-     * A name that resolves to nothing states no bound: a limit is skipped and admits every value, while a membership
-     * set admits none.  Either way the constraint no longer says what it appears to.  The names come from
-     * {@link Constraint.referencesOf}, which does not include those of {@link Ast.entry}.
-     */
-    validateReferences(errorTarget: Constraint.ErrorTarget, resolver: Constraint.ReferenceResolver) {
-        for (const path of Constraint.referencesOf(this)) {
-            if (resolver(path) === undefined) {
-                errorTarget.error(
-                    "UNRESOLVED_CONSTRAINT_NAME",
-                    `Constraint name reference "${path.join(".")}" does not resolve`,
-                );
-            }
-        }
     }
 
     /**
@@ -343,14 +324,63 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
 export namespace Constraint {
     export type NumberOrIdentifier = number | string;
 
-    export type ReferenceResolver = (path: string[]) => Model | undefined;
-    export type ErrorTarget = { error(code: string, message: string): void };
+    /**
+     * What a constraint does with the value a name denotes.
+     *
+     * The position decides what may answer the name.  A bound is compared against the value, so a single name in one
+     * may denote a value of the constrained type as well as an element of the record.  The operand of "in" names the
+     * element holding the values allowed, and the lhs of a member access the element a member is taken from, so a
+     * value of the constrained type answers neither.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3
+     */
+    export type NamePosition = "bound" | "set" | "element";
+
+    /** A name a constraint states, and what the constraint does with the value it denotes */
+    export interface Reference {
+        path: string[];
+        position: NamePosition;
+    }
 
     /**
-     * Every name a constraint states, in definition order.
+     * The path a member access states, or undefined for an expression that is not one.
+     *
+     * Both operands of "." name elements: the lhs names one the scope resolves and the rhs a member of it.  An access
+     * to a computed value states no path, because the rhs then names a member of whatever the expression evaluates to
+     * and no scope resolves it.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     */
+    export function pathOf(expression: Expression): string[] | undefined {
+        if (expression === null || typeof expression !== "object" || Array.isArray(expression)) {
+            return;
+        }
+
+        if ("lhs" in expression) {
+            if (expression.type !== ".") {
+                return;
+            }
+
+            const lhs = pathOf(expression.lhs);
+            const rhs = pathOf(expression.rhs);
+            if (lhs === undefined || rhs === undefined) {
+                return;
+            }
+
+            return [...lhs, ...rhs];
+        }
+
+        const name = FieldValue.referenced(expression);
+        return name === undefined ? undefined : [name];
+    }
+
+    /**
+     * Every name a constraint states that a scope resolves, in definition order, with what the constraint does with
+     * it.
      *
      * A name the constraint qualifies with "." states the path to a member rather than a name of the surrounding
-     * scope, so it arrives as the segments of that path.  A path resolves only if every segment does: a bound naming
+     * scope, so it arrives as the segments of that path.  The member an access names is not among these: it belongs
+     * to whatever the access is taken from rather than to any scope.  A path resolves only if every segment does: a bound naming
      * a member its type does not define states no bound, just as an unknown element does.
      *
      * The entry constraint of a list bounds the entries, so the names it states belong to the type of the entry.  They
@@ -358,32 +388,9 @@ export namespace Constraint {
      *
      * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
      */
-    export function referencesOf(constraint: Ast): string[][] {
-        const paths = new Array<string[]>();
-
-        /** The segments of a member access, or undefined for an expression that is not one */
-        function segmentsOf(expression: Expression): string[] | undefined {
-            if (expression === null || typeof expression !== "object" || Array.isArray(expression)) {
-                return;
-            }
-
-            if ("lhs" in expression) {
-                if (expression.type !== ".") {
-                    return;
-                }
-
-                const lhs = segmentsOf(expression.lhs);
-                const rhs = segmentsOf(expression.rhs);
-                if (lhs === undefined || rhs === undefined) {
-                    return;
-                }
-
-                return [...lhs, ...rhs];
-            }
-
-            const name = FieldValue.referenced(expression);
-            return name === undefined ? undefined : [name];
-        }
+    export function namesOf(constraint: Ast): Reference[] {
+        const references = new Array<Reference>();
+        let position: NamePosition = "bound";
 
         function addExpression(expression: Expression | undefined) {
             if (expression === null || typeof expression !== "object") {
@@ -405,20 +412,36 @@ export namespace Constraint {
             }
 
             if ("lhs" in expression) {
-                const segments = segmentsOf(expression);
-                if (segments !== undefined) {
-                    paths.push(segments);
+                if (expression.type !== ".") {
+                    addExpression(expression.lhs);
+                    addExpression(expression.rhs);
                     return;
                 }
 
-                addExpression(expression.lhs);
-                addExpression(expression.rhs);
+                const path = pathOf(expression);
+                if (path !== undefined) {
+                    references.push({ path, position });
+                    return;
+                }
+
+                // A named lhs names the element a member is taken from, and a named rhs the member, which no scope
+                // resolves.  Either operand that is computed states names of its own
+                const lhs = pathOf(expression.lhs);
+                if (lhs === undefined) {
+                    addExpression(expression.lhs);
+                } else {
+                    references.push({ path: lhs, position: "element" });
+                }
+
+                if (pathOf(expression.rhs) === undefined) {
+                    addExpression(expression.rhs);
+                }
                 return;
             }
 
             const name = FieldValue.referenced(expression);
             if (name !== undefined) {
-                paths.push([name]);
+                references.push({ path: [name], position });
             }
         }
 
@@ -426,7 +449,10 @@ export namespace Constraint {
             addExpression(ast.value);
             addExpression(ast.min);
             addExpression(ast.max);
+
+            position = "set";
             addExpression(ast.in);
+            position = "bound";
 
             for (const part of ast.parts ?? []) {
                 addAst(part);
@@ -435,7 +461,7 @@ export namespace Constraint {
 
         addAst(constraint);
 
-        return paths;
+        return references;
     }
 
     export const KEYWORDS = ["in", "min", "max", "to", "all", "none", "desc", "true", "false"] as const;

@@ -26,6 +26,17 @@ export enum Metatype {
     duration = "duration",
 }
 
+/**
+ * The bound of a metatype no case states.
+ *
+ * The parameter is {@link never}, so a metatype added to the enum without a bound is a compile error.  A value
+ * reaching here at runtime came from a cast — an element definition states its metatype as a string — and states no
+ * bound rather than failing, as every other classification of a metatype does.
+ */
+function unbounded(_type: never) {
+    return undefined;
+}
+
 export namespace Metatype {
     /**
      * Does the specific type have children?
@@ -35,6 +46,105 @@ export namespace Metatype {
             case Metatype.enum:
             case Metatype.bitmap:
             case Metatype.object:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * What a constraint on a value of a metatype states.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.19.2
+     */
+    export enum BoundKind {
+        /** A range or exact value the number the value encodes to must fall in */
+        magnitude = "magnitude",
+
+        /** A range or exact count of the elements the value holds */
+        length = "length",
+
+        /** The one value it may take */
+        value = "value",
+
+        /** Nothing: the type has neither a magnitude nor a length, so a bound on it states no bound at all */
+        none = "none",
+    }
+
+    /**
+     * What a constraint on a value of this metatype states, or undefined where the type is unknown and so states
+     * nothing either way.
+     *
+     * This is what the specification may say about the value, which is not the same as what a comparison can check:
+     * a bitmap and a date both take a bound the specification states, such as the "max 15" of a window covering's
+     * mode, while neither is held as a number a bound compares against.  {@link holdsNumber} answers that.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.19.2
+     */
+    export function boundKind(type: Metatype | undefined) {
+        switch (type) {
+            case Metatype.integer:
+            case Metatype.float:
+            case Metatype.enum:
+            case Metatype.bitmap:
+            case Metatype.duration:
+            case Metatype.date:
+                return BoundKind.magnitude;
+
+            case Metatype.string:
+            case Metatype.bytes:
+            case Metatype.array:
+                return BoundKind.length;
+
+            case Metatype.boolean:
+                return BoundKind.value;
+
+            case Metatype.object:
+            case Metatype.any:
+                return BoundKind.none;
+
+            case undefined:
+                return undefined;
+
+            default:
+                // Every metatype states what a bound on it means, so a new one is a compile error here rather than a
+                // value silently treated as of unknown type
+                return unbounded(type);
+        }
+    }
+
+    /**
+     * Whether a value of this metatype is held as a number, so a comparison against one has a numeric meaning.
+     *
+     * A bitmap encodes to a number but is held as the record of its flags, so a bound comparing against one compares
+     * a number against a record, which is false whatever the value.  A date is held as a {@link Date}, which a
+     * comparison coerces to a timestamp — a number of a different scale from anything a constraint states, so a bound
+     * naming one states no bound worth judging.  A duration is held as a number of milliseconds.
+     */
+    export function holdsNumber(type: Metatype | undefined) {
+        switch (type) {
+            case Metatype.integer:
+            case Metatype.float:
+            case Metatype.enum:
+            case Metatype.duration:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Whether a value of this metatype is held as a record, so a member access may take a member of one.
+     *
+     * This is not the same as defining members: an enumerated type defines its values, but a value of one is held as
+     * the number it encodes to, so an access takes nothing from it.
+     */
+    export function holdsRecord(type: Metatype | undefined) {
+        switch (type) {
+            case Metatype.object:
+            case Metatype.bitmap:
                 return true;
 
             default:

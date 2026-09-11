@@ -27,8 +27,21 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
     - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
+    - Enhancement: `Constraint.namesOf` states every name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it. It replaces `Constraint.referencesOf` and `Constraint.validateReferences`
+    - Enhancement: `Metatype.boundKind` states what a constraint on a value of a metatype states, and `Metatype.holdsNumber` and `Metatype.holdsRecord` how such a value is held, which decides what a bound may compare against and what a member access may take
+    - Enhancement: `ValueModel.memberNamed` resolves the name a constraint or conformance states for a value of an enumerated type, which constraint encoding, definition validation and conformance now share
+    - Fix: The operand of `in` names an element holding the values allowed, so a value of the constrained type no longer answers it
+    - Fix: A constraint taking a member of a computed value, such as `min minOf(A, B).C`, no longer reports `UNRESOLVED_CONSTRAINT_NAME` for the member. The element of an access such as `min A.minOf(B, C)` is no longer read as a value of the constrained type, and the names computing the member are resolved rather than skipped
+    - Fix: A name a constraint states that resolves to a value the constraint cannot use — a bound comparing against a record, a membership set naming a single value, an access taking a member of a value held as a number — reports `UNUSABLE_CONSTRAINT_NAME`. It reports that alone, where before a name could be reported both unusable and unresolved
+    - Fix: A constraint bounding a value with neither a magnitude nor a length reports `BOUND_ON_UNORDERED_TYPE`
+    - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNSUPPORTED_ENTRY_BOUND`, as nothing enforces such a bound
+    - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node
+    - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
+    - Fix: A bound the specification states on a bitmap is enforced. An upper bound states what the reserved-bit check already enforces, but a lower bound such as `FanControl.RockSupport`'s `min 1` states a flag that must be set, which nothing checked. A cluster implementation that supports rocking or wind and leaves the corresponding attribute with no flag set now fails validation where it previously passed
+    - Fix: A bound on a duration is enforced rather than ignored. A duration is held as a number of milliseconds, and a constraint bounding one states milliseconds too
+    - Fix: A constraint on a value no bound can be checked against — a struct, a bitmap, a date — no longer fails behavior creation with `Cannot define constraint for unsupported metatype`. A list whose entries are of such a type reaches this when the constraint bounds its entries
     - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
     - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
     - Fix: A peer's endpoint whose device types are all utility types, as a bridge's composed device is, reports those device types rather than remaining of unknown type

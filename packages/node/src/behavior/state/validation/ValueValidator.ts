@@ -99,8 +99,13 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
             validator = createListValidator(schema, supervisor);
             break;
 
-        case Metatype.date:
+        // A duration is held as a number of milliseconds, so a bound the specification states on one applies as it
+        // does to any other magnitude
         case Metatype.duration:
+            validator = createSimpleValidator(schema, supervisor, assertNumeric);
+            break;
+
+        case Metatype.date:
         case Metatype.any:
             break;
 
@@ -186,7 +191,7 @@ function addBitsToMask(mask: number | undefined, start: number, length: number):
 function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Validate | undefined {
     const fields = {} as Record<
         string,
-        { schema: ValueModel; max: number; conformance?: ValueSupervisor.Validate | undefined }
+        { schema: ValueModel; max: number; bit?: number; conformance?: ValueSupervisor.Validate | undefined }
     >;
 
     // Union of every bit position covered by a defined field.  Any bit set outside this mask in the encoded value is
@@ -198,12 +203,15 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
     for (const field of supervisor.membersOf(schema)) {
         const constraint = field.effectiveConstraint;
         let max;
+        let bit;
         if (typeof constraint.min === "number" && typeof constraint.max === "number") {
             max = Math.pow(2, constraint.max - constraint.min + 1) - 1; // e.g bits 0..2 -> 2^3 - 1 = 7 aka 111b
+            bit = constraint.min;
             definedMask = addBitsToMask(definedMask, constraint.min, constraint.max - constraint.min + 1);
         } else {
             max = 1;
             if (typeof constraint.value === "number") {
+                bit = constraint.value;
                 definedMask = addBitsToMask(definedMask, constraint.value, 1);
             } else {
                 definedMask = undefined;
@@ -231,16 +239,42 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
         fields[name] = {
             schema: field,
             max,
+            bit,
             conformance,
         };
     }
 
+    // The specification bounds the number a bitmap's flags encode to, as the "max 15" of a window covering's mode
+    // does.  An upper bound states the same thing the reserved-bit check does, but a lower bound — "min 1", a flag
+    // that must be set — states something no mask expresses.  A bit a 32 bit shift cannot reach states no magnitude
+    // this computes, so the bound is left unjudged rather than judged against a number that wrapped
+    // A flag of a bitmap states its bit position in its constraint rather than a bound, so a flag that is itself a
+    // bitmap states no magnitude of its own
+    const isFlagOfBitmap = schema.parent instanceof ValueModel && schema.parent.effectiveMetatype === Metatype.bitmap;
+    const validateMagnitude = isFlagOfBitmap
+        ? undefined
+        : createConstraintValidator(schema.effectiveConstraint, schema, supervisor, value => {
+              let magnitude = 0;
+              for (const key in value as Record<string, unknown>) {
+                  const field = fields[key];
+                  const flags = (value as Record<string, unknown>)[key];
+                  if (field?.bit === undefined || !flags) {
+                      continue;
+                  }
+                  if (field.bit > 30) {
+                      return undefined;
+                  }
+                  magnitude |= (typeof flags === "number" ? flags : 1) << field.bit;
+              }
+              return magnitude;
+          });
+
     return (value, session, location) => {
         assertObject(value, location);
 
-        // Structural per-field checks run before the reserved-bit check below: the latter is CONSTRAINT_ERROR-coded and
-        // therefore forwarded for peer writes, so it must come last or a forwarded reserved-bit failure would skip the
-        // structural validation that must always fail fast.
+        // Structural per-field checks run before the bound checks below: those are CONSTRAINT_ERROR-coded and
+        // therefore forwarded for peer writes, so they come last or a forwarded failure would skip the structural
+        // validation that must always fail fast.
         for (const key in value) {
             const field = fields[key];
             const subpath = location.path.at(key);
@@ -288,6 +322,8 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
                 throw new DatatypeError(location, "free of reserved bits", encoded, Status.ConstraintError);
             }
         }
+
+        validateMagnitude?.(value, session, location);
     };
 }
 
