@@ -56,6 +56,8 @@ export type DiscoveredBleDevice = {
 type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
     serviceDataHex: string;
     lastSeen: number;
+    /** Set while the transport cannot reach the peripheral, so its return counts as a new discovery. */
+    withheld: boolean;
 };
 
 /** Entries older than this are treated as dead addresses when matching service data arrives from a new address. */
@@ -167,7 +169,11 @@ export class BleScanner implements Scanner {
                 CM: 1, // Can be no other mode,
                 addresses: [{ type: "ble", peripheralAddress: address }],
             };
-            const deviceExisting = this.#discoveredMatterDevices.has(address);
+            const existing = this.#discoveredMatterDevices.get(address);
+            const deviceExisting = existing !== undefined;
+            // A peripheral withheld as unreachable was never offered, so its advertisement resolves waiters that
+            // ignore updates — otherwise a continuous discovery would never learn the transport reaches it again.
+            const isUpdatedRecord = deviceExisting && !existing.withheld;
             const serviceDataHex = Bytes.toHex(manufacturerServiceData);
             const now = Time.nowMs;
 
@@ -192,11 +198,12 @@ export class BleScanner implements Scanner {
                 hasAdditionalAdvertisementData,
                 serviceDataHex,
                 lastSeen: now,
+                withheld: false,
             });
 
             const queryKey = this.#findCommissionableQueryIdentifier(deviceData);
             if (queryKey !== undefined) {
-                this.#finishWaiter(queryKey, true, deviceExisting);
+                this.#finishWaiter(queryKey, true, isUpdatedRecord);
             }
         } catch (error) {
             logger.debug(
@@ -280,7 +287,10 @@ export class BleScanner implements Scanner {
     #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers) {
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
         const storedRecords = Array.from(this.#discoveredMatterDevices.values())
-            .filter(({ peripheral }) => this.#isReachable(peripheral.address))
+            .filter(record => {
+                record.withheld = !this.#isReachable(record.peripheral.address);
+                return !record.withheld;
+            })
             .sort((a, b) => b.lastSeen - a.lastSeen);
 
         const foundRecords = new Array<DiscoveredBleDevice>();

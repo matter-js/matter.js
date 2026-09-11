@@ -146,6 +146,57 @@ describe("BleScanner", () => {
             expect(scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.exist;
         });
 
+        it("hands a running discovery a peripheral the transport reaches again", async () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const discovery = scanner.findCommissionableDevicesContinuously(
+                { longDiscriminator: 1737 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+
+            client.unreachable.add("aa:aa:aa:aa:aa:aa");
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.yield();
+            expect(candidates).to.have.lengthOf(0);
+
+            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.yield();
+
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await discovery;
+        });
+
+        it("does not offer a peripheral twice when it keeps advertising", async () => {
+            const client = new MockProxyingBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const discovery = scanner.findCommissionableDevicesContinuously(
+                { longDiscriminator: 1737 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.yield();
+
+            client.unreachable.add("aa:aa:aa:aa:aa:aa");
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(0);
+
+            client.unreachable.delete("aa:aa:aa:aa:aa:aa");
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.yield();
+
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await discovery;
+        });
+
         it("keeps offering peripherals for a client that states no reachability", () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);
