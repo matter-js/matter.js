@@ -33,6 +33,14 @@ export interface BleScannerClient {
     setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void): void;
     startScanning(): Promise<void>;
     stopScanning(): Promise<void>;
+
+    /**
+     * Whether a peripheral discovered earlier can still be reached. A transport that routes through remote proxies
+     * loses access to a peripheral when the proxy that reported it goes away, and a peripheral it cannot reach is no
+     * candidate for commissioning. A client that omits this keeps every discovered peripheral available; the record
+     * stays either way, so a peripheral becomes a candidate again as soon as it is reachable again.
+     */
+    isPeripheralReachable?(address: string): boolean;
 }
 
 export type CommissionableDeviceData = CommissionableDevice & {
@@ -81,7 +89,14 @@ export class BleScanner implements Scanner {
         if (device === undefined) {
             throw new BleError(`No device found for address ${address}`);
         }
+        if (!this.#isReachable(address)) {
+            throw new BleError(`Device with address ${address} is currently not reachable`);
+        }
         return device;
+    }
+
+    #isReachable(address: string) {
+        return this.#client.isPeripheralReachable?.(address) ?? true;
     }
 
     /**
@@ -180,7 +195,8 @@ export class BleScanner implements Scanner {
             });
 
             const queryKey = this.#findCommissionableQueryIdentifier(deviceData);
-            if (queryKey !== undefined) {
+            // An unreachable peripheral is no candidate, so its advertisement must not end a discovery's wait.
+            if (queryKey !== undefined && this.#isReachable(address)) {
                 this.#finishWaiter(queryKey, true, deviceExisting);
             }
         } catch (error) {
@@ -262,11 +278,11 @@ export class BleScanner implements Scanner {
         } else return "*";
     }
 
-    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers) {
+    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnreachable = false) {
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
-        const storedRecords = Array.from(this.#discoveredMatterDevices.values()).sort(
-            (a, b) => b.lastSeen - a.lastSeen,
-        );
+        const storedRecords = Array.from(this.#discoveredMatterDevices.values())
+            .filter(({ peripheral }) => includeUnreachable || this.#isReachable(peripheral.address))
+            .sort((a, b) => b.lastSeen - a.lastSeen);
 
         const foundRecords = new Array<DiscoveredBleDevice>();
         if ("instanceId" in identifier || "deviceType" in identifier) {
@@ -312,14 +328,13 @@ export class BleScanner implements Scanner {
             return [];
         }
 
-        let storedRecords = this.#getCommissionableDevices(identifier);
         if (ignoreExistingRecords) {
             // We want to have a fresh discovery result, so clear out the stored records because they might be outdated
-            for (const record of storedRecords) {
+            for (const record of this.#getCommissionableDevices(identifier, true)) {
                 this.#discoveredMatterDevices.delete(record.peripheral.address);
             }
-            storedRecords = [];
         }
+        let storedRecords = ignoreExistingRecords ? [] : this.#getCommissionableDevices(identifier);
         if (storedRecords.length === 0) {
             await this.#client.startScanning();
             await this.#registerWaiterPromise(queryKey, timeout);
@@ -381,7 +396,10 @@ export class BleScanner implements Scanner {
                 }
             }
 
-            await this.#registerWaiterPromise(queryKey, remainingTime, false, queryResolver);
+            // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
+            // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
+            // tracking why it was not one before.
+            await this.#registerWaiterPromise(queryKey, remainingTime, true, queryResolver);
         }
         await this.#client.stopScanning();
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
