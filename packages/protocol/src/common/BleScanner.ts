@@ -171,6 +171,7 @@ export class BleScanner implements Scanner {
             };
             const existing = this.#discoveredMatterDevices.get(address);
             const deviceExisting = existing !== undefined;
+            const withheld = !this.#isReachable(address);
             // A peripheral withheld as unreachable was never offered, so its advertisement resolves waiters that
             // ignore updates — otherwise a continuous discovery would never learn the transport reaches it again.
             const isUpdatedRecord = deviceExisting && !existing.withheld;
@@ -198,11 +199,11 @@ export class BleScanner implements Scanner {
                 hasAdditionalAdvertisementData,
                 serviceDataHex,
                 lastSeen: now,
-                withheld: false,
+                withheld,
             });
 
             const queryKey = this.#findCommissionableQueryIdentifier(deviceData);
-            if (queryKey !== undefined) {
+            if (queryKey !== undefined && !withheld) {
                 this.#finishWaiter(queryKey, true, isUpdatedRecord);
             }
         } catch (error) {
