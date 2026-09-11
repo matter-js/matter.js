@@ -415,7 +415,8 @@ describe("ValueValidator", () => {
         });
 
         // The rhs of "." names a member of whatever the lhs denotes, so an access to a computed value states no name
-        it("accepts an access to a computed value", () => {
+        // to resolve.  The access itself is reported, as UNEVALUABLE_MEMBER_ACCESS
+        it("states no unresolved name for an access to a computed value", () => {
             expect(
                 validateConstraintReferences([
                     Attribute({ name: "Low", id: 1, type: "uint16" }),
@@ -641,34 +642,6 @@ describe("ValueValidator", () => {
             ).length(1);
         });
 
-        it("accepts the element of an access whose member is computed", () => {
-            expect(
-                allConstraintErrorsOf([
-                    new DatatypeModel(
-                        { name: "LimitsStruct", type: "struct" },
-                        FieldElement({ name: "Low", id: 0, type: "uint16" }),
-                    ),
-                    Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
-                    Attribute({ name: "Floor", id: 3, type: "uint16" }),
-                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Limits.minOf(Floor, Floor)" }),
-                ]),
-            ).length(0);
-        });
-
-        // The names computing the member are of the scope, so one naming nothing is reported
-        it("reports a name computing the member of an access", () => {
-            const errors = allConstraintErrorsOf([
-                new DatatypeModel(
-                    { name: "LimitsStruct", type: "struct" },
-                    FieldElement({ name: "Low", id: 0, type: "uint16" }),
-                ),
-                Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
-                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Limits.minOf(Nope, Nope)" }),
-            ]);
-
-            expect(errors.map(e => e.code)).deep.equals(["UNRESOLVED_CONSTRAINT_NAME", "UNRESOLVED_CONSTRAINT_NAME"]);
-        });
-
         it("accepts a limit naming a duration", () => {
             expect(
                 allConstraintErrorsOf([
@@ -702,6 +675,32 @@ describe("ValueValidator", () => {
             ).length(0);
         });
 
+        // An access evaluates only where the value before "." is a record and the name after it a member of one, so
+        // an access to a computed value states no bound whatever its operands resolve to
+        it("reports an access to a computed value", () => {
+            const errors = allConstraintErrorsOf([
+                new DatatypeModel(
+                    { name: "LimitsStruct", type: "struct" },
+                    FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                ),
+                Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                Attribute({ name: "Floor", id: 3, type: "uint16" }),
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Limits.minOf(Floor, Floor)" }),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNEVALUABLE_MEMBER_ACCESS"]);
+        });
+
+        it("reports an access whose element is computed", () => {
+            const errors = allConstraintErrorsOf([
+                Attribute({ name: "Low", id: 1, type: "uint16" }),
+                Attribute({ name: "High", id: 3, type: "uint16" }),
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min minOf(Low, High).Any" }),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNEVALUABLE_MEMBER_ACCESS"]);
+        });
+
         // The path resolves through the model whatever the value is held as, so the leaf alone says nothing about
         // whether the access evaluates
         it("reports a complete access whose element is held as a number", () => {
@@ -725,59 +724,6 @@ describe("ValueValidator", () => {
                     Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Limits.Low" }),
                 ]),
             ).length(0);
-        });
-
-        // A value of an enumerated type is held as the number it encodes to, so an access takes nothing from one
-        // even though the type defines members
-        it("reports an access taking a member of a value of an enumerated type", () => {
-            expect(
-                validateConstraintsOf(
-                    [
-                        new DatatypeModel({ name: "ModeEnum", type: "enum8" }, FieldElement({ name: "Low", id: 0 })),
-                        Attribute({ name: "Mode", id: 1, type: "ModeEnum" }),
-                        Attribute({ name: "Floor", id: 3, type: "uint16" }),
-                        Attribute({
-                            name: "Bounded",
-                            id: 2,
-                            type: "uint16",
-                            constraint: "min Mode.minOf(Floor, Floor)",
-                        }),
-                    ],
-                    "UNUSABLE_CONSTRAINT_NAME",
-                ),
-            ).length(1);
-        });
-
-        // A bitmap is held as the record of its flags, so an access takes one of them
-        it("accepts an access taking a member of a bitmap", () => {
-            expect(
-                allConstraintErrorsOf([
-                    new DatatypeModel(
-                        { name: "ModeBitmap", type: "map8" },
-                        FieldElement({ name: "Low", constraint: "0" }),
-                    ),
-                    Attribute({ name: "Mode", id: 1, type: "ModeBitmap" }),
-                    Attribute({ name: "Floor", id: 3, type: "uint16" }),
-                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Mode.minOf(Floor, Floor)" }),
-                ]),
-            ).length(0);
-        });
-
-        it("reports an access taking a member of a value that defines none", () => {
-            expect(
-                validateConstraintsOf(
-                    [
-                        Attribute({ name: "Limit", id: 1, type: "uint16" }),
-                        Attribute({
-                            name: "Bounded",
-                            id: 2,
-                            type: "uint16",
-                            constraint: "min Limit.minOf(Limit, Limit)",
-                        }),
-                    ],
-                    "UNUSABLE_CONSTRAINT_NAME",
-                ),
-            ).length(1);
         });
     });
 

@@ -593,22 +593,20 @@ describe("Constraint", () => {
             ]);
         });
 
-        // The rhs of "." names a member of whatever the lhs denotes, so it resolves in no scope of its own
-        it("states only the names an access to a computed value resolves", () => {
-            expect(Constraint.referencesOf(new Constraint("min minOf(A, B).C"))).deep.equals([
-                { path: ["a"], position: "bound" },
-                { path: ["b"], position: "bound" },
-            ]);
+        // An access no evaluation can take states no name: the access itself is what is reported
+        it("states no name an access to a computed value holds", () => {
+            expect(Constraint.referencesOf(new Constraint("min minOf(A, B).C"))).deep.equals([]);
+            expect(Constraint.referencesOf(new Constraint("min A.minOf(B, C)"))).deep.equals([]);
         });
 
-        // The lhs names the element a member is taken from, so no value of the constrained type answers it.  The
-        // member is named by a value the expression computes, and the names computing it are of the scope
-        it("states the element of an access whose member is computed", () => {
-            expect(Constraint.referencesOf(new Constraint("min A.minOf(B, C)"))).deep.equals([
-                { path: ["a"], position: "element" },
-                { path: ["b"], position: "bound" },
-                { path: ["c"], position: "bound" },
-            ]);
+        it("reports an access to a computed value as unevaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min minOf(A, B).C"))).true;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.minOf(B, C)"))).true;
+        });
+
+        it("reports a complete access as evaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.B"))).false;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min minOf(A, B)"))).false;
         });
 
         it("states a name each member of a membership set holds", () => {

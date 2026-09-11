@@ -334,6 +334,13 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             );
         }
 
+        if (Constraint.hasUnevaluableAccess(constraint)) {
+            this.error(
+                "UNEVALUABLE_MEMBER_ACCESS",
+                `Constraint "${constraint}" takes a member of a computed value, which denotes nothing`,
+            );
+        }
+
         const { entry } = constraint;
         const entryModel = model.listEntry;
         if (entry !== undefined && entryModel !== undefined) {
@@ -409,16 +416,6 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
                         "UNUSABLE_CONSTRAINT_NAME",
                         `Constraint name reference "${path.join(".")}" names a value of metatype ${metatype}, ` +
                             `which holds one value rather than the values allowed`,
-                    );
-                }
-                break;
-
-            case "element":
-                if (!Metatype.holdsRecord(metatype)) {
-                    this.error(
-                        "UNUSABLE_CONSTRAINT_NAME",
-                        `Constraint name reference "${path.join(".")}" names a value of metatype ${metatype}, ` +
-                            `which defines no member to take`,
                     );
                 }
                 break;

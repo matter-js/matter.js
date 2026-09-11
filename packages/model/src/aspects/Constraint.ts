@@ -329,12 +329,11 @@ export namespace Constraint {
      *
      * The position decides what may answer the name.  A bound is compared against the value, so a single name in one
      * may denote a value of the constrained type as well as an element of the record.  The operand of "in" names the
-     * element holding the values allowed, and the lhs of a member access the element a member is taken from, so a
-     * value of the constrained type answers neither.
+     * element holding the values allowed, so a value of the constrained type never answers it.
      *
      * @see {@link MatterSpecification.v16.Core} § 7.18.3
      */
-    export type NamePosition = "bound" | "set" | "element";
+    export type NamePosition = "bound" | "set";
 
     /** A name a constraint states, and what the constraint does with the value it denotes */
     export interface Reference {
@@ -372,6 +371,53 @@ export namespace Constraint {
 
         const name = FieldValue.referenced(expression);
         return name === undefined ? undefined : [name];
+    }
+
+    /**
+     * Whether the constraint states a member access no evaluation can take.
+     *
+     * A member access evaluates only where the value before "." is a record and the name after it a member of one.
+     * Where either operand is computed the access denotes nothing, so the bound holding it admits every value.  The
+     * specification states no such constraint; the grammar permits one.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     */
+    export function hasUnevaluableAccess(constraint: Ast): boolean {
+        function inExpression(expression: Expression | undefined): boolean {
+            if (expression === null || typeof expression !== "object") {
+                return false;
+            }
+
+            if (Array.isArray(expression)) {
+                return expression.some(inExpression);
+            }
+
+            if ("args" in expression) {
+                return expression.args.some(inExpression);
+            }
+
+            if ("lhs" in expression) {
+                if (expression.type === ".") {
+                    return accessPathOf(expression) === undefined;
+                }
+                return inExpression(expression.lhs) || inExpression(expression.rhs);
+            }
+
+            return false;
+        }
+
+        function inAst(ast: Ast): boolean {
+            return (
+                inExpression(ast.value) ||
+                inExpression(ast.min) ||
+                inExpression(ast.max) ||
+                inExpression(ast.in) ||
+                (ast.entry !== undefined && inAst(ast.entry)) ||
+                (ast.parts ?? []).some(inAst)
+            );
+        }
+
+        return inAst(constraint);
     }
 
     /**
@@ -420,21 +466,10 @@ export namespace Constraint {
                 const path = accessPathOf(expression);
                 if (path !== undefined) {
                     references.push({ path, position });
-                    return;
                 }
 
-                // A named lhs names the element a member is taken from, and a named rhs the member, which no scope
-                // resolves.  Either operand that is computed states names of its own
-                const lhs = accessPathOf(expression.lhs);
-                if (lhs === undefined) {
-                    addExpression(expression.lhs, position);
-                } else {
-                    references.push({ path: lhs, position: "element" });
-                }
-
-                if (accessPathOf(expression.rhs) === undefined) {
-                    addExpression(expression.rhs, position);
-                }
+                // An access no evaluation can take states no name either: {@link hasUnevaluableAccess} reports the
+                // access itself rather than the names inside one
                 return;
             }
 

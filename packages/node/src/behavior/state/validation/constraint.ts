@@ -18,9 +18,6 @@ interface NameResolverFactory {
 }
 
 /**
- * Creates a function that validates values based on the constraint in the schema.
- */
-/**
  * The number the flags of a bitmap value encode to, which is what a constraint on a bitmap bounds.
  *
  * A value of a bitmap is held as the record of its flags, so the magnitude the specification bounds is not the value
@@ -56,6 +53,9 @@ export function bitmapMagnitudeOf(schema: ValueModel, supervisor: RootSupervisor
     };
 }
 
+/**
+ * Creates a function that validates values based on the constraint in the schema.
+ */
 export function createConstraintValidator(
     constraint: Constraint,
     schema: ValueModel,
