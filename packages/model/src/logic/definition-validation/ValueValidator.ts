@@ -306,7 +306,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * the type of the entry.
      */
     #validateConstraint(constraint: Constraint, model: ValueModel) {
-        for (const reference of Constraint.namesOf(constraint)) {
+        for (const reference of Constraint.referencesOf(constraint)) {
             this.#validateConstraintReference(reference, model);
         }
 
@@ -318,7 +318,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             Metatype.boundKind(model.effectiveMetatype) === Metatype.BoundKind.none
         ) {
             this.error(
-                "BOUND_ON_UNORDERED_TYPE",
+                "UNBOUNDABLE_TYPE",
                 `Constraint "${constraint}" bounds a value of metatype ${model.effectiveMetatype}, which has ` +
                     `neither a magnitude nor a length`,
             );
@@ -329,7 +329,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         // alternative states is enforced by nothing
         if (constraint.parts?.some(part => part.entry !== undefined)) {
             this.error(
-                "UNSUPPORTED_ENTRY_BOUND",
+                "UNENFORCEABLE_ENTRY_BOUND",
                 `Constraint "${constraint}" bounds the entries of a list in an alternative, which nothing enforces`,
             );
         }
@@ -355,7 +355,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * @see {@link MatterSpecification.v16.Core} § 7.18.3
      */
     #validateConstraintReference({ path, position }: Constraint.Reference, model: ValueModel) {
-        if (position === "bound" && path.length === 1 && model.effectiveMetatype === Metatype.enum) {
+        if (position === "bound" && path.length === 1) {
             if (model.memberNamed(path[0]) !== undefined) {
                 return;
             }
@@ -367,7 +367,31 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
             return;
         }
 
-        const metatype = target instanceof ValueModel ? target.effectiveMetatype : undefined;
+        // Every element an access passes through holds the next, and a value held as anything but a record holds no
+        // member to take.  The path resolves through the model whatever the value is held as, so the leaf alone says
+        // nothing about whether the access evaluates
+        for (let depth = 1; depth < path.length; depth++) {
+            const container = this.resolveReference(path.slice(0, depth));
+            const containerMetatype = container instanceof ValueModel ? container.effectiveMetatype : undefined;
+            if (!Metatype.holdsRecord(containerMetatype)) {
+                this.error(
+                    "UNUSABLE_CONSTRAINT_NAME",
+                    `Constraint name reference "${path.join(".")}" takes a member of a value of metatype ` +
+                        `${containerMetatype}, which holds no member`,
+                );
+                return;
+            }
+        }
+
+        if (!(target instanceof ValueModel)) {
+            this.error(
+                "UNUSABLE_CONSTRAINT_NAME",
+                `Constraint name reference "${path.join(".")}" names ${target.tag} ${target.name}, which is not a value`,
+            );
+            return;
+        }
+
+        const metatype = target.effectiveMetatype;
         switch (position) {
             case "bound":
                 if (!Metatype.holdsNumber(metatype)) {

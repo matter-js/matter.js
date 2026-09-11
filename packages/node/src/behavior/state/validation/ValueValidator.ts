@@ -244,30 +244,7 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
         };
     }
 
-    // The specification bounds the number a bitmap's flags encode to, as the "max 15" of a window covering's mode
-    // does.  An upper bound states the same thing the reserved-bit check does, but a lower bound — "min 1", a flag
-    // that must be set — states something no mask expresses.  A bit a 32 bit shift cannot reach states no magnitude
-    // this computes, so the bound is left unjudged rather than judged against a number that wrapped
-    // A flag of a bitmap states its bit position in its constraint rather than a bound, so a flag that is itself a
-    // bitmap states no magnitude of its own
-    const isFlagOfBitmap = schema.parent instanceof ValueModel && schema.parent.effectiveMetatype === Metatype.bitmap;
-    const validateMagnitude = isFlagOfBitmap
-        ? undefined
-        : createConstraintValidator(schema.effectiveConstraint, schema, supervisor, value => {
-              let magnitude = 0;
-              for (const key in value as Record<string, unknown>) {
-                  const field = fields[key];
-                  const flags = (value as Record<string, unknown>)[key];
-                  if (field?.bit === undefined || !flags) {
-                      continue;
-                  }
-                  if (field.bit > 30) {
-                      return undefined;
-                  }
-                  magnitude |= (typeof flags === "number" ? flags : 1) << field.bit;
-              }
-              return magnitude;
-          });
+    const validateMagnitude = createConstraintValidator(schema.effectiveConstraint, schema, supervisor);
 
     return (value, session, location) => {
         assertObject(value, location);

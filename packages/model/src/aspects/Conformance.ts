@@ -7,7 +7,7 @@
 import { type Model } from "#models/Model.js";
 import { type ValueModel } from "#models/ValueModel.js";
 import { asError, InternalError } from "@matter/general";
-import { FeatureSet, FieldValue, Metatype } from "../common/index.js";
+import { FeatureSet, FieldValue } from "../common/index.js";
 import { BasicToken, Lexer, TokenStream } from "../parser/index.js";
 import { Aspect } from "./Aspect.js";
 
@@ -307,7 +307,7 @@ export namespace Conformance {
         | "z";
 
     export type ReferenceResolver = (name: string | string[]) => Model | undefined;
-    export type ErrorTarget = Aspect.ErrorTarget;
+    export type ErrorTarget = { error(code: string, message: string): void };
 
     /**
      * Supported ways of expressing conformance (conceptually union should include Flag but that is covered by string).
@@ -351,7 +351,7 @@ export namespace Conformance {
                 let operatorResolver = resolver;
                 if (ast.param.lhs.type === "name") {
                     const referenced = resolver(ast.param.lhs.param) as ValueModel | undefined;
-                    if (referenced?.effectiveMetatype === Metatype.enum) {
+                    if (referenced !== undefined) {
                         operatorResolver = (name: string | string[]) => {
                             if (typeof name === "string") {
                                 const enumValue = referenced.memberNamed(name);

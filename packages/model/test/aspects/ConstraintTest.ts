@@ -582,20 +582,20 @@ describe("Constraint", () => {
 
     describe("the names it states", () => {
         it("states the segments of a member access as one path", () => {
-            expect(Constraint.namesOf(new Constraint("min A.B"))).deep.equals([
+            expect(Constraint.referencesOf(new Constraint("min A.B"))).deep.equals([
                 { path: ["a", "b"], position: "bound" },
             ]);
         });
 
         it("states the operand of a membership set as one naming an element", () => {
-            expect(Constraint.namesOf(new Constraint("in Supported"))).deep.equals([
-                { path: ["Supported"], position: "set" },
+            expect(Constraint.referencesOf(new Constraint("in Supported"))).deep.equals([
+                { path: ["supported"], position: "set" },
             ]);
         });
 
         // The rhs of "." names a member of whatever the lhs denotes, so it resolves in no scope of its own
         it("states only the names an access to a computed value resolves", () => {
-            expect(Constraint.namesOf(new Constraint("min minOf(A, B).C"))).deep.equals([
+            expect(Constraint.referencesOf(new Constraint("min minOf(A, B).C"))).deep.equals([
                 { path: ["a"], position: "bound" },
                 { path: ["b"], position: "bound" },
             ]);
@@ -604,7 +604,7 @@ describe("Constraint", () => {
         // The lhs names the element a member is taken from, so no value of the constrained type answers it.  The
         // member is named by a value the expression computes, and the names computing it are of the scope
         it("states the element of an access whose member is computed", () => {
-            expect(Constraint.namesOf(new Constraint("min A.minOf(B, C)"))).deep.equals([
+            expect(Constraint.referencesOf(new Constraint("min A.minOf(B, C)"))).deep.equals([
                 { path: ["a"], position: "element" },
                 { path: ["b"], position: "bound" },
                 { path: ["c"], position: "bound" },
@@ -612,13 +612,15 @@ describe("Constraint", () => {
         });
 
         it("states a name each member of a membership set holds", () => {
-            expect(Constraint.namesOf(new Constraint("0, 1, Add"))).deep.equals([{ path: ["add"], position: "bound" }]);
+            expect(Constraint.referencesOf(new Constraint("0, 1, Add"))).deep.equals([
+                { path: ["add"], position: "bound" },
+            ]);
         });
 
         // The entry constraint bounds the entries, so its names belong to the type of the entry.  The alternative
         // states one of its own, which does not
         it("states no name an entry bound of an alternative holds", () => {
-            expect(Constraint.namesOf(new Constraint("Foo to 4[min Alpha], 8 to 9[max Beta]"))).deep.equals([
+            expect(Constraint.referencesOf(new Constraint("Foo to 4[min Alpha], 8 to 9[max Beta]"))).deep.equals([
                 { path: ["foo"], position: "bound" },
             ]);
         });

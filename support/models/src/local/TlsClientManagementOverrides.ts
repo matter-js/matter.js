@@ -11,9 +11,9 @@ LocalMatter.children.push({
     name: "TlsClientManagement",
 
     children: [
-        // The specification bounds this field by 0 to 65534, which is the bound of TLSEndpointID.  The field holds a
-        // TLSEndpointStruct, and no comparison orders a struct against a number, so the bound states nothing.  The
-        // struct's own EndpointID field carries the bound where it applies.
+        // Matter 1.6, § 11.24.7.4: the specification bounds this field by 0 to 65534, which is the bound of
+        // TLSEndpointID.  The field holds a TLSEndpointStruct, and no comparison orders a struct against a number, so
+        // the bound states nothing.  The struct's own EndpointID field carries the bound where it applies.
         {
             tag: "command",
             id: 0x3,

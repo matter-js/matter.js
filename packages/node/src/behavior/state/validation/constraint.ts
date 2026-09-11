@@ -5,7 +5,8 @@
  */
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { Constraint, EncodedConstraint, FieldValue, Metatype, ValueModel } from "@matter/model";
+import { camelize, InternalError } from "@matter/general";
+import { Constraint, EncodedConstraint, FeatureMap, FieldValue, Metatype, ValueModel } from "@matter/model";
 import { ConstraintError, Val } from "@matter/protocol";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { NameResolver } from "../managed/NameResolver.js";
@@ -19,11 +20,46 @@ interface NameResolverFactory {
 /**
  * Creates a function that validates values based on the constraint in the schema.
  */
+/**
+ * The number the flags of a bitmap value encode to, which is what a constraint on a bitmap bounds.
+ *
+ * A value of a bitmap is held as the record of its flags, so the magnitude the specification bounds is not the value
+ * itself.  A flag beyond the reach of a 32 bit shift states a magnitude this does not compute, and the bound is then
+ * left unjudged rather than judged against a number that wrapped.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.19.2
+ */
+export function bitmapMagnitudeOf(schema: ValueModel, supervisor: RootSupervisor) {
+    const bits = {} as Record<string, number>;
+
+    for (const field of supervisor.membersOf(schema)) {
+        const constraint = field.effectiveConstraint;
+        const bit = typeof constraint.value === "number" ? constraint.value : constraint.min;
+        const highest = typeof constraint.max === "number" ? constraint.max : bit;
+        if (typeof bit !== "number" || typeof highest !== "number" || bit < 0 || highest > 31) {
+            return undefined;
+        }
+        bits[field.parent?.id === FeatureMap.id ? camelize(field.title ?? field.name) : field.propertyName] = bit;
+    }
+
+    return (value: Val) => {
+        let magnitude = 0;
+        for (const key in value as Record<string, unknown>) {
+            const bit = bits[key];
+            const flags = (value as Record<string, unknown>)[key];
+            if (bit === undefined || !flags) {
+                continue;
+            }
+            magnitude |= (typeof flags === "number" ? flags : 1) << bit;
+        }
+        return magnitude >>> 0;
+    };
+}
+
 export function createConstraintValidator(
     constraint: Constraint,
     schema: ValueModel,
     supervisor: RootSupervisor,
-    magnitudeOf?: (value: Val) => number | undefined,
 ): ValueSupervisor.Validate | undefined {
     let nameResolvers: undefined | Record<string, undefined | ((val: Val) => Val)>;
 
@@ -43,28 +79,7 @@ export function createConstraintValidator(
         };
     };
 
-    const encoded = EncodedConstraint(constraint, schema);
-
-    // A value stating its bound in the number it encodes to rather than in itself, as a bitmap does, is judged by
-    // that number.  The bound still resolves names and honors supervision as any other does
-    const inner = magnitudeOf
-        ? constraint.isEmpty || constraint.desc || constraint.none
-            ? undefined
-            : (value: Val, _session: ValueSupervisor.Session, location: ValidationLocation) => {
-                  const magnitude = magnitudeOf(value);
-                  if (magnitude === undefined) {
-                      return;
-                  }
-
-                  if (!encoded.test(magnitude, nameResolverFactory(location))) {
-                      throw new ConstraintError(
-                          schema,
-                          location,
-                          `Value ${magnitude} is not within bounds defined by constraint`,
-                      );
-                  }
-              }
-        : create(encoded, schema, nameResolverFactory);
+    const inner = create(EncodedConstraint(constraint, schema), schema, nameResolverFactory, supervisor);
     if (!inner) {
         return undefined;
     }
@@ -82,6 +97,7 @@ function create(
     constraint: Constraint,
     schema: ValueModel,
     nameResolverFactory: NameResolverFactory,
+    supervisor: RootSupervisor,
 ): ValueSupervisor.Validate | undefined {
     if (constraint.isEmpty) {
         return;
@@ -89,26 +105,43 @@ function create(
 
     const metatype = schema.effectiveMetatype;
     if (metatype === Metatype.array) {
-        return createArrayConstraintValidator(constraint, schema, nameResolverFactory);
+        return createArrayConstraintValidator(constraint, schema, nameResolverFactory, supervisor);
     }
 
-    // A bound the specification states is enforceable only where the value is held as something it compares against.
-    // A bitmap is held as the record of its flags and a date as a Date, so neither a bound nor a membership set
-    // states anything this could check
-    // A flag of a bitmap states its bit position in its constraint rather than a bound, whatever type the flag takes.
-    // Such a member reaches its own validator today rather than this one, so this keeps that a choice rather than an
-    // accident
+    // A value with neither a magnitude nor a length states no bound, and a date is held as a Date, which no bound
+    // this builds compares against
+    if (
+        Metatype.boundKind(metatype) === Metatype.BoundKind.none ||
+        metatype === Metatype.date ||
+        metatype === undefined
+    ) {
+        return;
+    }
+
+    // A flag of a bitmap states its bit position in its constraint rather than a bound, whatever type the flag
+    // takes.  A bitmap judges its flags itself rather than building a validator for each, so nothing reaches here
+    // today; this keeps that a choice rather than an accident
     if (schema.parent instanceof ValueModel && schema.parent.effectiveMetatype === Metatype.bitmap) {
         return;
     }
 
-    const boundKind = Metatype.boundKind(metatype);
-    if (
-        !Metatype.holdsNumber(metatype) &&
-        boundKind !== Metatype.BoundKind.length &&
-        boundKind !== Metatype.BoundKind.value
-    ) {
-        return;
+    // A bitmap states its bound in the number its flags encode to rather than in the record they are held as
+    if (metatype === Metatype.bitmap) {
+        const magnitudeOf = bitmapMagnitudeOf(schema, supervisor);
+        if (magnitudeOf === undefined) {
+            return;
+        }
+
+        return (value, _session, location) => {
+            const magnitude = magnitudeOf(value);
+            if (!constraint.test(magnitude, nameResolverFactory(location))) {
+                throw new ConstraintError(
+                    schema,
+                    location,
+                    `Value ${magnitude} is not within bounds defined by constraint`,
+                );
+            }
+        };
     }
 
     if (constraint.in) {
@@ -202,7 +235,7 @@ function create(
             };
 
         default:
-            return;
+            throw new InternalError(`Cannot define constraint for unsupported metatype ${metatype}`);
     }
 }
 
@@ -217,12 +250,13 @@ function createArrayConstraintValidator(
     constraint: Constraint,
     schema: ValueModel,
     nameResolver: NameResolverFactory,
+    supervisor: RootSupervisor,
 ): ValueSupervisor.Validate {
     let validateEntryConstraint: ValueSupervisor.Validate | undefined;
     if (constraint.entry) {
         const entrySchema = schema.listEntry;
         if (entrySchema) {
-            validateEntryConstraint = create(constraint.entry, entrySchema, nameResolver);
+            validateEntryConstraint = create(constraint.entry, entrySchema, nameResolver, supervisor);
         }
     }
 

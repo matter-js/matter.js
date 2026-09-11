@@ -27,14 +27,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
     - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
-    - Enhancement: `Constraint.namesOf` states every name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it. It replaces `Constraint.referencesOf` and `Constraint.validateReferences`
-    - Enhancement: `Metatype.boundKind` states what a constraint on a value of a metatype states, and `Metatype.holdsNumber` and `Metatype.holdsRecord` how such a value is held, which decides what a bound may compare against and what a member access may take
-    - Enhancement: `ValueModel.memberNamed` resolves the name a constraint or conformance states for a value of an enumerated type, which constraint encoding, definition validation and conformance now share
+    - Enhancement: `Constraint.referencesOf` states each name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it — where it previously stated the name alone. `Constraint.validateReferences` is replaced by it
+    - Enhancement: `Metatype.boundKind` states what a constraint on a value of a metatype states, and `Metatype.holdsNumber` and `Metatype.holdsRecord` how such a value is held, which decides what a bound may compare against and what a member access may take. `Metatype.native` now reports a bitmap as an object, agreeing with `Metatype.Native`, and `Metatype.Native` covers durations
+    - Enhancement: `ValueModel.memberNamed` resolves the name a constraint or conformance states for a value of an enumerated type. Constraint encoding, definition validation, the conformance aspect and the conformance compiler now share it; the compiler previously read a member's `id` rather than its effective id, so a member whose definition omits one resolved to nothing
+    - Fix: The operand of `in` states its name in the case every other name a constraint holds uses, so `Constraint.referencesOf` reports one spelling
     - Fix: The operand of `in` names an element holding the values allowed, so a value of the constrained type no longer answers it
     - Fix: A constraint taking a member of a computed value, such as `min minOf(A, B).C`, no longer reports `UNRESOLVED_CONSTRAINT_NAME` for the member. The element of an access such as `min A.minOf(B, C)` is no longer read as a value of the constrained type, and the names computing the member are resolved rather than skipped
     - Fix: A name a constraint states that resolves to a value the constraint cannot use — a bound comparing against a record, a membership set naming a single value, an access taking a member of a value held as a number — reports `UNUSABLE_CONSTRAINT_NAME`. It reports that alone, where before a name could be reported both unusable and unresolved
-    - Fix: A constraint bounding a value with neither a magnitude nor a length reports `BOUND_ON_UNORDERED_TYPE`
-    - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNSUPPORTED_ENTRY_BOUND`, as nothing enforces such a bound
+    - Fix: A constraint bounding a value with neither a magnitude nor a length reports `UNBOUNDABLE_TYPE`
+    - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNENFORCEABLE_ENTRY_BOUND`, as nothing enforces such a bound
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node

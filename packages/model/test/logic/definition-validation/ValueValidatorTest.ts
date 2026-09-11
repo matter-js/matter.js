@@ -529,7 +529,7 @@ describe("ValueValidator", () => {
                         ),
                         Attribute({ name: "Bounded", id: 2, type: "LimitsStruct", constraint: "0 to 65534" }),
                     ],
-                    "BOUND_ON_UNORDERED_TYPE",
+                    "UNBOUNDABLE_TYPE",
                 ),
             ).length(1);
         });
@@ -544,7 +544,7 @@ describe("ValueValidator", () => {
                         ),
                         Attribute({ name: "Bounded", id: 2, type: "LimitsStruct", constraint: "desc" }),
                     ],
-                    "BOUND_ON_UNORDERED_TYPE",
+                    "UNBOUNDABLE_TYPE",
                 ),
             ).length(0);
         });
@@ -559,7 +559,7 @@ describe("ValueValidator", () => {
                             FieldElement({ name: "Recording", constraint: "0" }),
                         ),
                     ],
-                    "BOUND_ON_UNORDERED_TYPE",
+                    "UNBOUNDABLE_TYPE",
                 ),
             ).length(0);
         });
@@ -569,7 +569,7 @@ describe("ValueValidator", () => {
             expect(
                 validateConstraintsOf(
                     [Attribute({ name: "Bounded", id: 2, type: "duration", constraint: "max 15" })],
-                    "BOUND_ON_UNORDERED_TYPE",
+                    "UNBOUNDABLE_TYPE",
                 ),
             ).length(0);
         });
@@ -594,7 +594,7 @@ describe("ValueValidator", () => {
                         ),
                         Attribute({ name: "Bounded", id: 2, type: "LimitsStruct", constraint: "none" }),
                     ],
-                    "BOUND_ON_UNORDERED_TYPE",
+                    "UNBOUNDABLE_TYPE",
                 ),
             ).length(0);
         });
@@ -702,6 +702,31 @@ describe("ValueValidator", () => {
             ).length(0);
         });
 
+        // The path resolves through the model whatever the value is held as, so the leaf alone says nothing about
+        // whether the access evaluates
+        it("reports a complete access whose element is held as a number", () => {
+            const errors = allConstraintErrorsOf([
+                new DatatypeModel({ name: "ModeEnum", type: "enum8" }, FieldElement({ name: "Low", id: 0 })),
+                Attribute({ name: "Mode", id: 1, type: "ModeEnum" }),
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Mode.Low" }),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNUSABLE_CONSTRAINT_NAME"]);
+        });
+
+        it("accepts a complete access whose element holds members", () => {
+            expect(
+                allConstraintErrorsOf([
+                    new DatatypeModel(
+                        { name: "LimitsStruct", type: "struct" },
+                        FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                    ),
+                    Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Limits.Low" }),
+                ]),
+            ).length(0);
+        });
+
         // A value of an enumerated type is held as the number it encodes to, so an access takes nothing from one
         // even though the type defines members
         it("reports an access taking a member of a value of an enumerated type", () => {
@@ -766,7 +791,7 @@ describe("ValueValidator", () => {
                             FieldElement({ name: "entry", type: "uint16" }),
                         ),
                     ],
-                    "UNSUPPORTED_ENTRY_BOUND",
+                    "UNENFORCEABLE_ENTRY_BOUND",
                 ),
             ).length(1);
         });
@@ -780,7 +805,7 @@ describe("ValueValidator", () => {
                             FieldElement({ name: "entry", type: "uint16" }),
                         ),
                     ],
-                    "UNSUPPORTED_ENTRY_BOUND",
+                    "UNENFORCEABLE_ENTRY_BOUND",
                 ),
             ).length(0);
         });

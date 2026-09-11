@@ -204,6 +204,9 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
      * @see {@link MatterSpecification.v16.Core} § 7.18.3
      */
     memberNamed(name: string) {
+        if (this.effectiveMetatype !== Metatype.enum) {
+            return undefined;
+        }
         return this.members(name);
     }
 

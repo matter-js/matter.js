@@ -33,7 +33,7 @@ export enum Metatype {
  * reaching here at runtime came from a cast — an element definition states its metatype as a string — and states no
  * bound rather than failing, as every other classification of a metatype does.
  */
-function unbounded(_type: never) {
+function unclassified(_type: never) {
     return undefined;
 }
 
@@ -110,14 +110,15 @@ export namespace Metatype {
             default:
                 // Every metatype states what a bound on it means, so a new one is a compile error here rather than a
                 // value silently treated as of unknown type
-                return unbounded(type);
+                return unclassified(type);
         }
     }
 
     /**
      * Whether a value of this metatype is held as a number, so a comparison against one has a numeric meaning.
      *
-     * A bitmap encodes to a number but is held as the record of its flags, so a bound comparing against one compares
+     * A bitmap encodes to a number but is held as the record of its flags, as {@link native} states, so a bound
+     * comparing against one compares
      * a number against a record, which is false whatever the value.  A date is held as a {@link Date}, which a
      * comparison coerces to a timestamp — a number of a different scale from anything a constraint states, so a bound
      * naming one states no bound worth judging.  A duration is held as a number of milliseconds.
@@ -163,10 +164,13 @@ export namespace Metatype {
             case Metatype.integer:
                 return BigInt;
 
-            case Metatype.bitmap:
             case Metatype.enum:
             case Metatype.float:
                 return Number;
+
+            // A bitmap encodes to a number but is held as the record of its flags, as {@link holdsRecord} states
+            case Metatype.bitmap:
+                return Object;
 
             case Metatype.bytes:
                 return Uint8Array;
@@ -207,7 +211,9 @@ export namespace Metatype {
                     ? Date
                     : T extends "any"
                       ? unknown
-                      : never;
+                      : T extends "duration"
+                        ? number
+                        : never;
 
     /**
      * Shape of {@link cast}: a generic call signature for dispatch + per-metatype converters.

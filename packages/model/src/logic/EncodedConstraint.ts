@@ -6,7 +6,6 @@
 
 import { Constraint } from "../aspects/Constraint.js";
 import { FieldValue } from "../common/FieldValue.js";
-import { Metatype } from "../common/Metatype.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { EncodedValue } from "./EncodedValue.js";
 
@@ -142,11 +141,11 @@ function convertExpression(
         return {
             ...expression,
             lhs:
-                Constraint.pathOf(expression.lhs) === undefined
+                Constraint.accessPathOf(expression.lhs) === undefined
                     ? convertExpression(expression.lhs, model, bounds)
                     : expression.lhs,
             rhs:
-                Constraint.pathOf(expression.rhs) === undefined
+                Constraint.accessPathOf(expression.rhs) === undefined
                     ? convertExpression(expression.rhs, model, bounds)
                     : expression.rhs,
         };
@@ -171,10 +170,6 @@ function convertExpression(
 function enumValueOf(value: FieldValue | undefined, model: ValueModel) {
     const name = FieldValue.referenced(value);
     if (name === undefined) {
-        return;
-    }
-
-    if (model.effectiveMetatype !== Metatype.enum) {
         return;
     }
 

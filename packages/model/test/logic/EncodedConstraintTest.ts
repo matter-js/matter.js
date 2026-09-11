@@ -172,13 +172,13 @@ describe("EncodedConstraint", () => {
             );
             matter.finalize();
 
-            expect(EncodedConstraint(bounded.constraint, bounded).toString()).equals("in Add");
+            expect(EncodedConstraint(bounded.constraint, bounded).toString()).equals("in add");
         });
 
         it("leaves a membership set naming an element the type does not define", () => {
             const model = enumField("in SupportedOperations");
 
-            expect(EncodedConstraint(model.constraint, model).toString()).equals("in SupportedOperations");
+            expect(EncodedConstraint(model.constraint, model).toString()).equals("in supportedOperations");
         });
 
         // Only an enumerated type names its values in a bound; any other member is a value of the record

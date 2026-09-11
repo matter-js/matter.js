@@ -684,15 +684,8 @@ export function astToFunction(
                 const field =
                     siblingScope && supervisor.membersOf(siblingScope).find(model => model.propertyName === name);
                 if (field?.effectiveMetatype === Metatype.enum) {
-                    let enumValues: undefined | Record<string, number | undefined>;
                     createNameReference = (name: string) => {
-                        if (enumValues === undefined) {
-                            enumValues = {};
-                            for (const member of supervisor.membersOf(field)) {
-                                enumValues[camelize(member.name, true)] = member.id;
-                            }
-                        }
-                        const id = enumValues[camelize(name, true)];
+                        const id = field.memberNamed(name)?.effectiveId;
                         if (id !== undefined) {
                             return {
                                 code: Code.Value,

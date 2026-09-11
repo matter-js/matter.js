@@ -297,8 +297,15 @@ const AllTests = Tests({
             ],
         }),
         {
-            "accepts an entry the bitmap defines": { record: { test: [{ recording: true }] } },
-            "accepts an entry setting no flag": { record: { test: [{}] } },
+            "accepts an entry within the bound": { record: { test: [{ recording: true }] } },
+            "rejects an entry below the bound": {
+                record: { test: [{}] },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test.0: Constraint "all": Value 0 is not within bounds defined by constraint',
+                },
+            },
         },
     ),
 
@@ -333,6 +340,25 @@ const AllTests = Tests({
                         'Validating Test.test.2: Constraint "all": Value 9 is not within bounds defined by constraint',
                 },
             },
+        },
+    ),
+
+    // Characterization: a flag's constraint states the bits it occupies, not the values it may take.  A bitmap judges
+    // its flags itself rather than building a validator for each, so nothing tests a flag's value against its own
+    // constraint
+    "multi-bit flag of a bitmap": Tests(
+        Fields({
+            type: "map8",
+            children: [
+                FieldElement(
+                    { name: "Speed", type: "SpeedEnum", constraint: "0 to 1" },
+                    FieldElement({ name: "Slow", id: 0 }),
+                    FieldElement({ name: "Fast", id: 3 }),
+                ),
+            ],
+        }),
+        {
+            "accepts a value outside the bits the flag occupies": { record: { test: { speed: 3 } } },
         },
     ),
 
@@ -391,16 +417,36 @@ const AllTests = Tests({
         },
     ),
 
-    // A 32 bit shift cannot state the magnitude of a wider flag, so the bound is left unjudged rather than judged
-    // against a number that wrapped
+    // The magnitude is the unsigned number the flags encode to, so the highest bit a shift reaches is judged like
+    // any other
+    "bound on a bitmap using the highest bit": Tests(
+        Fields({
+            type: "map32",
+            constraint: "max 1",
+            children: [FieldElement({ name: "High", constraint: "31" })],
+        }),
+        {
+            "rejects a magnitude above the bound": {
+                record: { test: { high: true } },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "max 1": Value 2147483648 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
+
+    // A flag beyond the reach of a shift states a magnitude nothing computes, so the bound is left unjudged rather
+    // than judged against a number that truncated
     "bound on a bitmap wider than a shift reaches": Tests(
         Fields({
             type: "map64",
             constraint: "min 1",
-            children: [FieldElement({ name: "High", constraint: "31" })],
+            children: [FieldElement({ name: "Wide", constraint: "30 to 33" })],
         }),
         {
-            "accepts a flag no shift reaches": { record: { test: { high: true } } },
+            "accepts a value no shift states": { record: { test: { wide: 0 } } },
         },
     ),
 

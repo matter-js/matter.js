@@ -351,7 +351,7 @@ export namespace Constraint {
      *
      * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
      */
-    export function pathOf(expression: Expression): string[] | undefined {
+    export function accessPathOf(expression: Expression): string[] | undefined {
         if (expression === null || typeof expression !== "object" || Array.isArray(expression)) {
             return;
         }
@@ -361,8 +361,8 @@ export namespace Constraint {
                 return;
             }
 
-            const lhs = pathOf(expression.lhs);
-            const rhs = pathOf(expression.rhs);
+            const lhs = accessPathOf(expression.lhs);
+            const rhs = accessPathOf(expression.rhs);
             if (lhs === undefined || rhs === undefined) {
                 return;
             }
@@ -388,37 +388,36 @@ export namespace Constraint {
      *
      * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
      */
-    export function namesOf(constraint: Ast): Reference[] {
+    export function referencesOf(constraint: Ast): Reference[] {
         const references = new Array<Reference>();
-        let position: NamePosition = "bound";
 
-        function addExpression(expression: Expression | undefined) {
+        function addExpression(expression: Expression | undefined, position: NamePosition) {
             if (expression === null || typeof expression !== "object") {
                 return;
             }
 
             if (Array.isArray(expression)) {
                 for (const member of expression) {
-                    addExpression(member);
+                    addExpression(member, position);
                 }
                 return;
             }
 
             if ("args" in expression) {
                 for (const arg of expression.args) {
-                    addExpression(arg);
+                    addExpression(arg, position);
                 }
                 return;
             }
 
             if ("lhs" in expression) {
                 if (expression.type !== ".") {
-                    addExpression(expression.lhs);
-                    addExpression(expression.rhs);
+                    addExpression(expression.lhs, position);
+                    addExpression(expression.rhs, position);
                     return;
                 }
 
-                const path = pathOf(expression);
+                const path = accessPathOf(expression);
                 if (path !== undefined) {
                     references.push({ path, position });
                     return;
@@ -426,15 +425,15 @@ export namespace Constraint {
 
                 // A named lhs names the element a member is taken from, and a named rhs the member, which no scope
                 // resolves.  Either operand that is computed states names of its own
-                const lhs = pathOf(expression.lhs);
+                const lhs = accessPathOf(expression.lhs);
                 if (lhs === undefined) {
-                    addExpression(expression.lhs);
+                    addExpression(expression.lhs, position);
                 } else {
                     references.push({ path: lhs, position: "element" });
                 }
 
-                if (pathOf(expression.rhs) === undefined) {
-                    addExpression(expression.rhs);
+                if (accessPathOf(expression.rhs) === undefined) {
+                    addExpression(expression.rhs, position);
                 }
                 return;
             }
@@ -446,13 +445,10 @@ export namespace Constraint {
         }
 
         function addAst(ast: Ast) {
-            addExpression(ast.value);
-            addExpression(ast.min);
-            addExpression(ast.max);
-
-            position = "set";
-            addExpression(ast.in);
-            position = "bound";
+            addExpression(ast.value, "bound");
+            addExpression(ast.min, "bound");
+            addExpression(ast.max, "bound");
+            addExpression(ast.in, "set");
 
             for (const part of ast.parts ?? []) {
                 addAst(part);
@@ -770,7 +766,7 @@ namespace Parser {
                     if (tokens.token?.type === "word") {
                         const name = tokens.token.value;
                         tokens.next();
-                        return { in: FieldValue.Reference(name) };
+                        return { in: FieldValue.Reference(camelize(name)) };
                     }
                     constraint.error("MISSING_IN_FIELD", 'Expected field name to follow "in"');
                     break;
