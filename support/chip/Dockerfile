@@ -28,7 +28,8 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
     --mount=type=cache,sharing=locked,target=/var/lib/apt \
     apt-get -qq update && \
-    apt-get -qq -y install python3 python-is-python3 libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev
+    apt-get -qq -y install python3 python-is-python3 libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev \
+        libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libavformat60 libavcodec60 libavutil58 libcurl4
 
 ################################################################################
 #
@@ -64,7 +65,9 @@ RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
     apt-get -qq -y install --no-install-recommends \
         git curl clang pkg-config libssl-dev libdbus-1-dev libavahi-client-dev clang pkg-config \
         ninja-build python3-venv python3-dev unzip libreadline-dev python3-pip \
-        g++ libglib2.0-dev libglib2.0-dev-bin libpcsclite-dev libevent-dev
+        g++ libglib2.0-dev libglib2.0-dev-bin libpcsclite-dev libevent-dev \
+        libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libavformat-dev libavcodec-dev libavutil-dev \
+        libcurl4-openssl-dev
 EOF
     # apt-get -qq -y install git gcc g++ clang pkg-config libssl-dev libdbus-1-dev libglib2.0-dev libavahi-client-dev \
     #     ninja-build python3-venv python3-dev unzip libgirepository1.0-dev libcairo2-dev libreadline-dev python3-pip
@@ -127,6 +130,10 @@ RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app
 
 # TC-ACT-3.2's TH app for the cert tests' chip-local flavor, which spawns from this image's /bin
 RUN build-one bridge-app/linux chip-bridge-app
+
+# The WEBRTCR cases' TH_SERVER. Its own args.gni sets chip_with_nlfaultinjection, which is what lets a
+# case inject kFault_ModifyWebRTCOfferSessionId, so no extra GN argument here
+RUN build-one camera-app/linux chip-camera-app
 
 # Install Python stuff
 COPY support/install-chip-python /bin
