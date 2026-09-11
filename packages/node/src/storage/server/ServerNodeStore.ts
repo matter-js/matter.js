@@ -143,22 +143,37 @@ export class ServerNodeStore extends NodeStore implements Destructable {
 
     /**
      * BDX blobs live in a namespace of their own, which the node's other storage does not reach.  The namespace opens
-     * on first use, so a reset with no transfer behind it opens one to erase what an earlier session left.
+     * on first use, so a reset with no transfer behind it opens one to erase what an earlier session left, then
+     * releases it again rather than holding storage the node has not asked for.
      */
     async #eraseBdxStore() {
-        if (this.#bdxHandle === undefined) {
-            if (!this.#env.get(StorageService).isBlobConfigured) {
-                return;
-            }
+        const opened = this.#bdxHandle !== undefined;
 
-            const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
-            if (root && !(await root.directory.directory(`${this.#nodeId}-bdx`).exists())) {
-                return;
-            }
+        if (!opened && !(await this.#hasBdxStore())) {
+            return;
         }
 
         const driver = await this.bdxStore();
-        await driver.clearAll([]);
+        try {
+            await driver.clearAll([]);
+        } finally {
+            if (!opened) {
+                const handle = this.#bdxHandle;
+                this.#bdxHandle = undefined;
+                await handle?.close();
+            }
+        }
+    }
+
+    async #hasBdxStore() {
+        if (!this.#env.get(StorageService).isBlobConfigured) {
+            return false;
+        }
+
+        // Without a filesystem the namespace cannot be inspected without creating it, and there is nothing persisted
+        // to erase
+        const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
+        return root !== undefined && (await root.directory.directory(`${this.#nodeId}-bdx`).exists());
     }
 
     async load() {

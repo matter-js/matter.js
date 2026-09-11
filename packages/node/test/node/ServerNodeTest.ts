@@ -504,6 +504,30 @@ describe("ServerNode", () => {
         await node.close();
     });
 
+    it("releases storage a node opened before its construction failed", async () => {
+        let closes = 0;
+
+        class FailingDriver extends MemoryStorageDriver {
+            override contexts(contexts: string[]): string[] {
+                // The store opens storage, then reads this as it loads peer stores
+                throw new ImplementationError(`Cannot enumerate ${contexts.join(".")}`);
+            }
+
+            override async close() {
+                closes++;
+                await super.close();
+            }
+        }
+
+        // Not disposed: a node whose construction fails before its endpoint initializer is installed cannot be closed
+        const site = new MockSite({ createStorageDriver: store => new FailingDriver(store) });
+
+        await expect(site.addNode(undefined, { id: "doomed", device: undefined, commissioning: { enabled: false } }))
+            .rejected;
+
+        expect(closes).equals(1);
+    });
+
     it("frees the endpoint numbers a factory reset erases", async () => {
         await using site = new MockSite();
         const id = "renumbering";
