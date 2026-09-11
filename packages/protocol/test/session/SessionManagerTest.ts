@@ -14,13 +14,17 @@ import { SessionManager } from "#session/SessionManager.js";
 import {
     b$,
     Bytes,
+    Environment,
     ImplementationError,
     Key,
+    Logger,
+    LogLevel,
     MemoryStorageDriver,
     Millis,
     PrivateKey,
     StandardCrypto,
     StorageContext,
+    StorageManager,
     Timestamp,
 } from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
@@ -327,6 +331,65 @@ describe("SessionManager", () => {
             });
 
             expect(received[0]).equals(currentExchange);
+        });
+    });
+
+    describe("log attribution", () => {
+        // Session eviction runs from a timer or transport callback, so nothing on the call stack says which node
+        // it belongs to.  A process running several nodes reads these lines only if the message names its owner.
+        it("names the originating environment on the lines an eviction produces", async () => {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const storageManager = new StorageManager(storage);
+            await storageManager.initialize();
+
+            const environment = new Environment("test", Environment.default);
+            environment.set(StorageManager, storageManager);
+            environment.set(FabricManager, new FabricManager(new StandardCrypto()));
+
+            // Through the environment rather than by construction, so the logger the environment installs is the
+            // one under test
+            const sessionManager = environment.get(SessionManager);
+            await sessionManager.construction.ready;
+
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const origins = new Array<unknown>();
+            // The level is process-global and other suites move it; the line under test is INFO
+            dest.level = LogLevel.INFO;
+            dest.add = message => {
+                if (String(message.values[1]).startsWith("Closing least recently used session")) {
+                    origins.push(message.origin);
+                }
+            };
+
+            try {
+                const PEER_NODE_ID = NodeId(0x4321n);
+                for (let i = 0; i < 6; i++) {
+                    const session = await sessionManager.createSecureSession({
+                        id: 0x0200 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0001 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: false,
+                        isResumption: false,
+                    });
+                    session.timestamp = Timestamp(1000 + i);
+                }
+
+                await MockTime.yield3();
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+                await sessionManager.close();
+            }
+
+            // Identity, not deep equality: an origin is a plain name-and-parent record, so deep equality holds
+            // between any two environments named alike and would accept attribution to the wrong node
+            expect(origins.length).equals(1);
+            expect(origins[0]).equals(environment.logOrigin);
         });
     });
 

@@ -14,6 +14,7 @@ import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import {
+    Diagnostic,
     BasicSet,
     Bytes,
     causedBy,
@@ -52,8 +53,6 @@ import type { Session } from "./Session.js";
 import { SessionIntervals } from "./SessionIntervals.js";
 import { SessionParameters } from "./SessionParameters.js";
 import { UnsecuredSession } from "./UnsecuredSession.js";
-
-const logger = Logger.get("SessionManager");
 
 /**
  * Reject a locally-configured Session Active Threshold that cannot be encoded: SAT is a uint16 millisecond value on the
@@ -155,6 +154,12 @@ export interface SessionManagerContext {
     storage: StorageContext;
 
     /**
+     * Where this manager's log messages come from, so a destination can attribute the ones it emits from a timer or
+     * transport callback, which carries no call stack of its own.
+     */
+    origin?: Diagnostic.Origin;
+
+    /**
      * Parameter overrides.
      */
     parameters?: SessionParameters.Config;
@@ -205,6 +210,7 @@ export class ShutdownError extends ClosedError {
  * Manages Matter sessions associated with peer connections.
  */
 export class SessionManager {
+    readonly #logger: Logger;
     readonly #context: SessionManagerContext;
     readonly #unsecuredSessions = new Map<NodeId, UnsecuredSession>();
     readonly #sessions = new BasicSet<NodeSession>();
@@ -238,6 +244,7 @@ export class SessionManager {
 
     constructor(context: SessionManagerContext) {
         this.#context = context;
+        this.#logger = Logger.get("SessionManager", context.origin);
         const {
             fabrics: { crypto },
         } = context;
@@ -288,6 +295,7 @@ export class SessionManager {
         const instance = new SessionManager({
             storage: env.get(StorageManager).createContext("sessions"),
             fabrics: env.get(FabricManager),
+            origin: env.logOrigin,
         });
         env.set(SessionManager, instance);
         return instance;
@@ -633,7 +641,7 @@ export class SessionManager {
                 return;
             }
 
-            logger.info(
+            this.#logger.info(
                 session.via,
                 `Closing least recently used session; ${PeerAddress(address)} exceeds ${MAX_SESSIONS_PER_PEER} sessions`,
             );
@@ -898,12 +906,12 @@ export class SessionManager {
             }) => {
                 const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
                 if (!fabric) {
-                    logger.warn(
+                    this.#logger.warn(
                         `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we cannot find a matching fabric`,
                     );
                     return;
                 }
-                logger.info(
+                this.#logger.info(
                     "restoring resumption record for node",
                     fabric.addressOf(nodeId).toString(),
                     "and peer node",
@@ -947,7 +955,7 @@ export class SessionManager {
             // TODO Expose this "group epoch keys must be rotated" signal to external logic instead of only logging, so
             //  the controller key-management layer can act on it.
             aboutToRolloverCallback: async () => {
-                logger.warn(
+                this.#logger.warn(
                     "Group data message counter is approaching rollover; group epoch keys should be rotated to avoid message counter reuse.",
                 );
             },
@@ -1026,7 +1034,7 @@ export class SessionManager {
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
-            logger.warn("Error closing sessions:", error),
+            this.#logger.warn("Error closing sessions:", error),
         );
     }
 

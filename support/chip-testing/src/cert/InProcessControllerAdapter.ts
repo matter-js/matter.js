@@ -14,8 +14,6 @@ import {
     Environment,
     ImplementationError,
     InternalError,
-    LogDestination,
-    LogFormat,
     Logger,
     ChannelType,
     MatterError,
@@ -94,6 +92,7 @@ import type {
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import { OriginDestination, registerLogOrigin } from "./log-origins.js";
 import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
@@ -187,16 +186,12 @@ const adapterStreams = new Map<string, LineQueue>();
 // Logger.ts's own Boot.init), so a one-time install at module load would stop forwarding adapter log
 // lines from the second cert-test file onward. Boot.init re-runs this on every reboot instead.
 Boot.init(() => {
-    Logger.destinations["cert-controller-adapter"] = LogDestination({
-        name: "cert-controller-adapter",
-        format: LogFormat.formats.plain,
-        write(text: string) {
-            const id = activeAdapterId.getStore();
-            if (id === undefined) {
-                return;
-            }
-            adapterStreams.get(id)?.push(text);
-        },
+    Logger.destinations["cert-controller-adapter"] = OriginDestination("cert-controller-adapter", "adapter", text => {
+        const id = activeAdapterId.getStore();
+        if (id === undefined) {
+            return;
+        }
+        adapterStreams.get(id)?.push(text);
     });
 });
 
@@ -1093,6 +1088,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     readonly id: string;
     readonly log: LogFollower;
     readonly #env: Environment;
+    readonly #releaseLogOrigin: () => void;
     readonly #logStream = new LineQueue();
     #controller?: ServerNode;
     #fabric?: Fabric;
@@ -1110,6 +1106,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         this.id = id;
         this.#transport = options?.transport;
         this.#env = new Environment(`cert-${id}`, Environment.default);
+        this.#releaseLogOrigin = registerLogOrigin(this.#env.logOrigin, "adapter", this.#logStream);
         new MockStorageService(this.#env);
         this.log = new LogFollower(this.#logStream.follow(), id);
 
@@ -1167,6 +1164,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 await this.#controller?.close();
             });
         } finally {
+            this.#releaseLogOrigin();
             adapterStreams.delete(this.id);
             this.#logStream.close();
         }
