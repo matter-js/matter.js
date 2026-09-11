@@ -362,6 +362,26 @@ const AllTests = Tests({
         },
     ),
 
+    // The entry model states this bound itself rather than the list's constraint stating it, which is a different
+    // path through validation and numbers positions of its own
+    "bound on the entry model after a null entry": Tests(
+        Fields({
+            type: "list",
+            quality: "X",
+            children: [FieldElement({ name: "entry", type: "uint8", constraint: "max 2", quality: "X" })],
+        }),
+        {
+            "names the position of the entry it rejects": {
+                record: { test: [1, null, 9] },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test.2: Constraint "max 2": Value 9 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
+
     // The specification bounds the number a bitmap's flags encode to.  A lower bound states a flag that must be set,
     // which the reserved-bit check cannot express
     "bound on a bitmap": Tests(

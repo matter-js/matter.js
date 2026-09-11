@@ -251,9 +251,9 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
     return (value, session, location) => {
         assertObject(value, location);
 
-        // Structural per-field checks run before the bound checks below: those are CONSTRAINT_ERROR-coded and
-        // therefore forwarded for peer writes, so they come last or a forwarded failure would skip the structural
-        // validation that must always fail fast.
+        // Structural per-field checks run before the checks below.  The reserved-bit check is CONSTRAINT_ERROR-coded
+        // and therefore forwarded for peer writes, so it comes last or a forwarded failure would skip the structural
+        // validation that must always fail fast.  The magnitude bound throws ConstraintError, which stays local.
         for (const key in value) {
             const field = fields[key];
             const subpath = location.path.at(key);
@@ -479,15 +479,13 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
                     path: location.path.at(""),
                     owner: location.owner,
                 } as ValidationLocation;
+                // An index names the position in the list, which an entry holding no value occupies too
                 for (const e of list as Iterable<unknown>) {
-                    if (e === undefined || e === null) {
-                        // Accept nullish
-                        continue;
+                    if (e !== undefined && e !== null) {
+                        sublocation.path.id = index;
+                        sublocation.config = location.config?.readonlyChild?.(index) ?? entryConfig;
+                        entryValidator(e, session, sublocation);
                     }
-
-                    sublocation.path.id = index;
-                    sublocation.config = location.config?.readonlyChild?.(index) ?? entryConfig;
-                    entryValidator(e, session, sublocation);
 
                     index++;
                 }
