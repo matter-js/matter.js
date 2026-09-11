@@ -20,6 +20,7 @@ import {
     TcpConnection,
     TcpDisconnectError,
     Transport,
+    TransportClosedError,
 } from "@matter/general";
 
 const logger = Logger.get("TcpChannel");
@@ -117,7 +118,7 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
 
     async send(data: Bytes): Promise<void> {
         if (this.#closed) {
-            throw new Error("Connection is closed");
+            throw new TransportClosedError(`Cannot send to ${this.name}: the connection is closed`);
         }
 
         const message = Bytes.of(data);
