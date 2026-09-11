@@ -5,7 +5,16 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { asError, ImplementationError, InternalError, Lifecycle, Logger, Mutex } from "@matter/general";
+import {
+    asError,
+    ImplementationError,
+    InternalError,
+    Lifecycle,
+    Logger,
+    MaybePromise,
+    Mutex,
+    Observable,
+} from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
 import {
@@ -16,6 +25,8 @@ import {
     TaskCannotCancelRollbackError,
     TaskCapacityExceededError,
     TaskExternalIdInUseError,
+    TaskFinding,
+    findingOf,
     TaskManagerClosingError,
     TaskNoRollbackError,
     TaskNotARollbackError,
@@ -63,6 +74,20 @@ export interface TaskHandle {
     readonly runId: RunId;
     /** Read through to the run, so a held handle keeps answering as the run progresses and retires. */
     readonly status: TaskStatus;
+
+    /**
+     * Resolve once the run reaches a state no driver will advance.
+     *
+     * The run's own outcome only: a cancelled run settles when its own outcome is recorded, while the rollback
+     * {@link TaskCancellation.rollback} names is still undoing what it wrote. Await that handle for the device.
+     *
+     * Rejects with {@link TaskManagerClosingError} when the manager shuts down first: a run suspended by
+     * shutdown is left for the next start, so this manager will never say how it ended.
+     *
+     * A run whose type is not registered here is awaiting resume and settles only once something drives it, so
+     * a caller that cannot wait indefinitely races this against its own timeout.
+     */
+    settled(): Promise<void>;
 }
 
 /** What a cancel did to the device. */
@@ -115,6 +140,41 @@ function undoConcluded(record: RunRecord): boolean {
     return record.state === "completed";
 }
 
+/**
+ * What {@link TaskManagerBehavior.run} would do with a request, decided before anything is changed.
+ *
+ * `joins` carries the live execution the caller would attach to, which is the run itself rather than a copy of
+ * its identity: {@link TaskManagerBehavior.#spawn} hands that execution straight back.
+ */
+type Admission =
+    | { verdict: "blocked"; refusal: TaskRefusedError }
+    | { verdict: "joins"; owner: Execution }
+    | { verdict: "ready" };
+
+function blocked(refusal: TaskRefusedError): Admission {
+    return { verdict: "blocked", refusal };
+}
+
+/** One caller waiting for a run to reach an outcome. */
+interface Settlement {
+    resolve(): void;
+    reject(cause: Error): void;
+}
+
+/**
+ * What starting a task now would do, as data.
+ *
+ * A `blocked` verdict carries exactly one finding: admission answers with the first thing standing in the way,
+ * which is what {@link TaskManagerBehavior.run} would have thrown. It is a list because a verdict that weighs
+ * a fleet's readiness has several things to say at once.
+ */
+export interface TaskFeasibility {
+    verdict: "ready" | "joins" | "blocked";
+    findings: TaskFinding[];
+    /** The run {@link TaskManagerBehavior.run} would join, when the verdict is `joins`. */
+    joins?: RunId;
+}
+
 /** A task registered as live, and whether the caller joined a live task that is already being driven. */
 interface SpawnedExecution {
     execution: Execution;
@@ -137,6 +197,7 @@ export class TaskManagerBehavior extends Behavior {
     static override readonly early = true;
 
     declare readonly state: TaskManagerBehavior.State;
+    declare readonly events: TaskManagerBehavior.Events;
     declare internal: TaskManagerBehavior.Internal;
 
     // Nonvolatility comes from the schema member's `N` quality, not from the State property, so a counter
@@ -334,6 +395,48 @@ export class TaskManagerBehavior extends Behavior {
         // Records this build did not read still own their targets, so admitting work would drive a target one
         // of them holds and a later upgrade would then resume it and replay stale values over the result.
         this.#refuseIfUnreadable(`Cannot run "${definition.type}"`);
+        const bound = this.#interpretCallerRun(definition, params);
+        const { execution, joined } = this.#spawn(bound, { externalId: opts?.externalId });
+        if (!joined) {
+            this.#track(execution);
+        }
+        return this.#handle(execution.record);
+    }
+
+    /**
+     * What {@link run} would do with this request now, without starting anything.
+     *
+     * Answers from the admission rules themselves, so a caller that acts on `ready` and a caller that calls
+     * `run` blind receive the same verdict — and a refusal reads as a `TaskFindingCode` a user interface
+     * can render, rather than as a caught error.
+     *
+     * It answers contention — who holds the target, the external id, a rollback in flight — and not device
+     * capacity, which is asked of each peer after the run starts. It describes this instant and takes no
+     * reservation: work admitted between the two calls blocks the run that follows a `ready`. A caller still
+     * handles the refusals {@link run} throws.
+     *
+     * Throws what `run` throws for a request that is wrong rather than ill-timed: a definition that is not the
+     * registered one, one that undoes another run, or parameters the definition refuses.
+     */
+    assess<P>(definition: TaskDefinition<P>, params: P, opts?: { externalId?: string }): TaskFeasibility {
+        const unreadable = this.#unreadableRefusal(`Cannot run "${definition.type}"`);
+        if (unreadable !== undefined) {
+            return { verdict: "blocked", findings: [findingOf(unreadable)] };
+        }
+        const bound = this.#interpretCallerRun(definition, params);
+        const admission = this.#admission(bound, { externalId: opts?.externalId });
+        switch (admission.verdict) {
+            case "blocked":
+                return { verdict: "blocked", findings: [findingOf(admission.refusal)] };
+            case "joins":
+                return { verdict: "joins", findings: [], joins: admission.owner.runId };
+            default:
+                return { verdict: "ready", findings: [] };
+        }
+    }
+
+    /** The definition a caller may drive itself, bound to its parameters. */
+    #interpretCallerRun<P>(definition: TaskDefinition<P>, params: P): BoundDefinition {
         // The definition must be the registered one, not merely share its name. Identity is what makes the
         // parameter type mean anything: a different definition of the same name would type its caller's params
         // and then hand them to the registered definition, which declares its own. It is also what stops a
@@ -361,19 +464,16 @@ export class TaskManagerBehavior extends Behavior {
                 `Task type "${definition.type}" declares what it undoes, so it is created by cancel(), not by run()`,
             );
         }
-        const { execution, joined } = this.#spawn(bound, { externalId: opts?.externalId });
-        if (!joined) {
-            this.#track(execution);
-        }
-        return this.#handle(execution.record);
+        return bound;
     }
 
     /**
-     * Shared creation path so callers (e.g. #prepareRollback) can seed persisted fields before the first persist.
-     * Registers a new run as live but does not drive it: a run whose record must be durable before it touches a
-     * peer starts with {@link #track} once the write lands.
+     * What admission would do with this request, decided without changing anything.
+     *
+     * The one place the rule lives, so {@link assess} reports exactly what {@link run} would do rather than a
+     * second opinion that drifts from it.
      */
-    #spawn(bound: BoundDefinition, seed: Partial<TaskPersistence>): SpawnedExecution {
+    #admission(bound: BoundDefinition, seed: Partial<TaskPersistence>): Admission {
         const slotKey = bound.slotKey;
         const runs = this.internal.runs;
 
@@ -382,7 +482,10 @@ export class TaskManagerBehavior extends Behavior {
         // anywhere below, so there is no window between the checks and the admission that follows them.
 
         // 1. Driving started now would outlive the dispose drain and write to peers after close.
-        this.#refuseIfClosing(`Task ${slotKey} cannot start`);
+        const closing = this.#closingRefusal(`Task ${slotKey} cannot start`);
+        if (closing !== undefined) {
+            return blocked(closing);
+        }
 
         // 2. The slot has one owner, whether or not this process has attached to it. A record awaiting resume
         //    still owns its slot: letting new work take it would leave that run unresumable and its
@@ -393,43 +496,53 @@ export class TaskManagerBehavior extends Behavior {
             // this process's responsibility for the run while it is still deciding the outcome.
             const teardown = runs.transitionOf(owner.runId)?.teardown;
             if (teardown !== undefined) {
-                throw new TaskSlotDrainingError(
-                    `Task ${slotKey} rejected: ${teardown} of ${runLabel(owner.runId)} is still in flight`,
-                    owner.runId,
+                return blocked(
+                    new TaskSlotDrainingError(
+                        `Task ${slotKey} rejected: ${teardown} of ${runLabel(owner.runId)} is still in flight`,
+                        owner.runId,
+                    ),
                 );
             }
             const ownerExecution = runs.executionOf(owner.runId);
             if (ownerExecution === undefined) {
-                throw new TaskSlotAwaitingResumeError(
-                    `Task ${slotKey} rejected: ${runLabel(owner.runId)} holds this slot and nothing is driving it (type "${owner.type}")`,
-                    owner.runId,
+                return blocked(
+                    new TaskSlotAwaitingResumeError(
+                        `Task ${slotKey} rejected: ${runLabel(owner.runId)} holds this slot and nothing is driving it (type "${owner.type}")`,
+                        owner.runId,
+                    ),
                 );
             }
             // Its driver has stopped but its outcome is not durable and it still holds the slot. Joining here
             // would hand back a run nothing is advancing, and re-running would write to the peer while this one
             // is still being recorded.
             if (ownerExecution.settled) {
-                throw new TaskSlotSettlingError(
-                    `Task ${slotKey} rejected: ${runLabel(owner.runId)} is settling and still holds this slot`,
-                    owner.runId,
+                return blocked(
+                    new TaskSlotSettlingError(
+                        `Task ${slotKey} rejected: ${runLabel(owner.runId)} is settling and still holds this slot`,
+                        owner.runId,
+                    ),
                 );
             }
             if (seed.externalId === undefined || seed.externalId !== owner.externalId) {
-                throw new TaskSlotOccupiedError(
-                    `Task ${slotKey} rejected: slot held by ${runLabel(owner.runId)} (${owner.state})`,
-                    owner.runId,
+                return blocked(
+                    new TaskSlotOccupiedError(
+                        `Task ${slotKey} rejected: slot held by ${runLabel(owner.runId)} (${owner.state})`,
+                        owner.runId,
+                    ),
                 );
             }
-            return { execution: ownerExecution, joined: true };
+            return { verdict: "joins", owner: ownerExecution };
         }
 
         // 3. An external id is one-to-one: a live run of another slot must not lose the name it answers to.
         if (seed.externalId !== undefined) {
             const holder = runs.conflictingExternalIdHolder(seed.externalId, slotKey);
             if (holder !== undefined) {
-                throw new TaskExternalIdInUseError(
-                    `Task ${slotKey} rejected: external id "${seed.externalId}" names ${runLabel(holder.runId)} of slot ${holder.slotKey}`,
-                    holder.runId,
+                return blocked(
+                    new TaskExternalIdInUseError(
+                        `Task ${slotKey} rejected: external id "${seed.externalId}" names ${runLabel(holder.runId)} of slot ${holder.slotKey}`,
+                        holder.runId,
+                    ),
                 );
             }
         }
@@ -443,14 +556,18 @@ export class TaskManagerBehavior extends Behavior {
             // undoes has retired, so nothing owns that run's slot and step 2 never sees it.
             const teardown = runs.transitionOf(pendingRollback.runId)?.teardown;
             if (teardown !== undefined) {
-                throw new TaskSlotDrainingError(
-                    `Task ${slotKey} rejected: ${teardown} of rollback ${runLabel(pendingRollback.runId)} is still in flight`,
-                    pendingRollback.runId,
+                return blocked(
+                    new TaskSlotDrainingError(
+                        `Task ${slotKey} rejected: ${teardown} of rollback ${runLabel(pendingRollback.runId)} is still in flight`,
+                        pendingRollback.runId,
+                    ),
                 );
             }
-            throw new TaskRollbackPendingError(
-                `Task ${slotKey} rejected: rollback ${runLabel(pendingRollback.runId)} is still in flight and would undo it again`,
-                pendingRollback.runId,
+            return blocked(
+                new TaskRollbackPendingError(
+                    `Task ${slotKey} rejected: rollback ${runLabel(pendingRollback.runId)} is still in flight and would undo it again`,
+                    pendingRollback.runId,
+                ),
             );
         }
 
@@ -467,29 +584,55 @@ export class TaskManagerBehavior extends Behavior {
                 // holding its own slot here is expected. Any other holder is live work this rollback would
                 // rewrite underneath.
                 if (holder !== undefined && holder.runId !== undone) {
-                    throw new TaskSlotOccupiedError(
-                        `Rollback of ${runLabel(undone)} rejected: slot ${undoneSlot} is held by ${runLabel(holder.runId)}`,
-                        holder.runId,
+                    return blocked(
+                        new TaskSlotOccupiedError(
+                            `Rollback of ${runLabel(undone)} rejected: slot ${undoneSlot} is held by ${runLabel(holder.runId)}`,
+                            holder.runId,
+                        ),
                     );
                 }
                 const superseder = runs.supersederOf(undone);
                 if (superseder !== undefined) {
-                    throw new TaskSupersededError(
-                        `Rollback of ${runLabel(undone)} rejected: ${runLabel(superseder.runId)} has since committed slot ${undoneSlot}, so the values this would restore are historical`,
-                        superseder.runId,
+                    return blocked(
+                        new TaskSupersededError(
+                            `Rollback of ${runLabel(undone)} rejected: ${runLabel(superseder.runId)} has since committed slot ${undoneSlot}, so the values this would restore are historical`,
+                            superseder.runId,
+                        ),
                     );
                 }
                 const sibling = runs.liveRollbackOfTarget(undoneSlot);
                 if (sibling !== undefined) {
-                    throw new TaskRollbackPendingError(
-                        `Rollback of ${runLabel(undone)} rejected: rollback ${runLabel(sibling.runId)} is already undoing slot ${undoneSlot}`,
-                        sibling.runId,
+                    return blocked(
+                        new TaskRollbackPendingError(
+                            `Rollback of ${runLabel(undone)} rejected: rollback ${runLabel(sibling.runId)} is already undoing slot ${undoneSlot}`,
+                            sibling.runId,
+                        ),
                     );
                 }
             }
         }
 
-        const record = new RunRecord(runs.allocate(), slotKey, bound.type, bound.params, seed);
+        return { verdict: "ready" };
+    }
+
+    /**
+     * Shared creation path so callers (e.g. #prepareRollback) can seed persisted fields before the first persist.
+     * Registers a new run as live but does not drive it: a run whose record must be durable before it touches a
+     * peer starts with {@link #track} once the write lands.
+     *
+     * Everything that changes state happens here; {@link #admission} decides and changes nothing.
+     */
+    #spawn(bound: BoundDefinition, seed: Partial<TaskPersistence>): SpawnedExecution {
+        const runs = this.internal.runs;
+        const admission = this.#admission(bound, seed);
+        if (admission.verdict === "blocked") {
+            throw admission.refusal;
+        }
+        if (admission.verdict === "joins") {
+            return { execution: admission.owner, joined: true };
+        }
+
+        const record = new RunRecord(runs.allocate(), bound.slotKey, bound.type, bound.params, seed);
         const execution = new Execution(record, bound);
         runs.admit(record, execution);
         return { execution, joined: false };
@@ -516,6 +659,41 @@ export class TaskManagerBehavior extends Behavior {
         return this.internal.runs.live.map(record => this.#handle(record));
     }
 
+    /**
+     * Rollbacks that failed, newest retirement first: for each, a device is left part-changed and no driver
+     * will touch it again until an operator calls {@link retryRollback} or {@link abandon}.
+     *
+     * Only the rollback a run currently answers to, so a failed attempt that has since been retried is not
+     * reported as outstanding work. A rollback that is merely parked — waiting on a peer that may come back —
+     * is live work and appears in {@link tasks}, not here.
+     */
+    get failedRollbacks(): TaskHandle[] {
+        const runs = this.internal.runs;
+        return runs.retired
+            .filter(
+                record =>
+                    record.state === "failed" &&
+                    record.rollbackOf !== undefined &&
+                    runs.rollbackFor(record.rollbackOf)?.runId === record.runId,
+            )
+            .map(record => this.#handle(record));
+    }
+
+    /**
+     * Runs this build cannot drive because their task type is not registered, in ascending run id.
+     *
+     * Each holds its target against new work for as long as the type is missing, so a manager that answers
+     * `slotAwaitingResume` to a caller names the registration this list is asking for. A run whose type *is*
+     * registered but whose stored parameters that type refuses is not here: registering something is not what
+     * it needs.
+     */
+    get awaitingRegistration(): TaskHandle[] {
+        const registry = this.internal.registry;
+        return this.internal.runs.resumable
+            .filter(record => !registry.has(record.type))
+            .map(record => this.#handle(record));
+    }
+
     /** Retired records, newest retirement first. */
     history(limit?: number): TaskHandle[] {
         if (limit !== undefined && !Number.isInteger(limit)) {
@@ -530,12 +708,63 @@ export class TaskManagerBehavior extends Behavior {
      * keeps answering as the run changes, including changes made after it retired.
      */
     #handle(record: RunRecord): TaskHandle {
+        const await_ = () => this.#awaitOutcome(record);
         return {
             runId: record.runId,
             get status(): TaskStatus {
                 return statusOf(record);
             },
+            settled(): Promise<void> {
+                return await_();
+            },
         };
+    }
+
+    /**
+     * Resolve once `record` reaches an outcome, or reject if this manager stops answering for it first.
+     *
+     * Registered in the same tick as the terminal test, so an outcome cannot land between the two and leave a
+     * caller waiting for something that already happened.
+     */
+    #awaitOutcome(record: RunRecord): Promise<void> {
+        if (isTerminal(record.state)) {
+            return Promise.resolve();
+        }
+        const waiters = this.internal.settlementWaiters;
+        return new Promise<void>((resolve, reject) => {
+            const forRun = waiters.get(record.runId) ?? new Set<Settlement>();
+            const settlement: Settlement = {
+                resolve() {
+                    forRun.delete(settlement);
+                    if (forRun.size === 0) {
+                        waiters.delete(record.runId);
+                    }
+                    resolve();
+                },
+                reject(cause: Error) {
+                    forRun.delete(settlement);
+                    if (forRun.size === 0) {
+                        waiters.delete(record.runId);
+                    }
+                    reject(cause);
+                },
+            };
+            forRun.add(settlement);
+            waiters.set(record.runId, forRun);
+        });
+    }
+
+    /**
+     * A run reached an outcome. The one place that says so, called from every path that produces one — the
+     * durable write, and the failure whose write was refused and which therefore has no record to write.
+     */
+    #noteOutcome(record: RunRecord): void {
+        if (!isTerminal(record.state)) {
+            return;
+        }
+        for (const settlement of this.internal.settlementWaiters.get(record.runId) ?? []) {
+            settlement.resolve();
+        }
     }
 
     /**
@@ -1022,9 +1251,16 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     #refuseIfClosing(subject: string): void {
-        if (this.#isClosing) {
-            throw new TaskManagerClosingError(`${subject}: the task manager is shutting down`);
+        const refusal = this.#closingRefusal(subject);
+        if (refusal !== undefined) {
+            throw refusal;
         }
+    }
+
+    #closingRefusal(subject: string): TaskManagerClosingError | undefined {
+        return this.#isClosing
+            ? new TaskManagerClosingError(`${subject}: the task manager is shutting down`)
+            : undefined;
     }
 
     /** Create (or reuse) the rollback task for `record`, linking both directions, without driving it. */
@@ -1274,6 +1510,10 @@ export class TaskManagerBehavior extends Behavior {
                     // have carried has to happen here too: nothing else will, and some params are raw keys.
                     record.adoptDrop(RETIRE);
                     this.internal.runs.discard(record);
+                    // This outcome has no write to announce it, and the handle its caller holds is already
+                    // reading it.
+                    this.#noteOutcome(record);
+                    this.#report(record);
                 }
                 return;
             }
@@ -1354,11 +1594,19 @@ export class TaskManagerBehavior extends Behavior {
      * invent a record, but they cannot explain themselves either.
      */
     #refuseIfUnreadable(subject: string): void {
+        const refusal = this.#unreadableRefusal(subject);
+        if (refusal !== undefined) {
+            throw refusal;
+        }
+    }
+
+    #unreadableRefusal(subject: string): TaskStoreVersionError | undefined {
         if (this.internal.runs.unreadable) {
-            throw new TaskStoreVersionError(
+            return new TaskStoreVersionError(
                 `${subject}: the stored run table is at schema version ${this.state.runsVersion}, newer than this build's ${RUN_STORE_VERSION}`,
             );
         }
+        return undefined;
     }
 
     // Serialized through the mutex: a spawned rollback drives (and persists) concurrently with the original's
@@ -1451,6 +1699,32 @@ export class TaskManagerBehavior extends Behavior {
             }
             change.record.adoptDrop(change.drop ?? []);
         }
+        // After every record of the transaction has adopted its write, so an observer reading a second run of
+        // the same transaction sees its committed state rather than the state it is about to leave.
+        for (const change of changes) {
+            // Before the public event and independent of it: an observer that throws aborts the emit, and a
+            // caller awaiting an outcome would then wait on another consumer's defect.
+            this.#noteOutcome(change.record);
+            this.#report(change.record);
+        }
+    }
+
+    /**
+     * Tell observers a run changed. Consumer code, so neither its throw nor its rejection may reach the write
+     * that is already durable: reporting an outcome cannot undo it.
+     */
+    #report(record: RunRecord): void {
+        let emitted: unknown;
+        try {
+            emitted = this.events.runChanged.emit(statusOf(record));
+        } catch (e) {
+            logger.error(`Observer of ${runLabel(record.runId)} failed`, asError(e));
+            return;
+        }
+        // An async observer converts the emit to an async one, which carries any rejection.
+        if (MaybePromise.is(emitted)) {
+            emitted.then(undefined, e => logger.error(`Observer of ${runLabel(record.runId)} failed`, asError(e)));
+        }
     }
 
     override async [Symbol.asyncDispose]() {
@@ -1460,6 +1734,17 @@ export class TaskManagerBehavior extends Behavior {
             execution.abort(new TaskSuspendedSignal(`${runLabel(execution.runId)} suspended on shutdown`));
         }
         await Promise.allSettled(executions.map(execution => execution.promise));
+        // A run suspended by shutdown is left non-terminal for the next start, so its outcome is not this
+        // manager's to report. Releasing the waiters is what keeps that from reading as a hang.
+        for (const [runId, waiters] of this.internal.settlementWaiters) {
+            for (const settlement of [...waiters]) {
+                settlement.reject(
+                    new TaskManagerClosingError(
+                        `${runLabel(runId)} did not reach an outcome: the task manager is shutting down`,
+                    ),
+                );
+            }
+        }
         await this.internal.persistMutex?.close();
         await super[Symbol.asyncDispose]?.();
     }
@@ -1480,7 +1765,21 @@ export namespace TaskManagerBehavior {
         registry!: TaskRegistry;
         runs!: RunStore;
         persistMutex?: Mutex;
+        /** Callers awaiting {@link TaskHandle.settled}, by run. Released by #noteOutcome and by dispose. */
+        settlementWaiters = new Map<RunId, Set<Settlement>>();
     }
 
-    export class Events extends Behavior.Events {}
+    export class Events extends Behavior.Events {
+        /**
+         * A run's record changed, carrying its status as of that change.
+         *
+         * Emitted for every durable change — including the retirement that ends a run and the writes a
+         * transition makes to a run that has already retired — and for the one outcome that has no write to
+         * announce it, a failure whose record could not be persisted.
+         *
+         * An observer must return nothing: a value returned from an observer ends the emission, and the
+         * observers registered after it never see the change.
+         */
+        runChanged = new Observable<[status: TaskStatus]>();
+    }
 }

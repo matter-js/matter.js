@@ -329,6 +329,7 @@ export function statusOf(record: RunView): TaskStatus {
         type: record.type,
         state: record.state,
         phaseIndex: record.phaseIndex,
+        wrote: record.wrote,
         externalId: record.externalId,
         error: record.error,
         retireSeq: record.retireSeq,

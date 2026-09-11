@@ -21,10 +21,10 @@ import { RUN_STORE_VERSION } from "#task/RunStore.js";
 import { TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
-import { Environment, ImplementationError, InternalError, MaybePromise } from "@matter/general";
+import { Environment, ImplementationError, InternalError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { kindOf, FakePeer, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, pumpUntil, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -65,16 +65,6 @@ function testPeer(id: string) {
 
 async function makeNode(environment?: Environment, id = "ledger") {
     return MockServerNode.create(RootEndpoint, { environment, id });
-}
-
-async function pumpUntil(name: string, condition: () => MaybePromise<boolean>) {
-    for (let i = 0; i < 10_000; i++) {
-        if (await condition()) {
-            return;
-        }
-        await MockTime.advance(1);
-    }
-    throw new InternalError(`Condition "${name}" never held`);
 }
 
 /** Writes one intent, then fails, and declares itself past the point of no return. */

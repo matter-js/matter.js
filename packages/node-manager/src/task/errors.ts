@@ -80,6 +80,17 @@ export enum TaskFindingCode {
     NoRollback = "noRollback",
 }
 
+/**
+ * A refusal as data: the same cause a {@link TaskRefusedError} carries, for a caller that asked what would
+ * happen rather than for the work itself.
+ */
+export interface TaskFinding {
+    code: TaskFindingCode;
+    message: string;
+    /** The run responsible, for the codes that name one — see {@link TaskConflictError}. */
+    owner?: RunId;
+}
+
 export class TaskError extends MatterError {}
 
 /**
@@ -281,3 +292,12 @@ export class TaskAbandonedSignal extends TaskStopSignal {}
 
 /** Thrown into a running phase on shutdown so #drive stops without a state change (resume later). */
 export class TaskSuspendedSignal extends TaskStopSignal {}
+
+/** The refusal a caller would have received, as a value. */
+export function findingOf(refusal: TaskRefusedError): TaskFinding {
+    return {
+        code: refusal.code,
+        message: refusal.message,
+        owner: refusal instanceof TaskConflictError ? refusal.owner : undefined,
+    };
+}
