@@ -76,7 +76,7 @@ nothing, so a caller still handles the refusals `run` throws.
 | ------------------- | ------------------------------------------------------------------------ |
 | `Rollback`          | an undo is running; `cancellation.rollback` is its handle                 |
 | `NothingToUndo`     | the run had changed nothing                                              |
-| `Irreversible`      | the run passed the point its type declines to be reverted, and it stands |
+| `Irreversible`      | the run passed the point its type declines to roll back, and it stands  |
 
 A rollback is a run of its own, so it too can fail — a peer that goes offline mid-undo, for instance. When it
 does, the device is left part-changed and only an operator can decide what happens next:

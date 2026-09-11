@@ -101,7 +101,7 @@ export enum TaskCancelOutcome {
     NothingToUndo = "nothingToUndo",
     /**
      * The run changed the device and those changes stand: it passed the point beyond which its type declines
-     * to be reverted, which it can do while the cancel is being accepted.
+     * to be rolled back, which it can do while the cancel is being accepted.
      */
     Irreversible = "irreversible",
 }
@@ -787,10 +787,11 @@ export class TaskManagerBehavior extends Behavior {
             // The record was written by an earlier build of the definition, or by one whose `validate` was
             // laxer. Either way the caller passed nothing wrong and cannot fix what storage holds, so this is
             // a refusal it can render rather than a programming error.
-            // Carried rather than flattened into the message: the thrower is a definition's `validate`, which
-            // is application code, so a defect in it arrives here looking exactly like malformed storage.
+            // The thrower is a definition's `validate`, which is application code: its message may name a value,
+            // and task parameters carry raw group keys. So the refusal a caller renders says only which record
+            // and which type, and the reason travels as the cause, for a log the operator already trusts.
             throw new TaskParamsRejectedError(
-                `Cannot act on ${runLabel(record.runId)}: its stored parameters are not valid for task type "${record.type}" (${e instanceof Error ? e.message : String(e)})`,
+                `Cannot act on ${runLabel(record.runId)}: its stored parameters are not valid for task type "${record.type}"`,
                 { cause: e },
             );
         }
@@ -890,7 +891,7 @@ export class TaskManagerBehavior extends Behavior {
      * Answers what happened to the device, not merely whether an undo exists. {@link TaskCancelOutcome.Rollback}
      * carries the rollback; {@link TaskCancelOutcome.NothingToUndo} means the device is as it was; and
      * {@link TaskCancelOutcome.Irreversible} means the run changed the device and those changes stand, because
-     * it passed the point beyond which its type declines to be reverted — which it can do *while the cancel is
+     * it passed the point beyond which its type declines to be rolled back — which it can do *while the cancel is
      * being accepted*, since the entry check and the decision after the unwind read different phase indexes.
      * {@link TaskNotFoundError} is an identity no run answers to.
      *
@@ -978,7 +979,7 @@ export class TaskManagerBehavior extends Behavior {
         }
 
         // Shutdown took over the unwind: state can no longer be persisted, so leave the task non-terminal and
-        // unreverted rather than claiming a cancel that storage would contradict on the next start.
+        // un-rolled-back rather than claiming a cancel that storage would contradict on the next start.
         this.#refuseIfClosing(`${runLabel(record.runId)} cannot be cancelled`);
 
         // Prepared before the state changes: a refused rollback must leave the run as it was, not cancelled in

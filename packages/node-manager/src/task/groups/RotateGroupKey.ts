@@ -37,10 +37,10 @@ const ACTIVATE_INDEX = 1;
  * flip hold under the spec's second-newest TX rule too, not only matter.js's clock-based selection. Each phase
  * blocks until ALL members commit; an offline member parks the task.
  *
- * Forward-only once activate begins: the new key starts going live per-member, so an early revert would restore
+ * Forward-only once activate begins: the new key starts going live per-member, so an early rollback would restore
  * some members to old-key-only while others already TX the new key, opening an RX gap. A rotation may still be
  * cancelled/rolled-back during distribute — there the new key is dormant/future-dated and nobody TXes it, so
- * dropping it is clean. Recover a bad realized rotation by rotating to a NEW key, not by reverting;
+ * dropping it is clean. Recover a bad realized rotation by rotating to a NEW key, not by rolling back;
  * {@link rollbackable} declines cancel and auto-rollback past that point.
  */
 export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
@@ -62,7 +62,8 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
         return run.phaseIndex < ACTIVATE_INDEX;
     },
 
-    notRollbackableReason: "a realized group-key rotation is forward-only — rotate to a new key instead of reverting",
+    notRollbackableReason:
+        "a realized group-key rotation is forward-only — rotate to a new key instead of rolling back",
 
     phases(params) {
         return [
