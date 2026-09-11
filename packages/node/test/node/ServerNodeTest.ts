@@ -56,7 +56,7 @@ import {
     ProtocolMocks,
     Val,
 } from "@matter/protocol";
-import { FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
+import { EndpointNumber, FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
 import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { MockServerNode } from "./mock-server-node.js";
@@ -64,7 +64,6 @@ import { MockSite } from "./mock-site.js";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";
 
 const commissioning = CommissioningHelper();
-
 const CRASH_MESSAGE = "Intentional behavior crash";
 
 class CrashingServer extends Behavior {
@@ -505,11 +504,31 @@ describe("ServerNode", () => {
         await node.close();
     });
 
+    it("frees the endpoint numbers a factory reset erases", async () => {
+        await using site = new MockSite();
+        const id = "renumbering";
+
+        const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+        await node.add(new Endpoint(OnOffLightDevice, { id: "first", number: EndpointNumber(1) }));
+        await node.add(new Endpoint(OnOffLightDevice, { id: "second", number: EndpointNumber(2) }));
+        await node.close();
+
+        // Only the first endpoint is present this session, so the second's number is held as pre-allocated
+        const rebooted = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+        await rebooted.add(new Endpoint(OnOffLightDevice, { id: "first" }));
+
+        await MockTime.resolve(rebooted.erase(), { macrotasks: true });
+
+        const added = new Endpoint(OnOffLightDevice, { id: "third" });
+        await rebooted.add(added);
+
+        expect(added.number).equals(2);
+    });
+
     it("factory reset erases the blobs a transfer left behind", async () => {
         const node = await MockServerNode.createOnline();
 
-        const store = node.env.get(ServerNodeStore);
-        const driver = await store.bdxStore();
+        const driver = await node.env.get(ServerNodeStore).bdxStore();
         await driver.writeBlobFromStream(
             [],
             "update.bin",

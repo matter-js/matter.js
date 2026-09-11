@@ -144,8 +144,11 @@ class NodeServices {
                 }
             }
 
-            env.set(ServerNodeStore, await ServerNodeStore.create(env, node.id));
+            // Construction opens storage, so a store that fails part way through still holds a driver and a lock
+            const store = new ServerNodeStore(env, node.id);
+            env.set(ServerNodeStore, store);
             teardown.push(() => env.close(ServerNodeStore));
+            await store.construction;
 
             env.set(EndpointInitializer, new ServerEndpointInitializer(env));
             removals.push(() => env.delete(EndpointInitializer));
