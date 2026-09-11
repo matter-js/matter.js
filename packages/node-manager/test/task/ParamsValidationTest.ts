@@ -93,6 +93,15 @@ describe("built-in task parameter validation", () => {
         for (const definition of [AddNodeToGroup, RemoveNodeFromGroup, RotateGroupKey, Rollback]) {
             expect(() => definition.validate?.(undefined as never), definition.type).throws(ImplementationError);
             expect(() => definition.validate?.(null as never), definition.type).throws(ImplementationError);
+            // An array is an object to `typeof` and has none of the fields a definition reads, so it is
+            // refused where the parameters are named rather than where the first field turns up missing.
+            let message = "";
+            try {
+                definition.validate?.([] as never);
+            } catch (e) {
+                message = (e as Error).message;
+            }
+            expect(message, definition.type).contains(`Parameters for task "${definition.type}" must be an object`);
         }
     });
 

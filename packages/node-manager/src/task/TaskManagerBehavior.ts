@@ -787,8 +787,11 @@ export class TaskManagerBehavior extends Behavior {
             // The record was written by an earlier build of the definition, or by one whose `validate` was
             // laxer. Either way the caller passed nothing wrong and cannot fix what storage holds, so this is
             // a refusal it can render rather than a programming error.
+            // Carried rather than flattened into the message: the thrower is a definition's `validate`, which
+            // is application code, so a defect in it arrives here looking exactly like malformed storage.
             throw new TaskParamsRejectedError(
                 `Cannot act on ${runLabel(record.runId)}: its stored parameters are not valid for task type "${record.type}" (${e instanceof Error ? e.message : String(e)})`,
+                { cause: e },
             );
         }
     }
