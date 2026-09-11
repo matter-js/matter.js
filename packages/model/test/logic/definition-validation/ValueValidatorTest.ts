@@ -691,6 +691,25 @@ describe("ValueValidator", () => {
             expect(errors.map(e => e.code)).deep.equals(["UNEVALUABLE_MEMBER_ACCESS"]);
         });
 
+        // The entry constraint is judged in the entry's own scope, so an access it holds is reported there and
+        // nowhere else
+        it("reports an access an entry bound holds once", () => {
+            const errors = allConstraintErrorsOf([
+                new DatatypeModel(
+                    { name: "LimitsStruct", type: "struct" },
+                    FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                ),
+                Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                Attribute({ name: "Floor", id: 3, type: "uint16" }),
+                Attribute(
+                    { name: "Bounded", id: 2, type: "list", constraint: "max 4[min Limits.minOf(Floor, Floor)]" },
+                    FieldElement({ name: "entry", type: "uint16" }),
+                ),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNEVALUABLE_MEMBER_ACCESS"]);
+        });
+
         it("reports an access whose element is computed", () => {
             const errors = allConstraintErrorsOf([
                 Attribute({ name: "Low", id: 1, type: "uint16" }),

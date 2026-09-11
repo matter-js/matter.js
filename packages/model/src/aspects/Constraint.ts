@@ -380,6 +380,9 @@ export namespace Constraint {
      * Where either operand is computed the access denotes nothing, so the bound holding it admits every value.  The
      * specification states no such constraint; the grammar permits one.
      *
+     * The entry constraint of a list bounds the entries and is judged in the entry's own scope, so an access it holds
+     * is not among these.
+     *
      * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
      */
     export function hasUnevaluableAccess(constraint: Ast): boolean {
@@ -412,7 +415,6 @@ export namespace Constraint {
                 inExpression(ast.min) ||
                 inExpression(ast.max) ||
                 inExpression(ast.in) ||
-                (ast.entry !== undefined && inAst(ast.entry)) ||
                 (ast.parts ?? []).some(inAst)
             );
         }
