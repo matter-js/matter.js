@@ -73,11 +73,12 @@ async function rollback(ctx: TaskContext, params: RollbackParams): Promise<void>
         if (peer === undefined) {
             continue;
         }
+        const kind = ctx.kindNamed(entry.kind);
         if (entry.prior !== undefined) {
-            await ctx.setIntent(peer, ctx.kindNamed(entry.kind), entry.key, entry.prior.intent, entry.prior.mode);
-            restored.push({ peer, kind: ctx.kindNamed(entry.kind), key: entry.key });
-        } else if (await ctx.removeIntentIfUnreferenced(peer, ctx.kindNamed(entry.kind), entry.key)) {
-            removed.push({ peer, kind: ctx.kindNamed(entry.kind), key: entry.key });
+            await ctx.setIntent(peer, kind, entry.key, entry.prior.intent, entry.prior.mode);
+            restored.push({ peer, kind, key: entry.key });
+        } else if (await ctx.removeIntentIfUnreferenced(peer, kind, entry.key)) {
+            removed.push({ peer, kind, key: entry.key });
         }
     }
 

@@ -45,9 +45,9 @@ export const Require = {
         }
     },
 
-    /** An object, so a definition may read its fields at all. */
+    /** An object with named fields, so a definition may read them at all. An array has none. */
     params(type: string, value: unknown): void {
-        if (typeof value !== "object" || value === null) {
+        if (typeof value !== "object" || value === null || Array.isArray(value)) {
             throw new ImplementationError(`Parameters for task "${type}" must be an object, not ${describe(value)}`);
         }
     },
