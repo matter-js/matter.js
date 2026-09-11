@@ -33,6 +33,7 @@ import {
     InternalError,
     Lifecycle,
     isObject,
+    MemoryBlobStorageDriver,
     MemoryStorageDriver,
     MockCrypto,
     MockUdpSocket,
@@ -64,6 +65,21 @@ import { MockSite } from "./mock-site.js";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";
 
 const commissioning = CommissioningHelper();
+
+async function writeBlob(store: ServerNodeStore) {
+    const driver = await store.bdxStore();
+    await driver.writeBlobFromStream(
+        [],
+        "update.bin",
+        new ReadableStream<Bytes>({
+            start(controller) {
+                controller.enqueue(Bytes.fromHex("00010203"));
+                controller.close();
+            },
+        }),
+    );
+    return driver;
+}
 const CRASH_MESSAGE = "Intentional behavior crash";
 
 class CrashingServer extends Behavior {
@@ -549,20 +565,34 @@ describe("ServerNode", () => {
         expect(added.number).equals(2);
     });
 
+    it("factory reset erases blobs an earlier session left behind", async () => {
+        // A driver whose backing store outlives the handle, as a Web Storage or AsyncStorage driver does
+        const persisted = new MemoryBlobStorageDriver();
+
+        const node = await MockServerNode.createOnline();
+        node.env.get(StorageService).registerBlobDriver({
+            id: "persistent-blob",
+            create: () => persisted,
+        });
+        node.env.get(StorageService).defaultBlobDriver = "persistent-blob";
+
+        await writeBlob(node.env.get(ServerNodeStore));
+        expect(await persisted.keys([])).deep.equals(["update.bin"]);
+
+        // A store with no handle open must still find the namespace an earlier session wrote
+        const store = await ServerNodeStore.create(node.env, "later-session");
+        await store.erase();
+
+        expect(await persisted.keys([])).deep.equals([]);
+
+        await store.close();
+        await node.close();
+    });
+
     it("factory reset erases the blobs a transfer left behind", async () => {
         const node = await MockServerNode.createOnline();
 
-        const driver = await node.env.get(ServerNodeStore).bdxStore();
-        await driver.writeBlobFromStream(
-            [],
-            "update.bin",
-            new ReadableStream<Bytes>({
-                start(controller) {
-                    controller.enqueue(Bytes.fromHex("00010203"));
-                    controller.close();
-                },
-            }),
-        );
+        const driver = await writeBlob(node.env.get(ServerNodeStore));
         expect(await driver.keys([])).deep.equals(["update.bin"]);
 
         await MockTime.resolve(node.erase(), { macrotasks: true });

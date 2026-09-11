@@ -170,10 +170,14 @@ export class ServerNodeStore extends NodeStore implements Destructable {
             return false;
         }
 
-        // Without a filesystem the namespace cannot be inspected without creating it, and there is nothing persisted
-        // to erase
+        // A filesystem namespace is visible without opening it, so an absent one is left alone rather than created.
+        // Any other driver may be persistent and offers no such test, so its namespace is opened to find out
         const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
-        return root !== undefined && (await root.directory.directory(`${this.#nodeId}-bdx`).exists());
+        if (root === undefined) {
+            return true;
+        }
+
+        return root.directory.directory(`${this.#nodeId}-bdx`).exists();
     }
 
     async load() {
