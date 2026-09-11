@@ -40,6 +40,13 @@ export function nobleDisconnectReason(reason: unknown) {
     return reason === undefined ? "unknown" : String(reason);
 }
 
+interface NobleListeners {
+    stateChange: (state: string) => void;
+    discover: (peripheral: Peripheral) => void;
+    scanStart: () => void;
+    scanStop: () => void;
+}
+
 export class NobleBleClient {
     private readonly discoveredPeripherals = new Map<string, { peripheral: Peripheral; matterServiceData: Bytes }>();
     private shouldScan = false;
@@ -48,6 +55,7 @@ export class NobleBleClient {
     #scanDeferred = false;
     private deviceDiscoveredCallback: ((peripheral: Peripheral, manufacturerData: Bytes) => void) | undefined;
     #closing = false;
+    readonly #listeners: NobleListeners;
 
     constructor(options?: BleOptions) {
         const { environment } = options ?? {};
@@ -63,38 +71,45 @@ export class NobleBleClient {
                 }`,
             );
         }*/
-        noble.on("stateChange", state => {
-            this.nobleState = state;
-            logger.debug(`Noble state changed to ${state}`);
-            if (this.#closing) {
-                return;
-            }
-            if (state === "poweredOn") {
-                if (this.shouldScan) {
-                    const deferred = this.#scanDeferred;
-                    this.startScanning().then(
-                        () => {
-                            if (deferred) {
-                                logger.notice("Bluetooth adapter is powered on, BLE discovery started");
-                            }
-                        },
-                        error => logger.error("Cannot start BLE discovery after the adapter powered on:", error),
-                    );
+        this.#listeners = {
+            stateChange: state => {
+                this.nobleState = state;
+                logger.debug(`Noble state changed to ${state}`);
+                if (state === "poweredOn") {
+                    if (this.shouldScan) {
+                        const deferred = this.#scanDeferred;
+                        this.startScanning().then(
+                            () => {
+                                if (deferred) {
+                                    logger.notice("Bluetooth adapter is powered on, BLE discovery started");
+                                }
+                            },
+                            error => logger.error("Cannot start BLE discovery after the adapter powered on:", error),
+                        );
+                    }
+                } else {
+                    this.stopScanning().catch(error => logger.error("Cannot stop BLE discovery:", error));
                 }
-            } else {
-                this.stopScanning().catch(error => logger.error("Cannot stop BLE discovery:", error));
-            }
-        });
-        noble.on("discover", peripheral => this.handleDiscoveredDevice(peripheral));
-        noble.on("scanStart", () => {
-            if (!this.shouldScan) {
-                // Noble sometimes emits scanStart when we did not asked for and misses the scanStop event
-                // TODO: Remove as soon as Noble fixed this behavior
-                return;
-            }
-            this.isScanning = true;
-        });
-        noble.on("scanStop", () => (this.isScanning = false));
+            },
+
+            discover: peripheral => this.handleDiscoveredDevice(peripheral),
+
+            scanStart: () => {
+                if (!this.shouldScan) {
+                    // Noble sometimes emits scanStart when we did not asked for and misses the scanStop event
+                    // TODO: Remove as soon as Noble fixed this behavior
+                    return;
+                }
+                this.isScanning = true;
+            },
+
+            scanStop: () => (this.isScanning = false),
+        };
+
+        noble.on("stateChange", this.#listeners.stateChange);
+        noble.on("discover", this.#listeners.discover);
+        noble.on("scanStart", this.#listeners.scanStart);
+        noble.on("scanStop", this.#listeners.scanStop);
     }
 
     public setDiscoveryCallback(callback: (peripheral: Peripheral, manufacturerData: Bytes) => void) {
@@ -105,6 +120,7 @@ export class NobleBleClient {
     }
 
     public async startScanning() {
+        if (this.#closing) return;
         if (this.isScanning) {
             this.#scanDeferred = false;
             return;
@@ -179,6 +195,11 @@ export class NobleBleClient {
         this.#closing = true;
 
         logger.debug(`Stopping Noble, adapter state is "${this.nobleState}"`);
+
+        noble.off("stateChange", this.#listeners.stateChange);
+        noble.off("discover", this.#listeners.discover);
+        noble.off("scanStart", this.#listeners.scanStart);
+        noble.off("scanStop", this.#listeners.scanStop);
 
         try {
             // Windows holds a referenced handle from the first listener on, radio or not, and only stop() releases it
