@@ -8,7 +8,6 @@ import { Bytes, Diagnostic, Instant, Logger, Time } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
 import { MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
-import { platform } from "node:process";
 import { BleOptions } from "./NodeJsBle.js";
 
 const logger = Logger.get("NobleBleClient");
@@ -179,19 +178,7 @@ export class NobleBleClient {
         }
         this.#closing = true;
 
-        logger.debug("Stopping Noble");
-
-        if (this.nobleState === "poweredOn") {
-            try {
-                // Workaround: start scanning first so stop gets the HCI response it needs (Linux HCI driver).
-                // TODO Remove when https://github.com/stoprocent/noble/issues/30 got fixed
-                if (platform !== "win32" && platform !== "darwin") {
-                    noble.startScanning();
-                }
-            } catch (error) {
-                logger.info("Error starting scan during close, proceeding to stop:", error);
-            }
-        }
+        logger.debug(`Stopping Noble, adapter state is "${this.nobleState}"`);
 
         try {
             // Windows holds a referenced handle from the first listener on, radio or not, and only stop() releases it
