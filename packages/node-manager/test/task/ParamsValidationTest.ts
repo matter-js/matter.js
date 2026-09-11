@@ -82,6 +82,32 @@ describe("built-in task parameter validation", () => {
         refuses(RotateGroupKey, ROTATE, { groupKeySetId: undefined, newEpochKey: new Uint8Array(32) });
     });
 
+    it("refuses a change entry whose prior is not a restorable value", () => {
+        // A prior read back from storage is driven straight into desired state, so `null` here used to pass
+        // validation and throw while the rollback replayed it.
+        for (const prior of [null, 42, { intent: {}, mode: "sometimes" }]) {
+            expect(
+                () => Rollback.validate?.({ ...ROLLBACK, entries: [{ ...ROLLBACK.entries[0], prior }] } as never),
+                String(prior),
+            ).throws(ImplementationError);
+        }
+        expect(() =>
+            Rollback.validate?.({
+                ...ROLLBACK,
+                entries: [{ ...ROLLBACK.entries[0], prior: { intent: {}, mode: "maintain" } }],
+            } as never),
+        ).not.throws();
+    });
+
+    it("refuses a group or key set identity of zero", () => {
+        // Group 0 is "no group" (Groups constrains AddGroup/RemoveGroup to min 1) and key set 0 is the IPK,
+        // which commissioning owns.
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupId: 0 })).throws(ImplementationError);
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupKeySetId: 0 })).throws(ImplementationError);
+        expect(() => RemoveNodeFromGroup.validate?.({ ...REMOVE, groupId: 0 })).throws(ImplementationError);
+        expect(() => RotateGroupKey.validate?.({ ...ROTATE, groupKeySetId: 0 })).throws(ImplementationError);
+    });
+
     it("refuses malformed Rollback parameters", () => {
         refuses(Rollback, ROLLBACK, { originalRunId: 0, entries: undefined });
         expect(() => Rollback.validate?.({ ...ROLLBACK, entries: [{ peerId: "p" }] as never })).throws(

@@ -36,8 +36,8 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
         Require.params(ADD_NODE_TO_GROUP_TYPE, params);
         Require.text("peerId", params.peerId);
         Require.uint("endpoint", params.endpoint, 0xffff);
-        Require.uint("groupId", params.groupId, 0xffff);
-        Require.uint("groupKeySetId", params.groupKeySetId, 0xffff);
+        Require.id("groupId", params.groupId, 0xffff);
+        Require.id("groupKeySetId", params.groupKeySetId, 0xffff);
         Require.bytes("epochKey0", params.epochKey0, 16);
         Require.epoch("epochStartTime0", params.epochStartTime0);
     },

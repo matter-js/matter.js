@@ -421,8 +421,13 @@ export class RunStore {
      * A record is still needed while its priors survive: {@link RunRecord.changeSet} is non-empty exactly
      * while a rollback that can replay them exists, which is also exactly when {@link liveRollbackOfTarget}
      * must still be able to find it. Nothing else is consulted — no flag, no second table.
+     *
+     * `clearing` names the records whose priors the caller's own write discharges. Asked of the write rather
+     * than of memory because the two disagree exactly when it matters: a completing rollback clears the
+     * original's priors in the same transaction that retires it, and a record read as still pinned stops the
+     * prefix, so the limit would be enforced only by whatever retires next.
      */
-    evictableRetired(limit: number, retiringNow = 0): RunRecord[] {
+    evictableRetired(limit: number, retiringNow = 0, clearing?: ReadonlySet<RunId>): RunRecord[] {
         // Oldest first, so the prefix is the front of this list.
         const retired = this.retired.reverse();
         // `retiringNow` counts the runs the caller's own write is about to retire. They are neither terminal in
@@ -434,7 +439,7 @@ export class RunStore {
         const overflow = Math.min(retired.length, retired.length + retiringNow - limit);
         const evictable = new Array<RunRecord>();
         for (let i = 0; i < overflow; i++) {
-            if (retired[i].changeSet.length > 0) {
+            if (retired[i].changeSet.length > 0 && !clearing?.has(retired[i].runId)) {
                 break;
             }
             evictable.push(retired[i]);

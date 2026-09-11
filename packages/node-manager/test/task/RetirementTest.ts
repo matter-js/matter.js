@@ -582,6 +582,31 @@ describe("run records after a retirement", () => {
         expect((await stored(node, rollback.runId))?.changeSet).deep.equals([]);
     });
 
+    it("evicts the original a completing rollback discharges, in that same retirement", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("undo-frees-history");
+        await node.act(a => (a.get(TestTaskManager).state.historyLimit = 0));
+        const { original, rollback } = await parkedRollback(node, "undo-frees-history", peer);
+
+        peer.markHas("groupMembership", "X");
+        peer.setReachable(true);
+        await pumpUntil("rollback completed", () =>
+            node.act(a => a.get(TestTaskManager).get(rollback.runId)?.status.state === "completed"),
+        );
+        await awaitRetired(node, rollback.runId);
+
+        // The write that completes the undo is the write that clears the original's priors, so the record it
+        // unpins is evictable by that same retirement rather than by whatever retires next.
+        expect(await stored(node, original.runId)).equals(undefined);
+        // The undo itself survives its own retirement — a run is never evicted by the write that retires it —
+        // and goes with the next one.
+        expect(await stored(node, rollback.runId)).not.equals(undefined);
+
+        const next = await run(node, "undo-frees-history-next", [{ name: "noop", run: async () => {} }]);
+        await awaitRetired(node, next.runId);
+        expect(await stored(node, rollback.runId)).equals(undefined);
+    });
+
     it("forgets retired runs beyond the history limit, in storage as well as in memory", async () => {
         await using node = await makeNode();
         testPeer("history");
