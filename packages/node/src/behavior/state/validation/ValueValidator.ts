@@ -253,7 +253,7 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
 
         // Structural per-field checks run before the checks below.  The reserved-bit check is CONSTRAINT_ERROR-coded
         // and therefore forwarded for peer writes, so it comes last or a forwarded failure would skip the structural
-        // validation that must always fail fast.  The magnitude bound throws ConstraintError, which stays local.
+        // validation that must always fail fast.
         for (const key in value) {
             const field = fields[key];
             const subpath = location.path.at(key);
@@ -278,6 +278,10 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
             }
         }
 
+        // The bound stays local, so it runs with the structural checks: a conformance or reserved-bit failure is
+        // forwarded for a peer write, which unwinds the validator before anything after it
+        validateMagnitude?.(value, session, location);
+
         // A bit's conformance says whether the bit may be set, never that it must be, because every declared bit is
         // part of the value whether set or clear — so only a bit this value sets is judged.  Enforced only where no
         // remote subject authored the value: a peer states its own capabilities, and refusing its write would deny
@@ -301,8 +305,6 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
                 throw new DatatypeError(location, "free of reserved bits", encoded, Status.ConstraintError);
             }
         }
-
-        validateMagnitude?.(value, session, location);
     };
 }
 

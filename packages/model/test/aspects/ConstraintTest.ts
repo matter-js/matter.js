@@ -604,6 +604,12 @@ describe("Constraint", () => {
             expect(Constraint.hasUnevaluableAccess(new Constraint("min A.minOf(B, C)"))).true;
         });
 
+        // An access takes one member of one element; the specification defines no member of a member
+        it("reports a nested access as unevaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.B.C"))).true;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.(B.C)"))).true;
+        });
+
         it("reports a complete access as evaluable", () => {
             expect(Constraint.hasUnevaluableAccess(new Constraint("min A.B"))).false;
             expect(Constraint.hasUnevaluableAccess(new Constraint("min minOf(A, B)"))).false;

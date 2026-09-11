@@ -379,8 +379,8 @@ export namespace Constraint {
      * Whether the constraint states a member access no evaluation can take.
      *
      * A member access evaluates only where the value before "." is a record and the name after it a member of one.
-     * Where either operand is computed the access denotes nothing, so the bound holding it admits every value.  The
-     * specification states no such constraint; the grammar permits one.
+     * Where either operand is computed, or the path reaches a member of a member, the access denotes nothing and the
+     * bound holding it admits every value.  The specification states no such constraint; the grammar permits one.
      *
      * The entry constraint of a list bounds the entries and is judged in the entry's own scope, so an access it holds
      * is not among these.
@@ -403,7 +403,9 @@ export namespace Constraint {
 
             if ("lhs" in expression) {
                 if (expression.type === ".") {
-                    return accessPathOf(expression) === undefined;
+                    // An access takes one member of one element.  A deeper path states a member of a member, which
+                    // the specification does not define and no evaluation takes
+                    return accessPathOf(expression)?.length !== 2;
                 }
                 return inExpression(expression.lhs) || inExpression(expression.rhs);
             }

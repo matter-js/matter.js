@@ -7,6 +7,7 @@
 import { Seconds } from "@matter/general";
 import { FieldElement } from "@matter/model";
 import { ConstraintError } from "@matter/protocol";
+import { BitmapEncodedValue } from "@matter/types";
 import { Fields, Tests, testValidation } from "./validation-test-utils.js";
 
 const AllTests = Tests({
@@ -409,6 +410,26 @@ const AllTests = Tests({
                     type: ConstraintError,
                     message:
                         'Validating Test.test: Constraint "min 1": Value 0 is not within bounds defined by constraint',
+                },
+            },
+        },
+    ),
+
+    // The bound stays local where a reserved-bit failure is forwarded for a peer write, so the bound is judged
+    // first: a value breaking both must report the bound rather than unwinding on the forwarded error
+    "bound on a bitmap carrying a reserved bit": Tests(
+        Fields({
+            type: "map8",
+            constraint: "min 2",
+            children: [FieldElement({ name: "Recording", constraint: "0" })],
+        }),
+        {
+            "reports the bound rather than the reserved bit": {
+                record: { test: Object.assign({ recording: true }, { [BitmapEncodedValue]: 0b11 }) },
+                error: {
+                    type: ConstraintError,
+                    message:
+                        'Validating Test.test: Constraint "min 2": Value 1 is not within bounds defined by constraint',
                 },
             },
         },
