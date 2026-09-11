@@ -28,6 +28,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
+    - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
 
 - @matter/protocol
     - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
@@ -39,6 +40,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
 
 - @matter/node
+    - Fix: A node that factory resets keeps the services it already opened, so its share of the mDNS service is released on close and the process can exit, and its storage handle is released rather than leaked
+    - Fix: A factory reset erases the blobs a BDX transfer left behind
+    - Fix: A factory reset releases the node IDs reserved for the fabrics it discards, so a later commissioning can use them
+    - Fix: A factory reset frees the endpoint numbers held for endpoints it erases, so numbering starts from 1 again
     - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
     - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
     - Fix: A peer's endpoint whose device types are all utility types, as a bridge's composed device is, reports those device types rather than remaining of unknown type

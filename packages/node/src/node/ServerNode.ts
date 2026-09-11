@@ -36,6 +36,7 @@ import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
 import { Plugins } from "./Plugins.js";
+import { IdentityService } from "./server/IdentityService.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
 
 /**
@@ -231,6 +232,9 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
                 () => this.env.get(OccurrenceManager).clear(),
                 () => ServerEnvironment.eraseCredentials(this),
                 () => this.env.get(ServerNodeStore).erase(),
+
+                // The service survives the reset, so the node IDs it holds for the discarded fabrics do not
+                () => this.env.get(IdentityService).releaseReservedPeerAddresses(),
             ],
             `Error erasing storage of ${this}`,
         );

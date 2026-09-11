@@ -14,8 +14,11 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { PumpDevice } from "#devices/pump";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointBehaviorsError, EndpointPartsError } from "#endpoint/errors.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { LocalActorContext } from "#index.js";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import { IdentityService } from "#node/server/IdentityService.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -44,8 +47,11 @@ import {
     AttestationCertificateManager,
     CertificateAuthority,
     CertificationDeclaration,
+    FabricManager,
+    MdnsService,
     NodeSession,
     OccurrenceManager,
+    PeerAddress,
     PeerSet,
     ProtocolMocks,
     Val,
@@ -447,6 +453,80 @@ describe("ServerNode", () => {
 
     it("handles factory resets when online but in parallel offline is called correctly", async () => {
         await testFactoryReset("offline-during-reset");
+    });
+
+    it("keeps node services across a factory reset and releases them on close", async () => {
+        const node = await MockServerNode.createOnline();
+        const { env } = node;
+
+        const store = env.get(ServerNodeStore);
+        const mdns = env.get(MdnsService);
+        const identity = env.get(IdentityService);
+        const initializer = env.get(EndpointInitializer);
+        const changes = env.get(ChangeNotificationService);
+
+        const address = PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) });
+        identity.reservePeerAddress(address);
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+
+        expect(env.get(ServerNodeStore)).equals(store);
+        expect(env.get(MdnsService)).equals(mdns);
+        expect(env.get(IdentityService)).equals(identity);
+        expect(env.get(EndpointInitializer)).equals(initializer);
+        expect(env.get(ChangeNotificationService)).equals(changes);
+        expect(identity.peerAddressInUse(address)).equals(false);
+
+        await node.close();
+
+        expect(env.has(ServerNodeStore)).equals(false);
+        expect(env.root.has(MdnsService)).equals(false);
+    });
+
+    it("sanitizes fabric-scoped data once per fabric removal after a factory reset", async () => {
+        const { node } = await commissioning.commission();
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+        await commissioning.commission(node);
+
+        let sanitized = 0;
+        const observer = () => void sanitized++;
+        ServerEnvironment.fabricScopedDataSanitized.on(observer);
+
+        const [fabric] = node.env.get(FabricManager).fabrics;
+        try {
+            await MockTime.resolve(fabric.delete(), { macrotasks: true });
+        } finally {
+            ServerEnvironment.fabricScopedDataSanitized.off(observer);
+        }
+
+        expect(sanitized).equals(1);
+
+        await node.close();
+    });
+
+    it("factory reset erases the blobs a transfer left behind", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const store = node.env.get(ServerNodeStore);
+        const driver = await store.bdxStore();
+        await driver.writeBlobFromStream(
+            [],
+            "update.bin",
+            new ReadableStream<Bytes>({
+                start(controller) {
+                    controller.enqueue(Bytes.fromHex("00010203"));
+                    controller.close();
+                },
+            }),
+        );
+        expect(await driver.keys([])).deep.equals(["update.bin"]);
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+
+        expect(await driver.keys([])).deep.equals([]);
+
+        await node.close();
     });
 
     it("factory reset of a controller erases peers and CA key material", async () => {

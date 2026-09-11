@@ -14,10 +14,11 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Crypto,
     DatafileRoot,
-    Environment,
     Filesystem,
+    Logger,
+    MatterAggregateError,
+    type MaybePromise,
     Observable,
-    SharedEnvironmentServices,
     StorageService,
 } from "@matter/general";
 import {
@@ -32,6 +33,8 @@ import {
 import { BindingManager } from "../../behaviors/binding/BindingManager.js";
 import { IdentityService } from "./IdentityService.js";
 
+const logger = Logger.get("ServerEnvironment");
+
 /**
  * Manages components that are present for the lifetime of a server.
  */
@@ -42,38 +45,12 @@ export namespace ServerEnvironment {
     export async function initialize(node: ServerNode) {
         const { env } = node;
 
-        await SharedNodeServices.install(env);
-
-        // Create the datafile root — locking is now ref-counted and acquired by individual consumers
-        if (env.get(StorageService).hasFilesystem) {
-            const fs = env.get(Filesystem);
-            const root = new DatafileRoot(fs.directory(node.id));
-            env.set(DatafileRoot, root);
-
-            // When storage.lock is enabled, hold a lock for the node's lifetime (for CLI PID file management)
-            if (env.vars.boolean("storage.lock")) {
-                env.set(DatafileRoot.Lock, await root.lock());
-            }
+        if (!env.owns(NodeServices)) {
+            await NodeServices.install(node);
         }
 
-        const store = await ServerNodeStore.create(env, node.id);
-        env.set(ServerNodeStore, store);
-
-        env.set(EndpointInitializer, new ServerEndpointInitializer(env));
-        env.set(IdentityService, new IdentityService(node));
-        env.set(ChangeNotificationService, new ChangeNotificationService(node));
-
         // Ensure these are fully initialized
-        const fabrics = await env.load(FabricManager);
-
-        fabrics.events.deleting.on(async () => {
-            const fabricIndices = fabrics.fabrics.map(fabric => fabric.fabricIndex);
-            if (fabricIndices.length > 0) {
-                await limitNodeDataToAllowedFabrics(node, fabricIndices);
-            }
-            fabricScopedDataSanitized.emit(); // Only for testing purposes
-        });
-
+        await env.load(FabricManager);
         await env.load(SessionManager);
 
         // Synchronous initialization
@@ -111,7 +88,6 @@ export namespace ServerEnvironment {
 
         await env.close(FabricManager);
         await env.close(PeerSet);
-        await env.close(ChangeNotificationService);
         await env.close(SessionManager);
         await env.close(OccurrenceManager);
         await env.close(BindingManager);
@@ -121,33 +97,94 @@ export namespace ServerEnvironment {
             await env.get(ClientCacheBuffer).close();
         }
 
-        await env.close(ServerNodeStore);
-        await env.close(SharedNodeServices);
         await env.close(FabricAuthority);
         await env.close(CertificateAuthority);
 
-        // Release the env-held lock (from storage.lock) if one was acquired
-        if (env.has(DatafileRoot.Lock)) {
-            await env.get(DatafileRoot.Lock).close();
-        }
+        await env.close(NodeServices);
     }
 }
 
-class SharedNodeServices {
-    #services: SharedEnvironmentServices;
+/**
+ * The services a {@link ServerNode} owns for as long as the node exists.
+ *
+ * These hold OS resources, storage locks and node-wide observers, so a node that reinitializes — as it does after a
+ * factory reset — must keep the ones it has.  A second set would orphan the first, and nothing closes an orphan.
+ *
+ * Installation records how to release each service as it installs it, and that same record both unwinds a failed
+ * installation and tears down the node at the end of its life, so no service can be installed without also being
+ * released.  The environment owns this service only once installation is complete, so a reinitialization never finds
+ * a half-equipped environment to install over.
+ */
+class NodeServices {
+    #teardown: Array<() => MaybePromise<void>>;
 
-    static async install(env: Environment) {
+    static async install(node: ServerNode) {
+        const { env } = node;
         const services = env.asDependent();
-        await services.load(MdnsService);
 
-        env.set(SharedNodeServices, new SharedNodeServices(services));
+        // Releasing a service is what closing the node does; removing it from the environment is not, because a
+        // closed node is closable again and its endpoints still resolve what they need to close
+        const teardown = new Array<() => MaybePromise<void>>(() => services.close());
+        const removals = new Array<() => MaybePromise<void>>();
+
+        try {
+            await services.load(MdnsService);
+
+            // Create the datafile root — locking is now ref-counted and acquired by individual consumers
+            if (env.get(StorageService).hasFilesystem) {
+                const fs = env.get(Filesystem);
+                const root = new DatafileRoot(fs.directory(node.id));
+                env.set(DatafileRoot, root);
+                removals.push(() => env.delete(DatafileRoot, root));
+
+                // When storage.lock is enabled, hold a lock for the node's lifetime (for CLI PID file management)
+                if (env.vars.boolean("storage.lock")) {
+                    env.set(DatafileRoot.Lock, await root.lock());
+                    teardown.push(() => env.close(DatafileRoot.Lock));
+                }
+            }
+
+            env.set(ServerNodeStore, await ServerNodeStore.create(env, node.id));
+            teardown.push(() => env.close(ServerNodeStore));
+
+            env.set(EndpointInitializer, new ServerEndpointInitializer(env));
+            removals.push(() => env.delete(EndpointInitializer));
+
+            env.set(IdentityService, new IdentityService(node));
+            removals.push(() => env.delete(IdentityService));
+
+            env.set(ChangeNotificationService, new ChangeNotificationService(node));
+            teardown.push(() => env.close(ChangeNotificationService));
+
+            const fabrics = await env.load(FabricManager);
+            const sanitize = async () => {
+                const fabricIndices = fabrics.fabrics.map(fabric => fabric.fabricIndex);
+                if (fabricIndices.length > 0) {
+                    await limitNodeDataToAllowedFabrics(node, fabricIndices);
+                }
+                ServerEnvironment.fabricScopedDataSanitized.emit(); // Only for testing purposes
+            };
+            fabrics.events.deleting.on(sanitize);
+            teardown.push(() => fabrics.events.deleting.off(sanitize));
+        } catch (cause) {
+            await NodeServices.#release([...teardown, ...removals], `Error installing services for ${node}`).catch(
+                error => logger.error("Could not undo a failed service installation", error),
+            );
+            throw cause;
+        }
+
+        env.set(NodeServices, new NodeServices(teardown));
     }
 
-    constructor(services: SharedEnvironmentServices) {
-        this.#services = services;
+    constructor(teardown: Array<() => MaybePromise<void>>) {
+        this.#teardown = teardown;
     }
 
     async close() {
-        await this.#services.close();
+        await NodeServices.#release(this.#teardown, "Error closing node services");
+    }
+
+    static #release(steps: Array<() => MaybePromise<void>>, message: string) {
+        return MatterAggregateError.settleSeries([...steps].reverse(), message);
     }
 }
