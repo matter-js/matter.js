@@ -71,6 +71,11 @@ export class NobleBleClient {
                 }`,
             );
         }*/
+        // Noble starts its bindings a tick after the first listener attaches, and a close in that
+        // same turn would leave them running; reading the state starts them now and reports what
+        // a binding that could not start already found
+        this.nobleState = noble.state;
+
         this.#listeners = {
             stateChange: state => {
                 this.nobleState = state;
