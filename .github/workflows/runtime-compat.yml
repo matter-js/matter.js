@@ -1,5 +1,6 @@
 # Runs matter.js against runtimes other than Node.js, so a regression in their compatibility surfaces here rather
-# than in a user's deployment. Bun and Deno emulate Node.js's crypto API incompletely; see #4408 and #3777.
+# than in a user's deployment. Bun and Deno emulate Node.js's crypto API incompletely, so a runtime that
+# regresses there is invisible to the Node.js suite.
 name: Runtime compatibility
 
 on:
@@ -12,6 +13,7 @@ on:
     paths:
       - ".github/workflows/runtime-compat.yml"
       - ".github/scripts/crypto-smoke.mjs"
+      - ".github/scripts/pack-and-smoke.sh"
       - "packages/general/src/crypto/**"
       - "packages/nodejs/src/crypto/**"
       - "packages/nodejs/src/environment/**"

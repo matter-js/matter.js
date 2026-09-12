@@ -105,6 +105,37 @@ describe("nodeCryptoDefect", () => {
         expect(defect).equal("no sha256 digest: no digest");
     });
 
+    it("reports an unavailable decipher", () => {
+        const defect = nodeCryptoDefect(
+            nodeCryptoWith({
+                createDecipheriv() {
+                    throw new Error("Unknown cipher: aes-128-ccm");
+                },
+            }),
+        );
+
+        expect(defect).equal("no aes-128-ccm cipher: Unknown cipher: aes-128-ccm");
+    });
+
+    it("probes decryption as well as encryption", () => {
+        const requested = new Array<string>();
+
+        nodeCryptoDefect(
+            nodeCryptoWith({
+                createCipheriv(algorithm, key, iv, options) {
+                    requested.push("encrypt");
+                    return crypto.createCipheriv(algorithm, Bytes.of(key), Bytes.of(iv), options);
+                },
+                createDecipheriv(algorithm, key, iv, options) {
+                    requested.push("decrypt");
+                    return crypto.createDecipheriv(algorithm, Bytes.of(key), Bytes.of(iv), options);
+                },
+            }),
+        );
+
+        expect(requested).deep.equal(["encrypt", "decrypt"]);
+    });
+
     it("probes the cipher Matter encrypts with", () => {
         const requested = new Array<string>();
 

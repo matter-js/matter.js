@@ -5,6 +5,7 @@
  */
 
 import { Environment } from "#environment/Environment.js";
+import { Logger } from "#log/Logger.js";
 import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Entropy } from "#util/Entropy.js";
@@ -25,6 +26,8 @@ import { CRYPTO_AEAD_NONCE_LENGTH_BYTES } from "./CryptoConstants.js";
 import { CryptoDecryptError, CryptoInputError, CryptoVerifyError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { PrivateKey, PublicKey } from "./Key.js";
+
+const logger = Logger.get("NodeJsStyleCrypto");
 
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
@@ -61,13 +64,13 @@ export function nodeCryptoDefect(api: NodeJsCryptoApiLike): string | undefined {
         return `no ${CRYPTO_HASH_ALGORITHM} digest: ${asError(error).message}`;
     }
 
+    const key = new Uint8Array(CRYPTO_SYMMETRIC_KEY_LENGTH);
+    const nonce = new Uint8Array(CRYPTO_AEAD_NONCE_LENGTH_BYTES);
+    const options = { authTagLength: CRYPTO_AUTH_TAG_LENGTH };
+
     try {
-        api.createCipheriv(
-            CRYPTO_ENCRYPT_ALGORITHM,
-            new Uint8Array(CRYPTO_SYMMETRIC_KEY_LENGTH),
-            new Uint8Array(CRYPTO_AEAD_NONCE_LENGTH_BYTES),
-            { authTagLength: CRYPTO_AUTH_TAG_LENGTH },
-        );
+        api.createCipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
+        api.createDecipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
     } catch (error) {
         return `no ${CRYPTO_ENCRYPT_ALGORITHM} cipher: ${asError(error).message}`;
     }
@@ -467,7 +470,19 @@ if (nodeCrypto?.createECDH) {
 
     // Claim the default only where this API serves Matter, so StandardCrypto installs itself instead where it does
     // not.  Where nothing better exists, or substitution is not ours to make, claim it regardless
-    if (defect === undefined || noWebCrypto || providerIsRestricted) {
+    const claimDefault = defect === undefined || noWebCrypto || providerIsRestricted;
+
+    if (claimDefault && defect !== undefined) {
+        const reason = providerIsRestricted
+            ? "this process restricts its cryptographic provider"
+            : "no standard crypto implementation is available";
+        logger.error(
+            `Node.js crypto offers ${defect} and remains the default because ${reason}.` +
+                " Matter will fail wherever it needs the missing primitive.",
+        );
+    }
+
+    if (claimDefault) {
         const nodeJsStyleCrypto = new NodeJsStyleCrypto();
         Environment.default.set(Entropy, nodeJsStyleCrypto);
         Environment.default.set(Crypto, nodeJsStyleCrypto);
