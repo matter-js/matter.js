@@ -9,9 +9,8 @@ import {
     TaskConflictError,
     TaskExternalIdInUseError,
     TaskIdentityExhaustedError,
-    TaskParamsRejectedError,
+    TaskNotInFlightError,
     TaskRollbackPendingError,
-    TaskSlotAwaitingResumeError,
     TaskSlotOccupiedError,
     TaskTypeNotRegisteredError,
 } from "#task/errors.js";
@@ -682,22 +681,23 @@ describe("run identity", () => {
             );
         }
 
-        // The record survives but its task refuses to be rebuilt. It is still unfinished work that has been
-        // written down, so forgetting it here would free its slot and hide it for the rest of this process.
+        // The record survives, and the build that loads it refuses what it holds. No later start of this build
+        // would do better, so the run ends the way any error after admission ends it, and stops holding a
+        // target nothing will advance.
         await using node = await makeNode(environment, "unbuildable");
         UnbuildableTask.rejectConstruction = true;
         await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
 
-        expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.slotKey)).equals("unbuildable:u");
+        await pumpUntil("the unresumable run fails", async () =>
+            node.act(a => a.get(TestTaskManager).get(parked)?.status.state === "failed"),
+        );
+        const failed = await node.act(a => a.get(TestTaskManager).get(parked)?.status);
+        expect(failed?.error).contains("stored parameters are not valid");
+
+        // The target is free, so work a caller can express is admitted again.
         UnbuildableTask.rejectConstruction = false;
-        let refusal: unknown;
-        try {
-            await node.act(a => a.get(TestTaskManager).run(UnbuildableTask, { tag: "u" }));
-        } catch (e) {
-            refusal = e;
-        }
-        expect(refusal).instanceOf(TaskSlotAwaitingResumeError);
-        expect((refusal as TaskConflictError).owner).equals(parked);
+        const next = await node.act(a => a.get(TestTaskManager).run(UnbuildableTask, { tag: "u" }));
+        expect(next.runId).not.equals(parked);
     });
 
     it("refuses to cancel a run whose stored parameters its task no longer accepts", async () => {
@@ -724,22 +724,23 @@ describe("run identity", () => {
         UnbuildableTask.rejectConstruction = true;
         await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
 
+        await pumpUntil("the unresumable run fails", async () =>
+            node.act(a => a.get(TestTaskManager).get(parked)?.status.state === "failed"),
+        );
+
+        // The recorded reason is coded and names the record, never what the definition said about the value: a
+        // `validate` is application code, and parameters carry raw group keys.
+        const failed = await node.act(a => a.get(TestTaskManager).get(parked)?.status);
+        expect(failed?.error).contains("stored parameters are not valid");
+        expect(failed?.error).not.contains("malformed persisted parameters");
+
+        // The run is over, so a cancel of it is refused for that reason rather than for its parameters.
         let refusal: unknown;
         try {
-            await node.act(a =>
-                a
-                    .get(TestTaskManager)
-                    .cancel(parked)
-                    .then(c => c.rollback),
-            );
+            await node.act(a => a.get(TestTaskManager).cancel(parked));
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(TaskParamsRejectedError);
-        // The reason travels as the cause. A definition's `validate` is application code and may name a value
-        // in its message, and parameters carry raw group keys, so the refusal itself must not repeat it.
-        expect((refusal as Error).message).not.contains("malformed persisted parameters");
-        expect(((refusal as Error).cause as Error | undefined)?.message).contains("malformed persisted parameters");
-        expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.state)).equals("running");
+        expect(refusal).instanceOf(TaskNotInFlightError);
     });
 });

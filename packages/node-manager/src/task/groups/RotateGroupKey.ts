@@ -130,14 +130,41 @@ function requireEveryMemberHoldsNewKey(ctx: TaskContext, p: RotateGroupKeyParams
 
 async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: RotationPhase): Promise<void> {
     const key = String(p.groupKeySetId);
-    const members = ctx.peersWithIntent(GroupKey, key);
-    if (members.length === 0) {
-        return;
+    for (;;) {
+        const members = ctx.peersWithIntent(GroupKey, key);
+        if (members.length === 0) {
+            return;
+        }
+        for (const peer of members) {
+            await ctx.setIntent(peer, GroupKey, key, struct(ctx, peer, p, phase), "converge");
+        }
+        await ctx.awaitCommitted(members.map(peer => ({ peer, kind: GroupKey, key })));
+
+        // Provisioning a group takes no lock on its key set, so a member can join while this phase writes.
+        // Distribute adopts it: the new key is still dormant, so carrying the newcomer through costs one more
+        // write and is what keeps the group whole. The later phases cannot — by then the members they captured
+        // are already using the new key — and joining is refused for as long as that is true.
+        if (phase !== "distribute" || memberWithoutNewKey(ctx, p, key, phase) === undefined) {
+            return;
+        }
     }
-    for (const peer of members) {
-        await ctx.setIntent(peer, GroupKey, key, struct(ctx, peer, p, phase), "converge");
+}
+
+/**
+ * Whether a rotation of this key set has begun switching members to its new key.
+ *
+ * Read from the members' own intents rather than from the task layer: activate is the phase that populates
+ * slot 2, so a key set carrying one is mid-switch whoever is driving it.
+ */
+export function rotationIsSwitchingKeys(ctx: TaskContext, groupKeySetId: number): boolean {
+    const key = String(groupKeySetId);
+    for (const peer of ctx.peersWithIntent(GroupKey, key)) {
+        const current = ctx.intentOf(peer, GroupKey, key);
+        if (current?.epochKey2 !== null && current?.epochKey2 !== undefined) {
+            return true;
+        }
     }
-    await ctx.awaitCommitted(members.map(peer => ({ peer, kind: GroupKey, key })));
+    return false;
 }
 
 /** A member holding an intent for this key set that does not carry this rotation's new key, if there is one. */
@@ -163,6 +190,9 @@ function currentIntent(ctx: TaskContext, peer: ClientNode, p: RotateGroupKeyPara
 // A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
 // slot 1 is our own distribute output on a park/resume re-drive, not a foreign multi-epoch keyset, so accept it.
 function isRotatable(current: GroupKeyGrant, p: RotateGroupKeyParams): boolean {
+    // Slot 1 carrying this rotation's own key is enough, whatever slot 2 holds: a rotation stopped inside
+    // activate leaves its own randomised key there, and re-running the same rotation is the remedy the failure
+    // prescribes, so a shape this rotation itself produced can never be the reason to refuse it.
     return isSingleKeySteadyState(current) || holdsNewKey(current, p, "distribute");
 }
 

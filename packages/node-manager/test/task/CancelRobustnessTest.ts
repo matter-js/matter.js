@@ -217,7 +217,7 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("pg", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.plannedChangesByTag["pregate"] = [{ peerId: "pg", kind: "cap", key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["pregate"] = [{ peerId: "pg", kind: kindOf("cap"), key: "x", intent: {} }];
         SyntheticTask.phasesByTag["pregate"] = [gatePhase("pg", kindOf("groupMembership"), "X")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-pregate" });
@@ -675,7 +675,7 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("pd", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.plannedChangesByTag["predispose"] = [{ peerId: "pd", kind: "cap", key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["predispose"] = [{ peerId: "pd", kind: kindOf("cap"), key: "x", intent: {} }];
         SyntheticTask.phasesByTag["predispose"] = [gatePhase("pd", kindOf("groupMembership"), "Y")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-predispose" });

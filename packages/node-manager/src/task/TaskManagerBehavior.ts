@@ -325,15 +325,44 @@ export class TaskManagerBehavior extends Behavior {
                 logger.warn(`Not resuming run ${record.runId}: slot ${record.slotKey} is owned by run ${owner.runId}`);
                 continue;
             }
+            let bound;
             try {
-                const bound = this.internal.registry.interpret(record.type, record.params);
-                // A record whose definition cannot be bound stays awaiting resume: it is still unfinished work,
-                // and forgetting it would free its slot and hide it from lookup for this process.
-                this.#redrive(record, bound);
+                bound = this.internal.registry.interpret(record.type, record.params);
             } catch (e) {
-                logger.error(`Cannot resume run ${record.runId}`, e);
+                // The type is registered and refuses what storage holds, so no later start of this build will
+                // do better and the run holds its target until something decides. That decision is the same
+                // one any error after admission gets: the run ends failed, and its target is released.
+                //
+                // Its priors stay: `retryRollback` rebuilds an undo from the change set and the rollback
+                // definition alone, so what this run wrote can still be undone without its parameters.
+                this.#failUnresumable(
+                    record,
+                    new TaskParamsRejectedError(
+                        `Cannot resume ${runLabel(record.runId)}: its stored parameters are not valid for task type "${record.type}"`,
+                        { cause: e },
+                    ),
+                );
+                continue;
             }
+            this.#redrive(record, bound);
         }
+    }
+
+    /** End a run this build cannot drive, so it stops holding a target nothing will ever advance. */
+    #failUnresumable(record: RunRecord, refusal: TaskParamsRejectedError): void {
+        logger.error(`Cannot resume ${runLabel(record.runId)}, recording it failed`, refusal);
+        this.#mutex.run(async () => {
+            await this.#commitRetiring({
+                record,
+                next: {
+                    state: "failed",
+                    error: refusal.message,
+                    retireSeq: this.internal.runs.nextRetirement(record),
+                },
+                drop: RETIRE,
+            });
+            this.internal.runs.commitRetirement(record);
+        });
     }
 
     /**
@@ -1400,7 +1429,7 @@ export class TaskManagerBehavior extends Behavior {
         }
         const byNodeKind = new Map<string, PlannedChange[]>();
         for (const pc of planned) {
-            const k = `${pc.peerId}\0${pc.kind}`;
+            const k = `${pc.peerId}\0${pc.kind.kind}`;
             let group = byNodeKind.get(k);
             if (group === undefined) {
                 group = new Array<PlannedChange>();
@@ -1414,7 +1443,7 @@ export class TaskManagerBehavior extends Behavior {
             if (peer === undefined) {
                 continue; // unresolvable peer: the phase gate will park; capacity is re-checked on device write
             }
-            const itemKind = await this.endpoint.act(agent => this.taskReconciler(agent).itemKind(kind));
+            const itemKind = await this.endpoint.act(agent => this.taskReconciler(agent).itemKind(kind.kind));
             if (itemKind?.excludeFromAdmission) {
                 continue; // capacity counts a coarser resource another kind already gates (e.g. membership vs group)
             }
@@ -1423,10 +1452,10 @@ export class TaskManagerBehavior extends Behavior {
                 continue; // kind reports no capacity limit (e.g. groupKey) — the device write is the gate
             }
             const items = peer.stateOf(DesiredStateBehavior).items;
-            const added = group.filter(pc => items[itemMapKey(pc.kind, pc.key)] === undefined).length;
+            const added = group.filter(pc => items[itemMapKey(pc.kind.kind, pc.key)] === undefined).length;
             if (capacity.used + added > capacity.limit) {
                 throw new TaskCapacityExceededError(
-                    `${runLabel(execution.runId)}: ${kind} on ${peerId} exceeds capacity — needs ${added} slot(s) but only ${capacity.limit - capacity.used} free`,
+                    `${runLabel(execution.runId)}: ${kind.kind} on ${peerId} exceeds capacity — needs ${added} slot(s) but only ${capacity.limit - capacity.used} free`,
                 );
             }
         }
@@ -1455,15 +1484,20 @@ export class TaskManagerBehavior extends Behavior {
                 this.#throwIfAborted(execution);
                 phase.requires?.(ctx);
                 await phase.run(ctx);
-                // Again, because the phase yielded: anything it checked on entry may have changed while it
-                // wrote, and nothing the layer holds prevents that.
-                phase.requires?.(ctx);
-                // A cancel accepted while the phase ran must leave phaseIndex on that phase: the rollback decision is
-                // phase-based, so advancing it can cross a task's point of no return and suppress the rollback.
+                // Asked before the phase's own post-write check: a transition that claimed the run while the
+                // phase ran owns its outcome, and a precondition that refuses here is an ordinary failure, so
+                // asking first would record `failed` over the `cancelled` the transition is about to write.
+                //
+                // A cancel accepted while the phase ran must also leave phaseIndex on that phase: the rollback
+                // decision is phase-based, so advancing it can cross a task's point of no return and suppress
+                // the rollback.
                 const teardown = this.internal.runs.transitionOf(execution.runId)?.teardown;
                 if (teardown !== undefined) {
                     throw this.#stopSignal(teardown, record.runId);
                 }
+                // Again, because the phase yielded: anything it checked on entry may have changed while it
+                // wrote, and nothing the layer holds prevents that.
+                phase.requires?.(ctx);
                 await this.#commit({ record, next: { phaseIndex: record.phaseIndex + 1 } });
             }
             if (record.state === "running") {

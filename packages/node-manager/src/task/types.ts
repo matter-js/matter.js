@@ -107,10 +107,15 @@ export interface ChangeEntry {
     prior?: { intent: unknown; mode: ItemMode };
 }
 
-/** An intent a task will create, derived from its params, for pre-flight capacity admission. */
+/**
+ * An intent a task will create, derived from its params, for pre-flight capacity admission.
+ *
+ * The kind is the registered reference, not its name: admission asks the kind what a peer can hold, and a name
+ * the reconciler does not know would silently skip that question for the task that misspelled it.
+ */
 export interface PlannedChange {
     peerId: string;
-    kind: string;
+    kind: ItemKind;
     key: string;
     intent: unknown;
 }

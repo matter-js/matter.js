@@ -45,6 +45,11 @@ export const Require = {
         if (value.length > max) {
             throw new ImplementationError(`"${field}" must be at most ${max} characters`);
         }
+        // Only the code points before the first IS1 are a string's textual content, and a conformant
+        // implementation never emits one, so the encoder refuses it — far from the caller that supplied it.
+        if (value.includes("\u001f")) {
+            throw new ImplementationError(`"${field}" must not contain an information separator`);
+        }
     },
 
     /** A non-empty string. */
