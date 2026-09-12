@@ -5,7 +5,7 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskFindingCode, TaskManagerClosingError, TaskSlotOccupiedError } from "#task/errors.js";
+import { TaskFindingCode, TaskManagerClosingError, TaskNoRollbackError, TaskSlotOccupiedError } from "#task/errors.js";
 import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase, TaskStatus } from "#task/types.js";
@@ -394,5 +394,65 @@ describe("settling when nothing can be written", () => {
         expect(rejection).instanceOf(TaskManagerClosingError);
         // The run itself is untouched: the next start resumes it.
         expect(handle.status.state).equals("running");
+    });
+});
+
+describe("retrying an undo", () => {
+    before(() => MockTime.init());
+
+    it("refuses a run that is still writing, and says to cancel it instead", async () => {
+        const { node, peer } = await makeNode("retry-live");
+        await using _node = node;
+        peer.setIntent("groupMembership", "X", { v: 1 });
+
+        SyntheticTask.phasesByTag["live"] = [gatingPhase("retry-live")];
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "live" }));
+        // Priors are recorded as the run writes, so by now it has something a rollback could replay.
+        await pumpUntil(
+            "intent written",
+            () => (peer.items[itemMapKey("groupMembership", "X")]?.intent as { v?: number })?.v === 2,
+        );
+
+        let refusal: unknown;
+        try {
+            await node.act(a => a.get(TestTaskManager).retryRollback(handle.runId));
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskNoRollbackError);
+        // The run itself is untouched, and nothing is undoing it.
+        expect(handle.status.state).equals("running");
+        expect((peer.items[itemMapKey("groupMembership", "X")]?.intent as { v?: number })?.v).equals(2);
+    });
+
+    it("refuses a rollback's own identity, because nothing undoes an undo", async () => {
+        const { node, peer } = await makeNode("retry-undo");
+        await using _node = node;
+        peer.setIntent("groupMembership", "X", { v: 1 });
+
+        SyntheticTask.phasesByTag["undone"] = [gatingPhase("retry-undo")];
+        const original = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "undone" }));
+        await pumpUntil(
+            "intent written",
+            () => (peer.items[itemMapKey("groupMembership", "X")]?.intent as { v?: number })?.v === 2,
+        );
+        const rollback = await node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(original.runId)
+                .then(c => c.rollback),
+        );
+        if (rollback === undefined) {
+            throw new InternalError("cancel produced no rollback");
+        }
+
+        let refusal: unknown;
+        try {
+            await node.act(a => a.get(TestTaskManager).retryRollback(rollback.runId));
+        } catch (e) {
+            refusal = e;
+        }
+        expect(refusal).instanceOf(TaskNoRollbackError);
+        expect((refusal as Error).message).contains("nothing undoes an undo");
     });
 });

@@ -31,7 +31,9 @@ export interface TaskPersistence {
     error?: string;
     /** Order in which runs retired. The only ordering key for history; never use `runId`. */
     retireSeq?: RetireSeq;
+    /** The undo this run answers to, once one exists. Pass it to `abandon`, never to `retryRollback`. */
     rollbackRunId?: RunId;
+    /** The run this one undoes, when it is itself a rollback. Pass that id to `retryRollback`. */
     rollbackOf?: RunId;
 }
 
@@ -74,7 +76,9 @@ export class RunRecord implements RunView {
     wrote: boolean;
     error?: string;
     retireSeq?: RetireSeq;
+    /** The undo this run answers to, once one exists. Pass it to `abandon`, never to `retryRollback`. */
     rollbackRunId?: RunId;
+    /** The run this one undoes, when it is itself a rollback. Pass that id to `retryRollback`. */
     rollbackOf?: RunId;
 
     /**
@@ -207,7 +211,9 @@ export interface RunView {
     readonly externalId?: string;
     readonly error?: string;
     readonly retireSeq?: RetireSeq;
+    /** The undo this run answers to, once one exists. Pass it to `abandon`, never to `retryRollback`. */
     readonly rollbackRunId?: RunId;
+    /** The run this one undoes, when it is itself a rollback. Pass that id to `retryRollback`. */
     readonly rollbackOf?: RunId;
 }
 

@@ -34,7 +34,7 @@ class TestTaskManager extends TaskManagerBehavior {
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
     /** Set to leave a persisted rollback with no driver, as a start before `Rollback` is available would. */
-    static omitRevert = false;
+    static omitRollback = false;
 
     protected override resolvePeerNode(peerId: string): ClientNode | undefined {
         return TestTaskManager.peers.get(peerId)?.asNode();
@@ -43,7 +43,7 @@ class TestTaskManager extends TaskManagerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
     }
     protected override registerBuiltins() {
-        if (!TestTaskManager.omitRevert) {
+        if (!TestTaskManager.omitRollback) {
             super.registerBuiltins();
         }
     }
@@ -254,7 +254,7 @@ const UndoingTask: TaskDefinition<{ tag: string }> = {
 function reset() {
     TestTaskManager.peers.clear();
     TestTaskManager.reconcilerPeer = undefined;
-    TestTaskManager.omitRevert = false;
+    TestTaskManager.omitRollback = false;
     for (const tag of Object.keys(SyntheticTask.phasesByTag)) {
         delete SyntheticTask.phasesByTag[tag];
     }
@@ -632,7 +632,7 @@ describe("cancel and abandon", () => {
         }
 
         // Nothing registers the rollback's type on this start, so its record has no driver at all.
-        TestTaskManager.omitRevert = true;
+        TestTaskManager.omitRollback = true;
         await using node = await makeNode(environment, "unattached");
         expect(await node.act(a => a.get(TestTaskManager).isAttached(rollbackId))).equals(false);
 

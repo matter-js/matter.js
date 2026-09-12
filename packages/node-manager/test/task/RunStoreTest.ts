@@ -89,6 +89,25 @@ describe("RunStore", () => {
     describe("a corrupt stored table", () => {
         const KEY_MATERIAL = new Uint8Array([1, 2, 3, 4]);
 
+        function loadField(field: string, value: unknown) {
+            const store = new RunStore();
+            return () =>
+                store.load({
+                    runs: {
+                        "run:1": {
+                            runId: 1,
+                            slotKey: "synthetic:t",
+                            type: "synthetic",
+                            state: "running",
+                            phaseIndex: 0,
+                            changeSet: [],
+                            wrote: false,
+                            [field]: value,
+                        },
+                    } as unknown as Record<string, TaskPersistence>,
+                });
+        }
+
         function loadWith(runId: unknown) {
             const store = new RunStore();
             return () =>
@@ -99,6 +118,7 @@ describe("RunStore", () => {
                             slotKey: "synthetic:t",
                             type: "rotateGroupKey",
                             state: "running",
+                            phaseIndex: 0,
                             changeSet: [],
                             wrote: false,
                             // What a group task actually carries: raw key material, and a bigint that cannot be
@@ -133,6 +153,27 @@ describe("RunStore", () => {
 
         it("accepts the smallest identity a caller can hold", () => {
             expect(loadWith(1)).not.throws();
+        });
+
+        // Each of these decides something no later check revisits: `state` decides whether the record holds
+        // its target, `phaseIndex` which phase resumes, `retireSeq` seeds the counter every retirement reads.
+        for (const [field, value] of [
+            ["state", "sometimes"],
+            ["state", 3],
+            ["phaseIndex", -1],
+            ["phaseIndex", 1.5],
+            ["phaseIndex", Number.NaN],
+            ["retireSeq", 0],
+            ["retireSeq", "2"],
+            ["changeSet", {}],
+        ] as Array<[string, unknown]>) {
+            it(`refuses a record whose ${field} is ${JSON.stringify(value) ?? String(value)}`, () => {
+                expect(loadField(field, value)).throws(InternalError);
+            });
+        }
+
+        it("accepts a record whose optional retirement order is absent", () => {
+            expect(loadField("retireSeq", undefined)).not.throws();
         });
     });
     describe("bounded history", () => {

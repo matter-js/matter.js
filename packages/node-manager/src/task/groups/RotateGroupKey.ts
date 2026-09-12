@@ -13,6 +13,7 @@ import { RotationPreconditionError } from "../errors.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
 import { Require } from "../validation.js";
+import { SECURITY_POLICIES } from "./AddNodeToGroup.js";
 
 export const ROTATE_GROUP_KEY_TYPE = "rotateGroupKey";
 
@@ -49,6 +50,9 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
         Require.params(ROTATE_GROUP_KEY_TYPE, params);
         Require.id("groupKeySetId", params.groupKeySetId, 0xffff);
         Require.bytes("newEpochKey", params.newEpochKey, 16);
+        if (params.groupKeySecurityPolicy !== undefined) {
+            Require.oneOf("groupKeySecurityPolicy", params.groupKeySecurityPolicy, SECURITY_POLICIES);
+        }
     },
 
     // Keyed on the key set alone, so one-live-run-per-slot is what makes rotations of a key set mutually

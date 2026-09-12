@@ -14,6 +14,12 @@ import { membershipKey } from "./keys.js";
 
 export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
 
+/** The policies the key set struct may carry, so a stored value the device would reject is refused here. */
+export const SECURITY_POLICIES = [
+    GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+    GroupKeyManagement.GroupKeySecurityPolicy.CacheAndSync,
+] as const;
+
 export interface AddNodeToGroupParams {
     peerId: string;
     endpoint: number;
@@ -38,6 +44,11 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
         Require.uint("endpoint", params.endpoint, 0xffff);
         Require.id("groupId", params.groupId, 0xffff);
         Require.id("groupKeySetId", params.groupKeySetId, 0xffff);
+        Require.oneOf("groupKeySecurityPolicy", params.groupKeySecurityPolicy, SECURITY_POLICIES);
+        if (params.groupName !== undefined) {
+            // Groups constrains AddGroup's GroupName to 16 characters.
+            Require.label("groupName", params.groupName, 16);
+        }
         Require.bytes("epochKey0", params.epochKey0, 16);
         Require.epoch("epochStartTime0", params.epochStartTime0);
     },

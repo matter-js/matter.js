@@ -268,7 +268,7 @@ describe("TaskManagerBehavior", () => {
             });
             return registry.interpret(record.type, record.params).rollbackable(record);
         };
-        expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, revert is clean
+        expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, rollback is clean
         expect(rotatableAt(1)).equals(false); // activate in flight — new key going live, point of no return
         expect(rotatableAt(2)).equals(false); // cleanup in flight
         expect(rotatableAt(3)).equals(false); // completed
@@ -334,9 +334,9 @@ describe("TaskManagerBehavior", () => {
             changeSetTarget = liveRecord(manager, handle.status.runId);
         });
         await awaitTaskDone(node, "hardFail:final");
-        const nonRevertible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:final"));
-        expect(nonRevertible?.state).equals("failed");
-        expect(nonRevertible?.rollbackRunId).equals(undefined);
+        const nonRollbackible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:final"));
+        expect(nonRollbackible?.state).equals("failed");
+        expect(nonRollbackible?.rollbackRunId).equals(undefined);
         expect(await node.act(a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, "hardFail:final"))).equals(
             undefined,
         );

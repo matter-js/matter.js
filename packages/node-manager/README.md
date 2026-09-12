@@ -46,6 +46,35 @@ node shuts down before the run reaches an outcome.
 Built-in task types: `AddNodeToGroup`, `RemoveNodeFromGroup`, `RotateGroupKey`, and the `Rollback` that undoes
 them.
 
+A task of your own declares its phases and validates its own parameters — they are read back from storage on
+resume, so a task refuses what it cannot drive:
+
+```ts
+import { GroupMembership, Require, TaskDefinition } from "@matter/node-manager";
+
+const MyTask: TaskDefinition<{ peerId: string; groupId: number }> = {
+    type: "myTask",
+    validate(params) {
+        Require.params("myTask", params);
+        Require.text("peerId", params.peerId);
+        Require.id("groupId", params.groupId, 0xffff);
+    },
+    slotKeyFor: params => `myTask:${params.peerId}:${params.groupId}`,
+    phases: params => [
+        {
+            name: "write",
+            run: async ctx => {
+                const peer = ctx.resolvePeer(params.peerId);
+                await ctx.setIntent(peer, GroupMembership, String(params.groupId), { localEndpoint: 1 });
+            },
+        },
+    ],
+};
+```
+
+The item kinds the reconciler registers (`GroupKey`, `GroupKeyMap`, `GroupMembership`, `Acl`, `Binding`) are
+exported as the single instance of each, so a task names a kind by reference and the intent type follows.
+
 ### One task per target
 
 A task names the _target_ it changes — one peer's group membership, one fabric's key set — and one target has
@@ -84,8 +113,9 @@ does, the device is left part-changed and only an operator can decide what happe
 - `retryRollback(originalRunId)` drives the undo again, from what the original recorded.
 - `abandon(rollbackRunId, reason)` gives up on it, leaving the device as it is.
 
-The two take different identities: a retry is asked of the run that was undone, an abandonment of the undo
-itself. `failedRollbacks` hands you the rollback; its `status.rollbackOf` names the original.
+The two take different identities, and the parameter names say which: a retry is asked of the run that was
+undone, an abandonment of the undo itself. `failedRollbacks` hands you the rollback; its `status.rollbackOf`
+names the original, and the original's `status.rollbackRunId` names the undo.
 
 ## Seeing what is outstanding
 
