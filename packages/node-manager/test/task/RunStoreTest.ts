@@ -166,6 +166,12 @@ describe("RunStore", () => {
             ["retireSeq", 0],
             ["retireSeq", "2"],
             ["changeSet", {}],
+            ["slotKey", ""],
+            ["slotKey", 7],
+            ["type", ""],
+            ["wrote", "false"],
+            ["rollbackOf", "2"],
+            ["rollbackRunId", 0],
         ] as Array<[string, unknown]>) {
             it(`refuses a record whose ${field} is ${JSON.stringify(value) ?? String(value)}`, () => {
                 expect(loadField(field, value)).throws(InternalError);

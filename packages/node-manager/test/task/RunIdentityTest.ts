@@ -236,6 +236,39 @@ describe("run identity", () => {
         expect(status?.state).equals("completed");
     });
 
+    it("fails a record that resumes past the last phase its type has", async () => {
+        const environment = persistentEnvironment();
+        touchingPeer("shrunk");
+        const noop = { name: "noop", run: async () => {} };
+        SyntheticTask.phasesByTag["shrunk"] = [noop, noop, gateForever("shrunk")];
+
+        let runId: RunId;
+        {
+            await using node = await makeNode(environment, "shrunk");
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "shrunk" }));
+            runId = handle.runId;
+            await pumpUntil("the run parks in its last phase", async () =>
+                node.act(a => a.get(TestTaskManager).get(runId)?.status.phaseIndex === 2),
+            );
+        }
+
+        // The definition lost two phases between builds, so the record names a phase this build does not have.
+        SyntheticTask.phasesByTag["shrunk"] = [noop];
+        await using node = await makeNode(environment, "shrunk");
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+
+        // Recorded failed rather than completed: exiting the loop untouched would report work no device saw.
+        await pumpUntil("the resumed run settles", async () =>
+            node.act(a => {
+                const state = a.get(TestTaskManager).get(runId)?.status.state;
+                return state !== undefined && state !== "running" && state !== "parked";
+            }),
+        );
+        const status = await node.act(a => a.get(TestTaskManager).get(runId)?.status);
+        expect(status?.error).contains("resumes at phase 2");
+    });
+
     it("never re-issues a runId across a restart", async () => {
         const environment = persistentEnvironment();
         SyntheticTask.phasesByTag["counter"] = [{ name: "a", run: async () => {} }];

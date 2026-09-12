@@ -334,9 +334,9 @@ describe("TaskManagerBehavior", () => {
             changeSetTarget = liveRecord(manager, handle.status.runId);
         });
         await awaitTaskDone(node, "hardFail:final");
-        const nonRollbackible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:final"));
-        expect(nonRollbackible?.state).equals("failed");
-        expect(nonRollbackible?.rollbackRunId).equals(undefined);
+        const notRollbackable = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:final"));
+        expect(notRollbackable?.state).equals("failed");
+        expect(notRollbackable?.rollbackRunId).equals(undefined);
         expect(await node.act(a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, "hardFail:final"))).equals(
             undefined,
         );
