@@ -73,11 +73,26 @@ const testKinds = new Map<string, ItemKind>();
 export function kindOf(name: string, extra: Partial<ItemKind> = {}): ItemKind {
     let kind = testKinds.get(name);
     if (kind === undefined) {
-        kind = { kind: name, priority: 0, apply: async () => {}, ...extra };
+        kind = { kind: name, priority: 0, apply: async () => {} };
         testKinds.set(name, kind);
-    } else if (Object.keys(extra).length > 0) {
-        Object.assign(kind, extra);
     }
+    // Rebuilt in place rather than merged: the object identity is what the task surface matches on, so it has
+    // to survive — but a hook left on it by an earlier test would otherwise still be there for the next one,
+    // which is how a suite becomes order-dependent. Every optional member is named so it is cleared.
+    Object.assign(kind, {
+        kind: name,
+        priority: 0,
+        apply: async () => {},
+        read: undefined,
+        diff: undefined,
+        verify: undefined,
+        remove: undefined,
+        recoverable: undefined,
+        capacity: undefined,
+        excludeFromAdmission: undefined,
+        isReferenced: undefined,
+        ...extra,
+    });
     return kind;
 }
 

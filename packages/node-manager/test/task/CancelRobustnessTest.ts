@@ -8,6 +8,7 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
     TaskFailedError,
     TaskManagerClosingError,
+    TaskNotFoundError,
     TaskNotInFlightError,
     TaskSlotDrainingError,
     TaskSlotSettlingError,
@@ -835,6 +836,18 @@ describe("cancel robustness", () => {
 
         // The caller already holds a handle, and it says what happened rather than answering "running" forever.
         expect(handle.status.state).equals("failed");
+
+        // And a verb asked about it answers that nothing answers to the id, not that history forgot it: the
+        // run never retired, so naming the history limit would point an operator at the wrong cause.
+        const refusal = await node.act(async a => {
+            try {
+                await a.get(TestTaskManager).cancel(handle.runId);
+            } catch (e) {
+                return e;
+            }
+            return undefined;
+        });
+        expect(refusal).instanceOf(TaskNotFoundError);
 
         await node.close();
     });

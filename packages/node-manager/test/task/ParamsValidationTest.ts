@@ -91,7 +91,7 @@ describe("built-in task parameter validation", () => {
     it("refuses a change entry whose prior is not a restorable value", () => {
         // A prior read back from storage is driven straight into desired state, so `null` here used to pass
         // validation and throw while the rollback replayed it.
-        for (const prior of [null, 42, { intent: {}, mode: "sometimes" }]) {
+        for (const prior of [null, 42, { intent: {}, mode: "sometimes" }, { mode: "maintain" }]) {
             expect(
                 () => Rollback.validate?.({ ...ROLLBACK, entries: [{ ...ROLLBACK.entries[0], prior }] } as never),
                 String(prior),
@@ -128,6 +128,10 @@ describe("built-in task parameter validation", () => {
         expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: "x".repeat(17) })).throws(ImplementationError);
         expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: "x".repeat(16) })).not.throws();
         expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: undefined })).not.throws();
+        // Groups requires the empty string as the name of a group that has none, so a caller must be able to
+        // say so explicitly rather than only by omission.
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: "" })).not.throws();
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: 7 as never })).throws(ImplementationError);
     });
 
     it("refuses a group or key set identity of zero", () => {

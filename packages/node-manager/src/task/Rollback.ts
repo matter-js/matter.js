@@ -42,6 +42,11 @@ export const Rollback: TaskDefinition<RollbackParams> = {
             }
             if (entry.prior !== undefined) {
                 Require.params(ROLLBACK_TYPE, entry.prior);
+                // An entry with a prior restores a value; one without removes the item. A prior that carries no
+                // value is neither, and would reach the device as `setIntent(…, undefined)`.
+                if (entry.prior.intent === undefined) {
+                    throw new ImplementationError(`"entries[].prior.intent" is missing`);
+                }
                 if (entry.prior.mode !== "converge" && entry.prior.mode !== "maintain") {
                     throw new ImplementationError(`"entries[].prior.mode" must be "converge" or "maintain"`);
                 }

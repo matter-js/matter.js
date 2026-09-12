@@ -81,6 +81,9 @@ export class RunStore {
     #reservedBelow = 1;
     #nextRetireSeq = 1;
     #highestIssuedRunId = 0;
+
+    /** Identities issued to runs whose first record write never landed, so they left no trace to evict. */
+    readonly #discarded = new Set<RunId>();
     #unreadable = false;
 
     /** Every run this process knows, in every phase. One table, so no verb can look in the wrong one. */
@@ -216,7 +219,7 @@ export class RunStore {
 
     /** Whether `runId` named a run this store has forgotten. */
     wasEvicted(runId: RunId): boolean {
-        return !this.#records.has(runId) && runId <= this.#highestIssuedRunId;
+        return !this.#records.has(runId) && !this.#discarded.has(runId) && runId <= this.#highestIssuedRunId;
     }
 
     /** Note that a reservation is now durable, so identities below it may be issued. */
@@ -473,6 +476,10 @@ export class RunStore {
 
     /** Forget a run that was never persisted, so a refused write leaves nothing for a later resume to find. */
     discard(record: RunRecord): void {
+        // An identity is issued before the first record write, so a discarded run has one and no record. Kept
+        // apart from history: answering "it retired and is no longer tracked" for a run that never reached
+        // storage names a cause that did not happen, and points an operator at the history limit.
+        this.#discarded.add(record.runId);
         this.#records.delete(record.runId);
         this.#executions.delete(record.runId);
         if (this.#slots.get(record.slotKey) === record.runId) {
