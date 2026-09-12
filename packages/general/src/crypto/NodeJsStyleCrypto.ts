@@ -43,6 +43,9 @@ const NODE_HASH_ALGORITHMS: Record<HashAlgorithm, string> = {
     "SHA3-256": "sha3-256",
 };
 
+// A Map answers only for the names above, where an object also answers for everything on Object.prototype
+const nodeHashAlgorithms = new Map(Object.entries(NODE_HASH_ALGORITHMS));
+
 /**
  * Report the first primitive a Node.js-style crypto API cannot offer Matter, or undefined if it offers both of the
  * primitives probed here: the SHA-256 digest and the "aes-128-ccm" cipher Matter encrypts every message with.
@@ -278,7 +281,7 @@ export class NodeJsStyleCrypto extends Crypto {
         data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
         algorithm: HashAlgorithm = "SHA-256",
     ): MaybePromise<Bytes> {
-        const nodeAlgorithm = NODE_HASH_ALGORITHMS[algorithm];
+        const nodeAlgorithm = nodeHashAlgorithms.get(algorithm);
         if (nodeAlgorithm === undefined) {
             throw new CryptoInputError(`Unsupported hash algorithm ${algorithm}`);
         }

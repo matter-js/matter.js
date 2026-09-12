@@ -71,17 +71,19 @@ describe("NodeJsStyleCrypto", () => {
             });
         }
 
-        it("rejects an algorithm it cannot name", () => {
-            const { api, names } = digestRecorder();
-            const crypto = new NodeJsStyleCrypto(api);
+        // computeHash is public API, so an untyped caller reaches these
+        for (const algorithm of ["SHA-224", "toString", "constructor", "__proto__", "valueOf", ""]) {
+            it(`rejects ${algorithm === "" ? "an empty algorithm name" : algorithm}`, () => {
+                const { api, names } = digestRecorder();
+                const crypto = new NodeJsStyleCrypto(api);
 
-            // computeHash is public API, so an untyped caller can reach this
-            expect(() => crypto.computeHash(new Uint8Array([1, 2, 3]), "SHA-224" as HashAlgorithm)).throws(
-                CryptoInputError,
-                "Unsupported hash algorithm SHA-224",
-            );
-            expect(names).deep.equal([]);
-        });
+                expect(() => crypto.computeHash(new Uint8Array([1, 2, 3]), algorithm as HashAlgorithm)).throws(
+                    CryptoInputError,
+                    `Unsupported hash algorithm ${algorithm}`,
+                );
+                expect(names).deep.equal([]);
+            });
+        }
 
         it("asks for sha256 when the caller names no algorithm", () => {
             const { api, names } = digestRecorder();
