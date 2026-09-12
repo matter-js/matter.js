@@ -33,10 +33,32 @@ export interface MockCrypto extends Crypto {
     entropic: boolean;
 }
 
-export function MockCrypto(
-    index: number = 0x80,
-    implementation: new () => Crypto = NodeJsStyleCrypto.detectedCryptoIsUsable ? NodeJsStyleCrypto : StandardCrypto,
-) {
+let defaultImplementation: (new () => Crypto) | undefined;
+
+/**
+ * The implementation this runtime can actually provide.
+ *
+ * A Node.js-style API that cannot serve Matter is still better than a standard implementation the runtime cannot
+ * construct, so the standard one is chosen only once it has constructed.
+ */
+function implementationForRuntime() {
+    if (defaultImplementation === undefined) {
+        if (NodeJsStyleCrypto.detectedCryptoIsUsable) {
+            defaultImplementation = NodeJsStyleCrypto;
+        } else {
+            try {
+                new StandardCrypto();
+                defaultImplementation = StandardCrypto;
+            } catch {
+                defaultImplementation = NodeJsStyleCrypto;
+            }
+        }
+    }
+
+    return defaultImplementation;
+}
+
+export function MockCrypto(index: number = 0x80, implementation: new () => Crypto = implementationForRuntime()) {
     if (index < 0 || index > 255) {
         throw new ImplementationError(`Index for stable crypto must be 0-255`);
     }
