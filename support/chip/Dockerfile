@@ -148,7 +148,8 @@ RUN build-one camera-app/linux chip-camera-app chip-camera-app treat_warnings_as
 
 # The BDX and software-update cases' pair: one serves an update over BDX, the other asks for it. The
 # staged `.ota` file a case hands the provider is made per case rather than baked here, because it
-# encodes the version and payload that case is about; ota_image_tool.py below is what makes it
+# encodes the version and payload that case is about; the ota_image_tool.py copied further down is
+# what builds that file
 RUN build-one ota-provider-app/linux chip-ota-provider-app
 RUN build-one ota-requestor-app/linux chip-ota-requestor-app
 
@@ -221,7 +222,8 @@ COPY --from=source /connectedhomeip/src/app/ota_image_tool.py /src/app/ota_image
 COPY --from=source /connectedhomeip/credentials/development/paa-root-certs /credentials/development/paa-root-certs
 COPY --from=source /connectedhomeip/credentials/development/cd-certs /credentials/development/cd-certs
 
-RUN mkdir /run/dbus
+# Idempotent: the media packages above pull in dbus, whose own install creates this directory
+RUN mkdir -p /run/dbus
 
 # Summarize tests for efficient metadata load at runtime
 COPY support/generate-test-descriptor /bin/generate-test-descriptor
