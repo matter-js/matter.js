@@ -8,7 +8,27 @@
 
 const FAKE_TIME = 36000000;
 
+const GAPS = 5;
+
 const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.("crypto");
+
+/**
+ * Queue work the same way the platform's macrotask does, so these tests cover the browser too.  A real timer is
+ * deliberately not used: MockTime bounds a continuation waiting on the task queue, not one waiting on the host clock.
+ */
+function hostTask(worker: () => void) {
+    if (typeof setImmediate === "function") {
+        setImmediate(worker);
+        return;
+    }
+
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+        channel.port1.close();
+        worker();
+    };
+    channel.port2.postMessage(undefined);
+}
 
 describe("MockTime.resolve", () => {
     beforeEach(() => MockTime.reset(FAKE_TIME));
@@ -25,7 +45,7 @@ describe("MockTime.resolve", () => {
         expect(MockTime.nowMs).equal(FAKE_TIME);
     });
 
-    it("charges at most one step for a gap between host operations", async () => {
+    it("charges no virtual time for a gap between host operations", async () => {
         await MockTime.resolve(
             (async () => {
                 for (let i = 0; i < 5; i++) {
@@ -36,7 +56,79 @@ describe("MockTime.resolve", () => {
             })(),
         );
 
-        expect(MockTime.nowMs - FAKE_TIME).most(500);
+        expect(MockTime.nowMs).equal(FAKE_TIME);
+
+        // The bridge across each handover expires on its own rather than outliving the operation
+        expect(MockTime.dependentCount).equal(0);
+    });
+
+    it("keeps the handover bridge intact however many waits overlap", async () => {
+        const spin = () =>
+            MockTime.resolve(
+                (async () => {
+                    for (let i = 0; i < 20; i++) {
+                        await MockTime.macrotask;
+                    }
+                })(),
+            );
+
+        const overlapping = [spin(), spin()];
+
+        await MockTime.resolve(
+            (async () => {
+                for (let i = 0; i < GAPS; i++) {
+                    await crypto.subtle.digest("SHA-256", new Uint8Array([i]));
+                    await MockTime.macrotask;
+                    await Promise.resolve();
+                }
+            })(),
+        );
+
+        expect(MockTime.nowMs).equal(FAKE_TIME);
+
+        await Promise.all(overlapping);
+    });
+
+    it("lets a timer drive the clock once host work is done", async () => {
+        await MockTime.resolve(
+            (async () => {
+                await crypto.subtle.digest("SHA-256", new Uint8Array([1]));
+                await new Promise<void>(resolve => {
+                    MockTime.getTimer("Resolver", 5000, resolve).start();
+                });
+            })(),
+        );
+
+        expect(MockTime.nowMs).equal(FAKE_TIME + 5000);
+    });
+
+    it("bounds what a gap outside MockTime's view can charge", async () => {
+        await MockTime.resolve(
+            (async () => {
+                for (let i = 0; i < GAPS; i++) {
+                    await crypto.subtle.digest("SHA-256", new Uint8Array([i]));
+
+                    // a continuation that registers nothing and that draining microtasks cannot reach
+                    await new Promise<void>(resolve => hostTask(resolve));
+                }
+            })(),
+        );
+
+        // Such a gap costs at most the steps taken before the loop next visits the host, however slow the host is
+        expect(MockTime.nowMs - FAKE_TIME).most(GAPS * MockTime.hostTurnInterval * 100);
+    });
+
+    it("visits the host task queue while a timer drives the clock", async () => {
+        let hostWorkDone = false;
+        hostTask(() => (hostWorkDone = true));
+
+        await MockTime.resolve(
+            new Promise<void>(resolve => {
+                MockTime.getTimer("Resolver", 10000, resolve).start();
+            }),
+        );
+
+        expect(hostWorkDone).equal(true);
     });
 
     it("holds virtual time while a host crypto callback is pending", async function () {
