@@ -50,8 +50,20 @@ const ALL_ALGORITHMS: HashAlgorithm[] = [
 ];
 
 describe("nodeCryptoDefect", () => {
-    it("finds no defect in Node.js's own crypto module", () => {
+    it("finds no defect in Node.js's own crypto module", function () {
+        if (NodeJsCrypto.defect !== undefined) {
+            this.skip();
+        }
+
         expect(nodeCryptoDefect(crypto)).undefined;
+    });
+
+    it("names the cipher where this runtime has no aes-128-ccm", function () {
+        if (NodeJsCrypto.defect === undefined) {
+            this.skip();
+        }
+
+        expect(NodeJsCrypto.defect).match(/^no aes-128-ccm cipher: /);
     });
 
     it("reports an unsupported digest", () => {
@@ -113,8 +125,8 @@ describe("nodeCryptoDefect", () => {
 });
 
 describe("NodeJsCrypto", () => {
-    it("finds no defect in the current runtime", () => {
-        expect(NodeJsCrypto.defect).undefined;
+    it("reports the same defect as a direct probe of node:crypto", () => {
+        expect(NodeJsCrypto.defect).equal(nodeCryptoDefect(crypto));
     });
 
     describe("digests", () => {
@@ -150,6 +162,12 @@ describe("NodeJsCrypto", () => {
 describe("crypto selection", () => {
     it("uses Node.js crypto where the module reports no defect", () => {
         expect(cryptoFor(undefined)).instanceOf(NodeJsCrypto);
+    });
+
+    it("matches the environment to what this runtime can do", () => {
+        const env = NodeJsEnvironment();
+
+        expect(env.get(Crypto)).instanceOf(NodeJsCrypto.defect === undefined ? NodeJsCrypto : StandardCrypto);
     });
 
     /** FIPS mode is process-global and irreversible, so the test reports the restriction rather than imposing it. */
@@ -188,8 +206,6 @@ describe("crypto selection", () => {
     it("gives the environment one implementation for both Crypto and Entropy", () => {
         const env = NodeJsEnvironment();
 
-        const crypto = env.get(Crypto);
-        expect(crypto).instanceOf(NodeJsCrypto);
-        expect(env.get(Entropy)).equal(crypto);
+        expect(env.get(Entropy)).equal(env.get(Crypto));
     });
 });

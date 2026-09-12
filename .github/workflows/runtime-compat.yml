@@ -1,0 +1,91 @@
+# Runs matter.js against runtimes other than Node.js, so a regression in their compatibility surfaces here rather
+# than in a user's deployment. Bun and Deno emulate Node.js's crypto API incompletely; see #4408 and #3777.
+name: Runtime compatibility
+
+on:
+  schedule:
+    # Nightly, offset from the other scheduled jobs
+    - cron: "40 2 * * *"
+  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - ".github/workflows/runtime-compat.yml"
+      - ".github/scripts/crypto-smoke.mjs"
+      - "packages/general/src/crypto/**"
+      - "packages/nodejs/src/crypto/**"
+      - "packages/nodejs/src/environment/**"
+
+concurrency:
+  group: ${{ github.ref }}-runtime-compat
+  cancel-in-progress: true
+
+jobs:
+  bun:
+    name: Bun
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare testing environment
+        uses: ./.github/actions/prepare-env
+
+      - name: Build
+        run: npm run build
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Report versions
+        run: bun --version
+
+      # Bun runs the test harness and the tests themselves. Suites needing a primitive Bun does not implement skip
+      # themselves, keyed on NodeJsCrypto.defect rather than on the runtime's name.
+      - name: Test @matter/general
+        run: bun node_modules/.bin/matter-test --prefix packages/general
+
+      - name: Test @matter/nodejs
+        run: bun node_modules/.bin/matter-test --prefix packages/nodejs
+
+      - name: Smoke test the published package
+        run: |
+          set -euo pipefail
+          npm pack --pack-destination /tmp/pack --workspace @matter/general
+          mkdir -p /tmp/smoke && cd /tmp/smoke
+          echo '{"name":"smoke","type":"module","private":true}' > package.json
+          npm install /tmp/pack/*.tgz
+          cp "$GITHUB_WORKSPACE/.github/scripts/crypto-smoke.mjs" .
+          bun crypto-smoke.mjs
+
+  deno:
+    name: Deno
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare testing environment
+        uses: ./.github/actions/prepare-env
+
+      - name: Build
+        run: npm run build
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: vx.x.x
+
+      - name: Report versions
+        run: deno --version
+
+      # Deno cannot run the harness against this checkout: it resolves "#" imports against the entry point's package
+      # scope rather than the referring module's, so they land on src/*.js, which exists only as TypeScript. The
+      # published package is what a Deno application consumes anyway.
+      - name: Smoke test the published package
+        run: |
+          set -euo pipefail
+          npm pack --pack-destination /tmp/pack --workspace @matter/general
+          mkdir -p /tmp/smoke && cd /tmp/smoke
+          echo '{"name":"smoke","type":"module","private":true}' > package.json
+          npm install /tmp/pack/*.tgz
+          cp "$GITHUB_WORKSPACE/.github/scripts/crypto-smoke.mjs" .
+          deno run --allow-read --allow-env --allow-sys crypto-smoke.mjs
