@@ -10,6 +10,25 @@ import { Abort } from "#util/Abort.js";
 import { Semaphore } from "#util/Semaphore.js";
 
 describe("Semaphore", () => {
+    /**
+     * A task the test completes on demand.
+     *
+     * Ordering assertions below are about the semaphore, so the tasks must not race the scheduler: a task holds its
+     * slot until the test releases it.
+     */
+    function controllable() {
+        let release!: () => void;
+        const completed = new Promise<void>(resolve => (release = resolve));
+        return { release, completed };
+    }
+
+    /** Yield until the semaphore has handed a slot on, which takes more than one turn. */
+    async function until(condition: () => boolean) {
+        for (let turn = 0; turn < 100 && !condition(); turn++) {
+            await MockTime.yield();
+        }
+    }
+
     describe("slot acquisition", () => {
         it("grants slot immediately when capacity available", async () => {
             const queue = new Semaphore("test", 1);
@@ -132,79 +151,91 @@ describe("Semaphore", () => {
             let runningCount = 0;
             let maxRunning = 0;
 
-            const createTask = () =>
+            const gates = [controllable(), controllable(), controllable(), controllable(), controllable()];
+
+            const createTask = (gate: ReturnType<typeof controllable>) =>
                 (async () => {
                     using _slot = await queue.obtainSlot();
                     runningCount++;
                     maxRunning = Math.max(maxRunning, runningCount);
-                    await new Promise(resolve => setTimeout(resolve, 10));
+                    await gate.completed;
                     runningCount--;
                 })();
 
-            await Promise.all([createTask(), createTask(), createTask(), createTask(), createTask()]);
+            const tasks = gates.map(createTask);
+            await until(() => runningCount === 3);
+
+            expect(maxRunning).equals(3);
+
+            gates.forEach(gate => gate.release());
+            await Promise.all(tasks);
 
             expect(maxRunning).equals(3);
         });
 
         it("with concurrency 3, tasks 1-3 start before task 4", async () => {
             const queue = new Semaphore("test", 3);
-            const startOrder: number[] = [];
-            const endOrder: number[] = [];
+            const startOrder = new Array<number>();
+            const endOrder = new Array<number>();
+            const gates = new Map([1, 2, 3, 4].map(id => [id, controllable()] as const));
 
-            const createTask = (id: number, delay: number) =>
+            const createTask = (id: number) =>
                 (async () => {
                     using _slot = await queue.obtainSlot();
                     startOrder.push(id);
-                    await new Promise(resolve => setTimeout(resolve, delay));
+                    await gates.get(id)!.completed;
                     endOrder.push(id);
                 })();
 
-            // Task 4 has shortest delay but should still wait for a slot
-            const t1 = createTask(1, 30);
-            const t2 = createTask(2, 20);
-            const t3 = createTask(3, 10);
-            const t4 = createTask(4, 5);
+            const tasks = [1, 2, 3, 4].map(createTask);
+            await until(() => startOrder.length === 3);
 
-            await Promise.all([t1, t2, t3, t4]);
+            // Task 4 waits however the others behave, because the first three hold every slot
+            expect(startOrder).deep.equal([1, 2, 3]);
 
-            // Tasks 1, 2, 3 should all start before task 4
-            expect(startOrder.slice(0, 3)).to.have.members([1, 2, 3]);
-            expect(startOrder[3]).equals(4);
+            gates.get(3)!.release();
+            await tasks[2];
+            await until(() => startOrder.length === 4);
 
-            // Task 3 ends first (10ms), freeing slot for task 4
-            expect(endOrder[0]).equals(3);
+            expect(endOrder).deep.equal([3]);
+            expect(startOrder).deep.equal([1, 2, 3, 4]);
+
+            gates.forEach(gate => gate.release());
+            await Promise.all(tasks);
         });
 
         it("with concurrency 2, task order is respected as slots free up", async () => {
             const queue = new Semaphore("test", 2);
-            const events: string[] = [];
+            const events = new Array<string>();
+            const gates = new Map([1, 2, 3, 4].map(id => [id, controllable()] as const));
 
-            const createTask = (id: number, delay: number) =>
+            const createTask = (id: number) =>
                 (async () => {
                     using _slot = await queue.obtainSlot();
                     events.push(`start-${id}`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
+                    await gates.get(id)!.completed;
                     events.push(`end-${id}`);
                 })();
 
-            const t1 = createTask(1, 40); // Slot 1: runs 0-40ms
-            const t2 = createTask(2, 20); // Slot 2: runs 0-20ms
-            const t3 = createTask(3, 15); // Waits, then slot 2: runs 20-35ms
-            const t4 = createTask(4, 10); // Waits, then slot 2: runs 35-45ms
+            const tasks = [1, 2, 3, 4].map(createTask);
+            await until(() => events.length === 2);
 
-            await Promise.all([t1, t2, t3, t4]);
+            expect(events).deep.equal(["start-1", "start-2"]);
 
-            // Tasks 1 and 2 start immediately (concurrency 2)
-            expect(events.slice(0, 2)).to.have.members(["start-1", "start-2"]);
+            gates.get(2)!.release();
+            await tasks[1];
+            await until(() => events.length === 4);
 
-            // Task 2 ends first (20ms), freeing slot for task 3
-            expect(events.indexOf("end-2")).to.be.lessThan(events.indexOf("start-3"));
+            expect(events).deep.equal(["start-1", "start-2", "end-2", "start-3"]);
 
-            // Task 3 starts before task 4
-            expect(events.indexOf("start-3")).to.be.lessThan(events.indexOf("start-4"));
+            gates.get(3)!.release();
+            await tasks[2];
+            await until(() => events.length === 6);
 
-            // Task 3 ends before task 4 starts (both use same slot sequentially)
-            expect(events.indexOf("end-3")).to.be.lessThan(events.indexOf("start-4"));
+            expect(events).deep.equal(["start-1", "start-2", "end-2", "start-3", "end-3", "start-4"]);
+
+            gates.forEach(gate => gate.release());
+            await Promise.all(tasks);
         });
 
         it("queued tasks execute in FIFO order", async () => {

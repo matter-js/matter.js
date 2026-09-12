@@ -35,7 +35,7 @@ export interface MockCrypto extends Crypto {
 
 export function MockCrypto(
     index: number = 0x80,
-    implementation: new () => Crypto = NodeJsStyleCrypto.detectedCrypto ? NodeJsStyleCrypto : StandardCrypto,
+    implementation: new () => Crypto = NodeJsStyleCrypto.detectedCryptoIsUsable ? NodeJsStyleCrypto : StandardCrypto,
 ) {
     if (index < 0 || index > 255) {
         throw new ImplementationError(`Index for stable crypto must be 0-255`);

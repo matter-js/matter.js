@@ -173,8 +173,9 @@ function configureCrypto(env: Environment) {
 }
 
 /**
- * Choose the implementation for a Node.js crypto module that reports {@link defect}, or undefined where it reports
- * none.
+ * Choose the crypto implementation for a Node.js crypto module, given what {@link NodeJsCrypto.defect} reports about
+ * it.  A module reporting no defect serves; otherwise the standard implementation does, unless this process restricts
+ * its cryptographic provider.
  */
 export function cryptoFor(defect: string | undefined): Crypto {
     if (defect === undefined) {

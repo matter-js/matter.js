@@ -28,7 +28,7 @@ function nodeCryptoWith(overrides: Partial<NodeJsCryptoApiLike>): NodeJsCryptoAp
 
 const ABC = Bytes.fromString("abc");
 
-/** The probe only constructs a cipher, so a stub reaches the step under test on a runtime lacking aes-128-ccm. */
+/** The probe only constructs, so stubs reach the step under test on a runtime lacking aes-128-ccm. */
 function cipherStub() {
     return {
         update: () => new Uint8Array(0),
@@ -141,7 +141,7 @@ describe("nodeCryptoDefect", () => {
             }),
         );
 
-        expect(defect).equal("no aes-128-ccm cipher: Unknown cipher: aes-128-ccm");
+        expect(defect).equal("no aes-128-ccm decipher: Unknown cipher: aes-128-ccm");
     });
 
     it("probes decryption as well as encryption", () => {
@@ -223,10 +223,10 @@ describe("crypto selection", () => {
         expect(cryptoFor(undefined)).instanceOf(NodeJsCrypto);
     });
 
-    it("matches the environment to what this runtime can do", () => {
+    it("gives the environment the implementation this runtime selects", () => {
         const env = NodeJsEnvironment();
 
-        expect(env.get(Crypto)).instanceOf(NodeJsCrypto.defect === undefined ? NodeJsCrypto : StandardCrypto);
+        expect(env.get(Crypto).constructor).equal(cryptoFor(NodeJsCrypto.defect).constructor);
     });
 
     /** FIPS mode is process-global and irreversible, so the test reports the restriction rather than imposing it. */

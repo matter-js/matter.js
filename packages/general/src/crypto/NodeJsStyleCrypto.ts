@@ -46,12 +46,13 @@ const NODE_HASH_ALGORITHMS: Record<HashAlgorithm, string> = {
     "SHA3-256": "sha3-256",
 };
 
-// A Map answers only for the names above, where an object also answers for everything on Object.prototype
+// Only the names above may resolve, which an object literal cannot promise: it answers for Object.prototype too
 const nodeHashAlgorithms = new Map(Object.entries(NODE_HASH_ALGORITHMS));
 
 /**
  * Report the first primitive a Node.js-style crypto API cannot offer Matter, or undefined if it offers both of the
- * primitives probed here: the SHA-256 digest and the "aes-128-ccm" cipher Matter encrypts every message with.
+ * primitives probed here: the SHA-256 digest, and the "aes-128-ccm" cipher and decipher Matter encrypts and
+ * decrypts every message with.
  *
  * This is not a conformance test.  It covers the two gaps that stop a runtime dead — Bun and Deno offer no
  * "aes-128-ccm" — and leaves any other divergence to surface where it occurs.  Probing beats identifying individual
@@ -70,9 +71,14 @@ export function nodeCryptoDefect(api: NodeJsCryptoApiLike): string | undefined {
 
     try {
         api.createCipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
-        api.createDecipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
     } catch (error) {
         return `no ${CRYPTO_ENCRYPT_ALGORITHM} cipher: ${asError(error).message}`;
+    }
+
+    try {
+        api.createDecipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
+    } catch (error) {
+        return `no ${CRYPTO_ENCRYPT_ALGORITHM} decipher: ${asError(error).message}`;
     }
 
     return undefined;
@@ -205,6 +211,14 @@ export class NodeJsStyleCrypto extends Crypto {
      * The auto-detected Node.js crypto module, set at module load time if available.
      */
     static detectedCrypto?: NodeJsCryptoApiLike;
+
+    /**
+     * Whether {@link detectedCrypto} offers the primitives Matter requires, per {@link nodeCryptoDefect}.
+     *
+     * {@link detectedCrypto} says only that a Node.js-style API is present, which an incomplete emulation also
+     * satisfies, so anything choosing an implementation consults this instead.
+     */
+    static detectedCryptoIsUsable = false;
 
     #crypto: NodeJsCryptoApiLike;
 
@@ -470,6 +484,8 @@ if (nodeCrypto?.createECDH) {
 
     // Claim the default only where this API serves Matter, so StandardCrypto installs itself instead where it does
     // not.  Where nothing better exists, or substitution is not ours to make, claim it regardless
+    NodeJsStyleCrypto.detectedCryptoIsUsable = defect === undefined;
+
     const claimDefault = defect === undefined || noWebCrypto || providerIsRestricted;
 
     if (claimDefault && defect !== undefined) {

@@ -60,7 +60,6 @@ describe("NodeJsCrypto", () => {
     });
 
     describe("decrypt", () => {
-        // Some runtimes emulate Node.js without an aes-128-ccm cipher, so these cannot run there
         before(function () {
             if (NodeJsCrypto.defect !== undefined) {
                 this.skip();
@@ -75,7 +74,6 @@ describe("NodeJsCrypto", () => {
     });
 
     describe("AES-CCM-8", () => {
-        // Some runtimes emulate Node.js without an aes-128-ccm cipher, so these cannot run there
         before(function () {
             if (NodeJsCrypto.defect !== undefined) {
                 this.skip();

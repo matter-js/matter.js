@@ -9,6 +9,7 @@ import { Environment } from "#environment/Environment.js";
 import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Entropy } from "#util/Entropy.js";
+import { asError } from "#util/Error.js";
 import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
 import { Logger } from "../log/Logger.js";
@@ -322,7 +323,12 @@ function assertInterface<T extends {}>(name: string, object: T, requiredMethods:
 // Install as fallback if no other Crypto implementation is already present (NodeJsStyleCrypto may have
 // self-installed first depending on module load order)
 if ("crypto" in globalThis && globalThis.crypto?.subtle && !Environment.default.has(Crypto)) {
-    const crypto = new StandardCrypto();
-    Environment.default.set(Entropy, crypto);
-    Environment.default.set(Crypto, crypto);
+    // The constructor rejects an incomplete Web Crypto, and a library that cannot offer crypto must still import
+    try {
+        const crypto = new StandardCrypto();
+        Environment.default.set(Entropy, crypto);
+        Environment.default.set(Crypto, crypto);
+    } catch (error) {
+        logger.error(`This runtime offers no usable crypto: ${asError(error).message}`);
+    }
 }
