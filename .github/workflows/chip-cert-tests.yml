@@ -361,12 +361,20 @@ jobs:
 
       # Only the own-built device needs binaries placed on the host: cert-bins extracts its own
       # lazily at test time (chip-bins.ts's prepareChipBins) and the matterjs device runs in-process.
+      #
+      # The OTA pair copies only if the published image already carries it: the image is published by
+      # the nightly, so between this landing and that publish the binaries do not exist yet. The case
+      # that uses them makes the copy strict and adds them to the check below.
+      #
+      # chip-camera-app is deliberately absent: unlike the OTA pair it needs GStreamer and FFmpeg
+      # runtime packages on the runner, and the cases that use it take it as a container-side path.
       - name: Extract chip-local app binaries from the published image
         if: matrix.device == 'own-built'
         run: |
           mkdir -p /tmp/cert-app-dir
           docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
-            bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app /out/"
+            bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app /out/;
+                     cp -a /bin/chip-ota-provider-app /bin/chip-ota-requestor-app /out/ 2>/dev/null || true"
           # cert-dsl.ts's chipLocalMarkerRevision() reads this to populate evidence's chipRef; the
           # image carries the same connectedhomeip commit in its org.opencontainers.image.revision
           # label (baked by docker-bake.hcl from CHIP_COMMIT).
