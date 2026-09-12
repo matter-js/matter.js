@@ -37,8 +37,8 @@
 #
 #   * "own-built" — the app binaries matter.js builds itself (support/chip/Dockerfile), taken from
 #     the published ghcr.io/matter-js/chip image: chip-all-clusters-app,
-#     chip-all-clusters-app-nlfaultinject, chip-bridge-app and chip-camera-app. Published as a
-#     multi-arch manifest,
+#     chip-all-clusters-app-nlfaultinject, chip-bridge-app, chip-camera-app and the
+#     chip-ota-provider-app/chip-ota-requestor-app pair. Published as a multi-arch manifest,
 #     so each leg pulls the variant matching its runner. Runs when run-own-built is selected
 #
 #   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published

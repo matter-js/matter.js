@@ -140,6 +140,12 @@ RUN build-one bridge-app/linux chip-bridge-app
 # (base), v4l2src/jpegenc/rtp/udp (good), x264enc (ugly)
 RUN build-one camera-app/linux chip-camera-app
 
+# The BDX and software-update cases' pair: one serves an update over BDX, the other asks for it. The
+# staged `.ota` file a case hands the provider is made per case with CHIP's own ota_image_tool.py,
+# which this image already carries with the rest of the CHIP tree
+RUN build-one ota-provider-app/linux chip-ota-provider-app
+RUN build-one ota-requestor-app/linux chip-ota-requestor-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
