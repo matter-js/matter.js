@@ -407,7 +407,9 @@ export const MockTime = {
     },
 
     /**
-     * Host operations currently withholding virtual time.  Exposed for tests of MockTime itself.
+     * Host operations still outstanding, meaning neither settled nor abandoned.  A settled operation withholds virtual
+     * time for a few turns more, so zero here does not mean the clock is free to move.  Exposed for tests of MockTime
+     * itself.
      */
     get pendingHostAsyncOps() {
         let count = 0;
