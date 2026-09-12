@@ -17,7 +17,7 @@ smoke=$(mktemp -d)
 trap 'rm -rf "$pack" "$smoke"' EXIT
 
 # npm pack reports success even where it wrote nothing, so the tarball is checked rather than the exit status
-npm pack --pack-destination "$pack" --workspace @matter/general
+(cd "$root" && npm pack --pack-destination "$pack" --workspace @matter/general)
 tarball=$(find "$pack" -name "*.tgz" -print -quit)
 if [ -z "$tarball" ]; then
     echo "npm pack produced no tarball in $pack" >&2

@@ -498,6 +498,10 @@ if (nodeCrypto?.createECDH) {
 
     NodeJsStyleCrypto.providesDefault = claimDefault;
 
+    if (!claimDefault) {
+        logger.notice(`Leaving crypto to a standard implementation because Node.js-style crypto offers ${defect}`);
+    }
+
     if (claimDefault) {
         const nodeJsStyleCrypto = new NodeJsStyleCrypto();
         Environment.default.set(Entropy, nodeJsStyleCrypto);

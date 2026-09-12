@@ -76,6 +76,51 @@ const ALL_ALGORITHMS: HashAlgorithm[] = [
 ];
 
 describe("nodeCryptoDefect", () => {
+    /**
+     * Whether this runtime performs the operations the probe reports on, established without the probe.
+     *
+     * Every other assertion about a real runtime either consults the probe or skips on its verdict, so a probe that
+     * wrongly reported a defect would leave the suite green while every deployment moved to a different
+     * implementation.  This is the independent oracle that refuses to let that pass.
+     */
+    function runtimePerformsMatterPrimitives() {
+        const key = new Uint8Array(16);
+        const nonce = new Uint8Array(13);
+
+        try {
+            crypto.createHash("sha256").update("abc").digest();
+
+            const cipher = crypto.createCipheriv("aes-128-ccm", key, nonce, { authTagLength: 16 });
+            cipher.setAAD(Buffer.alloc(0), { plaintextLength: 3 });
+            const ciphertext = Buffer.concat([cipher.update(Buffer.from("abc")), cipher.final()]);
+
+            const decipher = crypto.createDecipheriv("aes-128-ccm", key, nonce, { authTagLength: 16 });
+            decipher.setAAD(Buffer.alloc(0), { plaintextLength: 3 });
+            decipher.setAuthTag(cipher.getAuthTag());
+            const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
+            return plaintext.toString() === "abc";
+        } catch {
+            return false;
+        }
+    }
+
+    it("reports no defect where the runtime performs the operations itself", function () {
+        if (!runtimePerformsMatterPrimitives()) {
+            this.skip();
+        }
+
+        expect(nodeCryptoDefect(crypto)).undefined;
+    });
+
+    it("reports a defect where the runtime cannot perform them", function () {
+        if (runtimePerformsMatterPrimitives()) {
+            this.skip();
+        }
+
+        expect(nodeCryptoDefect(crypto)).not.undefined;
+    });
+
     it("finds no defect in Node.js's own crypto module", function () {
         if (NodeJsCrypto.defect !== undefined) {
             this.skip();

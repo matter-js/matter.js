@@ -18,6 +18,7 @@ import { Crypto, CRYPTO_AUTH_TAG_LENGTH, CRYPTO_SYMMETRIC_KEY_LENGTH, ec, HashAl
 import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { CurveType, Key, KeyType, PrivateKey, PublicKey } from "./Key.js";
+import { NodeJsStyleCrypto } from "./NodeJsStyleCrypto.js";
 import { WebCrypto } from "./WebCrypto.js";
 
 const logger = Logger.get("StandardCrypto");
@@ -58,9 +59,9 @@ export class StandardCrypto extends Crypto {
     #subtle: SubtleCrypto;
 
     constructor(crypto: WebCrypto = globalThis.crypto) {
-        const { subtle } = crypto;
-
         assertInterface("crypto", crypto, requiredCryptoMethods);
+
+        const { subtle } = crypto;
         assertInterface("crypto.subtle", subtle, requiredSubtleMethods);
 
         super();
@@ -329,6 +330,18 @@ if ("crypto" in globalThis && globalThis.crypto?.subtle && !Environment.default.
         Environment.default.set(Entropy, crypto);
         Environment.default.set(Crypto, crypto);
     } catch (error) {
-        logger.error(`This runtime offers no usable crypto: ${asError(error).message}`);
+        // NodeJsStyleCrypto declines the default where it cannot serve Matter, expecting this implementation to
+        // take over.  Where it cannot, a crypto that serves Matter partially still beats none at all
+        if (NodeJsStyleCrypto.detectedCrypto === undefined) {
+            logger.error(`This runtime offers no usable crypto: ${asError(error).message}`);
+        } else {
+            logger.error(
+                `Using Node.js-style crypto despite its defect because standard crypto did not load:` +
+                    ` ${asError(error).message}`,
+            );
+            const crypto = new NodeJsStyleCrypto();
+            Environment.default.set(Entropy, crypto);
+            Environment.default.set(Crypto, crypto);
+        }
     }
 }
