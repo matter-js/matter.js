@@ -9,7 +9,9 @@ import { GroupKeyManagement } from "@matter/types/clusters/group-key-management"
 import { GroupKey, GroupKeyMap, GroupMembership } from "../../reconcile/kinds.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
+import { RotationPreconditionError } from "../errors.js";
 import { Require } from "../validation.js";
+import { rotationIsSwitchingKeys } from "./RotateGroupKey.js";
 import { membershipKey } from "./keys.js";
 
 export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
@@ -58,21 +60,27 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
     },
 
     phases(params) {
-        return [{ name: "provision", run: ctx => provision(ctx, params) }];
+        return [
+            {
+                name: "provision",
+                requires: ctx => refuseWhileKeysSwitch(ctx, params),
+                run: ctx => provision(ctx, params),
+            },
+        ];
     },
 
     plannedChanges(p) {
         return [
-            { peerId: p.peerId, kind: GroupKey.kind, key: String(p.groupKeySetId), intent: keySet(p) },
+            { peerId: p.peerId, kind: GroupKey, key: String(p.groupKeySetId), intent: keySet(p) },
             {
                 peerId: p.peerId,
-                kind: GroupKeyMap.kind,
+                kind: GroupKeyMap,
                 key: String(p.groupId),
                 intent: { groupId: GroupId(p.groupId), groupKeySetId: p.groupKeySetId },
             },
             {
                 peerId: p.peerId,
-                kind: GroupMembership.kind,
+                kind: GroupMembership,
                 key: membershipKey(p.groupId, p.endpoint),
                 intent: { localEndpoint: p.endpoint, groupId: GroupId(p.groupId), groupName: p.groupName },
             },
@@ -91,6 +99,22 @@ function keySet(p: AddNodeToGroupParams) {
         epochKey2: null,
         epochStartTime2: null,
     };
+}
+
+/**
+ * A rotation that has begun switching members to its new key may not take on another member.
+ *
+ * Asked before this task writes and again after, because the rotation takes no lock either: a member added
+ * while the switch is under way holds the old key alone, and the rotation drops that key from everyone else.
+ * While the rotation is still handing the new key out, joining is fine — the rotation adopts the newcomer.
+ */
+function refuseWhileKeysSwitch(ctx: TaskContext, p: AddNodeToGroupParams): void {
+    if (rotationIsSwitchingKeys(ctx, p.groupKeySetId)) {
+        throw new RotationPreconditionError(
+            `Cannot add peer ${p.peerId} to group ${p.groupId}: group key set ${p.groupKeySetId} is being ` +
+                `rotated and its members are switching to the new key. Add the peer once the rotation ends.`,
+        );
+    }
 }
 
 async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<void> {

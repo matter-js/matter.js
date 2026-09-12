@@ -9,7 +9,7 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
 import { CapacityInfo, ClientNode, ItemKind, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, isTerminalState, recordFor, requireRecordFor, SyntheticTask } from "./helpers.js";
+import { FakePeer, isTerminalState, kindOf, recordFor, requireRecordFor, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -66,7 +66,7 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["over"] = [{ peerId: "p", kind: "cap", key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["over"] = [{ peerId: "p", kind: kindOf("cap"), key: "x", intent: {} }];
         SyntheticTask.phasesByTag["over"] = [{ name: "should-not-run", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-over" });
@@ -102,7 +102,7 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["member"] = [{ peerId: "p", kind: "member", key: "1:2", intent: {} }];
+        SyntheticTask.plannedChangesByTag["member"] = [{ peerId: "p", kind: kindOf("member"), key: "1:2", intent: {} }];
         SyntheticTask.phasesByTag["member"] = [{ name: "runs", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-member" });
@@ -121,7 +121,7 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["fits"] = [{ peerId: "p", kind: "cap", key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["fits"] = [{ peerId: "p", kind: kindOf("cap"), key: "x", intent: {} }];
         SyntheticTask.phasesByTag["fits"] = [{ name: "runs", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-fits" });
