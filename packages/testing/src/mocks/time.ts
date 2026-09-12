@@ -63,10 +63,12 @@ const MAX_HOST_ASYNC_YIELDS = 200;
 const HOST_TURNS_EVERY = 4;
 
 /**
- * Turns a host operation keeps withholding virtual time after it settles.  Its continuation resumes a microtask from
- * now and usually starts the next operation, so without this bridge the handover reads as idle and costs a step.
+ * Host turns a settled operation keeps withholding virtual time for.  Its continuation resumes on the host's task
+ * queue and usually starts the next operation, so without this bridge the handover reads as idle and costs a step.
+ * Counting host turns rather than loop iterations keeps the bridge the same width however fast the loop spins, and
+ * the bridge expires where it is spent, so no wait has to clean up after another.
  */
-const HOST_SETTLE_GRACE_TURNS = 2;
+const HOST_SETTLE_GRACE_TURNS = 3;
 
 function register<T>(dependent: Promise<T>, host: boolean) {
     const registered = dependent.finally(() => {
@@ -118,7 +120,7 @@ let abandonedHostAsyncOps = 0;
  * Report whether virtual time must stand still for a pending host operation.  The waiter that owns the budget also
  * charges one yield to each such operation and abandons those over budget.
  */
-function withholdVirtualTime(waiter: object) {
+function withholdVirtualTime(waiter: object, hostTurnTaken: boolean) {
     if (charger === undefined) {
         charger = waiter;
     }
@@ -133,7 +135,7 @@ function withholdVirtualTime(waiter: object) {
         // A settled operation bridges the handover to its continuation, then leaves.  Only the charger spends the
         // bridge, so overlapping waits cannot drain it faster than one turn at a time
         if (dependent.graceTurns !== undefined) {
-            if (charging) {
+            if (charging && hostTurnTaken) {
                 if (dependent.graceTurns === 0) {
                     dependents.delete(promise);
                     continue;
@@ -166,18 +168,6 @@ function withholdVirtualTime(waiter: object) {
 function releaseCharger(waiter: object) {
     if (charger === waiter) {
         charger = undefined;
-    }
-}
-
-/**
- * Drop the bridge entries of operations that have settled.  The bridge only exists to carry a handover inside a wait,
- * so it must not outlive the wait that created it.
- */
-function forgetGracedDependents() {
-    for (const [promise, dependent] of dependents) {
-        if (dependent.graceTurns !== undefined) {
-            dependents.delete(promise);
-        }
     }
 }
 
@@ -504,7 +494,7 @@ export const MockTime = {
             try {
                 while (hasActiveDependents()) {
                     await MockTime.resolve(this.macrotask);
-                    withholdVirtualTime(waiter);
+                    withholdVirtualTime(waiter, true);
                 }
             } finally {
                 releaseCharger(waiter);
@@ -555,11 +545,11 @@ export const MockTime = {
             while (!resolved) {
                 // Microtask yields keep the loop cheap, but only the host's task queue lets real work (I/O, timers
                 // the host owns) make progress, so visit it while nothing is registered too
-                if (
+                const hostTurnTaken =
                     (macrotasks ?? defaultToMacrotasks) ||
-                    dependents.size ||
-                    (advanced && turns % HOST_TURNS_EVERY === 0)
-                ) {
+                    dependents.size > 0 ||
+                    (advanced && turns % HOST_TURNS_EVERY === 0);
+                if (hostTurnTaken) {
                     await hostTurn();
                 } else {
                     await MockTime.yield();
@@ -579,7 +569,7 @@ export const MockTime = {
 
                 // Host operations such as crypto settle on host time.  Advancing while one is pending converts host
                 // latency into virtual time, which expires protocol timers that would not expire in production
-                if (withholdVirtualTime(waiter)) {
+                if (withholdVirtualTime(waiter, hostTurnTaken)) {
                     continue;
                 }
 
@@ -602,9 +592,6 @@ export const MockTime = {
             }
         } finally {
             releaseCharger(waiter);
-            if (charger === undefined) {
-                forgetGracedDependents();
-            }
         }
 
         if (error !== undefined) {

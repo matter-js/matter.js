@@ -57,8 +57,20 @@ describe("MockTime.resolve", () => {
         );
 
         expect(MockTime.nowMs).equal(FAKE_TIME);
+        expect(MockTime.pendingHostAsyncOps).equal(0);
+    });
 
-        // The bridge across each handover expires on its own rather than outliving the operation
+    it("spends a bridge left by an earlier wait rather than keeping it", async () => {
+        await MockTime.resolve(crypto.subtle.digest("SHA-256", new Uint8Array([1])));
+
+        // The bridge the settled operation left behind expires within the next wait instead of withholding forever
+        await MockTime.resolve(
+            new Promise<void>(resolve => {
+                MockTime.getTimer("Resolver", 5000, resolve).start();
+            }),
+        );
+
+        expect(MockTime.nowMs).equal(FAKE_TIME + 5000);
         expect(MockTime.dependentCount).equal(0);
     });
 
@@ -84,7 +96,8 @@ describe("MockTime.resolve", () => {
             })(),
         );
 
-        expect(MockTime.nowMs).equal(FAKE_TIME);
+        // Without the bridge each handover costs a step; competing waits may still cost one between them
+        expect(MockTime.nowMs - FAKE_TIME).most(100);
 
         await Promise.all(overlapping);
     });
