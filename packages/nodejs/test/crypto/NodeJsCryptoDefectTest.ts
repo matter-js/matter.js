@@ -8,6 +8,7 @@ import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { cryptoFor, NodeJsEnvironment } from "#environment/NodeJsEnvironment.js";
 import {
     Bytes,
+    CRYPTO_AUTH_TAG_LENGTH,
     ImplementationError,
     Crypto,
     Entropy,
@@ -26,6 +27,31 @@ function nodeCryptoWith(overrides: Partial<NodeJsCryptoApiLike>): NodeJsCryptoAp
 }
 
 const ABC = Bytes.fromString("abc");
+
+/** The probe only constructs a cipher, so a stub reaches the step under test on a runtime lacking aes-128-ccm. */
+function cipherStub() {
+    return {
+        update: () => new Uint8Array(0),
+        final: () => new Uint8Array(0),
+        setAAD() {
+            return this;
+        },
+        getAuthTag: () => new Uint8Array(CRYPTO_AUTH_TAG_LENGTH),
+    };
+}
+
+function decipherStub() {
+    return {
+        update: () => new Uint8Array(0),
+        final: () => new Uint8Array(0),
+        setAAD() {
+            return this;
+        },
+        setAuthTag() {
+            return this;
+        },
+    };
+}
 
 /** Published digests of "abc" (FIPS 180-4 and FIPS 202). */
 const ABC_DIGESTS: [HashAlgorithm, string][] = [
@@ -108,6 +134,7 @@ describe("nodeCryptoDefect", () => {
     it("reports an unavailable decipher", () => {
         const defect = nodeCryptoDefect(
             nodeCryptoWith({
+                createCipheriv: cipherStub,
                 createDecipheriv() {
                     throw new Error("Unknown cipher: aes-128-ccm");
                 },
@@ -120,19 +147,20 @@ describe("nodeCryptoDefect", () => {
     it("probes decryption as well as encryption", () => {
         const requested = new Array<string>();
 
-        nodeCryptoDefect(
+        const defect = nodeCryptoDefect(
             nodeCryptoWith({
-                createCipheriv(algorithm, key, iv, options) {
+                createCipheriv() {
                     requested.push("encrypt");
-                    return crypto.createCipheriv(algorithm, Bytes.of(key), Bytes.of(iv), options);
+                    return cipherStub();
                 },
-                createDecipheriv(algorithm, key, iv, options) {
+                createDecipheriv() {
                     requested.push("decrypt");
-                    return crypto.createDecipheriv(algorithm, Bytes.of(key), Bytes.of(iv), options);
+                    return decipherStub();
                 },
             }),
         );
 
+        expect(defect).undefined;
         expect(requested).deep.equal(["encrypt", "decrypt"]);
     });
 
