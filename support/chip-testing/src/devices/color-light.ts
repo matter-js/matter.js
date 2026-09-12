@@ -31,5 +31,9 @@ export function colorLightState(colorMode: ColorControl.ColorMode, enhancedColor
         startUpColorTemperatureMireds: null,
         remainingTime: 0,
         options: {},
+
+        // The CC tests read colour attributes part-way through a transition, so matter.js must run the transition
+        // rather than leave it to device firmware
+        managedTransitionTimeHandling: true,
     };
 }
