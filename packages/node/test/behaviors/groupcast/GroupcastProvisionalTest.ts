@@ -4,9 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
-import { GroupcastServer } from "#behaviors/groupcast";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 /** Collects the messages of an error and all of its (possibly aggregated) causes. */
@@ -37,26 +35,12 @@ async function rejectionOf(promise: Promise<unknown>) {
     );
 }
 
-// Matter 1.6 ships Groupcast and its AccessControl/GroupKeyManagement extensions as provisional.  The implementations
-// are present but guarded; these tests pin the guards until the features leave provisional state.
+// The GroupKeyManagement Groupcast (GCAST) feature is provisional in Matter 1.6; its implementation is present but
+// guarded.  The Groupcast cluster and AccessControl Auxiliary feature are no longer guarded (they ship enabled).
 describe("Matter 1.6 provisional Groupcast guards", () => {
-    it("rejects the Groupcast cluster", async () => {
-        const error = await rejectionOf(MockServerNode.create(MockServerNode.RootEndpoint.with(GroupcastServer)));
-        expect(messagesOf(error)).contains("Groupcast cluster is provisional");
-    });
-
-    it("rejects the AccessControl Auxiliary feature", async () => {
+    it("rejects the provisional GroupKeyManagement Groupcast feature", async () => {
         const error = await rejectionOf(
-            MockServerNode.create(MockServerNode.RootEndpoint.with(AccessControlServer.with("Extension", "Auxiliary"))),
-        );
-        expect(messagesOf(error)).contains("Auxiliary feature of AccessControl is provisional");
-    });
-
-    it("rejects a defined GroupKeyManagement GroupcastAdoption attribute", async () => {
-        const error = await rejectionOf(
-            MockServerNode.create(MockServerNode.RootEndpoint.with(GroupKeyManagementServer.with("Groupcast")), {
-                groupKeyManagement: { groupcastAdoption: [] },
-            }),
+            MockServerNode.create(MockServerNode.RootEndpoint.with(GroupKeyManagementServer.with("Groupcast"))),
         );
         expect(messagesOf(error)).contains("Groupcast feature of GroupKeyManagement is provisional");
     });

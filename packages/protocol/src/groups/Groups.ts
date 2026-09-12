@@ -24,10 +24,14 @@ export class Groups {
     readonly #groupKeyIdMap = new BasicMap<GroupId, number>();
 
     /** Operational variant of the group table, maps group Ids to a list of enabled endpoints. */
-    readonly endpointMap = new Map<GroupId, EndpointNumber[]>();
+    readonly endpointMap = new BasicMap<GroupId, EndpointNumber[]>();
 
-    /** Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set. */
-    readonly #groupMulticastPolicy = new Map<GroupId, GroupMulticastPolicy>();
+    /**
+     * Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set.
+     * A {@link BasicMap} so multicast-membership consumers can rebind on a policy change independent of
+     * {@link endpointMap} ordering.
+     */
+    readonly #groupMulticastPolicy = new BasicMap<GroupId, GroupMulticastPolicy>();
 
     constructor(fabric: Fabric, keySets: KeySets<OperationalKeySet>) {
         this.#fabric = fabric;
@@ -52,6 +56,19 @@ export class Groups {
         }
     }
 
+    /**
+     * Whether any group of this fabric currently maps to the given key set.  Group message decryption only considers
+     * keys of mapped key sets — an unmapped key set exists but is not usable for group communication.
+     */
+    isKeySetMapped(keySetId: number) {
+        for (const mapped of this.#groupKeyIdMap.values()) {
+            if (mapped === keySetId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     subjectForGroup(id: GroupId, operationalKey: Bytes) {
         const mappedKeySetId = this.idMap.get(id);
         return Subject.Group({
@@ -60,6 +77,11 @@ export class Groups {
                 mappedKeySetId !== undefined && this.#keySets.containsOperationalKey(mappedKeySetId, operationalKey),
             endpoints: this.endpointMap.get(id) ?? [],
         });
+    }
+
+    /** The per-group multicast address policy map; see {@link #groupMulticastPolicy}. */
+    get multicastPolicy(): BasicMap<GroupId, GroupMulticastPolicy> {
+        return this.#groupMulticastPolicy;
     }
 
     /** Sets the multicast address policy for a specific group (Groupcast cluster, Matter 1.6). */
