@@ -4,12 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Logger } from "#log/Logger.js";
 import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
+import { asError } from "#util/Error.js";
 import { Crypto, ec } from "./Crypto.js";
 import { CurveType, Key, KeyType, PrivateKey } from "./Key.js";
 import { NodeJsStyleCrypto } from "./NodeJsStyleCrypto.js";
 import { StandardCrypto } from "./StandardCrypto.js";
+
+const logger = Logger.get("MockCrypto");
 
 /**
  * WARNING: ONLY FOR USE IN PROTECTED TESTING ENVIRONMENTS WHERE SECURITY IS NOT A CONCERN
@@ -36,26 +40,32 @@ export interface MockCrypto extends Crypto {
 let defaultImplementation: (new () => Crypto) | undefined;
 
 /**
- * The implementation this runtime can actually provide.
+ * The implementation a mock should wrap: whichever serves this runtime.
  *
- * A Node.js-style API that cannot serve Matter is still better than a standard implementation the runtime cannot
- * construct, so the standard one is chosen only once it has constructed.
+ * Where the Node.js-style implementation is not the default, the standard one is chosen only once it has
+ * constructed, because a runtime offering incomplete Web Crypto cannot supply it at all.
  */
 function implementationForRuntime() {
-    if (defaultImplementation === undefined) {
-        if (NodeJsStyleCrypto.detectedCryptoIsUsable) {
-            defaultImplementation = NodeJsStyleCrypto;
-        } else {
-            try {
-                new StandardCrypto();
-                defaultImplementation = StandardCrypto;
-            } catch {
-                defaultImplementation = NodeJsStyleCrypto;
-            }
-        }
+    if (defaultImplementation !== undefined) {
+        return defaultImplementation;
     }
 
-    return defaultImplementation;
+    if (NodeJsStyleCrypto.providesDefault) {
+        return (defaultImplementation = NodeJsStyleCrypto);
+    }
+
+    try {
+        new StandardCrypto();
+        return (defaultImplementation = StandardCrypto);
+    } catch (error) {
+        // Nothing to fall back to, and the error names the primitive this runtime lacks
+        if (NodeJsStyleCrypto.detectedCrypto === undefined) {
+            throw error;
+        }
+
+        logger.error(`Mocking a Node.js-style crypto that cannot serve Matter: ${asError(error).message}`);
+        return (defaultImplementation = NodeJsStyleCrypto);
+    }
 }
 
 export function MockCrypto(index: number = 0x80, implementation: new () => Crypto = implementationForRuntime()) {

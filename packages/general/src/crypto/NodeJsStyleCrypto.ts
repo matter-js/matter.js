@@ -213,12 +213,12 @@ export class NodeJsStyleCrypto extends Crypto {
     static detectedCrypto?: NodeJsCryptoApiLike;
 
     /**
-     * Whether {@link detectedCrypto} offers the primitives Matter requires, per {@link nodeCryptoDefect}.
+     * Whether this implementation serves as {@link Environment.default}'s {@link Crypto}.
      *
      * {@link detectedCrypto} says only that a Node.js-style API is present, which an incomplete emulation also
-     * satisfies, so anything choosing an implementation consults this instead.
+     * satisfies, so anything choosing an implementation for itself consults this instead.
      */
-    static detectedCryptoIsUsable = false;
+    static providesDefault = false;
 
     #crypto: NodeJsCryptoApiLike;
 
@@ -484,8 +484,6 @@ if (nodeCrypto?.createECDH) {
 
     // Claim the default only where this API serves Matter, so StandardCrypto installs itself instead where it does
     // not.  Where nothing better exists, or substitution is not ours to make, claim it regardless
-    NodeJsStyleCrypto.detectedCryptoIsUsable = defect === undefined;
-
     const claimDefault = defect === undefined || noWebCrypto || providerIsRestricted;
 
     if (claimDefault && defect !== undefined) {
@@ -497,6 +495,8 @@ if (nodeCrypto?.createECDH) {
                 " Matter will fail wherever it needs the missing primitive.",
         );
     }
+
+    NodeJsStyleCrypto.providesDefault = claimDefault;
 
     if (claimDefault) {
         const nodeJsStyleCrypto = new NodeJsStyleCrypto();
