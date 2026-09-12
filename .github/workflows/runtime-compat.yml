@@ -49,14 +49,7 @@ jobs:
         run: bun node_modules/.bin/matter-test --prefix packages/nodejs
 
       - name: Smoke test the published package
-        run: |
-          set -euo pipefail
-          npm pack --pack-destination /tmp/pack --workspace @matter/general
-          mkdir -p /tmp/smoke && cd /tmp/smoke
-          echo '{"name":"smoke","type":"module","private":true}' > package.json
-          npm install /tmp/pack/*.tgz
-          cp "$GITHUB_WORKSPACE/.github/scripts/crypto-smoke.mjs" .
-          bun crypto-smoke.mjs
+        run: .github/scripts/pack-and-smoke.sh bun
 
   deno:
     name: Deno
@@ -81,11 +74,4 @@ jobs:
       # scope rather than the referring module's, so they land on src/*.js, which exists only as TypeScript. The
       # published package is what a Deno application consumes anyway.
       - name: Smoke test the published package
-        run: |
-          set -euo pipefail
-          npm pack --pack-destination /tmp/pack --workspace @matter/general
-          mkdir -p /tmp/smoke && cd /tmp/smoke
-          echo '{"name":"smoke","type":"module","private":true}' > package.json
-          npm install /tmp/pack/*.tgz
-          cp "$GITHUB_WORKSPACE/.github/scripts/crypto-smoke.mjs" .
-          deno run --allow-read --allow-env --allow-sys crypto-smoke.mjs
+        run: .github/scripts/pack-and-smoke.sh deno run --allow-read --allow-env --allow-sys
