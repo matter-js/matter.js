@@ -31,7 +31,8 @@ skip_submodule openthread
 skip_submodule ot-br-posix
 skip_submodule third_party/googletest
 skip_submodule third_party/fuzztest
-skip_submodule third_party/libdatachannel/repo
+# libdatachannel stays: the camera app's WebRTC provider builds against it, and that app is the TH for
+# the WEBRTCR cases
 skip_submodule third_party/imgui/repo
 skip_submodule third_party/boringssl/repo/src
 

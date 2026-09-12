@@ -28,7 +28,9 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
     --mount=type=cache,sharing=locked,target=/var/lib/apt \
     apt-get -qq update && \
-    apt-get -qq -y install python3 python-is-python3 libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev
+    apt-get -qq -y install python3 python-is-python3 libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev \
+        libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 libavformat60 libavcodec60 libavutil58 libcurl4 \
+        gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly
 
 ################################################################################
 #
@@ -63,8 +65,10 @@ RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
     #
     apt-get -qq -y install --no-install-recommends \
         git curl clang pkg-config libssl-dev libdbus-1-dev libavahi-client-dev clang pkg-config \
-        ninja-build python3-venv python3-dev unzip libreadline-dev python3-pip \
-        g++ libglib2.0-dev libglib2.0-dev-bin libpcsclite-dev libevent-dev
+        ninja-build cmake python3-venv python3-dev unzip libreadline-dev python3-pip \
+        g++ libglib2.0-dev libglib2.0-dev-bin libpcsclite-dev libevent-dev \
+        libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libavformat-dev libavcodec-dev libavutil-dev \
+        libcurl4-openssl-dev
 EOF
     # apt-get -qq -y install git gcc g++ clang pkg-config libssl-dev libdbus-1-dev libglib2.0-dev libavahi-client-dev \
     #     ninja-build python3-venv python3-dev unzip libgirepository1.0-dev libcairo2-dev libreadline-dev python3-pip
@@ -128,6 +132,27 @@ RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app
 # TC-ACT-3.2's TH app for the cert tests' chip-local flavor, which spawns from this image's /bin
 RUN build-one bridge-app/linux chip-bridge-app
 
+# The WEBRTCR cases' TH_SERVER. Its own args.gni sets chip_with_nlfaultinjection, which is what lets a
+# case inject kFault_ModifyWebRTCOfferSessionId, so no extra GN argument here.
+#
+# The app builds its pipelines from named GStreamer elements, so the plugins carrying them have to be
+# in the final image or the factories resolve to nothing at runtime: videotestsrc/videoconvert/opus
+# (base), v4l2src/jpegenc/rtp/udp (good), x264enc (ugly).
+#
+# Warnings are not errors for this one app, which is a deliberate divergence from how we build
+# everything else here. CHIP applies -Wshorten-64-to-32 only under clang and builds this app with gcc
+# in its own CI, so its narrowing conversions have never had to compile clean; we build with clang
+# throughout. The code is upstream's to fix, so we stop treating its warnings as errors rather than
+# carry a patch.
+RUN build-one camera-app/linux chip-camera-app chip-camera-app treat_warnings_as_errors=false
+
+# The BDX and software-update cases' pair: one serves an update over BDX, the other asks for it. The
+# staged `.ota` file a case hands the provider is made per case rather than baked here, because it
+# encodes the version and payload that case is about; the ota_image_tool.py copied further down is
+# what builds that file
+RUN build-one ota-provider-app/linux chip-ota-provider-app
+RUN build-one ota-requestor-app/linux chip-ota-requestor-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
@@ -189,11 +214,16 @@ COPY --from=source /connectedhomeip/src/app/zap-templates/zcl/data-model/chip \
 COPY --from=source /connectedhomeip/src/python_testing /src/python_testing
 COPY --from=source /connectedhomeip/src/app/tests/suites /src/app/tests/suites
 
+# Builds the staged .ota file a software-update case serves. It resolves matter.tlv from the installed
+# python packages above, so the script is all that has to come across
+COPY --from=source /connectedhomeip/src/app/ota_image_tool.py /src/app/ota_image_tool.py
+
 # Development certs
 COPY --from=source /connectedhomeip/credentials/development/paa-root-certs /credentials/development/paa-root-certs
 COPY --from=source /connectedhomeip/credentials/development/cd-certs /credentials/development/cd-certs
 
-RUN mkdir /run/dbus
+# Idempotent: the media packages above pull in dbus, whose own install creates this directory
+RUN mkdir -p /run/dbus
 
 # Summarize tests for efficient metadata load at runtime
 COPY support/generate-test-descriptor /bin/generate-test-descriptor

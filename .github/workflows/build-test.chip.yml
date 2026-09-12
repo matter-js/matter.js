@@ -177,15 +177,11 @@ jobs:
     outputs:
       source: ${{ needs.workflow-conditions.outputs.build-needed == 'true' && 'artifact' || 'repository' }}
     steps:
-      - name: Maximize build space
-        if: needs.workflow-conditions.outputs.build-needed == 'true'
-        uses: easimon/maximize-build-space@v10
-        with:
-          root-reserve-mb: 4096
-          temp-reserve-mb: 3096
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
+      # No maximize-build-space here, deliberately. This runner has no separate /mnt disk, so the action's two
+      # physical volumes — /pv.img and /mnt/tmp-pv.img — both come out of the root filesystem and leave it with the
+      # reserve alone, while the volume they form is mounted on a workspace this job barely touches. Everything that
+      # needs room here (the CHIP checkout and build, and loading the built image) lives on root, so the action takes
+      # space from where it is needed and gives it to where it is not.
 
       - name: Check out matter.js
         if: needs.workflow-conditions.outputs.build-needed == 'true'
@@ -201,10 +197,13 @@ jobs:
 
       # test-core-arm64 exercises chip-tool against this image but never starts the app binaries, so they get an
       # execution check here. Exit status 126 or above means the shell could not execute the binary at all (wrong
-      # architecture, missing loader); anything below that proves it ran.
+      # architecture, missing loader); anything below that proves it ran. The camera app is the reason this matters
+      # beyond architecture: it loads GStreamer and FFmpeg at startup, so a missing runtime package shows up here
+      # rather than in a certification run.
       - name: Smoke-test arm64 image
         if: needs.workflow-conditions.outputs.build-needed == 'true'
         run: |
+          df -h / | tail -1
           docker load -i /tmp/chip.tar
           arch=$(docker inspect --format '{{ .Architecture }}' ghcr.io/matter-js/chip:latest)
           if [ "$arch" != "arm64" ]; then
@@ -212,7 +211,8 @@ jobs:
             exit 1
           fi
           docker run --rm --entrypoint /bin/sh ghcr.io/matter-js/chip:latest -c '
-            for bin in chip-tool chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
+            for bin in chip-tool chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app \
+                chip-camera-app chip-ota-provider-app chip-ota-requestor-app; do
               "$bin" --help >/dev/null 2>&1
               status=$?
               if [ "$status" -ge 126 ]; then
