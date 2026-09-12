@@ -68,7 +68,7 @@ const HOST_TURNS_EVERY = 4;
  * Counting host turns rather than loop iterations keeps the bridge the same width however fast the loop spins, and
  * the bridge expires where it is spent, so no wait has to clean up after another.
  */
-const HOST_SETTLE_GRACE_TURNS = 3;
+const HOST_SETTLE_GRACE_TURNS = 6;
 
 function register<T>(dependent: Promise<T>, host: boolean) {
     const registered = dependent.finally(() => {

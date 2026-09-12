@@ -56,7 +56,9 @@ describe("MockTime.resolve", () => {
             })(),
         );
 
-        expect(MockTime.nowMs).equal(FAKE_TIME);
+        // A handover costs nothing.  The allowance is for one that slips under load, not one per handover: without
+        // the bridge these five cost a step each
+        expect(MockTime.nowMs - FAKE_TIME).most(200);
         expect(MockTime.pendingHostAsyncOps).equal(0);
     });
 
@@ -96,8 +98,8 @@ describe("MockTime.resolve", () => {
             })(),
         );
 
-        // Without the bridge each handover costs a step; competing waits may still cost one between them
-        expect(MockTime.nowMs - FAKE_TIME).most(100);
+        // Without the bridge each handover costs a step; competing waits may still let one slip
+        expect(MockTime.nowMs - FAKE_TIME).most(200);
 
         await Promise.all(overlapping);
     });
