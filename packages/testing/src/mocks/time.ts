@@ -59,23 +59,55 @@ function register<T>(dependent: Promise<T>, host: boolean) {
 }
 
 /**
- * Charge one yield to every host operation that withholds virtual time, abandoning those over budget.  Reports
- * whether virtual time must stand still.
+ * The waiter currently charging the budget.  Waits nest and overlap, so without a single charger per yield an
+ * operation's budget would drain once per concurrent waiter rather than once per yield.
  */
-function chargeHostAsync() {
+let charger: object | undefined;
+
+/**
+ * Host operations abandoned since the last {@link MockTime.reset}.  Any count above zero means virtual time inflated
+ * with host latency, so a test that fails on protocol timing should be read in that light.
+ */
+let abandonedHostAsyncOps = 0;
+
+/**
+ * Report whether virtual time must stand still for a pending host operation.  The waiter that owns the budget also
+ * charges one yield to each such operation and abandons those over budget.
+ */
+function withholdVirtualTime(waiter: object) {
+    if (charger === undefined) {
+        charger = waiter;
+    }
+    const charging = charger === waiter;
+
     let withholding = false;
     for (const dependent of dependents.values()) {
         if (!dependent.host || dependent.abandoned) {
             continue;
         }
-        if (dependent.yields >= MAX_HOST_ASYNC_YIELDS) {
-            dependent.abandoned = true;
-            continue;
+        if (charging) {
+            if (dependent.yields >= MAX_HOST_ASYNC_YIELDS) {
+                dependent.abandoned = true;
+                abandonedHostAsyncOps++;
+
+                // Virtual time inflates with host latency again from here, which is the defect this budget exists to
+                // contain, so an abandonment must not pass unnoticed
+                console.warn(
+                    `MockTime abandoned a host operation pending for ${MAX_HOST_ASYNC_YIELDS} yields; virtual time may now inflate with host latency`,
+                );
+                continue;
+            }
+            dependent.yields++;
         }
-        dependent.yields++;
         withholding = true;
     }
     return withholding;
+}
+
+function releaseCharger(waiter: object) {
+    if (charger === waiter) {
+        charger = undefined;
+    }
 }
 
 function hasActiveDependents() {
@@ -237,6 +269,7 @@ export const MockTime = {
     reset(time: ConstructorParameters<typeof Date>[0] = epoch) {
         callbacks = [];
         dependents.clear();
+        abandonedHostAsyncOps = 0;
         nowMs = new Date(time).getTime();
         defaultToMacrotasks = false;
         MockTime.enable();
@@ -276,6 +309,26 @@ export const MockTime = {
 
     requireMacrotasks<T>(dependent: Promise<T>) {
         return register(dependent, false);
+    },
+
+    /**
+     * The largest yield count charged to a pending host operation.  Exposed for tests of MockTime itself.
+     */
+    get hostAsyncYieldsCharged() {
+        let yields = 0;
+        for (const dependent of dependents.values()) {
+            if (dependent.host && dependent.yields > yields) {
+                yields = dependent.yields;
+            }
+        }
+        return yields;
+    },
+
+    /**
+     * Host operations abandoned since the last {@link MockTime.reset}.  Exposed for tests of MockTime itself.
+     */
+    get abandonedHostAsyncOps() {
+        return abandonedHostAsyncOps;
     },
 
     /**
@@ -369,9 +422,14 @@ export const MockTime = {
      */
     get macrotasks() {
         return (async () => {
-            while (hasActiveDependents()) {
-                await MockTime.resolve(this.macrotask);
-                chargeHostAsync();
+            const waiter = {};
+            try {
+                while (hasActiveDependents()) {
+                    await MockTime.resolve(this.macrotask);
+                    withholdVirtualTime(waiter);
+                }
+            } finally {
+                releaseCharger(waiter);
             }
         })();
     },
@@ -410,48 +468,53 @@ export const MockTime = {
         );
 
         let timeAdvanced = 0;
+        const waiter = {};
 
-        while (!resolved) {
-            // Use macrotask yields when required explicitly or when async operations needing macrotasks (e.g.
-            // crypto) are pending
-            if ((macrotasks ?? defaultToMacrotasks) || dependents.size) {
-                await MockTime.macrotask;
-            } else {
-                await MockTime.yield();
+        try {
+            while (!resolved) {
+                // Use macrotask yields when required explicitly or when async operations needing macrotasks (e.g.
+                // crypto) are pending
+                if ((macrotasks ?? defaultToMacrotasks) || dependents.size) {
+                    await MockTime.macrotask;
+                } else {
+                    await MockTime.yield();
+                }
+
+                if (resolved) {
+                    break;
+                }
+
+                // If we've advanced more than one hour, assume we've hung
+                if (timeAdvanced > 60 * 60 * 1000) {
+                    throw new TestTimeoutError(
+                        "Promise did not resolve within one (virtual) hour, probably not going to happen",
+                    );
+                }
+
+                // Host operations such as crypto settle on host time.  Advancing while one is pending converts host
+                // latency into virtual time, which expires protocol timers that would not expire in production
+                if (withholdVirtualTime(waiter)) {
+                    continue;
+                }
+
+                if (stepMs) {
+                    await this.advance(stepMs);
+                    timeAdvanced += stepMs;
+                } else {
+                    // 100ms steps give ~200 yields before a 10-second mock timeout fires, sufficient for realistic
+                    // async chains
+                    await this.advance(100);
+                    timeAdvanced += 100;
+                }
+
+                if (resolved) {
+                    break;
+                }
+
+                await this.yield();
             }
-
-            if (resolved) {
-                break;
-            }
-
-            // If we've advanced more than one hour, assume we've hung
-            if (timeAdvanced > 60 * 60 * 1000) {
-                throw new TestTimeoutError(
-                    "Promise did not resolve within one (virtual) hour, probably not going to happen",
-                );
-            }
-
-            // Host operations such as crypto settle on host time.  Advancing while one is pending converts host
-            // latency into virtual time, which expires protocol timers that would not expire in production
-            if (chargeHostAsync()) {
-                continue;
-            }
-
-            if (stepMs) {
-                await this.advance(stepMs);
-                timeAdvanced += stepMs;
-            } else {
-                // 100ms steps give ~200 yields before a 10-second mock timeout fires, sufficient for realistic
-                // async chains
-                await this.advance(100);
-                timeAdvanced += 100;
-            }
-
-            if (resolved) {
-                break;
-            }
-
-            await this.yield();
+        } finally {
+            releaseCharger(waiter);
         }
 
         if (error !== undefined) {

@@ -10,8 +10,8 @@
  * will hang if a crypto operation is in flight.
  *
  * Each patched method registers its promise via {@link MockTime.requireHostAsync}, which keeps MockTime in macrotask
- * mode and withholds virtual time for the duration of the operation.  Overlapping operations are handled naturally by
- * the ref-counted dependent set.
+ * mode and withholds virtual time for the duration of the operation.  MockTime tracks each registration separately,
+ * so overlapping operations are handled naturally.
  */
 
 import { MockTime } from "./time.js";
