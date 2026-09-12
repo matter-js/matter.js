@@ -26,6 +26,16 @@ export class NodeJsCrypto extends NodeJsStyleCrypto {
         return defect;
     }
 
+    /**
+     * Whether this process restricts its cryptographic provider, as FIPS mode does.
+     *
+     * An operator chooses that deliberately, so matter.js does not substitute its own implementation for one the
+     * restriction rejects.
+     */
+    static get providerIsRestricted() {
+        return Boolean(crypto.getFips?.());
+    }
+
     constructor() {
         super(crypto);
     }

@@ -5,8 +5,12 @@
  */
 
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
+import { cryptoFor, NodeJsEnvironment } from "#environment/NodeJsEnvironment.js";
 import {
     Bytes,
+    ImplementationError,
+    Crypto,
+    Entropy,
     HASH_ALGORITHM_OUTPUT_LENGTHS,
     nodeCryptoDefect,
     NodeJsStyleCrypto,
@@ -140,5 +144,52 @@ describe("NodeJsCrypto", () => {
                 expect(hash.byteLength).equal(HASH_ALGORITHM_OUTPUT_LENGTHS[algorithm]);
             });
         }
+    });
+});
+
+describe("crypto selection", () => {
+    it("uses Node.js crypto where the module reports no defect", () => {
+        expect(cryptoFor(undefined)).instanceOf(NodeJsCrypto);
+    });
+
+    /** FIPS mode is process-global and irreversible, so the test reports the restriction rather than imposing it. */
+    function withRestrictedProvider(restricted: boolean, fn: () => void) {
+        const original = Object.getOwnPropertyDescriptor(NodeJsCrypto, "providerIsRestricted");
+        if (original === undefined) {
+            throw new ImplementationError("NodeJsCrypto.providerIsRestricted is absent");
+        }
+
+        Object.defineProperty(NodeJsCrypto, "providerIsRestricted", { ...original, get: () => restricted });
+        try {
+            fn();
+        } finally {
+            Object.defineProperty(NodeJsCrypto, "providerIsRestricted", original);
+        }
+    }
+
+    it("uses standard crypto where the module reports a defect", () => {
+        withRestrictedProvider(false, () => {
+            expect(cryptoFor("no aes-128-ccm cipher: Unknown cipher")).instanceOf(StandardCrypto);
+        });
+    });
+
+    it("keeps Node.js crypto where the process restricts its provider", () => {
+        withRestrictedProvider(true, () => {
+            expect(cryptoFor("no aes-128-ccm cipher: Unknown cipher")).instanceOf(NodeJsCrypto);
+        });
+    });
+
+    it("restores the restriction query afterwards", () => {
+        withRestrictedProvider(true, () => {});
+
+        expect(NodeJsCrypto.providerIsRestricted).equal(Boolean(crypto.getFips?.()));
+    });
+
+    it("gives the environment one implementation for both Crypto and Entropy", () => {
+        const env = NodeJsEnvironment();
+
+        const crypto = env.get(Crypto);
+        expect(crypto).instanceOf(NodeJsCrypto);
+        expect(env.get(Entropy)).equal(crypto);
     });
 });

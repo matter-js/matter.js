@@ -128,6 +128,9 @@ export interface NodeJsCryptoApiLike {
     createSign(algo: string): NodeJsCryptoApiLike.Sign;
 
     createVerify(algo: string): NodeJsCryptoApiLike.Verify;
+
+    /** Node.js reports a restricted cryptographic provider here; absent from most emulations. */
+    getFips?(): number | boolean;
 }
 
 export namespace NodeJsCryptoApiLike {
@@ -453,9 +456,15 @@ const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.("crypto");
 if (nodeCrypto?.createECDH) {
     NodeJsStyleCrypto.detectedCrypto = nodeCrypto;
 
+    const defect = nodeCryptoDefect(nodeCrypto);
+    const noWebCrypto = globalThis.crypto?.subtle === undefined;
+
+    // A restricted provider is an operator's deliberate choice, so substituting our own implementation would evade it
+    const providerIsRestricted = Boolean(nodeCrypto.getFips?.());
+
     // Claim the default only where this API serves Matter, so StandardCrypto installs itself instead where it does
-    // not.  A runtime offering no Web Crypto has nothing better, so there we claim it regardless
-    if (nodeCryptoDefect(nodeCrypto) === undefined || globalThis.crypto?.subtle === undefined) {
+    // not.  Where nothing better exists, or substitution is not ours to make, claim it regardless
+    if (defect === undefined || noWebCrypto || providerIsRestricted) {
         const nodeJsStyleCrypto = new NodeJsStyleCrypto();
         Environment.default.set(Entropy, nodeJsStyleCrypto);
         Environment.default.set(Crypto, nodeJsStyleCrypto);

@@ -157,8 +157,7 @@ function rootDirOf(env: Environment) {
 function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (env.vars.boolean("nodejs.crypto")) {
-            const defect = NodeJsCrypto.defect;
-            const crypto = defect === undefined ? new NodeJsCrypto() : cryptoDespite(defect);
+            const crypto = cryptoFor(NodeJsCrypto.defect);
             env.set(Entropy, crypto);
             env.set(Crypto, crypto);
             return;
@@ -171,6 +170,27 @@ function configureCrypto(env: Environment) {
             env.set(Crypto, Environment.default.get(Crypto));
         }
     });
+}
+
+/**
+ * Choose the implementation for a Node.js crypto module that reports {@link defect}, or undefined where it reports
+ * none.
+ */
+export function cryptoFor(defect: string | undefined): Crypto {
+    if (defect === undefined) {
+        return new NodeJsCrypto();
+    }
+
+    if (NodeJsCrypto.providerIsRestricted) {
+        logger.error(
+            `Node.js crypto offers ${defect} because this process restricts its cryptographic provider. Matter will` +
+                " fail wherever it needs the missing primitive; configure a Crypto implementation if the restriction" +
+                " permits one.",
+        );
+        return new NodeJsCrypto();
+    }
+
+    return cryptoDespite(defect);
 }
 
 /**
@@ -191,10 +211,7 @@ function cryptoDespite(defect: string): Crypto {
         return new NodeJsCrypto();
     }
 
-    logger.notice(
-        `Using matter.js's own unaudited JavaScript crypto because Node.js crypto offers ${defect}.` +
-            " Set a Crypto implementation explicitly to override this.",
-    );
+    logger.notice(`Using standard crypto because Node.js crypto offers ${defect}`);
     return standardCrypto;
 }
 
