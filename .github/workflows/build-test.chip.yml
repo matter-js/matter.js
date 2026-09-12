@@ -177,18 +177,11 @@ jobs:
     outputs:
       source: ${{ needs.workflow-conditions.outputs.build-needed == 'true' && 'artifact' || 'repository' }}
     steps:
-      - name: Maximize build space
-        if: needs.workflow-conditions.outputs.build-needed == 'true'
-        uses: easimon/maximize-build-space@v10
-        with:
-          # This job is the only one that loads the built image back into docker, and docker stores it under
-          # /var/lib/docker on root. The action claims every other free byte for its own volume, which the workspace
-          # barely uses, so the reserve is what the load has to fit in.
-          root-reserve-mb: 40960
-          temp-reserve-mb: 3096
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
+      # No maximize-build-space here, deliberately. This runner has no separate /mnt disk, so the action's two
+      # physical volumes — /pv.img and /mnt/tmp-pv.img — both come out of the root filesystem and leave it with the
+      # reserve alone, while the volume they form is mounted on a workspace this job barely touches. Everything that
+      # needs room here (the CHIP checkout and build, and loading the built image) lives on root, so the action takes
+      # space from where it is needed and gives it to where it is not.
 
       - name: Check out matter.js
         if: needs.workflow-conditions.outputs.build-needed == 'true'
