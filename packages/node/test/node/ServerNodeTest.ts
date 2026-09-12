@@ -14,8 +14,11 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { PumpDevice } from "#devices/pump";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointBehaviorsError, EndpointPartsError } from "#endpoint/errors.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { LocalActorContext } from "#index.js";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import { IdentityService } from "#node/server/IdentityService.js";
 import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
@@ -30,6 +33,7 @@ import {
     InternalError,
     Lifecycle,
     isObject,
+    MemoryBlobStorageDriver,
     MemoryStorageDriver,
     MockCrypto,
     MockUdpSocket,
@@ -44,13 +48,16 @@ import {
     AttestationCertificateManager,
     CertificateAuthority,
     CertificationDeclaration,
+    FabricManager,
+    MdnsService,
     NodeSession,
     OccurrenceManager,
+    PeerAddress,
     PeerSet,
     ProtocolMocks,
     Val,
 } from "@matter/protocol";
-import { FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
+import { EndpointNumber, FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
 import { BasicInformation as BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { MockServerNode } from "./mock-server-node.js";
@@ -59,6 +66,20 @@ import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node
 
 const commissioning = CommissioningHelper();
 
+async function writeBlob(store: ServerNodeStore) {
+    const driver = await store.bdxStore();
+    await driver.writeBlobFromStream(
+        [],
+        "update.bin",
+        new ReadableStream<Bytes>({
+            start(controller) {
+                controller.enqueue(Bytes.fromHex("00010203"));
+                controller.close();
+            },
+        }),
+    );
+    return driver;
+}
 const CRASH_MESSAGE = "Intentional behavior crash";
 
 class CrashingServer extends Behavior {
@@ -447,6 +468,138 @@ describe("ServerNode", () => {
 
     it("handles factory resets when online but in parallel offline is called correctly", async () => {
         await testFactoryReset("offline-during-reset");
+    });
+
+    it("keeps node services across a factory reset and releases them on close", async () => {
+        const node = await MockServerNode.createOnline();
+        const { env } = node;
+
+        const store = env.get(ServerNodeStore);
+        const mdns = env.get(MdnsService);
+        const identity = env.get(IdentityService);
+        const initializer = env.get(EndpointInitializer);
+        const changes = env.get(ChangeNotificationService);
+
+        const address = PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) });
+        identity.reservePeerAddress(address);
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+
+        expect(env.get(ServerNodeStore)).equals(store);
+        expect(env.get(MdnsService)).equals(mdns);
+        expect(env.get(IdentityService)).equals(identity);
+        expect(env.get(EndpointInitializer)).equals(initializer);
+        expect(env.get(ChangeNotificationService)).equals(changes);
+        expect(identity.peerAddressInUse(address)).equals(false);
+
+        await node.close();
+
+        expect(env.has(ServerNodeStore)).equals(false);
+        expect(env.root.has(MdnsService)).equals(false);
+    });
+
+    it("sanitizes fabric-scoped data once per fabric removal after a factory reset", async () => {
+        const { node } = await commissioning.commission();
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+        await commissioning.commission(node);
+
+        let sanitized = 0;
+        const observer = () => void sanitized++;
+        ServerEnvironment.fabricScopedDataSanitized.on(observer);
+
+        const [fabric] = node.env.get(FabricManager).fabrics;
+        try {
+            await MockTime.resolve(fabric.delete(), { macrotasks: true });
+        } finally {
+            ServerEnvironment.fabricScopedDataSanitized.off(observer);
+        }
+
+        expect(sanitized).equals(1);
+
+        await node.close();
+    });
+
+    it("releases storage a node opened before its construction failed", async () => {
+        let closes = 0;
+
+        class FailingDriver extends MemoryStorageDriver {
+            override contexts(contexts: string[]): string[] {
+                // The store opens storage, then reads this as it loads peer stores
+                throw new ImplementationError(`Cannot enumerate ${contexts.join(".")}`);
+            }
+
+            override async close() {
+                closes++;
+                await super.close();
+            }
+        }
+
+        // Not disposed: a node whose construction fails before its endpoint initializer is installed cannot be closed
+        const site = new MockSite({ createStorageDriver: store => new FailingDriver(store) });
+
+        await expect(site.addNode(undefined, { id: "doomed", device: undefined, commissioning: { enabled: false } }))
+            .rejected;
+
+        expect(closes).equals(1);
+    });
+
+    it("frees the endpoint numbers a factory reset erases", async () => {
+        await using site = new MockSite();
+        const id = "renumbering";
+
+        const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+        await node.add(new Endpoint(OnOffLightDevice, { id: "first", number: EndpointNumber(1) }));
+        await node.add(new Endpoint(OnOffLightDevice, { id: "second", number: EndpointNumber(2) }));
+        await node.close();
+
+        // Only the first endpoint is present this session, so the second's number is held as pre-allocated
+        const rebooted = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+        await rebooted.add(new Endpoint(OnOffLightDevice, { id: "first" }));
+
+        await MockTime.resolve(rebooted.erase(), { macrotasks: true });
+
+        const added = new Endpoint(OnOffLightDevice, { id: "third" });
+        await rebooted.add(added);
+
+        expect(added.number).equals(2);
+    });
+
+    it("factory reset erases blobs an earlier session left behind", async () => {
+        // A driver whose backing store outlives the handle, as a Web Storage or AsyncStorage driver does
+        const persisted = new MemoryBlobStorageDriver();
+
+        const node = await MockServerNode.createOnline();
+        node.env.get(StorageService).registerBlobDriver({
+            id: "persistent-blob",
+            create: () => persisted,
+        });
+        node.env.get(StorageService).defaultBlobDriver = "persistent-blob";
+
+        await writeBlob(node.env.get(ServerNodeStore));
+        expect(await persisted.keys([])).deep.equals(["update.bin"]);
+
+        // A store with no handle open must still find the namespace an earlier session wrote
+        const store = await ServerNodeStore.create(node.env, "later-session");
+        await store.erase();
+
+        expect(await persisted.keys([])).deep.equals([]);
+
+        await store.close();
+        await node.close();
+    });
+
+    it("factory reset erases the blobs a transfer left behind", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const driver = await writeBlob(node.env.get(ServerNodeStore));
+        expect(await driver.keys([])).deep.equals(["update.bin"]);
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+
+        expect(await driver.keys([])).deep.equals([]);
+
+        await node.close();
     });
 
     it("factory reset of a controller erases peers and CA key material", async () => {

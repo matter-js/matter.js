@@ -30,6 +30,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
     - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
+    - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
 
 - @matter/protocol
     - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
@@ -59,6 +60,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A bound on a duration is enforced rather than ignored. A duration is held as a number of milliseconds, and a constraint bounding one states milliseconds too
     - Fix: A constraint on a value no bound can be checked against, such as a struct or a date, no longer fails behavior creation with `Cannot define constraint for unsupported metatype`. A list whose entries are of such a type reaches this when the constraint bounds its entries
     - Fix: A value of an enumerated type whose definition states no ID is judged by its effective ID, which is its position among its siblings. Such a value was refused as undefined in the enumeration, and a conformance naming it resolved to nothing
+    - Fix: A node that factory resets keeps the services it already opened, rather than installing a second set over them. Closing the node then releases its share of the mDNS service, so a process that resets a node can exit, and releases its storage handle and directory lock
+    - Fix: A holder of `ChangeNotificationService.change` keeps receiving updates after a node factory resets
+    - Fix: A node whose construction fails releases the storage its store had already opened
+    - Fix: A factory reset erases the blobs a BDX transfer left behind
     - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
     - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
     - Fix: A peer's endpoint whose device types are all utility types, as a bridge's composed device is, reports those device types rather than remaining of unknown type

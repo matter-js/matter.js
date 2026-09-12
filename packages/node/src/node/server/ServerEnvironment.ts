@@ -14,10 +14,11 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Crypto,
     DatafileRoot,
-    Environment,
     Filesystem,
+    Logger,
+    MatterAggregateError,
+    type MaybePromise,
     Observable,
-    SharedEnvironmentServices,
     StorageService,
 } from "@matter/general";
 import {
@@ -32,6 +33,8 @@ import {
 import { BindingManager } from "../../behaviors/binding/BindingManager.js";
 import { IdentityService } from "./IdentityService.js";
 
+const logger = Logger.get("ServerEnvironment");
+
 /**
  * Manages components that are present for the lifetime of a server.
  */
@@ -42,38 +45,12 @@ export namespace ServerEnvironment {
     export async function initialize(node: ServerNode) {
         const { env } = node;
 
-        await SharedNodeServices.install(env);
-
-        // Create the datafile root — locking is now ref-counted and acquired by individual consumers
-        if (env.get(StorageService).hasFilesystem) {
-            const fs = env.get(Filesystem);
-            const root = new DatafileRoot(fs.directory(node.id));
-            env.set(DatafileRoot, root);
-
-            // When storage.lock is enabled, hold a lock for the node's lifetime (for CLI PID file management)
-            if (env.vars.boolean("storage.lock")) {
-                env.set(DatafileRoot.Lock, await root.lock());
-            }
+        if (!env.owns(NodeServices)) {
+            await NodeServices.install(node);
         }
 
-        const store = await ServerNodeStore.create(env, node.id);
-        env.set(ServerNodeStore, store);
-
-        env.set(EndpointInitializer, new ServerEndpointInitializer(env));
-        env.set(IdentityService, new IdentityService(node));
-        env.set(ChangeNotificationService, new ChangeNotificationService(node));
-
         // Ensure these are fully initialized
-        const fabrics = await env.load(FabricManager);
-
-        fabrics.events.deleting.on(async () => {
-            const fabricIndices = fabrics.fabrics.map(fabric => fabric.fabricIndex);
-            if (fabricIndices.length > 0) {
-                await limitNodeDataToAllowedFabrics(node, fabricIndices);
-            }
-            fabricScopedDataSanitized.emit(); // Only for testing purposes
-        });
-
+        await env.load(FabricManager);
         await env.load(SessionManager);
 
         // Synchronous initialization
@@ -106,6 +83,13 @@ export namespace ServerEnvironment {
         await CertificateAuthority.eraseFor(env);
     }
 
+    /**
+     * Close the services a node's lifetime depends on.
+     *
+     * The order below is load-bearing and was arrived at through a series of shutdown defects.  Treat it as fixed:
+     * {@link NodeServices} installs most of these but deliberately does not sequence their closure, because the
+     * services it installs interleave with services it does not.
+     */
     export async function close(node: ServerNode) {
         const { env } = node;
 
@@ -122,7 +106,7 @@ export namespace ServerEnvironment {
         }
 
         await env.close(ServerNodeStore);
-        await env.close(SharedNodeServices);
+        await env.close(NodeServices);
         await env.close(FabricAuthority);
         await env.close(CertificateAuthority);
 
@@ -133,21 +117,102 @@ export namespace ServerEnvironment {
     }
 }
 
-class SharedNodeServices {
-    #services: SharedEnvironmentServices;
+/**
+ * Installs the services a {@link ServerNode} owns for as long as the node exists.
+ *
+ * These hold OS resources, storage locks and node-wide observers, so a node that reinitializes — as it does after a
+ * factory reset — must keep the ones it has.  A second set would orphan the first, and nothing closes an orphan.  The
+ * environment owns this service only once installation is complete, and a failed installation releases what it
+ * already acquired, so a reinitialization never finds a half-equipped environment to install over.  A service that
+ * installs itself elsewhere as it constructs, as {@link MdnsService} does at the root environment, is beyond that
+ * guarantee.
+ *
+ * Closing releases only what {@link ServerEnvironment.close} does not, because that function sequences the rest
+ * against services this does not install; its order is load-bearing, so see the note there.
+ */
+class NodeServices {
+    #release: NodeServices.Release[];
 
-    static async install(env: Environment) {
+    static async install(node: ServerNode) {
+        const { env } = node;
         const services = env.asDependent();
-        await services.load(MdnsService);
 
-        env.set(SharedNodeServices, new SharedNodeServices(services));
+        // Steps run in reverse registration order, so register each before the operation that can fail.  Each releases
+        // a resource and none removes a service from the environment: a node whose installation failed is still closed
+        // by its owner, and its endpoints still resolve what they need in order to close
+        const release = new Array<NodeServices.Release>({ on: "close", run: () => services.close() });
+
+        try {
+            await services.load(MdnsService);
+
+            // Create the datafile root — locking is now ref-counted and acquired by individual consumers
+            if (env.get(StorageService).hasFilesystem) {
+                const fs = env.get(Filesystem);
+                env.set(DatafileRoot, new DatafileRoot(fs.directory(node.id)));
+
+                // When storage.lock is enabled, hold a lock for the node's lifetime (for CLI PID file management)
+                if (env.vars.boolean("storage.lock")) {
+                    const lock = await env.get(DatafileRoot).lock();
+                    env.set(DatafileRoot.Lock, lock);
+                    release.push({ on: "failure", run: () => lock.close() });
+                }
+            }
+
+            // Construction opens storage, so a store that fails part way through still holds a driver and a lock
+            const store = new ServerNodeStore(env, node.id);
+            env.set(ServerNodeStore, store);
+            release.push({ on: "failure", run: () => store.close() });
+            await store.construction;
+
+            env.set(EndpointInitializer, new ServerEndpointInitializer(env));
+            env.set(IdentityService, new IdentityService(node));
+
+            const notifications = new ChangeNotificationService(node);
+            env.set(ChangeNotificationService, notifications);
+            release.push({ on: "failure", run: () => notifications.close() });
+
+            // Construction is awaited by the caller; the event this subscribes to is available before then
+            const fabrics = env.get(FabricManager);
+            const sanitize = async () => {
+                const fabricIndices = fabrics.fabrics.map(fabric => fabric.fabricIndex);
+                if (fabricIndices.length > 0) {
+                    await limitNodeDataToAllowedFabrics(node, fabricIndices);
+                }
+                ServerEnvironment.fabricScopedDataSanitized.emit(); // Only for testing purposes
+            };
+            fabrics.events.deleting.on(sanitize);
+            release.push({ on: "close", run: () => fabrics.events.deleting.off(sanitize) });
+        } catch (cause) {
+            await NodeServices.#releaseAll(release, "failure", `Error installing services for ${node}`).catch(error =>
+                logger.error("Could not release the services of a failed installation", error),
+            );
+            throw cause;
+        }
+
+        env.set(NodeServices, new NodeServices(release));
     }
 
-    constructor(services: SharedEnvironmentServices) {
-        this.#services = services;
+    constructor(release: NodeServices.Release[]) {
+        this.#release = release;
     }
 
     async close() {
-        await this.#services.close();
+        await NodeServices.#releaseAll(this.#release, "close", "Error closing node services");
+    }
+
+    static #releaseAll(release: NodeServices.Release[], reason: "failure" | "close", message: string) {
+        // Filtering preserves registration order, so the reversal below is still last-in-first-out
+        const steps = release.filter(step => reason === "failure" || step.on === "close").map(step => step.run);
+
+        return MatterAggregateError.settleSeries(steps.reverse(), message);
+    }
+}
+
+namespace NodeServices {
+    export interface Release {
+        /** "failure" steps release a service {@link ServerEnvironment.close} closes itself, so only a failed install runs them */
+        on: "close" | "failure";
+
+        run: () => MaybePromise<void>;
     }
 }
