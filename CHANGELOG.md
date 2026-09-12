@@ -30,6 +30,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
     - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
+    - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
 
 - @matter/protocol
     - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
@@ -42,8 +43,27 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
     - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
+    - Enhancement: `Constraint.referencesOf` states each name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it — where it previously stated the name alone. `Constraint.validateReferences` is replaced by it
+    - Enhancement: `Metatype.boundKind` states what a constraint on a value of a metatype states, and `Metatype.holdsNumber` and `Metatype.holdsRecord` how such a value is held, which decides what a bound may compare against and what a member access may take. `Metatype.native` now reports a bitmap as an object, agreeing with `Metatype.Native`, and `Metatype.Native` covers durations
+    - Enhancement: `ValueModel.memberNamed` resolves the name a constraint or conformance states for a value of an enumerated type. Constraint encoding, definition validation, the conformance aspect and the conformance compiler now share it; the compiler previously read a member's `id` rather than its effective id, so a member whose definition omits one resolved to nothing
+    - Fix: The operand of `in` states its name in the case every other name a constraint holds uses, so `Constraint.referencesOf` reports one spelling
+    - Fix: The operand of `in` names an element holding the values allowed, so a value of the constrained type no longer answers it
+    - Fix: A constraint taking a member of a computed value, such as `min minOf(A, B).C` or `min A.minOf(B, C)`, reports `UNEVALUABLE_MEMBER_ACCESS` rather than reporting its member as an unresolved name. An access evaluates only where the value before `.` is a record and the name after it a member of one, so such a bound admits every value
+    - Fix: A name a constraint states that resolves to a value the constraint cannot use — a bound comparing against a record, a membership set naming a single value, an access taking a member of a value held as a number — reports `UNUSABLE_CONSTRAINT_NAME`. It reports that alone, where before a name could be reported both unusable and unresolved
+    - Fix: A constraint bounding a value with neither a magnitude nor a length reports `UNBOUNDABLE_TYPE`
+    - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNENFORCEABLE_ENTRY_BOUND`, as nothing enforces such a bound
+    - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node
+    - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
+    - Fix: A bound the specification states on a bitmap is enforced. An upper bound states what the reserved-bit check already enforces, but a lower bound such as `FanControl.RockSupport`'s `min 1` states a flag that must be set, which nothing checked. A cluster implementation that supports rocking or wind and leaves the corresponding attribute with no flag set now fails validation where it previously passed
+    - Fix: A bound on a duration is enforced rather than ignored. A duration is held as a number of milliseconds, and a constraint bounding one states milliseconds too
+    - Fix: A constraint on a value no bound can be checked against, such as a struct or a date, no longer fails behavior creation with `Cannot define constraint for unsupported metatype`. A list whose entries are of such a type reaches this when the constraint bounds its entries
+    - Fix: A value of an enumerated type whose definition states no ID is judged by its effective ID, which is its position among its siblings. Such a value was refused as undefined in the enumeration, and a conformance naming it resolved to nothing
+    - Fix: A node that factory resets keeps the services it already opened, rather than installing a second set over them. Closing the node then releases its share of the mDNS service, so a process that resets a node can exit, and releases its storage handle and directory lock
+    - Fix: A holder of `ChangeNotificationService.change` keeps receiving updates after a node factory resets
+    - Fix: A node whose construction fails releases the storage its store had already opened
+    - Fix: A factory reset erases the blobs a BDX transfer left behind
     - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
     - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
     - Fix: A peer's endpoint whose device types are all utility types, as a bridge's composed device is, reports those device types rather than remaining of unknown type

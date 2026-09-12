@@ -53,6 +53,7 @@ import "./TemperatureMeasurementOverrides.js";
 import "./ThermostatOverrides.js";
 import "./TimeFormatLocalizationOverrides.js";
 import "./TimeSynchronizationOverrides.js";
+import "./TlsClientManagementOverrides.js";
 import "./UserLabelOverrides.js";
 import "./WiFiNetworkManagementOverrides.js";
 import "./WildcardPathFlagsBitmap.js";

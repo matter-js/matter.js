@@ -192,6 +192,25 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
     }
 
     /**
+     * The member this type defines under a name a constraint or conformance states.
+     *
+     * An enumerated type states a bound or a comparison as the names of its own values, such as the "add, modify" of a
+     * door lock's operation type.  Those names belong to the type rather than to the surrounding record, so no
+     * resolver of the record reaches them.
+     *
+     * The specification writes such a name as the specification spells the member, which is not the spelling the
+     * property carries, so the name matches on {@link Model.propertyName}.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3
+     */
+    memberNamed(name: string) {
+        if (this.effectiveMetatype !== Metatype.enum) {
+            return undefined;
+        }
+        return this.members(name);
+    }
+
+    /**
      * Collect constraints and conformance for this type and all base types.
      */
     get validationAspects() {

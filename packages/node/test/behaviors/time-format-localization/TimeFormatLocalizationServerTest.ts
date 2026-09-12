@@ -42,7 +42,7 @@ describe("TimeFormatLocalizationServer", () => {
             }),
         ).throws(
             ConstraintError,
-            'Validating node0.timeFormatLocalization.state: Constraint "in SupportedCalendarTypes": Value 4 is not one of the values allowed by "in" constraint (135)',
+            'Validating node0.timeFormatLocalization.state: Constraint "in supportedCalendarTypes": Value 4 is not one of the values allowed by "in" constraint (135)',
         );
     });
 });

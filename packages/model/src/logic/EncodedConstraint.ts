@@ -4,10 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "@matter/general";
 import { Constraint } from "../aspects/Constraint.js";
 import { FieldValue } from "../common/FieldValue.js";
-import { Metatype } from "../common/Metatype.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { EncodedValue } from "./EncodedValue.js";
 
@@ -80,7 +78,7 @@ function convertAst(ast: Constraint.Ast, model: ValueModel, bounds?: EncodedCons
     const value = convertExpression(ast.value, model, bounds);
     const min = convertExpression(ast.min, model, bounds);
     const max = convertExpression(ast.max, model, bounds);
-    const set = convertValue(ast.in, model, bounds);
+    const set = convertValue(ast.in, model, bounds, "set");
 
     // Only what the constraint states as a bound in its own right.  An operand of an arithmetic bound is a scalar of
     // the expression, not a value the type must hold: "max Duration / 2" says nothing about holding 2
@@ -130,16 +128,26 @@ function convertExpression(
     }
 
     if ("lhs" in expression) {
-        // Both operands of "." name elements rather than values: the lhs names one the scope resolves and the rhs a
-        // member of it, so neither states a value of the constrained type
-        if (expression.type === ".") {
-            return expression;
+        if (expression.type !== ".") {
+            return {
+                ...expression,
+                lhs: convertExpression(expression.lhs, model, bounds),
+                rhs: convertExpression(expression.rhs, model, bounds),
+            };
         }
 
+        // Neither operand of a member access states a value of the constrained type, but an operand that is computed
+        // rather than a name states values of its own, in the units of the type
         return {
             ...expression,
-            lhs: convertExpression(expression.lhs, model, bounds),
-            rhs: convertExpression(expression.rhs, model, bounds),
+            lhs:
+                Constraint.accessPathOf(expression.lhs) === undefined
+                    ? convertExpression(expression.lhs, model, bounds)
+                    : expression.lhs,
+            rhs:
+                Constraint.accessPathOf(expression.rhs) === undefined
+                    ? convertExpression(expression.rhs, model, bounds)
+                    : expression.rhs,
         };
     }
 
@@ -165,34 +173,38 @@ function enumValueOf(value: FieldValue | undefined, model: ValueModel) {
         return;
     }
 
-    if (model.effectiveMetatype !== Metatype.enum) {
-        return;
-    }
-
-    const propertyName = camelize(name);
-    for (const member of model.members) {
-        if (member.propertyName === propertyName) {
-            return member.effectiveId;
-        }
-    }
+    return model.memberNamed(name)?.effectiveId;
 }
 
-function convertValue(value: FieldValue, model: ValueModel, bounds?: EncodedConstraint.Bounds): FieldValue;
+function convertValue(
+    value: FieldValue,
+    model: ValueModel,
+    bounds?: EncodedConstraint.Bounds,
+    position?: Constraint.NamePosition,
+): FieldValue;
 function convertValue(
     value: FieldValue | undefined,
     model: ValueModel,
     bounds?: EncodedConstraint.Bounds,
+    position?: Constraint.NamePosition,
 ): FieldValue | undefined;
 
-function convertValue(value: FieldValue | undefined, model: ValueModel, bounds?: EncodedConstraint.Bounds) {
+function convertValue(
+    value: FieldValue | undefined,
+    model: ValueModel,
+    bounds?: EncodedConstraint.Bounds,
+    position: Constraint.NamePosition = "bound",
+) {
     // A membership set states one bound per member
     if (Array.isArray(value)) {
-        return value.map(member => convertValue(member, model, bounds));
+        return value.map(member => convertValue(member, model, bounds, position));
     }
 
-    const member = enumValueOf(value, model);
-    if (member !== undefined) {
-        return member;
+    if (position === "bound") {
+        const member = enumValueOf(value, model);
+        if (member !== undefined) {
+            return member;
+        }
     }
 
     if (
