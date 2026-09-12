@@ -21,6 +21,7 @@ import {
     ec,
     HashAlgorithm,
 } from "./Crypto.js";
+import { CRYPTO_AEAD_NONCE_LENGTH_BYTES } from "./CryptoConstants.js";
 import { CryptoDecryptError, CryptoInputError, CryptoVerifyError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { PrivateKey, PublicKey } from "./Key.js";
@@ -41,6 +42,35 @@ const NODE_HASH_ALGORITHMS: Record<HashAlgorithm, string> = {
     "SHA-512/256": "sha512-256",
     "SHA3-256": "sha3-256",
 };
+
+/**
+ * Report the first primitive a Node.js-style crypto API cannot offer Matter, or undefined if it offers both of the
+ * primitives probed here: the SHA-256 digest and the "aes-128-ccm" cipher Matter encrypts every message with.
+ *
+ * This is not a conformance test.  It covers the two gaps that stop a runtime dead — Bun and Deno offer no
+ * "aes-128-ccm" — and leaves any other divergence to surface where it occurs.  Probing beats identifying individual
+ * runtimes because an emulation that gains a primitive then needs no change here.
+ */
+export function nodeCryptoDefect(api: NodeJsCryptoApiLike): string | undefined {
+    try {
+        api.createHash(CRYPTO_HASH_ALGORITHM).digest();
+    } catch (error) {
+        return `no ${CRYPTO_HASH_ALGORITHM} digest: ${asError(error).message}`;
+    }
+
+    try {
+        api.createCipheriv(
+            CRYPTO_ENCRYPT_ALGORITHM,
+            new Uint8Array(CRYPTO_SYMMETRIC_KEY_LENGTH),
+            new Uint8Array(CRYPTO_AEAD_NONCE_LENGTH_BYTES),
+            { authTagLength: CRYPTO_AUTH_TAG_LENGTH },
+        );
+    } catch (error) {
+        return `no ${CRYPTO_ENCRYPT_ALGORITHM} cipher: ${asError(error).message}`;
+    }
+
+    return undefined;
+}
 
 /** Matches the tag length range NIST SP 800-38C permits, enforced identically in aes/Ccm.ts. */
 function assertValidTagLength(tagLength: number) {
@@ -422,7 +452,12 @@ export class NodeJsStyleCrypto extends Crypto {
 const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.("crypto");
 if (nodeCrypto?.createECDH) {
     NodeJsStyleCrypto.detectedCrypto = nodeCrypto;
-    const nodeJsStyleCrypto = new NodeJsStyleCrypto();
-    Environment.default.set(Entropy, nodeJsStyleCrypto);
-    Environment.default.set(Crypto, nodeJsStyleCrypto);
+
+    // Claim the default only where this API serves Matter, so StandardCrypto installs itself instead where it does
+    // not.  A runtime offering no Web Crypto has nothing better, so there we claim it regardless
+    if (nodeCryptoDefect(nodeCrypto) === undefined || globalThis.crypto?.subtle === undefined) {
+        const nodeJsStyleCrypto = new NodeJsStyleCrypto();
+        Environment.default.set(Entropy, nodeJsStyleCrypto);
+        Environment.default.set(Crypto, nodeJsStyleCrypto);
+    }
 }

@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { nodeCryptoDefect, NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
+import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import {
     Bytes,
     HASH_ALGORITHM_OUTPUT_LENGTHS,
+    nodeCryptoDefect,
     NodeJsStyleCrypto,
     StandardCrypto,
     type HashAlgorithm,
