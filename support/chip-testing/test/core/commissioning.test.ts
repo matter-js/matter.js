@@ -5,6 +5,8 @@
  */
 
 describe("commissioning", () => {
+    // OperationalCredentialsCluster belongs here only once OperationalCredentials reaches ClusterRevision 3, which
+    // requires PQC device attestation
     chip(
         "AddNewFabricFromExistingFabric",
         "ArmFailSafe",
@@ -13,7 +15,6 @@ describe("commissioning", () => {
         "FabricRemovalWhileSubscribed",
         "GeneralCommissioning",
         "MultiAdmin",
-        "OperationalCredentialsCluster",
         "SelfFabricRemoval",
     );
 });
