@@ -579,4 +579,54 @@ describe("Constraint", () => {
             expect(`${new Constraint("min 1")}`).equal("min 1");
         });
     });
+
+    describe("the names it states", () => {
+        it("states the segments of a member access as one path", () => {
+            expect(Constraint.referencesOf(new Constraint("min A.B"))).deep.equals([
+                { path: ["a", "b"], position: "bound" },
+            ]);
+        });
+
+        it("states the operand of a membership set as one naming an element", () => {
+            expect(Constraint.referencesOf(new Constraint("in Supported"))).deep.equals([
+                { path: ["supported"], position: "set" },
+            ]);
+        });
+
+        // An access no evaluation can take states no name: the access itself is what is reported
+        it("states no name an access to a computed value holds", () => {
+            expect(Constraint.referencesOf(new Constraint("min minOf(A, B).C"))).deep.equals([]);
+            expect(Constraint.referencesOf(new Constraint("min A.minOf(B, C)"))).deep.equals([]);
+        });
+
+        it("reports an access to a computed value as unevaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min minOf(A, B).C"))).true;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.minOf(B, C)"))).true;
+        });
+
+        // An access takes one member of one element; the specification defines no member of a member
+        it("reports a nested access as unevaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.B.C"))).true;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.(B.C)"))).true;
+        });
+
+        it("reports a complete access as evaluable", () => {
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min A.B"))).false;
+            expect(Constraint.hasUnevaluableAccess(new Constraint("min minOf(A, B)"))).false;
+        });
+
+        it("states a name each member of a membership set holds", () => {
+            expect(Constraint.referencesOf(new Constraint("0, 1, Add"))).deep.equals([
+                { path: ["add"], position: "bound" },
+            ]);
+        });
+
+        // The entry constraint bounds the entries, so its names belong to the type of the entry.  The alternative
+        // states one of its own, which does not
+        it("states no name an entry bound of an alternative holds", () => {
+            expect(Constraint.referencesOf(new Constraint("Foo to 4[min Alpha], 8 to 9[max Beta]"))).deep.equals([
+                { path: ["foo"], position: "bound" },
+            ]);
+        });
+    });
 });

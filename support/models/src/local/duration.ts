@@ -13,5 +13,7 @@ LocalMatter.children.push({
     name: "duration",
     metatype: Metatype.duration,
     description: "A datatype that represents an arbitrary time duration.",
-    details: "This is a matter.js extension to Matter semantics.",
+    details:
+        "This is a matter.js extension to Matter semantics. A value of this type is a number of milliseconds, so a " +
+        "constraint bounding one states milliseconds too.",
 });

@@ -119,10 +119,66 @@ describe("EncodedConstraint", () => {
             expect(EncodedConstraint(bounded.constraint, bounded).toString()).equals("min limits.low");
         });
 
+        it("states the value of a member the type inherits", () => {
+            const bounded = new FieldModel(
+                FieldElement({ name: "Bounded", type: "DerivedEnum", constraint: "add, clear" }),
+            );
+
+            const matter = new MatterModel(
+                {},
+                new DatatypeModel(
+                    DatatypeElement({ name: "BaseEnum", type: "enum8" }),
+                    FieldElement({ name: "Add", id: 0 }),
+                    FieldElement({ name: "Modify", id: 2 }),
+                ),
+                new DatatypeModel(
+                    DatatypeElement({ name: "DerivedEnum", type: "BaseEnum" }),
+                    FieldElement({ name: "Clear", id: 5 }),
+                ),
+                new DatatypeModel(DatatypeElement({ name: "Holder", type: "struct" }), bounded),
+            );
+            matter.finalize();
+
+            expect(EncodedConstraint(bounded.constraint, bounded).toString()).equals("0, 5");
+        });
+
         it("states a name the type does not define as it stands", () => {
             const model = enumField("add, nonexistent");
 
             expect(EncodedConstraint(model.constraint, model).toString()).equals("0, nonexistent");
+        });
+
+        // The collision is the point: the operand of "in" names the element holding the values allowed
+        it("leaves a membership set naming an element that shares a name with a value of the type", () => {
+            const bounded = new FieldModel(
+                FieldElement({ name: "Bounded", type: "CollidingEnum", constraint: "in Add" }),
+            );
+
+            const matter = new MatterModel(
+                {},
+                new DatatypeModel(
+                    DatatypeElement({ name: "CollidingEnum", type: "enum8" }),
+                    FieldElement({ name: "Add", id: 0 }),
+                    FieldElement({ name: "Modify", id: 2 }),
+                ),
+                new DatatypeModel(
+                    DatatypeElement({ name: "Holder", type: "struct" }),
+                    FieldElement(
+                        { name: "Add", id: 1, type: "list" },
+                        FieldElement({ name: "entry", type: "CollidingEnum" }),
+                    ),
+                    bounded,
+                ),
+            );
+            matter.finalize();
+
+            expect(EncodedConstraint(bounded.constraint, bounded).toString()).equals("in add");
+        });
+
+        it("leaves a membership set naming an element the type does not define", () => {
+            const model = enumField("in SupportedOperations");
+
+            expect(EncodedConstraint(model.constraint, model).toString()).equals("in supportedOperations");
         });
 
         // Only an enumerated type names its values in a bound; any other member is a value of the record
@@ -143,6 +199,31 @@ describe("EncodedConstraint", () => {
 
             expect(EncodedConstraint(bounded.constraint, bounded).toString()).equals("max low");
         });
+    });
+
+    // An operand of an arithmetic bound is in the units of the type, so it converts as the bound does
+    it("counts the units of an operand of an arithmetic bound", () => {
+        expect(`${EncodedConstraint(new Constraint("max (100% - 1%)"), percent100ths)}`).equal("max 10000 - 100");
+    });
+
+    it("counts the units of an argument of a computed bound", () => {
+        expect(`${EncodedConstraint(new Constraint("max minOf(100%, 50%)"), percent100ths)}`).equal(
+            "max minOf(10000, 5000)",
+        );
+    });
+
+    // The lhs states values of its own where it is computed, and the rhs names a member of what it denotes
+    it("counts the units of a computed element a member is taken from", () => {
+        expect(`${EncodedConstraint(new Constraint("max minOf(100%, 50%).low"), percent100ths)}`).equal(
+            "max minOf(10000, 5000).low",
+        );
+    });
+
+    // The two walkers of a member access agree: a computed operand states values whichever side it is on
+    it("counts the units of a computed member of an element", () => {
+        expect(`${EncodedConstraint(new Constraint("max low.minOf(100%, 50%)"), percent100ths)}`).equal(
+            "max low.minOf(10000, 5000)",
+        );
     });
 
     it("counts the units of the type", () => {

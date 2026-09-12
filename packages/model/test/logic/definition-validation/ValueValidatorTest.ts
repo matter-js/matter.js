@@ -242,6 +242,29 @@ function validateConstraintReferences(children: Model.ChildDefinition<ClusterMod
     return ValidateModel(Matter).errors.filter(e => e.code === "UNRESOLVED_CONSTRAINT_NAME");
 }
 
+/** Every error reported for the constraints a cluster's values state */
+function allConstraintErrorsOf(children: Model.ChildDefinition<ClusterModel>[]) {
+    const Matter = new MatterModel(
+        {},
+        uint8.clone(),
+        uint16.clone(),
+        enum8.clone(),
+        map8.clone(),
+        string.clone(),
+        struct.clone(),
+        duration.clone(),
+        new ClusterModel({ name: "Test", id: 0xfff1 }, ...children),
+    );
+    Matter.finalize();
+
+    return ValidateModel(Matter).errors;
+}
+
+/** Errors of one code reported for the constraints a cluster's values state */
+function validateConstraintsOf(children: Model.ChildDefinition<ClusterModel>[], code: string) {
+    return allConstraintErrorsOf(children).filter(e => e.code === code);
+}
+
 describe("ValueValidator", () => {
     describe("names a constraint states", () => {
         it("accepts a bound naming a sibling attribute", () => {
@@ -389,6 +412,367 @@ describe("ValueValidator", () => {
                     Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min missing.low" }),
                 ]),
             ).length(1);
+        });
+
+        // The rhs of "." names a member of whatever the lhs denotes, so an access to a computed value states no name
+        // to resolve.  The access itself is reported, as UNEVALUABLE_MEMBER_ACCESS
+        it("states no unresolved name for an access to a computed value", () => {
+            expect(
+                validateConstraintReferences([
+                    Attribute({ name: "Low", id: 1, type: "uint16" }),
+                    Attribute({ name: "High", id: 2, type: "uint16" }),
+                    Attribute({ name: "Bounded", id: 3, type: "uint16", constraint: "min minOf(Low, High).Any" }),
+                ]),
+            ).length(0);
+        });
+
+        it("accepts a bound naming a value the constrained enumeration inherits", () => {
+            expect(
+                validateConstraintReferences([
+                    new DatatypeModel(
+                        { name: "BaseEnum", type: "enum8" },
+                        FieldElement({ name: "Add", id: 0 }),
+                        FieldElement({ name: "Modify", id: 2 }),
+                    ),
+                    new DatatypeModel(
+                        { name: "DerivedEnum", type: "BaseEnum" },
+                        FieldElement({ name: "Clear", id: 5 }),
+                    ),
+                    Attribute({ name: "Bounded", id: 2, type: "DerivedEnum", constraint: "add, clear" }),
+                ]),
+            ).length(0);
+        });
+    });
+
+    describe("what a name a constraint states denotes", () => {
+        it("reports a limit naming a value no comparison orders", () => {
+            const errors = validateConstraintsOf(
+                [
+                    new DatatypeModel(
+                        { name: "LimitsStruct", type: "struct" },
+                        FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                    ),
+                    Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Limits" }),
+                ],
+                "UNUSABLE_CONSTRAINT_NAME",
+            );
+
+            expect(errors).length(1);
+        });
+
+        it("reports a limit naming a string", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        Attribute({ name: "Label", id: 1, type: "string" }),
+                        Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Label" }),
+                    ],
+                    "UNUSABLE_CONSTRAINT_NAME",
+                ),
+            ).length(1);
+        });
+
+        it("accepts a limit naming a number", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        Attribute({ name: "Limit", id: 1, type: "uint16" }),
+                        Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Limit" }),
+                    ],
+                    "UNUSABLE_CONSTRAINT_NAME",
+                ),
+            ).length(0);
+        });
+
+        // A membership set admits the values another element holds, so its operand names a list
+        it("accepts a membership set naming a list", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        new DatatypeModel(
+                            { name: "OperationEnum", type: "enum8" },
+                            FieldElement({ name: "Add", id: 0 }),
+                        ),
+                        Attribute(
+                            { name: "Supported", id: 1, type: "list" },
+                            FieldElement({ name: "entry", type: "OperationEnum" }),
+                        ),
+                        Attribute({ name: "Bounded", id: 2, type: "OperationEnum", constraint: "in Supported" }),
+                    ],
+                    "UNUSABLE_CONSTRAINT_NAME",
+                ),
+            ).length(0);
+        });
+
+        it("reports a membership set naming a value that holds one value", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        Attribute({ name: "Limit", id: 1, type: "uint16" }),
+                        Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "in Limit" }),
+                    ],
+                    "UNUSABLE_CONSTRAINT_NAME",
+                ),
+            ).length(1);
+        });
+    });
+
+    describe("a bound on a value no comparison orders", () => {
+        // The specification states such a bound of a struct-typed field, where it compares a number against an object
+        it("reports a bound stating a number", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        new DatatypeModel(
+                            { name: "LimitsStruct", type: "struct" },
+                            FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                        ),
+                        Attribute({ name: "Bounded", id: 2, type: "LimitsStruct", constraint: "0 to 65534" }),
+                    ],
+                    "UNBOUNDABLE_TYPE",
+                ),
+            ).length(1);
+        });
+
+        it("accepts a constraint the specification states in prose", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        new DatatypeModel(
+                            { name: "LimitsStruct", type: "struct" },
+                            FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                        ),
+                        Attribute({ name: "Bounded", id: 2, type: "LimitsStruct", constraint: "desc" }),
+                    ],
+                    "UNBOUNDABLE_TYPE",
+                ),
+            ).length(0);
+        });
+
+        // The specification bounds the magnitude the flags of a bitmap encode to, as a window covering's mode states
+        it("accepts a bound on a bitmap", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        Attribute(
+                            { name: "Bounded", id: 2, type: "map8", constraint: "max 15" },
+                            FieldElement({ name: "Recording", constraint: "0" }),
+                        ),
+                    ],
+                    "UNBOUNDABLE_TYPE",
+                ),
+            ).length(0);
+        });
+
+        // A duration is held as a number of milliseconds, so a bound on one states a magnitude
+        it("accepts a bound on a duration", () => {
+            expect(
+                validateConstraintsOf(
+                    [Attribute({ name: "Bounded", id: 2, type: "duration", constraint: "max 15" })],
+                    "UNBOUNDABLE_TYPE",
+                ),
+            ).length(0);
+        });
+
+        // A value whose type does not resolve states no metatype, which is not the same as a metatype that bounds
+        // nothing.  Only the unknown type is reported
+        it("reports only the type of a value whose type does not resolve", () => {
+            expect(
+                allConstraintErrorsOf([
+                    Attribute({ name: "Bounded", id: 2, type: "NoSuchType", constraint: "max 5" }),
+                ]).map(e => e.code),
+            ).deep.equals(["TYPE_UNKNOWN"]);
+        });
+
+        it("accepts a value an override states no bound for", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        new DatatypeModel(
+                            { name: "LimitsStruct", type: "struct" },
+                            FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                        ),
+                        Attribute({ name: "Bounded", id: 2, type: "LimitsStruct", constraint: "none" }),
+                    ],
+                    "UNBOUNDABLE_TYPE",
+                ),
+            ).length(0);
+        });
+    });
+
+    describe("what a name a constraint states denotes, reported once", () => {
+        // A name that resolves is not also unresolved, so the two are never reported together
+        it("reports an unusable name once", () => {
+            const errors = allConstraintErrorsOf([
+                new DatatypeModel(
+                    { name: "LimitsStruct", type: "struct" },
+                    FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                ),
+                Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Limits" }),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNUSABLE_CONSTRAINT_NAME"]);
+        });
+
+        it("reports an unresolved name once", () => {
+            const errors = allConstraintErrorsOf([
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Nonexistent" }),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNRESOLVED_CONSTRAINT_NAME"]);
+        });
+
+        // A bitmap encodes to a number but is held as the record of its flags, so a bound comparing against one
+        // compares a number against a record
+        it("reports a limit naming a bitmap", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        new DatatypeModel(
+                            { name: "ModeBitmap", type: "map8" },
+                            FieldElement({ name: "Recording", constraint: "0" }),
+                        ),
+                        Attribute({ name: "Mode", id: 1, type: "ModeBitmap" }),
+                        Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Mode" }),
+                    ],
+                    "UNUSABLE_CONSTRAINT_NAME",
+                ),
+            ).length(1);
+        });
+
+        it("accepts a limit naming a duration", () => {
+            expect(
+                allConstraintErrorsOf([
+                    Attribute({ name: "Limit", id: 1, type: "duration" }),
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Limit" }),
+                ]),
+            ).length(0);
+        });
+
+        it("accepts a limit naming a value of an enumerated type", () => {
+            expect(
+                allConstraintErrorsOf([
+                    new DatatypeModel({ name: "LimitEnum", type: "enum8" }, FieldElement({ name: "Low", id: 0 })),
+                    Attribute({ name: "Limit", id: 1, type: "LimitEnum" }),
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "max Limit" }),
+                ]),
+            ).length(0);
+        });
+
+        // The specification spells a value of an enumerated type as its own definition does, which is not the
+        // spelling the property carries
+        it("accepts a bound naming a value as the specification spells it", () => {
+            expect(
+                allConstraintErrorsOf([
+                    new DatatypeModel(
+                        { name: "OperationEnum", type: "enum8" },
+                        FieldElement({ name: "AddDevice", id: 0 }),
+                    ),
+                    Attribute({ name: "Bounded", id: 2, type: "OperationEnum", constraint: "AddDevice" }),
+                ]),
+            ).length(0);
+        });
+
+        // An access evaluates only where the value before "." is a record and the name after it a member of one, so
+        // an access to a computed value states no bound whatever its operands resolve to
+        it("reports an access to a computed value", () => {
+            const errors = allConstraintErrorsOf([
+                new DatatypeModel(
+                    { name: "LimitsStruct", type: "struct" },
+                    FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                ),
+                Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                Attribute({ name: "Floor", id: 3, type: "uint16" }),
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Limits.minOf(Floor, Floor)" }),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNEVALUABLE_MEMBER_ACCESS"]);
+        });
+
+        // The entry constraint is judged in the entry's own scope, so an access it holds is reported there and
+        // nowhere else
+        it("reports an access an entry bound holds once", () => {
+            const errors = allConstraintErrorsOf([
+                new DatatypeModel(
+                    { name: "LimitsStruct", type: "struct" },
+                    FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                ),
+                Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                Attribute({ name: "Floor", id: 3, type: "uint16" }),
+                Attribute(
+                    { name: "Bounded", id: 2, type: "list", constraint: "max 4[min Limits.minOf(Floor, Floor)]" },
+                    FieldElement({ name: "entry", type: "uint16" }),
+                ),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNEVALUABLE_MEMBER_ACCESS"]);
+        });
+
+        it("reports an access whose element is computed", () => {
+            const errors = allConstraintErrorsOf([
+                Attribute({ name: "Low", id: 1, type: "uint16" }),
+                Attribute({ name: "High", id: 3, type: "uint16" }),
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min minOf(Low, High).Any" }),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNEVALUABLE_MEMBER_ACCESS"]);
+        });
+
+        // The path resolves through the model whatever the value is held as, so the leaf alone says nothing about
+        // whether the access evaluates
+        it("reports a complete access whose element is held as a number", () => {
+            const errors = allConstraintErrorsOf([
+                new DatatypeModel({ name: "ModeEnum", type: "enum8" }, FieldElement({ name: "Low", id: 0 })),
+                Attribute({ name: "Mode", id: 1, type: "ModeEnum" }),
+                Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Mode.Low" }),
+            ]);
+
+            expect(errors.map(e => e.code)).deep.equals(["UNUSABLE_CONSTRAINT_NAME"]);
+        });
+
+        it("accepts a complete access whose element holds members", () => {
+            expect(
+                allConstraintErrorsOf([
+                    new DatatypeModel(
+                        { name: "LimitsStruct", type: "struct" },
+                        FieldElement({ name: "Low", id: 0, type: "uint16" }),
+                    ),
+                    Attribute({ name: "Limits", id: 1, type: "LimitsStruct" }),
+                    Attribute({ name: "Bounded", id: 2, type: "uint16", constraint: "min Limits.Low" }),
+                ]),
+            ).length(0);
+        });
+    });
+
+    describe("an alternative that bounds the entries of a list", () => {
+        it("reports a bound no validation applies", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        Attribute(
+                            { name: "Bounded", id: 2, type: "list", constraint: "0 to 4[min 1], 8 to 9" },
+                            FieldElement({ name: "entry", type: "uint16" }),
+                        ),
+                    ],
+                    "UNENFORCEABLE_ENTRY_BOUND",
+                ),
+            ).length(1);
+        });
+
+        it("accepts an entry bound the constraint states once", () => {
+            expect(
+                validateConstraintsOf(
+                    [
+                        Attribute(
+                            { name: "Bounded", id: 2, type: "list", constraint: "0 to 9[min 1]" },
+                            FieldElement({ name: "entry", type: "uint16" }),
+                        ),
+                    ],
+                    "UNENFORCEABLE_ENTRY_BOUND",
+                ),
+            ).length(0);
         });
     });
 
