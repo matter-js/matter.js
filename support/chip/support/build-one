@@ -78,7 +78,9 @@ gn gen out \
 
 ninja -C out "$TARGET_NAME"
 
-BINPATH="$(find "out" -type f -executable)"
+# By name rather than "the one executable below out": a target that builds a dependency through its own
+# CMake sub-build, as the camera app does for libdatachannel, leaves further executables there
+BINPATH="$(find out -type f -executable -name "$TARGET_NAME")"
 if [ ! -x "$BINPATH" ]; then
     die "Could not identify executable for target \"$TARGET\""
 fi
