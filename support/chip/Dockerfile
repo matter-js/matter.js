@@ -137,8 +137,14 @@ RUN build-one bridge-app/linux chip-bridge-app
 #
 # The app builds its pipelines from named GStreamer elements, so the plugins carrying them have to be
 # in the final image or the factories resolve to nothing at runtime: videotestsrc/videoconvert/opus
-# (base), v4l2src/jpegenc/rtp/udp (good), x264enc (ugly)
-RUN build-one camera-app/linux chip-camera-app
+# (base), v4l2src/jpegenc/rtp/udp (good), x264enc (ugly).
+#
+# Warnings are not errors for this one app, which is a deliberate divergence from how we build
+# everything else here. CHIP applies -Wshorten-64-to-32 only under clang and builds this app with gcc
+# in its own CI, so its narrowing conversions have never had to compile clean; we build with clang
+# throughout. The code is upstream's to fix, so we stop treating its warnings as errors rather than
+# carry a patch.
+RUN build-one camera-app/linux chip-camera-app chip-camera-app treat_warnings_as_errors=false
 
 # The BDX and software-update cases' pair: one serves an update over BDX, the other asks for it. The
 # staged `.ota` file a case hands the provider is made per case with CHIP's own ota_image_tool.py,
