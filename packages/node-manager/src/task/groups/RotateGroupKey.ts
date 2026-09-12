@@ -78,10 +78,14 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
             },
             {
                 name: "activate",
-                requires: ctx => requireEveryMemberHoldsNewKey(ctx, params),
+                requires: ctx => requireEveryMemberHoldsNewKey(ctx, params, "activate"),
                 run: ctx => runPhase(ctx, params, "activate"),
             },
-            { name: "cleanup", run: ctx => runPhase(ctx, params, "cleanup") },
+            {
+                name: "cleanup",
+                requires: ctx => requireEveryMemberHoldsNewKey(ctx, params, "cleanup"),
+                run: ctx => runPhase(ctx, params, "cleanup"),
+            },
         ];
     },
 };
@@ -102,18 +106,24 @@ function requireSingleKeySteadyState(ctx: TaskContext, p: RotateGroupKeyParams):
 }
 
 /**
- * Every current member must hold this rotation's new key before any member starts transmitting with it.
+ * Every current member must hold this rotation's new key before any member starts transmitting with it, and
+ * still when the old key is dropped.
  *
- * Asked before activate writes and again after, because provisioning a group takes no lock on its key set: a
- * member that joins in between would not be able to decrypt traffic from members that already flipped.
+ * Asked before each of those phases writes and again after, because provisioning a group takes no lock on its
+ * key set. A member that joins between the checks holds the old key alone: after activate it cannot decrypt
+ * traffic from members that already flipped, and after cleanup — which writes only the members it captured on
+ * entry — it would be left holding a key every other member has dropped.
  */
-function requireEveryMemberHoldsNewKey(ctx: TaskContext, p: RotateGroupKeyParams): void {
-    const late = memberWithoutNewKey(ctx, p, String(p.groupKeySetId));
+function requireEveryMemberHoldsNewKey(ctx: TaskContext, p: RotateGroupKeyParams, phase: RotationPhase): void {
+    const late = memberWithoutNewKey(ctx, p, String(p.groupKeySetId), phase);
     if (late !== undefined) {
+        // Asked before activate writes and again after, and the two differ in what the device holds: after,
+        // the members captured at entry are already transmitting with the new key. So the message states the
+        // member and the remedy, and claims nothing about whether the new key is in use yet.
         throw new RotationPreconditionError(
-            `Cannot activate group key set ${p.groupKeySetId}: peer ${late.id} does not hold this ` +
-                `rotation's new key, so it joined the key set while the rotation was running. The distributed ` +
-                `keys remain dormant; rotate again with this same new key, which covers every current member.`,
+            `Cannot ${phase} group key set ${p.groupKeySetId}: peer ${late.id} does not hold this ` +
+                `rotation's new key, so it joined the key set while the rotation was running. Rotate again ` +
+                `with this same new key, which covers every current member.`,
         );
     }
 }
@@ -131,10 +141,15 @@ async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: Rotati
 }
 
 /** A member holding an intent for this key set that does not carry this rotation's new key, if there is one. */
-function memberWithoutNewKey(ctx: TaskContext, p: RotateGroupKeyParams, key: string): ClientNode | undefined {
+function memberWithoutNewKey(
+    ctx: TaskContext,
+    p: RotateGroupKeyParams,
+    key: string,
+    phase: RotationPhase,
+): ClientNode | undefined {
     for (const peer of ctx.peersWithIntent(GroupKey, key)) {
         const current = currentIntent(ctx, peer, p);
-        if (current === undefined || !holdsNewKey(current, p)) {
+        if (current === undefined || !holdsNewKey(current, p, phase)) {
             return peer;
         }
     }
@@ -148,13 +163,25 @@ function currentIntent(ctx: TaskContext, peer: ClientNode, p: RotateGroupKeyPara
 // A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
 // slot 1 is our own distribute output on a park/resume re-drive, not a foreign multi-epoch keyset, so accept it.
 function isRotatable(current: GroupKeyGrant, p: RotateGroupKeyParams): boolean {
-    return isSingleKeySteadyState(current) || holdsNewKey(current, p);
+    return isSingleKeySteadyState(current) || holdsNewKey(current, p, "distribute");
 }
 
-/** Whether the member carries this rotation's new key in slot 1 — the output of distribute or of activate. */
-function holdsNewKey(current: GroupKeyGrant, p: RotateGroupKeyParams): boolean {
+/**
+ * Whether the member carries this rotation's new key: in slot 1, which distribute and activate write, or — for
+ * cleanup's own ask alone — in slot 0, the form cleanup leaves behind.
+ */
+function holdsNewKey(current: GroupKeyGrant, p: RotateGroupKeyParams, phase: RotationPhase): boolean {
     const slot1 = current.epochKey1;
-    return slot1 !== null && slot1 !== undefined && Bytes.areEqual(slot1, p.newEpochKey);
+    if (slot1 !== null && slot1 !== undefined && Bytes.areEqual(slot1, p.newEpochKey)) {
+        return true;
+    }
+    // Cleanup moves the new key to slot 0 and empties the rest, so its own post-phase ask sees every member it
+    // just wrote in that form. Only there is slot 0 evidence of this rotation rather than of the old key.
+    if (phase !== "cleanup") {
+        return false;
+    }
+    const slot0 = current.epochKey0;
+    return slot0 !== null && slot0 !== undefined && Bytes.areEqual(slot0, p.newEpochKey);
 }
 
 function struct(ctx: TaskContext, peer: ClientNode, p: RotateGroupKeyParams, phase: RotationPhase): GroupKeyGrant {

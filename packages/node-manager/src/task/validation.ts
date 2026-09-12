@@ -32,10 +32,17 @@ export const Require = {
         }
     },
 
-    /** A non-empty string of at most `max` characters, where the cluster constrains its length. */
+    /**
+     * A string of at most `max` characters, where the cluster constrains its length.
+     *
+     * Empty is a value, not an omission: Groups requires the empty string as the name of a group that has
+     * none, so refusing it would leave a caller unable to say so explicitly.
+     */
     label(field: string, value: unknown, max: number): void {
-        Require.text(field, value);
-        if ((value as string).length > max) {
+        if (typeof value !== "string") {
+            throw new ImplementationError(`"${field}" must be a string, not ${describe(value)}`);
+        }
+        if (value.length > max) {
             throw new ImplementationError(`"${field}" must be at most ${max} characters`);
         }
     },
