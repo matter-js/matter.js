@@ -229,7 +229,7 @@ describe("crypto selection", () => {
         expect(env.get(Crypto).constructor).equal(cryptoFor(NodeJsCrypto.defect).constructor);
     });
 
-    /** FIPS mode is process-global and irreversible, so the test reports the restriction rather than imposing it. */
+    /** FIPS mode is process-wide, so the test reports the restriction rather than imposing it on sibling suites. */
     function withRestrictedProvider(restricted: boolean, fn: () => void) {
         const original = Object.getOwnPropertyDescriptor(NodeJsCrypto, "providerIsRestricted");
         if (original === undefined) {

@@ -63,7 +63,10 @@ function implementationForRuntime() {
             throw error;
         }
 
-        logger.error(`Mocking a Node.js-style crypto that cannot serve Matter: ${asError(error).message}`);
+        logger.error(
+            "Mocking a Node.js-style crypto that cannot serve Matter, because standard crypto did not load:" +
+                ` ${asError(error).message}`,
+        );
         return (defaultImplementation = NodeJsStyleCrypto);
     }
 }
