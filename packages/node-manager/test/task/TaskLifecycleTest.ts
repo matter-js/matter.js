@@ -21,13 +21,13 @@ import {
     requireRecordFor,
     requireStatusOfSlot,
     rollbackRecordOf,
-    revertSlotOf,
+    rollbackSlotOf,
     statusOfSlot,
     SyntheticTask,
 } from "./helpers.js";
 
 /**
- * TaskManager subclass that resolves peers + reconciler from an in-memory table so cancel-revert and gate
+ * TaskManager subclass that resolves peers + reconciler from an in-memory table so cancel-rollback and gate
  * phases can be exercised without a commissioned fabric. The single shared FakePeer doubles as reconciler.
  */
 class TestTaskManager extends TaskManagerBehavior {
@@ -339,7 +339,7 @@ describe("Task lifecycle", () => {
 
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:reject")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:reject")))!,
                 "completed",
             );
             expect(peer.items[itemMapKey("groupMembership", "OK")]).equals(undefined);
@@ -348,7 +348,7 @@ describe("Task lifecycle", () => {
     });
 
     describe("cancel", () => {
-        it("cancelling an in-flight task spawns a revert that removes items in reverse order", async () => {
+        it("cancelling an in-flight task spawns a rollback that removes items in reverse order", async () => {
             const environment = new Environment("test");
             const peer = new FakePeer("cp");
             TestTaskManager.peers.set("cp", peer);
@@ -384,11 +384,11 @@ describe("Task lifecycle", () => {
             );
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:cancel")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:cancel")))!,
                 "completed",
             );
 
-            // Items are removed in REVERSE add order (B added last → reverted first).
+            // Items are removed in REVERSE add order (B added last → rolled back first).
             expect(peer.removeOrder).deep.equals([
                 itemMapKey("groupMembership", "B"),
                 itemMapKey("groupMembership", "A"),
@@ -421,7 +421,7 @@ describe("Task lifecycle", () => {
             );
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:rerun")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:rerun")))!,
                 "parked",
                 "running",
             );
@@ -434,7 +434,7 @@ describe("Task lifecycle", () => {
             peer.setReachable(true);
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:rerun")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:rerun")))!,
                 "completed",
             );
             await node.close();
@@ -472,7 +472,7 @@ describe("Task lifecycle", () => {
 
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:aliascancel")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:aliascancel")))!,
                 "completed",
             );
             expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
@@ -508,7 +508,7 @@ describe("Task lifecycle", () => {
 
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:inflight")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:inflight")))!,
                 "completed",
             );
             expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);

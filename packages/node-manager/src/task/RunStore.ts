@@ -8,7 +8,7 @@ import { ImplementationError, InternalError } from "@matter/general";
 import { TaskIdentityExhaustedError } from "./errors.js";
 import { Execution } from "./Execution.js";
 import { RunRecord, TaskPersistence } from "./Task.js";
-import { isRunId, RetireSeq, RunId, Teardown, TaskState } from "./types.js";
+import { isRetireSeq, isRunId, isTaskState, RetireSeq, RunId, Teardown, TaskState } from "./types.js";
 
 const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled", "abandoned"]);
 
@@ -139,6 +139,23 @@ export class RunStore {
             // a group task's `bigint` would make serializing it throw before this error could be constructed.
             if (!isRunId(stored?.runId)) {
                 throw new InternalError(`Stored task record "${key}" has no usable run identity`);
+            }
+            // The same rule, for the other fields this layer reads without asking a task: each one decides
+            // something no later check revisits. `state` decides whether the record holds its target, and an
+            // unknown value holds it for the life of the process; `phaseIndex` chooses which phase resumes, so
+            // a rotation could re-enter past its point of no return; `retireSeq` seeds the retirement counter,
+            // where one `NaN` stops every run in the process from retiring.
+            if (!isTaskState(stored.state)) {
+                throw new InternalError(`Stored task record "${key}" has an unknown state`);
+            }
+            if (!Number.isSafeInteger(stored.phaseIndex) || stored.phaseIndex < 0) {
+                throw new InternalError(`Stored task record "${key}" has no usable phase index`);
+            }
+            if (stored.retireSeq !== undefined && !isRetireSeq(stored.retireSeq)) {
+                throw new InternalError(`Stored task record "${key}" has no usable retirement sequence`);
+            }
+            if (!Array.isArray(stored.changeSet)) {
+                throw new InternalError(`Stored task record "${key}" has no usable change set`);
             }
             highest = Math.max(highest, stored.runId);
             const record = RunRecord.fromPersistence(stored);

@@ -38,10 +38,15 @@ export function isRunId(value: unknown): value is RunId {
 export type RetireSeq = Branded<number, "RetireSeq">;
 
 export function RetireSeq(value: number): RetireSeq {
-    if (!Number.isSafeInteger(value) || value < 1) {
+    if (!isRetireSeq(value)) {
         throw new ImplementationError(`Invalid retirement sequence ${value}`);
     }
-    return value as RetireSeq;
+    return value;
+}
+
+/** Whether a value read from storage can be a {@link RetireSeq}. */
+export function isRetireSeq(value: unknown): value is RetireSeq {
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
 }
 
 /** A verb that takes ownership of a run's outcome, stopping its driver first. */
@@ -52,6 +57,21 @@ export type Teardown = "cancel" | "abandon";
  * knowingly left part-changed and the rollback is never retried.
  */
 export type TaskState = "running" | "parked" | "completed" | "failed" | "cancelled" | "abandoned";
+
+/** The states a record may hold, as a value, so a table read back from storage can be checked against them. */
+export const TASK_STATES: ReadonlySet<string> = new Set<TaskState>([
+    "running",
+    "parked",
+    "completed",
+    "failed",
+    "cancelled",
+    "abandoned",
+]);
+
+/** Whether a value read from storage can be a {@link TaskState}. */
+export function isTaskState(value: unknown): value is TaskState {
+    return typeof value === "string" && TASK_STATES.has(value);
+}
 
 export interface TaskStatus {
     runId: RunId;
@@ -74,7 +94,9 @@ export interface TaskStatus {
     error?: string;
     /** Set once the run retired. */
     retireSeq?: RetireSeq;
+    /** The undo this run answers to, once one exists. Pass it to `abandon`, never to `retryRollback`. */
     rollbackRunId?: RunId;
+    /** The run this one undoes, when it is itself a rollback. Pass that id to `retryRollback`. */
     rollbackOf?: RunId;
 }
 

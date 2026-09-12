@@ -582,6 +582,29 @@ describe("run records after a retirement", () => {
         expect((await stored(node, rollback.runId))?.changeSet).deep.equals([]);
     });
 
+    it("keeps as many retired runs as the limit says when an abandon records an already-retired rollback", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("abandon-history");
+        await node.act(a => (a.get(TestTaskManager).state.historyLimit = 2));
+
+        // Two runs of their own, so the eviction prefix is longer than the limit and the overflow count is
+        // what decides where it stops.
+        for (const tag of ["filler-a", "filler-b"]) {
+            const filler = await run(node, tag, [{ name: "noop", run: async () => {} }]);
+            await awaitRetired(node, filler.runId);
+        }
+
+        const { original, rollback } = await failedRollback(node, "abandon-history", peer);
+        await node.act(a => a.get(TestTaskManager).abandon(rollback.runId, "operator"));
+        await awaitRetired(node, rollback.runId);
+
+        // The abandoned rollback had already retired on its own failure, so it is in the retirement order
+        // before this write, not moving into it. Counting it as newly retiring evicts one record too many.
+        const stored = await node.act(a => Object.keys(a.get(TestTaskManager).state.runs));
+        expect(stored.length).equals(2);
+        expect(await node.act(a => a.get(TestTaskManager).get(original.runId))).not.equals(undefined);
+    });
+
     it("evicts the original a completing rollback discharges, in that same retirement", async () => {
         await using node = await makeNode();
         const peer = testPeer("undo-frees-history");

@@ -14,6 +14,7 @@ import { TaskDefinition } from "#task/Task.js";
 import { RunId } from "#task/types.js";
 import { ImplementationError } from "@matter/general";
 import { ItemKind } from "@matter/node";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
 const ADD = {
     peerId: "peer1",
@@ -22,7 +23,7 @@ const ADD = {
     groupKeySetId: 7,
     groupKeySecurityPolicy: 0,
     epochKey0: new Uint8Array(16),
-    epochStartTime0: 0n,
+    epochStartTime0: 946684800000001n,
 };
 const REMOVE = { peerId: "peer1", endpoint: 1, groupId: 42 };
 const ROTATE = { groupKeySetId: 7, newEpochKey: new Uint8Array(16) };
@@ -72,6 +73,11 @@ describe("built-in task parameter validation", () => {
             epochKey0: new Uint8Array(15),
             epochStartTime0: 0,
         });
+        // A time below the Matter epoch is a bigint of the right type that the wire format cannot carry:
+        // `TlvEpochUs` subtracts the epoch and refuses the negative result while encoding, far from the caller.
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, epochStartTime0: 946684799999999n })).throws(
+            ImplementationError,
+        );
     });
 
     it("refuses malformed RemoveNodeFromGroup parameters", () => {
@@ -97,6 +103,31 @@ describe("built-in task parameter validation", () => {
                 entries: [{ ...ROLLBACK.entries[0], prior: { intent: {}, mode: "maintain" } }],
             } as never),
         ).not.throws();
+    });
+
+    it("refuses a group key security policy the key set struct cannot carry", () => {
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupKeySecurityPolicy: 7 as never })).throws(
+            ImplementationError,
+        );
+        expect(() => RotateGroupKey.validate?.({ ...ROTATE, groupKeySecurityPolicy: 7 as never })).throws(
+            ImplementationError,
+        );
+        // Optional on a rotation, which otherwise keeps the policy the key set already has.
+        expect(() => RotateGroupKey.validate?.({ ...ROTATE, groupKeySecurityPolicy: undefined })).not.throws();
+        expect(() =>
+            RotateGroupKey.validate?.({
+                ...ROTATE,
+                groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.CacheAndSync,
+            }),
+        ).not.throws();
+    });
+
+    it("refuses a group name the cluster cannot carry", () => {
+        // Groups constrains AddGroup's GroupName to 16 characters; beyond that the device path refuses while
+        // encoding, with no code a caller can act on.
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: "x".repeat(17) })).throws(ImplementationError);
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: "x".repeat(16) })).not.throws();
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: undefined })).not.throws();
     });
 
     it("refuses a group or key set identity of zero", () => {

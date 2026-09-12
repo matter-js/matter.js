@@ -17,8 +17,8 @@ import {
     recordFor,
     requireRecordFor,
     rollbackRecordOf,
-    revertRecordsOf,
-    revertSlotOf,
+    rollbackRecordsOf,
+    rollbackSlotOf,
     SyntheticTask,
 } from "./helpers.js";
 
@@ -53,7 +53,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
 describe("auto-rollback", () => {
     before(() => MockTime.init());
 
-    it("hard failure spawns a linked revert task that removes the changeset", async () => {
+    it("hard failure spawns a linked rollback task that removes the changeset", async () => {
         const environment = new Environment("test");
         const peer = new FakePeer("rp");
         peer.markHas("groupKey", "42");
@@ -82,14 +82,14 @@ describe("auto-rollback", () => {
 
         await awaitState(
             node,
-            (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:boom")))!,
+            (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:boom")))!,
             "completed",
         );
         expect(peer.items[itemMapKey("groupKey", "42")]).equals(undefined);
         await node.close();
     });
 
-    it("does not spawn a revert-of-revert when the revert itself fails terminally", async () => {
+    it("does not spawn a rollback-of-rollback when the rollback itself fails terminally", async () => {
         const environment = new Environment("test");
         const peer = new FakePeer("rp");
         TestTaskManager.peers.set("rp", peer);
@@ -108,11 +108,11 @@ describe("auto-rollback", () => {
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "rb2" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
 
-        // The revert's forward work (awaitGate -> verify-reconcile over its deletePending intent) rejects.
+        // The rollback's forward work (awaitGate -> verify-reconcile over its deletePending intent) rejects.
         const realReconcile = peer.reconcile.bind(peer);
         peer.reconcile = async (n, options) => {
             if (Object.values(peer.items).some(i => i.status.state === "deletePending")) {
-                throw new TaskFailedError("revert boom");
+                throw new TaskFailedError("rollback boom");
             }
             return realReconcile(n, options);
         };
@@ -127,13 +127,13 @@ describe("auto-rollback", () => {
 
         await awaitState(
             node,
-            (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:boom2")))!,
+            (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:boom2")))!,
             "failed",
         );
         // No rollback of the rollback: asserted against the failed rollback's own run, since a key built from
         // the original's slot is unreachable under per-run identity and would make this check dead.
-        const failedRevert = requireRecordFor(node.stateOf(TestTaskManager).runs, `rollback:${original.runId}`);
-        expect(revertRecordsOf(node.stateOf(TestTaskManager).runs, failedRevert.slotKey)).length(0);
+        const failedRollback = requireRecordFor(node.stateOf(TestTaskManager).runs, `rollback:${original.runId}`);
+        expect(rollbackRecordsOf(node.stateOf(TestTaskManager).runs, failedRollback.slotKey)).length(0);
         await node.close();
     });
 });

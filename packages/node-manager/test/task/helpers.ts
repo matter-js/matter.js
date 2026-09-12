@@ -161,7 +161,7 @@ export class FakePeer {
         this.itemChanged.emit(item);
     }
 
-    /** Record the desired-state mutations the gate observes so cancel-revert order can be asserted. */
+    /** Record the desired-state mutations the gate observes so cancel-rollback order can be asserted. */
     readonly removeOrder = new Array<string>();
 
     // Stores real intent+mode (not a placeholder) so the context's prior-capture reads true values.
@@ -346,7 +346,7 @@ export function rollbackRecordOf(runs: RunRecords, slotKey: string): PersistedRe
 }
 
 /** Every persisted rollback of any run of `slotKey`, for asserting that none exists. */
-export function revertRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
+export function rollbackRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
     const undone = new Set(recordsFor(runs, slotKey).map(r => r.runId));
     return Object.values(runs).filter(r => r.rollbackOf !== undefined && undone.has(r.rollbackOf));
 }
@@ -407,7 +407,7 @@ export function cancelSlotOutcome(manager: TaskManagerBehavior, slotKey: string)
 }
 
 /** The slot key of the rollback of the newest run of `slotKey`, or undefined if none was recorded. */
-export function revertSlotOf(runs: RunRecords, slotKey: string): string | undefined {
+export function rollbackSlotOf(runs: RunRecords, slotKey: string): string | undefined {
     return rollbackRecordOf(runs, slotKey)?.slotKey;
 }
 

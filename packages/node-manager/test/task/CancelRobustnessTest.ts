@@ -239,7 +239,7 @@ describe("cancel robustness", () => {
 
         const handle = await MockTime.resolve(cancelling);
 
-        // Nothing was written to the peer after the cancel was accepted, so there is nothing to revert — and
+        // Nothing was written to the peer after the cancel was accepted, so there is nothing to rollback — and
         // the caller is told the device is untouched, not merely that no undo exists.
         expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
         expect(handle.outcome).equals(TaskCancelOutcome.NothingToUndo);
@@ -289,7 +289,7 @@ describe("cancel robustness", () => {
         await node.close();
     });
 
-    it("has the revert persisted by the time cancel resolves", async () => {
+    it("has the rollback persisted by the time cancel resolves", async () => {
         const environment = new Environment("test");
         const peer = new FakePeer("dp");
         TestTaskManager.peers.set("dp", peer);
@@ -309,7 +309,7 @@ describe("cancel robustness", () => {
             requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:durable").runId,
         );
 
-        // A promised revert that is not yet durable is lost to a crash while the forward record already names it.
+        // A promised rollback that is not yet durable is lost to a crash while the forward record already names it.
         const persisted = node.stateOf(TestTaskManager).runs;
         expect(requireRecordFor(persisted, "synthetic:durable").rollbackRunId).equals(handle?.runId);
         expect(persisted[String(handle!.runId)]).not.equals(undefined);
