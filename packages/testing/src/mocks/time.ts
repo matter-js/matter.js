@@ -29,7 +29,63 @@ type TimerCallback = () => any;
 type MockTimeLike = typeof MockTime;
 export interface MockTime extends MockTimeLike {}
 
-const macrotaskDependents = new Set<Promise<unknown>>();
+/**
+ * An operation that only settles on a macrotask boundary.  A "host" dependent additionally settles on host time
+ * rather than virtual time, so virtual time must stand still while it is pending.  An abandoned dependent still
+ * requires macrotask yields to settle but no longer holds virtual time.
+ */
+interface Dependent {
+    host: boolean;
+    yields: number;
+    abandoned: boolean;
+}
+
+const dependents = new Map<Promise<unknown>, Dependent>();
+
+/**
+ * Yields a single host operation may withhold virtual time for.  The budget is per operation, so a slow operation
+ * cannot spend the budget of one that starts alongside it.  An operation over budget is abandoned: it still requires
+ * macrotask yields to settle but no longer withholds virtual time, so an operation that never settles costs one
+ * bounded delay rather than a stalled clock.
+ */
+const MAX_HOST_ASYNC_YIELDS = 200;
+
+function register<T>(dependent: Promise<T>, host: boolean) {
+    const registered = dependent.finally(() => {
+        dependents.delete(registered);
+    });
+    dependents.set(registered, { host, yields: 0, abandoned: false });
+    return registered;
+}
+
+/**
+ * Charge one yield to every host operation that withholds virtual time, abandoning those over budget.  Reports
+ * whether virtual time must stand still.
+ */
+function chargeHostAsync() {
+    let withholding = false;
+    for (const dependent of dependents.values()) {
+        if (!dependent.host || dependent.abandoned) {
+            continue;
+        }
+        if (dependent.yields >= MAX_HOST_ASYNC_YIELDS) {
+            dependent.abandoned = true;
+            continue;
+        }
+        dependent.yields++;
+        withholding = true;
+    }
+    return withholding;
+}
+
+function hasActiveDependents() {
+    for (const dependent of dependents.values()) {
+        if (!dependent.abandoned) {
+            return true;
+        }
+    }
+    return false;
+}
 
 const timerNames = new WeakMap<TimerCallback, string>();
 
@@ -180,6 +236,7 @@ export const MockTime = {
      */
     reset(time: ConstructorParameters<typeof Date>[0] = epoch) {
         callbacks = [];
+        dependents.clear();
         nowMs = new Date(time).getTime();
         defaultToMacrotasks = false;
         MockTime.enable();
@@ -208,12 +265,37 @@ export const MockTime = {
         defaultToMacrotasks = value;
     },
 
+    /**
+     * Register an operation that settles on host time rather than virtual time.  {@link MockTime.resolve} withholds
+     * virtual time for the duration of the operation, so host latency does not expire virtual timers.  Time still
+     * advances in gaps between operations and once an operation exhausts {@link MAX_HOST_ASYNC_YIELDS}.
+     */
+    requireHostAsync<T>(dependent: Promise<T>) {
+        return register(dependent, true);
+    },
+
     requireMacrotasks<T>(dependent: Promise<T>) {
-        dependent = dependent.finally(() => {
-            macrotaskDependents.delete(dependent);
-        });
-        macrotaskDependents.add(dependent);
-        return dependent;
+        return register(dependent, false);
+    },
+
+    /**
+     * Operations {@link MockTime} still tracks, abandoned ones included.  Exposed for tests of MockTime itself.
+     */
+    get dependentCount() {
+        return dependents.size;
+    },
+
+    /**
+     * Host operations currently withholding virtual time.  Exposed for tests of MockTime itself.
+     */
+    get pendingHostAsyncOps() {
+        let count = 0;
+        for (const dependent of dependents.values()) {
+            if (dependent.host && !dependent.abandoned) {
+                count++;
+            }
+        }
+        return count;
     },
 
     atTime<T>(time: number | Date, actor: () => T): T {
@@ -282,12 +364,14 @@ export const MockTime = {
     },
 
     /**
-     * Wait for all registered macrotask dependencies to complete.
+     * Wait for all registered macrotask dependencies to complete.  A host dependency over budget is abandoned here as
+     * it is in {@link MockTime.resolve}, so one that never settles cannot stall the wait.
      */
     get macrotasks() {
         return (async () => {
-            while (macrotaskDependents.size) {
+            while (hasActiveDependents()) {
                 await MockTime.resolve(this.macrotask);
+                chargeHostAsync();
             }
         })();
     },
@@ -330,7 +414,7 @@ export const MockTime = {
         while (!resolved) {
             // Use macrotask yields when required explicitly or when async operations needing macrotasks (e.g.
             // crypto) are pending
-            if ((macrotasks ?? defaultToMacrotasks) || macrotaskDependents.size) {
+            if ((macrotasks ?? defaultToMacrotasks) || dependents.size) {
                 await MockTime.macrotask;
             } else {
                 await MockTime.yield();
@@ -345,6 +429,12 @@ export const MockTime = {
                 throw new TestTimeoutError(
                     "Promise did not resolve within one (virtual) hour, probably not going to happen",
                 );
+            }
+
+            // Host operations such as crypto settle on host time.  Advancing while one is pending converts host
+            // latency into virtual time, which expires protocol timers that would not expire in production
+            if (chargeHostAsync()) {
+                continue;
             }
 
             if (stepMs) {
