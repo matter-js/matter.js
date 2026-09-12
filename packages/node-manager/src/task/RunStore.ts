@@ -82,7 +82,13 @@ export class RunStore {
     #nextRetireSeq = 1;
     #highestIssuedRunId = 0;
 
-    /** Identities issued to runs whose first record write never landed, so they left no trace to evict. */
+    /**
+     * Identities issued to runs whose first record write never landed, so they left no trace to evict.
+     *
+     * Process-local on purpose: the only holder of such an identity is the caller whose `run()` call produced
+     * it, and that handle dies with the process. Persisting the gaps would buy a better message for an
+     * identity nothing can still be holding.
+     */
     readonly #discarded = new Set<RunId>();
     #unreadable = false;
 
@@ -148,6 +154,20 @@ export class RunStore {
             // unknown value holds it for the life of the process; `phaseIndex` chooses which phase resumes, so
             // a rotation could re-enter past its point of no return; `retireSeq` seeds the retirement counter,
             // where one `NaN` stops every run in the process from retiring.
+            if (typeof stored.slotKey !== "string" || stored.slotKey === "") {
+                throw new InternalError(`Stored task record "${key}" has no usable target`);
+            }
+            if (typeof stored.type !== "string" || stored.type === "") {
+                throw new InternalError(`Stored task record "${key}" has no usable task type`);
+            }
+            if (typeof stored.wrote !== "boolean") {
+                throw new InternalError(`Stored task record "${key}" does not say whether it reached a device`);
+            }
+            for (const link of ["rollbackRunId", "rollbackOf"] as const) {
+                if (stored[link] !== undefined && !isRunId(stored[link])) {
+                    throw new InternalError(`Stored task record "${key}" has no usable ${link}`);
+                }
+            }
             if (!isTaskState(stored.state)) {
                 throw new InternalError(`Stored task record "${key}" has an unknown state`);
             }

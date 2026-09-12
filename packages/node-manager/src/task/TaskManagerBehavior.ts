@@ -25,6 +25,7 @@ import {
     TaskCannotCancelRollbackError,
     TaskCapacityExceededError,
     TaskExternalIdInUseError,
+    TaskFailedError,
     TaskFinding,
     findingOf,
     TaskManagerClosingError,
@@ -1434,6 +1435,14 @@ export class TaskManagerBehavior extends Behavior {
     async #drive(execution: Execution): Promise<void> {
         const record = execution.record;
         try {
+            // A resumed record names the phase to continue from, and only its own definition knows how many
+            // there are. An index past the end would exit the loop untouched and record the run completed,
+            // reporting work that was never applied to a device.
+            if (record.phaseIndex > execution.phases.length) {
+                throw new TaskFailedError(
+                    `${runLabel(record.runId)} resumes at phase ${record.phaseIndex}, but task type "${record.type}" has ${execution.phases.length}`,
+                );
+            }
             await this.#admit(execution); // fail-fast before any node is touched
             this.#throwIfAborted(execution);
             // Recorded before the first phase so a crash-resume sees the run.
