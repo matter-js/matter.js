@@ -203,9 +203,6 @@ jobs:
       - name: Smoke-test arm64 image
         if: needs.workflow-conditions.outputs.build-needed == 'true'
         run: |
-          # The tar is written and the builder's cache is dead weight from here on; it shares the root filesystem
-          # the load below needs
-          docker buildx prune -af || true
           df -h / | tail -1
           docker load -i /tmp/chip.tar
           arch=$(docker inspect --format '{{ .Architecture }}' ghcr.io/matter-js/chip:latest)
