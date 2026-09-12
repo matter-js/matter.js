@@ -201,7 +201,9 @@ jobs:
 
       # test-core-arm64 exercises chip-tool against this image but never starts the app binaries, so they get an
       # execution check here. Exit status 126 or above means the shell could not execute the binary at all (wrong
-      # architecture, missing loader); anything below that proves it ran.
+      # architecture, missing loader); anything below that proves it ran. The camera app is the reason this matters
+      # beyond architecture: it loads GStreamer and FFmpeg at startup, so a missing runtime package shows up here
+      # rather than in a certification run.
       - name: Smoke-test arm64 image
         if: needs.workflow-conditions.outputs.build-needed == 'true'
         run: |
@@ -212,7 +214,8 @@ jobs:
             exit 1
           fi
           docker run --rm --entrypoint /bin/sh ghcr.io/matter-js/chip:latest -c '
-            for bin in chip-tool chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
+            for bin in chip-tool chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app \
+                chip-camera-app chip-ota-provider-app chip-ota-requestor-app; do
               "$bin" --help >/dev/null 2>&1
               status=$?
               if [ "$status" -ge 126 ]; then

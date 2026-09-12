@@ -147,8 +147,8 @@ RUN build-one bridge-app/linux chip-bridge-app
 RUN build-one camera-app/linux chip-camera-app chip-camera-app treat_warnings_as_errors=false
 
 # The BDX and software-update cases' pair: one serves an update over BDX, the other asks for it. The
-# staged `.ota` file a case hands the provider is made per case with CHIP's own ota_image_tool.py,
-# which this image already carries with the rest of the CHIP tree
+# staged `.ota` file a case hands the provider is made per case rather than baked here, because it
+# encodes the version and payload that case is about; ota_image_tool.py below is what makes it
 RUN build-one ota-provider-app/linux chip-ota-provider-app
 RUN build-one ota-requestor-app/linux chip-ota-requestor-app
 
@@ -212,6 +212,10 @@ COPY --from=source /connectedhomeip/src/app/zap-templates/zcl/data-model/chip \
 # Tests
 COPY --from=source /connectedhomeip/src/python_testing /src/python_testing
 COPY --from=source /connectedhomeip/src/app/tests/suites /src/app/tests/suites
+
+# Builds the staged .ota file a software-update case serves. It resolves matter.tlv from the installed
+# python packages above, so the script is all that has to come across
+COPY --from=source /connectedhomeip/src/app/ota_image_tool.py /src/app/ota_image_tool.py
 
 # Development certs
 COPY --from=source /connectedhomeip/credentials/development/paa-root-certs /credentials/development/paa-root-certs
