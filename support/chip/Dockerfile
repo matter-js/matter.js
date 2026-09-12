@@ -65,7 +65,7 @@ RUN --mount=type=cache,sharing=locked,target=/var/cache/apt \
     #
     apt-get -qq -y install --no-install-recommends \
         git curl clang pkg-config libssl-dev libdbus-1-dev libavahi-client-dev clang pkg-config \
-        ninja-build python3-venv python3-dev unzip libreadline-dev python3-pip \
+        ninja-build cmake python3-venv python3-dev unzip libreadline-dev python3-pip \
         g++ libglib2.0-dev libglib2.0-dev-bin libpcsclite-dev libevent-dev \
         libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libavformat-dev libavcodec-dev libavutil-dev \
         libcurl4-openssl-dev
