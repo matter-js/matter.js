@@ -41,10 +41,11 @@ on:
     branches: [ "main" ]
   merge_group:
 
-# Cancel previous PR/branch runs when a new commit is pushed
+# Cancel a superseded run for the same ref, but keep the trigger in the group: a push must not cancel a manual
+# or scheduled run on the same ref, and those two queue rather than cancel each other.
 concurrency:
-  group: ${{ github.ref }}-chip-build-test
-  cancel-in-progress: true
+  group: ${{ github.ref }}-${{ github.event_name }}-chip-build-test
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
   # Determine whether we should run and/or build new CHIP container
