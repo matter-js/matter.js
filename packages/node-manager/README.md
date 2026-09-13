@@ -24,7 +24,7 @@ const handle = await node.act(agent => {
     const manager = agent.get(TaskManagerBehavior);
     manager.register(MyTask); // built-in types are registered already
     return manager.run(AddNodeToGroup, {
-        peerId,
+        peer, // the node's PeerAddress — see "Naming a node" below
         endpoint: 1,
         groupId: 1,
         groupKeySetId: 1,
@@ -50,22 +50,27 @@ A task of your own declares its phases and validates its own parameters — they
 resume, so a task refuses what it cannot drive:
 
 ```ts
-import { GroupMembership, Require, TaskDefinition } from "@matter/node-manager";
+import { addressLabel, GroupMembership, Require, TaskDefinition } from "@matter/node-manager";
+import { PeerAddress } from "@matter/protocol";
+import { GroupId } from "@matter/types";
 
-const MyTask: TaskDefinition<{ peerId: string; groupId: number }> = {
+const MyTask: TaskDefinition<{ peer: PeerAddress; groupId: number }> = {
     type: "myTask",
     validate(params) {
         Require.params("myTask", params);
-        Require.text("peerId", params.peerId);
+        Require.peer("peer", params.peer);
         Require.id("groupId", params.groupId, 0xffff);
     },
-    slotKeyFor: params => `myTask:${params.peerId}:${params.groupId}`,
+    slotKeyFor: params => `myTask:${addressLabel(params.peer)}:${params.groupId}`,
     phases: params => [
         {
             name: "write",
             run: async ctx => {
-                const peer = ctx.resolvePeer(params.peerId);
-                await ctx.setIntent(peer, GroupMembership, String(params.groupId), { localEndpoint: 1 });
+                const peer = ctx.resolvePeer(params.peer);
+                await ctx.setIntent(peer, GroupMembership, String(params.groupId), {
+                    localEndpoint: 1,
+                    groupId: GroupId(params.groupId),
+                });
             },
         },
     ],
@@ -74,6 +79,13 @@ const MyTask: TaskDefinition<{ peerId: string; groupId: number }> = {
 
 The item kinds the reconciler registers (`GroupKey`, `GroupKeyMap`, `GroupMembership`, `Acl`, `Binding`) are
 exported as the single instance of each, so a task names a kind by reference and the intent type follows.
+
+### Naming a node
+
+A task names a node by its `PeerAddress` — its fabric index and node id — and never by the local id a store
+hands out, which is free again once the node is removed. A record outlives the node's presence, so an id that
+can be re-issued would let an undo write to whatever device inherited it. `node.peerAddress` is the value to
+pass; a group has one too, with its group id in the node id.
 
 ### One task per target
 
