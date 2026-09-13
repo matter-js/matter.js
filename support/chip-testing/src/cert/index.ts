@@ -27,7 +27,7 @@ import {
     InProcessControllerAdapter,
     MATTERJS_CONTROLLER_PICS,
 } from "./InProcessControllerAdapter.js";
-import { OriginDestination, registerLogOrigin } from "./log-origins.js";
+import { forgetLogOriginClaims, logOriginsAreClaimed, OriginDestination, registerLogOrigin } from "./log-origins.js";
 
 registerControllerAdapterFactory(
     "matterjs",
@@ -72,6 +72,8 @@ const deviceQueues = new Map<string, LineQueue>();
 // Logger.ts's own Boot.init), so a one-time install at module load would stop forwarding device log
 // lines from the second cert-test file onward. Boot.init re-runs this on every reboot instead.
 Boot.init(() => {
+    forgetLogOriginClaims();
+
     Logger.destinations["cert-matterjs-device"] = OriginDestination("cert-matterjs-device", "device", text => {
         const id = activeDeviceId.getStore();
         const queue = id === undefined ? undefined : deviceQueues.get(id);
@@ -80,7 +82,7 @@ Boot.init(() => {
             return;
         }
 
-        if (controllerAdapterClaimsLogs()) {
+        if (controllerAdapterClaimsLogs() || !logOriginsAreClaimed()) {
             return;
         }
 
