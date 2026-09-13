@@ -41,10 +41,14 @@ on:
     branches: [ "main" ]
   merge_group:
 
-# Cancel a superseded run for the same ref, but keep the trigger in the group: a push must not cancel a manual
-# or scheduled run on the same ref, and those two queue rather than cancel each other.
+# Cancel a superseded run for the same ref, but keep the trigger in the group: a push must not cancel a manual or
+# scheduled run on the same ref.
+#
+# The two triggers that publish share one key rather than one each. They push the same `latest` manifest and open the
+# same SHA-bump branch, so running them side by side would let one overwrite the other's result; sharing a key with
+# cancellation off makes the second wait for the first instead.
 concurrency:
-  group: ${{ github.ref }}-${{ github.event_name }}-chip-build-test
+  group: ${{ github.ref }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'publish' || github.event_name }}-chip-build-test
   cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
