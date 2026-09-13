@@ -10,6 +10,8 @@ import {
     TaskFailedError,
     TaskAbandonedError,
     TaskAlreadyUndoneError,
+    TaskNoLongerTrackedError,
+    TaskNotFoundError,
     TaskNoRollbackError,
     TaskNotInFlightError,
     TaskStoreVersionError,
@@ -19,10 +21,10 @@ import { RUN_STORE_VERSION } from "#task/RunStore.js";
 import { TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
-import { Environment, ImplementationError, InternalError, MaybePromise } from "@matter/general";
+import { Environment, ImplementationError, InternalError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, pumpUntil, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -65,16 +67,6 @@ async function makeNode(environment?: Environment, id = "ledger") {
     return MockServerNode.create(RootEndpoint, { environment, id });
 }
 
-async function pumpUntil(name: string, condition: () => MaybePromise<boolean>) {
-    for (let i = 0; i < 10_000; i++) {
-        if (await condition()) {
-            return;
-        }
-        await MockTime.advance(1);
-    }
-    throw new InternalError(`Condition "${name}" never held`);
-}
-
 /** Writes one intent, then fails, and declares itself past the point of no return. */
 const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
     type: "forward-only",
@@ -83,16 +75,16 @@ const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
     slotKeyFor(params) {
         return `synthetic:${params.tag}`;
     },
-    revertible() {
+    rollbackable() {
         return false;
     },
-    notRevertibleReason: "the test says so",
+    notRollbackableReason: "the test says so",
     phases(params) {
         return [
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
                     throw new TaskFailedError("forward only");
                 },
             },
@@ -100,9 +92,9 @@ const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
     },
 };
 
-/** Writes one intent, then fails, while remaining revertible: the failure path creates a rollback. */
-const FailingRevertibleTask: TaskDefinition<{ tag: string; peerId: string }> = {
-    type: "failing-revertible",
+/** Writes one intent, then fails, while remaining rollbackable: the failure path creates a rollback. */
+const FailingRollbackableTask: TaskDefinition<{ tag: string; peerId: string }> = {
+    type: "failing-rollbackable",
     slotKeyFor(params) {
         return `synthetic:${params.tag}`;
     },
@@ -111,21 +103,21 @@ const FailingRevertibleTask: TaskDefinition<{ tag: string; peerId: string }> = {
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
-                    throw new TaskFailedError("failing but revertible");
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
+                    throw new TaskFailedError("failing but rollbackable");
                 },
             },
         ];
     },
 };
 
-/** Writes one intent, then fails, and cannot answer whether it is revertible. */
+/** Writes one intent, then fails, and cannot answer whether it is rollbackable. */
 const UnaskableTask: TaskDefinition<{ tag: string; peerId: string }> = {
     type: "unaskable",
     slotKeyFor(params) {
         return `synthetic:${params.tag}`;
     },
-    revertible(): boolean {
+    rollbackable(): boolean {
         throw new ImplementationError("the test cannot say");
     },
     phases(params) {
@@ -133,7 +125,7 @@ const UnaskableTask: TaskDefinition<{ tag: string; peerId: string }> = {
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
                     throw new TaskFailedError("unaskable");
                 },
             },
@@ -146,7 +138,7 @@ function touchPhase(peerId: string): TaskPhase {
     return {
         name: "touch",
         run: async ctx => {
-            await ctx.setIntent(ctx.resolvePeer(peerId), "groupMembership", "X", { v: 2 });
+            await ctx.setIntent(ctx.resolvePeer(peerId), kindOf("groupMembership"), "X", { v: 2 });
         },
     };
 }
@@ -157,8 +149,8 @@ function gatingPhase(peerId: string): TaskPhase {
         name: "hold",
         run: async ctx => {
             const peer = ctx.resolvePeer(peerId);
-            await ctx.setIntent(peer, "groupMembership", "X", { v: 2 });
-            await ctx.awaitCommitted([{ peer, kind: "groupMembership", key: "X" }]);
+            await ctx.setIntent(peer, kindOf("groupMembership"), "X", { v: 2 });
+            await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
     };
 }
@@ -285,8 +277,8 @@ describe("run records after a retirement", () => {
         // The proof that retry does not go through the definition: the params it would need are gone, and the
         // changeSet alone is enough to build the replacement.
         const retry = await node.act(a => a.get(TestTaskManager).retryRollback(original.runId));
-        expect(retry.status.revertOf).equals(original.runId);
-        expect((await stored(node, original.runId))?.revertRunId).equals(retry.runId);
+        expect(retry.status.rollbackOf).equals(original.runId);
+        expect((await stored(node, original.runId))?.rollbackRunId).equals(retry.runId);
     });
 
     it("refuses to cancel a run that already finished", async () => {
@@ -304,7 +296,7 @@ describe("run records after a retirement", () => {
                     .then(c => c.rollback),
             ),
         ).rejectedWith(TaskNotInFlightError);
-        expect((await stored(node, handle.runId))?.revertRunId).equals(undefined);
+        expect((await stored(node, handle.runId))?.rollbackRunId).equals(undefined);
     });
 
     it("records the schema version it wrote the table under", async () => {
@@ -415,7 +407,7 @@ describe("run records after a retirement", () => {
 
         const retry = await attempt(node, m => m.retryRollback(original.runId));
         expect(retry).not.instanceOf(Error);
-        expect((retry as TaskHandle).status.revertOf).equals(original.runId);
+        expect((retry as TaskHandle).status.rollbackOf).equals(original.runId);
     });
 
     it("is not superseded by a later run that reached no phase", async () => {
@@ -436,7 +428,7 @@ describe("run records after a retirement", () => {
 
         const retry = await attempt(node, m => m.retryRollback(original.runId));
         expect(retry).not.instanceOf(Error);
-        expect((retry as TaskHandle).status.revertOf).equals(original.runId);
+        expect((retry as TaskHandle).status.rollbackOf).equals(original.runId);
     });
 
     it("drops the priors of a run that completed", async () => {
@@ -540,9 +532,9 @@ describe("run records after a retirement", () => {
         peer.setIntent("groupMembership", "X", { v: 1 });
         peer.setReachable(false);
 
-        await node.act(a => a.get(TestTaskManager).register(FailingRevertibleTask));
+        await node.act(a => a.get(TestTaskManager).register(FailingRollbackableTask));
         const failed = await node.act(a =>
-            a.get(TestTaskManager).run(FailingRevertibleTask, {
+            a.get(TestTaskManager).run(FailingRollbackableTask, {
                 tag: "failed-with-undo",
                 peerId: "failed-with-undo",
             }),
@@ -551,12 +543,12 @@ describe("run records after a retirement", () => {
 
         const record = await stored(node, failed.runId);
         expect(record?.state).equals("failed");
-        expect(record?.revertRunId).not.equals(undefined);
+        expect(record?.rollbackRunId).not.equals(undefined);
         // The rollback exists and is parked, so it can still replay these.
         expect(record?.changeSet).not.deep.equals([]);
     });
 
-    it("drops the priors of a run whose type cannot say whether it is revertible", async () => {
+    it("drops the priors of a run whose type cannot say whether it is rollbackable", async () => {
         await using node = await makeNode();
         const peer = testPeer("unaskable");
         peer.setIntent("groupMembership", "X", { v: 1 });
@@ -570,7 +562,7 @@ describe("run records after a retirement", () => {
         const record = await stored(node, failed.runId);
         expect(record?.state).equals("failed");
         // No rollback could be prepared, so nothing will ever replay the priors.
-        expect(record?.revertRunId).equals(undefined);
+        expect(record?.rollbackRunId).equals(undefined);
         expect(record?.changeSet).deep.equals([]);
         expect(record?.wrote).equals(true);
         expect(await attempt(node, m => m.retryRollback(failed.runId))).instanceOf(TaskNoRollbackError);
@@ -588,6 +580,148 @@ describe("run records after a retirement", () => {
         );
 
         expect((await stored(node, rollback.runId))?.changeSet).deep.equals([]);
+    });
+
+    it("keeps as many retired runs as the limit says when an abandon records an already-retired rollback", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("abandon-history");
+        await node.act(a => (a.get(TestTaskManager).state.historyLimit = 2));
+
+        // Two runs of their own, so the eviction prefix is longer than the limit and the overflow count is
+        // what decides where it stops.
+        for (const tag of ["filler-a", "filler-b"]) {
+            const filler = await run(node, tag, [{ name: "noop", run: async () => {} }]);
+            await awaitRetired(node, filler.runId);
+        }
+
+        const { original, rollback } = await failedRollback(node, "abandon-history", peer);
+        await node.act(a => a.get(TestTaskManager).abandon(rollback.runId, "operator"));
+        await awaitRetired(node, rollback.runId);
+
+        // The abandoned rollback had already retired on its own failure, so it is in the retirement order
+        // before this write, not moving into it. Counting it as newly retiring evicts one record too many.
+        const stored = await node.act(a => Object.keys(a.get(TestTaskManager).state.runs));
+        expect(stored.length).equals(2);
+        expect(await node.act(a => a.get(TestTaskManager).get(original.runId))).not.equals(undefined);
+    });
+
+    it("evicts the original a completing rollback discharges, in that same retirement", async () => {
+        await using node = await makeNode();
+        const peer = testPeer("undo-frees-history");
+        await node.act(a => (a.get(TestTaskManager).state.historyLimit = 0));
+        const { original, rollback } = await parkedRollback(node, "undo-frees-history", peer);
+
+        peer.markHas("groupMembership", "X");
+        peer.setReachable(true);
+        await pumpUntil("rollback completed", () =>
+            node.act(a => a.get(TestTaskManager).get(rollback.runId)?.status.state === "completed"),
+        );
+        await awaitRetired(node, rollback.runId);
+
+        // The write that completes the undo is the write that clears the original's priors, so the record it
+        // unpins is evictable by that same retirement rather than by whatever retires next.
+        expect(await stored(node, original.runId)).equals(undefined);
+        // The undo itself survives its own retirement — a run is never evicted by the write that retires it —
+        // and goes with the next one.
+        expect(await stored(node, rollback.runId)).not.equals(undefined);
+
+        const next = await run(node, "undo-frees-history-next", [{ name: "noop", run: async () => {} }]);
+        await awaitRetired(node, next.runId);
+        expect(await stored(node, rollback.runId)).equals(undefined);
+    });
+
+    it("forgets retired runs beyond the history limit, in storage as well as in memory", async () => {
+        await using node = await makeNode();
+        testPeer("history");
+        await node.act(a => (a.get(TestTaskManager).state.historyLimit = 2));
+
+        const ids = new Array<RunId>();
+        for (let i = 0; i < 4; i++) {
+            const handle = await run(node, `history-${i}`, [{ name: "noop", run: async () => {} }]);
+            await awaitRetired(node, handle.runId);
+            ids.push(handle.runId);
+        }
+
+        const stored = await node.act(a => Object.keys(a.get(TestTaskManager).state.runs));
+        // Bounded in storage, not merely in what `history()` reports — a memory-only eviction would leave the
+        // table growing for the life of the node.
+        expect(stored.length).equals(2);
+        expect(await node.act(a => a.get(TestTaskManager).get(ids[0]))).equals(undefined);
+        expect(await node.act(a => a.get(TestTaskManager).get(ids[3]))).not.equals(undefined);
+    });
+
+    it("says an evicted run was forgotten rather than never known", async () => {
+        await using node = await makeNode();
+        testPeer("evicted");
+        await node.act(a => (a.get(TestTaskManager).state.historyLimit = 0));
+
+        const first = await run(node, "evicted-0", [{ name: "noop", run: async () => {} }]);
+        await awaitRetired(node, first.runId);
+        // Eviction happens in a retirement write, and a run is never in its own. So the second run's
+        // retirement is what forgets the first.
+        const second = await run(node, "evicted-1", [{ name: "noop", run: async () => {} }]);
+        await awaitRetired(node, second.runId);
+
+        expect(await node.act(a => a.get(TestTaskManager).get(first.runId))).equals(undefined);
+        expect(await attempt(node, m => m.cancel(first.runId))).instanceOf(TaskNoLongerTrackedError);
+        // An identity never issued is still a different answer.
+        expect(await attempt(node, m => m.cancel(RunId(9_999)))).instanceOf(TaskNotFoundError);
+    });
+
+    it("survives a restart with the forgotten runs still forgotten", async () => {
+        const environment = new Environment("history-restart");
+        let evicted: RunId;
+        let kept: RunId;
+        {
+            await using seed = await makeNode(environment, "historyrestart");
+            testPeer("restart");
+            await seed.act(a => (a.get(TestTaskManager).state.historyLimit = 1));
+            const first = await run(seed, "restart-0", [{ name: "noop", run: async () => {} }]);
+            await awaitRetired(seed, first.runId);
+            const second = await run(seed, "restart-1", [{ name: "noop", run: async () => {} }]);
+            await awaitRetired(seed, second.runId);
+            evicted = first.runId;
+            kept = second.runId;
+        }
+
+        await using node = await makeNode(environment, "historyrestart");
+        expect(await node.act(a => a.get(TestTaskManager).get(evicted))).equals(undefined);
+        expect(await node.act(a => a.get(TestTaskManager).get(kept))).not.equals(undefined);
+        // The high-water mark outlived the records, so the answer is still "forgotten", not "never existed".
+        expect(await attempt(node, m => m.cancel(evicted))).instanceOf(TaskNoLongerTrackedError);
+    });
+
+    it("builds a first rollback from the priors of a run whose rollback was refused", async () => {
+        const environment = new Environment("refused-rollback");
+        let originalId: RunId;
+        {
+            await using seed = await makeNode(environment, "refusedrollback");
+            const peer = testPeer("refused");
+            const { original, rollback } = await failedRollback(seed, "refused", peer);
+            originalId = original.runId;
+
+            // The state a refused rollback leaves: the run retired `failed` having changed the device, its
+            // priors kept because one could still be built, and no rollback recorded. `#prepareRollback`
+            // decided the run was rollbackable before the refusal, so building one now is the same act as
+            // retrying a failed one.
+            await seed.act(a => {
+                const runs = { ...a.get(TestTaskManager).state.runs };
+                delete runs[String(rollback.runId)];
+                const { rollbackRunId: _dropped, ...withoutLink } = runs[String(originalId)];
+                runs[String(originalId)] = withoutLink;
+                a.get(TestTaskManager).state.runs = runs;
+            });
+        }
+
+        await using node = await makeNode(environment, "refusedrollback");
+        testPeer("refused");
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+
+        expect(await node.act(a => a.get(TestTaskManager).priorsOf(originalId))).not.deep.equals([]);
+        const handle = await node.act(a => a.get(TestTaskManager).retryRollback(originalId));
+
+        expect(handle.status.rollbackOf).equals(originalId);
+        expect(await stored(node, originalId).then(r => r?.rollbackRunId)).equals(handle.runId);
     });
 
     it("is superseded by a later run that reached the device and cannot be undone", async () => {

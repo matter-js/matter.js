@@ -9,12 +9,12 @@ import {
     TaskConflictError,
     TaskExternalIdInUseError,
     TaskIdentityExhaustedError,
+    TaskNotInFlightError,
     TaskRollbackPendingError,
-    TaskSlotAwaitingResumeError,
     TaskSlotOccupiedError,
     TaskTypeNotRegisteredError,
 } from "#task/errors.js";
-import { Revert } from "#task/Revert.js";
+import { Rollback } from "#task/Rollback.js";
 import { RUN_ID_RESERVATION } from "#task/RunStore.js";
 import { TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
@@ -22,7 +22,7 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, onTerminalWrite, recordFor, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, onTerminalWrite, pumpUntil, recordFor, SyntheticTask } from "./helpers.js";
 
 /** Resolves peers to fakes, so a phase records a real changeSet and its rollback has something to undo. */
 class TestTaskManager extends TaskManagerBehavior {
@@ -50,16 +50,6 @@ function touchingPeer(id: string) {
     TestTaskManager.peers.set(id, peer);
     TestTaskManager.reconcilerPeer = peer;
     return peer;
-}
-
-async function pumpUntil(name: string, condition: () => Promise<boolean>) {
-    for (let i = 0; i < 10_000; i++) {
-        if (await condition()) {
-            return;
-        }
-        await MockTime.advance(1);
-    }
-    throw new Error(`Condition "${name}" never held`);
 }
 
 /** Refuses to be rebuilt from its persisted parameters, as a custom task validating them might. */
@@ -96,8 +86,8 @@ function gateForever(peerId: string): TaskPhase {
         name: "hold",
         run: async ctx => {
             const peer = ctx.resolvePeer(peerId);
-            await ctx.setIntent(peer, "groupMembership", "X", {});
-            await ctx.awaitCommitted([{ peer, kind: "groupMembership", key: "X" }]);
+            await ctx.setIntent(peer, kindOf("groupMembership"), "X", {});
+            await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
     };
 }
@@ -107,7 +97,7 @@ function touchPhase(peerId: string): TaskPhase {
     return {
         name: "touch",
         run: async ctx => {
-            await ctx.setIntent(ctx.resolvePeer(peerId), "groupMembership", "X", {});
+            await ctx.setIntent(ctx.resolvePeer(peerId), kindOf("groupMembership"), "X", {});
         },
     };
 }
@@ -186,17 +176,17 @@ describe("run identity", () => {
             for (let i = 0; i < 10_000 && peer.items[itemMapKey("groupMembership", "X")] === undefined; i++) {
                 await MockTime.advance(1);
             }
-            const revert = await node.act(a =>
+            const rollback = await node.act(a =>
                 a
                     .get(TestTaskManager)
                     .cancel(handle.runId)
                     .then(c => c.rollback),
             );
-            expect(revert).not.equals(undefined);
-            runIds.push(revert!.runId);
+            expect(rollback).not.equals(undefined);
+            runIds.push(rollback!.runId);
 
             // Let the rollback finish and release the slot, so the next round is a genuine re-run of it.
-            await settle(node, `revert:${handle.runId}`);
+            await settle(node, `rollback:${handle.runId}`);
             peer.dropItem("groupMembership", "X");
         }
 
@@ -211,8 +201,8 @@ describe("run identity", () => {
         const cancelled = Object.values(persisted).filter(r => r.state === "cancelled");
         expect(cancelled).length(2);
         // Each rollback is linked to the forward run it undoes, so the audit trail of both cancels survives.
-        const rollbacks = Object.values(persisted).filter(r => r.revertOf !== undefined);
-        expect(rollbacks.map(r => r.revertOf).sort()).deep.equals(cancelled.map(r => r.runId).sort());
+        const rollbacks = Object.values(persisted).filter(r => r.rollbackOf !== undefined);
+        expect(rollbacks.map(r => r.rollbackOf).sort()).deep.equals(cancelled.map(r => r.runId).sort());
     });
 
     it("lists only non-terminal runs in tasks", async () => {
@@ -243,6 +233,39 @@ describe("run identity", () => {
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const status = await node.act(a => a.get(TestTaskManager).get(runId)?.status);
         expect(status?.state).equals("completed");
+    });
+
+    it("fails a record that resumes past the last phase its type has", async () => {
+        const environment = persistentEnvironment();
+        touchingPeer("shrunk");
+        const noop = { name: "noop", run: async () => {} };
+        SyntheticTask.phasesByTag["shrunk"] = [noop, noop, gateForever("shrunk")];
+
+        let runId: RunId;
+        {
+            await using node = await makeNode(environment, "shrunk");
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "shrunk" }));
+            runId = handle.runId;
+            await pumpUntil("the run parks in its last phase", async () =>
+                node.act(a => a.get(TestTaskManager).get(runId)?.status.phaseIndex === 2),
+            );
+        }
+
+        // The definition lost two phases between builds, so the record names a phase this build does not have.
+        SyntheticTask.phasesByTag["shrunk"] = [noop];
+        await using node = await makeNode(environment, "shrunk");
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+
+        // Recorded failed rather than completed: exiting the loop untouched would report work no device saw.
+        await pumpUntil("the resumed run settles", async () =>
+            node.act(a => {
+                const state = a.get(TestTaskManager).get(runId)?.status.state;
+                return state !== undefined && state !== "running" && state !== "parked";
+            }),
+        );
+        const status = await node.act(a => a.get(TestTaskManager).get(runId)?.status);
+        expect(status?.error).contains("resumes at phase 2");
     });
 
     it("never re-issues a runId across a restart", async () => {
@@ -325,7 +348,7 @@ describe("run identity", () => {
                 .cancel(runId)
                 .then(c => c.rollback),
         );
-        expect(rollback?.status.revertOf).equals(runId);
+        expect(rollback?.status.rollbackOf).equals(runId);
     });
 
     it("refuses to roll back a run awaiting resume whose type nothing has registered", async () => {
@@ -342,7 +365,7 @@ describe("run identity", () => {
             await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "X")] !== undefined);
         }
 
-        // Observing an unfinished run needs no task; rolling one back does, because revertibility is the task's
+        // Observing an unfinished run needs no task; rolling one back does, because the rollback decision is the task's
         // decision and a record cannot answer it.
         await using node = await makeNode(environment, "unregistered");
         expect(await node.act(a => a.get(TestTaskManager).get(runId)?.status.state)).equals("running");
@@ -396,7 +419,7 @@ describe("run identity", () => {
                 .cancel(first.runId)
                 .then(c => c.rollback),
         );
-        expect(rollback?.status.revertOf).equals(first.runId);
+        expect(rollback?.status.rollbackOf).equals(first.runId);
 
         // A rollback rewrites exactly the intents a re-run would re-apply.
         let refusal: unknown;
@@ -429,7 +452,7 @@ describe("run identity", () => {
         expect(rollback).not.equals(undefined);
 
         // Let the rollback finish and retire, so it no longer answers as live work.
-        await settle(node, `revert:${handle.runId}`);
+        await settle(node, `rollback:${handle.runId}`);
 
         // Cancelling again is idempotent and must keep naming the same rollback. Resolving only live runs here
         // would make the answer depend on whether the rollback happens to have finished yet.
@@ -440,7 +463,7 @@ describe("run identity", () => {
                 .then(c => c.rollback),
         );
         expect(again?.runId).equals(rollback?.runId);
-        expect(again?.status.revertOf).equals(handle.runId);
+        expect(again?.status.rollbackOf).equals(handle.runId);
     });
 
     it("refuses to start a rollback through run(), which only cancel may create", async () => {
@@ -455,7 +478,7 @@ describe("run identity", () => {
         // one against work still writing to a peer, which no admission check can tell from a prepared one.
         let refusal: unknown;
         try {
-            await node.act(a => a.get(TestTaskManager).run(Revert, { originalRunId: forward.runId, entries: [] }));
+            await node.act(a => a.get(TestTaskManager).run(Rollback, { originalRunId: forward.runId, entries: [] }));
         } catch (e) {
             refusal = e;
         }
@@ -482,11 +505,11 @@ describe("run identity", () => {
                     .then(c => c.rollback),
             );
             rollbackId = rollback!.runId;
-            await settle(node, `revert:${runId}`);
+            await settle(node, `rollback:${runId}`);
         }
 
         // Nothing registers the type on this start. Deciding on a NEW rollback would need the task, because
-        // revertibility is the task's decision — but a run that already recorded one is answered by its record.
+        // the rollback decision is the task's decision — but a run that already recorded one is answered by its record.
         await using node = await makeNode(environment, "norereg");
         const again = await node.act(a =>
             a
@@ -658,22 +681,23 @@ describe("run identity", () => {
             );
         }
 
-        // The record survives but its task refuses to be rebuilt. It is still unfinished work that has been
-        // written down, so forgetting it here would free its slot and hide it for the rest of this process.
+        // The record survives, and the build that loads it refuses what it holds. No later start of this build
+        // would do better, so the run ends the way any error after admission ends it, and stops holding a
+        // target nothing will advance.
         await using node = await makeNode(environment, "unbuildable");
         UnbuildableTask.rejectConstruction = true;
         await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
 
-        expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.slotKey)).equals("unbuildable:u");
+        await pumpUntil("the unresumable run fails", async () =>
+            node.act(a => a.get(TestTaskManager).get(parked)?.status.state === "failed"),
+        );
+        const failed = await node.act(a => a.get(TestTaskManager).get(parked)?.status);
+        expect(failed?.error).contains("stored parameters are not valid");
+
+        // The target is free, so work a caller can express is admitted again.
         UnbuildableTask.rejectConstruction = false;
-        let refusal: unknown;
-        try {
-            await node.act(a => a.get(TestTaskManager).run(UnbuildableTask, { tag: "u" }));
-        } catch (e) {
-            refusal = e;
-        }
-        expect(refusal).instanceOf(TaskSlotAwaitingResumeError);
-        expect((refusal as TaskConflictError).owner).equals(parked);
+        const next = await node.act(a => a.get(TestTaskManager).run(UnbuildableTask, { tag: "u" }));
+        expect(next.runId).not.equals(parked);
     });
 
     it("refuses to cancel a run whose stored parameters its task no longer accepts", async () => {
@@ -693,25 +717,30 @@ describe("run identity", () => {
             );
         }
 
-        // Whether a run may be rolled back is the task's decision, and the task cannot be asked without its
-        // parameters. Surfacing its own refusal says which of the two failed.
+        // Whether a run may be rolled back is the task's decision, and the task declines the parameters it
+        // finds in storage. A coded refusal, not a programming error: the caller passed nothing wrong and
+        // cannot fix what the record holds.
         await using node = await makeNode(environment, "cancelunbuildable");
         UnbuildableTask.rejectConstruction = true;
         await node.act(a => a.get(TestTaskManager).register(UnbuildableTask));
 
+        await pumpUntil("the unresumable run fails", async () =>
+            node.act(a => a.get(TestTaskManager).get(parked)?.status.state === "failed"),
+        );
+
+        // The recorded reason is coded and names the record, never what the definition said about the value: a
+        // `validate` is application code, and parameters carry raw group keys.
+        const failed = await node.act(a => a.get(TestTaskManager).get(parked)?.status);
+        expect(failed?.error).contains("stored parameters are not valid");
+        expect(failed?.error).not.contains("malformed persisted parameters");
+
+        // The run is over, so a cancel of it is refused for that reason rather than for its parameters.
         let refusal: unknown;
         try {
-            await node.act(a =>
-                a
-                    .get(TestTaskManager)
-                    .cancel(parked)
-                    .then(c => c.rollback),
-            );
+            await node.act(a => a.get(TestTaskManager).cancel(parked));
         } catch (e) {
             refusal = e;
         }
-        expect(refusal).instanceOf(ImplementationError);
-        expect((refusal as Error).message).contains("malformed persisted parameters");
-        expect(await node.act(a => a.get(TestTaskManager).get(parked)?.status.state)).equals("running");
+        expect(refusal).instanceOf(TaskNotInFlightError);
     });
 });

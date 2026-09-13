@@ -22,7 +22,7 @@ import {
     recordFor,
     requireRecordFor,
     requireStatusOfSlot,
-    revertRecordOf,
+    rollbackRecordOf,
     statusOfSlot,
     SyntheticTask,
 } from "./helpers.js";
@@ -255,33 +255,33 @@ describe("TaskManagerBehavior", () => {
         expect(found?.status.externalId).equals("myref");
     });
 
-    it("marks a rotation non-revertible once activate begins; tasks are revertible by default", () => {
+    it("marks a rotation non-rollbackable once activate begins; tasks are rollbackable by default", () => {
         const registry = new TaskRegistry();
         registry.register(RotateGroupKey);
         registry.register(SyntheticTask);
 
-        const rotateParams = { groupKeySetId: 42, newEpochKey: new Uint8Array(16), rotationId: "r1" };
+        const rotateParams = { groupKeySetId: 42, newEpochKey: new Uint8Array(16) };
         const rotatableAt = (phaseIndex: number) => {
             const record = new RunRecord(RunId(1), "rotateGroupKey:42", RotateGroupKey.type, rotateParams, {
                 phaseIndex,
                 state: "running",
             });
-            return registry.interpret(record.type, record.params).revertible(record);
+            return registry.interpret(record.type, record.params).rollbackable(record);
         };
-        expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, revert is clean
+        expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, rollback is clean
         expect(rotatableAt(1)).equals(false); // activate in flight — new key going live, point of no return
         expect(rotatableAt(2)).equals(false); // cleanup in flight
         expect(rotatableAt(3)).equals(false); // completed
 
         const plainRecord = new RunRecord(RunId(1), "synthetic:x", SyntheticTask.type, { tag: "x" });
-        expect(registry.interpret(plainRecord.type, plainRecord.params).revertible(plainRecord)).equals(true);
+        expect(registry.interpret(plainRecord.type, plainRecord.params).rollbackable(plainRecord)).equals(true);
 
         // The generic decline reason must not leak a specific task type's domain language.
-        expect(registry.interpret("synthetic", { tag: "x" }).notRevertibleReason).does.not.contain("rotation");
-        expect(registry.interpret("rotateGroupKey", rotateParams).notRevertibleReason).contains("forward-only");
+        expect(registry.interpret("synthetic", { tag: "x" }).notRollbackableReason).does.not.contain("rotation");
+        expect(registry.interpret("rotateGroupKey", rotateParams).notRollbackableReason).contains("forward-only");
     });
 
-    it("suppresses auto-rollback for a non-revertible task but not a revertible one", async () => {
+    it("suppresses auto-rollback for a non-rollbackable task but not a rollbackable one", async () => {
         await using node = await makeNode();
 
         // The phase needs a changeSet entry so a failure has something to roll back, but has no peer to record
@@ -289,13 +289,13 @@ describe("TaskManagerBehavior", () => {
         // `onTerminalWrite`/`liveRecord` do elsewhere), fetched via `changeSetTarget` after `run()` returns.
         let changeSetTarget: RunRecord | undefined;
 
-        const HardFail: TaskDefinition<{ tag: string; revertible: boolean }> = {
+        const HardFail: TaskDefinition<{ tag: string; rollbackable: boolean }> = {
             type: "hardFail",
             slotKeyFor(params) {
                 return `hardFail:${params.tag}`;
             },
-            revertible(_run, params) {
-                return params.revertible;
+            rollbackable(_run, params) {
+                return params.rollbackable;
             },
             phases() {
                 return [
@@ -314,30 +314,30 @@ describe("TaskManagerBehavior", () => {
 
         await node.act(a => {
             const manager = a.get(TaskManagerBehavior);
-            const handle = manager.run(HardFail, { tag: "revertible", revertible: true });
+            const handle = manager.run(HardFail, { tag: "rollbackable", rollbackable: true });
             changeSetTarget = liveRecord(manager, handle.status.runId);
         });
-        await awaitTaskDone(node, "hardFail:revertible");
-        const revertible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:revertible"));
-        expect(revertible?.state).equals("failed");
+        await awaitTaskDone(node, "hardFail:rollbackable");
+        const rollbackable = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:rollbackable"));
+        expect(rollbackable?.state).equals("failed");
         // A rollback was created, and it is a rollback OF this run — not merely "some record exists", which
         // would pass identically when nothing was rolled back at all.
-        const revertRunId = revertible?.revertRunId;
-        expect(typeof revertRunId).equals("number");
-        const rollback = await node.act(a => a.get(TaskManagerBehavior).get(revertRunId!)?.status);
-        expect(rollback?.revertOf).equals(revertible?.runId);
-        expect(rollback?.slotKey).equals(`revert:${revertible?.runId}`);
+        const rollbackRunId = rollbackable?.rollbackRunId;
+        expect(typeof rollbackRunId).equals("number");
+        const rollback = await node.act(a => a.get(TaskManagerBehavior).get(rollbackRunId!)?.status);
+        expect(rollback?.rollbackOf).equals(rollbackable?.runId);
+        expect(rollback?.slotKey).equals(`rollback:${rollbackable?.runId}`);
 
         await node.act(a => {
             const manager = a.get(TaskManagerBehavior);
-            const handle = manager.run(HardFail, { tag: "final", revertible: false });
+            const handle = manager.run(HardFail, { tag: "final", rollbackable: false });
             changeSetTarget = liveRecord(manager, handle.status.runId);
         });
         await awaitTaskDone(node, "hardFail:final");
-        const nonRevertible = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:final"));
-        expect(nonRevertible?.state).equals("failed");
-        expect(nonRevertible?.revertRunId).equals(undefined);
-        expect(await node.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, "hardFail:final"))).equals(
+        const notRollbackable = await node.act(a => statusOfSlot(a.get(TaskManagerBehavior), "hardFail:final"));
+        expect(notRollbackable?.state).equals("failed");
+        expect(notRollbackable?.rollbackRunId).equals(undefined);
+        expect(await node.act(a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, "hardFail:final"))).equals(
             undefined,
         );
     });

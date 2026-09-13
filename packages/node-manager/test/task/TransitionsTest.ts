@@ -27,14 +27,14 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError, InternalError, Lifecycle, MaybePromise } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, liveRecord, onPersisted, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, liveRecord, onPersisted, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
-    /** Set to leave a persisted rollback with no driver, as a start before `Revert` is available would. */
-    static omitRevert = false;
+    /** Set to leave a persisted rollback with no driver, as a start before `Rollback` is available would. */
+    static omitRollback = false;
 
     protected override resolvePeerNode(peerId: string): ClientNode | undefined {
         return TestTaskManager.peers.get(peerId)?.asNode();
@@ -43,7 +43,7 @@ class TestTaskManager extends TaskManagerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
     }
     protected override registerBuiltins() {
-        if (!TestTaskManager.omitRevert) {
+        if (!TestTaskManager.omitRollback) {
             super.registerBuiltins();
         }
     }
@@ -161,8 +161,8 @@ function gatingPhase(peerId: string): TaskPhase {
         name: "hold",
         run: async ctx => {
             const peer = ctx.resolvePeer(peerId);
-            await ctx.setIntent(peer, "groupMembership", "X", { v: 2 });
-            await ctx.awaitCommitted([{ peer, kind: "groupMembership", key: "X" }]);
+            await ctx.setIntent(peer, kindOf("groupMembership"), "X", { v: 2 });
+            await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
     };
 }
@@ -254,29 +254,29 @@ const UndoingTask: TaskDefinition<{ tag: string }> = {
 function reset() {
     TestTaskManager.peers.clear();
     TestTaskManager.reconcilerPeer = undefined;
-    TestTaskManager.omitRevert = false;
+    TestTaskManager.omitRollback = false;
     for (const tag of Object.keys(SyntheticTask.phasesByTag)) {
         delete SyntheticTask.phasesByTag[tag];
     }
 }
 
 /**
- * A task that stops being revertible once it is past its first phase, so a cancel accepted while the driver is
+ * A task that stops being rollbackable once it is past its first phase, so a cancel accepted while the driver is
  * held on the write that advances the phase index answers differently before and after the unwind.
  */
 const PointOfNoReturnTask: TaskDefinition<{ tag: string; peerId: string }> = {
     type: "point-of-no-return",
     slotKeyFor: params => `synthetic:${params.tag}`,
-    revertible(run) {
+    rollbackable(run) {
         return (run.phaseIndex ?? 0) < 1;
     },
-    notRevertibleReason: "past the point of no return",
+    notRollbackableReason: "past the point of no return",
     phases(params) {
         return [
             {
                 name: "write",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), "groupMembership", "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
                 },
             },
             { name: "hold", run: () => new Promise<void>(() => {}) },
@@ -310,7 +310,7 @@ describe("cancel and abandon", () => {
         expect(await node.act(a => a.get(TestTaskManager).isAttached(rollback.runId))).equals(false);
 
         // The original still names the rollback: how the undo ended is the rollback's own state to tell.
-        expect((await statusOf(node, original.runId))?.revertRunId).equals(rollback.runId);
+        expect((await statusOf(node, original.runId))?.rollbackRunId).equals(rollback.runId);
 
         // The point of the verb: work against that target is admissible again.
         const rerun = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "free" }));
@@ -432,7 +432,7 @@ describe("cancel and abandon", () => {
         expect(await node.act(a => a.get(TestTaskManager).tasks.map(t => t.runId))).not.contains(rollback.runId);
         const rerun = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "late" }));
         expect(rerun.status.slotKey).equals("synthetic:late");
-        expect((await statusOf(node, original.runId))?.revertRunId).equals(rollback.runId);
+        expect((await statusOf(node, original.runId))?.rollbackRunId).equals(rollback.runId);
     });
 
     it("abandons a rollback that failed inside the window, keeping its order and its reason", async () => {
@@ -540,7 +540,7 @@ describe("cancel and abandon", () => {
         await pumpUntil("first phase wrote", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
 
         // The driver is held on the write that advances its phase index, so it has already passed the check
-        // that would have stopped it. The cancel's entry check still sees phase 0, where the run is revertible.
+        // that would have stopped it. The cancel's entry check still sees phase 0, where the run is rollbackable.
         const release = await node.act(a => a.get(TestTaskManager).holdPersistMutex());
         const cancelling = node.act(a => a.get(TestTaskManager).cancel(running.runId));
         release();
@@ -553,7 +553,7 @@ describe("cancel and abandon", () => {
         const record = await node.act(a => a.get(TestTaskManager).state.runs[String(running.runId)]);
         expect(record.state).equals("cancelled");
         expect(record.wrote).equals(true);
-        expect(record.revertRunId).equals(undefined);
+        expect(record.rollbackRunId).equals(undefined);
         expect(record.changeSet).deep.equals([]);
     });
 
@@ -609,7 +609,7 @@ describe("cancel and abandon", () => {
         let rollbackId: RunId | undefined;
         await pumpUntil("rollback admitted", () =>
             node.act(a => {
-                rollbackId = a.get(TestTaskManager).tasks.find(t => t.status.revertOf === original.runId)?.runId;
+                rollbackId = a.get(TestTaskManager).tasks.find(t => t.status.rollbackOf === original.runId)?.runId;
                 return rollbackId !== undefined;
             }),
         );
@@ -632,7 +632,7 @@ describe("cancel and abandon", () => {
         }
 
         // Nothing registers the rollback's type on this start, so its record has no driver at all.
-        TestTaskManager.omitRevert = true;
+        TestTaskManager.omitRollback = true;
         await using node = await makeNode(environment, "unattached");
         expect(await node.act(a => a.get(TestTaskManager).isAttached(rollbackId))).equals(false);
 
@@ -734,10 +734,12 @@ describe("cancel and abandon", () => {
         const retrying = node.act(a => a.get(TestTaskManager).retryRollback(original.runId));
         await pumpUntil("replacement admitted", () =>
             node.act(a =>
-                a.get(TestTaskManager).tasks.some(t => t.status.revertOf === original.runId && t.runId !== first.runId),
+                a
+                    .get(TestTaskManager)
+                    .tasks.some(t => t.status.rollbackOf === original.runId && t.runId !== first.runId),
             ),
         );
-        expect((await statusOf(node, original.runId))?.revertRunId).equals(first.runId);
+        expect((await statusOf(node, original.runId))?.rollbackRunId).equals(first.runId);
 
         const outcome = await attempt(node, m => m.abandon(first.runId));
         release();
@@ -759,7 +761,9 @@ describe("cancel and abandon", () => {
         const retrying = node.act(a => a.get(TestTaskManager).retryRollback(original.runId));
         await pumpUntil("replacement admitted", () =>
             node.act(a =>
-                a.get(TestTaskManager).tasks.some(t => t.status.revertOf === original.runId && t.runId !== first.runId),
+                a
+                    .get(TestTaskManager)
+                    .tasks.some(t => t.status.rollbackOf === original.runId && t.runId !== first.runId),
             ),
         );
 
@@ -786,11 +790,11 @@ describe("cancel and abandon", () => {
             node.act(a => {
                 replacementId = a
                     .get(TestTaskManager)
-                    .tasks.find(t => t.status.revertOf === original.runId && t.runId !== first.runId)?.runId;
+                    .tasks.find(t => t.status.rollbackOf === original.runId && t.runId !== first.runId)?.runId;
                 return replacementId !== undefined;
             }),
         );
-        expect((await statusOf(node, original.runId))?.revertRunId).equals(first.runId);
+        expect((await statusOf(node, original.runId))?.rollbackRunId).equals(first.runId);
 
         const outcome = await attempt(node, m => m.abandon(replacementId!));
         release();
@@ -916,7 +920,7 @@ describe("retryRollback", () => {
                 .then(c => c.rollback),
         );
         await pumpUntil("rollback admitted", () =>
-            node.act(a => a.get(TestTaskManager).tasks.some(t => t.status.revertOf === original.runId)),
+            node.act(a => a.get(TestTaskManager).tasks.some(t => t.status.rollbackOf === original.runId)),
         );
 
         const outcome = await attempt(node, m => m.retryRollback(original.runId));
@@ -963,7 +967,7 @@ describe("retryRollback", () => {
         expect(outcome).instanceOf(TaskAlreadyUndoneError);
         // Nothing replayed: a second undo would write the run's priors back over a device already restored.
         const rollbacks = await node.act(a =>
-            Object.values(a.get(TestTaskManager).state.runs).filter(r => r.revertOf === original.runId),
+            Object.values(a.get(TestTaskManager).state.runs).filter(r => r.rollbackOf === original.runId),
         );
         expect(rollbacks.map(r => r.runId)).deep.equals([rollback.runId]);
     });
@@ -984,7 +988,7 @@ describe("retryRollback", () => {
 
         const retry = await node.act(a => a.get(TestTaskManager).retryRollback(original.runId));
         expect(retry.runId).not.equals(first.runId);
-        expect((await statusOf(node, original.runId))?.revertRunId).equals(retry.runId);
+        expect((await statusOf(node, original.runId))?.rollbackRunId).equals(retry.runId);
 
         // The replaced rollback forecloses nothing, and recording it as abandoned would say an undo still in
         // progress was given up on.
@@ -1001,7 +1005,7 @@ describe("retryRollback", () => {
 
         // Nothing rolls back a rollback: the failed one gets no undo of its own, or the manager would recurse.
         const undosOfTheRollback = await node.act(a =>
-            Object.values(a.get(TestTaskManager).state.runs).filter(r => r.revertOf === first.runId),
+            Object.values(a.get(TestTaskManager).state.runs).filter(r => r.rollbackOf === first.runId),
         );
         expect(undosOfTheRollback).length(0);
 
@@ -1036,9 +1040,9 @@ describe("retryRollback", () => {
 
         expect(outcome).instanceOf(Error);
         // One transaction carries the retry's record and the link to it, so a refused write leaves neither.
-        expect((await statusOf(node, original.runId))?.revertRunId).equals(first.runId);
+        expect((await statusOf(node, original.runId))?.rollbackRunId).equals(first.runId);
         const rollbacks = await node.act(a =>
-            Object.values(a.get(TestTaskManager).state.runs).filter(r => r.revertOf === original.runId),
+            Object.values(a.get(TestTaskManager).state.runs).filter(r => r.rollbackOf === original.runId),
         );
         expect(rollbacks.map(r => r.runId)).deep.equals([first.runId]);
     });

@@ -9,7 +9,7 @@ import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
-import { FakePeer } from "./helpers.js";
+import { kindOf, FakePeer } from "./helpers.js";
 
 /** peersWithIntent never touches the reconciler; a no-op stand-in avoids depending on the whole behavior. */
 const unusedReconciler: ReconcilerSurface = {
@@ -46,7 +46,7 @@ describe("peersWithIntent", () => {
             () => all.map(p => p.asNode()),
         );
 
-        const ids = ctx.peersWithIntent("groupKey", "42").map(p => p.id);
+        const ids = ctx.peersWithIntent(kindOf("groupKey"), "42").map(p => p.id);
         expect(ids.sort()).deep.equals(["a", "b"]);
     });
 });

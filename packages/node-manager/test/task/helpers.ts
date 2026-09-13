@@ -7,7 +7,7 @@
 import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
-import { Immutable, InternalError, Observable } from "@matter/general";
+import { Immutable, InternalError, MaybePromise, Observable } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
 import { Status } from "@matter/types";
 
@@ -42,6 +42,60 @@ export const SyntheticTask: TaskDefinition<{ tag: string }> & {
  * The record backing the run this process is driving for `runId`. Valid in the synchronous continuation right
  * after `run()` returns, before any phase has had a chance to advance the driver past this tick.
  */
+/**
+ * Whether a state is one no driver will advance.
+ *
+ * Mirrors `TERMINAL_STATES` in `RunStore`. One place, because a waiter that misses a state polls for a run
+ * that has already finished — and every copy of this list except this one omitted `abandoned`.
+ */
+export async function pumpUntil(name: string, condition: () => MaybePromise<boolean>): Promise<void> {
+    for (let i = 0; i < 10_000; i++) {
+        if (await condition()) {
+            return;
+        }
+        await MockTime.advance(1);
+    }
+    throw new InternalError(`Condition "${name}" never held`);
+}
+
+export function isTerminalState(state: string): boolean {
+    return ["completed", "failed", "cancelled", "abandoned"].includes(state);
+}
+
+const testKinds = new Map<string, ItemKind>();
+
+/**
+ * A stand-in item kind, memoized by name.
+ *
+ * Tests name kinds that no reconciler registers, and the task surface takes kind references rather than
+ * names. Memoized because the reference is the identity: two calls for one name must give the same kind.
+ */
+export function kindOf(name: string, extra: Partial<ItemKind> = {}): ItemKind {
+    let kind = testKinds.get(name);
+    if (kind === undefined) {
+        kind = { kind: name, priority: 0, apply: async () => {} };
+        testKinds.set(name, kind);
+    }
+    // Rebuilt in place rather than merged: the object identity is what the task surface matches on, so it has
+    // to survive — but a hook left on it by an earlier test would otherwise still be there for the next one,
+    // which is how a suite becomes order-dependent. Every optional member is named so it is cleared.
+    Object.assign(kind, {
+        kind: name,
+        priority: 0,
+        apply: async () => {},
+        read: undefined,
+        diff: undefined,
+        verify: undefined,
+        remove: undefined,
+        recoverable: undefined,
+        capacity: undefined,
+        excludeFromAdmission: undefined,
+        isReferenced: undefined,
+        ...extra,
+    });
+    return kind;
+}
+
 export function liveRecord(manager: TaskManagerBehavior, runId: RunId): RunRecord {
     const execution = manager.internal.runs.executionOf(runId);
     if (execution === undefined) {
@@ -91,6 +145,7 @@ export class FakePeer {
     readonly rejects = new Set<string>();
     /** Remaining recoverable apply failures per key: each pass consumes one, then the key behaves normally. */
     readonly transientFailures = new Map<string, number>();
+    readonly dropReasons = new Map<string, string>();
     readonly itemChanged = new Observable<[item: ManagedItem]>();
     readonly itemRemoved = new Observable<[kind: string, key: string]>();
     readonly subscriptionStatusChanged = new Observable<[isActive: boolean]>();
@@ -122,7 +177,7 @@ export class FakePeer {
         this.itemChanged.emit(item);
     }
 
-    /** Record the desired-state mutations the gate observes so cancel-revert order can be asserted. */
+    /** Record the desired-state mutations the gate observes so cancel-rollback order can be asserted. */
     readonly removeOrder = new Array<string>();
 
     // Stores real intent+mode (not a placeholder) so the context's prior-capture reads true values.
@@ -210,6 +265,11 @@ export class FakePeer {
                     if (recoverable(item.status.failureCode)) {
                         peer.#apply(item);
                     } else {
+                        // Mirrors the executor: the reason outlives the item, which takes its status with it.
+                        peer.dropReasons.set(
+                            itemMapKey(item.kind, item.key),
+                            `the device rejected it with status ${item.status.failureCode}`,
+                        );
                         peer.dropItem(item.kind, item.key);
                     }
                     break;
@@ -236,9 +296,13 @@ export class FakePeer {
         }
     }
 
-    /** Reconciler stand-in: no kind has dependents by default (tests override per case). */
-    itemKind(_kind: string): ItemKind | undefined {
-        return undefined;
+    /** Reconciler stand-in: resolves any name, and no kind has dependents unless a test supplies one. */
+    itemKind(kind: string): ItemKind | undefined {
+        return kindOf(kind);
+    }
+
+    dropReasonFor(_peer: ClientNode, kind: string, key: string): string | undefined {
+        return this.dropReasons.get(itemMapKey(kind, key));
     }
 
     eventsOf(type: unknown): unknown {
@@ -295,21 +359,21 @@ export function requireRecordFor(runs: RunRecords, slotKey: string): PersistedRe
 
 /**
  * The persisted rollback the newest run of `slotKey` *recorded*, resolved through that run's own
- * `revertRunId`.
+ * `rollbackRunId`.
  *
- * Deliberately not `find(r => r.revertOf === original.runId)`: an assertion on the result's `revertOf` would
+ * Deliberately not `find(r => r.rollbackOf === original.runId)`: an assertion on the result's `rollbackOf` would
  * then be checking the predicate that selected it, which is how a migration ends up with a test that cannot
  * fail. Resolving through the forward link keeps the two sides independent.
  */
-export function revertRecordOf(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
-    const revertRunId = recordFor(runs, slotKey)?.revertRunId;
-    return revertRunId === undefined ? undefined : runs[String(revertRunId)];
+export function rollbackRecordOf(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
+    const rollbackRunId = recordFor(runs, slotKey)?.rollbackRunId;
+    return rollbackRunId === undefined ? undefined : runs[String(rollbackRunId)];
 }
 
 /** Every persisted rollback of any run of `slotKey`, for asserting that none exists. */
-export function revertRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
+export function rollbackRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
     const undone = new Set(recordsFor(runs, slotKey).map(r => r.runId));
-    return Object.values(runs).filter(r => r.revertOf !== undefined && undone.has(r.revertOf));
+    return Object.values(runs).filter(r => r.rollbackOf !== undefined && undone.has(r.rollbackOf));
 }
 
 /**
@@ -368,8 +432,8 @@ export function cancelSlotOutcome(manager: TaskManagerBehavior, slotKey: string)
 }
 
 /** The slot key of the rollback of the newest run of `slotKey`, or undefined if none was recorded. */
-export function revertSlotOf(runs: RunRecords, slotKey: string): string | undefined {
-    return revertRecordOf(runs, slotKey)?.slotKey;
+export function rollbackSlotOf(runs: RunRecords, slotKey: string): string | undefined {
+    return rollbackRecordOf(runs, slotKey)?.slotKey;
 }
 
 /**
@@ -390,10 +454,7 @@ export async function awaitRun(
                 return false;
             }
             // A run turns terminal one step before it retires; a caller acting here would find the slot held.
-            return (
-                !(["completed", "failed", "cancelled", "abandoned"] as string[]).includes(state) ||
-                !m.tasks.some(t => t.runId === runId)
-            );
+            return !isTerminalState(state) || !m.tasks.some(t => t.runId === runId);
         });
         if (settled) {
             return;

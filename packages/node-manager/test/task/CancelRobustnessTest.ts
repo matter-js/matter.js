@@ -8,6 +8,7 @@ import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
     TaskFailedError,
     TaskManagerClosingError,
+    TaskNotFoundError,
     TaskNotInFlightError,
     TaskSlotDrainingError,
     TaskSlotSettlingError,
@@ -20,6 +21,7 @@ import { CrashedDependencyError, Environment, InternalError, Lifecycle, MaybePro
 import { Behavior, ClientNode, ItemKind, itemMapKey } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import {
+    kindOf,
     cancelSlot,
     cancelSlotOutcome,
     FakePeer,
@@ -29,7 +31,7 @@ import {
     requireRecordFor,
     requireRunIdOfSlot,
     requireStatusOfSlot,
-    revertRecordOf,
+    rollbackRecordOf,
     runIdOfSlot,
     statusOfSlot,
     SyntheticTask,
@@ -153,7 +155,7 @@ async function pumpUntil(name: string, condition: () => MaybePromise<boolean>) {
 }
 
 /** A phase that sets an intent then gates on it committing; the device never "has" it, so the gate parks. */
-function gatePhase(peerId: string, kind: string, key: string): TaskPhase {
+function gatePhase(peerId: string, kind: ItemKind, key: string): TaskPhase {
     return {
         name: "gate",
         run: async ctx => {
@@ -165,7 +167,7 @@ function gatePhase(peerId: string, kind: string, key: string): TaskPhase {
 }
 
 /** Like {@link gatePhase}, but holds the driver inside the phase while it unwinds from an abort. */
-function slowUnwindGatePhase(peerId: string, kind: string, key: string, unwinding: () => Promise<void>): TaskPhase {
+function slowUnwindGatePhase(peerId: string, kind: ItemKind, key: string, unwinding: () => Promise<void>): TaskPhase {
     return {
         name: "gate",
         run: async ctx => {
@@ -215,8 +217,8 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("pg", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.plannedChangesByTag["pregate"] = [{ peerId: "pg", kind: "cap", key: "x", intent: {} }];
-        SyntheticTask.phasesByTag["pregate"] = [gatePhase("pg", "groupMembership", "X")];
+        SyntheticTask.plannedChangesByTag["pregate"] = [{ peerId: "pg", kind: kindOf("cap"), key: "x", intent: {} }];
+        SyntheticTask.phasesByTag["pregate"] = [gatePhase("pg", kindOf("groupMembership"), "X")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-pregate" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -238,7 +240,7 @@ describe("cancel robustness", () => {
 
         const handle = await MockTime.resolve(cancelling);
 
-        // Nothing was written to the peer after the cancel was accepted, so there is nothing to revert — and
+        // Nothing was written to the peer after the cancel was accepted, so there is nothing to rollback — and
         // the caller is told the device is untouched, not merely that no undo exists.
         expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
         expect(handle.outcome).equals(TaskCancelOutcome.NothingToUndo);
@@ -261,7 +263,7 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("cr", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.phasesByTag["ctxrace"] = [gatePhase("cr", "groupMembership", "Z")];
+        SyntheticTask.phasesByTag["ctxrace"] = [gatePhase("cr", kindOf("groupMembership"), "Z")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-ctxrace" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -288,7 +290,7 @@ describe("cancel robustness", () => {
         await node.close();
     });
 
-    it("has the revert persisted by the time cancel resolves", async () => {
+    it("has the rollback persisted by the time cancel resolves", async () => {
         const environment = new Environment("test");
         const peer = new FakePeer("dp");
         TestTaskManager.peers.set("dp", peer);
@@ -296,7 +298,7 @@ describe("cancel robustness", () => {
 
         // The peer never commits, so the run is still in flight with its intent written — which is what cancel
         // applies to, and what gives the rollback something to undo.
-        SyntheticTask.phasesByTag["durable"] = [gatePhase("dp", "groupMembership", "D")];
+        SyntheticTask.phasesByTag["durable"] = [gatePhase("dp", kindOf("groupMembership"), "D")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-durable" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -304,13 +306,13 @@ describe("cancel robustness", () => {
         await pumpUntil("intent written", () => peer.items[itemMapKey("groupMembership", "D")] !== undefined);
 
         const handle = await MockTime.resolve(node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:durable")));
-        expect(handle?.status.revertOf).equals(
+        expect(handle?.status.rollbackOf).equals(
             requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:durable").runId,
         );
 
-        // A promised revert that is not yet durable is lost to a crash while the forward record already names it.
+        // A promised rollback that is not yet durable is lost to a crash while the forward record already names it.
         const persisted = node.stateOf(TestTaskManager).runs;
-        expect(requireRecordFor(persisted, "synthetic:durable").revertRunId).equals(handle?.runId);
+        expect(requireRecordFor(persisted, "synthetic:durable").rollbackRunId).equals(handle?.runId);
         expect(persisted[String(handle!.runId)]).not.equals(undefined);
 
         await node.close();
@@ -329,7 +331,7 @@ describe("cancel robustness", () => {
         // re-issues under the external id the task runs with, so only the cancel in flight can refuse it.
         let rerun: unknown = "not attempted";
         SyntheticTask.phasesByTag["cancelrerun"] = [
-            slowUnwindGatePhase("cx", "groupMembership", "C", async () => {
+            slowUnwindGatePhase("cx", kindOf("groupMembership"), "C", async () => {
                 try {
                     rerun = await node.act(a =>
                         a.get(TestTaskManager).run(SyntheticTask, { tag: "cancelrerun" }, { externalId: "own" }),
@@ -346,7 +348,7 @@ describe("cancel robustness", () => {
         const handle = await MockTime.resolve(
             node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:cancelrerun")),
         );
-        expect(handle?.status.revertOf).equals(
+        expect(handle?.status.rollbackOf).equals(
             requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:cancelrerun").runId,
         );
         expect(rerun).instanceOf(TaskSlotDrainingError);
@@ -366,7 +368,7 @@ describe("cancel robustness", () => {
         const unwinding = new Promise<void>(resolve => (releaseUnwind = resolve));
         let unwindReached = false;
         SyntheticTask.phasesByTag["shutrace"] = [
-            slowUnwindGatePhase("sd", "groupMembership", "S", () => {
+            slowUnwindGatePhase("sd", kindOf("groupMembership"), "S", () => {
                 unwindReached = true;
                 return unwinding;
             }),
@@ -394,14 +396,14 @@ describe("cancel robustness", () => {
         // The task keeps a resumable state: nothing claims the cancel took effect.
         const { record } = tracedRun("synthetic:shutrace");
         expect(record.state).equals("running");
-        expect(record.revertRunId).equals(undefined);
+        expect(record.rollbackRunId).equals(undefined);
 
-        // Storage must agree: non-terminal, no dangling revert.
+        // Storage must agree: non-terminal, no dangling rollback.
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutrace" });
         const persisted = node2.stateOf(TestTaskManager).runs;
         expect(requireRecordFor(persisted, "synthetic:shutrace").state).equals("running");
-        expect(requireRecordFor(persisted, "synthetic:shutrace").revertRunId).equals(undefined);
-        expect(revertRecordOf(persisted, "synthetic:shutrace")).equals(undefined);
+        expect(requireRecordFor(persisted, "synthetic:shutrace").rollbackRunId).equals(undefined);
+        expect(rollbackRecordOf(persisted, "synthetic:shutrace")).equals(undefined);
         await node2.close();
     });
 
@@ -411,7 +413,7 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("qw", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.phasesByTag["queued"] = [gatePhase("qw", "groupMembership", "Q")];
+        SyntheticTask.phasesByTag["queued"] = [gatePhase("qw", kindOf("groupMembership"), "Q")];
 
         const node1 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-queued" });
         await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -443,15 +445,15 @@ describe("cancel robustness", () => {
         // The refused write leaves no trace: state as it was, no rollback linked, none live, nothing rolled back.
         const { record } = tracedRun("synthetic:queued");
         expect(record.state).equals("running");
-        expect(record.revertRunId).equals(undefined);
+        expect(record.rollbackRunId).equals(undefined);
         expect(manager.tasks.map(t => t.status.slotKey)).deep.equals(["synthetic:queued"]);
         expect(peer.removeOrder).deep.equals([]);
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-queued" });
         const persisted = node2.stateOf(TestTaskManager).runs;
         expect(requireRecordFor(persisted, "synthetic:queued").state).equals("running");
-        expect(requireRecordFor(persisted, "synthetic:queued").revertRunId).equals(undefined);
-        expect(revertRecordOf(persisted, "synthetic:queued")).equals(undefined);
+        expect(requireRecordFor(persisted, "synthetic:queued").rollbackRunId).equals(undefined);
+        expect(rollbackRecordOf(persisted, "synthetic:queued")).equals(undefined);
         await node2.close();
     });
 
@@ -463,7 +465,7 @@ describe("cancel robustness", () => {
 
         // In flight, with its intent written: cancel has to reach the write it cannot make. A finished run
         // would be refused before the crash ever mattered, and the test would prove nothing.
-        SyntheticTask.phasesByTag["crashed"] = [gatePhase("cd", "groupMembership", "C")];
+        SyntheticTask.phasesByTag["crashed"] = [gatePhase("cd", kindOf("groupMembership"), "C")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-crashed" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -495,7 +497,7 @@ describe("cancel robustness", () => {
             {
                 name: "hold",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("sf"), "groupMembership", "F", {});
+                    await ctx.setIntent(ctx.resolvePeer("sf"), kindOf("groupMembership"), "F", {});
                     phaseEntered = true;
                     await held;
                 },
@@ -520,12 +522,12 @@ describe("cancel robustness", () => {
 
         const { record } = tracedRun("synthetic:shutfail");
         expect(record.state).equals("running");
-        expect(record.revertRunId).equals(undefined);
+        expect(record.rollbackRunId).equals(undefined);
 
         const node2 = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutfail" });
         const persisted = node2.stateOf(TestTaskManager).runs;
         expect(requireRecordFor(persisted, "synthetic:shutfail").state).equals("running");
-        expect(revertRecordOf(persisted, "synthetic:shutfail")).equals(undefined);
+        expect(rollbackRecordOf(persisted, "synthetic:shutfail")).equals(undefined);
         await node2.close();
     });
 
@@ -542,7 +544,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("cf"), "groupMembership", "W", {});
+                    await ctx.setIntent(ctx.resolvePeer("cf"), kindOf("groupMembership"), "W", {});
                     phaseEntered = true;
                     await held;
                     throw new TaskFailedError("forced failure");
@@ -568,7 +570,7 @@ describe("cancel robustness", () => {
 
         // A rollback the record does not name must not exist: it would block every future run of the id, and
         // nothing would ever drive it.
-        expect(requireStatusOfSlot(manager, "synthetic:failwrite").revertRunId).equals(undefined);
+        expect(requireStatusOfSlot(manager, "synthetic:failwrite").rollbackRunId).equals(undefined);
         expect(manager.tasks.map(t => t.status.slotKey)).deep.equals(["synthetic:failwrite"]);
         expect(peer.removeOrder).deep.equals([]);
 
@@ -581,7 +583,7 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("sb", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.phasesByTag["shutstart"] = [gatePhase("sb", "groupMembership", "B")];
+        SyntheticTask.phasesByTag["shutstart"] = [gatePhase("sb", kindOf("groupMembership"), "B")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-shutstart" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -615,7 +617,7 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("sr", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.phasesByTag["shutresume"] = [gatePhase("sr", "groupMembership", "R")];
+        SyntheticTask.phasesByTag["shutresume"] = [gatePhase("sr", kindOf("groupMembership"), "R")];
 
         const node = await MockServerNode.create(RegistrarRootEndpoint, { environment, id: "cancel-shutresume" });
         await node.act(a => {
@@ -673,8 +675,8 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("pd", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.plannedChangesByTag["predispose"] = [{ peerId: "pd", kind: "cap", key: "x", intent: {} }];
-        SyntheticTask.phasesByTag["predispose"] = [gatePhase("pd", "groupMembership", "Y")];
+        SyntheticTask.plannedChangesByTag["predispose"] = [{ peerId: "pd", kind: kindOf("cap"), key: "x", intent: {} }];
+        SyntheticTask.phasesByTag["predispose"] = [gatePhase("pd", kindOf("groupMembership"), "Y")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-predispose" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -714,7 +716,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("settling"), "groupMembership", "S", {});
+                    await ctx.setIntent(ctx.resolvePeer("settling"), kindOf("groupMembership"), "S", {});
                 },
             },
         ];
@@ -755,7 +757,7 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("cw", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.phasesByTag["cancelwrite"] = [gatePhase("cw", "groupMembership", "W")];
+        SyntheticTask.phasesByTag["cancelwrite"] = [gatePhase("cw", kindOf("groupMembership"), "W")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-write-refused" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -787,7 +789,7 @@ describe("cancel robustness", () => {
         // abort stopped the driver and dropped the gate, so without giving both back the task would sit
         // non-terminal with nothing left to advance it, and never reach any outcome at all.
         expect(manager.get(handle.runId)?.status.state).does.not.equal("cancelled");
-        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
+        expect(manager.get(handle.runId)?.status.rollbackRunId).equals(undefined);
 
         // Its driver is back. It cannot reach an outcome while storage refuses, because an outcome is only
         // adopted once it is recorded — which is the point: memory never claims one, so what it is given back
@@ -806,7 +808,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("unwritten"), "groupMembership", "U", {});
+                    await ctx.setIntent(ctx.resolvePeer("unwritten"), kindOf("groupMembership"), "U", {});
                 },
             },
         ];
@@ -835,6 +837,18 @@ describe("cancel robustness", () => {
         // The caller already holds a handle, and it says what happened rather than answering "running" forever.
         expect(handle.status.state).equals("failed");
 
+        // And a verb asked about it answers that nothing answers to the id, not that history forgot it: the
+        // run never retired, so naming the history limit would point an operator at the wrong cause.
+        const refusal = await node.act(async a => {
+            try {
+                await a.get(TestTaskManager).cancel(handle.runId);
+            } catch (e) {
+                return e;
+            }
+            return undefined;
+        });
+        expect(refusal).instanceOf(TaskNotFoundError);
+
         await node.close();
     });
 
@@ -850,7 +864,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("iw"), "groupMembership", "W", {});
+                    await ctx.setIntent(ctx.resolvePeer("iw"), kindOf("groupMembership"), "W", {});
                     phaseReturned = true;
                 },
             },
@@ -890,8 +904,8 @@ describe("cancel robustness", () => {
         // priors are not replayed onto the device.
         expect(await cancelling).instanceOf(TaskNotInFlightError);
         expect(manager.get(handle.runId)?.status.state).equals("completed");
-        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
-        expect(revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:inwindow")).equals(undefined);
+        expect(manager.get(handle.runId)?.status.rollbackRunId).equals(undefined);
+        expect(rollbackRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:inwindow")).equals(undefined);
 
         // `#retire` declined to release the target because the transition owned the run, so the refusal has to
         // release it. Otherwise the finished run holds its target for the life of the process.
@@ -913,7 +927,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("rw"), "groupMembership", "R", {});
+                    await ctx.setIntent(ctx.resolvePeer("rw"), kindOf("groupMembership"), "R", {});
                 },
             },
         ];
@@ -934,7 +948,7 @@ describe("cancel robustness", () => {
 
         // The rollback was staged and then discarded, so the run must not go on naming it: a record pointing
         // at a rollback nothing created could never be rolled back again.
-        expect(manager.get(handle.runId)?.status.revertRunId).equals(undefined);
+        expect(manager.get(handle.runId)?.status.rollbackRunId).equals(undefined);
         expect(manager.get(handle.runId)?.status.state).equals("completed");
 
         await node.close();

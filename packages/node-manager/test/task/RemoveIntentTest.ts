@@ -9,7 +9,7 @@ import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
-import { FakePeer } from "./helpers.js";
+import { kindOf, FakePeer } from "./helpers.js";
 
 const CtxTask: TaskDefinition = {
     type: "ctx-test",
@@ -34,7 +34,7 @@ describe("removeIntentIfUnreferenced", () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupKey", "42", "committed");
         const { ctx } = makeContext(peer, false);
-        const removed = await ctx.removeIntentIfUnreferenced(peer.asNode(), "groupKey", "42");
+        const removed = await ctx.removeIntentIfUnreferenced(peer.asNode(), kindOf("groupKey"), "42");
         expect(removed).equals(true);
         expect(peer.removeOrder).contains(itemMapKey("groupKey", "42"));
     });
@@ -43,7 +43,7 @@ describe("removeIntentIfUnreferenced", () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupKey", "42", "committed");
         const { ctx } = makeContext(peer, true);
-        const removed = await ctx.removeIntentIfUnreferenced(peer.asNode(), "groupKey", "42");
+        const removed = await ctx.removeIntentIfUnreferenced(peer.asNode(), kindOf("groupKey"), "42");
         expect(removed).equals(false);
         expect(peer.removeOrder.length).equals(0);
     });

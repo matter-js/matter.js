@@ -4,12 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AclItemKind } from "#reconcile/AclItemKind.js";
-import { BindingItemKind } from "#reconcile/BindingItemKind.js";
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
-import { GroupKeyItemKind } from "#reconcile/GroupKeyItemKind.js";
-import { GroupKeyMapItemKind } from "#reconcile/GroupKeyMapItemKind.js";
-import { GroupMembershipItemKind } from "#reconcile/GroupMembershipItemKind.js";
+import { BUILT_IN_KINDS } from "#reconcile/kinds.js";
 import { planActions, PlannedAction, VerifyResult } from "#reconcile/planActions.js";
 import { Duration, Logger, Minutes, Mutex, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
 import {
@@ -95,11 +91,9 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     override async initialize() {
-        this.internal.registry.register(new GroupKeyItemKind());
-        this.internal.registry.register(new GroupKeyMapItemKind());
-        this.internal.registry.register(new GroupMembershipItemKind());
-        this.internal.registry.register(new AclItemKind());
-        this.internal.registry.register(new BindingItemKind());
+        for (const kind of BUILT_IN_KINDS) {
+            this.internal.registry.register(kind);
+        }
         this.internal.peerObservers = new Map();
 
         this.internal.settleTimer = Time.getTimer(
@@ -256,6 +250,16 @@ export class ReconcilerBehavior extends Behavior {
         return this.internal.registry.get(kind);
     }
 
+    /**
+     * Why the reconciler last gave up on `(kind, key)` for this peer, if it did.
+     *
+     * An item's status goes with the item, so a caller that notices the item is gone has nothing left to read.
+     * Kept only until something writes that intent again, and only for items this reconciler dropped.
+     */
+    dropReasonFor(peer: ClientNode, kind: string, key: string): string | undefined {
+        return this.internal.dropReasons.get(failureKey(peer, kind, key));
+    }
+
     async #runExecutor(peer: ClientNode, planned: PlannedAction[], registry: ItemKindRegistry): Promise<void> {
         const target: ReconcileTarget = {
             node: peer,
@@ -264,7 +268,12 @@ export class ReconcilerBehavior extends Behavior {
                     peer.act(agent => agent.get(DesiredStateBehavior).updateStatus(kind, key, state, code)),
                 );
             },
-            dropItem(kind, key) {
+            dropItem: (kind, key, reason) => {
+                if (reason === undefined) {
+                    this.internal.dropReasons.delete(failureKey(peer, kind, key));
+                } else {
+                    this.internal.dropReasons.set(failureKey(peer, kind, key), reason);
+                }
                 return Promise.resolve(peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key)));
             },
             currentState(kind, key) {
@@ -306,6 +315,10 @@ export class ReconcilerBehavior extends Behavior {
     }
 }
 
+function failureKey(peer: ClientNode, kind: string, key: string): string {
+    return `${peer.id}\u0000${itemMapKey(kind, key)}`;
+}
+
 export namespace ReconcilerBehavior {
     export class State {
         settleDelay: Duration = Seconds(5);
@@ -318,6 +331,7 @@ export namespace ReconcilerBehavior {
         sweepTimer?: Timer;
         settleTimer?: Timer;
         locks = new Map<ClientNode, Mutex>();
+        dropReasons = new Map<string, string>();
         pending = new Map<ClientNode, PendingPass>();
         disposed = false;
     }

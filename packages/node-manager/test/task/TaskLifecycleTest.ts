@@ -7,25 +7,27 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskFailedError, TaskIdentityExhaustedError, TaskRollbackPendingError } from "#task/errors.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { TaskPhase } from "#task/types.js";
+import { TaskContext, TaskPhase } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { Environment } from "@matter/general";
-import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
+import { ClientNode, ItemKind, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import {
+    kindOf,
+    isTerminalState,
     cancelSlot,
     FakePeer,
     recordFor,
     requireRecordFor,
     requireStatusOfSlot,
-    revertRecordOf,
-    revertSlotOf,
+    rollbackRecordOf,
+    rollbackSlotOf,
     statusOfSlot,
     SyntheticTask,
 } from "./helpers.js";
 
 /**
- * TaskManager subclass that resolves peers + reconciler from an in-memory table so cancel-revert and gate
+ * TaskManager subclass that resolves peers + reconciler from an in-memory table so cancel-rollback and gate
  * phases can be exercised without a commissioned fabric. The single shared FakePeer doubles as reconciler.
  */
 class TestTaskManager extends TaskManagerBehavior {
@@ -77,7 +79,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
         const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TestTaskManager).tasks.some(t => t.status.slotKey === id)));
             if (settled) return;
         }
@@ -96,7 +98,7 @@ async function awaitPhase(node: ServerNode, id: string, phaseIndex: number): Pro
 }
 
 /** A phase that sets an intent then gates on it committing, using the manager-provided context. */
-function gatePhase(peerId: string, kind: string, key: string): TaskPhase {
+function gatePhase(peerId: string, kind: ItemKind, key: string): TaskPhase {
     return {
         name: "gate",
         run: async ctx => {
@@ -106,6 +108,95 @@ function gatePhase(peerId: string, kind: string, key: string): TaskPhase {
         },
     };
 }
+
+describe("phase preconditions", () => {
+    before(() => MockTime.init());
+
+    /** Counts asks and refuses on the nth, so a test can choose which edge refuses. */
+    function countingPhase(refuseOnAsk: number, onRun?: (ctx: TaskContext) => Promise<void>) {
+        const asks = new Array<number>();
+        const phase: TaskPhase = {
+            name: "guarded",
+            requires: () => {
+                asks.push(asks.length + 1);
+                if (asks.length === refuseOnAsk) {
+                    throw new TaskFailedError(`refused on ask ${refuseOnAsk}`);
+                }
+            },
+            run: async ctx => {
+                await onRun?.(ctx);
+            },
+        };
+        return { phase, asks };
+    }
+
+    it("asks a phase's precondition before it writes and again after", async () => {
+        const environment = new Environment("requires-both");
+        const peer = new FakePeer("pre");
+        TestTaskManager.peers.set("pre", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        const { phase, asks } = countingPhase(0);
+        SyntheticTask.phasesByTag["requires"] = [phase];
+
+        await using node = await makeNode(environment);
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "requires" }));
+        await awaitState(node, "synthetic:requires", "completed");
+
+        // Twice for the one phase: state a phase checked on entry can change while it writes, and the layer
+        // holds nothing that would stop that.
+        expect(asks.length).equals(2);
+        expect(handle.status.state).equals("completed");
+    });
+
+    it("refuses before the phase writes anything", async () => {
+        const environment = new Environment("requires-entry");
+        const peer = new FakePeer("pre2");
+        TestTaskManager.peers.set("pre2", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        let wrote = false;
+        const { phase } = countingPhase(1, async () => {
+            wrote = true;
+        });
+        SyntheticTask.phasesByTag["entry"] = [phase];
+
+        await using node = await makeNode(environment);
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "entry" }));
+        await awaitState(node, "synthetic:entry", "failed");
+
+        expect(wrote).equals(false);
+        const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:entry"));
+        expect(status?.error).contains("refused on ask 1");
+    });
+
+    it("refuses after the phase's writes, and rolls them back", async () => {
+        const environment = new Environment("requires-after");
+        const peer = new FakePeer("pre3");
+        peer.markHas("groupMembership", "P");
+        TestTaskManager.peers.set("pre3", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        const { phase } = countingPhase(2, async ctx => {
+            await ctx.setIntent(ctx.resolvePeer("pre3"), kindOf("groupMembership"), "P", { v: 2 });
+        });
+        SyntheticTask.phasesByTag["after"] = [phase];
+
+        await using node = await makeNode(environment);
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "after" }));
+        await awaitState(node, "synthetic:after", "failed");
+
+        // The second ask is what a task would forget, and what a shared item makes necessary.
+        const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:after"));
+        expect(status?.error).contains("refused on ask 2");
+        // What it wrote before the refusal is undone.
+        expect(status?.rollbackRunId).not.equals(undefined);
+        void handle;
+    });
+});
 
 describe("Task lifecycle", () => {
     before(() => MockTime.init());
@@ -118,7 +209,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.reconcilerPeer = peer;
             SyntheticTask.phasesByTag["resume"] = [
                 { name: "noop", run: async () => {} },
-                gatePhase("rp", "groupMembership", "1"),
+                gatePhase("rp", kindOf("groupMembership"), "1"),
             ];
 
             const node1 = await makeNode(environment);
@@ -157,7 +248,7 @@ describe("Task lifecycle", () => {
             peer.setReachable(false);
             TestTaskManager.peers.set("pp", peer);
             TestTaskManager.reconcilerPeer = peer;
-            SyntheticTask.phasesByTag["parked"] = [gatePhase("pp", "groupMembership", "1")];
+            SyntheticTask.phasesByTag["parked"] = [gatePhase("pp", kindOf("groupMembership"), "1")];
 
             const node1 = await makeNode(environment);
             await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -183,7 +274,7 @@ describe("Task lifecycle", () => {
             peer.setReachable(false);
             TestTaskManager.peers.set("xp", peer);
             TestTaskManager.reconcilerPeer = peer;
-            SyntheticTask.phasesByTag["alias"] = [gatePhase("xp", "groupMembership", "1")];
+            SyntheticTask.phasesByTag["alias"] = [gatePhase("xp", kindOf("groupMembership"), "1")];
 
             const node1 = await makeNode(environment);
             await node1.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -214,11 +305,11 @@ describe("Task lifecycle", () => {
                     name: "create",
                     run: async ctx => {
                         const node = ctx.resolvePeer("rj");
-                        await ctx.setIntent(node, "groupMembership", "OK", {});
-                        await ctx.setIntent(node, "groupMembership", "R", {});
+                        await ctx.setIntent(node, kindOf("groupMembership"), "OK", {});
+                        await ctx.setIntent(node, kindOf("groupMembership"), "R", {});
                         await ctx.awaitCommitted([
-                            { peer: node, kind: "groupMembership", key: "OK" },
-                            { peer: node, kind: "groupMembership", key: "R" },
+                            { peer: node, kind: kindOf("groupMembership"), key: "OK" },
+                            { peer: node, kind: kindOf("groupMembership"), key: "R" },
                         ]);
                     },
                 },
@@ -242,13 +333,13 @@ describe("Task lifecycle", () => {
             await awaitState(node, "synthetic:reject", "failed");
             const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:reject"));
             expect(status?.error).contains("groupMembership:R");
-            expect(status?.revertRunId).equals(
-                revertRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:reject")?.runId,
+            expect(status?.rollbackRunId).equals(
+                rollbackRecordOf(node.stateOf(TestTaskManager).runs, "synthetic:reject")?.runId,
             );
 
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:reject")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:reject")))!,
                 "completed",
             );
             expect(peer.items[itemMapKey("groupMembership", "OK")]).equals(undefined);
@@ -257,7 +348,7 @@ describe("Task lifecycle", () => {
     });
 
     describe("cancel", () => {
-        it("cancelling an in-flight task spawns a revert that removes items in reverse order", async () => {
+        it("cancelling an in-flight task spawns a rollback that removes items in reverse order", async () => {
             const environment = new Environment("test");
             const peer = new FakePeer("cp");
             TestTaskManager.peers.set("cp", peer);
@@ -270,15 +361,15 @@ describe("Task lifecycle", () => {
                     name: "create",
                     run: async ctx => {
                         const node = ctx.resolvePeer("cp");
-                        await ctx.setIntent(node, "groupMembership", "A", {});
-                        await ctx.setIntent(node, "groupMembership", "B", {});
+                        await ctx.setIntent(node, kindOf("groupMembership"), "A", {});
+                        await ctx.setIntent(node, kindOf("groupMembership"), "B", {});
                     },
                 },
                 // Cancel applies to work in flight, so the run has to still be in it — with both intents
                 // already written, which is what the rollback undoes. The hold gates on the peer rather than
                 // on a bare promise: `#unwind` awaits the running phase, and a phase that cannot observe its
                 // abort would hang the cancel instead of being stopped by it.
-                gatePhase("cp", "groupMembership", "A"),
+                gatePhase("cp", kindOf("groupMembership"), "A"),
             ];
 
             const node = await makeNode(environment);
@@ -288,16 +379,16 @@ describe("Task lifecycle", () => {
             await awaitPhase(node, "synthetic:cancel", 1);
 
             const handle = await node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:cancel"));
-            expect(handle?.status.revertOf).equals(
+            expect(handle?.status.rollbackOf).equals(
                 requireStatusOfSlot(await node.act(a => a.get(TestTaskManager)), "synthetic:cancel").runId,
             );
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:cancel")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:cancel")))!,
                 "completed",
             );
 
-            // Items are removed in REVERSE add order (B added last → reverted first).
+            // Items are removed in REVERSE add order (B added last → rolled back first).
             expect(peer.removeOrder).deep.equals([
                 itemMapKey("groupMembership", "B"),
                 itemMapKey("groupMembership", "A"),
@@ -306,7 +397,7 @@ describe("Task lifecycle", () => {
             expect(peer.items[itemMapKey("groupMembership", "B")]).equals(undefined);
             const status = await node.act(a => statusOfSlot(a.get(TestTaskManager), "synthetic:cancel"));
             expect(status?.state).equals("cancelled");
-            expect(status?.revertRunId).equals(handle?.runId);
+            expect(status?.rollbackRunId).equals(handle?.runId);
             await node.close();
         });
 
@@ -315,7 +406,7 @@ describe("Task lifecycle", () => {
             const peer = new FakePeer("rr");
             TestTaskManager.peers.set("rr", peer);
             TestTaskManager.reconcilerPeer = peer;
-            SyntheticTask.phasesByTag["rerun"] = [gatePhase("rr", "groupMembership", "1")];
+            SyntheticTask.phasesByTag["rerun"] = [gatePhase("rr", kindOf("groupMembership"), "1")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -324,13 +415,13 @@ describe("Task lifecycle", () => {
             // that records it is what parking produces, so the peer goes away first.
             peer.setReachable(false);
             await awaitState(node, "synthetic:rerun", "parked");
-            const revert = await node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:rerun"));
-            expect(revert?.status.slotKey).equals(
-                `revert:${requireStatusOfSlot(await node.act(a => a.get(TestTaskManager)), "synthetic:rerun").runId}`,
+            const rollback = await node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:rerun"));
+            expect(rollback?.status.slotKey).equals(
+                `rollback:${requireStatusOfSlot(await node.act(a => a.get(TestTaskManager)), "synthetic:rerun").runId}`,
             );
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:rerun")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:rerun")))!,
                 "parked",
                 "running",
             );
@@ -343,7 +434,7 @@ describe("Task lifecycle", () => {
             peer.setReachable(true);
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:rerun")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:rerun")))!,
                 "completed",
             );
             await node.close();
@@ -356,7 +447,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.reconcilerPeer = peer;
             // The device never "has" the item, so the gate is still in flight when the cancel arrives.
 
-            SyntheticTask.phasesByTag["aliascancel"] = [gatePhase("ac", "groupMembership", "X")];
+            SyntheticTask.phasesByTag["aliascancel"] = [gatePhase("ac", kindOf("groupMembership"), "X")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -373,7 +464,7 @@ describe("Task lifecycle", () => {
                 const manager = a.get(TestTaskManager);
                 return manager.cancel(manager.forExternalId("owner")!.runId).then(c => c.rollback);
             });
-            expect(handle?.status.revertOf).equals(
+            expect(handle?.status.rollbackOf).equals(
                 requireStatusOfSlot(await node.act(a => a.get(TestTaskManager)), "synthetic:aliascancel").runId,
             );
             const status = await node.act(a => a.get(TestTaskManager).forExternalId("owner")?.status);
@@ -381,7 +472,7 @@ describe("Task lifecycle", () => {
 
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:aliascancel")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:aliascancel")))!,
                 "completed",
             );
             expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
@@ -395,7 +486,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.reconcilerPeer = peer;
             // Device never "has" the item, so the forward gate would park forever absent a cancel.
 
-            SyntheticTask.phasesByTag["inflight"] = [gatePhase("ip", "groupMembership", "X")];
+            SyntheticTask.phasesByTag["inflight"] = [gatePhase("ip", kindOf("groupMembership"), "X")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
@@ -407,7 +498,7 @@ describe("Task lifecycle", () => {
             expect(peer.items[itemMapKey("groupMembership", "X")]?.status.state).equals("pending");
 
             const handle = await node.act(a => cancelSlot(a.get(TestTaskManager), "synthetic:inflight"));
-            expect(handle?.status.revertOf).equals(
+            expect(handle?.status.rollbackOf).equals(
                 requireStatusOfSlot(await node.act(a => a.get(TestTaskManager)), "synthetic:inflight").runId,
             );
 
@@ -417,7 +508,7 @@ describe("Task lifecycle", () => {
 
             await awaitState(
                 node,
-                (await node.act(a => revertSlotOf(a.get(TestTaskManager).state.runs, "synthetic:inflight")))!,
+                (await node.act(a => rollbackSlotOf(a.get(TestTaskManager).state.runs, "synthetic:inflight")))!,
                 "completed",
             );
             expect(peer.items[itemMapKey("groupMembership", "X")]).equals(undefined);
@@ -438,7 +529,7 @@ describe("Task lifecycle", () => {
                 {
                     name: "touch",
                     run: async ctx => {
-                        await ctx.setIntent(ctx.resolvePeer("rb"), "groupMembership", "B", {});
+                        await ctx.setIntent(ctx.resolvePeer("rb"), kindOf("groupMembership"), "B", {});
                         await held;
                         throw new TaskFailedError("forced failure");
                     },
@@ -458,7 +549,7 @@ describe("Task lifecycle", () => {
             await awaitState(node, "synthetic:blockedrollback", "failed");
             const status = await node.act(a => a.get(TestTaskManager).get(handle.runId)?.status);
             expect(status?.error).contains("forced failure");
-            expect(status?.revertRunId).equals(undefined);
+            expect(status?.rollbackRunId).equals(undefined);
             await node.close();
         });
 
@@ -469,7 +560,7 @@ describe("Task lifecycle", () => {
             TestTaskManager.peers.set("cr2", peer);
             TestTaskManager.reconcilerPeer = peer;
 
-            SyntheticTask.phasesByTag["blockedcancel"] = [gatePhase("cr2", "groupMembership", "K")];
+            SyntheticTask.phasesByTag["blockedcancel"] = [gatePhase("cr2", kindOf("groupMembership"), "K")];
 
             const node = await makeNode(environment);
             await node.act(a => a.get(TestTaskManager).register(SyntheticTask));

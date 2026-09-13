@@ -4,35 +4,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Revert, RevertParams } from "#task/Revert.js";
+import { Rollback, RollbackParams } from "#task/Rollback.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { BoundDefinition, RunRecord } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
-import { FakePeer } from "./helpers.js";
+import { FakePeer, kindOf } from "./helpers.js";
 
-function runRevert(peer: FakePeer, params: RevertParams, referenced = new Set<string>()) {
-    const bound = new BoundDefinition(Revert, params);
-    const record = new RunRecord(RunId(1), "revert:1", bound.type, params);
+function runRollback(peer: FakePeer, params: RollbackParams, referenced = new Set<string>()) {
+    const bound = new BoundDefinition(Rollback, params);
+    const record = new RunRecord(RunId(1), "rollback:1", bound.type, params);
     const setState = (s: TaskState) => {
         record.state = s;
     };
-    (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) => ({
-        isReferenced: (_n: unknown, key: string) => referenced.has(`${kind}:${key}`),
-    });
+    (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) =>
+        kindOf(kind, { isReferenced: (_n: unknown, key: string) => referenced.has(`${kind}:${key}`) });
     const ctx = new RunningTaskContext(record, () => peer.asNode(), peer, setState);
     return bound.phases()[0].run(ctx);
 }
 
-describe("Revert task", () => {
+describe("Rollback task", () => {
     before(() => MockTime.init());
 
     it("removes an added (prior-absent) entry", async () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupKey", "42", "committed");
         await MockTime.resolve(
-            runRevert(peer, { originalRunId: RunId(1), entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] }),
+            runRollback(peer, { originalRunId: RunId(1), entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] }),
         );
         expect(peer.items[itemMapKey("groupKey", "42")]).equals(undefined);
     });
@@ -42,7 +41,7 @@ describe("Revert task", () => {
         peer.setIntent("groupKeyMap", "257", { current: true });
         peer.markHas("groupKeyMap", "257");
         await MockTime.resolve(
-            runRevert(peer, {
+            runRollback(peer, {
                 originalRunId: RunId(1),
                 entries: [
                     {
@@ -62,7 +61,7 @@ describe("Revert task", () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupKey", "42", "committed");
         await MockTime.resolve(
-            runRevert(
+            runRollback(
                 peer,
                 { originalRunId: RunId(1), entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] },
                 new Set(["groupKey:42"]),

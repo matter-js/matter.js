@@ -8,7 +8,8 @@ import { ImplementationError, InternalError } from "@matter/general";
 import { TaskIdentityExhaustedError } from "./errors.js";
 import { Execution } from "./Execution.js";
 import { RunRecord, TaskPersistence } from "./Task.js";
-import { isRunId, RetireSeq, RunId, Teardown, TaskState } from "./types.js";
+import { isRetireSeq, isRunId, isTaskState, RetireSeq, RunId, Teardown, TaskState } from "./types.js";
+import { Require } from "./validation.js";
 
 const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled", "abandoned"]);
 
@@ -51,6 +52,15 @@ export interface RunStoreSnapshot {
     runs: Record<string, TaskPersistence>;
     nextRunId: number;
     nextRetireSeq: number;
+    /**
+     * Highest identity ever handed out.
+     *
+     * {@link RunStoreSnapshot.nextRunId} cannot answer this: it is a *reservation* boundary that runs
+     * {@link RUN_ID_RESERVATION} ahead of use, so an id below it may never have named a run. Without this an
+     * evicted run and one that never existed are indistinguishable, and a caller acting on a run this manager
+     * deliberately forgot would be told no run answers to it.
+     */
+    highestIssuedRunId: number;
     runsVersion: number;
 }
 
@@ -71,6 +81,16 @@ export class RunStore {
      */
     #reservedBelow = 1;
     #nextRetireSeq = 1;
+    #highestIssuedRunId = 0;
+
+    /**
+     * Identities issued to runs whose first record write never landed, so they left no trace to evict.
+     *
+     * Process-local on purpose: the only holder of such an identity is the caller whose `run()` call produced
+     * it, and that handle dies with the process. Persisting the gaps would buy a better message for an
+     * identity nothing can still be holding.
+     */
+    readonly #discarded = new Set<RunId>();
     #unreadable = false;
 
     /** Every run this process knows, in every phase. One table, so no verb can look in the wrong one. */
@@ -130,6 +150,49 @@ export class RunStore {
             if (!isRunId(stored?.runId)) {
                 throw new InternalError(`Stored task record "${key}" has no usable run identity`);
             }
+            // The same rule, for the other fields this layer reads without asking a task: each one decides
+            // something no later check revisits. `state` decides whether the record holds its target, and an
+            // unknown value holds it for the life of the process; `phaseIndex` chooses which phase resumes, so
+            // a rotation could re-enter past its point of no return; `retireSeq` seeds the retirement counter,
+            // where one `NaN` stops every run in the process from retiring.
+            if (typeof stored.slotKey !== "string" || stored.slotKey === "") {
+                throw new InternalError(`Stored task record "${key}" has no usable target`);
+            }
+            if (typeof stored.type !== "string" || stored.type === "") {
+                throw new InternalError(`Stored task record "${key}" has no usable task type`);
+            }
+            if (typeof stored.wrote !== "boolean") {
+                throw new InternalError(`Stored task record "${key}" does not say whether it reached a device`);
+            }
+            for (const link of ["rollbackRunId", "rollbackOf"] as const) {
+                if (stored[link] !== undefined && !isRunId(stored[link])) {
+                    throw new InternalError(`Stored task record "${key}" has no usable ${link}`);
+                }
+            }
+            if (!isTaskState(stored.state)) {
+                throw new InternalError(`Stored task record "${key}" has an unknown state`);
+            }
+            if (!Number.isSafeInteger(stored.phaseIndex) || stored.phaseIndex < 0) {
+                throw new InternalError(`Stored task record "${key}" has no usable phase index`);
+            }
+            if (stored.retireSeq !== undefined && !isRetireSeq(stored.retireSeq)) {
+                throw new InternalError(`Stored task record "${key}" has no usable retirement sequence`);
+            }
+            if (!Array.isArray(stored.changeSet)) {
+                throw new InternalError(`Stored task record "${key}" has no usable change set`);
+            }
+            // Each entry, not only the container: a run walks them as it writes and a rollback replays them, so
+            // a malformed one surfaces as a raw access failure mid-phase, with the device already changed.
+            // The message names fields, never values — an entry holds what a device was told.
+            try {
+                for (const entry of stored.changeSet) {
+                    Require.changeEntry("changeSet[]", entry);
+                }
+            } catch (e) {
+                throw new InternalError(
+                    `Stored task record "${key}" has an unusable change set: ${e instanceof Error ? e.message : String(e)}`,
+                );
+            }
             highest = Math.max(highest, stored.runId);
             const record = RunRecord.fromPersistence(stored);
             this.#records.set(record.runId, record);
@@ -146,6 +209,8 @@ export class RunStore {
             snapshot?.nextRetireSeq ?? 1,
             ...[...this.#records.values()].map(r => (r.retireSeq ?? 0) + 1),
         );
+        // Records that survived eviction cannot lower it, so the stored mark is authoritative where present.
+        this.#highestIssuedRunId = Math.max(snapshot?.highestIssuedRunId ?? 0, highest);
     }
 
     /**
@@ -175,7 +240,19 @@ export class RunStore {
                 `No durable run identity available: ${this.#nextRunId} is beyond the reservation ${this.#reservedBelow}. Retry once a record has been written.`,
             );
         }
-        return RunId(this.#nextRunId++);
+        const runId = RunId(this.#nextRunId++);
+        this.#highestIssuedRunId = runId;
+        return runId;
+    }
+
+    /** Highest identity ever handed out, so an evicted run is not mistaken for one that never existed. */
+    get highestIssuedRunId(): number {
+        return this.#highestIssuedRunId;
+    }
+
+    /** Whether `runId` named a run this store has forgotten. */
+    wasEvicted(runId: RunId): boolean {
+        return !this.#records.has(runId) && !this.#discarded.has(runId) && runId <= this.#highestIssuedRunId;
     }
 
     /** Note that a reservation is now durable, so identities below it may be issued. */
@@ -382,8 +459,60 @@ export class RunStore {
         this.#executions.delete(record.runId);
     }
 
+    /**
+     * The oldest retired runs beyond `limit`, in eviction order. Pure — nothing is forgotten until
+     * {@link forget}.
+     *
+     * A **prefix** of the retirement order, stopping at the first record still needed rather than skipping
+     * over it. Two invariants depend on that shape, and both break under any other:
+     *
+     * - {@link supersederOf} only ever looks at a higher {@link RetireSeq}, so removing the lowest first means
+     *   anything that can supersede a surviving record survives with it.
+     * - a rollback retires after the run it undoes, so it is always newer. A record kept for its rollback's
+     *   sake therefore keeps that rollback too.
+     *
+     * A record is still needed while its priors survive: {@link RunRecord.changeSet} is non-empty exactly
+     * while a rollback that can replay them exists, which is also exactly when {@link liveRollbackOfTarget}
+     * must still be able to find it. Nothing else is consulted — no flag, no second table.
+     *
+     * `clearing` names the records whose priors the caller's own write discharges. Asked of the write rather
+     * than of memory because the two disagree exactly when it matters: a completing rollback clears the
+     * original's priors in the same transaction that retires it, and a record read as still pinned stops the
+     * prefix, so the limit would be enforced only by whatever retires next.
+     */
+    evictableRetired(limit: number, retiringNow = 0, clearing?: ReadonlySet<RunId>): RunRecord[] {
+        // Oldest first, so the prefix is the front of this list.
+        const retired = this.retired.reverse();
+        // `retiringNow` counts the runs the caller's own write is about to retire. They are neither terminal in
+        // memory nor released from their slot yet, so `retired` cannot see them — and without them the table
+        // settles one record above the limit for every write.
+        // Clamped to what is actually retired: a run this write is retiring is not in the list, so it can
+        // never be evicted by its own write. The newest retirement therefore always outlives it, whatever the
+        // limit — the table settles at the limit once another run retires.
+        const overflow = Math.min(retired.length, retired.length + retiringNow - limit);
+        const evictable = new Array<RunRecord>();
+        for (let i = 0; i < overflow; i++) {
+            if (retired[i].changeSet.length > 0 && !clearing?.has(retired[i].runId)) {
+                break;
+            }
+            evictable.push(retired[i]);
+        }
+        return evictable;
+    }
+
+    /** Forget records whose removal has been written. Never before it, or a refused write loses history. */
+    forget(records: readonly RunRecord[]): void {
+        for (const record of records) {
+            this.#records.delete(record.runId);
+        }
+    }
+
     /** Forget a run that was never persisted, so a refused write leaves nothing for a later resume to find. */
     discard(record: RunRecord): void {
+        // An identity is issued before the first record write, so a discarded run has one and no record. Kept
+        // apart from history: answering "it retired and is no longer tracked" for a run that never reached
+        // storage names a cause that did not happen, and points an operator at the history limit.
+        this.#discarded.add(record.runId);
         this.#records.delete(record.runId);
         this.#executions.delete(record.runId);
         if (this.#slots.get(record.slotKey) === record.runId) {
@@ -397,19 +526,19 @@ export class RunStore {
      * **The only way to ask.** The relation has two representations — a rollback links to its original by
      * identity from the moment it is admitted, while the original's own link is durable but only lands with a
      * write — so a caller that picks one of them gets a different answer inside every persistence window. Every
-     * decision about a run's rollback comes through here; `revertRunId` is read directly only to report
+     * decision about a run's rollback comes through here; `rollbackRunId` is read directly only to report
      * history.
      *
      * Unambiguous despite two rollbacks being able to exist for one run: a rollback's target is
-     * `revert:<originalRunId>`, and a target has one owner, so only one of them is ever live.
+     * `rollback:<originalRunId>`, and a target has one owner, so only one of them is ever live.
      */
     rollbackFor(runId: RunId): RunRecord | undefined {
         for (const record of this.live) {
-            if (record.revertOf === runId) {
+            if (record.rollbackOf === runId) {
                 return record;
             }
         }
-        const recorded = this.#records.get(runId)?.revertRunId;
+        const recorded = this.#records.get(runId)?.rollbackRunId;
         return recorded === undefined ? undefined : this.#records.get(recorded);
     }
 
@@ -426,7 +555,7 @@ export class RunStore {
             }
         }
         for (const record of this.live) {
-            if (record.revertOf !== undefined && undone.has(record.revertOf)) {
+            if (record.rollbackOf !== undefined && undone.has(record.rollbackOf)) {
                 return record;
             }
         }

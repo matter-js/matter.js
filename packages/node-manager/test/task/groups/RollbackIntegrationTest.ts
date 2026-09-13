@@ -20,11 +20,13 @@ import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import {
     cancelSlot,
+    isTerminalState,
+    kindOf,
     recordFor,
     requireRecordFor,
     requireStatusOfSlot,
-    revertRecordOf,
-    revertSlotOf,
+    rollbackRecordOf,
+    rollbackSlotOf,
     statusOfSlot,
 } from "../helpers.js";
 
@@ -52,7 +54,7 @@ const FAILING_ID = `${FAILING_TYPE}:peer1:${0x101}`;
 
 /**
  * Provisions the three AddNodeToGroup intents, then fails hard. Used to drive auto-rollback: the manager
- * spawns `revert:<id>` to undo the recorded changeSet.
+ * spawns `rollback:<id>` to undo the recorded changeSet.
  */
 const FailingProvision: TaskDefinition<AddNodeToGroupParams> = {
     type: FAILING_TYPE,
@@ -72,7 +74,7 @@ async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<voi
 
     await ctx.setIntent(
         peer,
-        "groupKey",
+        kindOf("groupKey"),
         String(p.groupKeySetId),
         {
             groupKeySetId: p.groupKeySetId,
@@ -88,14 +90,14 @@ async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<voi
     );
     await ctx.setIntent(
         peer,
-        "groupKeyMap",
+        kindOf("groupKeyMap"),
         String(p.groupId),
         { groupId, groupKeySetId: p.groupKeySetId },
         "converge",
     );
     await ctx.setIntent(
         peer,
-        "endpointGroupMembership",
+        kindOf("endpointGroupMembership"),
         String(p.groupId),
         { localEndpoint: p.endpoint, groupId, groupName: p.groupName },
         "converge",
@@ -131,7 +133,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
             // A run turns terminal one step before it retires, so a caller that acts here would find the
             // slot still held.
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
             if (settled) {
                 return;
@@ -160,22 +162,22 @@ describe("Rollback task integration (single peer)", () => {
         await controller.act(agent => agent.get(TaskManagerBehavior).run(FailingProvision, PARAMS));
         await awaitState(controller, FAILING_ID, "failed");
 
-        const revertId = await controller.act(
-            agent => requireStatusOfSlot(agent.get(TaskManagerBehavior), FAILING_ID).revertRunId,
+        const rollbackId = await controller.act(
+            agent => requireStatusOfSlot(agent.get(TaskManagerBehavior), FAILING_ID).rollbackRunId,
         );
-        expect(revertId).equals(
-            await controller.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)?.runId),
+        expect(rollbackId).equals(
+            await controller.act(a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)?.runId),
         );
 
-        // revertOf is part of the revert's persisted seed, so it's readable before the revert has run at all.
-        const revertOf = await controller.act(
-            agent => revertRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.revertOf,
+        // rollbackOf is part of the rollback's persisted seed, so it's readable before the rollback has run at all.
+        const rollbackOf = await controller.act(
+            agent => rollbackRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.rollbackOf,
         );
-        expect(revertOf).equals(requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, FAILING_ID).runId);
+        expect(rollbackOf).equals(requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, FAILING_ID).runId);
 
         await awaitState(
             controller,
-            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            (await controller.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
             "completed",
         );
 
@@ -213,7 +215,7 @@ describe("Rollback task integration (single peer)", () => {
         expect(refusal).instanceOf(TaskNotInFlightError);
 
         // Refused, so nothing was spawned and nothing was written.
-        expect(await controller.act(a => revertRecordOf(a.get(TaskManagerBehavior).state.runs, TASK_ID))).equals(
+        expect(await controller.act(a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, TASK_ID))).equals(
             undefined,
         );
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals("committed");
@@ -262,7 +264,7 @@ describe("Rollback task integration (single peer)", () => {
         expect(keySetCount(device, GROUP_KEY_SET_ID)).equals(1);
     });
 
-    it("resumes a parked revert across a controller restart", async () => {
+    it("resumes a parked rollback across a controller restart", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair({
             controller: { type: ControllerRoot },
@@ -272,7 +274,7 @@ describe("Rollback task integration (single peer)", () => {
         const peer = await subscribedPeer(controller, "peer1");
         const subscription = peer.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
 
-        // Peer unreachable: failingProvision still sets intents, then the spawned revert parks on the offline peer.
+        // Peer unreachable: failingProvision still sets intents, then the spawned rollback parks on the offline peer.
         await MockTime.resolve(subscription.active.emit(false), { macrotasks: true });
 
         await controller.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
@@ -280,7 +282,7 @@ describe("Rollback task integration (single peer)", () => {
         await awaitState(controller, FAILING_ID, "failed");
         await awaitState(
             controller,
-            (await controller.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            (await controller.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
             "parked",
         );
 
@@ -290,14 +292,14 @@ describe("Rollback task integration (single peer)", () => {
         const controller2 = await site.addNode(ControllerRoot, { id, index: 1 });
         await controller2.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
         const resumed = await controller2.act(
-            agent => revertRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.state,
+            agent => rollbackRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.state,
         );
         expect(["running", "parked"]).contains(resumed);
 
         const peer2 = await subscribedPeer(controller2, "peer1");
         await awaitState(
             controller2,
-            (await controller2.act(a => revertSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            (await controller2.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
             "completed",
         );
 
