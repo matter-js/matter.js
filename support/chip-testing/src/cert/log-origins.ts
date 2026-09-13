@@ -31,6 +31,27 @@ const registrations = new WeakMap<Diagnostic.Origin, Registration>();
  * matter.js stamps each message with the environment of the component that wrote it, so a line reaches the right log
  * even when it comes from a socket or timer callback, where no call stack identifies the node.
  */
+/**
+ * Whether a certification participant has claimed a log origin since the last {@link forgetLogOriginClaims}.
+ *
+ * Every chip spec file loads this module, but only a certification test claims origins.  A destination's fallback for
+ * an unclaimed line is meaningful only once something claims lines at all: in an ordinary chip run nothing does, so
+ * without this every line is "unclaimed" and the fallback reports the entire log.
+ */
+export function logOriginsAreClaimed() {
+    return originsClaimed;
+}
+
+/**
+ * Forget that any origin was claimed.  Called per spec file, so a certification file does not leave a following
+ * ordinary file treating its lines as unclaimed.
+ */
+export function forgetLogOriginClaims() {
+    originsClaimed = false;
+}
+
+let originsClaimed = false;
+
 export function registerLogOrigin(origin: Diagnostic.Origin, kind: LogOriginKind, queue: LineQueue) {
     const existing = registrations.get(origin);
     if (existing !== undefined) {
@@ -42,6 +63,7 @@ export function registerLogOrigin(origin: Diagnostic.Origin, kind: LogOriginKind
 
     const registration: Registration = { kind, queue };
     registrations.set(origin, registration);
+    originsClaimed = true;
 
     return () => {
         // Only our own registration: a later participant in the same environment keeps its routing

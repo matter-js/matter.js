@@ -7,7 +7,7 @@
 import { Environment, InternalError, Millis, Time } from "@matter/main";
 import { LineQueue } from "@matter/testing";
 import { expect } from "chai";
-import { registerLogOrigin } from "../../src/cert/log-origins.js";
+import { forgetLogOriginClaims, registerLogOrigin } from "../../src/cert/log-origins.js";
 
 // Importing installs the destinations this exercises
 import { runTaggedForDevice } from "../../src/cert/index.js";
@@ -86,7 +86,13 @@ describe("cert log attribution", () => {
 
     // The fallback exists because matter.js reports a crashed endpoint and a crashed runtime through this logger,
     // from work no device call encloses
-    it("still reports a line nobody owns", async () => {
+    it("still reports a line nobody owns once a participant has claimed one", async () => {
+        const release = registerLogOrigin(
+            new Environment("claimant-test", Environment.default).logOrigin,
+            "device",
+            new LineQueue(),
+        );
+
         const reported = new Array<string>();
         const consoleError = console.error;
         console.error = (text: string) => void reported.push(text);
@@ -95,9 +101,26 @@ describe("cert log attribution", () => {
             new Environment("unowned-test", Environment.default).logger("UnownedFacility").info("nobody owns this");
         } finally {
             console.error = consoleError;
+            release();
         }
 
         expect(reported.join("\n")).match(/nobody owns this/);
+    });
+
+    it("reports nothing when no participant has claimed an origin", async () => {
+        forgetLogOriginClaims();
+
+        const reported = new Array<string>();
+        const consoleError = console.error;
+        console.error = (text: string) => void reported.push(text);
+
+        try {
+            new Environment("ordinary-run-test", Environment.default).logger("OrdinaryFacility").info("no claimants");
+        } finally {
+            console.error = consoleError;
+        }
+
+        expect(reported).deep.equals([]);
     });
 
     it("refuses a second participant for one environment", () => {
