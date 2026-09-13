@@ -153,10 +153,10 @@ certTest("TC-G-3.2", {
     pics: ["G.C", "GRPKEY.C"],
     app: "all-clusters",
 
-    // CHIP master retired the legacy group key path this exercises: Groups moved to cluster revision 5 and
-    // GroupKeyManagement's Groupcast adoption now answers a GroupKeyMap write with InvalidInState, so binding a
-    // group key fails before AddGroup is reached.  The released certification binaries predate that change
-    chipBinsSources: ["cert-bins"],
+    // Binds a group key through GroupKeyMap, which an all-clusters build with Groupcast on refuses once Groups
+    // reaches cluster revision 5.  Only this project's own build offers the variant with Groupcast off; the released
+    // binaries predate the change and run the ordinary app
+    appVariant: { matterjs: "nogroupcast" },
 })
     .step(
         "0",

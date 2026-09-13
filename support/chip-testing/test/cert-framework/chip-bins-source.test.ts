@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { chipBinsSourceFor } from "@matter/testing";
+import { appVariantFor, chipBinsSourceFor } from "@matter/testing";
 import { expect } from "chai";
 import { env } from "node:process";
 
@@ -41,5 +41,43 @@ describe("chipBinsSourceFor", () => {
     it("names no source for matterjs, which runs no chip binary", () => {
         env.MATTER_CHIP_BINS_SOURCE = "cert-bins";
         expect(chipBinsSourceFor("matterjs")).equals(undefined);
+    });
+});
+
+describe("appVariantFor", () => {
+    let priorSource: string | undefined;
+
+    beforeEach(() => {
+        priorSource = env.MATTER_CHIP_BINS_SOURCE;
+    });
+
+    afterEach(() => {
+        if (priorSource === undefined) {
+            delete env.MATTER_CHIP_BINS_SOURCE;
+        } else {
+            env.MATTER_CHIP_BINS_SOURCE = priorSource;
+        }
+    });
+
+    it("applies a plain name to every source", () => {
+        env.MATTER_CHIP_BINS_SOURCE = "cert-bins";
+        expect(appVariantFor("chip-local", "nlfaultinject")).equals("nlfaultinject");
+
+        delete env.MATTER_CHIP_BINS_SOURCE;
+        expect(appVariantFor("chip-local", "nlfaultinject")).equals("nlfaultinject");
+    });
+
+    // The released binaries never carried a variant this project invented, so asking for one there would send the
+    // case looking for a binary that was never shipped
+    it("applies a named source only where that source runs", () => {
+        delete env.MATTER_CHIP_BINS_SOURCE;
+        expect(appVariantFor("chip-local", { matterjs: "nogroupcast" })).equals("nogroupcast");
+
+        env.MATTER_CHIP_BINS_SOURCE = "cert-bins";
+        expect(appVariantFor("chip-local", { matterjs: "nogroupcast" })).equals(undefined);
+    });
+
+    it("names no variant for a flavor that runs no chip binary", () => {
+        expect(appVariantFor("matterjs", { matterjs: "nogroupcast" })).equals(undefined);
     });
 });

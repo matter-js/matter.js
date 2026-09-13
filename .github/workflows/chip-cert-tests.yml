@@ -384,7 +384,8 @@ jobs:
       - name: Verify TH_SERVER/DUT binaries were extracted
         if: matrix.device == 'own-built'
         run: |
-          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
+          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject \
+                     chip-all-clusters-app-nogroupcast chip-bridge-app; do
             if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
               echo "::error::$bin is missing from the published ghcr.io/matter-js/chip image." \
                 "support/chip/Dockerfile's own-built binaries changed shape, or the image pipeline" \

@@ -37,6 +37,15 @@ import { matterJsCertSubjectFor } from "./matterjs-subject-registry.js";
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Which build of a test's app to run.
+ *
+ * A plain name applies to every chip binary source.  Naming sources instead runs the variant only where that source
+ * provides it: a variant this project builds does not exist in the released certification binaries, and asking for one
+ * there leaves the case looking for a binary that was never shipped.
+ */
+export type CertAppVariant = string | Partial<Record<ChipBinsSource, string>>;
+
 export interface CertTestOptions {
     plan: string;
     pics: string[];
@@ -47,7 +56,7 @@ export interface CertTestOptions {
      * hooks TC-IDM-1.3 arms. Only the `chip-local` flavor can run one, so a test declaring a variant
      * declares `flavors` to match.
      */
-    appVariant?: string;
+    appVariant?: CertAppVariant;
 
     /**
      * Device flavors this test supports; absent runs on every flavor.
@@ -305,6 +314,18 @@ function primaryDeviceRole(deviceRoles: Record<string, string>, app: string): st
     throw new Error(`certTest options.devices has no role for app "${app}" (the app the harness activates)`);
 }
 
+/**
+ * The variant name a flavor actually runs, resolving a per-source declaration against the source that flavor uses.
+ */
+export function appVariantFor(flavor: DeviceFlavor, variant?: CertAppVariant) {
+    if (variant === undefined || typeof variant === "string") {
+        return variant;
+    }
+
+    const source = chipBinsSourceFor(flavor);
+    return source === undefined ? undefined : variant[source];
+}
+
 function subjectFactoryFor(flavor: DeviceFlavor, app: string, appVariant?: string): CertDeviceFactory {
     switch (flavor) {
         case "chip-docker":
@@ -377,7 +398,7 @@ function defineCertTest(
         // not leave this run's evidence disagreeing with the controller it actually used.
         resolveControllerImplementation();
         const primaryRole = primaryDeviceRole(deviceRoles, definition.app);
-        const factory = subjectFactoryFor(flavor, definition.app, definition.appVariant);
+        const factory = subjectFactoryFor(flavor, definition.app, appVariantFor(flavor, definition.appVariant));
 
         registerCertTestFactory(
             descriptor,
@@ -646,7 +667,11 @@ class WiredCertTest extends CertTest {
                 if (role === this.#primaryRole) {
                     continue;
                 }
-                const factory = subjectFactoryFor(this.#flavor, app, this.definition.appVariant);
+                const factory = subjectFactoryFor(
+                    this.#flavor,
+                    app,
+                    appVariantFor(this.#flavor, this.definition.appVariant),
+                );
                 // The role, not the test case's name: the primary's domain is `descriptor.kind`
                 // ("cert"), and a name like "TC-DD-3.18" carries dots a matter.js subject rejects as
                 // an endpoint id.

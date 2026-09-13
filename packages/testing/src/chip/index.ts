@@ -25,7 +25,9 @@ export type {
 export { certTest } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Per-device identity assignment for a multi-device run. */
 export { DeviceIdentityExhaustedError, identityFor } from "./cert/cert-dsl.js";
-export type { CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
+export type { CertAppVariant, CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. Which app build a flavor runs, given a per-source declaration. */
+export { appVariantFor } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
 export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
