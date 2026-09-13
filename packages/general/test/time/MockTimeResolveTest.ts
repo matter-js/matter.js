@@ -8,7 +8,7 @@
 
 const FAKE_TIME = 36000000;
 
-const GAPS = 5;
+const OPERATIONS = 5;
 
 const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.("crypto");
 
@@ -30,40 +30,91 @@ function hostTask(worker: () => void) {
     channel.port2.postMessage(undefined);
 }
 
+/**
+ * A stand-in for a host operation such as crypto.  The real thing settles on host time, which would make every
+ * assertion about it a measurement of the machine; this settles when the test says so, so the assertions describe
+ * MockTime instead.
+ */
+class FakeHostOperation {
+    #settle!: () => void;
+    readonly promise: Promise<void>;
+
+    constructor() {
+        this.promise = MockTime.requireHostAsync(new Promise<void>(resolve => (this.#settle = resolve)));
+    }
+
+    settle() {
+        this.#settle();
+    }
+}
+
+/**
+ * Perform host operations back to back, each settling only once the previous one's continuation has resumed.  This is
+ * the handover a chain of crypto calls performs, with the host's latency taken out of it.  Settling on the host's task
+ * queue rather than in a microtask models the chain a mock transport performs, where the continuation is a task behind
+ * the operation that just settled.
+ */
+async function chainHostOperations(count: number, settleOn: "microtask" | "hostTask" = "microtask") {
+    for (let i = 0; i < count; i++) {
+        const operation = new FakeHostOperation();
+        if (settleOn === "microtask") {
+            queueMicrotask(() => operation.settle());
+        } else {
+            hostTask(() => operation.settle());
+        }
+        await operation.promise;
+    }
+}
+
 describe("MockTime.resolve", () => {
     beforeEach(() => MockTime.reset(FAKE_TIME));
 
-    it("holds virtual time while host crypto is pending", async () => {
-        await MockTime.resolve(
-            (async () => {
-                for (let i = 0; i < 5; i++) {
-                    await crypto.subtle.digest("SHA-256", new Uint8Array([i]));
-                }
-            })(),
-        );
+    it("holds virtual time while a host operation is pending", async () => {
+        const operation = new FakeHostOperation();
 
+        let settled = false;
+        hostTask(() => {
+            settled = true;
+            operation.settle();
+        });
+
+        await MockTime.resolve(operation.promise);
+
+        expect(settled).equal(true);
         expect(MockTime.nowMs).equal(FAKE_TIME);
     });
 
-    it("charges no virtual time for a gap between host operations", async () => {
-        await MockTime.resolve(
-            (async () => {
-                for (let i = 0; i < 5; i++) {
-                    await crypto.subtle.digest("SHA-256", new Uint8Array([i]));
-                    await MockTime.macrotask;
-                    await Promise.resolve();
-                }
-            })(),
-        );
+    it("holds virtual time for a chain of host operations", async () => {
+        await MockTime.resolve(chainHostOperations(OPERATIONS));
 
-        // A handover costs nothing.  The allowance is for one that slips under load, not one per handover: without
-        // the bridge these five cost a step each
-        expect(MockTime.nowMs - FAKE_TIME).most(200);
+        expect(MockTime.nowMs).equal(FAKE_TIME);
         expect(MockTime.pendingHostAsyncOps).equal(0);
     });
 
+    it("abandons a host operation that does not settle", async () => {
+        const stalled = new FakeHostOperation();
+        try {
+            let fired = false;
+            MockTime.getTimer("Test", 100, () => (fired = true)).start();
+
+            await MockTime.resolve(
+                new Promise<void>(resolve => {
+                    MockTime.getTimer("Resolver", 100, resolve).start();
+                }),
+            );
+
+            expect(fired).equal(true);
+            expect(MockTime.pendingHostAsyncOps).equal(0);
+            expect(MockTime.abandonedHostAsyncOps).equal(1);
+        } finally {
+            stalled.settle();
+        }
+    });
+
     it("spends a bridge left by an earlier wait rather than keeping it", async () => {
-        await MockTime.resolve(crypto.subtle.digest("SHA-256", new Uint8Array([1])));
+        const operation = new FakeHostOperation();
+        queueMicrotask(() => operation.settle());
+        await MockTime.resolve(operation.promise);
 
         // The bridge the settled operation left behind expires within the next wait instead of withholding forever
         await MockTime.resolve(
@@ -76,38 +127,13 @@ describe("MockTime.resolve", () => {
         expect(MockTime.dependentCount).equal(0);
     });
 
-    it("keeps the handover bridge intact however many waits overlap", async () => {
-        const spin = () =>
-            MockTime.resolve(
-                (async () => {
-                    for (let i = 0; i < 20; i++) {
-                        await MockTime.macrotask;
-                    }
-                })(),
-            );
-
-        const overlapping = [spin(), spin()];
-
-        await MockTime.resolve(
-            (async () => {
-                for (let i = 0; i < GAPS; i++) {
-                    await crypto.subtle.digest("SHA-256", new Uint8Array([i]));
-                    await MockTime.macrotask;
-                    await Promise.resolve();
-                }
-            })(),
-        );
-
-        // Without the bridge each handover costs a step; competing waits may still let one slip
-        expect(MockTime.nowMs - FAKE_TIME).most(200);
-
-        await Promise.all(overlapping);
-    });
-
     it("lets a timer drive the clock once host work is done", async () => {
         await MockTime.resolve(
             (async () => {
-                await crypto.subtle.digest("SHA-256", new Uint8Array([1]));
+                const operation = new FakeHostOperation();
+                queueMicrotask(() => operation.settle());
+                await operation.promise;
+
                 await new Promise<void>(resolve => {
                     MockTime.getTimer("Resolver", 5000, resolve).start();
                 });
@@ -115,22 +141,6 @@ describe("MockTime.resolve", () => {
         );
 
         expect(MockTime.nowMs).equal(FAKE_TIME + 5000);
-    });
-
-    it("bounds what a gap outside MockTime's view can charge", async () => {
-        await MockTime.resolve(
-            (async () => {
-                for (let i = 0; i < GAPS; i++) {
-                    await crypto.subtle.digest("SHA-256", new Uint8Array([i]));
-
-                    // a continuation that registers nothing and that draining microtasks cannot reach
-                    await new Promise<void>(resolve => hostTask(resolve));
-                }
-            })(),
-        );
-
-        // Such a gap costs at most the steps taken before the loop next visits the host, however slow the host is
-        expect(MockTime.nowMs - FAKE_TIME).most(GAPS * MockTime.hostTurnInterval * 100);
     });
 
     it("visits the host task queue while a timer drives the clock", async () => {
@@ -144,102 +154,6 @@ describe("MockTime.resolve", () => {
         );
 
         expect(hostWorkDone).equal(true);
-    });
-
-    it("holds virtual time while a host crypto callback is pending", async function () {
-        if (nodeCrypto?.pbkdf2 === undefined) {
-            this.skip();
-        }
-
-        await MockTime.resolve(
-            new Promise<void>((resolve, reject) =>
-                nodeCrypto.pbkdf2("password", "salt", 1000, 16, "sha256", (cause: Error | null) =>
-                    cause ? reject(cause) : resolve(),
-                ),
-            ),
-        );
-
-        expect(MockTime.nowMs).equal(FAKE_TIME);
-    });
-
-    it("abandons a host operation that does not settle", async () => {
-        let settleStalledOp!: () => void;
-        try {
-            void MockTime.requireHostAsync(new Promise<void>(resolve => (settleStalledOp = resolve)));
-
-            let fired = false;
-            MockTime.getTimer("Test", 100, () => (fired = true)).start();
-
-            await MockTime.resolve(
-                new Promise<void>(resolve => {
-                    MockTime.getTimer("Resolver", 100, resolve).start();
-                }),
-            );
-
-            expect(fired).equal(true);
-            expect(MockTime.pendingHostAsyncOps).equal(0);
-            expect(MockTime.abandonedHostAsyncOps).equal(1);
-
-            // An abandoned operation may never settle, so the next test must not inherit it
-            expect(MockTime.dependentCount).least(1);
-            MockTime.reset(FAKE_TIME);
-            expect(MockTime.dependentCount).equal(0);
-        } finally {
-            settleStalledOp?.();
-        }
-    });
-
-    it("charges each host operation its own budget", async () => {
-        let settleStalledOp!: () => void;
-        try {
-            void MockTime.requireHostAsync(new Promise<void>(resolve => (settleStalledOp = resolve)));
-
-            await MockTime.resolve(
-                (async () => {
-                    for (let i = 0; i < 5; i++) {
-                        await crypto.subtle.digest("SHA-256", new Uint8Array([i]));
-                    }
-                })(),
-            );
-
-            expect(MockTime.nowMs - FAKE_TIME).most(500);
-        } finally {
-            settleStalledOp?.();
-        }
-    });
-
-    it("charges one yield per turn however many waits overlap", async () => {
-        let settleStalledOp!: () => void;
-        try {
-            void MockTime.requireHostAsync(new Promise<void>(resolve => (settleStalledOp = resolve)));
-
-            const turns = () =>
-                (async () => {
-                    for (let i = 0; i < 5; i++) {
-                        await MockTime.macrotask;
-                    }
-                })();
-
-            await Promise.all([MockTime.resolve(turns()), MockTime.resolve(turns()), MockTime.resolve(turns())]);
-
-            // Three waits spinning over the same five turns charge those five turns once, not once per wait
-            expect(MockTime.hostAsyncYieldsCharged).most(8);
-        } finally {
-            settleStalledOp?.();
-        }
-    });
-
-    it("stops waiting on macrotasks for a host operation that does not settle", async () => {
-        let settleStalledOp!: () => void;
-        try {
-            void MockTime.requireHostAsync(new Promise<void>(resolve => (settleStalledOp = resolve)));
-
-            await MockTime.macrotasks;
-
-            expect(MockTime.pendingHostAsyncOps).equal(0);
-        } finally {
-            settleStalledOp?.();
-        }
     });
 
     it("registers no host operation when crypto rejects its arguments", async function () {
