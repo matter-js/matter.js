@@ -9,6 +9,7 @@ import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
 import { Docker } from "../docker/docker.js";
+import type { DeviceFlavor } from "./cert/cert-context.js";
 
 /**
  * Which build of CHIP example-app/chip-tool binaries a test run uses.
@@ -75,6 +76,27 @@ export function resolveChipBinsSource(): ChipBinsSource {
     }
 
     throw new Error(`Unknown MATTER_CHIP_BINS_SOURCE "${value}" (expected "matterjs" or "cert-bins")`);
+}
+
+/**
+ * The chip binary source a device flavor actually runs, or undefined where the flavor runs no chip binary.
+ *
+ * `MATTER_CHIP_BINS_SOURCE` selects binaries for `chip-local` alone.  `chip-docker` launches this project's own
+ * per-app images, which are built from CHIP's development branch, so it runs what `matterjs` names whatever the
+ * variable says; reading the variable for it would let a test declaring released binaries run against a
+ * development build.
+ */
+export function chipBinsSourceFor(flavor: DeviceFlavor): ChipBinsSource | undefined {
+    switch (flavor) {
+        case "chip-local":
+            return resolveChipBinsSource();
+
+        case "chip-docker":
+            return "matterjs";
+
+        case "matterjs":
+            return undefined;
+    }
 }
 
 /** The tag requested via `MATTER_CHIP_BINS_TAG`, before resolving a possible `"latest"`. */

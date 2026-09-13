@@ -165,7 +165,7 @@ certTest("TC-S-3.1", {
 
     // CHIP master retired the legacy group key path this exercises: Groups moved to cluster revision 5 and
     // GroupKeyManagement's Groupcast adoption now answers a GroupKeyMap write with InvalidInState, so binding a
-    // group key fails before AddGroup is reached.  The released certification binaries predate that
+    // group key fails before AddGroup is reached.  The released certification binaries predate that change
     chipBinsSources: ["cert-bins"],
 })
     .step(

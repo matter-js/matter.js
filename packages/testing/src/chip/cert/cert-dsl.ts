@@ -15,7 +15,7 @@ import { Docker } from "../../docker/docker.js";
 import { Image } from "../../docker/image.js";
 import { afterOne, beforeOne } from "../../mocha.js";
 import { TestFileDescriptor } from "../../test-descriptor.js";
-import { ChipBinsSource, resolveChipBinsSource } from "../chip-bins.js";
+import { ChipBinsSource, chipBinsSourceFor, resolveChipBinsSource } from "../chip-bins.js";
 import { chip } from "../chip.js";
 import { PicsExpression } from "../pics/expression.js";
 import { State } from "../state.js";
@@ -361,9 +361,9 @@ function defineCertTest(
             return;
         }
 
-        if (flavor !== "matterjs" && definition.chipBinsSources !== undefined) {
-            const binsSource = resolveChipBinsSource();
-            if (!definition.chipBinsSources.includes(binsSource)) {
+        if (definition.chipBinsSources !== undefined) {
+            const binsSource = chipBinsSourceFor(flavor);
+            if (binsSource !== undefined && !definition.chipBinsSources.includes(binsSource)) {
                 it.skip(`${descriptor.name} (unsupported against chip binaries from "${binsSource}")`, () => {});
                 return;
             }
