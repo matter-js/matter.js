@@ -53,6 +53,14 @@ interface Dependent {
 const dependents = new Map<Promise<unknown>, Dependent>();
 
 /**
+ * The host's elapsed time in milliseconds.  Monotonic where the platform offers it, so a clock adjustment cannot make
+ * an operation look older or younger than it is.
+ */
+function hostElapsedMs() {
+    return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+
+/**
  * Host milliseconds a single host operation may withhold virtual time for.  The budget is measured on the host's own
  * clock because what it bounds is the host: counted in yields it shrinks exactly when the machine is loaded, which is
  * when a real operation needs it most.  An operation over budget is abandoned: it still requires macrotask yields to
@@ -90,7 +98,7 @@ function register<T>(dependent: Promise<T>, host: boolean) {
 
         dependents.delete(registered);
     });
-    dependents.set(registered, { host, startedAt: Date.now(), abandoned: false });
+    dependents.set(registered, { host, startedAt: hostElapsedMs(), abandoned: false });
     return registered;
 }
 
@@ -123,8 +131,8 @@ let charger: object | undefined;
 let abandonedHostAsyncOps = 0;
 
 /**
- * Report whether virtual time must stand still for a pending host operation.  The waiter that owns the budget also
- * charges one yield to each such operation and abandons those over budget.
+ * Report whether virtual time must stand still for a pending host operation.  The waiter that owns the bridge also
+ * spends it and abandons any operation that has outlived its budget.
  */
 function withholdVirtualTime(waiter: object, hostTurnTaken: boolean) {
     if (charger === undefined) {
@@ -153,7 +161,7 @@ function withholdVirtualTime(waiter: object, hostTurnTaken: boolean) {
         }
 
         if (charging) {
-            if (Date.now() - dependent.startedAt >= MAX_HOST_ASYNC_MS) {
+            if (hostElapsedMs() - dependent.startedAt >= MAX_HOST_ASYNC_MS) {
                 dependent.abandoned = true;
                 abandonedHostAsyncOps++;
 
