@@ -8,6 +8,7 @@ import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
+import { testAddress } from "./helpers.js";
 import { kindOf, FakePeer } from "./helpers.js";
 
 const CsTask: TaskDefinition = {
@@ -30,7 +31,9 @@ describe("changeSet prior capture", () => {
         const peer = new FakePeer("p1");
         const { record, ctx } = makeContext(peer);
         await ctx.setIntent(peer.asNode(), kindOf("groupKey"), "42", { a: 1 }, "converge");
-        expect(record.changeSet).deep.equals([{ peerId: "p1", kind: "groupKey", key: "42", prior: undefined }]);
+        expect(record.changeSet).deep.equals([
+            { peer: testAddress("p1"), kind: "groupKey", key: "42", prior: undefined },
+        ]);
     });
 
     it("records prior intent+mode when an item existed", async () => {

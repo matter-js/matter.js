@@ -7,14 +7,17 @@
 import { TaskFailedError, TaskNotInFlightError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup } from "#task/groups/RemoveNodeFromGroup.js";
+import { addressLabel, addressOf } from "#task/peer.js";
 import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskContext } from "#task/types.js";
-import { DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
+import { InternalError } from "@matter/general";
+import { DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode, ClientNode } from "@matter/node";
 import { GroupKeyManagementClient, GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
 import { SustainedSubscription } from "@matter/protocol";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
@@ -30,14 +33,23 @@ import {
     statusOfSlot,
 } from "../helpers.js";
 
+/** A commissioned node's address: what a task names it by. */
+function addressOfNode(node: ClientNode): PeerAddress {
+    const address = addressOf(node);
+    if (address === undefined) {
+        throw new InternalError(`${node.id} has no address`);
+    }
+    return address;
+}
+
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
 const LOCAL_EP = EndpointNumber(1);
 const GROUP = GroupId(0x101);
 const GROUP_KEY_SET_ID = 42;
 
-const PARAMS: AddNodeToGroupParams = {
-    peerId: "peer1",
+const paramsFor = (peer: ClientNode): AddNodeToGroupParams => ({
+    peer: addressOfNode(peer),
     endpoint: 1,
     groupId: 0x101,
     groupName: "kitchen",
@@ -45,12 +57,12 @@ const PARAMS: AddNodeToGroupParams = {
     groupKeySecurityPolicy: TrustFirst,
     epochKey0: new Uint8Array(16).fill(0xab),
     epochStartTime0: 946684800000001n, // must be > IPK_DEFAULT_EPOCH_START_TIME
-};
+});
 
-const TASK_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
+const taskIdFor = (peer: ClientNode) => `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}:1`;
 
 const FAILING_TYPE = "failingProvision";
-const FAILING_ID = `${FAILING_TYPE}:peer1:${0x101}`;
+const failingIdFor = (peer: ClientNode) => `${FAILING_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}`;
 
 /**
  * Provisions the three AddNodeToGroup intents, then fails hard. Used to drive auto-rollback: the manager
@@ -60,7 +72,7 @@ const FailingProvision: TaskDefinition<AddNodeToGroupParams> = {
     type: FAILING_TYPE,
 
     slotKeyFor(params) {
-        return `${FAILING_TYPE}:${params.peerId}:${params.groupId}`;
+        return `${FAILING_TYPE}:${addressLabel(params.peer)}:${params.groupId}`;
     },
 
     phases(params) {
@@ -69,7 +81,7 @@ const FailingProvision: TaskDefinition<AddNodeToGroupParams> = {
 };
 
 async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<void> {
-    const peer = ctx.resolvePeer(p.peerId);
+    const peer = ctx.resolvePeer(p.peer);
     const groupId = GroupId(p.groupId);
 
     await ctx.setIntent(
@@ -159,25 +171,29 @@ describe("Rollback task integration (single peer)", () => {
         const peer = await subscribedPeer(controller, "peer1");
 
         await controller.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(FailingProvision, PARAMS));
-        await awaitState(controller, FAILING_ID, "failed");
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(FailingProvision, paramsFor(peer)));
+        await awaitState(controller, failingIdFor(peer), "failed");
 
         const rollbackId = await controller.act(
-            agent => requireStatusOfSlot(agent.get(TaskManagerBehavior), FAILING_ID).rollbackRunId,
+            agent => requireStatusOfSlot(agent.get(TaskManagerBehavior), failingIdFor(peer)).rollbackRunId,
         );
         expect(rollbackId).equals(
-            await controller.act(a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)?.runId),
+            await controller.act(
+                a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, failingIdFor(peer))?.runId,
+            ),
         );
 
         // rollbackOf is part of the rollback's persisted seed, so it's readable before the rollback has run at all.
         const rollbackOf = await controller.act(
-            agent => rollbackRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.rollbackOf,
+            agent => rollbackRecordOf(agent.get(TaskManagerBehavior).state.runs, failingIdFor(peer))?.rollbackOf,
         );
-        expect(rollbackOf).equals(requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, FAILING_ID).runId);
+        expect(rollbackOf).equals(
+            requireRecordFor(controller.stateOf(TaskManagerBehavior).runs, failingIdFor(peer)).runId,
+        );
 
         await awaitState(
             controller,
-            (await controller.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            (await controller.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, failingIdFor(peer))))!,
             "completed",
         );
 
@@ -195,8 +211,8 @@ describe("Rollback task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
-        await awaitState(controller, TASK_ID, "completed");
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(peer)));
+        await awaitState(controller, taskIdFor(peer), "completed");
         expect(isMember(device)).equals(true);
 
         // Reversing a change that succeeded is a new action: `RemoveNodeFromGroup` reads what the device holds
@@ -204,7 +220,7 @@ describe("Rollback task integration (single peer)", () => {
         let refusal: unknown;
         try {
             await MockTime.resolve(
-                controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), TASK_ID)),
+                controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), taskIdFor(peer))),
                 {
                     macrotasks: true,
                 },
@@ -215,15 +231,15 @@ describe("Rollback task integration (single peer)", () => {
         expect(refusal).instanceOf(TaskNotInFlightError);
 
         // Refused, so nothing was spawned and nothing was written.
-        expect(await controller.act(a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, TASK_ID))).equals(
-            undefined,
-        );
+        expect(
+            await controller.act(a => rollbackRecordOf(a.get(TaskManagerBehavior).state.runs, taskIdFor(peer))),
+        ).equals(undefined);
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals("committed");
         expect(itemState(peer, "groupKeyMap", String(GROUP))).equals("committed");
-        expect(itemState(peer, "endpointGroupMembership", `${GROUP}:${PARAMS.endpoint}`)).equals("committed");
+        expect(itemState(peer, "endpointGroupMembership", `${GROUP}:${1}`)).equals("committed");
         expect(isMember(device)).equals(true);
 
-        const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), TASK_ID));
+        const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), taskIdFor(peer)));
         expect(status?.state).equals("completed");
     });
 
@@ -236,7 +252,7 @@ describe("Rollback task integration (single peer)", () => {
 
         const peer = await subscribedPeer(controller, "peer1");
 
-        // Pre-seed key set 42 with the same start-time set PARAMS will apply, so write-if-set-differs skips the re-write.
+        // Pre-seed key set 42 with the same start-time set paramsFor(peer) will apply, so write-if-set-differs skips the re-write.
         await MockTime.resolve(
             peer.act(agent =>
                 agent.get(GroupKeyManagementClient).keySetWrite({
@@ -256,8 +272,8 @@ describe("Rollback task integration (single peer)", () => {
         );
         expect(keySetCount(device, GROUP_KEY_SET_ID)).equals(1);
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
-        await awaitState(controller, TASK_ID, "completed");
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(peer)));
+        await awaitState(controller, taskIdFor(peer), "completed");
 
         expect(isMember(device)).equals(true);
         // Epoch-key content preservation (write-skip) is covered by the Task 6 unit test; unreadable here.
@@ -278,28 +294,30 @@ describe("Rollback task integration (single peer)", () => {
         await MockTime.resolve(subscription.active.emit(false), { macrotasks: true });
 
         await controller.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(FailingProvision, PARAMS));
-        await awaitState(controller, FAILING_ID, "failed");
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(FailingProvision, paramsFor(peer)));
+        await awaitState(controller, failingIdFor(peer), "failed");
         await awaitState(
             controller,
-            (await controller.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            (await controller.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, failingIdFor(peer))))!,
             "parked",
         );
 
+        // Captured before the close: the node it names goes with the controller.
+        const failingId = failingIdFor(peer);
         const id = controller.id;
         await MockTime.resolve(controller.close(), { macrotasks: true });
 
         const controller2 = await site.addNode(ControllerRoot, { id, index: 1 });
         await controller2.act(agent => agent.get(TaskManagerBehavior).register(FailingProvision));
         const resumed = await controller2.act(
-            agent => rollbackRecordOf(agent.get(TaskManagerBehavior).state.runs, FAILING_ID)?.state,
+            agent => rollbackRecordOf(agent.get(TaskManagerBehavior).state.runs, failingId)?.state,
         );
         expect(["running", "parked"]).contains(resumed);
 
         const peer2 = await subscribedPeer(controller2, "peer1");
         await awaitState(
             controller2,
-            (await controller2.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, FAILING_ID)))!,
+            (await controller2.act(a => rollbackSlotOf(a.get(TaskManagerBehavior).state.runs, failingId)))!,
             "completed",
         );
 
@@ -323,18 +341,28 @@ describe("Rollback task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        const idEp1 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
-        const idEp2 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:2`;
+        const idEp1 = `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}:1`;
+        const idEp2 = `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}:2`;
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 1 }));
+        await controller.act(agent =>
+            agent.get(TaskManagerBehavior).run(AddNodeToGroup, { ...paramsFor(peer), endpoint: 1 }),
+        );
         await awaitState(controller, idEp1, "completed");
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 2 }));
+        await controller.act(agent =>
+            agent.get(TaskManagerBehavior).run(AddNodeToGroup, { ...paramsFor(peer), endpoint: 2 }),
+        );
         await awaitState(controller, idEp2, "completed");
 
         await controller.act(agent =>
-            agent.get(TaskManagerBehavior).run(RemoveNodeFromGroup, { peerId: "peer1", endpoint: 1, groupId: GROUP }),
+            agent
+                .get(TaskManagerBehavior)
+                .run(RemoveNodeFromGroup, { peer: addressOfNode(peer), endpoint: 1, groupId: GROUP }),
         );
-        await awaitState(controller, `${REMOVE_NODE_FROM_GROUP_TYPE}:peer1:${GROUP}:1`, "completed");
+        await awaitState(
+            controller,
+            `${REMOVE_NODE_FROM_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${GROUP}:1`,
+            "completed",
+        );
 
         expect(itemState(peer, "endpointGroupMembership", `${GROUP}:1`)).equals(undefined);
         expect(itemState(peer, "endpointGroupMembership", `${GROUP}:2`)).equals("committed");

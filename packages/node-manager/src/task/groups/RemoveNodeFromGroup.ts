@@ -5,7 +5,9 @@
  */
 
 import { ClientNode, ItemKind } from "@matter/node";
+import { PeerAddress } from "@matter/protocol";
 import { GroupKey, GroupKeyMap, GroupMembership } from "../../reconcile/kinds.js";
+import { addressLabel } from "../peer.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
 import { Require } from "../validation.js";
@@ -14,7 +16,7 @@ import { membershipKey } from "./keys.js";
 export const REMOVE_NODE_FROM_GROUP_TYPE = "removeNodeFromGroup";
 
 export interface RemoveNodeFromGroupParams {
-    peerId: string;
+    peer: PeerAddress;
     endpoint: number;
     groupId: number;
 }
@@ -28,13 +30,13 @@ export const RemoveNodeFromGroup: TaskDefinition<RemoveNodeFromGroupParams> = {
     type: REMOVE_NODE_FROM_GROUP_TYPE,
     validate(params) {
         Require.params(REMOVE_NODE_FROM_GROUP_TYPE, params);
-        Require.text("peerId", params.peerId);
+        Require.peer("peer", params.peer);
         Require.uint("endpoint", params.endpoint, 0xffff);
         Require.id("groupId", params.groupId, 0xffff);
     },
 
     slotKeyFor(p) {
-        return `${REMOVE_NODE_FROM_GROUP_TYPE}:${p.peerId}:${p.groupId}:${p.endpoint}`;
+        return `${REMOVE_NODE_FROM_GROUP_TYPE}:${addressLabel(p.peer)}:${p.groupId}:${p.endpoint}`;
     },
 
     phases(params) {
@@ -43,7 +45,7 @@ export const RemoveNodeFromGroup: TaskDefinition<RemoveNodeFromGroupParams> = {
 };
 
 async function remove(ctx: TaskContext, p: RemoveNodeFromGroupParams): Promise<void> {
-    const peer = ctx.tryResolvePeer(p.peerId);
+    const peer = ctx.tryResolvePeer(p.peer);
     if (peer === undefined) {
         return; // decommissioned: intent is GC'd with the node
     }

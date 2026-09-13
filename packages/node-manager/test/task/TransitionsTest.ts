@@ -27,6 +27,8 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError, InternalError, Lifecycle, MaybePromise } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
+import { testAddress } from "./helpers.js";
 import { kindOf, FakePeer, liveRecord, onPersisted, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
@@ -36,8 +38,8 @@ class TestTaskManager extends TaskManagerBehavior {
     /** Set to leave a persisted rollback with no driver, as a start before `Rollback` is available would. */
     static omitRollback = false;
 
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
@@ -160,7 +162,7 @@ function gatingPhase(peerId: string): TaskPhase {
     return {
         name: "hold",
         run: async ctx => {
-            const peer = ctx.resolvePeer(peerId);
+            const peer = ctx.resolvePeer(testAddress(peerId));
             await ctx.setIntent(peer, kindOf("groupMembership"), "X", { v: 2 });
             await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
@@ -264,7 +266,7 @@ function reset() {
  * A task that stops being rollbackable once it is past its first phase, so a cancel accepted while the driver is
  * held on the write that advances the phase index answers differently before and after the unwind.
  */
-const PointOfNoReturnTask: TaskDefinition<{ tag: string; peerId: string }> = {
+const PointOfNoReturnTask: TaskDefinition<{ tag: string; peer: PeerAddress }> = {
     type: "point-of-no-return",
     slotKeyFor: params => `synthetic:${params.tag}`,
     rollbackable(run) {
@@ -276,7 +278,7 @@ const PointOfNoReturnTask: TaskDefinition<{ tag: string; peerId: string }> = {
             {
                 name: "write",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peer), kindOf("groupMembership"), "X", { v: 2 });
                 },
             },
             { name: "hold", run: () => new Promise<void>(() => {}) },
@@ -535,7 +537,7 @@ describe("cancel and abandon", () => {
         peer.setIntent("groupMembership", "X", { v: 1 });
         await node.act(a => a.get(TestTaskManager).register(PointOfNoReturnTask));
         const running = await node.act(a =>
-            a.get(TestTaskManager).run(PointOfNoReturnTask, { tag: "pnr", peerId: "pnr" }),
+            a.get(TestTaskManager).run(PointOfNoReturnTask, { tag: "pnr", peer: testAddress("pnr") }),
         );
         await pumpUntil("first phase wrote", () => (peer.items[KEY]?.intent as { v?: number })?.v === 2);
 

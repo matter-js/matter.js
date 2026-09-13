@@ -7,15 +7,27 @@
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { membershipKey } from "#task/groups/keys.js";
 import { REMOVE_NODE_FROM_GROUP_TYPE, RemoveNodeFromGroup } from "#task/groups/RemoveNodeFromGroup.js";
+import { addressLabel, addressOf } from "#task/peer.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { DesiredStateBehavior, itemMapKey, ServerNode } from "@matter/node";
+import { InternalError } from "@matter/general";
+import { DesiredStateBehavior, itemMapKey, ServerNode, ClientNode } from "@matter/node";
 import { GroupKeyManagementClient, GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { isTerminalState, recordFor } from "../helpers.js";
+
+/** A commissioned node's address: what a task names it by. */
+function addressOfNode(node: ClientNode): PeerAddress {
+    const address = addressOf(node);
+    if (address === undefined) {
+        throw new InternalError(`${node.id} has no address`);
+    }
+    return address;
+}
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -26,9 +38,9 @@ const SHARED_KEY_SET = 42;
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
 
-function addParams(groupId: number, groupKeySetId: number, endpoint = 1): AddNodeToGroupParams {
+function addParams(peer: ClientNode, groupId: number, groupKeySetId: number, endpoint = 1): AddNodeToGroupParams {
     return {
-        peerId: "peer1",
+        peer: addressOfNode(peer),
         endpoint,
         groupId,
         groupName: `g${groupId}`,
@@ -39,8 +51,10 @@ function addParams(groupId: number, groupKeySetId: number, endpoint = 1): AddNod
     };
 }
 
-const addTaskId = (groupId: number, endpoint = 1) => `${ADD_NODE_TO_GROUP_TYPE}:peer1:${groupId}:${endpoint}`;
-const removeTaskId = (groupId: number, endpoint = 1) => `${REMOVE_NODE_FROM_GROUP_TYPE}:peer1:${groupId}:${endpoint}`;
+const addTaskId = (peer: ClientNode, groupId: number, endpoint = 1) =>
+    `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${groupId}:${endpoint}`;
+const removeTaskId = (peer: ClientNode, groupId: number, endpoint = 1) =>
+    `${REMOVE_NODE_FROM_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${groupId}:${endpoint}`;
 
 function isMember(device: ServerNode, groupId: number, endpoint: EndpointNumber = LOCAL_EP): boolean {
     const { groupTable } = device.stateOf(GroupKeyManagementServer);
@@ -88,14 +102,18 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(GROUP_A, SHARED_KEY_SET)));
-        await awaitState(controller, addTaskId(GROUP_A), "completed");
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(peer, GROUP_A, SHARED_KEY_SET)),
+        );
+        await awaitState(controller, addTaskId(peer, GROUP_A), "completed");
         expect(isMember(device, GROUP_A)).equals(true);
 
         await controller.act(a =>
-            a.get(TaskManagerBehavior).run(RemoveNodeFromGroup, { peerId: "peer1", endpoint: 1, groupId: GROUP_A }),
+            a
+                .get(TaskManagerBehavior)
+                .run(RemoveNodeFromGroup, { peer: addressOfNode(peer), endpoint: 1, groupId: GROUP_A }),
         );
-        await awaitState(controller, removeTaskId(GROUP_A), "completed");
+        await awaitState(controller, removeTaskId(peer, GROUP_A), "completed");
 
         expect(itemState(peer, "endpointGroupMembership", membershipKey(GROUP_A, 1))).equals(undefined);
         expect(itemState(peer, "groupKeyMap", String(GROUP_A))).equals(undefined);
@@ -111,15 +129,21 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(GROUP_A, SHARED_KEY_SET)));
-        await awaitState(controller, addTaskId(GROUP_A), "completed");
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(GROUP_B, SHARED_KEY_SET)));
-        await awaitState(controller, addTaskId(GROUP_B), "completed");
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(peer, GROUP_A, SHARED_KEY_SET)),
+        );
+        await awaitState(controller, addTaskId(peer, GROUP_A), "completed");
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(peer, GROUP_B, SHARED_KEY_SET)),
+        );
+        await awaitState(controller, addTaskId(peer, GROUP_B), "completed");
 
         await controller.act(a =>
-            a.get(TaskManagerBehavior).run(RemoveNodeFromGroup, { peerId: "peer1", endpoint: 1, groupId: GROUP_A }),
+            a
+                .get(TaskManagerBehavior)
+                .run(RemoveNodeFromGroup, { peer: addressOfNode(peer), endpoint: 1, groupId: GROUP_A }),
         );
-        await awaitState(controller, removeTaskId(GROUP_A), "completed");
+        await awaitState(controller, removeTaskId(peer, GROUP_A), "completed");
 
         expect(itemState(peer, "endpointGroupMembership", membershipKey(GROUP_A, 1))).equals(undefined);
         expect(itemState(peer, "groupKeyMap", String(GROUP_A))).equals(undefined);
@@ -149,16 +173,18 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         expect(limit).equals(4);
         for (let i = 0; i < limit; i++) {
             const groupId = 0x201 + i;
-            await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(groupId, 50 + i)));
-            await awaitState(controller, addTaskId(groupId), "completed");
+            await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(peer, groupId, 50 + i)));
+            await awaitState(controller, addTaskId(peer, groupId), "completed");
         }
 
         const overGroup = 0x201 + limit;
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(overGroup, 50 + limit)));
-        await awaitState(controller, addTaskId(overGroup), "failed");
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(peer, overGroup, 50 + limit)),
+        );
+        await awaitState(controller, addTaskId(peer, overGroup), "failed");
 
         const error = await controller.act(
-            a => recordFor(a.get(TaskManagerBehavior).state.runs, addTaskId(overGroup))?.error,
+            a => recordFor(a.get(TaskManagerBehavior).state.runs, addTaskId(peer, overGroup))?.error,
         );
         expect(error).contains("capacity");
 

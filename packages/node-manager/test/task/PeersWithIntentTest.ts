@@ -9,6 +9,7 @@ import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
+import { PeerAddress } from "@matter/protocol";
 import { kindOf, FakePeer } from "./helpers.js";
 
 /** peersWithIntent never touches the reconciler; a no-op stand-in avoids depending on the whole behavior. */
@@ -39,7 +40,7 @@ describe("peersWithIntent", () => {
         const record = new RunRecord(RunId(1), "pwi-test:1", PwiTask.type, {});
         const ctx = new RunningTaskContext(
             record,
-            id => all.find(p => p.id === id)?.asNode(),
+            address => all.find(p => PeerAddress.is(p.address, address))?.asNode(),
             unusedReconciler,
             (_s: TaskState) => {},
             undefined,

@@ -15,8 +15,9 @@ import {
     ManagedItem,
     NetworkClient,
 } from "@matter/node";
-import { SustainedSubscription } from "@matter/protocol";
+import { PeerAddress, SustainedSubscription } from "@matter/protocol";
 import { TaskFailedError, TaskPeerUnavailableError } from "./errors.js";
+import { addressLabel, addressOf, peerLabel } from "./peer.js";
 import { runLabel, RunRecord } from "./Task.js";
 import { TaskContext, TaskState } from "./types.js";
 
@@ -39,25 +40,25 @@ export interface GateControl {
 export class RunningTaskContext implements TaskContext {
     constructor(
         protected readonly record: RunRecord,
-        protected readonly peerResolver: (peerId: string) => ClientNode | undefined,
+        protected readonly peerResolver: (peer: PeerAddress) => ClientNode | undefined,
         protected readonly reconciler: ReconcilerSurface,
         protected readonly setState: (state: TaskState) => void,
         protected readonly gate?: GateControl,
         protected readonly peerLister: () => ClientNode[] = () => new Array<ClientNode>(),
     ) {}
 
-    resolvePeer(peerId: string): ClientNode {
-        const peer = this.peerResolver(peerId);
+    resolvePeer(address: PeerAddress): ClientNode {
+        const peer = this.peerResolver(address);
         if (peer === undefined) {
             throw new TaskPeerUnavailableError(
-                `Task ${runLabel(this.record.runId)}: peer "${peerId}" is not available`,
+                `Task ${runLabel(this.record.runId)}: peer ${addressLabel(address)} is not available`,
             );
         }
         return peer;
     }
 
-    tryResolvePeer(peerId: string): ClientNode | undefined {
-        return this.peerResolver(peerId);
+    tryResolvePeer(address: PeerAddress): ClientNode | undefined {
+        return this.peerResolver(address);
     }
 
     async setIntent<I>(peer: ClientNode, kind: ItemKind<I>, key: string, intent: I, mode: ItemMode = "converge") {
@@ -68,6 +69,12 @@ export class RunningTaskContext implements TaskContext {
     }
 
     async removeIntent(peer: ClientNode, kind: ItemKind, key: string) {
+        // Nothing to remove is nothing changed: `DesiredStateBehavior.removeIntent` is a no-op for an item that
+        // is not there, and recording it would give the run a change set entry that restores nothing and a
+        // claim that it altered a device.
+        if (peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind.kind, key)] === undefined) {
+            return;
+        }
         this.#record(peer, kind.kind, key);
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).removeIntent(kind.kind, key);
@@ -91,12 +98,20 @@ export class RunningTaskContext implements TaskContext {
 
     // First touch wins: records the pre-task state so a rollback restores that, not an intermediate touch.
     #record(peer: ClientNode, kind: string, key: string) {
-        if (this.record.changeSet.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
+        // A record outlives the node's presence, so it names the node by the identity that is never re-issued.
+        // A node with none cannot be named at all, which is the same node a restart could not resolve.
+        const address = addressOf(peer);
+        if (address === undefined) {
+            throw new TaskFailedError(
+                `Task ${runLabel(this.record.runId)}: ${peer.id} has no address, so what it is asked to hold cannot be recorded`,
+            );
+        }
+        if (this.record.changeSet.some(e => PeerAddress.is(e.peer, address) && e.kind === kind && e.key === key)) {
             return;
         }
         const existing = peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
         const prior = existing === undefined ? undefined : { intent: existing.intent, mode: existing.mode };
-        this.record.changeSet.push({ peerId: peer.id, kind, key, prior });
+        this.record.changeSet.push({ peer: address, kind, key, prior });
         // Permanent, unlike the entries: a retirement drops what a run would restore once nothing can restore
         // it, and every other run of the target still has to know this one reached the device.
         this.record.wrote = true;
@@ -107,7 +122,7 @@ export class RunningTaskContext implements TaskContext {
         // but the reconciler owns what that kind does.
         if (this.reconciler.itemKind(kind.kind)?.isReferenced?.(peer, key)) {
             logger.debug(
-                `Task ${runLabel(this.record.runId)}: keep ${kind.kind}:${key} on ${peer.id} (still referenced)`,
+                `Task ${runLabel(this.record.runId)}: keep ${kind.kind}:${key} on ${peerLabel(peer)} (still referenced)`,
             );
             return false;
         }
@@ -136,7 +151,7 @@ export class RunningTaskContext implements TaskContext {
             const reason =
                 this.reconciler.dropReasonFor?.(gone.peer, gone.kind.kind, gone.key) ?? "the reconciler dropped it";
             throw new TaskFailedError(
-                `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
+                `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind.kind}:${gone.key} on ${peerLabel(gone.peer)} is gone — ` +
                     `${reason}, so it can no longer commit`,
             );
         }

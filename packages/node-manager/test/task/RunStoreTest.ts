@@ -8,6 +8,7 @@ import { RunStore } from "#task/RunStore.js";
 import { RunRecord, TaskPersistence } from "#task/Task.js";
 import { ChangeEntry, RetireSeq, RunId } from "#task/types.js";
 import { InternalError } from "@matter/general";
+import { testAddress } from "./helpers.js";
 
 /**
  * The store answers these without a node, a gate or a clock, so a table can be built by hand — the only way
@@ -44,7 +45,7 @@ function retired(
 
 /** A retired run still holding priors, so a rollback that can replay them pins it. */
 function pinned(runId: number, slotKey: string, seq: number) {
-    return retired(runId, slotKey, seq, "failed", true, [{ peerId: "p", kind: "groupKey", key: "42" }]);
+    return retired(runId, slotKey, seq, "failed", true, [{ peer: testAddress("p"), kind: "groupKey", key: "42" }]);
 }
 
 describe("RunStore", () => {
@@ -87,6 +88,13 @@ describe("RunStore", () => {
         });
     });
     describe("a corrupt stored table", () => {
+        const describeValue = (value: unknown) =>
+            typeof value === "object" && value !== null
+                ? Array.isArray(value)
+                    ? "a list"
+                    : "an object"
+                : String(value);
+
         const KEY_MATERIAL = new Uint8Array([1, 2, 3, 4]);
 
         function loadField(field: string, value: unknown) {
@@ -168,9 +176,12 @@ describe("RunStore", () => {
             ["changeSet", {}],
             // Each entry, not only the container: a run walks them as it writes, and a rollback replays them.
             ["changeSet", [null]],
-            ["changeSet", [{ peerId: "p", kind: "groupKey" }]],
-            ["changeSet", [{ peerId: "p", kind: "groupKey", key: "1", prior: { mode: "converge" } }]],
-            ["changeSet", [{ peerId: "p", kind: "groupKey", key: "1", prior: { intent: {}, mode: "sometimes" } }]],
+            ["changeSet", [{ peer: testAddress("p"), kind: "groupKey" }]],
+            ["changeSet", [{ peer: testAddress("p"), kind: "groupKey", key: "1", prior: { mode: "converge" } }]],
+            [
+                "changeSet",
+                [{ peer: testAddress("p"), kind: "groupKey", key: "1", prior: { intent: {}, mode: "sometimes" } }],
+            ],
             ["slotKey", ""],
             ["slotKey", 7],
             ["type", ""],
@@ -178,7 +189,8 @@ describe("RunStore", () => {
             ["rollbackOf", "2"],
             ["rollbackRunId", 0],
         ] as Array<[string, unknown]>) {
-            it(`refuses a record whose ${field} is ${JSON.stringify(value) ?? String(value)}`, () => {
+            // Named without JSON: a change entry carries a node id, which is a bigint and cannot be stringified.
+            it(`refuses a record whose ${field} is ${describeValue(value)}`, () => {
                 expect(loadField(field, value)).throws(InternalError);
             });
         }

@@ -14,6 +14,7 @@ import { RetireSeq, RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError } from "@matter/general";
 import { ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
+import { testAddress } from "./helpers.js";
 import {
     cancelSlot,
     handleOfSlot,
@@ -302,7 +303,11 @@ describe("TaskManagerBehavior", () => {
                     {
                         name: "touch",
                         run: async () => {
-                            changeSetTarget?.changeSet.push({ peerId: "peer1", kind: "groupKey", key: "42" });
+                            changeSetTarget?.changeSet.push({
+                                peer: testAddress("peer1"),
+                                kind: "groupKey",
+                                key: "42",
+                            });
                             throw new TaskFailedError("forced hard failure");
                         },
                     },

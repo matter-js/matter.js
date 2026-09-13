@@ -10,6 +10,7 @@ import { BoundDefinition, RunRecord } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
+import { testAddress } from "./helpers.js";
 import { FakePeer, kindOf } from "./helpers.js";
 
 function runRollback(peer: FakePeer, params: RollbackParams, referenced = new Set<string>()) {
@@ -31,7 +32,10 @@ describe("Rollback task", () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupKey", "42", "committed");
         await MockTime.resolve(
-            runRollback(peer, { originalRunId: RunId(1), entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] }),
+            runRollback(peer, {
+                originalRunId: RunId(1),
+                entries: [{ peer: testAddress("p1"), kind: "groupKey", key: "42" }],
+            }),
         );
         expect(peer.items[itemMapKey("groupKey", "42")]).equals(undefined);
     });
@@ -45,7 +49,7 @@ describe("Rollback task", () => {
                 originalRunId: RunId(1),
                 entries: [
                     {
-                        peerId: "p1",
+                        peer: testAddress("p1"),
                         kind: "groupKeyMap",
                         key: "257",
                         prior: { intent: { old: true }, mode: "converge" },
@@ -63,7 +67,7 @@ describe("Rollback task", () => {
         await MockTime.resolve(
             runRollback(
                 peer,
-                { originalRunId: RunId(1), entries: [{ peerId: "p1", kind: "groupKey", key: "42" }] },
+                { originalRunId: RunId(1), entries: [{ peer: testAddress("p1"), kind: "groupKey", key: "42" }] },
                 new Set(["groupKey:42"]),
             ),
         );

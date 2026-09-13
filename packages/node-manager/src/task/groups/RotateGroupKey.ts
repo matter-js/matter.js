@@ -10,6 +10,7 @@ import { GroupKeyManagement } from "@matter/types/clusters/group-key-management"
 import type { GroupKeyGrant } from "../../reconcile/GroupKeyItemKind.js";
 import { GroupKey } from "../../reconcile/kinds.js";
 import { RotationPreconditionError } from "../errors.js";
+import { peerLabel } from "../peer.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
 import { Require } from "../validation.js";
@@ -97,7 +98,7 @@ function requireSingleKeySteadyState(ctx: TaskContext, p: RotateGroupKeyParams):
         const current = currentIntent(ctx, peer, p);
         if (current !== undefined && !isRotatable(current, p)) {
             throw new RotationPreconditionError(
-                `Cannot rotate group key set ${p.groupKeySetId} on peer ${peer.id}: ` +
+                `Cannot rotate group key set ${p.groupKeySetId} on peer ${peerLabel(peer)}: ` +
                     `member holds a multi-epoch keyset (slot 1/2 populated). Rotation requires a ` +
                     `single-key steady state; multi-epoch keysets are unsupported.`,
             );
@@ -121,7 +122,7 @@ function requireEveryMemberHoldsNewKey(ctx: TaskContext, p: RotateGroupKeyParams
         // the members captured at entry are already transmitting with the new key. So the message states the
         // member and the remedy, and claims nothing about whether the new key is in use yet.
         throw new RotationPreconditionError(
-            `Cannot ${phase} group key set ${p.groupKeySetId}: peer ${late.id} does not hold this ` +
+            `Cannot ${phase} group key set ${p.groupKeySetId}: peer ${peerLabel(late)} does not hold this ` +
                 `rotation's new key, so it joined the key set while the rotation was running. Rotate again ` +
                 `with this same new key, which covers every current member.`,
         );

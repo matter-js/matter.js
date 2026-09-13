@@ -23,9 +23,15 @@ export interface TaskPersistence {
     externalId?: string;
     changeSet: ChangeEntry[];
     /**
-     * Whether this run wrote an intent. Separate from {@link changeSet}, which holds what a rollback would
-     * restore and is dropped once nothing can restore it — a run that changed the device stays a run that
-     * changed the device.
+     * Whether this run changed what a device is asked to hold.
+     *
+     * Set when an intent is written, not when the reconciler reports it applied: an intent that is written is
+     * one the reconciler will apply unless something removes it, so a run that wrote one has changed the
+     * outcome whether or not it has reached the device yet. Reading it the other way would let a run that
+     * stopped before its commit claim it changed nothing while its intent was still on its way to a device.
+     *
+     * Separate from {@link changeSet}, which holds what a rollback would restore and is dropped once nothing
+     * can restore it.
      */
     wrote: boolean;
     error?: string;

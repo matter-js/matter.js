@@ -9,14 +9,16 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
 import { CapacityInfo, ClientNode, ItemKind, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
+import { testAddress } from "./helpers.js";
 import { FakePeer, isTerminalState, kindOf, recordFor, requireRecordFor, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
@@ -66,7 +68,9 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["over"] = [{ peerId: "p", kind: kindOf("cap"), key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["over"] = [
+            { peer: testAddress("p"), kind: kindOf("cap"), key: "x", intent: {} },
+        ];
         SyntheticTask.phasesByTag["over"] = [{ name: "should-not-run", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-over" });
@@ -102,7 +106,9 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["member"] = [{ peerId: "p", kind: kindOf("member"), key: "1:2", intent: {} }];
+        SyntheticTask.plannedChangesByTag["member"] = [
+            { peer: testAddress("p"), kind: kindOf("member"), key: "1:2", intent: {} },
+        ];
         SyntheticTask.phasesByTag["member"] = [{ name: "runs", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-member" });
@@ -121,7 +127,9 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["fits"] = [{ peerId: "p", kind: kindOf("cap"), key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["fits"] = [
+            { peer: testAddress("p"), kind: kindOf("cap"), key: "x", intent: {} },
+        ];
         SyntheticTask.phasesByTag["fits"] = [{ name: "runs", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-fits" });

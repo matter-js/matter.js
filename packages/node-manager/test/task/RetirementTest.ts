@@ -24,6 +24,8 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError, InternalError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
+import { testAddress } from "./helpers.js";
 import { kindOf, FakePeer, pumpUntil, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
@@ -31,8 +33,8 @@ class TestTaskManager extends TaskManagerBehavior {
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
 
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
@@ -68,7 +70,7 @@ async function makeNode(environment?: Environment, id = "ledger") {
 }
 
 /** Writes one intent, then fails, and declares itself past the point of no return. */
-const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
+const ForwardOnlyTask: TaskDefinition<{ tag: string; peer: PeerAddress }> = {
     type: "forward-only",
     // Deliberately the same slot shape as SyntheticTask: supersession is per target, so a test about one run
     // burying another has to put both on one slot.
@@ -84,7 +86,7 @@ const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peer), kindOf("groupMembership"), "X", { v: 2 });
                     throw new TaskFailedError("forward only");
                 },
             },
@@ -93,7 +95,7 @@ const ForwardOnlyTask: TaskDefinition<{ tag: string; peerId: string }> = {
 };
 
 /** Writes one intent, then fails, while remaining rollbackable: the failure path creates a rollback. */
-const FailingRollbackableTask: TaskDefinition<{ tag: string; peerId: string }> = {
+const FailingRollbackableTask: TaskDefinition<{ tag: string; peer: PeerAddress }> = {
     type: "failing-rollbackable",
     slotKeyFor(params) {
         return `synthetic:${params.tag}`;
@@ -103,7 +105,7 @@ const FailingRollbackableTask: TaskDefinition<{ tag: string; peerId: string }> =
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peer), kindOf("groupMembership"), "X", { v: 2 });
                     throw new TaskFailedError("failing but rollbackable");
                 },
             },
@@ -112,7 +114,7 @@ const FailingRollbackableTask: TaskDefinition<{ tag: string; peerId: string }> =
 };
 
 /** Writes one intent, then fails, and cannot answer whether it is rollbackable. */
-const UnaskableTask: TaskDefinition<{ tag: string; peerId: string }> = {
+const UnaskableTask: TaskDefinition<{ tag: string; peer: PeerAddress }> = {
     type: "unaskable",
     slotKeyFor(params) {
         return `synthetic:${params.tag}`;
@@ -125,7 +127,7 @@ const UnaskableTask: TaskDefinition<{ tag: string; peerId: string }> = {
             {
                 name: "write-then-fail",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer(params.peerId), kindOf("groupMembership"), "X", { v: 2 });
+                    await ctx.setIntent(ctx.resolvePeer(params.peer), kindOf("groupMembership"), "X", { v: 2 });
                     throw new TaskFailedError("unaskable");
                 },
             },
@@ -138,7 +140,7 @@ function touchPhase(peerId: string): TaskPhase {
     return {
         name: "touch",
         run: async ctx => {
-            await ctx.setIntent(ctx.resolvePeer(peerId), kindOf("groupMembership"), "X", { v: 2 });
+            await ctx.setIntent(ctx.resolvePeer(testAddress(peerId)), kindOf("groupMembership"), "X", { v: 2 });
         },
     };
 }
@@ -148,7 +150,7 @@ function gatingPhase(peerId: string): TaskPhase {
     return {
         name: "hold",
         run: async ctx => {
-            const peer = ctx.resolvePeer(peerId);
+            const peer = ctx.resolvePeer(testAddress(peerId));
             await ctx.setIntent(peer, kindOf("groupMembership"), "X", { v: 2 });
             await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
@@ -451,7 +453,7 @@ describe("run records after a retirement", () => {
 
         await node.act(a => a.get(TestTaskManager).register(ForwardOnlyTask));
         const run1 = await node.act(a =>
-            a.get(TestTaskManager).run(ForwardOnlyTask, { tag: "forward-only", peerId: "forward-only" }),
+            a.get(TestTaskManager).run(ForwardOnlyTask, { tag: "forward-only", peer: testAddress("forward-only") }),
         );
         await awaitRetired(node, run1.runId);
 
@@ -536,7 +538,7 @@ describe("run records after a retirement", () => {
         const failed = await node.act(a =>
             a.get(TestTaskManager).run(FailingRollbackableTask, {
                 tag: "failed-with-undo",
-                peerId: "failed-with-undo",
+                peer: testAddress("failed-with-undo"),
             }),
         );
         await awaitRetired(node, failed.runId);
@@ -555,7 +557,7 @@ describe("run records after a retirement", () => {
 
         await node.act(a => a.get(TestTaskManager).register(UnaskableTask));
         const failed = await node.act(a =>
-            a.get(TestTaskManager).run(UnaskableTask, { tag: "unaskable", peerId: "unaskable" }),
+            a.get(TestTaskManager).run(UnaskableTask, { tag: "unaskable", peer: testAddress("unaskable") }),
         );
         await awaitRetired(node, failed.runId);
 
@@ -734,7 +736,7 @@ describe("run records after a retirement", () => {
         const later = await node.act(a =>
             a.get(TestTaskManager).run(ForwardOnlyTask, {
                 tag: "forward-only-superseder",
-                peerId: "forward-only-superseder",
+                peer: testAddress("forward-only-superseder"),
             }),
         );
         await awaitRetired(node, later.runId);

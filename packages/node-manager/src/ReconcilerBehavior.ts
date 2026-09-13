@@ -148,7 +148,11 @@ export class ReconcilerBehavior extends Behavior {
             }
         });
 
-        observers.on(peer.eventsOf(DesiredStateBehavior).itemChanged, () => {
+        observers.on(peer.eventsOf(DesiredStateBehavior).itemChanged, item => {
+            // A new intent for the same target is new work, so whatever this reconciler gave up on before is
+            // no longer the reason anything about it. Held any longer, a task could be told why an intent it
+            // never wrote was dropped.
+            this.internal.dropReasons.get(peer)?.delete(itemMapKey(item.kind, item.key));
             if (this.#reachable(peer)) {
                 this.#schedule(peer, { verify: false, refreshCapacity: false });
             }
@@ -202,6 +206,8 @@ export class ReconcilerBehavior extends Behavior {
             observers.close();
             this.internal.peerObservers.delete(peer);
         }
+        // With the peer, so a reason cannot describe an item of the node that is gone — and cannot outlive it.
+        this.internal.dropReasons.delete(peer);
         await this.internal.locks.get(peer)?.close();
         // Re-delete after the close await in case anything scheduled into the closing window.
         this.internal.pending.delete(peer);
@@ -257,7 +263,7 @@ export class ReconcilerBehavior extends Behavior {
      * Kept only until something writes that intent again, and only for items this reconciler dropped.
      */
     dropReasonFor(peer: ClientNode, kind: string, key: string): string | undefined {
-        return this.internal.dropReasons.get(failureKey(peer, kind, key));
+        return this.internal.dropReasons.get(peer)?.get(itemMapKey(kind, key));
     }
 
     async #runExecutor(peer: ClientNode, planned: PlannedAction[], registry: ItemKindRegistry): Promise<void> {
@@ -269,15 +275,20 @@ export class ReconcilerBehavior extends Behavior {
                 );
             },
             dropItem: (kind, key, reason) => {
+                const reasons = this.internal.dropReasons.get(peer);
                 if (reason === undefined) {
-                    this.internal.dropReasons.delete(failureKey(peer, kind, key));
+                    reasons?.delete(itemMapKey(kind, key));
                 } else {
-                    this.internal.dropReasons.set(failureKey(peer, kind, key), reason);
+                    if (reasons === undefined) {
+                        this.internal.dropReasons.set(peer, new Map([[itemMapKey(kind, key), reason]]));
+                    } else {
+                        reasons.set(itemMapKey(kind, key), reason);
+                    }
                 }
                 return Promise.resolve(peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key)));
             },
-            currentState(kind, key) {
-                return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)]?.status.state;
+            currentItem(kind, key) {
+                return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
             },
         };
         await executeActions(target, planned, registry);
@@ -315,10 +326,6 @@ export class ReconcilerBehavior extends Behavior {
     }
 }
 
-function failureKey(peer: ClientNode, kind: string, key: string): string {
-    return `${peer.id}\u0000${itemMapKey(kind, key)}`;
-}
-
 export namespace ReconcilerBehavior {
     export class State {
         settleDelay: Duration = Seconds(5);
@@ -331,7 +338,8 @@ export namespace ReconcilerBehavior {
         sweepTimer?: Timer;
         settleTimer?: Timer;
         locks = new Map<ClientNode, Mutex>();
-        dropReasons = new Map<string, string>();
+        /** Why the reconciler gave up on an item, per peer. Dropped with the peer, so it cannot outlive it. */
+        dropReasons = new Map<ClientNode, Map<string, string>>();
         pending = new Map<ClientNode, PendingPass>();
         disposed = false;
     }

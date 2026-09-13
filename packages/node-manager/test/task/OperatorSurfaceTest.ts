@@ -12,17 +12,22 @@ import { RunId, TaskPhase, TaskStatus } from "#task/types.js";
 import { Environment, ImplementationError, InternalError } from "@matter/general";
 import { ClientNode, itemMapKey } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, kindOf, pumpUntil, SyntheticTask } from "./helpers.js";
+import { PeerAddress } from "@matter/protocol";
+import { FakePeer, kindOf, pumpUntil, SyntheticTask, testAddress } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
+    }
+
+    internalRecord(runId: RunId) {
+        return this.internal.runs.get(runId);
     }
 
     isAttached(runId: RunId) {
@@ -67,7 +72,7 @@ function gatingPhase(peerId: string): TaskPhase {
     return {
         name: "hold",
         run: async ctx => {
-            const peer = ctx.resolvePeer(peerId);
+            const peer = ctx.resolvePeer(testAddress(peerId));
             await ctx.setIntent(peer, kindOf("groupMembership"), "X", { v: 2 });
             await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
@@ -150,7 +155,9 @@ describe("task status", () => {
             {
                 name: "one",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("wrote"), kindOf("groupMembership"), "W", { v: 1 });
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("wrote")), kindOf("groupMembership"), "W", {
+                        v: 1,
+                    });
                 },
             },
         ];
@@ -351,7 +358,7 @@ describe("settling when nothing can be written", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("unwritable"), kindOf("groupMembership"), "U", {});
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("unwritable")), kindOf("groupMembership"), "U", {});
                 },
             },
         ];
@@ -454,5 +461,51 @@ describe("retrying an undo", () => {
         }
         expect(refusal).instanceOf(TaskNoRollbackError);
         expect((refusal as Error).message).contains("nothing undoes an undo");
+    });
+});
+
+describe("peer identity", () => {
+    before(() => MockTime.init());
+
+    it("does not replay onto a different device that took the removed peer's local id", async () => {
+        const { node, peer } = await makeNode("identity");
+        await using _node = node;
+        peer.setIntent("groupMembership", "X", { v: 1 });
+
+        SyntheticTask.phasesByTag["identity"] = [gatingPhase("identity")];
+        const original = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "identity" }));
+        await pumpUntil(
+            "intent written",
+            () => (peer.items[itemMapKey("groupMembership", "X")]?.intent as { v?: number })?.v === 2,
+        );
+
+        // What the record kept is the address, not the local id.
+        const entry = await node.act(a => a.get(TestTaskManager).internalRecord(original.runId)?.changeSet[0]);
+        expect(entry).not.equals(undefined);
+        expect(PeerAddress.is(entry!.peer, peer.address)).equals(true);
+
+        // Another device is given the removed peer's local id — the reuse that makes that id unusable as an
+        // identity. Both are resolvable, so the undo has somewhere wrong to go if it names the id.
+        peer.markHas("groupMembership", "X");
+        const successor = new FakePeer("identity", testAddress("identity-successor"));
+        successor.setIntent("groupMembership", "X", { v: 99 });
+        TestTaskManager.peers.set("successor-under-old-id", successor);
+
+        const rollback = await node.act(a =>
+            a
+                .get(TestTaskManager)
+                .cancel(original.runId)
+                .then(c => c.rollback),
+        );
+        if (rollback === undefined) {
+            throw new InternalError("cancel produced no rollback");
+        }
+        await rollback.settled();
+
+        // The undo ran against the device the record named, restoring what that device held.
+        expect(rollback.status.state).equals("completed");
+        expect((peer.items[itemMapKey("groupMembership", "X")]?.intent as { v?: number })?.v).equals(1);
+        // And not against the device that merely inherited a string.
+        expect((successor.items[itemMapKey("groupMembership", "X")]?.intent as { v?: number })?.v).equals(99);
     });
 });
