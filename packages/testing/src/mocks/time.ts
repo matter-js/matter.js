@@ -36,7 +36,12 @@ export interface MockTime extends MockTimeLike {}
  */
 interface Dependent {
     host: boolean;
-    yields: number;
+
+    /**
+     * Host time at which the operation started, against which its budget is measured.
+     */
+    startedAt: number;
+
     abandoned: boolean;
 
     /**
@@ -48,12 +53,13 @@ interface Dependent {
 const dependents = new Map<Promise<unknown>, Dependent>();
 
 /**
- * Yields a single host operation may withhold virtual time for.  The budget is per operation, so a slow operation
- * cannot spend the budget of one that starts alongside it.  An operation over budget is abandoned: it still requires
- * macrotask yields to settle but no longer withholds virtual time, so an operation that never settles costs one
- * bounded delay rather than a stalled clock.
+ * Host milliseconds a single host operation may withhold virtual time for.  The budget is measured on the host's own
+ * clock because what it bounds is the host: counted in yields it shrinks exactly when the machine is loaded, which is
+ * when a real operation needs it most.  An operation over budget is abandoned: it still requires macrotask yields to
+ * settle but no longer withholds virtual time, so one that never settles costs a bounded delay rather than a stalled
+ * clock.  Crypto settles in single-digit milliseconds even on a loaded runner, so this is generous.
  */
-const MAX_HOST_ASYNC_YIELDS = 200;
+const MAX_HOST_ASYNC_MS = 1000;
 
 /**
  * Iterations of {@link MockTime.resolve} between visits to the host's task queue once it is driving the clock.  Work
@@ -84,7 +90,7 @@ function register<T>(dependent: Promise<T>, host: boolean) {
 
         dependents.delete(registered);
     });
-    dependents.set(registered, { host, yields: 0, abandoned: false });
+    dependents.set(registered, { host, startedAt: Date.now(), abandoned: false });
     return registered;
 }
 
@@ -105,8 +111,8 @@ function hostTurn() {
 }
 
 /**
- * The waiter currently charging the budget.  Waits nest and overlap, so without a single charger per yield an
- * operation's budget would drain once per concurrent waiter rather than once per yield.
+ * The waiter spending the handover bridge.  Waits nest and overlap, so without a single spender a bridge would be
+ * spent once per concurrent waiter rather than once per host turn.
  */
 let charger: object | undefined;
 
@@ -147,18 +153,17 @@ function withholdVirtualTime(waiter: object, hostTurnTaken: boolean) {
         }
 
         if (charging) {
-            if (dependent.yields >= MAX_HOST_ASYNC_YIELDS) {
+            if (Date.now() - dependent.startedAt >= MAX_HOST_ASYNC_MS) {
                 dependent.abandoned = true;
                 abandonedHostAsyncOps++;
 
                 // Virtual time inflates with host latency again from here, which is the defect this budget exists to
                 // contain, so an abandonment must not pass unnoticed
                 console.warn(
-                    `MockTime abandoned a host operation pending for ${MAX_HOST_ASYNC_YIELDS} yields; virtual time may now inflate with host latency`,
+                    `MockTime abandoned a host operation pending for ${MAX_HOST_ASYNC_MS} ms; virtual time may now inflate with host latency`,
                 );
                 continue;
             }
-            dependent.yields++;
         }
         withholding = true;
     }
@@ -362,7 +367,7 @@ export const MockTime = {
     /**
      * Register an operation that settles on host time rather than virtual time.  {@link MockTime.resolve} withholds
      * virtual time for the duration of the operation, so host latency does not expire virtual timers.  Time still
-     * advances in gaps between operations and once an operation exhausts {@link MAX_HOST_ASYNC_YIELDS}.
+     * advances in gaps between operations and once an operation exhausts {@link MAX_HOST_ASYNC_MS}.
      */
     requireHostAsync<T>(dependent: Promise<T>) {
         return register(dependent, true);
@@ -370,19 +375,6 @@ export const MockTime = {
 
     requireMacrotasks<T>(dependent: Promise<T>) {
         return register(dependent, false);
-    },
-
-    /**
-     * The largest yield count charged to a pending host operation.  Exposed for tests of MockTime itself.
-     */
-    get hostAsyncYieldsCharged() {
-        let yields = 0;
-        for (const dependent of dependents.values()) {
-            if (dependent.host && dependent.yields > yields) {
-                yields = dependent.yields;
-            }
-        }
-        return yields;
     },
 
     /**
