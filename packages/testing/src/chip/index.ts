@@ -99,6 +99,7 @@ export {
     chipBinsDir,
     chipBinsExtractionDir,
     chipBinsPlatformSupported,
+    chipBinsSourceFor,
     DEFAULT_CERT_BINS_TAG,
     ensureChipBins,
     prepareChipBins,
