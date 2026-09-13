@@ -316,14 +316,16 @@ function primaryDeviceRole(deviceRoles: Record<string, string>, app: string): st
 
 /**
  * The variant name a flavor actually runs, resolving a per-source declaration against the source that flavor uses.
+ *
+ * Only `chip-local` names a binary beside the ordinary one, so only it can honour a per-source declaration: a
+ * `chip-docker` image runs its own binary as its entry point and rejects any variant outright.
  */
 export function appVariantFor(flavor: DeviceFlavor, variant?: CertAppVariant) {
     if (variant === undefined || typeof variant === "string") {
         return variant;
     }
 
-    const source = chipBinsSourceFor(flavor);
-    return source === undefined ? undefined : variant[source];
+    return flavor === "chip-local" ? variant[resolveChipBinsSource()] : undefined;
 }
 
 function subjectFactoryFor(flavor: DeviceFlavor, app: string, appVariant?: string): CertDeviceFactory {

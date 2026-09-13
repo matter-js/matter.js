@@ -80,4 +80,11 @@ describe("appVariantFor", () => {
     it("names no variant for a flavor that runs no chip binary", () => {
         expect(appVariantFor("matterjs", { matterjs: "nogroupcast" })).equals(undefined);
     });
+
+    // A chip-docker image runs its own binary as its entry point and rejects a variant outright, so naming one for
+    // that flavor would fail the device on activation rather than select anything
+    it("names no variant for chip-docker, which cannot select one", () => {
+        delete env.MATTER_CHIP_BINS_SOURCE;
+        expect(appVariantFor("chip-docker", { matterjs: "nogroupcast" })).equals(undefined);
+    });
 });

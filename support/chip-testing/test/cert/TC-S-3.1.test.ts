@@ -165,8 +165,10 @@ certTest("TC-S-3.1", {
 
     // Binds a group key through GroupKeyMap, which an all-clusters build with Groupcast on refuses once Groups
     // reaches cluster revision 5.  Only this project's own build offers the variant with Groupcast off; the released
-    // binaries predate the change and run the ordinary app
+    // binaries predate the change and run the ordinary app.  A chip-docker image runs its own binary and can offer
+    // neither, so it is left out
     appVariant: { matterjs: "nogroupcast" },
+    flavors: ["chip-local", "matterjs"],
 })
     .step(
         "0",
