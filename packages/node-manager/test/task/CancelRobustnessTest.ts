@@ -10,8 +10,8 @@ import {
     TaskManagerClosingError,
     TaskNotFoundError,
     TaskNotInFlightError,
+    TaskSlotAwaitingResumeError,
     TaskSlotDrainingError,
-    TaskSlotSettlingError,
 } from "#task/errors.js";
 import { RunRecord } from "#task/Task.js";
 import { TaskCancellation, TaskCancelOutcome, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
@@ -743,7 +743,9 @@ describe("cancel robustness", () => {
             () => manager.tasks.length === 1 && !manager.isDriven(requireRunIdOfSlot(manager, "synthetic:settling")),
         );
 
-        // Re-issuing the same request must not be handed a run nothing is advancing.
+        // Re-issuing the same request must not be handed a run nothing is advancing — and must not be told the
+        // target is about to free up, because no write is on its way: the outcome could not be recorded, so the
+        // run stays as it is until a later start resumes it.
         let refused: unknown;
         await node.act(a => {
             try {
@@ -752,7 +754,8 @@ describe("cancel robustness", () => {
                 refused = e;
             }
         });
-        expect(refused).instanceOf(TaskSlotSettlingError);
+        expect(refused).instanceOf(TaskSlotAwaitingResumeError);
+        expect((refused as Error).message).contains("could not be recorded");
 
         await node.close();
     });

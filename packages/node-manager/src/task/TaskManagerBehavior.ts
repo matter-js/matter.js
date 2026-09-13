@@ -563,6 +563,18 @@ export class TaskManagerBehavior extends Behavior {
             // Its driver has stopped but its outcome is not durable and it still holds the slot. Joining here
             // would hand back a run nothing is advancing, and re-running would write to the peer while this one
             // is still being recorded.
+            //
+            // Unless nothing is coming: a driver that gave up leaves a durable record no write will follow, and
+            // "settling" would promise a release that never arrives. That run is awaiting resume, which is what
+            // a later start does with it.
+            if (ownerExecution.settled && ownerExecution.driverGaveUp) {
+                return blocked(
+                    new TaskSlotAwaitingResumeError(
+                        `Task ${slotKey} rejected: ${runLabel(owner.runId)} holds this slot and its outcome could not be recorded, so nothing is driving it`,
+                        owner.runId,
+                    ),
+                );
+            }
             if (ownerExecution.settled) {
                 return blocked(
                     new TaskSlotSettlingError(
@@ -1603,6 +1615,10 @@ export class TaskManagerBehavior extends Behavior {
                 // no restart can find would block that target for the life of the process. The record carries
                 // its outcome out with it, so the handle its caller already holds says what happened — the one
                 // place memory may differ from storage, because there is no longer a record to differ from.
+                // Nothing will follow this write: the driver is done and no transition owns the run. A record
+                // that is already durable stays as it is for the next start, but this process has to stop
+                // reporting it as about to settle.
+                execution.driverGaveUp = true;
                 if (!record.recorded) {
                     record.state = "failed";
                     record.error = error;
