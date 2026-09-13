@@ -108,21 +108,21 @@ export class BdxSession {
     }
 
     /**
-     * The *Init message that opened this session, for a session {@link fromMessage} started from one; undefined
-     * where this node is the initiator and so proposed rather than received the transfer parameters.
+     * The *Init this session received, for a responder; undefined for an initiator, whose own *Init
+     * `bdxSessionInitiator` composes on the wire rather than recording here.
      */
     get initMessage() {
         return this.#config.initMessage;
     }
 
     /**
-     * The parameters the transfer settled on, undefined until the *Accept has been exchanged.
+     * What the transfer settled on, undefined until the *Accept has been exchanged.
      *
      * For a responder these are what its own *Accept granted, which is how an observer reads back what this node
      * answered without decoding the wire.
      */
-    get transferParameters() {
-        return this.#transferFlow?.transferParameters;
+    get transferParameters(): Flow.NegotiatedParameters | undefined {
+        return this.#transferFlow?.negotiated;
     }
 
     get progressFinished() {
