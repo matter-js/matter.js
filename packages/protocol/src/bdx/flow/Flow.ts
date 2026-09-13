@@ -47,7 +47,8 @@ export abstract class Flow {
         return this.#transferredBytes;
     }
 
-    protected get transferParameters(): Flow.TransferOptions {
+    /** Parameters this flow negotiated, which for a responder is what its own *Accept message granted. */
+    get transferParameters(): Flow.TransferOptions {
         return this.#transferParameters;
     }
 

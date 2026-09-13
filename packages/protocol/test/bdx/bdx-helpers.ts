@@ -3,10 +3,74 @@ import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage, Sco
 import { Message } from "#codec/MessageCodec.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { SecureSession } from "#session/index.js";
-import { createPromise, MaybePromise, MemoryBlobStorageDriver } from "@matter/general";
+import {
+    createPromise,
+    Diagnostic,
+    ImplementationError,
+    Logger,
+    LogFormat,
+    LogLevel,
+    MaybePromise,
+    MemoryBlobStorageDriver,
+} from "@matter/general";
 import { BDX_PROTOCOL_ID, BdxMessageType, SecureMessageType } from "@matter/types";
 
 type MessageRecords = { type: BdxMessageType | SecureMessageType.StatusReport; data: any };
+
+/**
+ * One log call captured by {@link captureLogs}: the facility name, the exact arguments passed to it, and `text` — the
+ * line as {@link LogFormat.formats.plain} renders it, including the timestamp, level and facility prefix.
+ */
+export type CapturedLogLine = { facility: string; values: unknown[]; text: string };
+
+let capturing = false;
+
+/**
+ * Runs `fn` with the default log destination lowered to debug level, recording every log call it receives instead of
+ * writing it. Used to assert on the text a certification test would read from a BDX transfer's log.
+ *
+ * If `fn` fails the captured lines are written to the restored destination before the failure propagates, so the
+ * transfer that failed is still diagnosable.
+ */
+export async function captureLogs(fn: () => Promise<void>): Promise<CapturedLogLine[]> {
+    if (capturing) {
+        throw new ImplementationError("Log capture is already active; a nested capture cannot restore the destination");
+    }
+    capturing = true;
+
+    const dest = Logger.destinations.default;
+    const original = { ...dest };
+    const captured = new Array<CapturedLogLine>();
+    const messages = new Array<Diagnostic.Message>();
+    const format = LogFormat.formats.plain;
+
+    dest.level = LogLevel.DEBUG;
+    dest.add = message => {
+        messages.push(message);
+        captured.push({ facility: message.facility, values: message.values, text: format(message) });
+    };
+
+    let failure: unknown;
+    let failed = false;
+    try {
+        await fn();
+    } catch (error) {
+        failed = true;
+        failure = error;
+    } finally {
+        Object.assign(dest, original);
+        capturing = false;
+    }
+
+    if (failed) {
+        for (const message of messages) {
+            dest.add(message);
+        }
+        throw failure;
+    }
+
+    return captured;
+}
 
 export async function bdxTransfer(params: {
     prepare: (

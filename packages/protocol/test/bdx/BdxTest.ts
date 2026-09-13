@@ -14,7 +14,7 @@ import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
 import { Bytes, MemoryBlobStorageDriver, StandardCrypto } from "@matter/general";
 import { BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "@matter/types";
-import { bdxTransfer } from "./bdx-helpers.js";
+import { bdxTransfer, captureLogs, CapturedLogLine } from "./bdx-helpers.js";
 
 /** Write raw bytes into blob storage under a ScopedStorage's context hierarchy using synchronous set. */
 function writeBlob(storage: ScopedStorage, key: string, data: Bytes) {
@@ -26,6 +26,13 @@ function writeBlob(storage: ScopedStorage, key: string, data: Bytes) {
 function readBlob(storage: ScopedStorage, key: string): Uint8Array | undefined {
     const driver = storage.blobDriver as MemoryBlobStorageDriver;
     return driver.getBytes(storage.baseContexts, key);
+}
+
+/** The first (message) argument of every captured "BdxMessenger" log line whose first argument matches `pattern`. */
+function bdxMessengerLines(logs: CapturedLogLine[], pattern: RegExp) {
+    return logs
+        .filter(({ facility, values }) => facility === "BdxMessenger" && pattern.test(`${values[0]}`))
+        .map(({ values }) => `${values[0]}`);
 }
 
 describe("BdxTest", () => {
@@ -1285,6 +1292,108 @@ describe("BdxTest", () => {
                     },
                 });
             });
+        });
+    });
+
+    describe("Per-block debug logging", () => {
+        // Requested explicitly so the expected lines below do not depend on the transport's payload size
+        const blockSize = 500;
+        const tailSize = 116;
+
+        it("Block/BlockEof/BlockAck/BlockAckEof count blocks from zero (Sender-Driver)", async () => {
+            const data = crypto.randomBytes(2 * blockSize + tailSize);
+            let fd: PersistedFileDesignator;
+
+            const logs = await captureLogs(() =>
+                bdxTransfer({
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
+                        writeBlob(clientStorage, "data", data);
+
+                        return {
+                            bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd, maxBlockSize: blockSize }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
+                        };
+                    },
+                    validate: async () => {},
+                }),
+            );
+
+            expect(bdxMessengerLines(logs, /^Sending Bdx Block(Eof)? cnt:/)).deep.equals([
+                `Sending Bdx Block cnt: 0, len: ${blockSize}bytes`,
+                `Sending Bdx Block cnt: 1, len: ${blockSize}bytes`,
+                `Sending Bdx BlockEof cnt: 2, len: ${tailSize}bytes`,
+            ]);
+
+            expect(bdxMessengerLines(logs, /^Received Bdx BlockAck/)).deep.equals([
+                "Received Bdx BlockAck cnt: 0",
+                "Received Bdx BlockAck cnt: 1",
+                "Received Bdx BlockAckEof cnt: 2",
+            ]);
+
+            expect(bdxMessengerLines(logs, /^Received Bdx Block(Eof)? cnt:/)).deep.equals([
+                `Received Bdx Block cnt: 0, len: ${blockSize}bytes`,
+                `Received Bdx Block cnt: 1, len: ${blockSize}bytes`,
+                `Received Bdx BlockEof cnt: 2, len: ${tailSize}bytes`,
+            ]);
+
+            expect(bdxMessengerLines(logs, /^Sending Bdx BlockAck/)).deep.equals([
+                "Sending Bdx BlockAck cnt: 0",
+                "Sending Bdx BlockAck cnt: 1",
+                "Sending Bdx BlockAckEof cnt: 2",
+            ]);
+
+            const flowStarted = logs.filter(
+                ({ facility, values }) =>
+                    facility === "BdxSession" && `${values[0]}`.startsWith("Starting transfer flow"),
+            );
+            expect(flowStarted).to.have.length(2);
+            for (const { text } of flowStarted) {
+                expect(text).to.include(`maxBlockSize: ${blockSize}`);
+                expect(text).to.include("startOffset: 0");
+            }
+        });
+
+        it("BlockQuery carries an ascending block counter starting at 0 (Receiver-Driver)", async () => {
+            const data = crypto.randomBytes(2 * blockSize + tailSize);
+            let fd: PersistedFileDesignator;
+
+            const logs = await captureLogs(() =>
+                bdxTransfer({
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
+                        fd = new PersistedFileDesignator("data", clientStorage);
+                        writeBlob(clientStorage, "data", data);
+
+                        return {
+                            bdxClient: BdxClient.asSender(messenger, {
+                                fileDesignator: fd,
+                                maxBlockSize: blockSize,
+                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
+                            }),
+                            expectedInitialMessageType: BdxMessageType.SendInit,
+                        };
+                    },
+                    validate: async () => {},
+                }),
+            );
+
+            expect(bdxMessengerLines(logs, /^Sending Bdx BlockQuery/)).deep.equals([
+                "Sending Bdx BlockQuery cnt: 0",
+                "Sending Bdx BlockQuery cnt: 1",
+                "Sending Bdx BlockQuery cnt: 2",
+            ]);
+
+            expect(bdxMessengerLines(logs, /^Received Bdx BlockQuery/)).deep.equals([
+                "Received Bdx BlockQuery cnt: 0",
+                "Received Bdx BlockQuery cnt: 1",
+                "Received Bdx BlockQuery cnt: 2",
+            ]);
+
+            expect(bdxMessengerLines(logs, /^Sending Bdx Block(Eof)? cnt:/)).deep.equals([
+                `Sending Bdx Block cnt: 0, len: ${blockSize}bytes`,
+                `Sending Bdx Block cnt: 1, len: ${blockSize}bytes`,
+                `Sending Bdx BlockEof cnt: 2, len: ${tailSize}bytes`,
+            ]);
         });
     });
 

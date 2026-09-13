@@ -43,6 +43,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
 
 - @matter/protocol
+    - Enhancement: A BDX transfer logs each block message at debug level with its block counter, a Block's or BlockEof's data length and a BlockQueryWithSkip's skip offset, and names the negotiated maximum block size and the start offset when a transfer flow starts, so a transfer's progress is readable from the log
+    - Enhancement: `BdxSession` reports the `*Init` that opened it and the parameters its transfer settled on, so a responder's own account of what it granted is readable without decoding the wire
     - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
     - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
     - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone

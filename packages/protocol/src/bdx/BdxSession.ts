@@ -107,6 +107,24 @@ export class BdxSession {
         return this.#transferFlow?.dataLength;
     }
 
+    /**
+     * The *Init message that opened this session, for a session {@link fromMessage} started from one; undefined
+     * where this node is the initiator and so proposed rather than received the transfer parameters.
+     */
+    get initMessage() {
+        return this.#config.initMessage;
+    }
+
+    /**
+     * The parameters the transfer settled on, undefined until the *Accept has been exchanged.
+     *
+     * For a responder these are what its own *Accept granted, which is how an observer reads back what this node
+     * answered without decoding the wire.
+     */
+    get transferParameters() {
+        return this.#transferFlow?.transferParameters;
+    }
+
     get progressFinished() {
         return this.#progressFinished;
     }
@@ -165,7 +183,8 @@ export class BdxSession {
     }
 
     #initializeFlow(transferParameters: Flow.TransferOptions): Flow {
-        const { transferMode, asynchronousTransfer, dataLength, isDriver, fileDesignator } = transferParameters;
+        const { transferMode, asynchronousTransfer, dataLength, startOffset, blockSize, isDriver, fileDesignator } =
+            transferParameters;
         const isSenderDrive = transferMode === Flow.DriverMode.SenderDrive;
 
         const role = `${isSenderDrive ? `${asynchronousTransfer ? "async " : ""}sending` : "receiving"} ${isDriver ? "driver" : "follower"}`;
@@ -173,6 +192,8 @@ export class BdxSession {
             `Starting transfer flow as ${role}`,
             Diagnostic.dict({
                 exId: this.#messenger.exchange.id,
+                maxBlockSize: blockSize,
+                startOffset,
                 dataLength,
                 blobName: fileDesignator.text,
             }),

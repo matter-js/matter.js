@@ -135,31 +135,37 @@ export class BdxMessenger {
 
     /** Encodes and sends a Bdx Block message. */
     async sendBlock(message: BdxBlock) {
+        logger.debug(`Sending Bdx Block cnt: ${message.blockCounter}, len: ${message.data.byteLength}bytes`);
         await this.send({ kind: BdxMessageType.Block, message });
     }
 
     /** Encodes and sends a Bdx BlockQuery message. */
     async sendBlockQuery(message: BdxBlockQuery) {
+        logger.debug(`Sending Bdx BlockQuery cnt: ${message.blockCounter}`);
         await this.send({ kind: BdxMessageType.BlockQuery, message });
     }
 
     /** Encodes and sends a Bdx BlockQueryWithSkip message. */
     async sendBlockQueryWithSkip(message: BdxBlockQueryWithSkip) {
+        logger.debug(`Sending Bdx BlockQueryWithSkip cnt: ${message.blockCounter}, skip: ${message.bytesToSkip}bytes`);
         await this.send({ kind: BdxMessageType.BlockQueryWithSkip, message });
     }
 
     /** Encodes and sends a Bdx BlockEof message. */
     async sendBlockEof(message: BdxBlockEof) {
+        logger.debug(`Sending Bdx BlockEof cnt: ${message.blockCounter}, len: ${message.data.byteLength}bytes`);
         await this.send({ kind: BdxMessageType.BlockEof, message });
     }
 
     /** Encodes and sends a Bdx BlockAck message. */
     async sendBlockAck(message: BdxBlockAck) {
+        logger.debug(`Sending Bdx BlockAck cnt: ${message.blockCounter}`);
         await this.send({ kind: BdxMessageType.BlockAck, message });
     }
 
     /** Encodes and sends a Bdx BlockAckEof message */
     async sendBlockAckEof(message: BdxBlockAckEof) {
+        logger.debug(`Sending Bdx BlockAckEof cnt: ${message.blockCounter}`);
         await this.send({ kind: BdxMessageType.BlockAckEof, message });
     }
 
@@ -170,6 +176,9 @@ export class BdxMessenger {
             // a Block message must not have empty data
             throw new BdxError("Received empty data in Block message", BdxStatusCode.BadMessageContent);
         }
+        logger.debug(
+            `Received Bdx ${BdxMessageType[block.kind]} cnt: ${block.message.blockCounter}, len: ${block.message.data.byteLength}bytes`,
+        );
         return block;
     }
 
@@ -186,6 +195,7 @@ export class BdxMessenger {
         ]);
         let expectedBlockMessageCounter: number | undefined = undefined;
         if (BdxMessage.is(response, BdxMessageType.BlockAck)) {
+            logger.debug(`Received Bdx BlockAck cnt: ${response.message.blockCounter}`);
             expectedBlockMessageCounter = (response.message.blockCounter + 1) % 0x100000000; // wrap around at 2^32
             response = await this.nextMessage([BdxMessageType.BlockQuery, BdxMessageType.BlockQueryWithSkip]);
         }
@@ -201,6 +211,9 @@ export class BdxMessenger {
             );
         }
 
+        logger.debug(
+            `Received Bdx ${BdxMessageType[response.kind]} cnt: ${response.message.blockCounter}${BdxMessage.is(response, BdxMessageType.BlockQueryWithSkip) ? `, skip: ${response.message.bytesToSkip}bytes` : ""}`,
+        );
         return response;
     }
 
@@ -208,6 +221,7 @@ export class BdxMessenger {
     async readBlockAckEof(): Promise<BdxBlockAckEof> {
         const response = await this.nextMessage([BdxMessageType.BlockAckEof]);
         BdxMessage.assert(response, BdxMessageType.BlockAckEof);
+        logger.debug(`Received Bdx BlockAckEof cnt: ${response.message.blockCounter}`);
         return response.message;
     }
 
@@ -215,6 +229,7 @@ export class BdxMessenger {
     async readBlockAck(): Promise<BdxBlockAck> {
         const response = await this.nextMessage([BdxMessageType.BlockAck]);
         BdxMessage.assert(response, BdxMessageType.BlockAck);
+        logger.debug(`Received Bdx BlockAck cnt: ${response.message.blockCounter}`);
         return response.message;
     }
 
