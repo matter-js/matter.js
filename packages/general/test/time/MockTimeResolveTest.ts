@@ -91,7 +91,20 @@ describe("MockTime.resolve", () => {
         expect(MockTime.pendingHostAsyncOps).equal(0);
     });
 
-    it("abandons a host operation that does not settle", async () => {
+    it("keeps withholding for an operation the host is merely slow to finish", async () => {
+        const operation = new FakeHostOperation();
+        setTimeout(() => operation.settle(), 50);
+
+        await MockTime.resolve(operation.promise);
+
+        expect(MockTime.nowMs).equal(FAKE_TIME);
+        expect(MockTime.abandonedHostAsyncOps).equal(0);
+    });
+
+    it("abandons a host operation that does not settle", async function () {
+        // The operation is abandoned on the host's clock, so this test waits that long in real time
+        this.timeout(10000);
+
         const stalled = new FakeHostOperation();
         try {
             let fired = false;
