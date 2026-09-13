@@ -4,15 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Bytes } from "@matter/general";
 import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { GroupKey, GroupKeyMap, GroupMembership } from "../../reconcile/kinds.js";
+import { RotationPreconditionError } from "../errors.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
-import { RotationPreconditionError } from "../errors.js";
 import { Require } from "../validation.js";
-import { rotationIsSwitchingKeys } from "./RotateGroupKey.js";
 import { membershipKey } from "./keys.js";
+import { rotationIsSwitchingKeys } from "./RotateGroupKey.js";
 
 export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
 
@@ -115,6 +116,29 @@ function refuseWhileKeysSwitch(ctx: TaskContext, p: AddNodeToGroupParams): void 
                 `rotated and its members are switching to the new key. Add the peer once the rotation ends.`,
         );
     }
+
+    // A member joins the key the group is using, not the one the caller last saw. This is also what closes the
+    // window after a rotation's last write and before it retires: the switching marker is gone by then, but the
+    // members already carry the new key, so a join carrying the old one is refused here instead.
+    const operational = operationalKeyOf(ctx, p.groupKeySetId);
+    if (operational !== undefined && !Bytes.areEqual(operational, p.epochKey0)) {
+        throw new RotationPreconditionError(
+            `Cannot add peer ${p.peerId} to group ${p.groupId}: group key set ${p.groupKeySetId} is in use ` +
+                `with a different key than these parameters carry. Add the peer with the key set's current key.`,
+        );
+    }
+}
+
+/** The key the members of this key set are using, if any member holds one. */
+function operationalKeyOf(ctx: TaskContext, groupKeySetId: number): AllowSharedBufferSource | undefined {
+    const key = String(groupKeySetId);
+    for (const peer of ctx.peersWithIntent(GroupKey, key)) {
+        const current = ctx.intentOf(peer, GroupKey, key);
+        if (current?.epochKey0 !== undefined && current.epochKey0 !== null) {
+            return current.epochKey0;
+        }
+    }
+    return undefined;
 }
 
 async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<void> {

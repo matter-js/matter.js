@@ -166,6 +166,11 @@ describe("RunStore", () => {
             ["retireSeq", 0],
             ["retireSeq", "2"],
             ["changeSet", {}],
+            // Each entry, not only the container: a run walks them as it writes, and a rollback replays them.
+            ["changeSet", [null]],
+            ["changeSet", [{ peerId: "p", kind: "groupKey" }]],
+            ["changeSet", [{ peerId: "p", kind: "groupKey", key: "1", prior: { mode: "converge" } }]],
+            ["changeSet", [{ peerId: "p", kind: "groupKey", key: "1", prior: { intent: {}, mode: "sometimes" } }]],
             ["slotKey", ""],
             ["slotKey", 7],
             ["type", ""],

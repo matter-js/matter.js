@@ -25,7 +25,8 @@ export interface ReconcileTarget {
         state: "committed" | "commitFailed" | "pending",
         code?: number,
     ): Promise<void>;
-    dropItem(kind: string, key: string): Promise<void>;
+    /** `reason` says why the item is going, for the one moment before its status is unreachable. */
+    dropItem(kind: string, key: string, reason?: string): Promise<void>;
     /** Live item state, re-read after a slow apply to detect a concurrent delete. */
     currentState(kind: string, key: string): ItemState | undefined;
 }
@@ -67,9 +68,10 @@ export async function executeActions(
                     if (target.currentState(item.kind, item.key) === "deletePending") {
                         break;
                     }
-                    if (e instanceof UnknownItemKindError) {
-                        logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, e);
-                    }
+                    // Every apply failure, not only the one class this used to name: the status code the item
+                    // carries from here is a number, so this log is the only place the cause survives — and a
+                    // local schema refusal and a device's own status read identically once it is gone.
+                    logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, e);
                     await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
                 }
                 break;
@@ -89,13 +91,19 @@ export async function executeActions(
                     if (target.currentState(item.kind, item.key) !== "deletePending") {
                         break;
                     }
+                    logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not be removed:`, e);
                     await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
                 }
                 break;
 
-            case "drop":
-                await target.dropItem(item.kind, item.key);
+            case "drop": {
+                // The item goes, so this is the last moment anything knows why. A task waiting on it would
+                // otherwise be told only that it is gone.
+                const reason = `the device rejected it${item.status.failureCode === undefined ? "" : ` with status ${item.status.failureCode}`}`;
+                logger.notice(`${item.kind}:${item.key} on ${target.node.id} dropped: ${reason}`);
+                await target.dropItem(item.kind, item.key, reason);
                 break;
+            }
 
             case "skip":
                 break;

@@ -120,7 +120,7 @@ function recordingRoot(sink: bigint[][], afterWrite?: (starts: bigint[]) => void
 const DeviceRootA = recordingRoot(writesA, s => afterWriteA?.(s));
 const DeviceRootB = recordingRoot(writesB, s => afterWriteB?.(s));
 
-function addParamsFor(peerId: string): AddNodeToGroupParams {
+function addParamsFor(peerId: string, epochKey0 = OP_KEY): AddNodeToGroupParams {
     return {
         peerId,
         endpoint: 1,
@@ -128,7 +128,7 @@ function addParamsFor(peerId: string): AddNodeToGroupParams {
         groupName: "kitchen",
         groupKeySetId: GROUP_KEY_SET_ID,
         groupKeySecurityPolicy: TrustFirst,
-        epochKey0: OP_KEY,
+        epochKey0,
         epochStartTime0: OP_START,
     };
 }
@@ -326,7 +326,7 @@ describe("RotateGroupKey task integration (two members)", () => {
         }
     });
 
-    it("refuses to drop the old key when a member joined the key set during the cleanup phase", async () => {
+    it("refuses a join while cleanup is dropping the old key", async () => {
         await using site = new MockSite();
         const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site, { addB: false });
 
@@ -345,22 +345,18 @@ describe("RotateGroupKey task integration (two members)", () => {
         await awaitParkedInPhase(controller, ROTATE_SLOT, 2);
 
         writesA.length = writesB.length = 0;
+        // The members are mid-switch, so the join is refused rather than left holding a key the rotation is
+        // about to drop from everyone else.
         await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
-        await awaitState(controller, addTaskId(peerB.id), "completed");
+        await awaitState(controller, addTaskId(peerB.id), "failed");
+        expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([]);
 
         await MockTime.resolve(subscriptionA.active.emit(true), { macrotasks: true });
-        await awaitState(controller, ROTATE_SLOT, "failed");
+        await awaitState(controller, ROTATE_SLOT, "completed");
 
-        const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
-        expect(status?.error).contains("joined the key set while the rotation was running");
-
-        // The late member holds the old key alone, so the group is split until the remedy runs.
-        expect(Bytes.areEqual(deviceKey0(deviceB, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
-        // What the ask can and cannot do: cleanup writes the members it captured on entry, so a member that
-        // joins while those writes are in flight is reported, not prevented — A has already dropped the old
-        // key. The remedy is the same rotation again, which covers every member present by then.
-        expect(deviceStarts(deviceA, GROUP_KEY_SET_ID).length).equals(1);
-        expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), ROTATE_PARAMS.newEpochKey)).equals(true);
+        // The rotation finishes over its own member set, and no member is left on a key the others dropped.
+        expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
+        expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
     });
 
     it("adopts a member that joins while distribute is committing, without parking", async () => {
@@ -421,51 +417,12 @@ describe("RotateGroupKey task integration (two members)", () => {
         expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
         expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
 
-        // With the rotation over, the same join is admitted. What key material it provisions is the caller's
-        // to choose — these params carry the pre-rotation key — so this asserts the refusal has lifted, and
-        // nothing about the value.
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
+        // With the rotation over, the join is admitted — carrying the key the group now uses. The same call
+        // with the pre-rotation key is refused, because a member joins the key the group is using.
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id, NEW_KEY)));
         await awaitState(controller, addTaskId(peerB.id), "completed");
-        expect(deviceStarts(deviceB, GROUP_KEY_SET_ID).length).equals(1);
+        expect(Bytes.areEqual(deviceKey0(deviceB, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
     });
-
-    it("refuses to drop the old key when a member joined the key set during the cleanup phase", async () => {
-        await using site = new MockSite();
-        const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site, { addB: false });
-
-        // Flip A offline as its activate write lands, so the run parks inside cleanup's barrier — the window in
-        // which a member can join after cleanup's opening check and be missed by the members it captured.
-        const subscriptionA = subscriptionOf(peerA);
-        let flipped = false;
-        afterWriteA = s => {
-            if (!flipped && s.length === 3) {
-                flipped = true;
-                subscriptionA.active.emit(false);
-            }
-        };
-
-        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
-        await awaitParkedInPhase(controller, ROTATE_SLOT, 2);
-
-        writesA.length = writesB.length = 0;
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
-        await awaitState(controller, addTaskId(peerB.id), "completed");
-
-        await MockTime.resolve(subscriptionA.active.emit(true), { macrotasks: true });
-        await awaitState(controller, ROTATE_SLOT, "failed");
-
-        const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
-        expect(status?.error).contains("joined the key set while the rotation was running");
-
-        // The late member holds the old key alone, so the group is split until the remedy runs.
-        expect(Bytes.areEqual(deviceKey0(deviceB, GROUP_KEY_SET_ID), OP_KEY)).equals(true);
-        // What the ask can and cannot do: cleanup writes the members it captured on entry, so a member that
-        // joins while those writes are in flight is reported, not prevented — A has already dropped the old
-        // key. The remedy is the same rotation again, which covers every member present by then.
-        expect(deviceStarts(deviceA, GROUP_KEY_SET_ID).length).equals(1);
-        expect(Bytes.areEqual(deviceKey0(deviceA, GROUP_KEY_SET_ID), ROTATE_PARAMS.newEpochKey)).equals(true);
-    });
-
 
     it("parks when a member is offline, holding the barrier, then converges once it returns", async () => {
         await using site = new MockSite();

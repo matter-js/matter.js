@@ -9,6 +9,7 @@ import { TaskIdentityExhaustedError } from "./errors.js";
 import { Execution } from "./Execution.js";
 import { RunRecord, TaskPersistence } from "./Task.js";
 import { isRetireSeq, isRunId, isTaskState, RetireSeq, RunId, Teardown, TaskState } from "./types.js";
+import { Require } from "./validation.js";
 
 const TERMINAL_STATES: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "failed", "cancelled", "abandoned"]);
 
@@ -179,6 +180,18 @@ export class RunStore {
             }
             if (!Array.isArray(stored.changeSet)) {
                 throw new InternalError(`Stored task record "${key}" has no usable change set`);
+            }
+            // Each entry, not only the container: a run walks them as it writes and a rollback replays them, so
+            // a malformed one surfaces as a raw access failure mid-phase, with the device already changed.
+            // The message names fields, never values — an entry holds what a device was told.
+            try {
+                for (const entry of stored.changeSet) {
+                    Require.changeEntry("changeSet[]", entry);
+                }
+            } catch (e) {
+                throw new InternalError(
+                    `Stored task record "${key}" has an unusable change set: ${e instanceof Error ? e.message : String(e)}`,
+                );
             }
             highest = Math.max(highest, stored.runId);
             const record = RunRecord.fromPersistence(stored);

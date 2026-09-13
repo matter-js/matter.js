@@ -94,6 +94,39 @@ export const Require = {
         }
     },
 
+    /**
+     * One entry of what a run changed: where it wrote, and the value to put back.
+     *
+     * The same rule for a caller's parameters and for a record read back from storage — a rollback replays
+     * these, and the layer walks them while a run writes, so a malformed one fails far from here.
+     */
+    changeEntry(field: string, value: unknown): void {
+        if (typeof value !== "object" || value === null || Array.isArray(value)) {
+            throw new ImplementationError(`"${field}" must be a change entry, not ${describe(value)}`);
+        }
+        const entry = value as Record<string, unknown>;
+        Require.text(`${field}.peerId`, entry.peerId);
+        Require.text(`${field}.kind`, entry.kind);
+        if (typeof entry.key !== "string") {
+            throw new ImplementationError(`"${field}.key" must be a string`);
+        }
+        if (entry.prior === undefined) {
+            return;
+        }
+        if (typeof entry.prior !== "object" || entry.prior === null || Array.isArray(entry.prior)) {
+            throw new ImplementationError(`"${field}.prior" must be an object, not ${describe(entry.prior)}`);
+        }
+        const prior = entry.prior as Record<string, unknown>;
+        // An entry with a prior restores a value; one without removes the item. A prior that carries no value
+        // is neither, and would reach the device as an intent of `undefined`.
+        if (prior.intent === undefined) {
+            throw new ImplementationError(`"${field}.prior.intent" is missing`);
+        }
+        if (prior.mode !== "converge" && prior.mode !== "maintain") {
+            throw new ImplementationError(`"${field}.prior.mode" must be "converge" or "maintain"`);
+        }
+    },
+
     /** An object with named fields, so a definition may read them at all. An array has none. */
     params(type: string, value: unknown): void {
         if (typeof value !== "object" || value === null || Array.isArray(value)) {
