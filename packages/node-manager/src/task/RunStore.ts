@@ -7,7 +7,7 @@
 import { ImplementationError, InternalError } from "@matter/general";
 import { TaskIdentityExhaustedError } from "./errors.js";
 import { Execution } from "./Execution.js";
-import { RunRecord, TaskPersistence } from "./Task.js";
+import { runKey, RunRecord, TaskPersistence } from "./Task.js";
 import { isRetireSeq, isRunId, isTaskState, RetireSeq, RunId, Teardown, TaskState } from "./types.js";
 import { Require } from "./validation.js";
 
@@ -196,10 +196,26 @@ export class RunStore {
                     `Stored task record "${key}" has an unusable change set: ${e instanceof Error ? e.message : String(e)}`,
                 );
             }
+            // The key is how the table addresses a record and the id is how everything else does. A key that
+            // names a different run would load one record and leave the other reachable only in storage, where
+            // the next write of "the" record edits one of them and a restart disagrees about which. Holding the
+            // two to each other also makes a repeated identity impossible: it would need a repeated key.
+            if (key !== runKey(stored.runId)) {
+                throw new InternalError(`Stored task record "${key}" holds a different run identity`);
+            }
             highest = Math.max(highest, stored.runId);
             const record = RunRecord.fromPersistence(stored);
             this.#records.set(record.runId, record);
             if (!isTerminal(record.state)) {
+                // One owner per target is what makes two runs exclusive, so a table with two claims on one
+                // target has no answer to who owns it, and keeping the last silently strands the other with
+                // its changes unaccounted for.
+                const owner = this.#slots.get(record.slotKey);
+                if (owner !== undefined) {
+                    throw new InternalError(
+                        `Stored task records ${owner} and ${record.runId} both claim target ${record.slotKey}`,
+                    );
+                }
                 this.#slots.set(record.slotKey, record.runId);
             }
         }

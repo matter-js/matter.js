@@ -6,7 +6,7 @@
 
 import { ImplementationError, UINT64_MAX } from "@matter/general";
 import { PeerAddress } from "@matter/protocol";
-import { MATTER_EPOCH_OFFSET_US } from "@matter/types";
+import { FabricIndex, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
 
 /**
  * Checks a task definition applies to the parameters it is handed.
@@ -139,18 +139,17 @@ export const Require = {
             throw new ImplementationError(`"${field}" must be a peer address, not ${describe(value)}`);
         }
         const address = value as Record<string, unknown>;
-        if (
-            typeof address.fabricIndex !== "number" ||
-            !Number.isInteger(address.fabricIndex) ||
-            address.fabricIndex < 1
-        ) {
+        // The spec's own range, asked of the type that owns it: a fabric index outside 1..254 is a sentinel or
+        // nothing, and a node id is a uint64. Either resolves to no peer, so a record carrying one would hold a
+        // target nothing can ever drive.
+        if (!FabricIndex.isValid(address.fabricIndex)) {
             throw new ImplementationError(`"${field}.fabricIndex" must be a fabric index`);
         }
-        if (typeof address.nodeId !== "bigint" || address.nodeId < 0n) {
+        if (typeof address.nodeId !== "bigint" || address.nodeId < 0n || address.nodeId > UINT64_MAX) {
             throw new ImplementationError(`"${field}.nodeId" must be a node id`);
         }
         // The unspecified node id names nothing, so a record carrying it could never be resolved again.
-        if (address.nodeId === 0n) {
+        if (address.nodeId === NodeId.UNSPECIFIED_NODE_ID) {
             throw new ImplementationError(`"${field}.nodeId" must not be the unspecified node id`);
         }
     },

@@ -102,7 +102,7 @@ describe("RunStore", () => {
             return () =>
                 store.load({
                     runs: {
-                        "run:1": {
+                        "1": {
                             runId: 1,
                             slotKey: "synthetic:t",
                             type: "synthetic",
@@ -121,7 +121,7 @@ describe("RunStore", () => {
             return () =>
                 store.load({
                     runs: {
-                        "run:1": {
+                        "1": {
                             runId,
                             slotKey: "synthetic:t",
                             type: "rotateGroupKey",
@@ -152,7 +152,7 @@ describe("RunStore", () => {
             } catch (e) {
                 message = (e as Error).message;
             }
-            expect(message).contains("run:1");
+            expect(message).contains('record "1"');
             // A `bigint` in params would make serializing the record throw before the refusal could be built,
             // and its key material would reach the log if it did not.
             expect(message).not.contains("epochStartTime0");
@@ -194,6 +194,43 @@ describe("RunStore", () => {
                 expect(loadField(field, value)).throws(InternalError);
             });
         }
+
+        it("refuses a table whose key and record name different runs", () => {
+            const store = new RunStore();
+            expect(() =>
+                store.load({
+                    runs: {
+                        "run:7": {
+                            runId: 1,
+                            slotKey: "synthetic:t",
+                            type: "synthetic",
+                            state: "running",
+                            phaseIndex: 0,
+                            changeSet: [],
+                            wrote: false,
+                        },
+                    } as unknown as Record<string, TaskPersistence>,
+                }),
+            ).throws(InternalError);
+        });
+
+        it("refuses a table whose records claim one target", () => {
+            const store = new RunStore();
+            const record = (runId: number) => ({
+                runId,
+                slotKey: "synthetic:t",
+                type: "synthetic",
+                state: "running",
+                phaseIndex: 0,
+                changeSet: [],
+                wrote: false,
+            });
+            expect(() =>
+                store.load({
+                    runs: { "1": record(1), "2": record(2) } as unknown as Record<string, TaskPersistence>,
+                }),
+            ).throws(InternalError);
+        });
 
         it("accepts a record whose optional retirement order is absent", () => {
             expect(loadField("retireSeq", undefined)).not.throws();
