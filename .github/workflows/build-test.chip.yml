@@ -41,14 +41,14 @@ on:
     branches: [ "main" ]
   merge_group:
 
-# Cancel a superseded run for the same ref, but keep the trigger in the group: a push must not cancel a manual or
-# scheduled run on the same ref.
+# A test-only run is grouped by ref and trigger, so a push cannot cancel a manual or scheduled run on the same ref.
 #
-# The two triggers that publish share one key rather than one each. They push the same `latest` manifest and open the
-# same SHA-bump branch, so running them side by side would let one overwrite the other's result; sharing a key with
-# cancellation off makes the second wait for the first instead.
+# The two triggers that publish share one key, and that key names no ref. Publishing is a property of the trigger
+# alone — the jobs below gate on `schedule` or `workflow_dispatch` and nothing else — so a manual run from any branch
+# pushes the same `latest` manifest and opens the same SHA-bump branch as the nightly one. A ref-scoped key would let
+# those two run side by side and overwrite each other; one global key with cancellation off makes the second wait.
 concurrency:
-  group: ${{ github.ref }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'publish' || github.event_name }}-chip-build-test
+  group: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'chip-build-test-publish' || format('{0}-{1}-chip-build-test', github.ref, github.event_name) }}
   cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
