@@ -148,7 +148,16 @@ describe("TaskContext gates", () => {
 
         const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
 
-        await expect(MockTime.resolve(gate)).rejectedWith(TaskFailedError);
+        // The message says why, not only that the intent is gone: the item's own status went with it, so the
+        // reason is the one thing a caller cannot find out for itself.
+        let failure: unknown;
+        try {
+            await MockTime.resolve(gate);
+        } catch (e) {
+            failure = e;
+        }
+        expect(failure).instanceOf(TaskFailedError);
+        expect((failure as Error).message).contains("the device rejected it with status");
         expect(peer.items[itemMapKey("groupMembership", "1")]).equals(undefined);
         expect(record.state).does.not.equal("completed");
         // The failure takes two reconcile passes: one to record the rejection, the next to give up on the item.

@@ -145,6 +145,7 @@ export class FakePeer {
     readonly rejects = new Set<string>();
     /** Remaining recoverable apply failures per key: each pass consumes one, then the key behaves normally. */
     readonly transientFailures = new Map<string, number>();
+    readonly dropReasons = new Map<string, string>();
     readonly itemChanged = new Observable<[item: ManagedItem]>();
     readonly itemRemoved = new Observable<[kind: string, key: string]>();
     readonly subscriptionStatusChanged = new Observable<[isActive: boolean]>();
@@ -264,6 +265,11 @@ export class FakePeer {
                     if (recoverable(item.status.failureCode)) {
                         peer.#apply(item);
                     } else {
+                        // Mirrors the executor: the reason outlives the item, which takes its status with it.
+                        peer.dropReasons.set(
+                            itemMapKey(item.kind, item.key),
+                            `the device rejected it with status ${item.status.failureCode}`,
+                        );
                         peer.dropItem(item.kind, item.key);
                     }
                     break;
@@ -293,6 +299,10 @@ export class FakePeer {
     /** Reconciler stand-in: resolves any name, and no kind has dependents unless a test supplies one. */
     itemKind(kind: string): ItemKind | undefined {
         return kindOf(kind);
+    }
+
+    dropReasonFor(_peer: ClientNode, kind: string, key: string): string | undefined {
+        return this.dropReasons.get(itemMapKey(kind, key));
     }
 
     eventsOf(type: unknown): unknown {

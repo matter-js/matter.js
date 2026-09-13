@@ -361,6 +361,9 @@ export class TaskManagerBehavior extends Behavior {
                 },
                 drop: RETIRE,
             });
+            // Only once the outcome is durable. Releasing the target first would let a new run take it while
+            // this record is still stored non-terminal, and a refused write would leave that record owning a
+            // target nothing in memory holds.
             this.internal.runs.commitRetirement(record);
         });
     }

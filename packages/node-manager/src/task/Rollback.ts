@@ -34,23 +34,7 @@ export const Rollback: TaskDefinition<RollbackParams> = {
             throw new ImplementationError(`"entries" must be an array of change entries`);
         }
         for (const entry of params.entries) {
-            Require.params(ROLLBACK_TYPE, entry);
-            Require.text("entries[].peerId", entry.peerId);
-            Require.text("entries[].kind", entry.kind);
-            if (typeof entry.key !== "string") {
-                throw new ImplementationError(`"entries[].key" must be a string`);
-            }
-            if (entry.prior !== undefined) {
-                Require.params(ROLLBACK_TYPE, entry.prior);
-                // An entry with a prior restores a value; one without removes the item. A prior that carries no
-                // value is neither, and would reach the device as `setIntent(…, undefined)`.
-                if (entry.prior.intent === undefined) {
-                    throw new ImplementationError(`"entries[].prior.intent" is missing`);
-                }
-                if (entry.prior.mode !== "converge" && entry.prior.mode !== "maintain") {
-                    throw new ImplementationError(`"entries[].prior.mode" must be "converge" or "maintain"`);
-                }
-            }
+            Require.changeEntry("entries[]", entry);
         }
     },
 

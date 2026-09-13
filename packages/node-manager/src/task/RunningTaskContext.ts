@@ -130,9 +130,14 @@ export class RunningTaskContext implements TaskContext {
     #requireAwaited(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): void {
         const gone = items.find(i => this.#itemState(i.peer, i.kind.kind, i.key) === undefined);
         if (gone !== undefined) {
+            // The item's own status went with it, so the reason comes from the reconciler that dropped it.
+            // Without it this says only that the intent is gone, which is the one thing a caller can already
+            // see and the one thing that does not help.
+            const reason =
+                this.reconciler.dropReasonFor?.(gone.peer, gone.kind.kind, gone.key) ?? "the reconciler dropped it";
             throw new TaskFailedError(
                 `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
-                    `the reconciler dropped it, so it can no longer commit`,
+                    `${reason}, so it can no longer commit`,
             );
         }
     }

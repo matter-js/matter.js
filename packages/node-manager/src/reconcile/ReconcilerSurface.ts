@@ -10,4 +10,12 @@ import { ClientNode, ItemKind } from "@matter/node";
 export interface ReconcilerSurface {
     itemKind(kind: string): ItemKind | undefined;
     reconcile(peer: ClientNode, options?: { verify?: boolean }): Promise<void>;
+
+    /**
+     * Why the reconciler last gave up on `(kind, key)` for this peer.
+     *
+     * A dropped item takes its status with it, so this is the only thing left to say why a task's intent is
+     * gone. Optional so a stand-in reconciler need not carry it.
+     */
+    dropReasonFor?(peer: ClientNode, kind: string, key: string): string | undefined;
 }
