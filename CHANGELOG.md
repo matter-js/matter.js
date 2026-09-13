@@ -31,6 +31,16 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
     - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
+    - Fix: `NodeJsStyleCrypto.computeHash` names a digest the way Node.js's crypto API does. It passed the Web Crypto spelling, which Node.js accepts as an alias while stricter emulations of its API reject it
+    - Fix: `NodeJsStyleCrypto.computeHash` reports `CryptoInputError` naming an algorithm it does not support, where an untyped caller previously reached the underlying API with it
+    - Fix: Crypto auto-detection claims the default `Crypto` only where the detected API offers the SHA-256 digest and the `aes-128-ccm` cipher and decipher, so `StandardCrypto` serves a runtime whose emulation lacks them rather than being shut out by load order. The detected API is claimed regardless where the runtime offers no Web Crypto, and where the process restricts its cryptographic provider as FIPS mode does, so nothing is left without crypto and no deliberate restriction is evaded
+    - Enhancement: `nodeCryptoDefect` reports which of those primitives a Node.js-style crypto API cannot offer, and `NodeJsCryptoApiLike` gains an optional `getFips()` for runtimes that report a restricted provider
+    - Fix: Crypto auto-detection no longer aborts the import of this package where the runtime offers neither a usable Node.js-style API nor a usable Web Crypto. It reports that it found none and leaves `Crypto` unset
+    - Fix: `MockCrypto` defaults to the standard implementation where the detected Node.js-style API cannot serve Matter, via the new `NodeJsStyleCrypto.providesDefault`. It keyed on a Node.js-style API merely being present, which an incomplete emulation also satisfies
+
+- @matter/nodejs
+    - Fix: The Node.js environment uses standard crypto where Node.js's crypto module offers no SHA-256 digest, or no `aes-128-ccm` cipher or decipher, which is the case on Bun and Deno, and says which was missing. It previously made that choice by runtime name, so it covered Bun alone and left Deno on an implementation that fails commissioning. Where the process restricts its cryptographic provider it keeps Node.js crypto rather than evading the restriction, and reports that Matter will fail where it needs the missing primitive
+    - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
 
 - @matter/protocol
     - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
