@@ -15,7 +15,7 @@ import { Docker } from "../../docker/docker.js";
 import { Image } from "../../docker/image.js";
 import { afterOne, beforeOne } from "../../mocha.js";
 import { TestFileDescriptor } from "../../test-descriptor.js";
-import { resolveChipBinsSource } from "../chip-bins.js";
+import { ChipBinsSource, resolveChipBinsSource } from "../chip-bins.js";
 import { chip } from "../chip.js";
 import { PicsExpression } from "../pics/expression.js";
 import { State } from "../state.js";
@@ -57,6 +57,15 @@ export interface CertTestOptions {
      * than failing to activate.
      */
     flavors?: DeviceFlavor[];
+
+    /**
+     * Chip binary sources this test supports; absent runs on every source.
+     *
+     * The two sources are different CHIP versions, not two builds of one: `cert-bins` is the released
+     * certification image, `matterjs` is a build of CHIP master.  A test of behaviour master has changed
+     * passes against one and fails against the other, and the source is the only thing that says which.
+     */
+    chipBinsSources?: ChipBinsSource[];
     /** Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`. */
     controllers?: Record<string, "dut" | "helper">;
     /** Role name → app name. Default: `{ th: options.app }`. */
@@ -219,6 +228,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         app: options.app,
         appVariant: options.appVariant,
         flavors: options.flavors,
+        chipBinsSources: options.chipBinsSources,
         transport: options.transport,
         steps: new Array<CertStepDefinition>(),
     };
@@ -349,6 +359,14 @@ function defineCertTest(
             // and the activation hook a registered test carries would try anyway.
             it.skip(`${descriptor.name} (unsupported on device flavor "${flavor}")`, () => {});
             return;
+        }
+
+        if (flavor !== "matterjs" && definition.chipBinsSources !== undefined) {
+            const binsSource = resolveChipBinsSource();
+            if (!definition.chipBinsSources.includes(binsSource)) {
+                it.skip(`${descriptor.name} (unsupported against chip binaries from "${binsSource}")`, () => {});
+                return;
+            }
         }
 
         // Eager, like `flavor` above: validates MATTER_CERT_CONTROLLER at test-collection time, so

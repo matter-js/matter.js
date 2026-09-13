@@ -158,7 +158,16 @@ async function expectPayloadLines(cx: CertStepContext, from: number, label: stri
     record(cx, await expectSequence(th.log, th.flavor, label, claim, from, LOG_TIMEOUT), label);
 }
 
-certTest("TC-S-3.1", { plan: "scenes.adoc", pics: ["S.C"], app: "all-clusters" })
+certTest("TC-S-3.1", {
+    plan: "scenes.adoc",
+    pics: ["S.C"],
+    app: "all-clusters",
+
+    // CHIP master retired the legacy group key path this exercises: Groups moved to cluster revision 5 and
+    // GroupKeyManagement's Groupcast adoption now answers a GroupKeyMap write with InvalidInState, so binding a
+    // group key fails before AddGroup is reached.  The released certification binaries predate that
+    chipBinsSources: ["cert-bins"],
+})
     .step(
         "0",
         "Preconditions: the DUT commissions the TH, writes the plan's group key set, binds G1 to it in " +
