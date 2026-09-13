@@ -43,10 +43,10 @@ on:
 
 # A test-only run is grouped by ref and trigger, so a push cannot cancel a manual or scheduled run on the same ref.
 #
-# The two triggers that publish share one key, and that key names no ref. Publishing is a property of the trigger
-# alone — the jobs below gate on `schedule` or `workflow_dispatch` and nothing else — so a manual run from any branch
-# pushes the same `latest` manifest and opens the same SHA-bump branch as the nightly one. A ref-scoped key would let
-# those two run side by side and overwrite each other; one global key with cancellation off makes the second wait.
+# The two triggers that publish share one key, and that key names no ref. The publishing jobs are restricted to main,
+# so today both runs would land on the same ref anyway; keying on the trigger rather than the ref keeps them in one
+# slot even if that restriction is ever relaxed. They push the same `latest` manifest and open the same SHA-bump
+# branch, so cancellation stays off and the second waits for the first.
 concurrency:
   group: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'chip-build-test-publish' || format('{0}-{1}-chip-build-test', github.ref, github.event_name) }}
   cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
@@ -369,8 +369,11 @@ jobs:
       test-app-cc-2,
       test-icd
     ]
+    # The branch matters as much as the trigger: this gates the whole publishing chain, which pushes the shared
+    # `latest` tag and, in publish-manifest, opens the SHA-bump branch — both of which describe main and nothing else
     if: >-
       needs.chip-image-amd64.outputs.source == 'artifact' &&
+      github.ref == 'refs/heads/main' &&
       (
         github.event_name == 'schedule' ||
         github.event_name == 'workflow_dispatch'
@@ -420,6 +423,7 @@ jobs:
     ]
     if: >-
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
       needs.chip-image-arm64.outputs.source == 'artifact'
     steps:
       - name: Check out matter.js
