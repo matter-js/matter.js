@@ -63,7 +63,7 @@ async function rollback(ctx: TaskContext, params: RollbackParams): Promise<void>
     const removed = new Array<{ peer: ClientNode; kind: ItemKind; key: string }>();
 
     for (const entry of [...params.entries].reverse()) {
-        const peer = ctx.tryResolvePeer(entry.peerId);
+        const peer = ctx.tryResolvePeer(entry.peer);
         // A decommissioned peer's intent is GC'd with the node, so its rollback is moot.
         if (peer === undefined) {
             continue;

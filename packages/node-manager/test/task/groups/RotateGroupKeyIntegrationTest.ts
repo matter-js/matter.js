@@ -14,15 +14,17 @@ import {
 } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
+import { addressLabel, addressOf } from "#task/peer.js";
 import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskContext } from "#task/types.js";
-import { Bytes, Crypto, MockCrypto, Seconds } from "@matter/general";
+import { Bytes, Crypto, InternalError, MockCrypto, Seconds } from "@matter/general";
 import { ClientNode, DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
 import { FabricManager, SustainedSubscription } from "@matter/protocol";
 import { FabricId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
@@ -120,9 +122,9 @@ function recordingRoot(sink: bigint[][], afterWrite?: (starts: bigint[]) => void
 const DeviceRootA = recordingRoot(writesA, s => afterWriteA?.(s));
 const DeviceRootB = recordingRoot(writesB, s => afterWriteB?.(s));
 
-function addParamsFor(peerId: string, epochKey0 = OP_KEY): AddNodeToGroupParams {
+function addParamsFor(peer: PeerAddress, epochKey0 = OP_KEY): AddNodeToGroupParams {
     return {
-        peerId,
+        peer,
         endpoint: 1,
         groupId: GROUP,
         groupName: "kitchen",
@@ -133,7 +135,16 @@ function addParamsFor(peerId: string, epochKey0 = OP_KEY): AddNodeToGroupParams 
     };
 }
 
-const addTaskId = (peerId: string) => `${ADD_NODE_TO_GROUP_TYPE}:${peerId}:${GROUP}:1`;
+/** A commissioned node's address, which is what a task names it by. */
+function addressOfNode(node: ClientNode): PeerAddress {
+    const address = addressOf(node);
+    if (address === undefined) {
+        throw new InternalError(`${node.id} has no address`);
+    }
+    return address;
+}
+
+const addTaskId = (peer: PeerAddress) => `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(peer)}:${GROUP}:1`;
 
 /** Non-null epochStartTimes of a key-set struct as sorted bigints. */
 function starts(g: {
@@ -252,8 +263,8 @@ async function twoMemberGroup(site: MockSite, options: { addB?: boolean } = {}) 
     await subscribedPeer(controller, peerB.id);
 
     for (const peer of addB ? peers : peers.slice(0, 1)) {
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peer.id)));
-        await awaitState(controller, addTaskId(peer.id), "completed");
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(addressOfNode(peer))));
+        await awaitState(controller, addTaskId(addressOfNode(peer)), "completed");
     }
 
     return { controller, deviceA, deviceB, peerA, peerB };
@@ -312,8 +323,8 @@ describe("RotateGroupKey task integration (two members)", () => {
         await awaitParkedInPhase(controller, ROTATE_SLOT, 0);
 
         writesA.length = writesB.length = 0;
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
-        await awaitState(controller, addTaskId(peerB.id), "completed");
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(addressOfNode(peerB))));
+        await awaitState(controller, addTaskId(addressOfNode(peerB)), "completed");
 
         await MockTime.resolve(subscriptionOf(peerA).active.emit(true), { macrotasks: true });
 
@@ -347,8 +358,8 @@ describe("RotateGroupKey task integration (two members)", () => {
         writesA.length = writesB.length = 0;
         // The members are mid-switch, so the join is refused rather than left holding a key the rotation is
         // about to drop from everyone else.
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
-        await awaitState(controller, addTaskId(peerB.id), "failed");
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(addressOfNode(peerB))));
+        await awaitState(controller, addTaskId(addressOfNode(peerB)), "failed");
         expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([]);
 
         await MockTime.resolve(subscriptionA.active.emit(true), { macrotasks: true });
@@ -369,7 +380,9 @@ describe("RotateGroupKey task integration (two members)", () => {
         afterWriteA = s => {
             if (!joined && s.length === 2) {
                 joined = true;
-                void controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
+                void controller.act(a =>
+                    a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(addressOfNode(peerB))),
+                );
             }
         };
 
@@ -403,9 +416,11 @@ describe("RotateGroupKey task integration (two members)", () => {
         writesA.length = writesB.length = 0;
         // The members already carry the switch, so the join is refused rather than left holding a key the
         // rotation is about to drop from everyone else.
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id)));
-        await awaitState(controller, addTaskId(peerB.id), "failed");
-        const add = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), addTaskId(peerB.id)));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(addressOfNode(peerB))));
+        await awaitState(controller, addTaskId(addressOfNode(peerB)), "failed");
+        const add = await controller.act(a =>
+            statusOfSlot(a.get(TaskManagerBehavior), addTaskId(addressOfNode(peerB))),
+        );
         expect(add?.error).contains("switching to the new key");
 
         // Nothing of the join reached the device, and the rotation finishes over its own member set.
@@ -419,8 +434,10 @@ describe("RotateGroupKey task integration (two members)", () => {
 
         // With the rotation over, the join is admitted — carrying the key the group now uses. The same call
         // with the pre-rotation key is refused, because a member joins the key the group is using.
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peerB.id, NEW_KEY)));
-        await awaitState(controller, addTaskId(peerB.id), "completed");
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(addressOfNode(peerB), NEW_KEY)),
+        );
+        await awaitState(controller, addTaskId(addressOfNode(peerB)), "completed");
         expect(Bytes.areEqual(deviceKey0(deviceB, GROUP_KEY_SET_ID), NEW_KEY)).equals(true);
     });
 

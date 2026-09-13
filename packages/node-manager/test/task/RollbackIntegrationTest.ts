@@ -10,6 +10,8 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
+import { testAddress } from "./helpers.js";
 import {
     kindOf,
     isTerminalState,
@@ -26,8 +28,8 @@ class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
@@ -63,7 +65,7 @@ describe("auto-rollback", () => {
             {
                 name: "set-then-fail",
                 run: async ctx => {
-                    const p = ctx.resolvePeer("rp");
+                    const p = ctx.resolvePeer(testAddress("rp"));
                     await ctx.setIntent(p, kindOf("groupKey"), "42", { a: 1 });
                     throw new TaskFailedError("boom");
                 },
@@ -98,7 +100,7 @@ describe("auto-rollback", () => {
             {
                 name: "set-then-fail",
                 run: async ctx => {
-                    const p = ctx.resolvePeer("rp");
+                    const p = ctx.resolvePeer(testAddress("rp"));
                     await ctx.setIntent(p, kindOf("groupKey"), "99", { a: 1 });
                     throw new TaskFailedError("boom2");
                 },

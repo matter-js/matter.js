@@ -15,9 +15,10 @@ import { RunId } from "#task/types.js";
 import { ImplementationError } from "@matter/general";
 import { ItemKind } from "@matter/node";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import { testAddress } from "./helpers.js";
 
 const ADD = {
-    peerId: "peer1",
+    peer: testAddress("peer1"),
     endpoint: 1,
     groupId: 42,
     groupKeySetId: 7,
@@ -25,9 +26,9 @@ const ADD = {
     epochKey0: new Uint8Array(16),
     epochStartTime0: 946684800000001n,
 };
-const REMOVE = { peerId: "peer1", endpoint: 1, groupId: 42 };
+const REMOVE = { peer: testAddress("peer1"), endpoint: 1, groupId: 42 };
 const ROTATE = { groupKeySetId: 7, newEpochKey: new Uint8Array(16) };
-const ROLLBACK = { originalRunId: RunId(1), entries: [{ peerId: "p", kind: "groupKey", key: "7" }] };
+const ROLLBACK = { originalRunId: RunId(1), entries: [{ peer: testAddress("p"), kind: "groupKey", key: "7" }] };
 
 /** Asserts a definition accepts its good params and refuses each mutation of them. */
 function refuses<P>(definition: TaskDefinition<P>, good: P, bad: Record<string, unknown>) {
@@ -66,7 +67,7 @@ describe("built-in task parameter validation", () => {
 
     it("refuses malformed AddNodeToGroup parameters", () => {
         refuses(AddNodeToGroup, ADD, {
-            peerId: "",
+            peer: { fabricIndex: 0, nodeId: 1n },
             endpoint: -1,
             groupId: 0x1_0000,
             groupKeySetId: 1.5,
@@ -81,7 +82,7 @@ describe("built-in task parameter validation", () => {
     });
 
     it("refuses malformed RemoveNodeFromGroup parameters", () => {
-        refuses(RemoveNodeFromGroup, REMOVE, { peerId: undefined, endpoint: "1", groupId: null });
+        refuses(RemoveNodeFromGroup, REMOVE, { peer: undefined, endpoint: "1", groupId: null });
     });
 
     it("refuses malformed RotateGroupKey parameters", () => {
@@ -145,7 +146,7 @@ describe("built-in task parameter validation", () => {
 
     it("refuses malformed Rollback parameters", () => {
         refuses(Rollback, ROLLBACK, { originalRunId: 0, entries: undefined });
-        expect(() => Rollback.validate?.({ ...ROLLBACK, entries: [{ peerId: "p" }] as never })).throws(
+        expect(() => Rollback.validate?.({ ...ROLLBACK, entries: [{ peer: testAddress("p") }] as never })).throws(
             ImplementationError,
         );
     });

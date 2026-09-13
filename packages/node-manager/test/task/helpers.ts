@@ -8,7 +8,18 @@ import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
 import { Immutable, InternalError, MaybePromise, Observable } from "@matter/general";
-import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
+import {
+    ClientNode,
+    CommissioningClient,
+    DesiredStateBehavior,
+    ItemKind,
+    ItemMode,
+    ItemState,
+    ManagedItem,
+    itemMapKey,
+} from "@matter/node";
+import { PeerAddress } from "@matter/protocol";
+import { FabricIndex, NodeId } from "@matter/types";
 import { Status } from "@matter/types";
 
 /** Mirrors the reconciler's default recoverability rule for a failure status code. */
@@ -138,6 +149,19 @@ export function onTerminalWrite(manager: TaskManagerBehavior, runId: RunId, onCo
  * One simplification of the real engine: a key the device neither has nor fails stays `pending` instead of
  * committing, which is how a test holds a gate parked.
  */
+/**
+ * A stable address for a fixture peer, derived from its name so a test that writes one can name the same peer.
+ *
+ * Fabric 1 throughout: these fixtures have one fabric, and a node id is unique within it.
+ */
+export function testAddress(name: string): PeerAddress {
+    let hash = 0n;
+    for (const ch of name) {
+        hash = (hash * 131n + BigInt(ch.codePointAt(0) ?? 0)) % 0xffff_ffffn;
+    }
+    return PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(hash + 1n) });
+}
+
 export class FakePeer {
     readonly items: Record<string, ManagedItem> = {};
     readonly has = new Set<string>();
@@ -152,7 +176,14 @@ export class FakePeer {
     #subscribed = true;
     reconciles = 0;
 
-    constructor(readonly id: string) {}
+    readonly address: PeerAddress;
+
+    constructor(
+        readonly id: string,
+        address = testAddress(id),
+    ) {
+        this.address = address;
+    }
 
     /** A real (non-Sustained) subscription instance reads as active; undefined reads as unreachable. */
     get #activeSubscription() {
@@ -313,6 +344,18 @@ export class FakePeer {
 
     stateOf(type: unknown): unknown {
         return type === DesiredStateBehavior ? { items: this.items } : { isDisabled: false };
+    }
+
+    /** What `ClientNode` exposes and the task layer reads: a peer's identity, not its local id. */
+    get peerAddress(): PeerAddress {
+        return this.address;
+    }
+
+    maybeStateOf(type: unknown): unknown {
+        if (type === DesiredStateBehavior) {
+            return { items: this.items };
+        }
+        return type === CommissioningClient ? { peerAddress: this.address } : undefined;
     }
 
     get behaviors() {

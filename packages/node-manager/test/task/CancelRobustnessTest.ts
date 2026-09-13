@@ -20,6 +20,8 @@ import { RunId } from "#task/types.js";
 import { CrashedDependencyError, Environment, InternalError, Lifecycle, MaybePromise } from "@matter/general";
 import { Behavior, ClientNode, ItemKind, itemMapKey } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
+import { testAddress } from "./helpers.js";
 import {
     kindOf,
     cancelSlot,
@@ -48,8 +50,8 @@ class TestTaskManager extends TaskManagerBehavior {
     /** Fires before the shutdown abort pass, so a test can release a task into the pre-gate window. */
     static atShutdown?: (manager: TestTaskManager) => void;
 
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
 
     /** The verb tearing a run down, once it has accepted the request and before it settles. */
@@ -159,7 +161,7 @@ function gatePhase(peerId: string, kind: ItemKind, key: string): TaskPhase {
     return {
         name: "gate",
         run: async ctx => {
-            const peer = ctx.resolvePeer(peerId);
+            const peer = ctx.resolvePeer(testAddress(peerId));
             await ctx.setIntent(peer, kind, key, {});
             await ctx.awaitCommitted([{ peer, kind, key }]);
         },
@@ -171,7 +173,7 @@ function slowUnwindGatePhase(peerId: string, kind: ItemKind, key: string, unwind
     return {
         name: "gate",
         run: async ctx => {
-            const peer = ctx.resolvePeer(peerId);
+            const peer = ctx.resolvePeer(testAddress(peerId));
             await ctx.setIntent(peer, kind, key, {});
             try {
                 await ctx.awaitCommitted([{ peer, kind, key }]);
@@ -217,7 +219,9 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("pg", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.plannedChangesByTag["pregate"] = [{ peerId: "pg", kind: kindOf("cap"), key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["pregate"] = [
+            { peer: testAddress("pg"), kind: kindOf("cap"), key: "x", intent: {} },
+        ];
         SyntheticTask.phasesByTag["pregate"] = [gatePhase("pg", kindOf("groupMembership"), "X")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-pregate" });
@@ -497,7 +501,7 @@ describe("cancel robustness", () => {
             {
                 name: "hold",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("sf"), kindOf("groupMembership"), "F", {});
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("sf")), kindOf("groupMembership"), "F", {});
                     phaseEntered = true;
                     await held;
                 },
@@ -544,7 +548,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("cf"), kindOf("groupMembership"), "W", {});
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("cf")), kindOf("groupMembership"), "W", {});
                     phaseEntered = true;
                     await held;
                     throw new TaskFailedError("forced failure");
@@ -675,7 +679,9 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("pd", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.plannedChangesByTag["predispose"] = [{ peerId: "pd", kind: kindOf("cap"), key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["predispose"] = [
+            { peer: testAddress("pd"), kind: kindOf("cap"), key: "x", intent: {} },
+        ];
         SyntheticTask.phasesByTag["predispose"] = [gatePhase("pd", kindOf("groupMembership"), "Y")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-predispose" });
@@ -716,7 +722,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("settling"), kindOf("groupMembership"), "S", {});
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("settling")), kindOf("groupMembership"), "S", {});
                 },
             },
         ];
@@ -808,7 +814,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("unwritten"), kindOf("groupMembership"), "U", {});
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("unwritten")), kindOf("groupMembership"), "U", {});
                 },
             },
         ];
@@ -864,7 +870,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("iw"), kindOf("groupMembership"), "W", {});
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("iw")), kindOf("groupMembership"), "W", {});
                     phaseReturned = true;
                 },
             },
@@ -927,7 +933,7 @@ describe("cancel robustness", () => {
             {
                 name: "touch",
                 run: async ctx => {
-                    await ctx.setIntent(ctx.resolvePeer("rw"), kindOf("groupMembership"), "R", {});
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("rw")), kindOf("groupMembership"), "R", {});
                 },
             },
         ];

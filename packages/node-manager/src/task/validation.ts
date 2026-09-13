@@ -5,6 +5,7 @@
  */
 
 import { ImplementationError, UINT64_MAX } from "@matter/general";
+import { PeerAddress } from "@matter/protocol";
 import { MATTER_EPOCH_OFFSET_US } from "@matter/types";
 
 /**
@@ -105,7 +106,7 @@ export const Require = {
             throw new ImplementationError(`"${field}" must be a change entry, not ${describe(value)}`);
         }
         const entry = value as Record<string, unknown>;
-        Require.text(`${field}.peerId`, entry.peerId);
+        Require.peerAddress(`${field}.peer`, entry.peer);
         Require.text(`${field}.kind`, entry.kind);
         if (typeof entry.key !== "string") {
             throw new ImplementationError(`"${field}.key" must be a string`);
@@ -124,6 +125,47 @@ export const Require = {
         }
         if (prior.mode !== "converge" && prior.mode !== "maintain") {
             throw new ImplementationError(`"${field}.prior.mode" must be "converge" or "maintain"`);
+        }
+    },
+
+    /**
+     * The identity of a peer or group: the one thing about a node that is never re-issued.
+     *
+     * A local node id is not that — it is free again once the node is removed — so nothing a record keeps may
+     * be one.
+     */
+    peerAddress(field: string, value: unknown): void {
+        if (typeof value !== "object" || value === null || Array.isArray(value)) {
+            throw new ImplementationError(`"${field}" must be a peer address, not ${describe(value)}`);
+        }
+        const address = value as Record<string, unknown>;
+        if (
+            typeof address.fabricIndex !== "number" ||
+            !Number.isInteger(address.fabricIndex) ||
+            address.fabricIndex < 1
+        ) {
+            throw new ImplementationError(`"${field}.fabricIndex" must be a fabric index`);
+        }
+        if (typeof address.nodeId !== "bigint" || address.nodeId < 0n) {
+            throw new ImplementationError(`"${field}.nodeId" must be a node id`);
+        }
+        // The unspecified node id names nothing, so a record carrying it could never be resolved again.
+        if (address.nodeId === 0n) {
+            throw new ImplementationError(`"${field}.nodeId" must not be the unspecified node id`);
+        }
+    },
+
+    /**
+     * The address of a node a task can drive: a peer, never a group.
+     *
+     * A group's address is a valid one — its node id carries the group id — and a group node is a
+     * {@link ClientNode} like any other, so it reaches admission and then parks forever: a group has no
+     * subscription to become reachable on. The tasks that provision a device refuse one at the door instead.
+     */
+    peer(field: string, value: unknown): void {
+        Require.peerAddress(field, value);
+        if (PeerAddress.isGroup(value as PeerAddress)) {
+            throw new ImplementationError(`"${field}" is a group address, and this task drives a peer`);
         }
     },
 

@@ -161,6 +161,9 @@ export class RunStore {
             if (typeof stored.type !== "string" || stored.type === "") {
                 throw new InternalError(`Stored task record "${key}" has no usable task type`);
             }
+            if (stored.externalId !== undefined && typeof stored.externalId !== "string") {
+                throw new InternalError(`Stored task record "${key}" has no usable external id`);
+            }
             if (typeof stored.wrote !== "boolean") {
                 throw new InternalError(`Stored task record "${key}" does not say whether it reached a device`);
             }

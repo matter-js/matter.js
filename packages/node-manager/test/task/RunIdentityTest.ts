@@ -22,15 +22,16 @@ import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError } from "@matter/general";
 import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { kindOf, FakePeer, onTerminalWrite, pumpUntil, recordFor, SyntheticTask } from "./helpers.js";
+import { PeerAddress } from "@matter/protocol";
+import { FakePeer, kindOf, onTerminalWrite, pumpUntil, recordFor, SyntheticTask, testAddress } from "./helpers.js";
 
 /** Resolves peers to fakes, so a phase records a real changeSet and its rollback has something to undo. */
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
@@ -85,7 +86,7 @@ function gateForever(peerId: string): TaskPhase {
     return {
         name: "hold",
         run: async ctx => {
-            const peer = ctx.resolvePeer(peerId);
+            const peer = ctx.resolvePeer(testAddress(peerId));
             await ctx.setIntent(peer, kindOf("groupMembership"), "X", {});
             await ctx.awaitCommitted([{ peer, kind: kindOf("groupMembership"), key: "X" }]);
         },
@@ -97,7 +98,7 @@ function touchPhase(peerId: string): TaskPhase {
     return {
         name: "touch",
         run: async ctx => {
-            await ctx.setIntent(ctx.resolvePeer(peerId), kindOf("groupMembership"), "X", {});
+            await ctx.setIntent(ctx.resolvePeer(testAddress(peerId)), kindOf("groupMembership"), "X", {});
         },
     };
 }

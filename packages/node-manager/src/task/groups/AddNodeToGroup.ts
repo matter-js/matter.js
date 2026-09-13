@@ -5,10 +5,12 @@
  */
 
 import { Bytes } from "@matter/general";
+import { PeerAddress } from "@matter/protocol";
 import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { GroupKey, GroupKeyMap, GroupMembership } from "../../reconcile/kinds.js";
 import { RotationPreconditionError } from "../errors.js";
+import { addressLabel } from "../peer.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
 import { Require } from "../validation.js";
@@ -24,7 +26,7 @@ export const SECURITY_POLICIES = [
 ] as const;
 
 export interface AddNodeToGroupParams {
-    peerId: string;
+    peer: PeerAddress;
     endpoint: number;
     groupId: number;
     groupName?: string;
@@ -43,7 +45,7 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
     type: ADD_NODE_TO_GROUP_TYPE,
     validate(params) {
         Require.params(ADD_NODE_TO_GROUP_TYPE, params);
-        Require.text("peerId", params.peerId);
+        Require.peer("peer", params.peer);
         Require.uint("endpoint", params.endpoint, 0xffff);
         Require.id("groupId", params.groupId, 0xffff);
         Require.id("groupKeySetId", params.groupKeySetId, 0xffff);
@@ -57,7 +59,7 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
     },
 
     slotKeyFor(params) {
-        return `${ADD_NODE_TO_GROUP_TYPE}:${params.peerId}:${params.groupId}:${params.endpoint}`;
+        return `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(params.peer)}:${params.groupId}:${params.endpoint}`;
     },
 
     phases(params) {
@@ -72,15 +74,15 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
 
     plannedChanges(p) {
         return [
-            { peerId: p.peerId, kind: GroupKey, key: String(p.groupKeySetId), intent: keySet(p) },
+            { peer: p.peer, kind: GroupKey, key: String(p.groupKeySetId), intent: keySet(p) },
             {
-                peerId: p.peerId,
+                peer: p.peer,
                 kind: GroupKeyMap,
                 key: String(p.groupId),
                 intent: { groupId: GroupId(p.groupId), groupKeySetId: p.groupKeySetId },
             },
             {
-                peerId: p.peerId,
+                peer: p.peer,
                 kind: GroupMembership,
                 key: membershipKey(p.groupId, p.endpoint),
                 intent: { localEndpoint: p.endpoint, groupId: GroupId(p.groupId), groupName: p.groupName },
@@ -112,7 +114,7 @@ function keySet(p: AddNodeToGroupParams) {
 function refuseWhileKeysSwitch(ctx: TaskContext, p: AddNodeToGroupParams): void {
     if (rotationIsSwitchingKeys(ctx, p.groupKeySetId)) {
         throw new RotationPreconditionError(
-            `Cannot add peer ${p.peerId} to group ${p.groupId}: group key set ${p.groupKeySetId} is being ` +
+            `Cannot add peer ${addressLabel(p.peer)} to group ${p.groupId}: group key set ${p.groupKeySetId} is being ` +
                 `rotated and its members are switching to the new key. Add the peer once the rotation ends.`,
         );
     }
@@ -123,7 +125,7 @@ function refuseWhileKeysSwitch(ctx: TaskContext, p: AddNodeToGroupParams): void 
     const operational = operationalKeyOf(ctx, p.groupKeySetId);
     if (operational !== undefined && !Bytes.areEqual(operational, p.epochKey0)) {
         throw new RotationPreconditionError(
-            `Cannot add peer ${p.peerId} to group ${p.groupId}: group key set ${p.groupKeySetId} is in use ` +
+            `Cannot add peer ${addressLabel(p.peer)} to group ${p.groupId}: group key set ${p.groupKeySetId} is in use ` +
                 `with a different key than these parameters carry. Add the peer with the key set's current key.`,
         );
     }
@@ -142,7 +144,7 @@ function operationalKeyOf(ctx: TaskContext, groupKeySetId: number): AllowSharedB
 }
 
 async function provision(ctx: TaskContext, p: AddNodeToGroupParams): Promise<void> {
-    const peer = ctx.resolvePeer(p.peerId);
+    const peer = ctx.resolvePeer(p.peer);
     const groupId = GroupId(p.groupId);
 
     await ctx.setIntent(peer, GroupKey, String(p.groupKeySetId), keySet(p), "converge");

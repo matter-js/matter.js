@@ -17,6 +17,7 @@ import {
 } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
+import { PeerAddress } from "@matter/protocol";
 import {
     TaskAbandonedError,
     TaskAbandonedSignal,
@@ -52,6 +53,7 @@ import { Execution, GateState } from "./Execution.js";
 import { AddNodeToGroup } from "./groups/AddNodeToGroup.js";
 import { RemoveNodeFromGroup } from "./groups/RemoveNodeFromGroup.js";
 import { RotateGroupKey } from "./groups/RotateGroupKey.js";
+import { addressLabel } from "./peer.js";
 import { Rollback } from "./Rollback.js";
 import { GateControl, RunningTaskContext } from "./RunningTaskContext.js";
 import { isTerminal, RUN_STORE_VERSION, RunStore } from "./RunStore.js";
@@ -344,6 +346,18 @@ export class TaskManagerBehavior extends Behavior {
                 );
                 continue;
             }
+            // The record names the target it holds; the definition says what target its parameters mean now. A
+            // build that changed that derivation would drive this run under the old target while a caller takes
+            // the new one, and both would write to the same peer.
+            if (bound.slotKey !== record.slotKey) {
+                this.#failUnresumable(
+                    record,
+                    new TaskParamsRejectedError(
+                        `Cannot resume ${runLabel(record.runId)}: task type "${record.type}" now derives target ${bound.slotKey} from its parameters, but the record holds ${record.slotKey}`,
+                    ),
+                );
+                continue;
+            }
             this.#redrive(record, bound);
         }
     }
@@ -351,21 +365,22 @@ export class TaskManagerBehavior extends Behavior {
     /** End a run this build cannot drive, so it stops holding a target nothing will ever advance. */
     #failUnresumable(record: RunRecord, refusal: TaskParamsRejectedError): void {
         logger.error(`Cannot resume ${runLabel(record.runId)}, recording it failed`, refusal);
-        this.#mutex.run(async () => {
-            await this.#commitRetiring({
-                record,
-                next: {
-                    state: "failed",
-                    error: refusal.message,
-                    retireSeq: this.internal.runs.nextRetirement(record),
-                },
-                drop: RETIRE,
-            });
+        // Straight to the write, not queued behind another job of the same mutex: `#commitRetiring` takes that
+        // mutex itself, so a job that awaited it would wait for a job queued behind the one it is running in.
+        this.#commitRetiring({
+            record,
+            next: {
+                state: "failed",
+                error: refusal.message,
+                retireSeq: this.internal.runs.nextRetirement(record),
+            },
+            drop: RETIRE,
+        }).then(
             // Only once the outcome is durable. Releasing the target first would let a new run take it while
-            // this record is still stored non-terminal, and a refused write would leave that record owning a
-            // target nothing in memory holds.
-            this.internal.runs.commitRetirement(record);
-        });
+            // this record is still stored non-terminal.
+            () => this.internal.runs.commitRetirement(record),
+            e => logger.error(`Cannot record ${runLabel(record.runId)} as failed; it keeps its target`, e),
+        );
     }
 
     /**
@@ -762,6 +777,14 @@ export class TaskManagerBehavior extends Behavior {
     #awaitOutcome(record: RunRecord): Promise<void> {
         if (isTerminal(record.state)) {
             return Promise.resolve();
+        }
+        // A waiter registered after the closing sweep would never be released by it.
+        if (this.#isClosing) {
+            return Promise.reject(
+                new TaskManagerClosingError(
+                    `${runLabel(record.runId)} did not reach an outcome: the task manager is shutting down`,
+                ),
+            );
         }
         const waiters = this.internal.settlementWaiters;
         return new Promise<void>((resolve, reject) => {
@@ -1432,7 +1455,7 @@ export class TaskManagerBehavior extends Behavior {
         }
         const byNodeKind = new Map<string, PlannedChange[]>();
         for (const pc of planned) {
-            const k = `${pc.peerId}\0${pc.kind.kind}`;
+            const k = `${addressLabel(pc.peer)}\0${pc.kind.kind}`;
             let group = byNodeKind.get(k);
             if (group === undefined) {
                 group = new Array<PlannedChange>();
@@ -1441,8 +1464,8 @@ export class TaskManagerBehavior extends Behavior {
             group.push(pc);
         }
         for (const group of byNodeKind.values()) {
-            const { peerId, kind } = group[0];
-            const peer = this.resolvePeerNode(peerId);
+            const { peer: address, kind } = group[0];
+            const peer = this.resolvePeerNode(address);
             if (peer === undefined) {
                 continue; // unresolvable peer: the phase gate will park; capacity is re-checked on device write
             }
@@ -1458,7 +1481,7 @@ export class TaskManagerBehavior extends Behavior {
             const added = group.filter(pc => items[itemMapKey(pc.kind.kind, pc.key)] === undefined).length;
             if (capacity.used + added > capacity.limit) {
                 throw new TaskCapacityExceededError(
-                    `${runLabel(execution.runId)}: ${kind.kind} on ${peerId} exceeds capacity — needs ${added} slot(s) but only ${capacity.limit - capacity.used} free`,
+                    `${runLabel(execution.runId)}: ${kind.kind} on ${addressLabel(address)} exceeds capacity — needs ${added} slot(s) but only ${capacity.limit - capacity.used} free`,
                 );
             }
         }
@@ -1468,8 +1491,11 @@ export class TaskManagerBehavior extends Behavior {
         const record = execution.record;
         try {
             // A resumed record names the phase to continue from, and only its own definition knows how many
-            // there are. An index past the end would exit the loop untouched and record the run completed,
-            // reporting work that was never applied to a device.
+            // there are. An index beyond the last one is a record this build cannot drive at all.
+            //
+            // An index *equal* to the count is the shape this cannot separate: it is what a run that finished
+            // every phase leaves behind, and also what a definition that lost its last phase leaves. The
+            // record carries no other evidence, so that case is driven as a completion.
             if (record.phaseIndex > execution.phases.length) {
                 throw new TaskFailedError(
                     `${runLabel(record.runId)} resumes at phase ${record.phaseIndex}, but task type "${record.type}" has ${execution.phases.length}`,
@@ -1636,8 +1662,8 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /** Resolve a peer by id for gates and cancel-rollback. Overridable for testing. */
-    protected resolvePeerNode(peerId: string): ClientNode | undefined {
-        return this.#rootNode.peers.get(peerId);
+    protected resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return this.#rootNode.peers.get(address);
     }
 
     /**

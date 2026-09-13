@@ -6,6 +6,7 @@
 
 import { Branded, ImplementationError } from "@matter/general";
 import type { ClientNode, ItemKind, ItemMode, ManagedItem } from "@matter/node";
+import type { PeerAddress } from "@matter/protocol";
 
 /**
  * Identity of one run of a task. A re-run of the same target is a different run with a different id, so no
@@ -85,8 +86,10 @@ export interface TaskStatus {
     state: TaskState;
     phaseIndex: number;
     /**
-     * Whether the run reached the device. A run can fail, be cancelled or be abandoned having changed nothing,
-     * and an operator acts on those two cases differently.
+     * Whether the run changed what a device is asked to hold. A run can fail, be cancelled or be abandoned
+     * having changed nothing, and an operator acts on those two cases differently.
+     *
+     * True from the moment an intent is written rather than from its commit — see {@link RunView.wrote}.
      */
     wrote: boolean;
     /** Id the caller of `run` asked for this task under, if it supplied one. */
@@ -101,7 +104,8 @@ export interface TaskStatus {
 }
 
 export interface ChangeEntry {
-    peerId: string;
+    /** The peer or group this run changed, by the identity that is never re-issued. */
+    peer: PeerAddress;
     kind: string;
     key: string;
     prior?: { intent: unknown; mode: ItemMode };
@@ -114,7 +118,7 @@ export interface ChangeEntry {
  * the reconciler does not know would silently skip that question for the task that misspelled it.
  */
 export interface PlannedChange {
-    peerId: string;
+    peer: PeerAddress;
     kind: ItemKind;
     key: string;
     intent: unknown;
@@ -138,8 +142,8 @@ export interface TaskPhase {
 }
 
 export interface TaskContext {
-    resolvePeer(peerId: string): ClientNode;
-    tryResolvePeer(peerId: string): ClientNode | undefined;
+    resolvePeer(peer: PeerAddress): ClientNode;
+    tryResolvePeer(peer: PeerAddress): ClientNode | undefined;
     setIntent<I>(peer: ClientNode, kind: ItemKind<I>, key: string, intent: I, mode?: ItemMode): Promise<void>;
     removeIntent(peer: ClientNode, kind: ItemKind, key: string): Promise<void>;
     removeIntentIfUnreferenced(peer: ClientNode, kind: ItemKind, key: string): Promise<boolean>;

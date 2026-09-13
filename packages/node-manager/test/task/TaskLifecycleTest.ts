@@ -12,6 +12,8 @@ import { RunId } from "#task/types.js";
 import { Environment } from "@matter/general";
 import { ClientNode, ItemKind, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
+import { testAddress } from "./helpers.js";
 import {
     kindOf,
     isTerminalState,
@@ -34,8 +36,8 @@ class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
@@ -102,7 +104,7 @@ function gatePhase(peerId: string, kind: ItemKind, key: string): TaskPhase {
     return {
         name: "gate",
         run: async ctx => {
-            const peer = ctx.resolvePeer(peerId);
+            const peer = ctx.resolvePeer(testAddress(peerId));
             await ctx.setIntent(peer, kind, key, {});
             await ctx.awaitCommitted([{ peer, kind, key }]);
         },
@@ -180,7 +182,7 @@ describe("phase preconditions", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         const { phase } = countingPhase(2, async ctx => {
-            await ctx.setIntent(ctx.resolvePeer("pre3"), kindOf("groupMembership"), "P", { v: 2 });
+            await ctx.setIntent(ctx.resolvePeer(testAddress("pre3")), kindOf("groupMembership"), "P", { v: 2 });
         });
         SyntheticTask.phasesByTag["after"] = [phase];
 
@@ -304,7 +306,7 @@ describe("Task lifecycle", () => {
                 {
                     name: "create",
                     run: async ctx => {
-                        const node = ctx.resolvePeer("rj");
+                        const node = ctx.resolvePeer(testAddress("rj"));
                         await ctx.setIntent(node, kindOf("groupMembership"), "OK", {});
                         await ctx.setIntent(node, kindOf("groupMembership"), "R", {});
                         await ctx.awaitCommitted([
@@ -360,7 +362,7 @@ describe("Task lifecycle", () => {
                 {
                     name: "create",
                     run: async ctx => {
-                        const node = ctx.resolvePeer("cp");
+                        const node = ctx.resolvePeer(testAddress("cp"));
                         await ctx.setIntent(node, kindOf("groupMembership"), "A", {});
                         await ctx.setIntent(node, kindOf("groupMembership"), "B", {});
                     },
@@ -529,7 +531,7 @@ describe("Task lifecycle", () => {
                 {
                     name: "touch",
                     run: async ctx => {
-                        await ctx.setIntent(ctx.resolvePeer("rb"), kindOf("groupMembership"), "B", {});
+                        await ctx.setIntent(ctx.resolvePeer(testAddress("rb")), kindOf("groupMembership"), "B", {});
                         await held;
                         throw new TaskFailedError("forced failure");
                     },
