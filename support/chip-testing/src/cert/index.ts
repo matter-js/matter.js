@@ -68,10 +68,23 @@ Boot.init(() => {
 });
 const deviceQueues = new Map<string, LineQueue>();
 
+/**
+ * Whether a certification device has been constructed in this process.
+ *
+ * Every chip spec file loads this module, but only a certification test registers a device to claim log lines.  Without
+ * this gate the unclaimed-line fallback below treats an ordinary chip run — where nothing claims anything — as a run
+ * full of lines nobody wanted, and prints the whole device log for tests that passed.
+ */
+let certDevicesRegistered = false;
+
 // Boot.reboot() runs before every spec file and replaces Logger.destinations wholesale (see
 // Logger.ts's own Boot.init), so a one-time install at module load would stop forwarding device log
 // lines from the second cert-test file onward. Boot.init re-runs this on every reboot instead.
 Boot.init(() => {
+    // Scoped per spec file, like the destination itself: a certification file that registers devices must not leave
+    // the fallback armed for an ordinary chip file that runs after it in the same process
+    certDevicesRegistered = false;
+
     Logger.destinations["cert-matterjs-device"] = OriginDestination("cert-matterjs-device", "device", text => {
         const id = activeDeviceId.getStore();
         const queue = id === undefined ? undefined : deviceQueues.get(id);
@@ -80,7 +93,7 @@ Boot.init(() => {
             return;
         }
 
-        if (controllerAdapterClaimsLogs()) {
+        if (controllerAdapterClaimsLogs() || !certDevicesRegistered) {
             return;
         }
 
@@ -144,6 +157,7 @@ class MatterJsCertDevice implements CertDevice {
         this.#id = id;
         this.#queue = new LineQueue();
         deviceQueues.set(id, this.#queue);
+        certDevicesRegistered = true;
         this.#releaseLogOrigin = registerLogOrigin(environment.logOrigin, "device", this.#queue);
         this.log = new LogFollower(this.#queue, id);
     }
