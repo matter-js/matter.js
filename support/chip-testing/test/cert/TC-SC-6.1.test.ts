@@ -32,10 +32,12 @@ certTest("TC-SC-6.1", {
     pics: ["MCORE.ROLE.COMMISSIONER", "GRPKEY.C"],
     app: "all-clusters",
 
-    // CHIP master retired the legacy group key path this exercises: Groups moved to cluster revision 5 and
-    // GroupKeyManagement's Groupcast adoption now answers a GroupKeyMap write with InvalidInState, so binding a
-    // group key fails before AddGroup is reached.  The released certification binaries predate that change
-    chipBinsSources: ["cert-bins"],
+    // Binds a group key through GroupKeyMap, which an all-clusters build with Groupcast on refuses once Groups
+    // reaches cluster revision 5.  Only this project's own build offers the variant with Groupcast off; the released
+    // binaries predate the change and run the ordinary app.  A chip-docker image runs its own binary and can offer
+    // neither, so it is left out
+    appVariant: { matterjs: "nogroupcast" },
+    flavors: ["chip-local", "matterjs"],
 })
     .step("1a", "TH should have the ACL entry with the AuthMode as Group by DUT", aclAdmitsGroupStep(commissioned), {
         expected:
