@@ -146,13 +146,14 @@ export class BdxMessenger {
     /**
      * Encodes and sends a Bdx BlockQuery message.
      *
-     * `receivedLength` is the data length of the Block this query follows.  A driving receiver acks nothing until
-     * the transfer ends, so its next query is the only message that can carry what the last one delivered.
+     * `received` names the Block this query follows.  A driving receiver acks nothing until the transfer ends, so
+     * its next query is the only message that can carry what the last one delivered — and this query's own counter
+     * is the block being asked for, not the one that arrived.
      */
-    async sendBlockQuery(message: BdxBlockQuery, receivedLength?: number) {
+    async sendBlockQuery(message: BdxBlockQuery, received?: { blockCounter: number; dataLength: number }) {
         await this.send(
             { kind: BdxMessageType.BlockQuery, message },
-            { cnt: message.blockCounter, rcvdLen: receivedLength },
+            { cnt: message.blockCounter, rcvdCnt: received?.blockCounter, rcvdLen: received?.dataLength },
         );
     }
 

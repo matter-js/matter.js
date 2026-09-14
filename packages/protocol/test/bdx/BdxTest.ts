@@ -1380,8 +1380,8 @@ describe("BdxTest", () => {
 
             expect(sentBdxLines(receiver, [BdxMessageType.BlockQuery])).deep.equals([
                 "BlockQuery cnt: 0",
-                `BlockQuery cnt: 1 rcvdLen: ${blockSize}`,
-                `BlockQuery cnt: 2 rcvdLen: ${blockSize}`,
+                `BlockQuery cnt: 1 rcvdCnt: 0 rcvdLen: ${blockSize}`,
+                `BlockQuery cnt: 2 rcvdCnt: 1 rcvdLen: ${blockSize}`,
             ]);
 
             expect(sentBdxLines(sender, [BdxMessageType.Block, BdxMessageType.BlockEof])).deep.equals([

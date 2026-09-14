@@ -12,7 +12,7 @@ import { InboundFlow } from "./InboundFlow.js";
  * - Last message is confirmed with an AckEof
  */
 export class DrivingReceivingFlow extends InboundFlow {
-    #lastReceivedLength?: number;
+    #lastReceived?: { blockCounter: number; dataLength: number };
 
     async transferNextChunk() {
         const { writeController } = this.stream;
@@ -21,7 +21,7 @@ export class DrivingReceivingFlow extends InboundFlow {
 
         // Query next block (We never Ack block from before because we are usually never sleepy)
         // Think about cases to use BlockQueryWithSkip
-        await this.messenger.sendBlockQuery({ blockCounter }, this.#lastReceivedLength);
+        await this.messenger.sendBlockQuery({ blockCounter }, this.#lastReceived);
 
         // Read returned Block
         const {
@@ -30,7 +30,7 @@ export class DrivingReceivingFlow extends InboundFlow {
         } = await this.messenger.readBlock();
         this.validateCounter(dataBlockCounter, blockCounter);
         this.transferredBytes += data.byteLength;
-        this.#lastReceivedLength = data.byteLength;
+        this.#lastReceived = { blockCounter: dataBlockCounter, dataLength: data.byteLength };
 
         // Write the received data chunk into the writing stream
         if (this.writeDataChunk(writeController, data, messageType)) {
