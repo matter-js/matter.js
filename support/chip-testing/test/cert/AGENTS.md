@@ -2639,6 +2639,13 @@ none of them is visible from the plan document:
   adds a camera-controller endpoint to the in-process controller; chip-tool's adapter refuses the
   option, since a commissioner process is not a node. A case wanting this must therefore skip on any
   other controller implementation, which is what makes it matter.js-only rather than a flavor gap.
+- **The provider's Offer beats a registration made after the solicitation's response.** chip's camera
+  invokes `Offer` from inside its own handling of `SolicitOffer`, so where controller and provider
+  share a host the Offer lands first and a session registered on the response is refused — a failure
+  that looks exactly like the defect the case hunts. Register the id the provider is about to mint
+  *before* soliciting (ids are sequential, `WebRTCTransportProviderCluster::GenerateSessionId`) and
+  confirm it against the answer. A local run over a Docker bridge is slow enough to hide this; CI is
+  not.
 - **A refusal is only evidence once something comparable was accepted.** The requestor refuses
   signaling for every id it does not track, so "it answered `NOT_FOUND`" is satisfied by an
   implementation that looked at nothing. Registering the id the provider minted

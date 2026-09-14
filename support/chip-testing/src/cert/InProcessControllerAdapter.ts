@@ -23,6 +23,7 @@ import {
     Seconds,
     ServerNode,
     Time,
+    Timer,
     UnexpectedDataError,
 } from "@matter/main";
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
@@ -1102,6 +1103,8 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     readonly #signals = new Array<WebRtcSignalRecord>();
     readonly #waiters = new Set<(signal: WebRtcSignalRecord | undefined) => void>();
     readonly #observers = new ObserverGroup();
+    readonly #dispatch = new Array<WebRtcSignalRecord>();
+    #dispatching?: Timer;
     #closed = false;
 
     constructor(adapterId: string, endpoint: Endpoint<typeof CameraControllerDevice>, fabric: Fabric) {
@@ -1200,6 +1203,9 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     close() {
         this.#closed = true;
         this.#observers.close();
+        this.#dispatching?.stop();
+        this.#dispatching = undefined;
+        this.#dispatch.length = 0;
         for (const waiter of [...this.#waiters]) {
             waiter(undefined);
         }
@@ -1209,8 +1215,20 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     #record(kind: WebRtcSignalRecord["kind"], sessionId: number, outcome: WebRtcSignalRecord["outcome"]) {
         const signal: WebRtcSignalRecord = { kind, sessionId, outcome, at: Time.nowUs };
         this.#signals.push(signal);
-        for (const waiter of [...this.#waiters]) {
-            waiter(signal);
+
+        // These events fire inside the transaction handling the peer's command, which holds the
+        // cluster's state lock; a waiter resumed here writes to that state and fails to lock it
+        this.#dispatch.push(signal);
+        if (this.#dispatching === undefined) {
+            this.#dispatching = Time.getTimer("webrtc signal dispatch", Millis(0), () => {
+                this.#dispatching = undefined;
+                const pending = this.#dispatch.splice(0);
+                for (const each of pending) {
+                    for (const waiter of [...this.#waiters]) {
+                        waiter(each);
+                    }
+                }
+            }).start();
         }
     }
 }

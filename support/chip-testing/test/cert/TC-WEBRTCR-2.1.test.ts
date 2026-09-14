@@ -236,7 +236,7 @@ async function proveOfferRefused(
                 : `the DUT accepted an Offer for session(s) ${accepted.map(signal => signal.sessionId).join(", ")}`,
     });
 
-    const control = await proveOfferAccepted(cx, node, requestor, videoStreamId, ref);
+    const control = await proveOfferAccepted(cx, node, requestor, videoStreamId, ref, faulted);
 
     return refusedForeignId && keptSession && accepted.length === 0 && control ? "pass" : "fail";
 }
@@ -248,6 +248,13 @@ async function proveOfferRefused(
  * Beyond the plan's five steps, and the only thing that makes the refusal above evidence: a requestor
  * that answers NotFound to everything, having looked at nothing, satisfies every check the plan itself
  * asks for.
+ *
+ * Registers the id the provider is about to mint *before* soliciting, because the provider invokes
+ * `Offer` from within its own handling of the solicitation: where controller and provider share a
+ * host, that Offer arrives before the solicitation's response has been read, and a registration made
+ * after the response is always too late. Session ids are minted in sequence
+ * (`WebRTCTransportProviderCluster::GenerateSessionId`), so the next one follows the session already
+ * held; the solicitation's answer then confirms which id the provider actually chose.
  */
 async function proveOfferAccepted(
     cx: CertStepContext,
@@ -255,8 +262,16 @@ async function proveOfferAccepted(
     requestor: WebRtcRequestorApi,
     videoStreamId: number,
     ref: CertNodeRef,
+    held: number,
 ): Promise<boolean> {
+    const expected = held + 1;
+    await registerSession(requestor, expected, videoStreamId, ref);
+
     const control = await solicitSession(node, requestor, videoStreamId, ref);
+    if (control !== expected) {
+        await requestor.removeSession(expected);
+    }
+
     const accepted = await requestor.nextSignal(
         signal => signal.kind === "offer" && signal.outcome === "accepted" && signal.sessionId === control,
         REFUSAL_TIMEOUT,
@@ -268,7 +283,11 @@ async function proveOfferAccepted(
         detail:
             accepted === undefined
                 ? `the DUT accepted no Offer for session ${control}, solicited with the fault spent, so its refusal ` +
-                  "of the corrupted id says nothing about the id"
+                  `of the corrupted id says nothing about the id` +
+                  (control === expected
+                      ? ""
+                      : ` (the provider minted ${control} where ${expected} was registered ahead of it, so its Offer ` +
+                        "may have arrived before the registration)")
                 : `the DUT accepted the Offer for session ${control}, so it refuses by session id rather than ` +
                   "refusing every Offer",
     });
@@ -286,9 +305,8 @@ async function allocateVideoStream(node: CertNodeApi): Promise<number> {
 }
 
 /**
- * Solicits an offer and registers the session the provider minted, so the provider's Offer for that id
- * is accepted. Registration precedes the Offer only by the provider's own turnaround, which is the same
- * race chip's camera-controller runs.
+ * Solicits an offer and registers the session the provider minted, so the provider's signaling for that
+ * id is accepted.
  */
 async function solicitSession(
     node: CertNodeApi,
@@ -311,15 +329,24 @@ async function solicitSession(
     );
     const webRtcSessionId = numberField(solicitation, "webRtcSessionId", "SolicitOfferResponse");
 
+    await registerSession(requestor, webRtcSessionId, videoStreamId, ref);
+
+    return webRtcSessionId;
+}
+
+async function registerSession(
+    requestor: WebRtcRequestorApi,
+    id: number,
+    videoStreamId: number,
+    ref: CertNodeRef,
+): Promise<void> {
     await requestor.upsertSession({
-        id: webRtcSessionId,
+        id,
         peer: ref,
         peerEndpointId: PROVIDER_ENDPOINT,
         streamUsage: StreamUsage.Recording,
         videoStreamId,
     });
-
-    return webRtcSessionId;
 }
 
 /**
