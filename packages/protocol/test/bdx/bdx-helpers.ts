@@ -1,9 +1,11 @@
 import { BdxSessionConfiguration } from "#bdx/BdxSessionConfiguration.js";
 import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage, ScopedStorage } from "#bdx/index.js";
 import { Message } from "#codec/MessageCodec.js";
+import type { ExchangeLogContext, ExchangeSendOptions } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { SecureSession } from "#session/index.js";
 import {
+    Bytes,
     createPromise,
     Diagnostic,
     ImplementationError,
@@ -88,6 +90,8 @@ export async function bdxTransfer(params: {
         meta: {
             clientExchangeData: MessageRecords[];
             serverExchangeData: MessageRecords[];
+            clientSent: SentMessageLog[];
+            serverSent: SentMessageLog[];
             clientError?: any;
             serverError?: any;
         },
@@ -170,6 +174,8 @@ export async function bdxTransfer(params: {
             params.validate(clientStorage, serverStorage, {
                 clientExchangeData,
                 serverExchangeData,
+                clientSent: sendingExchange.sent,
+                serverSent: receivingExchange.sent,
                 clientError,
                 serverError,
             }),
@@ -194,8 +200,25 @@ function parseMessage(message: Message): MessageRecords {
     return { type, data };
 }
 
+/**
+ * One message a BDX flow sent, named by type and carrying the fields BDX asked the exchange to log with it.
+ *
+ * The mock channel never reaches {@link MessageChannel.send}, where an outbound message is rendered, so what the
+ * flow asked to be logged is only observable here.
+ */
+export type SentMessageLog = { type: BdxMessageType; logContext?: ExchangeLogContext };
+
+class RecordingExchange extends ProtocolMocks.Exchange {
+    readonly sent = new Array<SentMessageLog>();
+
+    override async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
+        this.sent.push({ type: messageType as BdxMessageType, logContext: options?.logContext });
+        return super.send(messageType, payload, options);
+    }
+}
+
 function createExchange(index: number) {
-    return new ProtocolMocks.Exchange({
+    return new RecordingExchange({
         index,
         fabricIndex: index,
         maxPayloadSize: 1024,

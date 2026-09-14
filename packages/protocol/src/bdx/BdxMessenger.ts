@@ -7,6 +7,7 @@
 import { Message } from "#codec/MessageCodec.js";
 import { ExchangeProvider } from "#protocol/index.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     Diagnostic,
     Duration,
@@ -99,9 +100,10 @@ export class BdxMessenger {
         return BdxMessage.decode(messageType, message.payload);
     }
 
-    async send(bdxMessage: BdxMessage<any>) {
+    async send(bdxMessage: BdxMessage<any>, logContext?: ExchangeLogContext) {
         await this.exchange.send(bdxMessage.kind, BdxMessage.encode(bdxMessage), {
             expectedProcessingTime: this.#messageTimeout,
+            logContext,
         });
     }
 
@@ -135,38 +137,60 @@ export class BdxMessenger {
 
     /** Encodes and sends a Bdx Block message. */
     async sendBlock(message: BdxBlock) {
-        logger.debug(`Sending Bdx Block cnt: ${message.blockCounter}, len: ${message.data.byteLength}bytes`);
-        await this.send({ kind: BdxMessageType.Block, message });
+        await this.send(
+            { kind: BdxMessageType.Block, message },
+            { cnt: message.blockCounter, len: message.data.byteLength },
+        );
     }
 
-    /** Encodes and sends a Bdx BlockQuery message. */
-    async sendBlockQuery(message: BdxBlockQuery) {
-        logger.debug(`Sending Bdx BlockQuery cnt: ${message.blockCounter}`);
-        await this.send({ kind: BdxMessageType.BlockQuery, message });
+    /**
+     * Encodes and sends a Bdx BlockQuery message.
+     *
+     * `receivedLength` is the data length of the Block this query follows.  A driving receiver acks nothing until
+     * the transfer ends, so its next query is the only message that can carry what the last one delivered.
+     */
+    async sendBlockQuery(message: BdxBlockQuery, receivedLength?: number) {
+        await this.send(
+            { kind: BdxMessageType.BlockQuery, message },
+            { cnt: message.blockCounter, rcvdLen: receivedLength },
+        );
     }
 
     /** Encodes and sends a Bdx BlockQueryWithSkip message. */
     async sendBlockQueryWithSkip(message: BdxBlockQueryWithSkip) {
-        logger.debug(`Sending Bdx BlockQueryWithSkip cnt: ${message.blockCounter}, skip: ${message.bytesToSkip}bytes`);
-        await this.send({ kind: BdxMessageType.BlockQueryWithSkip, message });
+        await this.send(
+            { kind: BdxMessageType.BlockQueryWithSkip, message },
+            { cnt: message.blockCounter, skip: message.bytesToSkip },
+        );
     }
 
     /** Encodes and sends a Bdx BlockEof message. */
     async sendBlockEof(message: BdxBlockEof) {
-        logger.debug(`Sending Bdx BlockEof cnt: ${message.blockCounter}, len: ${message.data.byteLength}bytes`);
-        await this.send({ kind: BdxMessageType.BlockEof, message });
+        await this.send(
+            { kind: BdxMessageType.BlockEof, message },
+            { cnt: message.blockCounter, len: message.data.byteLength },
+        );
     }
 
-    /** Encodes and sends a Bdx BlockAck message. */
-    async sendBlockAck(message: BdxBlockAck) {
-        logger.debug(`Sending Bdx BlockAck cnt: ${message.blockCounter}`);
-        await this.send({ kind: BdxMessageType.BlockAck, message });
+    /**
+     * Encodes and sends a Bdx BlockAck message.
+     *
+     * `acknowledgedLength` is the data length of the Block being acknowledged.  An inbound message is logged on
+     * arrival, before BDX decodes it, so the receiver's own ack is where a reader learns what arrived.
+     */
+    async sendBlockAck(message: BdxBlockAck, acknowledgedLength?: number) {
+        await this.send(
+            { kind: BdxMessageType.BlockAck, message },
+            { cnt: message.blockCounter, ackLen: acknowledgedLength },
+        );
     }
 
-    /** Encodes and sends a Bdx BlockAckEof message */
-    async sendBlockAckEof(message: BdxBlockAckEof) {
-        logger.debug(`Sending Bdx BlockAckEof cnt: ${message.blockCounter}`);
-        await this.send({ kind: BdxMessageType.BlockAckEof, message });
+    /** Encodes and sends a Bdx BlockAckEof message.  `acknowledgedLength` as for {@link sendBlockAck}. */
+    async sendBlockAckEof(message: BdxBlockAckEof, acknowledgedLength?: number) {
+        await this.send(
+            { kind: BdxMessageType.BlockAckEof, message },
+            { cnt: message.blockCounter, ackLen: acknowledgedLength },
+        );
     }
 
     /** Read the next Block message, accepts Block and BlockEof messages. Returns the decoded message and it's type. */
@@ -176,9 +200,6 @@ export class BdxMessenger {
             // a Block message must not have empty data
             throw new BdxError("Received empty data in Block message", BdxStatusCode.BadMessageContent);
         }
-        logger.debug(
-            `Received Bdx ${BdxMessageType[block.kind]} cnt: ${block.message.blockCounter}, len: ${block.message.data.byteLength}bytes`,
-        );
         return block;
     }
 
@@ -195,7 +216,6 @@ export class BdxMessenger {
         ]);
         let expectedBlockMessageCounter: number | undefined = undefined;
         if (BdxMessage.is(response, BdxMessageType.BlockAck)) {
-            logger.debug(`Received Bdx BlockAck cnt: ${response.message.blockCounter}`);
             expectedBlockMessageCounter = (response.message.blockCounter + 1) % 0x100000000; // wrap around at 2^32
             response = await this.nextMessage([BdxMessageType.BlockQuery, BdxMessageType.BlockQueryWithSkip]);
         }
@@ -211,9 +231,6 @@ export class BdxMessenger {
             );
         }
 
-        logger.debug(
-            `Received Bdx ${BdxMessageType[response.kind]} cnt: ${response.message.blockCounter}${BdxMessage.is(response, BdxMessageType.BlockQueryWithSkip) ? `, skip: ${response.message.bytesToSkip}bytes` : ""}`,
-        );
         return response;
     }
 
@@ -221,7 +238,6 @@ export class BdxMessenger {
     async readBlockAckEof(): Promise<BdxBlockAckEof> {
         const response = await this.nextMessage([BdxMessageType.BlockAckEof]);
         BdxMessage.assert(response, BdxMessageType.BlockAckEof);
-        logger.debug(`Received Bdx BlockAckEof cnt: ${response.message.blockCounter}`);
         return response.message;
     }
 
@@ -229,7 +245,6 @@ export class BdxMessenger {
     async readBlockAck(): Promise<BdxBlockAck> {
         const response = await this.nextMessage([BdxMessageType.BlockAck]);
         BdxMessage.assert(response, BdxMessageType.BlockAck);
-        logger.debug(`Received Bdx BlockAck cnt: ${response.message.blockCounter}`);
         return response.message;
     }
 

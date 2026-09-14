@@ -14,7 +14,7 @@ import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
 import { Bytes, MemoryBlobStorageDriver, StandardCrypto } from "@matter/general";
 import { BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "@matter/types";
-import { bdxTransfer, captureLogs, CapturedLogLine } from "./bdx-helpers.js";
+import { bdxTransfer, captureLogs, SentMessageLog } from "./bdx-helpers.js";
 
 /** Write raw bytes into blob storage under a ScopedStorage's context hierarchy using synchronous set. */
 function writeBlob(storage: ScopedStorage, key: string, data: Bytes) {
@@ -28,11 +28,16 @@ function readBlob(storage: ScopedStorage, key: string): Uint8Array | undefined {
     return driver.getBytes(storage.baseContexts, key);
 }
 
-/** The first (message) argument of every captured "BdxMessenger" log line whose first argument matches `pattern`. */
-function bdxMessengerLines(logs: CapturedLogLine[], pattern: RegExp) {
-    return logs
-        .filter(({ facility, values }) => facility === "BdxMessenger" && pattern.test(`${values[0]}`))
-        .map(({ values }) => `${values[0]}`);
+/** Every message of the named kinds a flow sent, as `<name> <field>: <value>…` from what it asked to be logged. */
+function sentBdxLines(sent: SentMessageLog[], kinds: BdxMessageType[]) {
+    return sent
+        .filter(({ type }) => kinds.includes(type))
+        .map(({ type, logContext }) => {
+            const fields = Object.entries(logContext ?? {})
+                .filter(([, value]) => value !== undefined) // as the log renderer itself suppresses them
+                .map(([key, value]) => `${key}: ${value}`);
+            return [BdxMessageType[type], ...fields].join(" ");
+        });
 }
 
 describe("BdxTest", () => {
@@ -1303,6 +1308,8 @@ describe("BdxTest", () => {
         it("Block/BlockEof/BlockAck/BlockAckEof count blocks from zero (Sender-Driver)", async () => {
             const data = crypto.randomBytes(2 * blockSize + tailSize);
             let fd: PersistedFileDesignator;
+            let sender!: SentMessageLog[];
+            let receiver!: SentMessageLog[];
 
             const logs = await captureLogs(() =>
                 bdxTransfer({
@@ -1315,32 +1322,23 @@ describe("BdxTest", () => {
                             expectedInitialMessageType: BdxMessageType.SendInit,
                         };
                     },
-                    validate: async () => {},
+                    validate: async (_c, _s, { clientSent, serverSent }) => {
+                        sender = clientSent;
+                        receiver = serverSent;
+                    },
                 }),
             );
 
-            expect(bdxMessengerLines(logs, /^Sending Bdx Block(Eof)? cnt:/)).deep.equals([
-                `Sending Bdx Block cnt: 0, len: ${blockSize}bytes`,
-                `Sending Bdx Block cnt: 1, len: ${blockSize}bytes`,
-                `Sending Bdx BlockEof cnt: 2, len: ${tailSize}bytes`,
+            expect(sentBdxLines(sender, [BdxMessageType.Block, BdxMessageType.BlockEof])).deep.equals([
+                `Block cnt: 0 len: ${blockSize}`,
+                `Block cnt: 1 len: ${blockSize}`,
+                `BlockEof cnt: 2 len: ${tailSize}`,
             ]);
 
-            expect(bdxMessengerLines(logs, /^Received Bdx BlockAck/)).deep.equals([
-                "Received Bdx BlockAck cnt: 0",
-                "Received Bdx BlockAck cnt: 1",
-                "Received Bdx BlockAckEof cnt: 2",
-            ]);
-
-            expect(bdxMessengerLines(logs, /^Received Bdx Block(Eof)? cnt:/)).deep.equals([
-                `Received Bdx Block cnt: 0, len: ${blockSize}bytes`,
-                `Received Bdx Block cnt: 1, len: ${blockSize}bytes`,
-                `Received Bdx BlockEof cnt: 2, len: ${tailSize}bytes`,
-            ]);
-
-            expect(bdxMessengerLines(logs, /^Sending Bdx BlockAck/)).deep.equals([
-                "Sending Bdx BlockAck cnt: 0",
-                "Sending Bdx BlockAck cnt: 1",
-                "Sending Bdx BlockAckEof cnt: 2",
+            expect(sentBdxLines(receiver, [BdxMessageType.BlockAck, BdxMessageType.BlockAckEof])).deep.equals([
+                `BlockAck cnt: 0 ackLen: ${blockSize}`,
+                `BlockAck cnt: 1 ackLen: ${blockSize}`,
+                `BlockAckEof cnt: 2 ackLen: ${tailSize}`,
             ]);
 
             const flowStarted = logs.filter(
@@ -1357,42 +1355,43 @@ describe("BdxTest", () => {
         it("BlockQuery carries an ascending block counter starting at 0 (Receiver-Driver)", async () => {
             const data = crypto.randomBytes(2 * blockSize + tailSize);
             let fd: PersistedFileDesignator;
+            let sender!: SentMessageLog[];
+            let receiver!: SentMessageLog[];
 
-            const logs = await captureLogs(() =>
-                bdxTransfer({
-                    prepare: async (clientStorage, _serverStorage, messenger) => {
-                        fd = new PersistedFileDesignator("data", clientStorage);
-                        writeBlob(clientStorage, "data", data);
+            await bdxTransfer({
+                prepare: async (clientStorage, _serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
+                    writeBlob(clientStorage, "data", data);
 
-                        return {
-                            bdxClient: BdxClient.asSender(messenger, {
-                                fileDesignator: fd,
-                                maxBlockSize: blockSize,
-                                preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
-                            }),
-                            expectedInitialMessageType: BdxMessageType.SendInit,
-                        };
-                    },
-                    validate: async () => {},
-                }),
-            );
+                    return {
+                        bdxClient: BdxClient.asSender(messenger, {
+                            fileDesignator: fd,
+                            maxBlockSize: blockSize,
+                            preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
+                        }),
+                        expectedInitialMessageType: BdxMessageType.SendInit,
+                    };
+                },
+                validate: async (_c, _s, { clientSent, serverSent }) => {
+                    sender = clientSent;
+                    receiver = serverSent;
+                },
+            });
 
-            expect(bdxMessengerLines(logs, /^Sending Bdx BlockQuery/)).deep.equals([
-                "Sending Bdx BlockQuery cnt: 0",
-                "Sending Bdx BlockQuery cnt: 1",
-                "Sending Bdx BlockQuery cnt: 2",
+            expect(sentBdxLines(receiver, [BdxMessageType.BlockQuery])).deep.equals([
+                "BlockQuery cnt: 0",
+                `BlockQuery cnt: 1 rcvdLen: ${blockSize}`,
+                `BlockQuery cnt: 2 rcvdLen: ${blockSize}`,
             ]);
 
-            expect(bdxMessengerLines(logs, /^Received Bdx BlockQuery/)).deep.equals([
-                "Received Bdx BlockQuery cnt: 0",
-                "Received Bdx BlockQuery cnt: 1",
-                "Received Bdx BlockQuery cnt: 2",
+            expect(sentBdxLines(sender, [BdxMessageType.Block, BdxMessageType.BlockEof])).deep.equals([
+                `Block cnt: 0 len: ${blockSize}`,
+                `Block cnt: 1 len: ${blockSize}`,
+                `BlockEof cnt: 2 len: ${tailSize}`,
             ]);
 
-            expect(bdxMessengerLines(logs, /^Sending Bdx Block(Eof)? cnt:/)).deep.equals([
-                `Sending Bdx Block cnt: 0, len: ${blockSize}bytes`,
-                `Sending Bdx Block cnt: 1, len: ${blockSize}bytes`,
-                `Sending Bdx BlockEof cnt: 2, len: ${tailSize}bytes`,
+            expect(sentBdxLines(receiver, [BdxMessageType.BlockAckEof])).deep.equals([
+                `BlockAckEof cnt: 2 ackLen: ${tailSize}`,
             ]);
         });
     });
