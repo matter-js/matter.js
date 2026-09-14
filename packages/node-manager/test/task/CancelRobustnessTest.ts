@@ -867,13 +867,20 @@ describe("cancel robustness", () => {
         TestTaskManager.peers.set("iw", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        // One phase that writes and returns, so the driver's next act is the write advancing past it.
+        // One phase that writes and returns, so the driver's next act is the write advancing past it. It holds
+        // between the two, because the write recording what it is about to change takes the persist mutex as
+        // well: taken any earlier, the hold below would stop the phase rather than the write that follows it.
+        let phaseWrote = false;
         let phaseReturned = false;
+        let releasePhase!: () => void;
+        const phaseHeld = new Promise<void>(resolve => (releasePhase = resolve));
         SyntheticTask.phasesByTag["inwindow"] = [
             {
                 name: "touch",
                 run: async ctx => {
                     await ctx.setIntent(ctx.resolvePeer(testAddress("iw")), kindOf("groupMembership"), "W", {});
+                    phaseWrote = true;
+                    await phaseHeld;
                     phaseReturned = true;
                 },
             },
@@ -887,27 +894,35 @@ describe("cancel robustness", () => {
         });
         const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "inwindow" }));
 
-        // The mutex is taken before the phase runs, so the write advancing the phase index queues on it. Then
-        // we wait for the phase to have *returned*: the driver has passed its post-phase check on the
+        // The mutex is taken once the phase has written, so the write advancing the phase index queues on it.
+        // Then we wait for the phase to have *returned*: the driver has passed its post-phase check on the
         // transition claim by then, and the loop top it is heading for does not consult that claim at all — so
         // a cancel accepted now finds a run that goes on to commit `completed`.
+        await pumpUntil("phase wrote", () => phaseWrote);
         const release = manager.holdPersistMutex();
-        await pumpUntil("phase returned", () => phaseReturned);
-        const cancelling = MockTime.resolve(
-            node.act(async a => {
-                try {
-                    return await a
-                        .get(TestTaskManager)
-                        .cancel(handle.runId)
-                        .then(c => c.rollback);
-                } catch (e) {
-                    return e;
-                }
-            }),
-            { macrotasks: true },
-        );
-        await MockTime.advance(1);
-        release();
+        let cancelling: Promise<unknown>;
+        try {
+            releasePhase();
+            await pumpUntil("phase returned", () => phaseReturned);
+            cancelling = MockTime.resolve(
+                node.act(async a => {
+                    try {
+                        return await a
+                            .get(TestTaskManager)
+                            .cancel(handle.runId)
+                            .then(c => c.rollback);
+                    } catch (e) {
+                        return e;
+                    }
+                }),
+                { macrotasks: true },
+            );
+            await MockTime.advance(1);
+        } finally {
+            // A held mutex outlives a failure above: dispose awaits its close, so the suite would hang here
+            // instead of reporting what actually went wrong.
+            release();
+        }
 
         // Refused, and refused for the right reason: a run that succeeded is not recorded as cancelled and its
         // priors are not replayed onto the device.

@@ -52,6 +52,18 @@ class TestTaskManager extends TaskManagerBehavior {
     paramsOf(runId: RunId) {
         return this.internal.runs.get(runId)?.params;
     }
+
+    /** Occupy the persist mutex so the next persist queues behind the returned release. */
+    holdPersistMutex(): () => void {
+        const mutex = this.internal.persistMutex;
+        if (mutex === undefined) {
+            throw new InternalError("The persist mutex does not exist yet; run a task first");
+        }
+        let release!: () => void;
+        const held = new Promise<void>(resolve => (release = resolve));
+        mutex.run(() => held);
+        return release;
+    }
 }
 
 const RootEndpoint = MockServerNode.RootEndpoint.with(TestTaskManager);
@@ -761,5 +773,59 @@ describe("run records after a retirement", () => {
         expect(await attempt(node, async m => m.run(SyntheticTask, { tag: "version" }))).instanceOf(
             TaskStoreVersionError,
         );
+    });
+});
+
+describe("recording what a run is about to change", () => {
+    before(() => MockTime.init());
+
+    it("makes the prior durable before the device is changed", async () => {
+        const environment = new Environment("write-ahead");
+        const peer = testPeer("wa");
+        await using node = await makeNode(environment, "write-ahead");
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+
+        let entered = false;
+        let proceed!: () => void;
+        const held = new Promise<void>(resolve => (proceed = resolve));
+        SyntheticTask.phasesByTag["write-ahead"] = [
+            {
+                name: "touch",
+                // Holds before its write so the test can take the persist mutex after the run's own admission
+                // write has landed: taken earlier, the run would never start at all.
+                run: async ctx => {
+                    entered = true;
+                    await held;
+                    await ctx.setIntent(ctx.resolvePeer(testAddress("wa")), kindOf("groupMembership"), "X", { v: 2 });
+                },
+            },
+        ];
+
+        // A first run so the persist mutex exists to be held.
+        const warm = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "warm" }));
+        await warm.settled();
+
+        let manager!: TestTaskManager;
+        await node.act(a => {
+            manager = a.get(TestTaskManager);
+        });
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "write-ahead" }));
+        await pumpUntil("the phase runs", () => entered);
+        const release = manager.holdPersistMutex();
+        try {
+            proceed();
+            for (let i = 0; i < 50; i++) {
+                await MockTime.advance(1);
+            }
+
+            // Storage cannot answer, so the device may not be changed: a crash here would leave the run holding
+            // an intent with no record of what it replaced.
+            expect(peer.items[KEY]).equals(undefined);
+        } finally {
+            // A held mutex outlives a failing assertion: dispose awaits its close, so the suite would hang on
+            // the hold instead of reporting the assertion.
+            release();
+        }
+        await pumpUntil("the intent reaches the device", () => peer.items[KEY] !== undefined);
     });
 });

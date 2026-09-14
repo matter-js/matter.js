@@ -86,6 +86,33 @@ describe("capacity admission", () => {
         await node.close();
     });
 
+    it("refuses a planned change naming a kind the reconciler does not own", async () => {
+        const environment = new Environment("test");
+        // Resolves nothing, so the planned kind below is a name no reconciler owns.
+        const peer = capPeer("p", { limit: 4, used: 0 });
+        TestTaskManager.peers.set("p", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        let ran = false;
+        SyntheticTask.plannedChangesByTag["unowned"] = [
+            { peer: testAddress("p"), kind: kindOf("not-registered"), key: "x", intent: {} },
+        ];
+        SyntheticTask.phasesByTag["unowned"] = [{ name: "should-not-run", run: async () => void (ran = true) }];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-unowned" });
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "unowned" }));
+
+        await awaitState(node, "synthetic:unowned", "failed");
+        const rec = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:unowned");
+        // Refused where the capacity question is asked, rather than at the first write of a run already
+        // holding its target.
+        expect(rec.error).contains('no item kind "not-registered" is registered');
+        expect(rec.changeSet).deep.equals([]);
+        expect(ran).equals(false);
+        await node.close();
+    });
+
     it("does not reject an excludeFromAdmission kind even at its capacity limit", async () => {
         const environment = new Environment("test");
         const peer = new FakePeer("p");

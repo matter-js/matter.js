@@ -12,9 +12,9 @@ import { RunId } from "#task/types.js";
 import { PeerAddress } from "@matter/protocol";
 import { kindOf, FakePeer } from "./helpers.js";
 
-/** peersWithIntent never touches the reconciler; a no-op stand-in avoids depending on the whole behavior. */
-const unusedReconciler: ReconcilerSurface = {
-    itemKind: () => undefined,
+/** peersWithIntent reads desired state; the reconciler only says which kinds it owns. */
+const kindsOnlyReconciler: ReconcilerSurface = {
+    itemKind: name => kindOf(name),
     reconcile: async () => {},
 };
 
@@ -41,7 +41,7 @@ describe("peersWithIntent", () => {
         const ctx = new RunningTaskContext(
             record,
             address => all.find(p => PeerAddress.is(p.address, address))?.asNode(),
-            unusedReconciler,
+            kindsOnlyReconciler,
             (_s: TaskState) => {},
             undefined,
             () => all.map(p => p.asNode()),

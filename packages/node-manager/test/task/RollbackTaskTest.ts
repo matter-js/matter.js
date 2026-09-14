@@ -19,7 +19,7 @@ function runRollback(peer: FakePeer, params: RollbackParams, referenced = new Se
     const setState = (s: TaskState) => {
         record.state = s;
     };
-    (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) =>
+    peer.kindResolver = kind =>
         kindOf(kind, { isReferenced: (_n: unknown, key: string) => referenced.has(`${kind}:${key}`) });
     const ctx = new RunningTaskContext(record, () => peer.asNode(), peer, setState);
     return bound.phases()[0].run(ctx);

@@ -327,9 +327,15 @@ export class FakePeer {
         }
     }
 
+    /**
+     * What this peer's reconciler stand-in registers, for a test that needs a name it does not own, or a kind
+     * whose `isReferenced` answers differently from the shared one.
+     */
+    kindResolver?: (kind: string) => ItemKind | undefined;
+
     /** Reconciler stand-in: resolves any name, and no kind has dependents unless a test supplies one. */
     itemKind(kind: string): ItemKind | undefined {
-        return kindOf(kind);
+        return this.kindResolver === undefined ? kindOf(kind) : this.kindResolver(kind);
     }
 
     dropReasonFor(_peer: ClientNode, kind: string, key: string): string | undefined {

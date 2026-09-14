@@ -89,7 +89,11 @@ export interface TaskStatus {
      * Whether the run changed what a device is asked to hold. A run can fail, be cancelled or be abandoned
      * having changed nothing, and an operator acts on those two cases differently.
      *
-     * True from the moment an intent is written rather than from its commit — see {@link RunView.wrote}.
+     * True from the moment the change is recorded — before the device is asked to hold it, and well before it
+     * commits — because that record is what an undo replays. It can therefore say a run reached a device whose
+     * write then failed; it can never miss one that did. An undo of a change that never landed restores the
+     * value the device already holds, while the reverse would leave a device changed with nothing to restore.
+     * See {@link RunView.wrote}.
      */
     wrote: boolean;
     /** Id the caller of `run` asked for this task under, if it supplied one. */

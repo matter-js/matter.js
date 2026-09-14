@@ -30,6 +30,7 @@ import {
     TaskFinding,
     findingOf,
     TaskManagerClosingError,
+    TaskOutcomeUnrecordedError,
     TaskNoRollbackError,
     TaskNotARollbackError,
     TaskNoLongerTrackedError,
@@ -85,7 +86,10 @@ export interface TaskHandle {
      * {@link TaskCancellation.rollback} names is still undoing what it wrote. Await that handle for the device.
      *
      * Rejects with {@link TaskManagerClosingError} when the manager shuts down first: a run suspended by
-     * shutdown is left for the next start, so this manager will never say how it ended.
+     * shutdown is left for the next start, so this manager will never say how it ended. Rejects with
+     * {@link TaskOutcomeUnrecordedError} for the same reason arrived at differently — the run ended, but
+     * storage refused the write that would have recorded the outcome, so the record keeps the state it had and
+     * a later start states one.
      *
      * A run whose type is not registered here is awaiting resume and settles only once something drives it, so
      * a caller that cannot wait indefinitely races this against its own timeout.
@@ -379,7 +383,10 @@ export class TaskManagerBehavior extends Behavior {
             // Only once the outcome is durable. Releasing the target first would let a new run take it while
             // this record is still stored non-terminal.
             () => this.internal.runs.commitRetirement(record),
-            e => logger.error(`Cannot record ${runLabel(record.runId)} as failed; it keeps its target`, e),
+            e => {
+                logger.error(`Cannot record ${runLabel(record.runId)} as failed; it keeps its target`, e);
+                this.#giveUpOnStating(record, this.#unstated(record.runId));
+            },
         );
     }
 
@@ -790,6 +797,9 @@ export class TaskManagerBehavior extends Behavior {
         if (isTerminal(record.state)) {
             return Promise.resolve();
         }
+        if (this.internal.unstatedRuns.has(record.runId)) {
+            return Promise.reject(this.#unstated(record.runId));
+        }
         // A waiter registered after the closing sweep would never be released by it.
         if (this.#isClosing) {
             return Promise.reject(
@@ -833,6 +843,30 @@ export class TaskManagerBehavior extends Behavior {
         for (const settlement of this.internal.settlementWaiters.get(record.runId) ?? []) {
             settlement.resolve();
         }
+    }
+
+    /**
+     * Stop answering for a run whose outcome this manager will never state: its record is durable in the state
+     * it had, the write that would have retired it was refused, and the answer now has to come from a later
+     * start.
+     *
+     * Recorded, not only announced: a waiter arriving afterwards is owed the same answer, and nothing else
+     * would give it one — the record stays non-terminal, so {@link #noteOutcome} never fires for it and the
+     * dispose sweep only runs at shutdown.
+     */
+    #giveUpOnStating(record: RunRecord, cause: Error): void {
+        this.internal.unstatedRuns.add(record.runId);
+        for (const settlement of [...(this.internal.settlementWaiters.get(record.runId) ?? [])]) {
+            settlement.reject(cause);
+        }
+    }
+
+    /** The refusal owed to anyone asking a run this manager stopped stating an outcome for. */
+    #unstated(runId: RunId): TaskOutcomeUnrecordedError {
+        return new TaskOutcomeUnrecordedError(
+            `${runLabel(runId)} did not reach an outcome that could be stored: this task manager has stopped ` +
+                `driving it and the next start resumes it`,
+        );
     }
 
     /**
@@ -1418,8 +1452,8 @@ export class TaskManagerBehavior extends Behavior {
         if (record.changeSet.length === 0) {
             return NO_ROLLBACK;
         }
-        // Copied, not shared: `params` reaches storage by reference, and a phase appends to the record's
-        // changeSet in place, so a shared array would let a later push mutate a persisted rollback's input.
+        // Copied, not shared: `params` reaches storage by reference, so what a rollback replays has to be a
+        // value nothing else can reach — the record it came from goes on being written.
         let bound: BoundDefinition;
         try {
             bound = new BoundDefinition(Rollback, { originalRunId: record.runId, entries: [...record.changeSet] });
@@ -1482,10 +1516,17 @@ export class TaskManagerBehavior extends Behavior {
                 continue; // unresolvable peer: the phase gate will park; capacity is re-checked on device write
             }
             const itemKind = await this.endpoint.act(agent => this.taskReconciler(agent).itemKind(kind.kind));
-            if (itemKind?.excludeFromAdmission) {
+            // `ItemKind` is structural, so a name the reconciler does not own would skip the capacity question
+            // altogether and admit a run that can only fail at its first write, holding its target until then.
+            if (itemKind === undefined) {
+                throw new TaskFailedError(
+                    `${runLabel(execution.runId)}: no item kind "${kind.kind}" is registered, so what it plans to change cannot be admitted`,
+                );
+            }
+            if (itemKind.excludeFromAdmission) {
                 continue; // capacity counts a coarser resource another kind already gates (e.g. membership vs group)
             }
-            const capacity = await itemKind?.capacity?.(peer);
+            const capacity = await itemKind.capacity?.(peer);
             if (capacity === undefined) {
                 continue; // kind reports no capacity limit (e.g. groupKey) — the device write is the gate
             }
@@ -1630,6 +1671,8 @@ export class TaskManagerBehavior extends Behavior {
                     // reading it.
                     this.#noteOutcome(record);
                     this.#report(record);
+                } else {
+                    this.#giveUpOnStating(record, this.#unstated(record.runId));
                 }
                 return;
             }
@@ -1658,6 +1701,7 @@ export class TaskManagerBehavior extends Behavior {
             setState,
             this.#gateFor(execution.gate),
             () => [...this.#rootNode.peers],
+            next => this.#commit({ record, next }),
         );
     }
 
@@ -1826,11 +1870,8 @@ export class TaskManagerBehavior extends Behavior {
             // alongside the run it undoes is as durable as that run, and discarding it later would leave the
             // original naming a rollback nothing holds.
             change.record.recorded = true;
-            for (const [key, value] of Object.entries(change.next ?? {})) {
-                if (value !== undefined) {
-                    Object.assign(change.record, { [key]: value });
-                }
-            }
+            this.internal.unstatedRuns.delete(change.record.runId);
+            change.record.adopt(change.next ?? {});
             change.record.adoptDrop(change.drop ?? []);
         }
         // After every record of the transaction has adopted its write, so an observer reading a second run of
@@ -1846,11 +1887,21 @@ export class TaskManagerBehavior extends Behavior {
     /**
      * Tell observers a run changed. Consumer code, so neither its throw nor its rejection may reach the write
      * that is already durable: reporting an outcome cannot undo it.
+     *
+     * Silent when the status a subscriber would read is the one it was last given. Not every write moves the
+     * status: a phase touching three items writes three times to record what it is about to change, and the
+     * only thing that differs between those writes is a change set no status carries.
      */
     #report(record: RunRecord): void {
+        const status = statusOf(record);
+        const rendered = JSON.stringify(status);
+        if (this.internal.lastReported.get(record) === rendered) {
+            return;
+        }
+        this.internal.lastReported.set(record, rendered);
         let emitted: unknown;
         try {
-            emitted = this.events.runChanged.emit(statusOf(record));
+            emitted = this.events.runChanged.emit(status);
         } catch (e) {
             logger.error(`Observer of ${runLabel(record.runId)} failed`, asError(e));
             return;
@@ -1870,7 +1921,7 @@ export class TaskManagerBehavior extends Behavior {
         await Promise.allSettled(executions.map(execution => execution.promise));
         // A run suspended by shutdown is left non-terminal for the next start, so its outcome is not this
         // manager's to report. Releasing the waiters is what keeps that from reading as a hang.
-        for (const [runId, waiters] of this.internal.settlementWaiters) {
+        for (const [runId, waiters] of [...this.internal.settlementWaiters]) {
             for (const settlement of [...waiters]) {
                 settlement.reject(
                     new TaskManagerClosingError(
@@ -1901,6 +1952,19 @@ export namespace TaskManagerBehavior {
         persistMutex?: Mutex;
         /** Callers awaiting {@link TaskHandle.settled}, by run. Released by #noteOutcome and by dispose. */
         settlementWaiters = new Map<RunId, Set<Settlement>>();
+
+        /**
+         * The status each run's observers were last given, so a write that moves nothing a status carries says
+         * nothing. Weak, so an evicted record takes its entry with it.
+         */
+        lastReported = new WeakMap<RunRecord, string>();
+
+        /**
+         * Runs this manager has stopped stating an outcome for: their record is durable, the write that would
+         * have retired them was refused, and nothing here will drive them again. Cleared by any later write of
+         * the record, which is this manager speaking about the run again.
+         */
+        unstatedRuns = new Set<RunId>();
     }
 
     export class Events extends Behavior.Events {
