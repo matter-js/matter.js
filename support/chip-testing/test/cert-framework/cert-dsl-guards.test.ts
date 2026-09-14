@@ -114,10 +114,8 @@ describe("multi-device declaration guards", () => {
     }
 
     /**
-     * As {@link declare}, but runs the suite body `certTest()` passes to `describe` — the wiring that
-     * picks the primary role lives there, so a guard inside it never fires for {@link declare}. The
-     * body is still not registered as a suite: a real registration would leak a rogue cert test into
-     * this run.
+     * As {@link declare}, but runs the suite body `certTest()` passes to `describe`. The body is still
+     * not registered as a suite: a real registration would leak a rogue cert test into this run.
      */
     function declareAndWire(tc: string, devices: Record<string, string>) {
         const originalDescribe = Reflect.get(globalThis, "describe");
@@ -167,6 +165,26 @@ describe("multi-device declaration guards", () => {
         expect(() => declareAndWire("TC-NO-PRIMARY-0.0", { th2: "ota-provider" })).to.throw(
             'has no role for app "all-clusters"',
         );
+    });
+
+    // The declaration is wrong on every flavor, so the flavor this run happens to use must not decide
+    // whether it is caught — otherwise it hides until someone runs the one flavor that reaches the check
+    it("rejects it on a flavor the test itself excludes", () => {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        Reflect.set(globalThis, "describe", (_name: string, body: () => void) => body());
+        try {
+            expect(() =>
+                certTest("TC-NO-PRIMARY-0.1", {
+                    plan: "n/a",
+                    pics: [],
+                    app: "all-clusters",
+                    devices: { th2: "ota-provider" },
+                    flavors: ["chip-docker"],
+                }),
+            ).to.throw('has no role for app "all-clusters"');
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+        }
     });
 });
 

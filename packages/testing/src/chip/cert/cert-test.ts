@@ -597,11 +597,11 @@ async function runFinalizer(
     const run = finalize(cx);
     const timeout = delay(timeoutMs);
 
-    let outcome: "done" | "exited" | "timeout";
+    let outcome: "done" | "timeout" | { exited: DeviceExit };
     try {
         outcome = await Promise.race([
             run.then((): "done" => "done"),
-            deviceExit.then((): "exited" => "exited"),
+            deviceExit.then(exited => ({ exited })),
             timeout.promise,
         ]);
     } finally {
@@ -617,9 +617,9 @@ async function runFinalizer(
     });
 
     throw new Error(
-        outcome === "exited"
-            ? `Cert test ${tc}: a device exited before the run's cleanup finished`
-            : `Cert test ${tc}: cleanup did not finish within ${timeoutMs}ms`,
+        outcome === "timeout"
+            ? `Cert test ${tc}: cleanup did not finish within ${timeoutMs}ms`
+            : `Cert test ${tc}: device "${outcome.exited.role}" exited before the run's cleanup finished`,
     );
 }
 

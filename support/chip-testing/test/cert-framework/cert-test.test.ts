@@ -1113,7 +1113,7 @@ describe("CertTest", () => {
         const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
 
         await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
-            "a device exited before the run's cleanup finished",
+            'device "th" exited before the run\'s cleanup finished',
         );
     });
 

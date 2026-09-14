@@ -219,6 +219,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         identityFor(index);
         assertUsableRoleName(tc, role);
     });
+    primaryDeviceRole(deviceRoles, options.app);
 
     const definition: CertTestDefinition = {
         tc,
