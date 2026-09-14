@@ -41,14 +41,15 @@ on:
     branches: [ "main" ]
   merge_group:
 
-# A test-only run is grouped by ref and trigger, so a push cannot cancel a manual or scheduled run on the same ref.
+# A run that publishes takes one global slot, because two of them would push the same `latest` manifest and open the
+# same SHA-bump branch; cancellation is off for those, so the second waits rather than overwriting the first. Every
+# other run is grouped by ref and trigger, so a push cannot cancel a manual or scheduled run on the same ref.
 #
-# The two triggers that publish share one key, and that key names no ref. The publishing jobs are restricted to main,
-# so today both runs would land on the same ref anyway; keying on the trigger rather than the ref keeps them in one
-# slot even if that restriction is ever relaxed. They push the same `latest` manifest and open the same SHA-bump
-# branch, so cancellation stays off and the second waits for the first.
+# The condition selecting that slot must match the one on publish-image-amd64 and publish-image-arm64 below: a run
+# that cannot publish must not hold the slot, and a run that can must not escape it. It is stated twice because
+# `concurrency` is evaluated before any job exists and so cannot read what the jobs decide — change one, change both.
 concurrency:
-  group: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'chip-build-test-publish' || format('{0}-{1}-chip-build-test', github.ref, github.event_name) }}
+  group: ${{ (github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) && 'chip-build-test-publish' || format('{0}-{1}-chip-build-test', github.ref, github.event_name) }}
   cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
@@ -370,7 +371,8 @@ jobs:
       test-icd
     ]
     # The branch matters as much as the trigger: this gates the whole publishing chain, which pushes the shared
-    # `latest` tag and, in publish-manifest, opens the SHA-bump branch — both of which describe main and nothing else
+    # `latest` tag and, in publish-manifest, opens the SHA-bump branch — both of which describe main and nothing else.
+    # The workflow's `concurrency` group states the same condition; the two have to agree
     if: >-
       needs.chip-image-amd64.outputs.source == 'artifact' &&
       github.ref == 'refs/heads/main' &&
