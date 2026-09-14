@@ -5,7 +5,14 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
-import { TaskFindingCode, TaskManagerClosingError, TaskNoRollbackError, TaskSlotOccupiedError } from "#task/errors.js";
+import {
+    TaskFailedError,
+    TaskFindingCode,
+    TaskManagerClosingError,
+    TaskNoRollbackError,
+    TaskOutcomeUnrecordedError,
+    TaskSlotOccupiedError,
+} from "#task/errors.js";
 import { TaskDefinition } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase, TaskStatus } from "#task/types.js";
@@ -13,7 +20,7 @@ import { Environment, ImplementationError, InternalError } from "@matter/general
 import { ClientNode, itemMapKey } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import { PeerAddress } from "@matter/protocol";
-import { FakePeer, kindOf, pumpUntil, SyntheticTask, testAddress } from "./helpers.js";
+import { FakePeer, isTerminalState, kindOf, pumpUntil, SyntheticTask, testAddress } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -93,7 +100,7 @@ async function makeNode(name: string) {
 describe("run observation", () => {
     before(() => MockTime.init());
 
-    it("reports every durable change, ending in the run's outcome", async () => {
+    it("reports every change to a run's status, ending in its outcome", async () => {
         await using node = (await makeNode("observe")).node;
 
         const seen = new Array<TaskStatus>();
@@ -113,6 +120,41 @@ describe("run observation", () => {
         expect(seen[seen.length - 1].state).equals("completed");
         // The status carries what storage holds, not what the run is about to write.
         expect(seen[0].state).equals("running");
+    });
+
+    it("says nothing for a write that moves nothing a status carries", async () => {
+        const { node, peer } = await makeNode("observe-quiet");
+        await using _node = node;
+
+        const seen = new Array<TaskStatus>();
+        node.events.taskManager.runChanged.on(status => {
+            seen.push(status);
+        });
+
+        // Three items in one phase: each is recorded before it is written, so three record writes land where
+        // the status changes once.
+        SyntheticTask.phasesByTag["quiet"] = [
+            {
+                name: "touch-three",
+                run: async ctx => {
+                    const target = ctx.resolvePeer(testAddress("observe-quiet"));
+                    for (const key of ["A", "B", "C"]) {
+                        await ctx.setIntent(target, kindOf("groupMembership"), key, { v: 1 });
+                    }
+                },
+            },
+        ];
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "quiet" }));
+        await handle.settled();
+
+        expect(peer.items[itemMapKey("groupMembership", "C")]).not.equals(undefined);
+        // Not a count: a phase parks and resumes as its gates settle, so several distinct statuses are
+        // legitimate. What may never happen is telling a subscriber the same thing twice in a row.
+        const repeated = seen
+            .map(status => JSON.stringify(status))
+            .filter((rendered, i, all) => i > 0 && rendered === all[i - 1]);
+        expect(repeated).deep.equals([]);
+        expect(seen.length).greaterThan(0);
     });
 
     it("settles a run that is already terminal", async () => {
@@ -377,6 +419,48 @@ describe("settling when nothing can be written", () => {
         await settled;
 
         expect(handle.status.state).equals("failed");
+    });
+
+    it("releases a caller waiting on a run whose outcome storage refused after it was recorded", async () => {
+        await using node = (await makeNode("unrecorded-outcome")).node;
+
+        SyntheticTask.phasesByTag["unrecorded-outcome"] = [
+            {
+                name: "write",
+                run: async ctx => {
+                    const peer = ctx.resolvePeer(testAddress("unrecorded-outcome"));
+                    await ctx.setIntent(peer, kindOf("groupMembership"), "X", { v: 1 });
+                },
+            },
+            {
+                name: "boom",
+                // Storage stops answering only once the run is durable, so the failure below has a record it
+                // cannot write to — the case the shutdown test above cannot reach.
+                run: async () => {
+                    await node.act(a => a.get(TestTaskManager).closePersistMutex());
+                    throw new TaskFailedError("storage is gone");
+                },
+            },
+        ];
+
+        const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "unrecorded-outcome" }));
+        let rejection: unknown;
+        const waiting = handle.settled().catch(e => {
+            rejection = e;
+        });
+        await pumpUntil("the waiter is released", () => rejection !== undefined);
+        await waiting;
+
+        expect(rejection).instanceOf(TaskOutcomeUnrecordedError);
+        // The record keeps the state storage holds, so the next start is what states an outcome for it.
+        expect(isTerminalState(handle.status.state)).equals(false);
+
+        // And a caller that asks afterwards is owed the same answer: the outcome it would wait for is not
+        // coming either, and nothing else would ever release it.
+        await expect(handle.settled()).rejectedWith(TaskOutcomeUnrecordedError);
+        await expect(node.act(a => a.get(TestTaskManager).get(handle.runId)?.settled())).rejectedWith(
+            TaskOutcomeUnrecordedError,
+        );
     });
 
     it("releases a caller waiting on a run the shutdown left for the next start", async () => {

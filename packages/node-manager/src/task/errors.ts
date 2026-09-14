@@ -47,6 +47,9 @@ export enum TaskFindingCode {
     /** The manager is shutting down and cannot record an outcome. */
     ManagerClosing = "managerClosing",
 
+    /** The run's outcome could not be stored, so this manager stopped driving it without recording one. */
+    OutcomeUnrecorded = "outcomeUnrecorded",
+
     /** No run answers the given identity. */
     NotFound = "notFound",
     NoLongerTracked = "noLongerTracked",
@@ -203,6 +206,17 @@ export class TaskIdentityExhaustedError extends TaskRefusedError {
  */
 export class TaskManagerClosingError extends TaskRefusedError {
     override readonly code = TaskFindingCode.ManagerClosing;
+}
+
+/**
+ * The run's outcome could not be written, so this manager stopped driving it and will never say how it ended.
+ * Storage keeps the non-terminal state the run already had, and the next start resumes it.
+ *
+ * Distinct from {@link TaskManagerClosingError}, which says the same thing about a shutdown the operator asked
+ * for: this one reports a storage failure, and nothing was asked of the manager at all.
+ */
+export class TaskOutcomeUnrecordedError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.OutcomeUnrecorded;
 }
 
 /** `abandon()` names the rollback to give up on, not the run it undoes. */

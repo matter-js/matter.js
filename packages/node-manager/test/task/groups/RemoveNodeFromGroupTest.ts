@@ -14,7 +14,7 @@ import { FakePeer, kindOf, testAddress } from "../helpers.js";
 
 /** Mirror the real ItemKind.isReferenced: live (non-deletePending) dependents keep an entry referenced. */
 function wireItemKind(peer: FakePeer) {
-    (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) => {
+    peer.kindResolver = (kind: string) => {
         if (kind === "groupKeyMap") {
             return kindOf(kind, {
                 isReferenced: (_n: unknown, key: string) =>

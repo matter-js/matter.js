@@ -145,8 +145,8 @@ export class RunRecord implements RunView {
         for (const [key, value] of Object.entries(next ?? {})) {
             if (value !== undefined) {
                 // Arrays copied for the same reason the base snapshot copies `changeSet`: the caller's literal
-                // is adopted onto the live record after the write, so sharing it would leave storage holding
-                // the array a phase then appends to.
+                // is adopted onto the live record after the write, so storage and the run would otherwise hold
+                // one object between them.
                 Object.assign(persisted, { [key]: Array.isArray(value) ? [...value] : value });
             }
         }
@@ -170,6 +170,20 @@ export class RunRecord implements RunView {
             }
         }
         return persisted;
+    }
+
+    /**
+     * Apply a write's intended state to the in-memory run, once that write has landed.
+     *
+     * A field the write leaves undefined means "unchanged", exactly as {@link toPersistence} reads it, so the
+     * run and storage never disagree about what a write carried.
+     */
+    adopt(next: Partial<TaskPersistence>): void {
+        for (const [key, value] of Object.entries(next)) {
+            if (value !== undefined) {
+                Object.assign(this, { [key]: value });
+            }
+        }
     }
 
     /** Apply a write's removals to the in-memory run, once that write has landed. */
