@@ -2627,3 +2627,50 @@ own configuration asks for 16 (`bridge-common`'s `CHIPProjectAppConfig.h`); a bu
 that up stops after four bridged devices with `Failed to add dynamic endpoint: No endpoints
 available!`, and step 1a fails naming the endpoints the TH answered for. That is the TH being the
 wrong device, not the case being wrong.
+
+## When the DUT must start the signaling (`TC-WEBRTCR-2.1`)
+
+The first case whose peer invokes commands *on the controller*. A WebRTC provider answers a
+solicitation by invoking `Offer` back on the requestor cluster, so a controller that hosts no such
+cluster gives the command nowhere to land and the case cannot run at all. Three things follow, and
+none of them is visible from the plan document:
+
+- **The controller has to be a node with an endpoint.** `ControllerAdapterOptions.webRtcRequestor`
+  adds a camera-controller endpoint to the in-process controller; chip-tool's adapter refuses the
+  option, since a commissioner process is not a node. A case wanting this must therefore skip on any
+  other controller implementation, which is what makes it matter.js-only rather than a flavor gap.
+- **A refusal is only evidence once something comparable was accepted.** The requestor refuses
+  signaling for every id it does not track, so "it answered `NOT_FOUND`" is satisfied by an
+  implementation that looked at nothing. Registering the id the provider minted
+  (`ControllerAdapter.webRtcRequestor.upsertSession`) is necessary but not sufficient: the case also
+  solicits a second session once the injected fault is spent — it is armed for one call — and
+  requires *that* Offer to be accepted. Only the pair separates "refuses by session id" from
+  "refuses everything".
+- **Judge the refusal from the controller, not from the peer's log.** chip's provider logs the status
+  it received and never the session id, so its `NOT_FOUND` line cannot say which id was refused. The
+  controller's own record can, and does (`WebRtcRequestorApi.signals()`). A prompt handler cannot read
+  the script's log while it runs, either: the loop reading that output is suspended for as long as the
+  handler is, so its line array is frozen and polling it waits forever.
+- **`webrtc establish-session` in a plan's prompt is two commands, not one.** chip's
+  camera-controller expands it to `VideoStreamAllocate` on the provider's
+  `CameraAvStreamManagement`, then `SolicitOffer` on its `WebRtcTransportProvider` — a case driving
+  the DUT by hand has to send both, in that order, and pass the allocated video stream id on.
+
+Two more things the first live run settled, neither of which is visible from the plan or the script:
+
+- **Every WebRTC signaling command carries the specification's Large Message quality, so the
+  controller needs a TCP client.** matter.js requires a TCP session for such a command
+  (`ClientInteraction`'s `requiredTransport`) and its own server refuses one arriving on an MRP
+  session with `InvalidTransportType`, which is what the specification's "Large Message Quality"
+  section states. An adapter built without `transport: "tcp"` has no TCP interface at all, so the
+  solicitation stalls and then fails as `Peer has been unreachable for 15s` — a message that names
+  neither the transport nor the command. Ask for `transport: "tcp"` alongside `webRtcRequestor`.
+- **On macOS the harness container advertises on the Docker bridge, not on the LAN interface.** The
+  usual `MATTER_MDNS_NETWORKINTERFACE=en0` pins the controller to an interface the container's
+  records never reach, and the case fails in commissioning with nothing discovered. Name the bridge
+  the container's records arrive on (`bridge100` here; `dns-sd -B _matterc._udp local.` prints the
+  interface index, and `python3 -c "import socket;print(socket.if_indextoname(N))"` names it).
+
+A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
+so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which
+the *next* `input()` consumes. Match the prompt's first line only.

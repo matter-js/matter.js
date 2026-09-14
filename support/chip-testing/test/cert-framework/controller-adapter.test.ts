@@ -7,7 +7,7 @@
 import { ImplementationError, InternalError } from "@matter/main";
 import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import { PicsExpression, PicsFile } from "@matter/testing";
+import { PicsExpression, PicsFile, UnsupportedByControllerError } from "@matter/testing";
 import {
     controllerPicsOverridesFor,
     createControllerAdapter,
@@ -17,6 +17,7 @@ import {
     resetControllerAdapterFactoryForTesting,
 } from "@matter/testing";
 import type { AttributePathSpec, CertNodeApi, ControllerAdapter, EventReadEntry } from "@matter/testing";
+import { StreamUsage } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { expect } from "chai";
 import { env } from "node:process";
@@ -680,6 +681,84 @@ describe("InProcessControllerAdapter", () => {
 
     it("throws when constructing a second adapter with an id already registered", () => {
         expect(() => new InProcessControllerAdapter("dut")).to.throw(InternalError, /already registered/);
+    });
+});
+
+describe("InProcessControllerAdapter WebRTC requestor", () => {
+    let adapter: InProcessControllerAdapter;
+
+    afterEach(async function () {
+        this.timeout(20_000);
+        await adapter?.close();
+    });
+
+    it("hosts no requestor cluster unless asked", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-off");
+        await adapter.start();
+
+        expect(adapter.webRtcRequestor).to.equal(undefined);
+    });
+
+    it("tracks the sessions a case registers, and drops the ones it removes", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-on", { webRtcRequestor: true });
+        await adapter.start();
+
+        const requestor = adapter.webRtcRequestor;
+        expect(requestor).to.not.equal(undefined);
+        expect(requestor!.endpoint).to.equal(1);
+        expect(await requestor!.sessions()).to.deep.equal([]);
+
+        await requestor!.upsertSession({
+            id: 7,
+            peer: "1",
+            peerEndpointId: 1,
+            streamUsage: StreamUsage.Recording,
+            videoStreamId: 42,
+        });
+
+        expect(await requestor!.sessions()).to.deep.equal([{ id: 7, videoStreamId: 42, audioStreamId: null }]);
+
+        await requestor!.removeSession(7);
+        expect(await requestor!.sessions()).to.deep.equal([]);
+    });
+
+    it("refuses a node reference it did not mint rather than registering a session against a wrong peer", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-ref", { webRtcRequestor: true });
+        await adapter.start();
+
+        await expect(
+            adapter.webRtcRequestor!.upsertSession({
+                id: 1,
+                peer: "not-a-node-id",
+                peerEndpointId: 1,
+                streamUsage: StreamUsage.Recording,
+            }),
+        ).rejectedWith(InternalError, /not one this adapter minted/);
+    });
+
+    it("chip-tool refuses to host the cluster rather than claiming an identity for a controller it cannot be", () => {
+        expect(() => new ChipToolControllerAdapter("webrtc-chip-tool", { webRtcRequestor: true })).to.throw(
+            UnsupportedByControllerError,
+            /WebRTC transport requestor/,
+        );
+    });
+
+    it("settles a pending signal wait when the adapter closes", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-wait", { webRtcRequestor: true });
+        await adapter.start();
+
+        const pending = adapter.webRtcRequestor!.nextSignal(() => true, 60_000);
+        await adapter.close();
+
+        expect(await pending).to.equal(undefined);
     });
 });
 

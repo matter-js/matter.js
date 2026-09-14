@@ -1303,7 +1303,10 @@ function matchLog(logs: string[], pattern: RegExp) {
  *
  * Operations chip-tool cannot express throw {@link UnsupportedByControllerError}, which the step
  * runner records as a skip. That covers a wildcard-endpoint `writeAttributes` (chip-tool reports no
- * status for a written path) and path counts above chip-tool's own limit.
+ * status for a written path) and path counts above chip-tool's own limit. A capability asked of the
+ * whole adapter rather than of a step — `webRtcRequestor` — throws the same error from the
+ * constructor, where no step is running to record anything, so a case asking for one selects its
+ * controller itself.
  *
  * While a subscription is live the adapter runs a report pump: chip-tool records nothing while its
  * result slot is disarmed, so the client keeps an async-report frame parked whenever no command needs
@@ -1327,6 +1330,14 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     #closed = false;
 
     constructor(id: string, options?: ControllerAdapterOptions) {
+        if (options?.webRtcRequestor) {
+            throw new UnsupportedByControllerError(
+                "hosting a WebRTC transport requestor cluster",
+                id,
+                "chip-tool is a commissioner process, not a node, so a provider has nowhere to invoke signaling",
+            );
+        }
+
         const commissionerName = COMMISSIONER_NAMES.find(name => !claimedCommissioners.has(name));
         if (commissionerName === undefined) {
             throw new InternalError(
