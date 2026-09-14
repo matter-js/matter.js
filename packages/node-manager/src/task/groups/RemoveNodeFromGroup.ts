@@ -25,6 +25,9 @@ export interface RemoveNodeFromGroupParams {
  * Removes a peer endpoint from a group: drops the membership, then the group-to-key-set map and the key set
  * itself — but only while no other group still references them ({@link TaskContext.removeIntentIfUnreferenced}).
  * Dependents-first (membership, then map, then key set) so each reference check sees the prior removal.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.2.7.4, § 11.2.6.1
+ * @see {@link MatterSpecification.v16.Cluster} § 1.3.7.4
  */
 export const RemoveNodeFromGroup: TaskDefinition<RemoveNodeFromGroupParams> = {
     type: REMOVE_NODE_FROM_GROUP_TYPE,

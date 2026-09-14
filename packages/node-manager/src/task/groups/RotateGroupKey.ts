@@ -44,6 +44,8 @@ const ACTIVATE_INDEX = 1;
  * cancelled/rolled-back during distribute — there the new key is dormant/future-dated and nobody TXes it, so
  * dropping it is clean. Recover a bad realized rotation by rotating to a NEW key, not by rolling back;
  * {@link rollbackable} declines cancel and auto-rollback past that point.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.2.7.1, § 4.14.2.6
  */
 export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
     type: ROTATE_GROUP_KEY_TYPE,

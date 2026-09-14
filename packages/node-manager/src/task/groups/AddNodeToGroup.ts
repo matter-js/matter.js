@@ -40,6 +40,9 @@ export interface AddNodeToGroupParams {
  * Provisions a peer endpoint into a group: writes the group key set, maps the group to that key set, then
  * adds the endpoint to the group. A single `provision` phase sets the three converge intents and gates on
  * all three committing; the keyset(10) < group(20) < membership(30) priority bands order the apply.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.2.7.1, § 11.2.6.1
+ * @see {@link MatterSpecification.v16.Cluster} § 1.3.7.1
  */
 export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
     type: ADD_NODE_TO_GROUP_TYPE,
