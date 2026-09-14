@@ -32,7 +32,7 @@ export class FollowingSendingFlow extends InboundFlow {
 
         if (!asynchronousTransfer) {
             // Sync transfer just requires Ack to be sent back
-            await this.messenger.sendBlockAck({ blockCounter });
+            await this.messenger.sendBlockAck({ blockCounter }, data.byteLength);
         }
 
         return false;
