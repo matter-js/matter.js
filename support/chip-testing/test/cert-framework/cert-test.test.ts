@@ -14,6 +14,7 @@ import type {
     Container,
     ControllerAdapter,
     DeviceExitInfo,
+    DeviceFlavor,
     Docker,
     StepRecorder,
     StepVerdict,
@@ -137,10 +138,10 @@ function stubSubjectWithThrowingPics(error: Error): Subject {
 
 async function* noLines(): AsyncGenerator<string> {}
 
-function stubCertDevice(exit: Promise<DeviceExitInfo>): CertDevice {
+function stubCertDevice(exit: Promise<DeviceExitInfo>, flavor: DeviceFlavor = "matterjs"): CertDevice {
     return {
         ...stubSubject(new PicsFile([])),
-        flavor: "matterjs",
+        flavor,
         log: new LogFollower(noLines(), "stub-device"),
         exit,
     };
@@ -651,6 +652,52 @@ describe("CertTest", () => {
         ]);
     });
 
+    // No flavors list can name a device a wrapped script spawned for itself, so every list excludes
+    // one: a step written for a flavor this run is not must not run here by omission
+    it("skips a flavor-restricted step on a run whose device no flavors list can name", async () => {
+        let ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-SC-3.5",
+            plan: "securechannel.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step restricted to matterjs",
+                    flavors: ["matterjs"],
+                    run: async () => {
+                        ran = true;
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {
+                th_server: stubCertDevice(new Promise<DeviceExitInfo>(() => {}), "python-wrapped"),
+            },
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+
+        expect(ran).equal(false);
+        expect(endStepCalls).deep.equal([
+            { number: 1, verdict: "skipped", skipReason: 'unsupported on device flavor "python-wrapped"' },
+        ]);
+    });
+
     it("skips a flavor-restricted step when the run's flavor cannot be determined", async () => {
         let ran = false;
 
@@ -1109,6 +1156,113 @@ describe("CertTest", () => {
         expect(unhandled).deep.equal([]);
     });
 
+    // A run declaring several devices must say which one died; "a device exited" sends the reader to
+    // the wrong log
+    it("names the role of the device that exited when the run declares more than one", async () => {
+        let exitProvider!: (info: DeviceExitInfo) => void;
+        const providerExit = new Promise<DeviceExitInfo>(resolve => {
+            exitProvider = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-SU-2.7",
+            plan: "softwareupdate.adoc",
+            pics: [],
+            app: "ota-requestor",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose provider dies under it",
+                    run: () =>
+                        new Promise<void>(resolve => {
+                            exitProvider({ code: 134, signal: null });
+                            setTimeout(resolve, 0);
+                        }),
+                },
+            ],
+        };
+
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {
+                th: stubCertDevice(new Promise<DeviceExitInfo>(() => {})),
+                th2: stubCertDevice(providerExit),
+            },
+            recorder: stubRecorder({
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            'Cert-test device "th2" exited unexpectedly while a step was running',
+        );
+
+        expect(deviceExitedCalls).deep.equal([{ role: "th2", code: 134, signal: null }]);
+    });
+
+    // The bundle holds one exit, so the run is what has to choose which. A watch that reported every
+    // device would leave it naming whichever died last — typically a device the first one took down
+    it("reports only the device that exited first when the rest follow it", async () => {
+        let exitProvider!: (info: DeviceExitInfo) => void;
+        let exitRequestor!: (info: DeviceExitInfo) => void;
+        const providerExit = new Promise<DeviceExitInfo>(resolve => {
+            exitProvider = resolve;
+        });
+        const requestorExit = new Promise<DeviceExitInfo>(resolve => {
+            exitRequestor = resolve;
+        });
+
+        const definition: CertTestDefinition = {
+            tc: "TC-SU-2.7",
+            plan: "softwareupdate.adoc",
+            pics: [],
+            app: "ota-requestor",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step whose provider dies and takes the requestor with it",
+                    run: () =>
+                        new Promise<void>(resolve => {
+                            exitProvider({ code: 134, signal: null });
+                            exitRequestor({ code: 1, signal: null });
+                            setTimeout(resolve, 0);
+                        }),
+                },
+            ],
+        };
+
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {
+                th: stubCertDevice(requestorExit),
+                th2: stubCertDevice(providerExit),
+            },
+            recorder: stubRecorder({
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+
+        await expect(test.invoke(stubSubject(new PicsFile([])), () => {}, [], false)).rejectedWith(
+            'Cert-test device "th2" exited unexpectedly while a step was running',
+        );
+
+        // Both exits settled before the run rejected; give anything still watching them a turn, or a
+        // second report would land after the assertion rather than failing it
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(deviceExitedCalls).deep.equal([{ role: "th2", code: 134, signal: null }]);
+    });
+
     it("fails the run and reports deviceExited when a device exits mid-step", async () => {
         let exit!: (info: DeviceExitInfo) => void;
         const exitPromise = new Promise<DeviceExitInfo>(resolve => {
@@ -1143,7 +1297,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const deviceExitedCalls = new Array<DeviceExitInfo>();
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
         const cx: CertStepContext = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
@@ -1152,8 +1306,8 @@ describe("CertTest", () => {
                     endStepVerdicts.push({ number: step.number, verdict });
                     return [];
                 },
-                deviceExited(info) {
-                    deviceExitedCalls.push(info);
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
                 },
             }),
         };
@@ -1162,7 +1316,7 @@ describe("CertTest", () => {
         const subject = stubSubject(new PicsFile([]));
 
         await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
-            "device exited unexpectedly while a step was running",
+            'Cert-test device "th" exited unexpectedly while a step was running',
         );
 
         expect(step2Ran).equal(false);
@@ -1170,7 +1324,7 @@ describe("CertTest", () => {
             { number: 1, verdict: "fail" },
             { number: 2, verdict: "aborted" },
         ]);
-        expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
+        expect(deviceExitedCalls).deep.equal([{ role: "th", code: 1, signal: null }]);
     });
 
     it("contains an orphaned step run's eventual rejection instead of letting it escape unhandled", async () => {
@@ -1212,7 +1366,7 @@ describe("CertTest", () => {
         process.on("unhandledRejection", onUnhandledRejection);
         try {
             await expect(test.invoke(subject, () => {}, [], false)).rejectedWith(
-                "device exited unexpectedly while a step was running",
+                'Cert-test device "th" exited unexpectedly while a step was running',
             );
 
             // The step's own run() promise is still pending here — it's the orphaned loser of the
@@ -1256,7 +1410,7 @@ describe("CertTest", () => {
         };
 
         const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict }>();
-        const deviceExitedCalls = new Array<DeviceExitInfo>();
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
         let flushed = false;
         const cx: CertStepContext = {
             controllers: {},
@@ -1266,8 +1420,8 @@ describe("CertTest", () => {
                     endStepVerdicts.push({ number: step.number, verdict });
                     return [];
                 },
-                deviceExited(info) {
-                    deviceExitedCalls.push(info);
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
                 },
                 async flush() {
                     // Give the exit scheduled by step 1 time to settle before the run concludes,
@@ -1287,7 +1441,7 @@ describe("CertTest", () => {
         );
 
         expect(endStepVerdicts).deep.equal([{ number: 1, verdict: "pass" }]);
-        expect(deviceExitedCalls).deep.equal([{ code: 1, signal: null }]);
+        expect(deviceExitedCalls).deep.equal([{ role: "th", code: 1, signal: null }]);
         expect(flushed).equal(true);
     });
 
@@ -1379,13 +1533,13 @@ describe("CertTest", () => {
             ],
         };
 
-        const deviceExitedCalls = new Array<DeviceExitInfo>();
+        const deviceExitedCalls = new Array<DeviceExitInfo & { role: string }>();
         const cx: CertStepContext = {
             controllers: {},
             devices: { th: stubCertDevice(exitPromise) },
             recorder: stubRecorder({
-                deviceExited(info) {
-                    deviceExitedCalls.push(info);
+                deviceExited(role, info) {
+                    deviceExitedCalls.push({ role, ...info });
                 },
             }),
         };
@@ -2228,7 +2382,7 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
@@ -2254,7 +2408,7 @@ describe("CertTest", () => {
 
             const resultJson = JSON.parse(await readFile(resultPath, "utf8"));
             expect(resultJson.verdict).equal("fail");
-            expect(resultJson.deviceExit).deep.equal({ code: 1 });
+            expect(resultJson.deviceExit).deep.equal({ role: "th", code: 1 });
             expect(resultJson.steps[0].verdict).equal("pass");
         } finally {
             await rm(outDir, { recursive: true, force: true });
@@ -2278,7 +2432,7 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
@@ -2319,7 +2473,7 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
@@ -2378,7 +2532,7 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const resultPath = join(outDir, "2026-08-07T00-00-00.000Z-TC-CADMIN-1.17", "result.json");
@@ -2424,7 +2578,7 @@ describe("CertTest", () => {
                 timestamp: "2026-08-07T00:00:00.000Z",
                 controller: "dut",
                 controllerImplementation: "matterjs",
-                device: "matterjs:all-clusters",
+                devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
                 matterJsCommit: "abc1234",
             });
             const cx: CertStepContext = { controllers: {}, devices: {}, recorder };
