@@ -5,6 +5,8 @@
  */
 
 import type { Subject } from "../../device/subject.js";
+import type { ChipBinsSource } from "../chip-bins.js";
+import type { CertAppVariant } from "./cert-dsl.js";
 import type { ControllerTransport } from "./controller-adapter.js";
 import type { ControllerAdapter } from "./controller-adapter.js";
 import type { LogFollower } from "./log-follower.js";
@@ -209,9 +211,11 @@ export interface CertTestDefinition {
     pics: string[];
     app: string;
     /** Variant of `app` to run, where the flavor supports one (see `cert-dsl.ts`'s `CertTestOptions`). */
-    appVariant?: string;
+    appVariant?: CertAppVariant;
     /** Device flavors this test supports; absent runs on every flavor (see `cert-dsl.ts`'s `CertTestOptions`). */
     flavors?: DeviceFlavor[];
+    /** Chip binary sources this test supports; absent runs on every source (see `cert-dsl.ts`'s `CertTestOptions`). */
+    chipBinsSources?: ChipBinsSource[];
     steps: CertStepDefinition[];
     /** Cleanup the engine runs after the last step whatever happened to it (see `cert-dsl.ts`'s `finalize`). */
     finalize?: (cx: CertStepContext) => Promise<void>;

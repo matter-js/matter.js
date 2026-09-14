@@ -15,7 +15,7 @@ import { Docker } from "../../docker/docker.js";
 import { Image } from "../../docker/image.js";
 import { afterOne, beforeOne } from "../../mocha.js";
 import { TestFileDescriptor } from "../../test-descriptor.js";
-import { resolveChipBinsSource } from "../chip-bins.js";
+import { ChipBinsSource, chipBinsSourceFor, resolveChipBinsSource } from "../chip-bins.js";
 import { chip } from "../chip.js";
 import { PicsExpression } from "../pics/expression.js";
 import { State } from "../state.js";
@@ -37,6 +37,15 @@ import { matterJsCertSubjectFor } from "./matterjs-subject-registry.js";
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Which build of a test's app to run.
+ *
+ * A plain name applies to every chip binary source.  Naming sources instead runs the variant only where that source
+ * provides it: a variant this project builds does not exist in the released certification binaries, and asking for one
+ * there leaves the case looking for a binary that was never shipped.
+ */
+export type CertAppVariant = string | Partial<Record<ChipBinsSource, string>>;
+
 export interface CertTestOptions {
     plan: string;
     pics: string[];
@@ -47,7 +56,7 @@ export interface CertTestOptions {
      * hooks TC-IDM-1.3 arms. Only the `chip-local` flavor can run one, so a test declaring a variant
      * declares `flavors` to match.
      */
-    appVariant?: string;
+    appVariant?: CertAppVariant;
 
     /**
      * Device flavors this test supports; absent runs on every flavor.
@@ -57,6 +66,15 @@ export interface CertTestOptions {
      * than failing to activate.
      */
     flavors?: DeviceFlavor[];
+
+    /**
+     * Chip binary sources this test supports; absent runs on every source.
+     *
+     * The two sources are different CHIP versions, not two builds of one: `cert-bins` is the released
+     * certification image, `matterjs` is a build of CHIP master.  A test of behaviour master has changed
+     * passes against one and fails against the other, and the source is the only thing that says which.
+     */
+    chipBinsSources?: ChipBinsSource[];
     /** Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`. */
     controllers?: Record<string, "dut" | "helper">;
     /** Role name → app name. Default: `{ th: options.app }`. */
@@ -219,6 +237,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         app: options.app,
         appVariant: options.appVariant,
         flavors: options.flavors,
+        chipBinsSources: options.chipBinsSources,
         transport: options.transport,
         steps: new Array<CertStepDefinition>(),
     };
@@ -295,6 +314,20 @@ function primaryDeviceRole(deviceRoles: Record<string, string>, app: string): st
     throw new Error(`certTest options.devices has no role for app "${app}" (the app the harness activates)`);
 }
 
+/**
+ * The variant name a flavor actually runs, resolving a per-source declaration against the source that flavor uses.
+ *
+ * Only `chip-local` names a binary beside the ordinary one, so only it can honour a per-source declaration: a
+ * `chip-docker` image runs its own binary as its entry point and rejects any variant outright.
+ */
+export function appVariantFor(flavor: DeviceFlavor, variant?: CertAppVariant) {
+    if (variant === undefined || typeof variant === "string") {
+        return variant;
+    }
+
+    return flavor === "chip-local" ? variant[resolveChipBinsSource()] : undefined;
+}
+
 function subjectFactoryFor(flavor: DeviceFlavor, app: string, appVariant?: string): CertDeviceFactory {
     switch (flavor) {
         case "chip-docker":
@@ -351,6 +384,14 @@ function defineCertTest(
             return;
         }
 
+        if (definition.chipBinsSources !== undefined) {
+            const binsSource = chipBinsSourceFor(flavor);
+            if (binsSource !== undefined && !definition.chipBinsSources.includes(binsSource)) {
+                it.skip(`${descriptor.name} (unsupported against chip binaries from "${binsSource}")`, () => {});
+                return;
+            }
+        }
+
         // Eager, like `flavor` above: validates MATTER_CERT_CONTROLLER at test-collection time, so
         // a bad value fails immediately rather than only once this specific test's body runs. The
         // value a run actually records as evidence is re-resolved at run time in #buildContext,
@@ -359,7 +400,7 @@ function defineCertTest(
         // not leave this run's evidence disagreeing with the controller it actually used.
         resolveControllerImplementation();
         const primaryRole = primaryDeviceRole(deviceRoles, definition.app);
-        const factory = subjectFactoryFor(flavor, definition.app, definition.appVariant);
+        const factory = subjectFactoryFor(flavor, definition.app, appVariantFor(flavor, definition.appVariant));
 
         registerCertTestFactory(
             descriptor,
@@ -628,7 +669,11 @@ class WiredCertTest extends CertTest {
                 if (role === this.#primaryRole) {
                     continue;
                 }
-                const factory = subjectFactoryFor(this.#flavor, app, this.definition.appVariant);
+                const factory = subjectFactoryFor(
+                    this.#flavor,
+                    app,
+                    appVariantFor(this.#flavor, this.definition.appVariant),
+                );
                 // The role, not the test case's name: the primary's domain is `descriptor.kind`
                 // ("cert"), and a name like "TC-DD-3.18" carries dots a matter.js subject rejects as
                 // an endpoint id.

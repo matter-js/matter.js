@@ -129,6 +129,12 @@ RUN build-one chip-tool
 RUN build-one all-clusters-app/linux chip-all-clusters-app
 RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip_with_nlfaultinjection=true
 
+# A third build with Groupcast off. CHIP enables it for this app (examples/all-clusters-app/linux/args.gni)
+# although the flag itself defaults off, and with it on, Groups reaching cluster revision 5 makes
+# GroupKeyManagement answer a GroupKeyMap write with InvalidInState — so the group cert cases cannot bind a
+# key at all. This binary keeps the pre-Groupcast behaviour available while those cases still test it.
+RUN build-one all-clusters-app/linux chip-all-clusters-app chip-all-clusters-app-nogroupcast chip_config_enable_groupcast=false
+
 # TC-ACT-3.2's TH app for the cert tests' chip-local flavor, which spawns from this image's /bin
 RUN build-one bridge-app/linux chip-bridge-app
 

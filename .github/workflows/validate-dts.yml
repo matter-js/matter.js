@@ -22,9 +22,11 @@ on:
       - "packages/**/package.json"
       - ".github/workflows/validate-dts.yml"
 
+# Cancel a superseded run for the same ref, but keep the trigger in the group: a push must not cancel a manual
+# or scheduled run on the same ref, and those two queue rather than cancel each other.
 concurrency:
-  group: ${{ github.ref }}-validate-dts
-  cancel-in-progress: true
+  group: ${{ github.ref }}-${{ github.event_name }}-validate-dts
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
   validate-dts:

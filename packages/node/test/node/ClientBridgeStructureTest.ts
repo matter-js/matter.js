@@ -583,3 +583,407 @@ describe("a peer that changes what it says between interactions", () => {
         expect(peer.parts.get(`ep${moved}`), `endpoint ${moved} belongs to the root instead`).not.undefined;
     });
 });
+
+/**
+ * Matter Device Library § 11.2's "Multiple aggregators": an aggregator that is itself bridged,
+ * below another aggregator, each one naming every endpoint below it.
+ */
+const NestedAggregatorDevice = AggregatorEndpoint.with(BridgedDeviceBasicInformationServer);
+
+async function nestedBridgeSite() {
+    const site = new MockSite();
+
+    const { controller, device } = await site.addCommissionedPair({
+        device: {
+            type: ServerNode.RootEndpoint,
+            parts: [
+                {
+                    id: "zigbee",
+                    type: AggregatorEndpoint,
+                    parts: [
+                        { id: "white", type: BridgedLightDevice },
+                        { id: "color", type: BridgedLightDevice },
+                        {
+                            id: "dali",
+                            type: NestedAggregatorDevice,
+                            parts: [
+                                { id: "dali1", type: BridgedLightDevice },
+                                { id: "dali2", type: BridgedLightDevice },
+                                { id: "dali3", type: BridgedLightDevice },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "zwave",
+                    type: AggregatorEndpoint,
+                    parts: [
+                        { id: "zwave1", type: BridgedLightDevice },
+                        { id: "zwave2", type: BridgedLightDevice },
+                    ],
+                },
+            ],
+        },
+    });
+
+    const peer = controller.peers.get("peer1")!;
+    return { site, peer, device };
+}
+
+describe("a peer that nests an aggregator below an aggregator", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    it("keeps each aggregator's own devices below it", async () => {
+        const { site, peer, device } = await nestedBridgeSite();
+        await using _site = site;
+
+        const zigbee = device.parts.require("zigbee");
+        const dali = zigbee.parts.require("dali");
+        const zwave = device.parts.require("zwave");
+
+        const zigbeeClient = clientPart(peer, zigbee);
+        expect(zigbeeClient, "the outer aggregator belongs to the root").not.undefined;
+
+        const daliClient = clientPart(zigbeeClient!, dali);
+        expect(daliClient, "the nested aggregator belongs to the outer aggregator").not.undefined;
+
+        for (const id of ["white", "color"]) {
+            expect(clientPart(zigbeeClient!, zigbee.parts.require(id)), `${id} belongs to the outer aggregator`).not
+                .undefined;
+        }
+
+        for (const id of ["dali1", "dali2", "dali3"]) {
+            expect(clientPart(daliClient!, dali.parts.require(id)), `${id} belongs to the nested aggregator`).not
+                .undefined;
+        }
+
+        const zwaveClient = clientPart(peer, zwave);
+        expect(zwaveClient, "the second aggregator belongs to the root").not.undefined;
+        for (const id of ["zwave1", "zwave2"]) {
+            expect(clientPart(zwaveClient!, zwave.parts.require(id)), `${id} belongs to the second aggregator`).not
+                .undefined;
+        }
+
+        expect(zigbeeClient!.parts.size).equals(3);
+        expect(daliClient!.parts.size).equals(3);
+        expect(zwaveClient!.parts.size).equals(2);
+    });
+
+    it("reports the nested aggregator as an aggregator", async () => {
+        const { site, peer, device } = await nestedBridgeSite();
+        await using _site = site;
+
+        const dali = device.parts.require("zigbee").parts.require("dali");
+        const daliClient = clientPart(clientPart(peer, device.parts.require("zigbee"))!, dali)!;
+
+        expect(daliClient.type.deviceType).equals(AggregatorEndpoint.deviceType);
+    });
+});
+
+/**
+ * The bridge of Matter Device Library § 11.2's "Multiple aggregators", as a peer reports it.
+ */
+const ZIGBEE_AGGREGATOR = 11;
+const ZIGBEE_LIGHTS = [12, 13];
+const DALI_AGGREGATOR = 14;
+const DALI_LIGHTS = [21, 22, 23];
+const ZWAVE_AGGREGATOR = 31;
+const ZWAVE_LIGHTS = [32, 33];
+
+const DIMMABLE_LIGHT_DEVICE_TYPE = 0x0101;
+
+/** An endpoint that is a bridged node and an aggregator, as the nested aggregator of § 11.2 is. */
+const BRIDGED_AGGREGATOR_TYPES = [
+    { deviceType: BridgedNodeEndpoint.deviceType, revision: 3 },
+    { deviceType: AggregatorEndpoint.deviceType, revision: 2 },
+];
+
+function nestedBridgeReports(version: number) {
+    return [
+        descriptorReports(
+            ZIGBEE_AGGREGATOR,
+            AggregatorEndpoint.deviceType,
+            2,
+            [...ZIGBEE_LIGHTS, DALI_AGGREGATOR, ...DALI_LIGHTS],
+            version,
+        ),
+        ...ZIGBEE_LIGHTS.map(number =>
+            descriptorReports(
+                number,
+                [
+                    { deviceType: BridgedNodeEndpoint.deviceType, revision: 3 },
+                    { deviceType: DIMMABLE_LIGHT_DEVICE_TYPE, revision: 3 },
+                ],
+                3,
+                [],
+                version,
+            ),
+        ),
+        descriptorReports(DALI_AGGREGATOR, BRIDGED_AGGREGATOR_TYPES, 2, DALI_LIGHTS, version),
+        ...DALI_LIGHTS.map(number =>
+            descriptorReports(
+                number,
+                [
+                    { deviceType: BridgedNodeEndpoint.deviceType, revision: 3 },
+                    { deviceType: DIMMABLE_LIGHT_DEVICE_TYPE, revision: 3 },
+                ],
+                3,
+                [],
+                version,
+            ),
+        ),
+        descriptorReports(ZWAVE_AGGREGATOR, AggregatorEndpoint.deviceType, 2, ZWAVE_LIGHTS, version),
+        ...ZWAVE_LIGHTS.map(number =>
+            descriptorReports(
+                number,
+                [
+                    { deviceType: BridgedNodeEndpoint.deviceType, revision: 3 },
+                    { deviceType: DIMMABLE_LIGHT_DEVICE_TYPE, revision: 3 },
+                ],
+                3,
+                [],
+                version,
+            ),
+        ),
+    ];
+}
+
+const NESTED_BRIDGE_TREE = [
+    `/ep${ZIGBEE_AGGREGATOR}`,
+    ...ZIGBEE_LIGHTS.map(number => `/ep${ZIGBEE_AGGREGATOR}/ep${number}`),
+    `/ep${ZIGBEE_AGGREGATOR}/ep${DALI_AGGREGATOR}`,
+    ...DALI_LIGHTS.map(number => `/ep${ZIGBEE_AGGREGATOR}/ep${DALI_AGGREGATOR}/ep${number}`),
+    `/ep${ZWAVE_AGGREGATOR}`,
+    ...ZWAVE_LIGHTS.map(number => `/ep${ZWAVE_AGGREGATOR}/ep${number}`),
+];
+
+describe("a peer that reports an aggregator below an aggregator", () => {
+    before(() => {
+        MockTime.init();
+    });
+
+    async function peerOf() {
+        const site = new MockSite();
+        const { controller } = await site.addCommissionedPair({ device: { type: ServerNode.RootEndpoint } });
+        const peer = controller.peers.get("peer1")!;
+        const structure = (peer.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+        const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+        return { site, peer, structure, request };
+    }
+
+    function treeOf(peer: Endpoint) {
+        const seen = new Array<string>();
+        const walk = (endpoint: Endpoint, path: string) => {
+            for (const part of endpoint.parts) {
+                seen.push(`${path}/ep${part.number}`);
+                walk(part, `${path}/ep${part.number}`);
+            }
+        };
+        walk(peer, "");
+        return seen;
+    }
+
+    const ROOT_PARTS = [
+        ZIGBEE_AGGREGATOR,
+        ...ZIGBEE_LIGHTS,
+        DALI_AGGREGATOR,
+        ...DALI_LIGHTS,
+        ZWAVE_AGGREGATOR,
+        ...ZWAVE_LIGHTS,
+    ];
+
+    it("gives each aggregator the endpoints it alone names", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, ROOT_PARTS, 10)],
+                    ...nestedBridgeReports(10),
+                ),
+            ),
+        );
+
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE);
+    });
+
+    // Three full-family lists name the DALI lights, and which of them owns them cannot be told while
+    // the innermost has not said how it composes a list. A claim that cannot be decided has to survive
+    // the interaction it arrived in.
+    it("places the DALI lights once the nested aggregator says what it is", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        const reports = nestedBridgeReports(10);
+        const dali = reports.findIndex(endpoint => endpoint[0].path.endpointId === DALI_AGGREGATOR);
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, ROOT_PARTS, 10)],
+                    ...reports.filter((_, index) => index !== dali),
+                    [descriptorAttr(DALI_AGGREGATOR, Descriptor.attributes.partsList.id, DALI_LIGHTS, 10)],
+                ),
+            ),
+        );
+
+        expect(treeOf(peer), "the DALI lights wait while the nested aggregator has not said what it is").deep.equals(
+            NESTED_BRIDGE_TREE.filter(path => !DALI_LIGHTS.some(number => path.endsWith(`/ep${number}`))),
+        );
+
+        await drain(structure.mutate(request, readResult(reports[dali])));
+
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE);
+    });
+
+    // The innermost of three full-family claimants is only known to be innermost once every endpoint it
+    // names has a list of its own — a silent one could still turn out to name an aggregator below it
+    it("waits for a silent DALI light before placing any of the bridge", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        const silent = DALI_LIGHTS[DALI_LIGHTS.length - 1];
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, ROOT_PARTS, 10)],
+                    ...nestedBridgeReports(10).filter(reports => reports[0].path.endpointId !== silent),
+                ),
+            ),
+        );
+
+        expect(treeOf(peer), "no part of the bridge is on the node while one endpoint has said nothing").deep.equals(
+            [],
+        );
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    descriptorReports(
+                        silent,
+                        [
+                            { deviceType: BridgedNodeEndpoint.deviceType, revision: 3 },
+                            { deviceType: DIMMABLE_LIGHT_DEVICE_TYPE, revision: 3 },
+                        ],
+                        3,
+                        [],
+                        10,
+                    ),
+                ),
+            ),
+        );
+
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE);
+    });
+
+    it("takes the aggregator device type of an endpoint that is also a bridged node", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, ROOT_PARTS, 10)],
+                    ...nestedBridgeReports(10),
+                ),
+            ),
+        );
+
+        const dali = peer.parts.get(`ep${ZIGBEE_AGGREGATOR}`)!.parts.get(`ep${DALI_AGGREGATOR}`)!;
+        expect(dali.type.deviceType).equals(AggregatorEndpoint.deviceType);
+    });
+
+    // An endpoint is installed once and nothing reparents it, so a list that sheds one does not move it.
+    // What the peer no longer names anywhere is what goes away.
+    it("keeps an endpoint the nested aggregator drops while the peer still names it", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, ROOT_PARTS, 10)],
+                    ...nestedBridgeReports(10),
+                ),
+            ),
+        );
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE);
+
+        const [dropped, ...kept] = DALI_LIGHTS;
+        await drain(
+            structure.mutate(
+                request,
+                readResult([descriptorAttr(DALI_AGGREGATOR, Descriptor.attributes.partsList.id, kept, 11)]),
+            ),
+        );
+
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE);
+
+        // The peer stops naming it altogether and it goes
+        await drain(
+            structure.mutate(
+                request,
+                readResult([
+                    descriptorAttr(
+                        0,
+                        Descriptor.attributes.partsList.id,
+                        ROOT_PARTS.filter(number => number !== dropped),
+                        12,
+                    ),
+                    descriptorAttr(
+                        ZIGBEE_AGGREGATOR,
+                        Descriptor.attributes.partsList.id,
+                        [...ZIGBEE_LIGHTS, DALI_AGGREGATOR, ...kept],
+                        12,
+                    ),
+                ]),
+            ),
+        );
+
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE.filter(path => !path.endsWith(`/ep${dropped}`)));
+    });
+    // The root's list is what says what the node has, so an endpoint it drops goes even while the
+    // aggregators below it still name it
+    it("drops an endpoint the root stops naming while the nested aggregator still does", async () => {
+        const { site, peer, structure, request } = await peerOf();
+        await using _site = site;
+
+        await drain(
+            structure.mutate(
+                request,
+                readResult(
+                    [descriptorAttr(0, Descriptor.attributes.partsList.id, ROOT_PARTS, 10)],
+                    ...nestedBridgeReports(10),
+                ),
+            ),
+        );
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE);
+
+        const dropped = DALI_LIGHTS[0];
+        await drain(
+            structure.mutate(
+                request,
+                readResult([
+                    descriptorAttr(
+                        0,
+                        Descriptor.attributes.partsList.id,
+                        ROOT_PARTS.filter(number => number !== dropped),
+                        11,
+                    ),
+                ]),
+            ),
+        );
+
+        expect(treeOf(peer)).deep.equals(NESTED_BRIDGE_TREE.filter(path => !path.endsWith(`/ep${dropped}`)));
+    });
+});

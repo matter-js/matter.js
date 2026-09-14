@@ -41,10 +41,16 @@ on:
     branches: [ "main" ]
   merge_group:
 
-# Cancel previous PR/branch runs when a new commit is pushed
+# A run that publishes takes one global slot, because two of them would push the same `latest` manifest and open the
+# same SHA-bump branch; cancellation is off for those, so the second waits rather than overwriting the first. Every
+# other run is grouped by ref and trigger, so a push cannot cancel a manual or scheduled run on the same ref.
+#
+# The condition selecting that slot must match the one on publish-image-amd64 and publish-image-arm64 below: a run
+# that cannot publish must not hold the slot, and a run that can must not escape it. It is stated twice because
+# `concurrency` is evaluated before any job exists and so cannot read what the jobs decide — change one, change both.
 concurrency:
-  group: ${{ github.ref }}-chip-build-test
-  cancel-in-progress: true
+  group: ${{ (github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) && 'chip-build-test-publish' || format('{0}-{1}-chip-build-test', github.ref, github.event_name) }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
   # Determine whether we should run and/or build new CHIP container
@@ -364,8 +370,12 @@ jobs:
       test-app-cc-2,
       test-icd
     ]
+    # The branch matters as much as the trigger: this gates the whole publishing chain, which pushes the shared
+    # `latest` tag and, in publish-manifest, opens the SHA-bump branch — both of which describe main and nothing else.
+    # The workflow's `concurrency` group states the same condition; the two have to agree
     if: >-
       needs.chip-image-amd64.outputs.source == 'artifact' &&
+      github.ref == 'refs/heads/main' &&
       (
         github.event_name == 'schedule' ||
         github.event_name == 'workflow_dispatch'
@@ -415,6 +425,7 @@ jobs:
     ]
     if: >-
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main' &&
       needs.chip-image-arm64.outputs.source == 'artifact'
     steps:
       - name: Check out matter.js

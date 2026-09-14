@@ -92,9 +92,12 @@ on:
 # A concurrency expression cannot see which files a push touched, so a push that runs the matrix
 # because it changed the cert suite lands in that same per-run group: two such pushes in a row run
 # their matrices side by side rather than the second cancelling the first.
+#
+# The trigger is part of the group as well, so a push carrying the marker cannot cancel a manual or
+# scheduled run on the same ref, and those two queue rather than cancel each other.
 concurrency:
-  group: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[execute-certtests]') && github.run_id || format('{0}-cert-tests', github.ref) }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[execute-certtests]') && github.run_id || format('{0}-{1}-cert-tests', github.ref, github.event_name) }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
   # Resolve the four trigger paths into a single set of inputs the rest of the workflow consumes.
@@ -384,7 +387,8 @@ jobs:
       - name: Verify TH_SERVER/DUT binaries were extracted
         if: matrix.device == 'own-built'
         run: |
-          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
+          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject \
+                     chip-all-clusters-app-nogroupcast chip-bridge-app; do
             if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
               echo "::error::$bin is missing from the published ghcr.io/matter-js/chip image." \
                 "support/chip/Dockerfile's own-built binaries changed shape, or the image pipeline" \
