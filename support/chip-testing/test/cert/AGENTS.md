@@ -2646,6 +2646,9 @@ none of them is visible from the plan document:
   solicits a second session once the injected fault is spent — it is armed for one call — and
   requires *that* Offer to be accepted. Only the pair separates "refuses by session id" from
   "refuses everything".
+- **A python-wrapped case names its own TH_SERVER variable.** `MATTER_CERT_TH_SERVER_APP_PATH` is
+  the CASE cases' all-clusters build; the WebRTC cases read `MATTER_CERT_CAMERA_APP_PATH` instead.
+  Sharing one variable would hand a case the wrong app rather than letting it skip.
 - **Judge the refusal from the controller, not from the peer's log.** chip's provider logs the status
   it received and never the session id, so its `NOT_FOUND` line cannot say which id was refused. The
   controller's own record can, and does (`WebRtcRequestorApi.signals()`). A prompt handler cannot read

@@ -69,8 +69,13 @@ const INVOKE_TIMEOUT = Seconds(60);
 /** Bounds the commissioning the script's third step asks of the DUT. */
 const COMMISSION_TIMEOUT = Seconds(120);
 
-function thServerAppPath(): string | undefined {
-    return env.MATTER_CERT_TH_SERVER_APP_PATH;
+/**
+ * Container-side path to `chip-camera-app`, which the script spawns as TH_SERVER. Named apart from
+ * `MATTER_CERT_TH_SERVER_APP_PATH` because that one names an all-clusters build for the CASE cases;
+ * a TH_SERVER is only ever the app its own case needs.
+ */
+function cameraAppPath(): string | undefined {
+    return env.MATTER_CERT_CAMERA_APP_PATH;
 }
 
 function evidenceOutDir(): string {
@@ -396,7 +401,7 @@ function requestorOf(dut: ControllerAdapter): WebRtcRequestorApi {
 
 describe("TC-WEBRTCR-2.1", () => {
     it("[TC-WEBRTCR-2.1] Validate Offer command with invalid session id [DUT_Requestor]", async function () {
-        const appPath = thServerAppPath();
+        const appPath = cameraAppPath();
         if (!appPath) {
             this.skip();
         }
