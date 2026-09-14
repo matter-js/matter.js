@@ -1,5 +1,13 @@
 import { BdxSessionConfiguration } from "#bdx/BdxSessionConfiguration.js";
-import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage, ScopedStorage } from "#bdx/index.js";
+import {
+    BdxClient,
+    BdxMessage,
+    BdxMessenger,
+    BdxProtocol,
+    BdxSession,
+    BdxStatusMessage,
+    ScopedStorage,
+} from "#bdx/index.js";
 import { Message } from "#codec/MessageCodec.js";
 import type { ExchangeLogContext, ExchangeSendOptions } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
@@ -98,6 +106,9 @@ export async function bdxTransfer(params: {
     ) => MaybePromise<void>;
     clientExchangeManipulator?: (message: Message) => Message;
     serverExchangeManipulator?: (message: Message) => Message;
+
+    /** Called with the responder's session as it starts, which is before it negotiates the transfer. */
+    observeResponder?: (session: BdxSession) => void;
 }) {
     // Create two exchanges, one for sending and one for receiving.
     const sendingExchange = createExchange(1);
@@ -148,6 +159,9 @@ export async function bdxTransfer(params: {
     expect(clientExchangeData[0].type).equals(expectedInitialMessageType);
 
     const bdxProtocol = new BdxProtocol();
+    if (params.observeResponder !== undefined) {
+        bdxProtocol.sessionStarted.on(params.observeResponder);
+    }
     bdxProtocol.enablePeerForScope(
         (receivingExchange.session as SecureSession).peerAddress,
         serverStorage,

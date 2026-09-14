@@ -5,7 +5,7 @@
  */
 
 import { SecureSession } from "#session/SecureSession.js";
-import { AsyncObservable, ClassExtends, Diagnostic, Logger, Observable } from "@matter/general";
+import { AsyncObservable, Bytes, ClassExtends, Diagnostic, Logger, Observable } from "@matter/general";
 import { BdxMessageType, BdxStatusCode } from "@matter/types";
 import { bdxSessionInitiator } from "./bdx-session-initiator.js";
 import { BdxError } from "./BdxError.js";
@@ -16,6 +16,7 @@ import { DrivingReceivingFlow } from "./flow/DrivingReceivingFlow.js";
 import { Flow } from "./flow/Flow.js";
 import { FollowingReceivingFlow } from "./flow/FollowingReceivingFlow.js";
 import { FollowingSendingFlow } from "./flow/FollowingSendingFlow.js";
+import type { BdxInit } from "./schema/BdxInitMessagesSchema.js";
 
 const logger = Logger.get("BdxSession");
 
@@ -110,9 +111,25 @@ export class BdxSession {
     /**
      * The *Init this session received, for a responder; undefined for an initiator, whose own *Init
      * `bdxSessionInitiator` composes on the wire rather than recording here.
+     *
+     * A copy: `BdxProtocol` announces a session before it negotiates, and negotiation reads this message, so
+     * handing out the live one would let an observer change what the responder goes on to accept.
      */
-    get initMessage() {
-        return this.#config.initMessage;
+    get initMessage(): Readonly<BdxInit> | undefined {
+        const initMessage = this.#config.initMessage;
+        if (initMessage === undefined) {
+            return undefined;
+        }
+
+        const { transferProtocol, maxBlockSize, startOffset, maxLength, fileDesignator, metaData } = initMessage;
+        return Object.freeze({
+            transferProtocol: Object.freeze({ ...transferProtocol }),
+            maxBlockSize,
+            startOffset,
+            maxLength,
+            fileDesignator: Bytes.of(fileDesignator).slice(),
+            metaData: metaData === undefined ? undefined : Bytes.of(metaData).slice(),
+        });
     }
 
     /**

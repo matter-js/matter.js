@@ -7,10 +7,12 @@ import {
     BdxError,
     BdxMessage,
     BdxReceiveInitMessage,
+    BdxSession,
     BdxStatusResponseError,
     Flow,
 } from "#bdx/index.js";
 import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
+import type { BdxInit } from "#bdx/schema/BdxInitMessagesSchema.js";
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
 import { Bytes, MemoryBlobStorageDriver, StandardCrypto } from "@matter/general";
 import { BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "@matter/types";
@@ -1350,6 +1352,44 @@ describe("BdxTest", () => {
                 expect(text).to.include(`maxBlockSize: ${blockSize}`);
                 expect(text).to.include("startOffset: 0");
             }
+        });
+
+        it("a responder reports what it received and granted, and an observer cannot alter either", async () => {
+            const data = crypto.randomBytes(2 * blockSize + tailSize);
+            let fd: PersistedFileDesignator;
+            let responder!: BdxSession;
+            let announced: Readonly<BdxInit> | undefined;
+
+            await bdxTransfer({
+                prepare: async (clientStorage, _serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
+                    writeBlob(clientStorage, "data", data);
+
+                    return {
+                        bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd, maxBlockSize: blockSize }),
+                        expectedInitialMessageType: BdxMessageType.SendInit,
+                    };
+                },
+                // A session is announced before it negotiates, so what an observer gets here is what negotiation
+                // goes on to read; assertions run after the transfer so a failure cannot stall it
+                observeResponder: session => {
+                    responder = session;
+                    announced = session.initMessage;
+                },
+                validate: async () => {},
+            });
+
+            expect(announced?.maxBlockSize).equals(blockSize);
+            expect(() => ((announced as BdxInit).maxBlockSize = 1)).to.throw();
+            expect(() => ((announced as BdxInit).fileDesignator = new Uint8Array(0))).to.throw();
+            expect(() => ((announced as BdxInit).transferProtocol.senderDrive = false)).to.throw();
+
+            const negotiated = responder.transferParameters;
+            expect(negotiated?.transferMode).equals(Flow.DriverMode.SenderDrive);
+            expect(negotiated?.blockSize).equals(blockSize);
+            expect(negotiated?.startOffset).equals(0);
+            expect(negotiated).to.not.have.property("fileDesignator");
+            expect(() => ((negotiated as Flow.TransferOptions).blockSize = 1)).to.throw();
         });
 
         it("BlockQuery carries an ascending block counter starting at 0 (Receiver-Driver)", async () => {
