@@ -30,6 +30,8 @@ function toTarget(t: BindingGrant["target"]): Target {
  * The `binding` ItemKind: additive, exact-match (bindings do not subsume one another). Operates on a
  * peer endpoint's fabric-scoped Binding list; never touches foreign entries. A binding intent for an
  * endpoint the peer does not expose is a caller error — apply throws (unrecoverable).
+ *
+ * @see {@link MatterSpecification.v16.Core} § 9.6.6.1
  */
 export class BindingItemKind implements ItemKind<BindingGrant> {
     readonly kind = "binding";

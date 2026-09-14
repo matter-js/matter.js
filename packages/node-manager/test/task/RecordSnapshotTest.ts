@@ -8,6 +8,7 @@ import { RUN_STORE_VERSION, RunStore } from "#task/RunStore.js";
 import { RunRecord, TaskPersistence } from "#task/Task.js";
 import { ChangeEntry, RunId, TaskState } from "#task/types.js";
 import { InternalError } from "@matter/general";
+import { testAddress } from "./helpers.js";
 
 /**
  * What a record carries into storage, and what a store does with a table it cannot read.
@@ -16,7 +17,7 @@ import { InternalError } from "@matter/general";
  * case depend on a node, a gate and a clock, and would hide which input the rule actually reads.
  */
 
-const ENTRY: ChangeEntry = { peerId: "p", kind: "groupMembership", key: "X" };
+const ENTRY: ChangeEntry = { peer: testAddress("p"), kind: "groupMembership", key: "X" };
 
 function persisted(runId: number, state: TaskState, changeSet: ChangeEntry[] = []): TaskPersistence {
     return {
@@ -46,12 +47,12 @@ describe("run record snapshots", () => {
         dropped.adoptDrop(["params"]);
         // Otherwise the key returns holding `undefined` on the next write and "storage omits it" holds for
         // exactly one write.
-        expect("params" in dropped.toPersistence({ revertRunId: RunId(2) })).equals(false);
+        expect("params" in dropped.toPersistence({ rollbackRunId: RunId(2) })).equals(false);
     });
 
     it("omits every field the run does not have, and none that it must", () => {
         const snapshot = record().toPersistence();
-        for (const absent of ["externalId", "error", "retireSeq", "revertRunId", "revertOf"]) {
+        for (const absent of ["externalId", "error", "retireSeq", "rollbackRunId", "rollbackOf"]) {
             expect(absent in snapshot).equals(false);
         }
         // The strip is enumerated rather than derived from the values present, so it cannot reach these.

@@ -4,17 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "#task/groups/AddNodeToGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
+import { addressLabel, addressOf } from "#task/peer.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Bytes } from "@matter/general";
-import { DesiredStateBehavior, itemMapKey, ServerNode } from "@matter/node";
+import { InternalError } from "@matter/general";
+import { DesiredStateBehavior, itemMapKey, ServerNode, ClientNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { recordFor, statusOfSlot } from "../helpers.js";
+import { isTerminalState, recordFor, statusOfSlot } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -25,8 +28,16 @@ const NEW_KEY = new Uint8Array(16).fill(0xcd);
 
 const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
 
-const ADD_PARAMS: AddNodeToGroupParams = {
-    peerId: "peer1",
+function addressOfNode(node: ClientNode): PeerAddress {
+    const address = addressOf(node);
+    if (address === undefined) {
+        throw new InternalError(`${node.id} has no address`);
+    }
+    return address;
+}
+
+const addParamsFor = (peer: ClientNode) => ({
+    peer: addressOfNode(peer),
     endpoint: 1,
     groupId: 0x101,
     groupName: "kitchen",
@@ -34,17 +45,14 @@ const ADD_PARAMS: AddNodeToGroupParams = {
     groupKeySecurityPolicy: TrustFirst,
     epochKey0: OP_KEY,
     epochStartTime0: OP_START,
-};
-
-const ROTATION_ID = "r1";
+});
 
 const ROTATE_PARAMS: RotateGroupKeyParams = {
     groupKeySetId: GROUP_KEY_SET_ID,
     newEpochKey: NEW_KEY,
-    rotationId: ROTATION_ID,
 };
 
-const ADD_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
+const addIdFor = (peer: ClientNode) => `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}:1`;
 const ROTATE_SLOT = `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}`;
 
 /** Snapshot of a keySetWrite, captured before the server mutates the request (MAX-sentinel nulling). */
@@ -70,7 +78,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
             // A run turns terminal one step before it retires, so a caller that acts here would find the
             // slot still held.
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
             if (settled) {
                 return;
@@ -106,11 +114,11 @@ describe("RotateGroupKey task integration (single member)", () => {
             controller: { type: ControllerRoot },
             device: { type: DeviceRoot, device: OnOffLightSwitchDevice.with(GroupsServer) },
         });
-        await subscribedPeer(controller, "peer1");
+        const peer = await subscribedPeer(controller, "peer1");
 
         // Provision the operational key set (the "op") first, then rotate it.
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, ADD_PARAMS));
-        await awaitState(controller, ADD_ID, "completed");
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peer)));
+        await awaitState(controller, addIdFor(peer), "completed");
         expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
 
         writes.length = 0; // ignore the provisioning write; record only the rotation
@@ -168,8 +176,8 @@ describe("RotateGroupKey task integration (single member)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, ADD_PARAMS));
-        await awaitState(controller, ADD_ID, "completed");
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peer)));
+        await awaitState(controller, addIdFor(peer), "completed");
 
         // Seed a committed multi-epoch intent (slot 1 populated) directly, without emitting itemChanged so no
         // reconcile fires — the object identity below is the proof the rotation never rewrote the intent.

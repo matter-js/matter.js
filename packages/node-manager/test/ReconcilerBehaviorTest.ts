@@ -65,8 +65,8 @@ function makeTarget(items: Record<string, ManagedItem> = {}): ReconcileTarget & 
         async dropItem(kind, key) {
             delete state[`${kind}:${key}`];
         },
-        currentState(kind, key) {
-            return state[`${kind}:${key}`]?.status.state;
+        currentItem(kind, key) {
+            return state[`${kind}:${key}`];
         },
     };
 }

@@ -26,6 +26,8 @@ const MIN_GROUPS_PER_FABRIC = 4;
  * The `groupKeyMap` ItemKind: maps a group to its key set in the fabric-scoped groupKeyMap attribute.
  * A group maps to exactly one key set, so apply upserts by groupId (replacing a differing mapping)
  * rather than appending.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.2.6.1
  */
 export class GroupKeyMapItemKind implements ItemKind<GroupKeyMapGrant> {
     readonly kind = "groupKeyMap";

@@ -27,6 +27,8 @@ const MIN_GROUPS_PER_FABRIC = 4;
  * StatusResponseError to drive the engine's retry/drop handling. The group name is written but not
  * verified — GetGroupMembership returns only group IDs. Requires the group's key set and map to exist
  * first; the keyset(10) < group(20) < membership(30) priority bands enforce that order.
+ *
+ * @see {@link MatterSpecification.v16.Cluster} § 1.3.7.1, § 1.3.7.3, § 1.3.7.4
  */
 export class GroupMembershipItemKind implements ItemKind<GroupMembershipGrant> {
     readonly kind = "endpointGroupMembership";

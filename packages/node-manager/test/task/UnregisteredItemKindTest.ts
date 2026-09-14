@@ -9,17 +9,19 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { TaskContext } from "#task/types.js";
 import { ClientNode, DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
-import { awaitRun } from "./helpers.js";
+import { PeerAddress } from "@matter/protocol";
+import { testAddress } from "./helpers.js";
+import { kindOf, awaitRun } from "./helpers.js";
 
 const TYPO_TYPE = "typoIntent";
 const PEER_ID = "peer1";
 
 /** Sets an intent under an unregistered kind name (as a caller-side typo would), then waits for it to commit. */
-const TypoIntentTask: TaskDefinition<{ peerId: string }> = {
+const TypoIntentTask: TaskDefinition<{ peer: PeerAddress }> = {
     type: TYPO_TYPE,
 
     slotKeyFor(params) {
-        return `${TYPO_TYPE}:${params.peerId}`;
+        return `${TYPO_TYPE}:${params.peer}`;
     },
 
     phases(params) {
@@ -27,10 +29,10 @@ const TypoIntentTask: TaskDefinition<{ peerId: string }> = {
     },
 };
 
-async function run(ctx: TaskContext, params: { peerId: string }): Promise<void> {
-    const peer = ctx.resolvePeer(params.peerId);
-    await ctx.setIntent(peer, "groupKy", "1", {});
-    await ctx.awaitCommitted([{ peer, kind: "groupKy", key: "1" }]);
+async function run(ctx: TaskContext, params: { peer: PeerAddress }): Promise<void> {
+    const peer = ctx.resolvePeer(params.peer);
+    await ctx.setIntent(peer, kindOf("groupKy"), "1", {});
+    await ctx.awaitCommitted([{ peer, kind: kindOf("groupKy"), key: "1" }]);
 }
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
@@ -51,7 +53,7 @@ describe("an item whose kind is not registered", () => {
 
         await controller.act(agent => agent.get(TaskManagerBehavior).register(TypoIntentTask));
         const handle = await controller.act(agent =>
-            agent.get(TaskManagerBehavior).run(TypoIntentTask, { peerId: PEER_ID }),
+            agent.get(TaskManagerBehavior).run(TypoIntentTask, { peer: testAddress(PEER_ID) }),
         );
 
         await awaitRun(controller, TaskManagerBehavior, handle.runId, "failed");

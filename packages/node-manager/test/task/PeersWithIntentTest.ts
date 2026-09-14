@@ -9,11 +9,12 @@ import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { TaskDefinition, RunRecord } from "#task/Task.js";
 import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
-import { FakePeer } from "./helpers.js";
+import { PeerAddress } from "@matter/protocol";
+import { kindOf, FakePeer } from "./helpers.js";
 
-/** peersWithIntent never touches the reconciler; a no-op stand-in avoids depending on the whole behavior. */
-const unusedReconciler: ReconcilerSurface = {
-    itemKind: () => undefined,
+/** peersWithIntent reads desired state; the reconciler only says which kinds it owns. */
+const kindsOnlyReconciler: ReconcilerSurface = {
+    itemKind: name => kindOf(name),
     reconcile: async () => {},
 };
 
@@ -39,14 +40,14 @@ describe("peersWithIntent", () => {
         const record = new RunRecord(RunId(1), "pwi-test:1", PwiTask.type, {});
         const ctx = new RunningTaskContext(
             record,
-            id => all.find(p => p.id === id)?.asNode(),
-            unusedReconciler,
+            address => all.find(p => PeerAddress.is(p.address, address))?.asNode(),
+            kindsOnlyReconciler,
             (_s: TaskState) => {},
             undefined,
             () => all.map(p => p.asNode()),
         );
 
-        const ids = ctx.peersWithIntent("groupKey", "42").map(p => p.id);
+        const ids = ctx.peersWithIntent(kindOf("groupKey"), "42").map(p => p.id);
         expect(ids.sort()).deep.equals(["a", "b"]);
     });
 });

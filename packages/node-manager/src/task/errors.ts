@@ -47,11 +47,16 @@ export enum TaskFindingCode {
     /** The manager is shutting down and cannot record an outcome. */
     ManagerClosing = "managerClosing",
 
+    /** The run's outcome could not be stored, so this manager stopped driving it without recording one. */
+    OutcomeUnrecorded = "outcomeUnrecorded",
+
     /** No run answers the given identity. */
     NotFound = "notFound",
+    NoLongerTracked = "noLongerTracked",
+    ParamsRejected = "paramsRejected",
 
     /** The run has passed its point of no return. */
-    NotRevertible = "notRevertible",
+    NotRollbackable = "notRollbackable",
 
     /** More runs were started than the durable identity reservation covers. */
     IdentityExhausted = "identityExhausted",
@@ -76,6 +81,17 @@ export enum TaskFindingCode {
 
     /** The run has no undo to retry. */
     NoRollback = "noRollback",
+}
+
+/**
+ * A refusal as data: the same cause a {@link TaskRefusedError} carries, for a caller that asked what would
+ * happen rather than for the work itself.
+ */
+export interface TaskFinding {
+    code: TaskFindingCode;
+    message: string;
+    /** The run responsible, for the codes that name one — see {@link TaskConflictError}. */
+    owner?: RunId;
 }
 
 export class TaskError extends MatterError {}
@@ -103,8 +119,8 @@ export class TaskCapacityExceededError extends TaskError {}
 export class RotationPreconditionError extends TaskError {}
 
 /** cancel() was refused: the task passed its point of no return (e.g. a realized group-key rotation). */
-export class TaskNotRevertibleError extends TaskRefusedError {
-    override readonly code = TaskFindingCode.NotRevertible;
+export class TaskNotRollbackableError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.NotRollbackable;
 }
 
 /**
@@ -192,9 +208,40 @@ export class TaskManagerClosingError extends TaskRefusedError {
     override readonly code = TaskFindingCode.ManagerClosing;
 }
 
+/**
+ * The run's outcome could not be written, so this manager stopped driving it and will never say how it ended.
+ * Storage keeps the non-terminal state the run already had, and the next start resumes it.
+ *
+ * Distinct from {@link TaskManagerClosingError}, which says the same thing about a shutdown the operator asked
+ * for: this one reports a storage failure, and nothing was asked of the manager at all.
+ */
+export class TaskOutcomeUnrecordedError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.OutcomeUnrecorded;
+}
+
 /** `abandon()` names the rollback to give up on, not the run it undoes. */
 export class TaskNotARollbackError extends TaskRefusedError {
     override readonly code = TaskFindingCode.NotARollback;
+}
+
+/**
+ * The run's stored parameters are not ones its task type will accept, so this manager cannot act on it.
+ *
+ * Not the caller's mistake — {@link ImplementationError} covers parameters a caller passed to `run()`. This
+ * says the record in storage cannot be driven, which a caller could not have known and cannot fix.
+ */
+export class TaskParamsRejectedError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.ParamsRejected;
+}
+
+/**
+ * The run retired and its record has since been evicted, so this manager can no longer act on it.
+ *
+ * Distinct from {@link TaskNotFoundError}: the work happened, and the identity was real. Only the record is
+ * gone, because history is bounded.
+ */
+export class TaskNoLongerTrackedError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.NoLongerTracked;
 }
 
 /**
@@ -227,7 +274,7 @@ export class TaskNotInFlightError extends TaskRefusedError {
 }
 
 /**
- * There is no undo of this run to retry: nothing was written, the task declined to be reverted, or the write
+ * There is no undo of this run to retry: nothing was written, the task declined to be rolled back, or the write
  * that would have recorded the undo was refused.
  *
  * Ordinary state rather than a caller's mistake: a run that completes cleanly never gets a rollback.
@@ -259,3 +306,12 @@ export class TaskAbandonedSignal extends TaskStopSignal {}
 
 /** Thrown into a running phase on shutdown so #drive stops without a state change (resume later). */
 export class TaskSuspendedSignal extends TaskStopSignal {}
+
+/** The refusal a caller would have received, as a value. */
+export function findingOf(refusal: TaskRefusedError): TaskFinding {
+    return {
+        code: refusal.code,
+        message: refusal.message,
+        owner: refusal instanceof TaskConflictError ? refusal.owner : undefined,
+    };
+}

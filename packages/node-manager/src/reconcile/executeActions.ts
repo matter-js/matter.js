@@ -25,9 +25,17 @@ export interface ReconcileTarget {
         state: "committed" | "commitFailed" | "pending",
         code?: number,
     ): Promise<void>;
-    dropItem(kind: string, key: string): Promise<void>;
-    /** Live item state, re-read after a slow apply to detect a concurrent delete. */
-    currentState(kind: string, key: string): ItemState | undefined;
+    /** `reason` says why the item is going, for the one moment before its status is unreachable. */
+    dropItem(kind: string, key: string, reason?: string): Promise<void>;
+    /**
+     * The item as it stands now, re-read after a slow apply.
+     *
+     * The whole item, not just its state: an apply yields, and `setIntent` may have replaced what is stored
+     * under this `(kind, key)` meanwhile. Writing a status then would describe the new intent by what happened
+     * to the old one. Only `setIntent` installs a new `intent` reference — a status write spreads the existing
+     * item — so the reference is what tells a replacement from a status change.
+     */
+    currentItem(kind: string, key: string): ManagedItem | undefined;
 }
 
 /**
@@ -57,19 +65,20 @@ export async function executeActions(
                         throw new UnknownItemKindError(`No item kind registered for "${item.kind}"`);
                     }
                     await kind.apply(target.node, item);
-                    // A revert that flipped the intent to delete during this apply must win: a status
-                    // write here would resurrect the item the revert is trying to remove.
-                    if (target.currentState(item.kind, item.key) === "deletePending") {
+                    // A rollback that flipped the intent to delete during this apply must win: a status
+                    // write here would resurrect the item the rollback is trying to remove.
+                    if (!stillPlanned(target, item)) {
                         break;
                     }
                     await target.updateStatus(item.kind, item.key, "committed");
                 } catch (e) {
-                    if (target.currentState(item.kind, item.key) === "deletePending") {
+                    if (!stillPlanned(target, item)) {
                         break;
                     }
-                    if (e instanceof UnknownItemKindError) {
-                        logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, e);
-                    }
+                    // Every apply failure, not only the one class this used to name: the status code the item
+                    // carries from here is a number, so this log is the only place the cause survives — and a
+                    // local schema refusal and a device's own status read identically once it is gone.
+                    logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, e);
                     await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
                 }
                 break;
@@ -81,26 +90,49 @@ export async function executeActions(
                     }
                     // A re-add that flipped the intent back during this remove must win: dropping here
                     // would discard the freshly re-applied intent.
-                    if (target.currentState(item.kind, item.key) !== "deletePending") {
+                    if (!stillPlanned(target, item, "deletePending")) {
                         break;
                     }
                     await target.dropItem(item.kind, item.key);
                 } catch (e) {
-                    if (target.currentState(item.kind, item.key) !== "deletePending") {
+                    if (!stillPlanned(target, item, "deletePending")) {
                         break;
                     }
+                    logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not be removed:`, e);
                     await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
                 }
                 break;
 
-            case "drop":
-                await target.dropItem(item.kind, item.key);
+            case "drop": {
+                if (!stillPlanned(target, item)) {
+                    break;
+                }
+                // The item goes, so this is the last moment anything knows why. A task waiting on it would
+                // otherwise be told only that it is gone.
+                const reason = `the device rejected it${item.status.failureCode === undefined ? "" : ` with status ${item.status.failureCode}`}`;
+                logger.notice(`${item.kind}:${item.key} on ${target.node.id} dropped: ${reason}`);
+                await target.dropItem(item.kind, item.key, reason);
                 break;
+            }
 
             case "skip":
                 break;
         }
     }
+}
+
+/**
+ * Whether the item this action was planned for is still the item stored under its `(kind, key)`.
+ *
+ * `requiring` names a state the plan depends on; without it any state but `deletePending` will do, since a
+ * delete that arrived during the action must win over the status this action would write.
+ */
+function stillPlanned(target: ReconcileTarget, item: ManagedItem, requiring?: ItemState): boolean {
+    const current = target.currentItem(item.kind, item.key);
+    if (current === undefined || current.intent !== item.intent) {
+        return false;
+    }
+    return requiring === undefined ? current.status.state !== "deletePending" : current.status.state === requiring;
 }
 
 function priority(item: ManagedItem, registry: ItemKindRegistry): number {

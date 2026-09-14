@@ -6,18 +6,20 @@
 
 import { TaskNotInFlightError } from "#task/errors.js";
 import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { addressLabel, addressOf } from "#task/peer.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
+import { InternalError } from "@matter/general";
+import { ClientNode, DesiredStateBehavior, itemMapKey, NetworkClient, ServerNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
 import { DimmableLightDevice } from "@matter/node/devices/dimmable-light";
 import { OnOffLightDevice } from "@matter/node/devices/on-off-light";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
-import { SustainedSubscription } from "@matter/protocol";
+import { PeerAddress, SustainedSubscription } from "@matter/protocol";
 import { EndpointNumber, GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { cancelSlot, recordFor, revertRecordOf, statusOfSlot } from "../helpers.js";
+import { cancelSlot, isTerminalState, recordFor, rollbackRecordOf, statusOfSlot } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -25,8 +27,17 @@ const LOCAL_EP = EndpointNumber(1);
 const GROUP = GroupId(0x101);
 const GROUP_KEY_SET_ID = 42;
 
-const PARAMS: AddNodeToGroupParams = {
-    peerId: "peer1",
+/** A commissioned node's address: what a task names it by. */
+function addressOfNode(node: ClientNode): PeerAddress {
+    const address = addressOf(node);
+    if (address === undefined) {
+        throw new InternalError(`${node.id} has no address`);
+    }
+    return address;
+}
+
+const paramsFor = (peer: ClientNode): AddNodeToGroupParams => ({
+    peer: addressOfNode(peer),
     endpoint: 1,
     groupId: 0x101,
     groupName: "kitchen",
@@ -34,10 +45,10 @@ const PARAMS: AddNodeToGroupParams = {
     groupKeySecurityPolicy: TrustFirst,
     epochKey0: new Uint8Array(16).fill(0xab),
     epochStartTime0: 946684800000001n, // must be > IPK_DEFAULT_EPOCH_START_TIME
-};
+});
 
-const TASK_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
-const MEMBERSHIP_KEY = `${0x101}:${PARAMS.endpoint}`;
+const taskIdFor = (peer: ClientNode) => `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}:1`;
+const MEMBERSHIP_KEY = `${0x101}:1`;
 
 const ControllerRoot = MockServerNode.RootEndpoint.with(TaskManagerBehavior);
 
@@ -62,7 +73,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
             // A run turns terminal one step before it retires, so a caller that acts here would find the
             // slot still held.
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
             if (settled) {
                 return;
@@ -87,8 +98,8 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
-        await awaitState(controller, TASK_ID, "completed");
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(peer)));
+        await awaitState(controller, taskIdFor(peer), "completed");
 
         expect(itemState(peer, "groupKey", String(GROUP_KEY_SET_ID))).equals("committed");
         expect(itemState(peer, "groupKeyMap", String(GROUP))).equals("committed");
@@ -110,13 +121,13 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         // unreachable peer is skipped by #evaluate so the predicate stays unsatisfied and the gate waits.
         await MockTime.resolve(subscription.active.emit(false), { macrotasks: true });
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
-        await awaitState(controller, TASK_ID, "parked");
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(peer)));
+        await awaitState(controller, taskIdFor(peer), "parked");
         expect(isMember(device)).equals(false);
 
         // Restore reachability; the subscriptionStatusChanged wake re-drives the parked gate to completion.
         await MockTime.resolve(subscription.active.emit(true), { macrotasks: true });
-        await awaitState(controller, TASK_ID, "completed");
+        await awaitState(controller, taskIdFor(peer), "completed");
         expect(isMember(device)).equals(true);
     });
 
@@ -128,8 +139,8 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
-        await awaitState(controller, TASK_ID, "completed");
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(peer)));
+        await awaitState(controller, taskIdFor(peer), "completed");
         expect(isMember(device)).equals(true);
 
         // Once the add succeeded it is done: undoing it is `RemoveNodeFromGroup`, which reads the device's
@@ -137,7 +148,7 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         let refusal: unknown;
         try {
             await MockTime.resolve(
-                controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), TASK_ID)),
+                controller.act(agent => cancelSlot(agent.get(TaskManagerBehavior), taskIdFor(peer))),
                 {
                     macrotasks: true,
                 },
@@ -151,11 +162,11 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         expect(itemState(peer, "groupKeyMap", String(GROUP))).equals("committed");
         expect(itemState(peer, "endpointGroupMembership", MEMBERSHIP_KEY)).equals("committed");
         expect(isMember(device)).equals(true);
-        const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), TASK_ID));
+        const status = await controller.act(agent => statusOfSlot(agent.get(TaskManagerBehavior), taskIdFor(peer)));
         expect(status?.state).equals("completed");
         // Nothing was spawned, so the run names no rollback.
-        expect(status?.revertRunId).equals(undefined);
-        expect(revertRecordOf(controller.stateOf(TaskManagerBehavior).runs, TASK_ID)).equals(undefined);
+        expect(status?.rollbackRunId).equals(undefined);
+        expect(rollbackRecordOf(controller.stateOf(TaskManagerBehavior).runs, taskIdFor(peer))).equals(undefined);
     });
 
     it("resumes a parked task across a controller restart", async () => {
@@ -170,8 +181,11 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         const subscription = peer.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
         await MockTime.resolve(subscription.active.emit(false), { macrotasks: true });
 
-        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, PARAMS));
-        await awaitState(controller, TASK_ID, "parked");
+        await controller.act(agent => agent.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(peer)));
+        await awaitState(controller, taskIdFor(peer), "parked");
+        // Captured before the close: the node it names goes with the controller, and the task's identity is
+        // what the restarted controller has to answer for.
+        const taskId = taskIdFor(peer);
         const id = controller.id;
         await MockTime.resolve(controller.close(), { macrotasks: true });
 
@@ -179,12 +193,12 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         // The persisted parked task resumes once the node is online and the peer subscription re-establishes.
         const controller2 = await site.addNode(ControllerRoot, { id, index: 1 });
         const resumed = await controller2.act(
-            agent => recordFor(agent.get(TaskManagerBehavior).state.runs, TASK_ID)?.state,
+            agent => recordFor(agent.get(TaskManagerBehavior).state.runs, taskId)?.state,
         );
         expect(["running", "parked"]).contains(resumed);
 
         await subscribedPeer(controller2, "peer1");
-        await awaitState(controller2, TASK_ID, "completed");
+        await awaitState(controller2, taskId, "completed");
         expect(isMember(device)).equals(true);
     });
 
@@ -202,13 +216,13 @@ describe("AddNodeToGroup task integration (single peer)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        const idEp1 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
-        const idEp2 = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:2`;
+        const idEp1 = `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}:1`;
+        const idEp2 = `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}:2`;
 
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 1 }));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, { ...paramsFor(peer), endpoint: 1 }));
         await awaitState(controller, idEp1, "completed");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, { ...PARAMS, endpoint: 2 }));
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, { ...paramsFor(peer), endpoint: 2 }));
         await awaitState(controller, idEp2, "completed");
 
         expect(itemState(peer, "endpointGroupMembership", `${0x101}:1`)).equals("committed");

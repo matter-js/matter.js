@@ -6,10 +6,19 @@
 
 import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
 import { asError, Logger, ObserverGroup } from "@matter/general";
-import { ClientNode, DesiredStateBehavior, itemMapKey, ItemMode, ManagedItem, NetworkClient } from "@matter/node";
-import { SustainedSubscription } from "@matter/protocol";
+import {
+    ClientNode,
+    DesiredStateBehavior,
+    ItemKind,
+    itemMapKey,
+    ItemMode,
+    ManagedItem,
+    NetworkClient,
+} from "@matter/node";
+import { PeerAddress, SustainedSubscription } from "@matter/protocol";
 import { TaskFailedError, TaskPeerUnavailableError } from "./errors.js";
-import { runLabel, RunRecord } from "./Task.js";
+import { addressLabel, addressOf, peerLabel } from "./peer.js";
+import { runLabel, RunRecord, TaskPersistence } from "./Task.js";
 import { TaskContext, TaskState } from "./types.js";
 
 const logger = Logger.get("TaskContext");
@@ -25,74 +34,138 @@ export interface GateControl {
 }
 
 /**
- * TaskContext bound to a running task. Records pre-mutation state into the task's changeSet so cancel can revert.
+ * TaskContext bound to a running task. Records pre-mutation state into the task's changeSet so cancel can rollback.
  * Peers are resolved through an injected resolver so the manager controls peer lookup.
  */
 export class RunningTaskContext implements TaskContext {
     constructor(
         protected readonly record: RunRecord,
-        protected readonly peerResolver: (peerId: string) => ClientNode | undefined,
+        protected readonly peerResolver: (peer: PeerAddress) => ClientNode | undefined,
         protected readonly reconciler: ReconcilerSurface,
         protected readonly setState: (state: TaskState) => void,
         protected readonly gate?: GateControl,
         protected readonly peerLister: () => ClientNode[] = () => new Array<ClientNode>(),
+        protected readonly persistChanges: (next: Partial<TaskPersistence>) => Promise<void> = async next =>
+            record.adopt(next),
     ) {}
 
-    resolvePeer(peerId: string): ClientNode {
-        const peer = this.peerResolver(peerId);
+    resolvePeer(address: PeerAddress): ClientNode {
+        const peer = this.peerResolver(address);
         if (peer === undefined) {
             throw new TaskPeerUnavailableError(
-                `Task ${runLabel(this.record.runId)}: peer "${peerId}" is not available`,
+                `Task ${runLabel(this.record.runId)}: peer ${addressLabel(address)} is not available`,
             );
         }
         return peer;
     }
 
-    tryResolvePeer(peerId: string): ClientNode | undefined {
-        return this.peerResolver(peerId);
+    tryResolvePeer(address: PeerAddress): ClientNode | undefined {
+        return this.peerResolver(address);
     }
 
-    async setIntent(peer: ClientNode, kind: string, key: string, intent: unknown, mode: ItemMode = "converge") {
-        this.#record(peer, kind, key);
+    async setIntent<I>(peer: ClientNode, kind: ItemKind<I>, key: string, intent: I, mode: ItemMode = "converge") {
+        this.#requireRegistered(kind);
+        await this.#record(peer, kind.kind, key);
         await peer.act(agent => {
-            agent.get(DesiredStateBehavior).setIntent(kind, key, intent, mode);
+            agent.get(DesiredStateBehavior).setIntent(kind.kind, key, intent, mode);
         });
     }
 
-    async removeIntent(peer: ClientNode, kind: string, key: string) {
-        this.#record(peer, kind, key);
+    async removeIntent(peer: ClientNode, kind: ItemKind, key: string) {
+        this.#requireRegistered(kind);
+        // Nothing to remove is nothing changed: `DesiredStateBehavior.removeIntent` is a no-op for an item that
+        // is not there, and recording it would give the run a change set entry that restores nothing and a
+        // claim that it altered a device.
+        if (peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind.kind, key)] === undefined) {
+            return;
+        }
+        await this.#record(peer, kind.kind, key);
         await peer.act(agent => {
-            agent.get(DesiredStateBehavior).removeIntent(kind, key);
+            agent.get(DesiredStateBehavior).removeIntent(kind.kind, key);
         });
     }
 
-    // First touch wins: records the pre-task state so a revert restores that, not an intermediate touch.
-    #record(peer: ClientNode, kind: string, key: string) {
-        if (this.record.changeSet.some(e => e.peerId === peer.id && e.kind === kind && e.key === key)) {
+    intentOf<I>(peer: ClientNode, kind: ItemKind<I>, key: string): I | undefined {
+        this.#requireRegistered(kind);
+        // The kind names the intent type, so no caller has to assert one.
+        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind.kind, key)]?.intent as I | undefined;
+    }
+
+    kindNamed(name: string): ItemKind {
+        const kind = this.reconciler.itemKind(name);
+        if (kind === undefined) {
+            throw new TaskFailedError(
+                `Task ${runLabel(this.record.runId)}: no item kind "${name}" is registered, so a change naming it cannot be applied`,
+            );
+        }
+        return kind;
+    }
+
+    /**
+     * The reconciler's kind for the **name** a task's reference carries, asked for by every verb that takes
+     * one.
+     *
+     * {@link ItemKind} is structural, so a value the reconciler never registered satisfies the signature, and
+     * an intent written under a name no kind owns never converges and never commits — the task then parks on
+     * its own gate with nothing to say why. The registered kind is also what answers `isReferenced`, never the
+     * reference passed in.
+     */
+    #requireRegistered(kind: ItemKind): ItemKind {
+        return this.kindNamed(kind.kind);
+    }
+
+    /**
+     * Record the pre-task state of an item, first touch winning so a rollback restores that rather than an
+     * intermediate one.
+     *
+     * The record carries it before the caller changes the device, and the run adopts it only once that write
+     * has landed. A restart re-drives a phase from its start, and an item the device already holds reads back
+     * the run's own value as the prior, so a change made before its record exists can only be undone back to
+     * the state the run itself created.
+     */
+    async #record(peer: ClientNode, kind: string, key: string) {
+        // A record outlives the node's presence, so it names the node by the identity that is never re-issued.
+        // A node with none cannot be named at all, which is the same node a restart could not resolve.
+        const address = addressOf(peer);
+        if (address === undefined) {
+            throw new TaskFailedError(
+                `Task ${runLabel(this.record.runId)}: ${peer.id} has no address, so what it is asked to hold cannot be recorded`,
+            );
+        }
+        if (this.record.changeSet.some(e => PeerAddress.is(e.peer, address) && e.kind === kind && e.key === key)) {
             return;
         }
         const existing = peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
         const prior = existing === undefined ? undefined : { intent: existing.intent, mode: existing.mode };
-        this.record.changeSet.push({ peerId: peer.id, kind, key, prior });
-        // Permanent, unlike the entries: a retirement drops what a run would restore once nothing can restore
-        // it, and every other run of the target still has to know this one reached the device.
-        this.record.wrote = true;
+        await this.persistChanges({
+            changeSet: [...this.record.changeSet, { peer: address, kind, key, prior }],
+            // Permanent, unlike the entries: a retirement drops what a run would restore once nothing can
+            // restore it, and every other run of the target still has to know this one reached the device.
+            wrote: true,
+        });
     }
 
-    async removeIntentIfUnreferenced(peer: ClientNode, kind: string, key: string): Promise<boolean> {
-        if (this.reconciler.itemKind(kind)?.isReferenced?.(peer, key)) {
-            logger.debug(`Task ${runLabel(this.record.runId)}: keep ${kind}:${key} on ${peer.id} (still referenced)`);
+    async removeIntentIfUnreferenced(peer: ClientNode, kind: ItemKind, key: string): Promise<boolean> {
+        // The registered kind answers, not the reference the caller passed: a task names a kind for its type,
+        // but the reconciler owns what that kind does.
+        if (this.#requireRegistered(kind).isReferenced?.(peer, key)) {
+            logger.debug(
+                `Task ${runLabel(this.record.runId)}: keep ${kind.kind}:${key} on ${peerLabel(peer)} (still referenced)`,
+            );
             return false;
         }
         await this.removeIntent(peer, kind, key);
         return true;
     }
 
-    async awaitCommitted(items: Array<{ peer: ClientNode; kind: string; key: string }>): Promise<void> {
+    async awaitCommitted(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): Promise<void> {
+        for (const item of items) {
+            this.#requireRegistered(item.kind);
+        }
         const peers = [...new Set(items.map(i => i.peer))];
         await this.awaitGate(peers, () => {
             this.#requireAwaited(items);
-            return items.every(i => this.#itemState(i.peer, i.kind, i.key) === "committed");
+            return items.every(i => this.#itemState(i.peer, i.kind.kind, i.key) === "committed");
         });
     }
 
@@ -100,12 +173,17 @@ export class RunningTaskContext implements TaskContext {
      * A commit gate only ever observes success, so an intent the reconciler gave up on — dropped after an
      * unrecoverable device rejection — would park the task forever. Fail it into the driver's rollback path.
      */
-    #requireAwaited(items: Array<{ peer: ClientNode; kind: string; key: string }>): void {
-        const gone = items.find(i => this.#itemState(i.peer, i.kind, i.key) === undefined);
+    #requireAwaited(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): void {
+        const gone = items.find(i => this.#itemState(i.peer, i.kind.kind, i.key) === undefined);
         if (gone !== undefined) {
+            // The item's own status went with it, so the reason comes from the reconciler that dropped it.
+            // Without it this says only that the intent is gone, which is the one thing a caller can already
+            // see and the one thing that does not help.
+            const reason =
+                this.reconciler.dropReasonFor?.(gone.peer, gone.kind.kind, gone.key) ?? "the reconciler dropped it";
             throw new TaskFailedError(
-                `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind}:${gone.key} on ${gone.peer.id} is gone — ` +
-                    `the reconciler dropped it, so it can no longer commit`,
+                `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind.kind}:${gone.key} on ${peerLabel(gone.peer)} is gone — ` +
+                    `${reason}, so it can no longer commit`,
             );
         }
     }
@@ -224,12 +302,14 @@ export class RunningTaskContext implements TaskContext {
         this.setState(nodes.some(node => !this.#reachable(node)) ? "parked" : "running");
     }
 
-    itemAbsent(peer: ClientNode, kind: string, key: string): boolean {
-        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)] === undefined;
+    itemAbsent(peer: ClientNode, kind: ItemKind, key: string): boolean {
+        this.#requireRegistered(kind);
+        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind.kind, key)] === undefined;
     }
 
-    peersWithIntent(kind: string, key: string): ClientNode[] {
-        const id = itemMapKey(kind, key);
+    peersWithIntent(kind: ItemKind, key: string): ClientNode[] {
+        this.#requireRegistered(kind);
+        const id = itemMapKey(kind.kind, key);
         return this.peerLister().filter(peer => {
             const item = peer.stateOf(DesiredStateBehavior).items[id];
             return item !== undefined && item.status.state !== "deletePending";

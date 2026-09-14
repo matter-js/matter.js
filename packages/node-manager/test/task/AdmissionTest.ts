@@ -9,14 +9,16 @@ import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Environment } from "@matter/general";
 import { CapacityInfo, ClientNode, ItemKind, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { FakePeer, recordFor, requireRecordFor, SyntheticTask } from "./helpers.js";
+import { PeerAddress } from "@matter/protocol";
+import { testAddress } from "./helpers.js";
+import { FakePeer, isTerminalState, kindOf, recordFor, requireRecordFor, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
     static peers = new Map<string, FakePeer>();
     static reconcilerPeer?: FakePeer;
-    protected override resolvePeerNode(peerId: string): ClientNode | undefined {
-        return TestTaskManager.peers.get(peerId)?.asNode();
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
     }
     protected override taskReconciler(): ReconcilerBehavior {
         return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
@@ -30,7 +32,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
         const state = await node.act(a => recordFor(a.get(TestTaskManager).state.runs, id)?.state);
         if (state !== undefined && states.includes(state)) {
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TestTaskManager).tasks.some(t => t.status.slotKey === id)));
             if (settled) return;
         }
@@ -66,7 +68,9 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["over"] = [{ peerId: "p", kind: "cap", key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["over"] = [
+            { peer: testAddress("p"), kind: kindOf("cap"), key: "x", intent: {} },
+        ];
         SyntheticTask.phasesByTag["over"] = [{ name: "should-not-run", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-over" });
@@ -77,7 +81,34 @@ describe("capacity admission", () => {
         const rec = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:over");
         expect(rec.error).contains("capacity");
         expect(rec.changeSet).deep.equals([]);
-        expect(rec.revertRunId).equals(undefined);
+        expect(rec.rollbackRunId).equals(undefined);
+        expect(ran).equals(false);
+        await node.close();
+    });
+
+    it("refuses a planned change naming a kind the reconciler does not own", async () => {
+        const environment = new Environment("test");
+        // Resolves nothing, so the planned kind below is a name no reconciler owns.
+        const peer = capPeer("p", { limit: 4, used: 0 });
+        TestTaskManager.peers.set("p", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        let ran = false;
+        SyntheticTask.plannedChangesByTag["unowned"] = [
+            { peer: testAddress("p"), kind: kindOf("not-registered"), key: "x", intent: {} },
+        ];
+        SyntheticTask.phasesByTag["unowned"] = [{ name: "should-not-run", run: async () => void (ran = true) }];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-unowned" });
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "unowned" }));
+
+        await awaitState(node, "synthetic:unowned", "failed");
+        const rec = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:unowned");
+        // Refused where the capacity question is asked, rather than at the first write of a run already
+        // holding its target.
+        expect(rec.error).contains('no item kind "not-registered" is registered');
+        expect(rec.changeSet).deep.equals([]);
         expect(ran).equals(false);
         await node.close();
     });
@@ -102,7 +133,9 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["member"] = [{ peerId: "p", kind: "member", key: "1:2", intent: {} }];
+        SyntheticTask.plannedChangesByTag["member"] = [
+            { peer: testAddress("p"), kind: kindOf("member"), key: "1:2", intent: {} },
+        ];
         SyntheticTask.phasesByTag["member"] = [{ name: "runs", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-member" });
@@ -121,7 +154,9 @@ describe("capacity admission", () => {
         TestTaskManager.reconcilerPeer = peer;
 
         let ran = false;
-        SyntheticTask.plannedChangesByTag["fits"] = [{ peerId: "p", kind: "cap", key: "x", intent: {} }];
+        SyntheticTask.plannedChangesByTag["fits"] = [
+            { peer: testAddress("p"), kind: kindOf("cap"), key: "x", intent: {} },
+        ];
         SyntheticTask.phasesByTag["fits"] = [{ name: "runs", run: async () => void (ran = true) }];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-fits" });
