@@ -14,8 +14,7 @@ import { GroupMembershipItemKind } from "./GroupMembershipItemKind.js";
  * The item kinds this package reconciles, as the single instance of each that is registered.
  *
  * A task names a kind by passing one of these rather than by spelling its name, so a typo does not compile and
- * the intent type follows the kind. They are shared instances because a kind holds no state of its own — and
- * because the reconciler registers exactly these, so a task cannot pass a lookalike.
+ * the intent type follows the kind. They are shared instances because a kind holds no state of its own.
  */
 export const GroupKey = new GroupKeyItemKind();
 export const GroupKeyMap = new GroupKeyMapItemKind();

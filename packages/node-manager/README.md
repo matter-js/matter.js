@@ -41,7 +41,9 @@ console.log(handle.status.state, handle.status.wrote);
 Every verb runs inside an activity, and the task runs outside one: `run` returns as soon as the work is
 admitted, so `settled()` is awaited after the activity ends. A handle reads through to the run, so it keeps
 answering as the run progresses and after it retires. `settled()` rejects with `TaskManagerClosingError` if the
-node shuts down before the run reaches an outcome.
+node shuts down before the run reaches an outcome, and with `TaskOutcomeUnrecordedError` if the run ended but
+storage refused the write that records the outcome — in both cases the record keeps the state it had and a
+later start states an outcome for it.
 
 Built-in task types: `AddNodeToGroup`, `RemoveNodeFromGroup`, `RotateGroupKey`, and the `Rollback` that undoes
 them.

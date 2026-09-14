@@ -32,6 +32,8 @@ function setsEqual(a: bigint[], b: bigint[]): boolean {
  * device's start-time set against the intent's and write the full struct when they differ (absent = empty set).
  * A same-set re-apply is a no-op (idempotent, no churn/clobber). verify confirms the id is present and the
  * start-time set matches. Rotation (RotateGroupKey) drives this by writing structs with distinct start-time sets.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.2.7.1, § 11.2.7.2, § 11.2.7.4
  */
 export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
     readonly kind = "groupKey";

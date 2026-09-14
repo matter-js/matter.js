@@ -35,6 +35,8 @@ function toEntry(grant: AclGrant): Entry {
  * The `acl` ItemKind: additive, subsumption-aware. Reads are fabric-scoped so they only ever return
  * our own fabric's entries. We add/remove only our exact entry and never touch foreign entries.
  * Compression is deferred to the Phase 4 optimizer.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 9.10.6.3
  */
 export class AclItemKind implements ItemKind<AclGrant> {
     readonly kind = "acl";
