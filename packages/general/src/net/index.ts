@@ -17,3 +17,4 @@ export * from "./ServerAddressSet.js";
 export * from "./tcp/index.js";
 export * from "./Transport.js";
 export * from "./udp/index.js";
+export * from "./ws-proxy/index.js";
