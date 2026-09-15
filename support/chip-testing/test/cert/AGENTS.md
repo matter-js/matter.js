@@ -58,7 +58,9 @@ to an app this way:
 | Media Playback/App-cluster TCs      | `tv`         | `chip-tv-app`               | no — `TvTestInstance` exists but isn't wired into `registerMatterJsCertSubject` yet |
 | `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
-| `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | no — no matterjs OTA provider/requestor `TestInstance` in this package yet |
+| `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
+
+A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
 The three "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
 exist (verify with `MATTER_CERT_APP_DIR`/an app-specific image, or `MATTER_CHIP_BINS_SOURCE=cert-bins`
@@ -75,7 +77,9 @@ device-flavor capability gap").
 
 ## Flavor policy: chip is the pass/fail bar, matterjs is optional
 
-Three flavors exist (`DeviceFlavor` in `cert-context.ts`): `chip-local`, `chip-docker`, `matterjs`.
+Three flavors can be selected (`SelectableDeviceFlavor` in `cert-context.ts`): `chip-local`,
+`chip-docker`, `matterjs`. `DeviceFlavor` adds `python-wrapped`, which only ever appears in evidence,
+for a device a wrapped python script spawns for itself.
 The convention this series has followed, worth stating explicitly for the next TC:
 
 - **At least one chip flavor (`chip-local` or `chip-docker`) passing is the actual certification
@@ -501,7 +505,7 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
 A TC's TH app can exist for some flavors but not support the cluster/commands the plan needs on others
 — `TC-ACT-3.2` needs an Actions cluster on the bridge app, which the real `chip-bridge-app` has (even if
 most of its commands aren't implemented) but matter.js's own `BridgeTestInstance` doesn't have at all. The DSL had no way to express "this step/TC only makes sense on
-some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: DeviceFlavor[]`
+some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: SelectableDeviceFlavor[]`
 (`cert-dsl.ts`), threaded through to `CertStepDefinition.flavors` (`cert-context.ts`) and checked in
 `CertTest.invoke()` (`cert-test.ts`) via `currentFlavor()` (every device in one run shares the same
 flavor, so any one's `.flavor` speaks for the whole run) — a step whose `flavors` doesn't include the
@@ -1806,12 +1810,25 @@ deciding a `.b` step's parse is redundant: it usually is, and there it is not.
 own onboarding identity — discriminator, passcode, and operational port — from `identityFor(index)`
 in `cert-dsl.ts`. This used to throw.
 
+**Roles may name different apps** — an OTA requestor as `th` and an OTA provider as `th2` in one run.
+One of them must name the test's own `app` option, which is the device the harness activates itself;
+the rest are started by `WiredCertTest` in declaration order. The evidence bundle carries
+`run.devices`, one `RunDeviceRecord` per role naming the role, the binary, its variant, the flavor and
+the chip revision that binary came from, so a reader of a finished bundle can say what every device in
+the run actually was. Nothing in the bundle states a single app any more; a consumer that read
+`run.device` or `run.chipRef` reads the array instead.
+
+**A device crash names its role.** `deviceExit` in the record, the `deviceExited(role, info)` recorder
+hook and the run's own failure text all carry the role of the first device to exit — with several
+devices in a run, "a device exited unexpectedly" sends the reader to the wrong log. Only the first
+exit is recorded: one device dying commonly takes the rest with it.
+
 **Why it had to.** Every discovery instrument in this directory matches on the long discriminator
 alone, and every flavor defaulted to 3840 / 20202021 / 5540. Two subjects sharing that would have the
 commissioner reach whichever the scanner found first, and the run would pass having proven nothing
 about which device it talked to. The chip flavors would not even get that far: two apps contend for
-port 5540 and the second exits, which surfaces as "a cert-test device exited unexpectedly while a
-step was running" rather than as a port collision.
+port 5540 and the second exits, which surfaces as `Cert-test device "<role>" exited unexpectedly while
+a step was running` rather than as a port collision.
 
 **The primary keeps chip's defaults, deliberately.** Index 0 is 3840 / 20202021 / 5540, so all
 fifteen existing single-device TCs record exactly what they recorded before — same discriminator in
@@ -2627,3 +2644,91 @@ own configuration asks for 16 (`bridge-common`'s `CHIPProjectAppConfig.h`); a bu
 that up stops after four bridged devices with `Failed to add dynamic endpoint: No endpoints
 available!`, and step 1a fails naming the endpoints the TH answered for. That is the TH being the
 wrong device, not the case being wrong.
+
+## The BDX block, where the DUT is asked to send a file (`TC-BDX-1.4`, `TC-BDX-2.1`)
+
+The BDX plans give their DUT the **sender** role, which in Matter means an OTA provider: nothing else
+in the protocol hands a file to a peer. So these cases invert nothing — the DUT is still the
+controller — but the controller has to become a provider, which no other case asks of it.
+
+**`CertNodeApi.serveOtaUpdate()` is the whole capability, and it is one call for a reason.** It reads
+the vendor, product and software version the controller *already holds* for the node, builds an image
+one version newer, stages it, adds an OTA provider endpoint to the controller's own `ServerNode`,
+announces itself through `SoftwareUpdateManager.forceUpdate()`, and resolves only once the BDX
+transfer the node opens in response has completed. Splitting it would put a race between the stages:
+the transfer can finish before a separate "now wait for it" call is made.
+
+Three things in it are load-bearing:
+
+- **The identity comes from held client state, not from a read.** `SoftwareUpdateManager` validates a
+  `QueryImage`'s claimed vendor/product/version against what the controller holds
+  (`#validatePeerDetails`), so an image staged from a fresh read could be applicable to what the node
+  says and inapplicable to what the controller believes. The answer to that is `NotAvailable`, with
+  nothing in any log to point at.
+- **It rejects rather than reporting a partial result.** A node that never queried, one answered
+  `NotAvailable`, and one whose transfer stalled all reach the budget and throw. That is the failure
+  these cases exist to catch, so there is no shape of success it can return without a transfer.
+- **The adapter's environment needs a `MockFilesystem`.** `MockStorageService` covers KV storage only;
+  `openBlobStorage` still resolves a driver through the `Filesystem` service, which otherwise reaches
+  the developer's own `~/.matter`. The symptom is not a stray file but a crashed behavior —
+  `No blob storage driver registered for "dir"` — because a real `driver.json` there names a driver
+  the in-memory service does not have.
+
+**matter.js's OTA requestor waits a random 1–600 s before querying an announced provider, and chip's
+does not.** Matter Core § 11.20.3.6.1 asks for that window so a fabric's nodes do not all query at
+once; chip's `DefaultOTARequestorDriver` leaves it at `mOtaStartDelaySec`, which its Linux app
+defaults to zero. A cert run cannot wait out ten minutes, so the delay became an overridable
+`announcedUpdateQueryDelay()` on `OtaSoftwareUpdateRequestorServer` and `OtaRequestorTestInstance`
+shortens it to 250 ms — the harness subject only, not the library default. Without that the
+precondition step times out having done everything right.
+
+**The negotiated transfer is receiver-driven, so there are no `BlockAck` messages at all.** The
+requestor proposes `receiverDrive` alone (`OtaSoftwareUpdateRequestorServer.#handleBdxDownload`), and
+under it the receiver's `BlockQuery` for the next block is what acknowledges the last one. Both plans'
+step text says "TH sends a BlockAck message back to DUT", which describes the sender-drive form of the
+same exchange; TC-BDX-2.1 step 1 records the `BlockQuery` and says so in the check's own detail rather
+than asserting a message the negotiated mode never produces.
+
+**Neither side names a definite length, and the plans' rules are conditional on one.** A receiver's
+`ReceiveInit` carries no `maxLength` (`bdxSessionInitiator.buildInitMessage` only sets it for a
+sender), and matter.js's `ReceiveAccept` then derives its own Length from that proposal rather than
+from the file it is about to send — so the accept carries none either, and its Range Control's
+definite-length bit is clear. TC-BDX-1.4's Length check is written the way the plan writes it ("if
+this field is present, **and** the Initiator indicated a definite length"), so it passes on the
+consistency rather than on a comparison it cannot make. Whether a sender ought to announce the size it
+knows is a question for the library, not for the case.
+
+**The evidence is the wire, not a rendering of it.** For TC-BDX-1.4 the accept's four mandatory fields
+are checked against the bytes the TH's own log prints for the message it received
+(`receiveAcceptPayload` builds them from what the DUT reports having granted), and the proposal
+likewise against the `ReceiveInit`'s payload prefix. That is what makes "exactly one mode shall be
+chosen" a real check: a transfer control naming two modes is a different byte. chip's TH gets the
+structured `[ATM]` decode instead, whose values are computed from the same record.
+
+**chip's BDX receiver logs a `BlockEOF` and nothing for a `Block`.** `TransferSession::HandleBlock`
+records the block and returns; `HandleBlockEOF` beside it calls `LogMessage`, and so do the
+`ReceiveInit`, `ReceiveAccept` and `BlockAckEOF` paths (`BdxMessages.cpp`). So on a chip leg
+TC-BDX-2.1's steps 1 and 2 carry a device-log check that is `unverified` with an `accepted` reason
+naming that source, while step 3 and the whole of TC-BDX-1.4 are fully evidenced. Do not reach for
+`flavors: ["matterjs"]` there: the response checks are the DUT's own account and run on every leg, and
+a step restricted to one flavor would drop them too. Every chip pattern in this block is derived from
+`connectedhomeip`'s source rather than from a run — `ChipLogAutomation` prints under the module short
+name `ATM`, `%X` renders a byte without padding (`0x0`, not `0x00`), and `ChipLogFormatX64` is sixteen
+zero-padded uppercase digits — so a chip leg is what would confirm them.
+
+**One transfer, read by every step.** Both cases run their transfer in a precondition step `0` and
+hand the later steps the TH log cursor taken before it, because the whole exchange is over by the time
+step 1 runs. Step 0 also waits for the TH's own last line of the transfer (`BlockAckEOF`), which is
+what lets the numbered steps scan the buffer instead of waiting on it — a scan of a log that is still
+arriving is the mistake that rule exists to prevent. A step taking its own `mark()` would search a
+window every line it wants is already behind.
+
+**`npm run --workspace support/chip-testing test-cert -- --spec "…"` runs the whole cert suite.** The
+`test-cert` script already carries `--spec=test/cert/**/*.test.ts`, and a second `--spec` adds to it
+rather than replacing it. To iterate on one case use the direct form with the shutdown timeout set by
+hand:
+
+```bash
+MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 MATTER_MDNS_NETWORKINTERFACE=en0 \
+    npx matter-test esm -p support/chip-testing --spec "./test/cert/TC-BDX-*.test.ts"
+```

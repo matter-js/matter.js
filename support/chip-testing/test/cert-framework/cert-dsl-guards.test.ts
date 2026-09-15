@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { certTest, DeviceIdentityExhaustedError, identityFor } from "@matter/testing";
+import { certTest, DeviceIdentityExhaustedError, identityFor, subjectFactoryFor } from "@matter/testing";
 import { expect } from "chai";
 
 describe("certTest step declaration guard", () => {
@@ -113,6 +113,20 @@ describe("multi-device declaration guards", () => {
         }
     }
 
+    /**
+     * As {@link declare}, but runs the suite body `certTest()` passes to `describe`. The body is still
+     * not registered as a suite: a real registration would leak a rogue cert test into this run.
+     */
+    function declareAndWire(tc: string, devices: Record<string, string>) {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        Reflect.set(globalThis, "describe", (_name: string, body: () => void) => body());
+        try {
+            certTest(tc, { plan: "n/a", pics: [], app: "all-clusters", devices });
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+        }
+    }
+
     // A role name becomes part of the subject's id, and a matter.js subject rejects a dot outright
     // because an id becomes an endpoint id
     it("rejects a role name a subject cannot carry in its id", () => {
@@ -125,12 +139,52 @@ describe("multi-device declaration guards", () => {
         expect(() => declare("TC-ROLE-OK-0.0", { th1: "all-clusters", th2: "all-clusters" })).to.not.throw();
     });
 
-    // The bundle records one app and one chip image revision, so a mixed-app run could not say what
-    // it ran against
-    it("rejects devices running different apps", () => {
-        expect(() => declare("TC-MIXED-APP-0.0", { th: "all-clusters", helper: "bridge" })).to.throw(
-            /could not say what it ran against/,
+    // A plan pairing an OTA requestor with an OTA provider needs this; the bundle names each role's
+    // binary and the revision it came from, so such a run can still say what it ran against
+    it("accepts devices running different apps", () => {
+        expect(() => declare("TC-MIXED-APP-0.0", { th: "all-clusters", th2: "ota-provider" })).to.not.throw();
+    });
+
+    // The declaration names one variant; `#buildContext` asks this for one factory per role, so a
+    // variant applied to every role would spawn each of them from a binary name CHIP never builds
+    it("gives a role running another app that app's plain binary rather than the declared variant", () => {
+        const definition = { app: "all-clusters", appVariant: "nlfaultinject" };
+
+        // chip-local, the only flavor that can run a variant at all; constructing a device neither
+        // spawns nor touches the filesystem, so the variant it carries is readable here
+        const primary = subjectFactoryFor("chip-local", definition, "all-clusters");
+        const secondary = subjectFactoryFor("chip-local", definition, "ota-provider");
+
+        expect(primary("cert-th", { identity: identityFor(0) }).appVariant).equal("nlfaultinject");
+        expect(secondary("cert-th2", { identity: identityFor(1) }).appVariant).equal(undefined);
+    });
+
+    // Without it a role could be recorded as running the app it declared while being handed the one
+    // the harness activates, and the evidence bundle would name a binary the run never started
+    it("rejects a declaration no role of which names the app the harness activates", () => {
+        expect(() => declareAndWire("TC-NO-PRIMARY-0.0", { th2: "ota-provider" })).to.throw(
+            'has no role for app "all-clusters"',
         );
+    });
+
+    // The declaration is wrong on every flavor, so the flavor this run happens to use must not decide
+    // whether it is caught — otherwise it hides until someone runs the one flavor that reaches the check
+    it("rejects it on a flavor the test itself excludes", () => {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        Reflect.set(globalThis, "describe", (_name: string, body: () => void) => body());
+        try {
+            expect(() =>
+                certTest("TC-NO-PRIMARY-0.1", {
+                    plan: "n/a",
+                    pics: [],
+                    app: "all-clusters",
+                    devices: { th2: "ota-provider" },
+                    flavors: ["chip-docker"],
+                }),
+            ).to.throw('has no role for app "all-clusters"');
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+        }
     });
 });
 
