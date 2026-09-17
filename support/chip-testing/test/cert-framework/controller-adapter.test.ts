@@ -16,7 +16,7 @@ import {
     registerControllerAdapterFactory,
     resetControllerAdapterFactoryForTesting,
 } from "@matter/testing";
-import type { AttributePathSpec, CertNodeApi, ControllerAdapter, EventReadEntry } from "@matter/testing";
+import type { AttributePathSpec, CertNodeApi, CertNodeRef, ControllerAdapter, EventReadEntry } from "@matter/testing";
 import { StreamUsage } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { expect } from "chai";
@@ -686,11 +686,31 @@ describe("InProcessControllerAdapter", () => {
 
 describe("InProcessControllerAdapter WebRTC requestor", () => {
     let adapter: InProcessControllerAdapter;
+    let device: AllClustersTestInstance | undefined;
 
     afterEach(async function () {
-        this.timeout(20_000);
+        this.timeout(30_000);
         await adapter?.close();
+        await device?.close();
+        device = undefined;
     });
+
+    /**
+     * A session names the peer it belongs to, and the adapter resolves that against the peers it
+     * commissioned, so a test registering one needs a real peer to name.
+     */
+    async function commissionPeer(): Promise<CertNodeRef> {
+        device = new AllClustersTestInstance({
+            domain: `webrtc-requestor-test-${Math.random().toString(36).slice(2)}`,
+            commandPipeFactory: async () => {},
+            discriminator: 3840,
+            passcode: 20202021,
+        });
+        await device.initialize();
+        await device.start();
+
+        return adapter.commission({ passcode: 20202021, discriminator: 3840 });
+    }
 
     it("hosts no requestor cluster unless asked", async function () {
         this.timeout(20_000);
@@ -702,10 +722,11 @@ describe("InProcessControllerAdapter WebRTC requestor", () => {
     });
 
     it("tracks the sessions a case registers, and drops the ones it removes", async function () {
-        this.timeout(20_000);
+        this.timeout(60_000);
 
         adapter = new InProcessControllerAdapter("webrtc-on", { webRtcRequestor: true });
         await adapter.start();
+        const peer = await commissionPeer();
 
         const requestor = adapter.webRtcRequestor;
         expect(requestor).to.not.equal(undefined);
@@ -714,7 +735,7 @@ describe("InProcessControllerAdapter WebRTC requestor", () => {
 
         await requestor!.upsertSession({
             id: 7,
-            peer: "1",
+            peer,
             peerEndpointId: 1,
             streamUsage: StreamUsage.Recording,
             videoStreamId: 42,
@@ -739,7 +760,23 @@ describe("InProcessControllerAdapter WebRTC requestor", () => {
                 peerEndpointId: 1,
                 streamUsage: StreamUsage.Recording,
             }),
-        ).rejectedWith(InternalError, /not one this adapter minted/);
+        ).rejectedWith(ImplementationError, /not one this adapter minted/);
+    });
+
+    it("refuses a node reference naming a peer it never commissioned", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-stranger", { webRtcRequestor: true });
+        await adapter.start();
+
+        await expect(
+            adapter.webRtcRequestor!.upsertSession({
+                id: 1,
+                peer: "123",
+                peerEndpointId: 1,
+                streamUsage: StreamUsage.Recording,
+            }),
+        ).rejectedWith(NoCommissionedPeerError, /no commissioned peer with node id 123/);
     });
 
     it("chip-tool refuses to host the cluster rather than claiming an identity for a controller it cannot be", () => {

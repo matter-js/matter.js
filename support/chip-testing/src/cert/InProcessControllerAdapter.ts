@@ -1099,6 +1099,7 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
 
     readonly #adapterId: string;
     readonly #node: Endpoint<typeof CameraControllerDevice>;
+    readonly #controller: ServerNode;
     readonly #fabric: Fabric;
     readonly #signals = new Array<WebRtcSignalRecord>();
     readonly #waiters = new Set<(signal: WebRtcSignalRecord | undefined) => void>();
@@ -1107,9 +1108,15 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     #dispatching?: Timer;
     #closed = false;
 
-    constructor(adapterId: string, endpoint: Endpoint<typeof CameraControllerDevice>, fabric: Fabric) {
+    constructor(
+        adapterId: string,
+        endpoint: Endpoint<typeof CameraControllerDevice>,
+        controller: ServerNode,
+        fabric: Fabric,
+    ) {
         this.#adapterId = adapterId;
         this.#node = endpoint;
+        this.#controller = controller;
         this.#fabric = fabric;
 
         const events = endpoint.eventsOf(WebRtcTransportRequestorServer);
@@ -1121,7 +1128,7 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
     }
 
     async upsertSession(session: WebRtcSessionSpec): Promise<void> {
-        const peerNodeId = peerNodeIdOf(session.peer);
+        const peerNodeId = this.#peerNodeIdOf(session.peer);
         const videoStreams =
             session.videoStreamId === undefined || session.videoStreamId === null ? undefined : [session.videoStreamId];
         const audioStreams =
@@ -1212,6 +1219,29 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
         this.#waiters.clear();
     }
 
+    /**
+     * A session names the peer it belongs to, and the requestor cluster judges the peer's signaling
+     * against it, so a session registered for a node this controller never commissioned can only
+     * refuse everything the real peer sends.
+     */
+    #peerNodeIdOf(ref: CertNodeRef): NodeId {
+        let nodeId: NodeId;
+        try {
+            nodeId = NodeId(BigInt(ref));
+        } catch (cause) {
+            throw new ImplementationError(`Node reference "${ref}" is not one this adapter minted`, { cause });
+        }
+
+        if (this.#controller.peers.get(this.#fabric.addressOf(nodeId)) === undefined) {
+            throw new NoCommissionedPeerError(
+                `Controller "${this.#adapterId}" has no commissioned peer with node id ${nodeId} to hold a WebRTC ` +
+                    "session with",
+            );
+        }
+
+        return nodeId;
+    }
+
     #record(kind: WebRtcSignalRecord["kind"], sessionId: number, outcome: WebRtcSignalRecord["outcome"]) {
         const signal: WebRtcSignalRecord = { kind, sessionId, outcome, at: Time.nowUs };
         this.#signals.push(signal);
@@ -1230,18 +1260,6 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
                 }
             }).start();
         }
-    }
-}
-
-/**
- * A ref is the adapter's own, and {@link InProcessControllerAdapter.commission} mints it as the peer's
- * node id; this is where that shape is read back, so a step never decodes one.
- */
-function peerNodeIdOf(ref: CertNodeRef): NodeId {
-    try {
-        return NodeId(BigInt(ref));
-    } catch (cause) {
-        throw new InternalError(`Node reference "${ref}" is not one this adapter minted`, { cause });
     }
 }
 
@@ -1328,7 +1346,12 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                     id: "webrtc-requestor",
                     number: WEBRTC_REQUESTOR_ENDPOINT,
                 });
-                this.#webRtcRequestor = new InProcessWebRtcRequestorApi(this.id, endpoint, this.#adminFabric);
+                this.#webRtcRequestor = new InProcessWebRtcRequestorApi(
+                    this.id,
+                    endpoint,
+                    controller,
+                    this.#adminFabric,
+                );
             }
 
             controller.env.get(PeerSet).timing = {

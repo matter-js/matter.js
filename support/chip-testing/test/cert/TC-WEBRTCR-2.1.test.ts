@@ -305,8 +305,12 @@ async function allocateVideoStream(node: CertNodeApi): Promise<number> {
 }
 
 /**
- * Solicits an offer and registers the session the provider minted, so the provider's signaling for that
- * id is accepted.
+ * Solicits an offer and registers the session the provider minted.
+ *
+ * Registration happens once the solicitation is answered, which is too late to decide whether the
+ * provider's `Offer` is accepted: the provider sends it from inside its own handling of the
+ * solicitation. A caller that needs the `Offer` accepted registers the id ahead of this call; this
+ * one only leaves the session tracked afterwards.
  */
 async function solicitSession(
     node: CertNodeApi,
