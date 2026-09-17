@@ -7,5 +7,17 @@
 describe("CNET", () => {
     chip("CNET/*")
         // These test Wifi Commissioning, but there's no PICS or other check to skip when not relevant
-        .exclude("CNET/4.1", "CNET/4.9", "CNET/4.11", "CNET/4.15", "CNET/4.16", "CNET/4.23");
+        .exclude(
+            "CNET/4.1",
+            "CNET/4.9",
+            "CNET/4.11",
+            "CNET/4.15",
+            "CNET/4.16",
+            "CNET/4.23",
+
+            // Per-device credentials; these skip themselves on our subjects but a skip counts as failure
+            "CNET/4.25",
+            "CNET/4.26",
+            "CNET/4.27",
+        );
 });

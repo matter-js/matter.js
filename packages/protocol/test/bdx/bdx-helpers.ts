@@ -1,12 +1,86 @@
 import { BdxSessionConfiguration } from "#bdx/BdxSessionConfiguration.js";
-import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage, ScopedStorage } from "#bdx/index.js";
+import {
+    BdxClient,
+    BdxMessage,
+    BdxMessenger,
+    BdxProtocol,
+    BdxSession,
+    BdxStatusMessage,
+    ScopedStorage,
+} from "#bdx/index.js";
 import { Message } from "#codec/MessageCodec.js";
+import type { ExchangeLogContext, ExchangeSendOptions } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { SecureSession } from "#session/index.js";
-import { createPromise, MaybePromise, MemoryBlobStorageDriver } from "@matter/general";
+import {
+    Bytes,
+    createPromise,
+    Diagnostic,
+    ImplementationError,
+    Logger,
+    LogFormat,
+    LogLevel,
+    MaybePromise,
+    MemoryBlobStorageDriver,
+} from "@matter/general";
 import { BDX_PROTOCOL_ID, BdxMessageType, SecureMessageType } from "@matter/types";
 
 type MessageRecords = { type: BdxMessageType | SecureMessageType.StatusReport; data: any };
+
+/**
+ * One log call captured by {@link captureLogs}: the facility name, the exact arguments passed to it, and `text` — the
+ * line as {@link LogFormat.formats.plain} renders it, including the timestamp, level and facility prefix.
+ */
+export type CapturedLogLine = { facility: string; values: unknown[]; text: string };
+
+let capturing = false;
+
+/**
+ * Runs `fn` with the default log destination lowered to debug level, recording every log call it receives instead of
+ * writing it. Used to assert on the text a certification test would read from a BDX transfer's log.
+ *
+ * If `fn` fails the captured lines are written to the restored destination before the failure propagates, so the
+ * transfer that failed is still diagnosable.
+ */
+export async function captureLogs(fn: () => Promise<void>): Promise<CapturedLogLine[]> {
+    if (capturing) {
+        throw new ImplementationError("Log capture is already active; a nested capture cannot restore the destination");
+    }
+    capturing = true;
+
+    const dest = Logger.destinations.default;
+    const original = { ...dest };
+    const captured = new Array<CapturedLogLine>();
+    const messages = new Array<Diagnostic.Message>();
+    const format = LogFormat.formats.plain;
+
+    dest.level = LogLevel.DEBUG;
+    dest.add = message => {
+        messages.push(message);
+        captured.push({ facility: message.facility, values: message.values, text: format(message) });
+    };
+
+    let failure: unknown;
+    let failed = false;
+    try {
+        await fn();
+    } catch (error) {
+        failed = true;
+        failure = error;
+    } finally {
+        Object.assign(dest, original);
+        capturing = false;
+    }
+
+    if (failed) {
+        for (const message of messages) {
+            dest.add(message);
+        }
+        throw failure;
+    }
+
+    return captured;
+}
 
 export async function bdxTransfer(params: {
     prepare: (
@@ -24,12 +98,17 @@ export async function bdxTransfer(params: {
         meta: {
             clientExchangeData: MessageRecords[];
             serverExchangeData: MessageRecords[];
+            clientSent: SentMessageLog[];
+            serverSent: SentMessageLog[];
             clientError?: any;
             serverError?: any;
         },
     ) => MaybePromise<void>;
     clientExchangeManipulator?: (message: Message) => Message;
     serverExchangeManipulator?: (message: Message) => Message;
+
+    /** Called with the responder's session as it starts, which is before it negotiates the transfer. */
+    observeResponder?: (session: BdxSession) => void;
 }) {
     // Create two exchanges, one for sending and one for receiving.
     const sendingExchange = createExchange(1);
@@ -80,6 +159,9 @@ export async function bdxTransfer(params: {
     expect(clientExchangeData[0].type).equals(expectedInitialMessageType);
 
     const bdxProtocol = new BdxProtocol();
+    if (params.observeResponder !== undefined) {
+        bdxProtocol.sessionStarted.on(params.observeResponder);
+    }
     bdxProtocol.enablePeerForScope(
         (receivingExchange.session as SecureSession).peerAddress,
         serverStorage,
@@ -106,6 +188,8 @@ export async function bdxTransfer(params: {
             params.validate(clientStorage, serverStorage, {
                 clientExchangeData,
                 serverExchangeData,
+                clientSent: sendingExchange.sent,
+                serverSent: receivingExchange.sent,
                 clientError,
                 serverError,
             }),
@@ -130,8 +214,25 @@ function parseMessage(message: Message): MessageRecords {
     return { type, data };
 }
 
+/**
+ * One message a BDX flow sent, named by type and carrying the fields BDX asked the exchange to log with it.
+ *
+ * The mock channel never reaches {@link MessageChannel.send}, where an outbound message is rendered, so what the
+ * flow asked to be logged is only observable here.
+ */
+export type SentMessageLog = { type: BdxMessageType; logContext?: ExchangeLogContext };
+
+class RecordingExchange extends ProtocolMocks.Exchange {
+    readonly sent = new Array<SentMessageLog>();
+
+    override async send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
+        this.sent.push({ type: messageType as BdxMessageType, logContext: options?.logContext });
+        return super.send(messageType, payload, options);
+    }
+}
+
 function createExchange(index: number) {
-    return new ProtocolMocks.Exchange({
+    return new RecordingExchange({
         index,
         fabricIndex: index,
         maxPayloadSize: 1024,
