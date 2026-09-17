@@ -45,6 +45,9 @@ const logger = Logger.get("ClientNode");
  *
  * Client nodes may be peers (commissioned into a shared fabric) or commissionable, in which they are not usable until
  * you invoke {@link commissioned}.
+ *
+ * A node's `id` names it locally and may be reissued after the node is removed.  Persist a {@link PeerAddress} for
+ * anything that has to name the same physical device again later.
  */
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #matter?: MatterModel;
