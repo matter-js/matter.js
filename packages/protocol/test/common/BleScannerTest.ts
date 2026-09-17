@@ -11,6 +11,7 @@ const SERVICE_DATA_A = Bytes.fromHex("00c9067c11018000"); // D=1737, VP=4476+327
 const SERVICE_DATA_B = Bytes.fromHex("00e8037c11018000"); // D=1000, VP=4476+32769
 
 class MockBleScannerClient implements BleScannerClient {
+    readonly repeatsAdvertisements: boolean = true;
     callback?: (peripheral: BlePeripheral, data: Bytes) => void;
     setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void) {
         this.callback = callback;
@@ -24,6 +25,11 @@ class MockBleScannerClient implements BleScannerClient {
     discover(address: string, data: Bytes) {
         this.callback!({ address }, data);
     }
+}
+
+/** A client of a transport that reports a peripheral once per scan, such as one deduplicating advertisements. */
+class MockOneShotBleScannerClient extends MockBleScannerClient {
+    override readonly repeatsAdvertisements = false;
 }
 
 /** A client of a transport that can lose access to a peripheral, such as one routing through proxies. */
@@ -45,6 +51,20 @@ async function settleDiscovery() {
     }
 }
 
+/**
+ * Scans the way a discovery does, because a record only ages while the scanner listens. Returns the stop function,
+ * which ends the scan and the discovery it runs under.
+ */
+async function startScanning(scanner: BleScanner) {
+    // An identifier no advertisement in this suite matches, so scanning is all this discovery contributes
+    const discovery = scanner.findCommissionableDevicesContinuously({ productId: 1 }, () => {});
+    await settleDiscovery();
+    return async () => {
+        await scanner.close();
+        await discovery;
+    };
+}
+
 describe("BleScanner", () => {
     before(() => MockTime.enable());
 
@@ -64,11 +84,13 @@ describe("BleScanner", () => {
         it("keeps both entries when matching service data arrives from a second address within the stale window", async () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);
+            const stopScanning = await startScanning(scanner);
 
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
 
             await MockTime.advance(Seconds(10));
             client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_A);
+            await stopScanning();
 
             const devices = scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 });
             expect(devices).to.have.lengthOf(2);
@@ -79,11 +101,13 @@ describe("BleScanner", () => {
         it("replaces the existing entry when matching service data arrives after the stale window (address rotation)", async () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);
+            const stopScanning = await startScanning(scanner);
 
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
 
             await MockTime.advance(Seconds(61));
             client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_A);
+            await stopScanning();
 
             const devices = scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 });
             expect(devices).to.have.lengthOf(1);
@@ -93,6 +117,7 @@ describe("BleScanner", () => {
         it("keeps stale entry alive when it is refreshed before the rotation window elapses", async () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);
+            const stopScanning = await startScanning(scanner);
 
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
             await MockTime.advance(Seconds(55));
@@ -100,6 +125,7 @@ describe("BleScanner", () => {
 
             await MockTime.advance(Seconds(55));
             client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_A);
+            await stopScanning();
 
             const devices = scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 });
             expect(devices).to.have.lengthOf(2);
@@ -109,13 +135,178 @@ describe("BleScanner", () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);
 
+            const stopScanning = await startScanning(scanner);
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
             await MockTime.advance(Seconds(120));
 
             client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_B);
+            await stopScanning();
+
+            expect(scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.exist;
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1000 })).to.have.lengthOf(1);
+        });
+
+        it("stops offering a peripheral that has not advertised for the stale window", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+            const stopScanning = await startScanning(scanner);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            await MockTime.advance(Seconds(59));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+
+            await MockTime.advance(Seconds(2));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(0);
+
+            await stopScanning();
+        });
+
+        it("keeps offering a peripheral that has not advertised while nothing scans", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const stopScanning = await startScanning(scanner);
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await stopScanning();
+
+            await MockTime.advance(Seconds(3600));
+
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+        });
+
+        it("offers a stale peripheral again once it advertises again", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+            const stopScanning = await startScanning(scanner);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.advance(Seconds(61));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(0);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+
+            await stopScanning();
+        });
+
+        it("does not hand a discovery a peripheral that stopped advertising while an earlier scan ran", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const stopEarlierScan = await startScanning(scanner);
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.advance(Seconds(61));
+            await stopEarlierScan();
+
+            const candidates = new Array<string>();
+            const discovery = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            await settleDiscovery();
+
+            expect(candidates).to.have.lengthOf(0);
+
+            await discovery;
+        });
+
+        it("still resolves a stale peripheral for a channel open", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.advance(Seconds(61));
+
+            expect(scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.exist;
+        });
+
+        it("stops offering a peripheral that goes stale while a discovery runs", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const discovery = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            await settleDiscovery();
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await MockTime.advance(Seconds(61));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(0);
+
+            await scanner.close();
+            await discovery;
+        });
+
+        it("keeps offering a peripheral of a client that reports each peripheral once", async () => {
+            const client = new MockOneShotBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.advance(Seconds(3600));
+
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+        });
+    });
+
+    describe("forgetCommissionedDevice", () => {
+        it("keeps offering another device advertising identical service data", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            // Two devices of one model share a discriminator, so their service data is identical
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await MockTime.advance(Seconds(10));
+            client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_A);
+
+            scanner.forgetCommissionedDevice([{ type: "ble", peripheralAddress: "bb:bb:bb:bb:bb:bb" }]);
+
+            const devices = scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 });
+            expect(devices).to.have.lengthOf(1);
+            expect(devices[0].deviceIdentifier).to.equal("aa:aa:aa:aa:aa:aa");
+        });
+
+        it("ignores addresses of another transport", () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            scanner.forgetCommissionedDevice([{ type: "udp", ip: "fe80::1", port: 5540 }]);
 
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(1);
+        });
+
+        it("stops offering a peripheral that was commissioned", () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            client.discover("bb:bb:bb:bb:bb:bb", SERVICE_DATA_B);
+
+            scanner.forgetCommissionedDevice([{ type: "ble", peripheralAddress: "aa:aa:aa:aa:aa:aa" }]);
+
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(0);
+            expect(() => scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.throw("No device found");
             expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1000 })).to.have.lengthOf(1);
+        });
+
+        it("offers a forgotten peripheral again once it advertises again", () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            scanner.forgetCommissionedDevice([{ type: "ble", peripheralAddress: "aa:aa:aa:aa:aa:aa" }]);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1737 })).to.have.lengthOf(1);
         });
     });
 

@@ -14,6 +14,7 @@ import {
     MaybePromise,
     Millis,
     Seconds,
+    ServerAddress,
     Time,
     Timer,
     Timespan,
@@ -41,6 +42,13 @@ export interface BleScannerClient {
      * stays either way, so a peripheral becomes a candidate again as soon as it is reachable again.
      */
     isPeripheralReachable?(address: string): boolean;
+
+    /**
+     * Whether the client reports every advertisement of a peripheral rather than only its first. Only such a client
+     * lets a record's age state whether the device still advertises, so only for such a client does a record that
+     * stopped being refreshed stop being a commissioning candidate.
+     */
+    readonly repeatsAdvertisements?: boolean;
 }
 
 export type CommissionableDeviceData = CommissionableDevice & {
@@ -55,10 +63,16 @@ export type DiscoveredBleDevice = {
 
 type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
     serviceDataHex: string;
-    lastSeen: number;
+
+    /** Scanning time elapsed when the peripheral last advertised. */
+    seenAt: number;
 };
 
-/** Entries older than this are treated as dead addresses when matching service data arrives from a new address. */
+/**
+ * A record not refreshed within this much scanning no longer describes a device we can commission: it is dropped when
+ * matching service data arrives from a new address, and, for a client that repeats advertisements, it is no longer a
+ * candidate.
+ */
 const STALE_ENTRY_AGE = Seconds(60);
 
 export class BleScanner implements Scanner {
@@ -75,6 +89,8 @@ export class BleScanner implements Scanner {
         }
     >();
     readonly #discoveredMatterDevices = new Map<string, StoredDiscoveredBleDevice>();
+    #scanningSince?: number;
+    #scannedDuration = 0;
     #closed = false;
 
     constructor(client: BleScannerClient) {
@@ -84,6 +100,7 @@ export class BleScanner implements Scanner {
         );
     }
 
+    /** Resolves a peripheral for a channel open, so a record stays resolvable here however old it is. */
     public getDiscoveredDevice(address: string): DiscoveredBleDevice {
         const device = this.#discoveredMatterDevices.get(address);
         if (device === undefined) {
@@ -97,6 +114,51 @@ export class BleScanner implements Scanner {
 
     #isReachable(address: string) {
         return this.#client.isPeripheralReachable?.(address) ?? true;
+    }
+
+    /**
+     * Time spent scanning, which is the only time in which a peripheral can advertise to us. A record's age is
+     * measured in this time: while we do not listen, a device we hear nothing from says nothing about itself.
+     */
+    get #scanTime() {
+        return this.#scannedDuration + (this.#scanningSince === undefined ? 0 : Time.nowUs - this.#scanningSince);
+    }
+
+    async #startScanning() {
+        await this.#client.startScanning();
+        this.#scanningSince ??= Time.nowUs;
+    }
+
+    async #stopScanning() {
+        try {
+            await this.#client.stopScanning();
+        } finally {
+            if (this.#scanningSince !== undefined) {
+                this.#scannedDuration += Time.nowUs - this.#scanningSince;
+                this.#scanningSince = undefined;
+            }
+        }
+    }
+
+    /**
+     * Whether a record's age states that the device stopped advertising. Only a client reporting every advertisement
+     * refreshes a record while the device advertises, so only for such a client does age state anything at all.
+     */
+    #isStale(record: StoredDiscoveredBleDevice, scanTime: number) {
+        return this.#client.repeatsAdvertisements === true && scanTime - record.seenAt > STALE_ENTRY_AGE;
+    }
+
+    /**
+     * Forget the device we commissioned. Its advertisement described a commissioning window that is now closed, so it
+     * must not qualify for a later discovery; a device that advertises again is discovered again.
+     */
+    forgetCommissionedDevice(addresses: readonly ServerAddress[]) {
+        for (const address of addresses) {
+            if (!ServerAddress.isBle(address)) continue;
+            if (this.#discoveredMatterDevices.delete(address.peripheralAddress)) {
+                logger.debug(`Forgetting BLE device ${address.peripheralAddress} whose commissioning window is closed`);
+            }
+        }
     }
 
     /**
@@ -169,15 +231,15 @@ export class BleScanner implements Scanner {
             };
             const deviceExisting = this.#discoveredMatterDevices.has(address);
             const serviceDataHex = Bytes.toHex(manufacturerServiceData);
-            const now = Time.nowMs;
+            const scanTime = this.#scanTime;
 
             // Drop stale entries with matching service data — same device likely re-advertising under a rotated address
             for (const [otherAddress, otherEntry] of this.#discoveredMatterDevices) {
                 if (otherAddress === address) continue;
                 if (otherEntry.serviceDataHex !== serviceDataHex) continue;
-                if (now - otherEntry.lastSeen <= STALE_ENTRY_AGE) continue;
+                if (scanTime - otherEntry.seenAt <= STALE_ENTRY_AGE) continue;
                 logger.debug(
-                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and prior entry is ${Duration.format(Millis(now - otherEntry.lastSeen))} old`,
+                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and we scanned ${Duration.format(Millis(scanTime - otherEntry.seenAt))} without hearing from it`,
                 );
                 this.#discoveredMatterDevices.delete(otherAddress);
             }
@@ -191,7 +253,7 @@ export class BleScanner implements Scanner {
                 peripheral,
                 hasAdditionalAdvertisementData,
                 serviceDataHex,
-                lastSeen: now,
+                seenAt: scanTime,
             });
 
             const queryKey = this.#findCommissionableQueryIdentifier(deviceData);
@@ -278,11 +340,16 @@ export class BleScanner implements Scanner {
         } else return "*";
     }
 
-    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnreachable = false) {
+    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnavailable = false) {
+        const scanTime = this.#scanTime;
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
         const storedRecords = Array.from(this.#discoveredMatterDevices.values())
-            .filter(({ peripheral }) => includeUnreachable || this.#isReachable(peripheral.address))
-            .sort((a, b) => b.lastSeen - a.lastSeen);
+            .filter(
+                record =>
+                    includeUnavailable ||
+                    (this.#isReachable(record.peripheral.address) && !this.#isStale(record, scanTime)),
+            )
+            .sort((a, b) => b.seenAt - a.seenAt);
 
         const foundRecords = new Array<DiscoveredBleDevice>();
         if ("instanceId" in identifier || "deviceType" in identifier) {
@@ -336,11 +403,11 @@ export class BleScanner implements Scanner {
         }
         let storedRecords = ignoreExistingRecords ? [] : this.#getCommissionableDevices(identifier);
         if (storedRecords.length === 0) {
-            await this.#client.startScanning();
+            await this.#startScanning();
             await this.#registerWaiterPromise(queryKey, timeout);
 
             storedRecords = this.#getCommissionableDevices(identifier);
-            await this.#client.stopScanning();
+            await this.#stopScanning();
         }
         return storedRecords.map(({ deviceData }) => deviceData);
     }
@@ -358,8 +425,8 @@ export class BleScanner implements Scanner {
 
         const discoveredDevices = new Set<string>();
 
-        const discoveryEndTime = timeout ? Time.nowMs + timeout : undefined;
-        await this.#client.startScanning();
+        const discoveryEndTime = timeout ? Time.nowUs + timeout : undefined;
+        await this.#startScanning();
 
         let queryResolver: ((value: void) => void) | undefined;
         if (cancelSignal === undefined) {
@@ -390,7 +457,7 @@ export class BleScanner implements Scanner {
 
             let remainingTime;
             if (discoveryEndTime !== undefined) {
-                remainingTime = Millis.ceil(Timespan(Time.nowMs, discoveryEndTime).duration);
+                remainingTime = Millis.ceil(Timespan(Time.nowUs, discoveryEndTime).duration);
                 if (remainingTime <= 0) {
                     break;
                 }
@@ -401,7 +468,7 @@ export class BleScanner implements Scanner {
             // tracking why it was not one before.
             await this.#registerWaiterPromise(queryKey, remainingTime, true, queryResolver);
         }
-        await this.#client.stopScanning();
+        await this.#stopScanning();
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
     }
 
@@ -410,7 +477,7 @@ export class BleScanner implements Scanner {
     }
 
     protected closeClient(): MaybePromise<void> {
-        return this.#client.stopScanning();
+        return this.#stopScanning();
     }
 
     async close() {

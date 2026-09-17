@@ -6,7 +6,7 @@
 
 import { Bytes, Diagnostic, Logger } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
-import { MatterBle } from "@matter/protocol";
+import { BleScannerClient, MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { BleOptions } from "./NodeJsBle.js";
 
@@ -47,7 +47,10 @@ interface NobleListeners {
     scanStop: () => void;
 }
 
-export class NobleBleClient {
+export class NobleBleClient implements BleScannerClient {
+    /** noble scans with duplicates allowed, so every advertisement reaches the scanner. */
+    readonly repeatsAdvertisements = true;
+
     private readonly discoveredPeripherals = new Map<string, { peripheral: Peripheral; matterServiceData: Bytes }>();
     private shouldScan = false;
     private isScanning = false;
