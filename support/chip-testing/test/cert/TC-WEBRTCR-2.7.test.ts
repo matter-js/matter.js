@@ -27,7 +27,7 @@ certCameraCase({
         // The fault empties the candidate list rather than changing the session id, so the session the
         // signaling names is one the DUT holds: what it must refuse is the payload, and the field's own
         // "min 1" constraint is why.
-        const from = cx.controllers.dut.log.mark();
+        const from = await cx.controllers.dut.log.markSettled();
         await provideIceCandidates(session, held);
 
         const refused = await expectConstraintRefusal(cx, from);

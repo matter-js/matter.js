@@ -10,7 +10,6 @@ import {
     expectNoneAccepted,
     expectRefusal,
     expectSessionHeld,
-    NOT_FOUND,
     provideIceCandidates,
     provideOffer,
 } from "./tc-webrtcr-support.js";
@@ -30,11 +29,16 @@ certCameraCase({
         // injected fault gives a session id the DUT never established.
         await provideIceCandidates(session, held);
 
-        const refused = await expectRefusal(cx, session, "iceCandidates", held, NOT_FOUND);
+        const refusal = await expectRefusal(cx, session, "iceCandidates", held);
+        if (!refusal.passed || refusal.refusedId === undefined) {
+            // The remaining checks all rest on a refusal having happened, and each costs a wait the
+            // script's own timeout does not have room for
+            return "fail";
+        }
         const kept = await expectSessionHeld(cx, session, held);
-        const noneAccepted = expectNoneAccepted(cx, session, "iceCandidates");
+        const noneAccepted = expectNoneAccepted(cx, session, "iceCandidates", refusal.refusedId);
         const control = await expectControlAccepted(cx, session, "iceCandidates", held, provideOffer);
 
-        return refused && kept && noneAccepted && control ? "pass" : "fail";
+        return kept && noneAccepted && control ? "pass" : "fail";
     },
 });

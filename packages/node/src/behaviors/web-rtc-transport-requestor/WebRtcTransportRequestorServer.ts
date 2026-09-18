@@ -166,19 +166,13 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
         this.events.end.emit(session, request.reason);
     }
 
-    #refuse(signal: WebRtcTransportRequestorServer.SignalKind, id: number, status: Status) {
-        assertRemoteActor(this.context);
-        NodeSession.assert(this.context.session);
-        this.events.refused.emit(signal, id, this.context.session.peerAddress, status);
-    }
-
     #findSessionStrict(signal: WebRtcTransportRequestorServer.SignalKind, id: number): WebRtcSession {
         assertRemoteActor(this.context);
         NodeSession.assert(this.context.session);
         const peer = this.context.session.peerAddress;
         const session = this.state.currentSessions.find(s => s.id === id);
         if (session === undefined || session.fabricIndex !== peer.fabricIndex || session.peerNodeId !== peer.nodeId) {
-            this.#refuse(signal, id, Status.NotFound);
+            this.events.refused.emit(signal, id, peer);
             throw new StatusResponseError(`WebRTC session ${id} not found`, Status.NotFound);
         }
         return session;
@@ -201,11 +195,13 @@ export namespace WebRtcTransportRequestorServer {
         end = Observable<[session: WebRtcSession, reason: WebRtcTransportDefinitions.WebRtcEndReason]>();
 
         /**
-         * Peer signaled in a way this cluster refused, with the status it was answered: `NotFound` for a session this
-         * cluster does not track for that peer, `ConstraintError` for signaling the session could not carry. The session
+         * Peer signaled against a session this cluster does not track for it, which it answered `NotFound`. The session
          * id is the one the peer named, so a listener sees which id was refused rather than only that something was.
+         *
+         * Signaling this cluster never sees is not reported here: a command whose fields break their own constraints is
+         * refused by schema validation before any of this runs.
          */
-        refused = Observable<[signal: SignalKind, webRtcSessionId: number, peer: PeerAddress, status: Status]>();
+        refused = Observable<[signal: SignalKind, webRtcSessionId: number, peer: PeerAddress]>();
     }
 
     /** The signaling commands a peer invokes on this cluster. */

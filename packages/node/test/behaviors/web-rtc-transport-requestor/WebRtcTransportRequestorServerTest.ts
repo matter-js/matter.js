@@ -235,10 +235,10 @@ describe("WebRtcTransportRequestorServer", () => {
             });
         });
 
-        it("refused names the signal, the unknown session id and the status", async () => {
-            const refusals = new Array<{ signal: string; sessionId: number; status: Status }>();
-            cameraEndpoint!.eventsOf(WebRtcTransportRequestorServer).refused.on((signal, sessionId, _peer, status) => {
-                refusals.push({ signal, sessionId, status });
+        it("refused names the signal and the unknown session id", async () => {
+            const refusals = new Array<{ signal: string; sessionId: number }>();
+            cameraEndpoint!.eventsOf(WebRtcTransportRequestorServer).refused.on((signal, sessionId) => {
+                refusals.push({ signal, sessionId });
             });
 
             await expect(
@@ -250,7 +250,7 @@ describe("WebRtcTransportRequestorServer", () => {
                 }),
             ).to.be.rejectedWith(/NotFound|not found/i);
 
-            expect(refusals).to.deep.equal([{ signal: "offer", sessionId: 999, status: Status.NotFound }]);
+            expect(refusals).to.deep.equal([{ signal: "offer", sessionId: 999 }]);
         });
 
         it("refused does not fire for a session the peer holds", async () => {
@@ -265,6 +265,22 @@ describe("WebRtcTransportRequestorServer", () => {
                     .get(WebRtcTransportRequestorServer)
                     .offer({ webRtcSessionId: SESSION_ID, sdp: "offer" });
             });
+
+            expect(refusals).to.equal(0);
+        });
+
+        it("iceCandidates records no refusal for an empty list, which never reaches a session", async () => {
+            let refusals = 0;
+            cameraEndpoint!.eventsOf(WebRtcTransportRequestorServer).refused.on(() => {
+                refusals++;
+            });
+
+            await withPeerContext(node, FABRIC, PEER_NODE, async context => {
+                await cameraEndpoint!
+                    .agentFor(context)
+                    .get(WebRtcTransportRequestorServer)
+                    .iceCandidates({ webRtcSessionId: SESSION_ID, iceCandidates: [] });
+            }).catch(() => {});
 
             expect(refusals).to.equal(0);
         });

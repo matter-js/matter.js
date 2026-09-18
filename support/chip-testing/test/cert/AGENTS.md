@@ -2714,9 +2714,10 @@ those cases settled:
   `ICECandidates` has to send one first.
 - **A constraint violation never reaches the cluster.** Schema validation answers `ConstraintError`
   for a command field that breaks its own constraint before the behavior runs, so the requestor's
-  `refused` event never fires for it and `signals()` stays empty. `TC-WEBRTCR-2.7` reads that refusal
-  from the controller's own log instead — mark the log before provoking it, or an earlier line can
-  satisfy the check.
+  `refused` event never fires for it and no refusal reaches `signals()`. `TC-WEBRTCR-2.7` reads that
+  refusal from the controller's own log instead — take the mark with `markSettled()`, not `mark()`: a
+  line already in the pump can otherwise sit at an index the mark does not exclude, and satisfy the
+  check without the fault ever firing.
 - **`2.3`, `2.4` and `2.5` are not reachable this way.** Each requires the provider to report
   `PeerConnection State: Connected`, which means a real WebRTC stack on the controller: SDP answer,
   ICE, DTLS and SCTP. Signaling alone cannot satisfy them.

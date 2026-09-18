@@ -10,7 +10,6 @@ import {
     expectNoneAccepted,
     expectRefusal,
     expectSessionHeld,
-    NOT_FOUND,
     solicitOffer,
 } from "./tc-webrtcr-support.js";
 
@@ -25,11 +24,16 @@ certCameraCase({
     async prove(cx, session) {
         const held = await solicitOffer(session);
 
-        const refused = await expectRefusal(cx, session, "offer", held, NOT_FOUND);
+        const refusal = await expectRefusal(cx, session, "offer", held);
+        if (!refusal.passed || refusal.refusedId === undefined) {
+            // The remaining checks all rest on a refusal having happened, and each costs a wait the
+            // script's own timeout does not have room for
+            return "fail";
+        }
         const kept = await expectSessionHeld(cx, session, held);
-        const noneAccepted = expectNoneAccepted(cx, session, "offer");
+        const noneAccepted = expectNoneAccepted(cx, session, "offer", refusal.refusedId);
         const control = await expectControlAccepted(cx, session, "offer", held, solicitOffer);
 
-        return refused && kept && noneAccepted && control ? "pass" : "fail";
+        return kept && noneAccepted && control ? "pass" : "fail";
     },
 });

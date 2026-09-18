@@ -12,7 +12,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/testing
-    - Enhancement: A certification controller's WebRTC signal records state the status a refusal was answered with, via `WebRtcSignalRecord.status`
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
     - Enhancement: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
     - Enhancement: A certification step's read may require a session that permits large payloads via `ReadAttributeOptions.largeMessage`
@@ -71,7 +70,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node
-    - Enhancement: `WebRtcTransportRequestorServer` reports signaling it refused via its new `refused` event, which names the session id the peer asked about and the status it was answered with
+    - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
     - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
     - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
     - Fix: A bound the specification states on a bitmap is enforced. An upper bound states what the reserved-bit check already enforces, but a lower bound such as `FanControl.RockSupport`'s `min 1` states a flag that must be set, which nothing checked. A cluster implementation that supports rocking or wind and leaves the corresponding attribute with no flag set now fails validation where it previously passed

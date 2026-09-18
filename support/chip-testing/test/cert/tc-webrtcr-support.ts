@@ -18,6 +18,7 @@ import type {
     WebRtcSignalRecord,
 } from "@matter/testing";
 import {
+    CertLogTimeoutError,
     chip,
     createControllerAdapter,
     EvidenceRecorder,
@@ -29,16 +30,18 @@ import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
 
 /** Endpoint of TH_SERVER's camera clusters, which `chip-camera-app` fixes at 1. */
-export const PROVIDER_ENDPOINT = 1;
+const PROVIDER_ENDPOINT = 1;
 
-/** How long the provider gets to signal. The scripts themselves allow 90 seconds for the same exchange. */
-export const SIGNAL_TIMEOUT = Seconds(90);
-
-/** Bounds an invoke TH_SERVER may never answer. */
-const INVOKE_TIMEOUT = Seconds(60);
-
-/** Bounds the commissioning a script asks of the DUT. */
-const COMMISSION_TIMEOUT = Seconds(120);
+/**
+ * Every wait here is bounded so that the whole step fits inside the script's own `default_timeout` of
+ * three minutes, which covers the prompt this handler is answering. A budget that outlives it has
+ * mobly abort the script while the handler still holds stdin, and the case then fails as a script
+ * timeout rather than as the verdict it had reached. The provider answers in milliseconds when it
+ * answers at all.
+ */
+const SIGNAL_TIMEOUT = Seconds(30);
+const INVOKE_TIMEOUT = Seconds(30);
+const COMMISSION_TIMEOUT = Seconds(60);
 
 /**
  * The video stream a session names, stated as `chip-camera-controller` states it
@@ -69,7 +72,7 @@ const VIDEO_STREAM = {
  * every case here does its work. A case that needs a connection established needs a real WebRTC stack
  * instead.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.4.6.2
+ * @see {@link MatterSpecification.v16.Cluster} § 11.5.6.3
  */
 const OFFER_SDP = [
     "v=0",
@@ -89,6 +92,12 @@ const OFFER_SDP = [
     "",
 ].join("\r\n");
 
+/**
+ * What the DUT's own log carries when it answers `ICECandidates` with `CONSTRAINT_ERROR`. Bound to the
+ * cluster and the command, so a refusal of anything else on the same node cannot satisfy a case.
+ */
+const CONSTRAINT_REFUSAL = /Invoke error .*webRtcTransportRequestor\.iceCandidates: Status=ConstraintError/;
+
 /** One ICE candidate, which is what makes a provider send its own (chip's provider answers candidates with candidates). */
 const ICE_CANDIDATE = {
     candidate: "candidate:1 1 UDP 2122252543 192.0.2.1 50000 typ host",
@@ -96,18 +105,12 @@ const ICE_CANDIDATE = {
     sdpmLineIndex: 0,
 };
 
-/** Matter's `NOT_FOUND`, which a session the requestor does not track is answered with. */
-export const NOT_FOUND = 0x8b;
-
-/** Matter's `CONSTRAINT_ERROR`, which signaling that violates a field's constraint is answered with. */
-const CONSTRAINT_ERROR = 0x87;
-
 /**
  * Container-side path to `chip-camera-app`, which these scripts spawn as TH_SERVER. Named apart from
  * `MATTER_CERT_TH_SERVER_APP_PATH` because that one names an all-clusters build for the CASE cases;
  * a TH_SERVER is only ever the app its own case needs.
  */
-export function cameraAppPath(): string | undefined {
+function cameraAppPath(): string | undefined {
     return env.MATTER_CERT_CAMERA_APP_PATH;
 }
 
@@ -177,7 +180,7 @@ export function certCameraCase(definition: CameraCase) {
 
             this.timeout(10 * 60_000);
 
-            const state: { ref?: CertNodeRef } = {};
+            const state: { ref?: CertNodeRef; proved?: boolean } = {};
             let bodyFailure: unknown;
             let flushFailure: unknown;
             let closeFailure: unknown;
@@ -204,15 +207,7 @@ export function certCameraCase(definition: CameraCase) {
             try {
                 await dut.start();
 
-                const handlers = [
-                    commissionHandler(state),
-                    signalHandler(definition, {
-                        get ref() {
-                            return state.ref;
-                        },
-                        requestor: requestorOf(dut),
-                    }),
-                ];
+                const handlers = [commissionHandler(state), signalHandler(definition, state, requestorOf(dut))];
                 test = new PromptDrivenPythonTest(descriptor, chip.container, handlers, cx);
 
                 await test.invoke(
@@ -226,6 +221,15 @@ export function certCameraCase(definition: CameraCase) {
                     throw new InternalError(
                         `${definition.script} reported success without ever prompting for commissioning, so the DUT ` +
                             "was never the party its signaling was put to",
+                    );
+                }
+
+                // A script reaches its own verdict whether or not a prompt was answered, so a prompt this
+                // no longer matches leaves the case passing on nothing
+                if (state.proved !== true) {
+                    throw new InternalError(
+                        `${definition.script} never printed a line matching ${definition.signalPrompt}, so nothing ` +
+                            "put its signaling to the DUT",
                     );
                 }
             } catch (e) {
@@ -333,7 +337,8 @@ function commissionHandler(state: { ref?: CertNodeRef }): PromptHandler {
 /** Runs a case's own {@link CameraCase.prove} against the camera the DUT commissioned. */
 function signalHandler(
     definition: CameraCase,
-    state: { ref?: CertNodeRef; requestor: WebRtcRequestorApi },
+    state: { ref?: CertNodeRef; proved?: boolean },
+    requestor: WebRtcRequestorApi,
 ): PromptHandler {
     return {
         pattern: definition.signalPrompt,
@@ -345,9 +350,11 @@ function signalHandler(
             };
             cx.recorder.beginStep(stepDef);
 
+            state.proved = true;
+
             let verdict: StepVerdict = "fail";
             try {
-                const { ref, requestor } = state;
+                const { ref } = state;
                 if (ref === undefined) {
                     throw new InternalError("The script asked for signaling before the DUT commissioned TH_SERVER");
                 }
@@ -375,8 +382,7 @@ function signalHandler(
  *
  * Registration happens once the solicitation is answered, which is too late to decide whether the
  * provider's `Offer` is accepted: the provider sends it from inside its own handling of the
- * solicitation. A caller that needs the `Offer` accepted registers the id ahead of this call with
- * {@link registerSession}.
+ * solicitation. {@link expectControlAccepted} is what registers an id ahead of establishing a session.
  */
 export async function solicitOffer(session: CameraSession): Promise<number> {
     const solicitation = await settled(
@@ -443,7 +449,7 @@ export async function provideIceCandidates(session: CameraSession, webRtcSession
 }
 
 /** Registers a session with the DUT's requestor cluster, so the provider's signaling for it is accepted. */
-export async function registerSession(session: CameraSession, id: number): Promise<void> {
+async function registerSession(session: CameraSession, id: number): Promise<void> {
     await session.requestor.upsertSession({
         id,
         peer: session.ref,
@@ -454,16 +460,18 @@ export async function registerSession(session: CameraSession, id: number): Promi
 }
 
 /**
- * Records that the DUT refused the signaling the provider's injected fault corrupted, and that it
- * refused the id the fault produced rather than the session it holds.
+ * Records that the DUT refused the signaling the provider's injected fault corrupted, and that what it
+ * refused was the id the fault produced rather than the session the case established.
+ *
+ * Absence of a refusal is a DUT verdict; anything that stops this from observing one is not, and
+ * throws instead.
  */
 export async function expectRefusal(
     cx: CertStepContext,
     session: CameraSession,
     kind: WebRtcSignalRecord["kind"],
     held: number,
-    status: number,
-): Promise<boolean> {
+): Promise<{ passed: boolean; refusedId?: number }> {
     const refusal = await session.requestor.nextSignal(
         signal => signal.kind === kind && signal.outcome === "refused",
         SIGNAL_TIMEOUT,
@@ -475,25 +483,9 @@ export async function expectRefusal(
             verdict: "fail",
             detail:
                 `the DUT refused no ${signalName(kind)} within ${Duration.format(SIGNAL_TIMEOUT)} of establishing ` +
-                `session ` +
-                `${held}, so it either accepted what the fault produced or was never signaled`,
+                `session ${held}, so it either accepted what the fault produced or was never signaled`,
         });
-        return false;
-    }
-
-    const rightStatus = refusal.status === status;
-    cx.recorder.check({
-        type: "response",
-        verdict: rightStatus ? "pass" : "fail",
-        detail: rightStatus
-            ? `the DUT refused ${signalName(kind)} with status ${statusName(status)}`
-            : `the DUT refused ${signalName(kind)} with status ${statusName(refusal.status)}, where the ` +
-              `specification ` +
-              `states ${statusName(status)}`,
-    });
-
-    if (status !== NOT_FOUND) {
-        return rightStatus;
+        return { passed: false };
     }
 
     const refusedForeignId = refusal.sessionId !== held;
@@ -501,35 +493,44 @@ export async function expectRefusal(
         type: "response",
         verdict: refusedForeignId ? "pass" : "fail",
         detail: refusedForeignId
-            ? `the DUT refused ${signalName(kind)} naming session ${refusal.sessionId}, which is not the session ` +
+            ? `the DUT refused the ${signalName(kind)} naming session ${refusal.sessionId}, which is not the ` +
+              `session ` +
               `${held} it holds with TH_SERVER`
-            : `the DUT refused ${signalName(kind)} naming session ${held}, the very session it registered, so the ` +
-              `refusal ` +
-              "rests on something other than the corrupted id",
+            : `the DUT refused the ${signalName(kind)} naming session ${held}, the very session it registered, so ` +
+              `the ` +
+              `refusal rests on something other than the corrupted id`,
     });
 
-    return rightStatus && refusedForeignId;
+    return { passed: refusedForeignId, refusedId: refusal.sessionId };
 }
 
 /**
  * Records that the DUT answered the peer's signaling with `CONSTRAINT_ERROR`, read from the
  * controller's own log.
  *
- * Signaling that violates a field's constraint is refused by schema validation before the requestor
- * cluster runs, so no session-level refusal is recorded for it and
- * {@link WebRtcRequestorApi.signals} stays empty. What the DUT answered still reaches its log.
+ * Signaling that breaks a field's own constraint is refused by schema validation before the requestor
+ * cluster runs, so nothing session-level is recorded for it and no refusal reaches
+ * {@link WebRtcRequestorApi.signals}. What the DUT answered still reaches its log.
+ *
+ * Only the timeout is a DUT verdict. A log that closed, or a follower that failed for its own reasons,
+ * says nothing about the DUT and throws rather than recording one.
  */
-export async function expectConstraintRefusal(cx: CertStepContext, from: number): Promise<boolean> {
+export async function expectConstraintRefusal(
+    cx: CertStepContext,
+    from: number,
+    timeout: Duration = SIGNAL_TIMEOUT,
+): Promise<boolean> {
     let matched: string | undefined;
     try {
-        const line = await cx.controllers.dut.log.expectPattern(
-            /Invoke error .*webRtcTransportRequestor\.iceCandidates: Status=ConstraintError/,
-            { from, timeoutMs: SIGNAL_TIMEOUT },
-        );
+        const line = await cx.controllers.dut.log.expectPattern(CONSTRAINT_REFUSAL, {
+            from,
+            timeoutMs: timeout,
+        });
         matched = line.text;
     } catch (e) {
-        matched = undefined;
-        void e;
+        if (!(e instanceof CertLogTimeoutError)) {
+            throw e;
+        }
     }
 
     cx.recorder.check({
@@ -537,15 +538,22 @@ export async function expectConstraintRefusal(cx: CertStepContext, from: number)
         verdict: matched === undefined ? "fail" : "pass",
         detail:
             matched === undefined
-                ? `the DUT answered no ICECandidates with CONSTRAINT_ERROR within ${Duration.format(SIGNAL_TIMEOUT)}, ` +
-                  "so it accepted a candidate list the specification states must hold at least one"
+                ? `the DUT answered no ICECandidates with CONSTRAINT_ERROR within ${Duration.format(timeout)}, so ` +
+                  `it accepted a candidate list the specification states must hold at least one`
                 : `the DUT answered ICECandidates with CONSTRAINT_ERROR: ${matched}`,
     });
 
     return matched !== undefined;
 }
 
-/** Records that the session the case registered is still tracked, so the refusal was judged against one that exists. */
+/**
+ * Records that the DUT still holds the session the case established with it.
+ *
+ * States no more than that. Whether the refusal above was judged against a *tracked* session is not
+ * something this can witness: the provider signals from inside its own handling of the command that
+ * establishes the session, so the registration may land after the refusal. What separates "refuses by
+ * session id" from "refuses everything" is {@link expectControlAccepted}.
+ */
 export async function expectSessionHeld(cx: CertStepContext, session: CameraSession, held: number): Promise<boolean> {
     const tracked = await session.requestor.sessions();
     const keptSession = tracked.some(entry => entry.id === held);
@@ -554,7 +562,7 @@ export async function expectSessionHeld(cx: CertStepContext, session: CameraSess
         type: "response",
         verdict: keptSession ? "pass" : "fail",
         detail: keptSession
-            ? `the DUT still tracks session ${held}, so the signaling was judged against a session that existed`
+            ? `the DUT holds session ${held}, the one it established with TH_SERVER`
             : `the DUT tracks sessions ${tracked.map(entry => entry.id).join(", ") || "(none)"}, not the session ` +
               `${held} it established`,
     });
@@ -589,7 +597,13 @@ export async function expectControlAccepted(
 
     const control = await establish(session);
     if (control !== expected) {
+        // Registering after the response cannot win the race this pre-registration exists for, so the
+        // control can no longer witness anything about the DUT
         await session.requestor.removeSession(expected);
+        throw new CertCheckFailedError(
+            `The provider minted session ${control} where ${expected} was registered ahead of it, so this run ` +
+                "cannot establish whether the DUT accepts a session it holds",
+        );
     }
 
     if (kind === "iceCandidates") {
@@ -607,13 +621,9 @@ export async function expectControlAccepted(
         detail:
             accepted === undefined
                 ? `the DUT accepted no ${signalName(kind)} for session ${control}, established with the fault ` +
-                  `spent, so its ` +
-                  "refusal says nothing about what it refused" +
-                  (control === expected
-                      ? ""
-                      : ` (the provider minted ${control} where ${expected} was registered ahead of it, so its ` +
-                        "signaling may have arrived before the registration)")
-                : `the DUT accepted ${signalName(kind)} for session ${control}, so it refuses by what the signaling ` +
+                  `spent, so its refusal says nothing about what it refused`
+                : `the DUT accepted the ${signalName(kind)} for session ${control}, so it refuses by what the ` +
+                  `signaling ` +
                   `names ` +
                   "rather than refusing everything",
     });
@@ -621,24 +631,30 @@ export async function expectControlAccepted(
     return accepted !== undefined;
 }
 
-/** Records that the DUT accepted no signaling of `kind` while the fault was armed. */
+/**
+ * Records that the DUT did not also accept the very signaling it refused.
+ *
+ * Scoped to the id the refusal named rather than to every signal of that kind: a provider gathers ICE
+ * candidates as it finds them and may send more than one batch, and the fault corrupts only the first,
+ * so later batches naming the session the DUT holds are accepted by a conforming DUT.
+ */
 export function expectNoneAccepted(
     cx: CertStepContext,
     session: CameraSession,
     kind: WebRtcSignalRecord["kind"],
+    refusedId: number,
 ): boolean {
     const accepted = session.requestor
         .signals()
-        .filter(signal => signal.kind === kind && signal.outcome === "accepted");
+        .filter(signal => signal.kind === kind && signal.outcome === "accepted" && signal.sessionId === refusedId);
 
     cx.recorder.check({
         type: "response",
         verdict: accepted.length === 0 ? "pass" : "fail",
         detail:
             accepted.length === 0
-                ? `the DUT accepted no ${signalName(kind)} while the fault was armed`
-                : `the DUT accepted ${signalName(kind)} for session(s) ` +
-                  accepted.map(signal => signal.sessionId).join(", "),
+                ? `the DUT accepted no ${signalName(kind)} naming session ${refusedId}, the id the fault produced`
+                : `the DUT accepted the ${signalName(kind)} naming session ${refusedId}, the id it had refused`,
     });
 
     return accepted.length === 0;
@@ -686,26 +702,13 @@ function numberField(response: unknown, field: string, what: string): number {
 function signalName(kind: WebRtcSignalRecord["kind"]): string {
     switch (kind) {
         case "offer":
-            return "an Offer";
+            return "Offer";
         case "answer":
-            return "an Answer";
+            return "Answer";
         case "iceCandidates":
             return "ICECandidates";
         case "end":
-            return "an End";
-    }
-}
-
-function statusName(status: number | undefined): string {
-    switch (status) {
-        case NOT_FOUND:
-            return "NOT_FOUND";
-        case CONSTRAINT_ERROR:
-            return "CONSTRAINT_ERROR";
-        case undefined:
-            return "(none recorded)";
-        default:
-            return `0x${status.toString(16)}`;
+            return "End";
     }
 }
 
