@@ -51,6 +51,25 @@ function presetsIn(values: Record<string, unknown> | undefined) {
     return deepCopy(presets) as Thermostat.Preset[];
 }
 
+/**
+ * The schedules an application configured.  `defaultsFor` is the merged view: the endpoint's options with the
+ * environment's values applied over them, which is the precedence the framework uses everywhere else.
+ */
+function configuredSchedules(endpoint: Endpoint) {
+    return schedulesIn(endpoint.behaviors.defaultsFor(ThermostatBaseServer));
+}
+
+function schedulesIn(values: Record<string, unknown> | undefined) {
+    const schedules = values?.schedules;
+    if (!Array.isArray(schedules)) {
+        return undefined;
+    }
+
+    // A type's defaults and an endpoint's options are shared by every endpoint configured from them, and validation
+    // assigns handles to the schedules it is given in place
+    return deepCopy(schedules) as Thermostat.Schedule[];
+}
+
 // Enable some features we need for implementation, they will be reset at the end again
 const ThermostatBehaviorLogicBase = ThermostatBehavior.with(
     Thermostat.Feature.Heating,
@@ -58,6 +77,7 @@ const ThermostatBehaviorLogicBase = ThermostatBehavior.with(
     Thermostat.Feature.Occupancy,
     Thermostat.Feature.AutoMode,
     Thermostat.Feature.Presets,
+    Thermostat.Feature.MatterScheduleConfiguration,
 );
 
 // Enhance Schema to define conformance for some of the additional state attributes
@@ -70,6 +90,13 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
             quality: "N",
             children: [FieldElement({ name: "entry", type: "PresetStruct" })],
         }),
+        FieldElement({
+            name: "PersistedSchedules",
+            type: "list",
+            conformance: "[MSCH]",
+            quality: "N",
+            children: [FieldElement({ name: "entry", type: "ScheduleStruct" })],
+        }),
     ],
 });
 
@@ -79,7 +106,6 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * The Matter specification requires the Thermostat cluster to support features we do not enable by default. You should
  * use {@link ThermostatServer.with} to specialize the class for the features your implementation supports.
  * We implement all features beside the following:
- * * MatterScheduleConfiguration: This feature is provisional.
  * * ScheduleConfiguration: This feature is deprecated and not allowed to be enabled.
  * * Setback: This feature is considered deprecated.
  * * The use of the "setpointHoldExpiryTimestamp" attribute is currently not supported.
@@ -89,6 +115,10 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * * Adjust the setpoints when a preset is activated
  * If this behavior is not desired, you can override the setActivePresetRequest method but should call
  * handleSetActivePresetRequest() to ensure compliance with the specification.
+ *
+ * For MatterScheduleConfiguration, setActiveScheduleRequest only records the requested ScheduleHandle; it does not
+ * evaluate the schedule's transitions against wall-clock time to drive setpoints. An application that wants real
+ * time-of-day scheduling needs to implement that evaluation itself and adjust setpoints accordingly.
  *
  * The implementation also adds enhanced system mode logic that can be enabled by setting the state field
  * useAutomaticModeManagement to true. When enabled, the thermostat will:
@@ -123,10 +153,6 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         if (this.features.setback) {
             throw new ImplementationError("Setback feature is deprecated and not allowed to be enabled");
         }
-        if (this.features.matterScheduleConfiguration) {
-            logger.warn("MatterScheduleConfiguration feature is not yet implemented. Please do not activate it");
-        }
-
         if (!this.features.presets && !this.features.matterScheduleConfiguration) {
             this.atomicRequest = Behavior.unimplemented;
         }
@@ -151,6 +177,28 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
         }
 
+        if (this.features.matterScheduleConfiguration && this.state.persistedSchedules === undefined) {
+            // A behavior type carries its own configured value, which reaches neither of the endpoint's channels
+            this.state.persistedSchedules = configuredSchedules(this.endpoint) ?? schedulesIn(this.type.defaults) ?? [];
+        }
+
+        if (this.features.matterScheduleConfiguration) {
+            const { activeScheduleHandle } = this.state;
+            if (
+                activeScheduleHandle !== null &&
+                !this.state.persistedSchedules?.some(
+                    schedule =>
+                        schedule.scheduleHandle !== null &&
+                        Bytes.areEqual(schedule.scheduleHandle, activeScheduleHandle),
+                )
+            ) {
+                logger.warn(
+                    `ActiveScheduleHandle ${Bytes.toHex(activeScheduleHandle)} matches no schedule, reporting no active schedule`,
+                );
+                this.state.activeScheduleHandle = null;
+            }
+        }
+
         // Add this check because we currently do not have a max in Schema and might have old invalid max values
         if (this.state.minSetpointDeadBand > 127) {
             this.state.minSetpointDeadBand = 20;
@@ -167,6 +215,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         this.#setupModeHandling();
         this.#setupThermostatLogic();
         this.#setupPresets();
+        this.#setupSchedules();
 
         // We store these values internally because we need to restore them after any write try
         this.internal.minSetpointDeadBand = this.state.minSetpointDeadBand;
@@ -312,6 +361,37 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 this.coolingSetpoint = this.#clampSetpointToLimits("Cool", coolingSetpoint);
             }
         }
+    }
+
+    /**
+     * Performs basic validation and sets the active schedule handle when valid.
+     * This fulfills the basic requirements of the SetActiveScheduleRequest matter command. Use this method if you need
+     * to override setActiveScheduleRequest to ensure compliance.
+     *
+     * Unlike handleSetActivePresetRequest, this does not adjust setpoints: a schedule is a set of time-based
+     * transitions, so applying "the" setpoint on activation would require evaluating those transitions against the
+     * current day/time, which this default implementation does not do (see the class documentation).
+     */
+    protected handleSetActiveScheduleRequest({ scheduleHandle }: Thermostat.SetActiveScheduleRequest) {
+        const schedule = this.state.persistedSchedules?.find(
+            s => s.scheduleHandle !== null && Bytes.areEqual(s.scheduleHandle, scheduleHandle),
+        );
+        if (schedule === undefined) {
+            throw new StatusResponse.InvalidCommandError("Requested ScheduleHandle not found");
+        }
+        logger.info(`Setting active schedule handle to`, scheduleHandle);
+        this.state.activeScheduleHandle = scheduleHandle;
+    }
+
+    /**
+     * This default implementation of the SetActiveScheduleRequest command handler sets the active schedule handle.
+     *
+     * If you want to also adjust setpoints based on the schedule's transitions (which requires evaluating them
+     * against the current day/time), override this method but should call handleSetActiveScheduleRequest to ensure
+     * compliance with the specification.
+     */
+    override setActiveScheduleRequest(request: Thermostat.SetActiveScheduleRequest) {
+        this.handleSetActiveScheduleRequest(request);
     }
 
     /** Determines if the given context is from a command */
@@ -1534,13 +1614,24 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
         }
 
-        /*if (this.features.matterScheduleConfiguration) {
-            for (const schedule of this.state.schedules) {
+        // A preset a schedule (or one of its transitions) still references cannot be removed
+        if (this.features.matterScheduleConfiguration) {
+            for (const schedule of this.state.persistedSchedules ?? []) {
                 if (schedule.presetHandle && !newPresetHandles.has(Bytes.toHex(schedule.presetHandle))) {
-                    throw new StatusResponse.InvalidInStateError(`Schedule references non-existing presetHandle`);
+                    throw new StatusResponse.InvalidInStateError(
+                        `Cannot remove preset referenced by schedule ${Bytes.toHex(schedule.scheduleHandle!)}`,
+                    );
+                }
+                for (const transition of schedule.transitions) {
+                    if (transition.presetHandle && !newPresetHandles.has(Bytes.toHex(transition.presetHandle))) {
+                        throw new StatusResponse.InvalidInStateError(
+                            `Cannot remove preset referenced by a transition of schedule ${Bytes.toHex(schedule.scheduleHandle!)}`,
+                        );
+                    }
                 }
             }
-        }*/
+        }
+
         // The specification refuses the removal of the active preset, not a handle that named no preset to begin with
         const { activePresetHandle } = this.state;
         if (
@@ -1552,6 +1643,431 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         ) {
             throw new StatusResponse.InvalidInStateError(
                 `Cannot remove preset ${Bytes.toHex(activePresetHandle)} while it is the active preset`,
+            );
+        }
+    }
+
+    #setupSchedules() {
+        if (!this.features.matterScheduleConfiguration) {
+            return;
+        }
+        this.reactTo(this.events.schedules$AtomicChanging, this.#handleSchedulesAtomicChanging);
+        this.reactTo(this.events.schedules$AtomicChanged, this.#handleSchedulesAtomicChanged);
+        this.reactTo(this.events.persistedSchedules$Changing, this.#handlePersistedSchedulesChanging);
+        this.reactTo(this.events.persistedSchedules$Changed, this.#handlePersistedSchedulesChanged);
+    }
+
+    /**
+     * A staged atomic write is validated against the stored schedules, which it has not replaced yet.
+     */
+    #handleSchedulesAtomicChanging(
+        newSchedules: Thermostat.Schedule[],
+        _oldSchedules: unknown,
+        context: ActionContext,
+    ) {
+        this.#validateScheduleWriteRequest(
+            newSchedules,
+            this.state.persistedSchedules,
+            this.#schedulesIn(context).handles,
+        );
+    }
+
+    /**
+     * A stored write is already applied when validation runs, so the schedules it replaces are the baseline.
+     */
+    #handlePersistedSchedulesChanging(
+        newSchedules: Thermostat.Schedule[],
+        oldSchedules: Thermostat.Schedule[] | undefined,
+        context: ActionContext,
+    ) {
+        const schedules = this.#schedulesIn(context);
+
+        this.#validateScheduleWriteRequest(newSchedules, oldSchedules, schedules.handles);
+        this.#normalizeAndValidateScheduleCommit(newSchedules, oldSchedules, schedules.handles);
+
+        if (!schedules.validatesOnceSettled) {
+            context.transaction.addParticipants({
+                toString: () => `schedules of ${this.endpoint}`,
+                settled: () => this.#assertSettledSchedulesCarryHandles(),
+            });
+            schedules.validatesOnceSettled = true;
+        }
+    }
+
+    /**
+     * A null handle is only valid in the write that arrives; the device issues one before the value commits.
+     */
+    #assertSettledSchedulesCarryHandles() {
+        for (const schedule of this.state.persistedSchedules ?? []) {
+            if (schedule.scheduleHandle == null) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `Schedule for systemMode ${Thermostat.SystemMode[schedule.systemMode]} of ${this.endpoint} carries no scheduleHandle`,
+                );
+            }
+        }
+    }
+
+    /**
+     * What this behavior did to the schedules of the transaction in context. See #presetsIn for the rationale; the
+     * same reasoning applies here.
+     */
+    #schedulesIn({ transaction }: ActionContext) {
+        let schedules = this.internal.scheduleTransactions.get(transaction);
+
+        if (schedules === undefined) {
+            schedules = { handles: new Set<string>() };
+            this.internal.scheduleTransactions.set(transaction, schedules);
+
+            transaction.onShared(() => this.internal.scheduleTransactions.delete(transaction), true);
+        }
+
+        return schedules;
+    }
+
+    /**
+     * Validates schedules a client wants to store against the schedules they replace.
+     */
+    #validateScheduleWriteRequest(
+        newSchedules: Thermostat.Schedule[],
+        oldSchedules: Thermostat.Schedule[] | undefined,
+        issuedHandles: ReadonlySet<string>,
+    ) {
+        if (newSchedules.length > this.state.numberOfSchedules) {
+            throw new StatusResponse.ResourceExhaustedError(
+                `Number of schedules (${newSchedules.length}) exceeds NumberOfSchedules (${this.state.numberOfSchedules})`,
+            );
+        }
+
+        const oldSchedulesMap = new Map<string, Thermostat.Schedule>();
+        if (oldSchedules !== undefined) {
+            for (const schedule of oldSchedules) {
+                // Pre-commit announces the schedules again after normalization, so the value this one replaces is the
+                // one a client wrote, where a schedule it is adding carries no handle yet
+                if (schedule.scheduleHandle !== null) {
+                    oldSchedulesMap.set(Bytes.toHex(schedule.scheduleHandle), schedule);
+                }
+            }
+        }
+
+        const scheduleTypeMap = new Map<Thermostat.SystemMode, Thermostat.ScheduleType>();
+        for (const type of this.state.scheduleTypes) {
+            scheduleTypeMap.set(type.systemMode, type);
+        }
+
+        const scheduleModeCounts = new Map<Thermostat.SystemMode, number>();
+        const newScheduleHandlesSet = new Set<string>();
+        const numberOfScheduleTransitionPerDay = this.state.numberOfScheduleTransitionPerDay;
+
+        for (const schedule of newSchedules) {
+            if (schedule.scheduleHandle !== null) {
+                const scheduleHex = Bytes.toHex(schedule.scheduleHandle);
+                if (newScheduleHandlesSet.has(scheduleHex)) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Duplicate scheduleHandle ${scheduleHex} in new Schedules`,
+                    );
+                }
+
+                const oldSchedule = oldSchedulesMap.get(scheduleHex);
+                if (oldSchedule === undefined) {
+                    if (oldSchedules === undefined) {
+                        // Initial seeding, where the application states the schedules the device ships with
+                    } else if (!issuedHandles.has(scheduleHex)) {
+                        throw new StatusResponse.NotFoundError(
+                            `Schedule with scheduleHandle ${scheduleHex} does not exist in old Schedules, cannot add new Schedules with non-null scheduleHandle`,
+                        );
+                    } else if (schedule.builtIn) {
+                        // The handle is one this write asked for, so the schedule is an addition whatever it now carries
+                        throw new StatusResponse.ConstraintErrorError(`Can not add a new built-in schedule`);
+                    }
+                } else if (schedule.builtIn !== null && oldSchedule.builtIn !== schedule.builtIn) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Cannot change built-in status of schedule with scheduleHandle ${scheduleHex}`,
+                    );
+                }
+
+                newScheduleHandlesSet.add(scheduleHex);
+            } else if (schedule.builtIn) {
+                throw new StatusResponse.ConstraintErrorError(`Can not add a new built-in schedule`);
+            }
+
+            const scheduleType = scheduleTypeMap.get(schedule.systemMode);
+            if (scheduleType === undefined) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `No ScheduleType defined for systemMode ${Thermostat.SystemMode[schedule.systemMode]}`,
+                );
+            }
+            const { scheduleTypeFeatures } = scheduleType;
+
+            const count = scheduleModeCounts.get(schedule.systemMode) ?? 0;
+            if (count === scheduleType.numberOfSchedules) {
+                throw new StatusResponse.ResourceExhaustedError(
+                    `Number of schedules (${count}) for systemMode ${Thermostat.SystemMode[schedule.systemMode]} exceeds allowed number (${scheduleType.numberOfSchedules})`,
+                );
+            }
+            scheduleModeCounts.set(schedule.systemMode, count + 1);
+
+            if (schedule.name !== undefined && !scheduleTypeFeatures.supportsNames) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `Schedule names are not supported for systemMode ${Thermostat.SystemMode[schedule.systemMode]}`,
+                );
+            }
+
+            if (schedule.presetHandle !== undefined) {
+                if (!scheduleTypeFeatures.supportsPresets) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Presets are not supported for systemMode ${Thermostat.SystemMode[schedule.systemMode]}`,
+                    );
+                }
+                if (
+                    !this.state.persistedPresets?.some(
+                        preset =>
+                            preset.presetHandle !== null && Bytes.areEqual(preset.presetHandle, schedule.presetHandle!),
+                    )
+                ) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Schedule presetHandle ${Bytes.toHex(schedule.presetHandle)} does not match any existing Preset`,
+                    );
+                }
+            }
+
+            this.#validateScheduleTransitions(schedule, scheduleTypeFeatures, numberOfScheduleTransitionPerDay);
+        }
+    }
+
+    /** The (non-Away) days of the week, in the order ScheduleDayOfWeek's bits are enumerated. */
+    static readonly #daysOfWeek = [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+    ] as const;
+
+    /**
+     * Validates the transitions of a single schedule being written, mirroring the per-transition rules of
+     * Section 4.3.10.26.5 of the specification.
+     */
+    #validateScheduleTransitions(
+        schedule: Thermostat.Schedule,
+        scheduleTypeFeatures: Thermostat.ScheduleTypeFeatures,
+        numberOfScheduleTransitionPerDay: number | null,
+    ) {
+        const dayCounts = new Array<number>(ThermostatBaseServer.#daysOfWeek.length).fill(0);
+        const { transitions } = schedule;
+
+        for (let i = 0; i < transitions.length; i++) {
+            const transition = transitions[i];
+
+            if (transition.dayOfWeek.away) {
+                throw new StatusResponse.ConstraintErrorError(
+                    "Away/Vacation bit must not be set on a schedule transition's dayOfWeek",
+                );
+            }
+
+            for (let j = 0; j < i; j++) {
+                const other = transitions[j];
+                if (
+                    other.transitionTime === transition.transitionTime &&
+                    ThermostatBaseServer.#daysOfWeek.some(day => other.dayOfWeek[day] && transition.dayOfWeek[day])
+                ) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Duplicate transitions at transitionTime ${transition.transitionTime} for overlapping days of week`,
+                    );
+                }
+            }
+
+            ThermostatBaseServer.#daysOfWeek.forEach((day, index) => {
+                if (transition.dayOfWeek[day]) {
+                    dayCounts[index]++;
+                }
+            });
+
+            if (transition.presetHandle !== undefined) {
+                if (
+                    transition.systemMode !== undefined ||
+                    transition.coolingSetpoint !== undefined ||
+                    transition.heatingSetpoint !== undefined
+                ) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        "A schedule transition with a presetHandle must not also specify systemMode, coolingSetpoint or heatingSetpoint",
+                    );
+                }
+                if (!scheduleTypeFeatures.supportsPresets) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        "Presets are not supported for this schedule's systemMode",
+                    );
+                }
+                if (
+                    !this.state.persistedPresets?.some(
+                        preset =>
+                            preset.presetHandle !== null &&
+                            Bytes.areEqual(preset.presetHandle, transition.presetHandle!),
+                    )
+                ) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Transition presetHandle ${Bytes.toHex(transition.presetHandle)} does not match any existing Preset`,
+                    );
+                }
+            }
+
+            if (transition.systemMode !== undefined) {
+                if (!scheduleTypeFeatures.supportsSetpoints) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        "Setpoints are not supported for this schedule's systemMode",
+                    );
+                }
+                if (transition.systemMode === Thermostat.SystemMode.Off && !scheduleTypeFeatures.supportsOff) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        "SystemMode Off is not supported for this schedule's systemMode",
+                    );
+                }
+            }
+
+            if (transition.coolingSetpoint !== undefined) {
+                if (!scheduleTypeFeatures.supportsSetpoints) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        "Setpoints are not supported for this schedule's systemMode",
+                    );
+                }
+                if (
+                    transition.coolingSetpoint < this.coolSetpointMinimum ||
+                    transition.coolingSetpoint > this.coolSetpointMaximum
+                ) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Transition coolingSetpoint (${transition.coolingSetpoint}) is out of bounds [${this.coolSetpointMinimum}, ${this.coolSetpointMaximum}]`,
+                    );
+                }
+            }
+            if (transition.heatingSetpoint !== undefined) {
+                if (!scheduleTypeFeatures.supportsSetpoints) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        "Setpoints are not supported for this schedule's systemMode",
+                    );
+                }
+                if (
+                    transition.heatingSetpoint < this.heatSetpointMinimum ||
+                    transition.heatingSetpoint > this.heatSetpointMaximum
+                ) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Transition heatingSetpoint (${transition.heatingSetpoint}) is out of bounds [${this.heatSetpointMinimum}, ${this.heatSetpointMaximum}]`,
+                    );
+                }
+            }
+        }
+
+        if (numberOfScheduleTransitionPerDay !== null) {
+            const exceededIndex = dayCounts.findIndex(count => count > numberOfScheduleTransitionPerDay);
+            if (exceededIndex >= 0) {
+                throw new StatusResponse.ResourceExhaustedError(
+                    `Number of transitions (${dayCounts[exceededIndex]}) on ${ThermostatBaseServer.#daysOfWeek[exceededIndex]} exceeds NumberOfScheduleTransitionPerDay (${numberOfScheduleTransitionPerDay})`,
+                );
+            }
+        }
+    }
+
+    /**
+     * Handles additional validation of schedule changes when all chunks were written in an atomic write operation.
+     */
+    #handleSchedulesAtomicChanged(
+        newSchedules: Thermostat.Schedule[],
+        oldSchedules: Thermostat.Schedule[] | undefined,
+        context: ActionContext,
+    ) {
+        this.#normalizeAndValidateScheduleCommit(newSchedules, oldSchedules, this.#schedulesIn(context).handles);
+    }
+
+    /**
+     * `Schedules` is computed on read, so no `schedules$Changed` event fires for it; react to
+     * `persistedSchedules$Changed` to observe schedule changes inside the device.
+     */
+    #handlePersistedSchedulesChanged() {
+        this.markChanged("schedules");
+    }
+
+    /**
+     * Assigns a handle to any schedule lacking one and validates the set, for both the atomic and the stored path.
+     */
+    #normalizeAndValidateScheduleCommit(
+        newSchedules: Thermostat.Schedule[],
+        oldSchedules: Thermostat.Schedule[] | undefined,
+        issuedHandles: Set<string>,
+    ) {
+        if (oldSchedules === undefined) {
+            logger.debug(
+                "Old schedules is undefined, skipping some checks. This should only happen on setup of the behavior.",
+            );
+        }
+
+        const entropy = this.endpoint.env.get(Entropy);
+        const newScheduleHandles = new Set<string>();
+
+        // Normalized in place: the report that follows reads these back through the attribute's accessor
+        for (const schedule of newSchedules) {
+            if (schedule.scheduleHandle == null) {
+                logger.debug("Schedule is missing scheduleHandle, generating a new one");
+                schedule.scheduleHandle = entropy.randomBytes(16);
+                issuedHandles.add(Bytes.toHex(schedule.scheduleHandle));
+            }
+            newScheduleHandles.add(Bytes.toHex(schedule.scheduleHandle));
+            if (oldSchedules === undefined) {
+                if (schedule.builtIn === null) {
+                    schedule.builtIn = false;
+                }
+            } else {
+                if (schedule.builtIn === null) {
+                    const oldSchedule = oldSchedules.find(
+                        s =>
+                            s.scheduleHandle &&
+                            schedule.scheduleHandle &&
+                            Bytes.areEqual(s.scheduleHandle, schedule.scheduleHandle),
+                    );
+                    if (oldSchedule !== undefined) {
+                        schedule.builtIn = oldSchedule.builtIn;
+                    } else {
+                        schedule.builtIn = false;
+                    }
+                }
+            }
+        }
+
+        const newBuiltInSchedules = new Set<string>();
+        for (const schedule of newSchedules) {
+            if (schedule.builtIn) {
+                newBuiltInSchedules.add(Bytes.toHex(schedule.scheduleHandle!));
+            }
+        }
+        const oldBuiltInSchedules = new Set<string>();
+        if (oldSchedules !== undefined) {
+            for (const schedule of oldSchedules) {
+                if (schedule.builtIn && schedule.scheduleHandle !== null) {
+                    oldBuiltInSchedules.add(Bytes.toHex(schedule.scheduleHandle));
+                }
+            }
+        }
+
+        // Ensure built-in schedules are not removed
+        for (const oldBuiltInSchedule of oldBuiltInSchedules) {
+            if (!newBuiltInSchedules.has(oldBuiltInSchedule)) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `Cannot remove built-in schedule with scheduleHandle ${oldBuiltInSchedule}`,
+                );
+            }
+        }
+
+        // The specification refuses the removal of the active schedule, not a handle that named no schedule to begin with
+        const { activeScheduleHandle } = this.state;
+        if (
+            activeScheduleHandle !== null &&
+            !newScheduleHandles.has(Bytes.toHex(activeScheduleHandle)) &&
+            oldSchedules?.some(
+                schedule =>
+                    schedule.scheduleHandle !== null && Bytes.areEqual(schedule.scheduleHandle, activeScheduleHandle),
+            )
+        ) {
+            throw new StatusResponse.InvalidInStateError(
+                `Cannot remove schedule ${Bytes.toHex(activeScheduleHandle)} while it is the active schedule`,
             );
         }
     }
@@ -1624,7 +2140,12 @@ export namespace ThermostatBaseServer {
         persistedPresets?: Thermostat.Preset[];
 
         /**
-         * Implementation of the needed Preset attribute logic for Atomic Write handling.
+         * Persisted schedules stored in the device, needed because the original "schedules" is a virtual property
+         */
+        persistedSchedules?: Thermostat.Schedule[];
+
+        /**
+         * Implementation of the needed Preset/Schedule attribute logic for Atomic Write handling.
          */
         [Val.properties](endpoint: Endpoint, session: ValueSupervisor.Session) {
             const state = this;
@@ -1680,6 +2201,53 @@ export namespace ThermostatBaseServer {
                 });
             }
 
+            if (thermostat?.features.matterScheduleConfiguration) {
+                Object.defineProperty(properties, "schedules", {
+                    /**
+                     * Getter will return a pending atomic write state when there is one, otherwise the stored value or
+                     * the default value.
+                     */
+                    get(): Readonly<Thermostat.Schedule[]> {
+                        // When we have a pending value for this attribute, return that instead
+                        const pendingValue = endpoint.env
+                            .get(AtomicWriteHandler)
+                            .pendingValueForAttributeAndPeer(
+                                session,
+                                endpoint,
+                                ThermostatBaseServer,
+                                Thermostat.attributes.schedules.id,
+                            );
+                        if (pendingValue !== undefined) {
+                            return pendingValue as Thermostat.Schedule[];
+                        }
+
+                        return (
+                            state.persistedSchedules ??
+                            configuredSchedules(endpoint) ??
+                            schedulesIn(thermostat.defaults) ??
+                            []
+                        );
+                    },
+
+                    set(value: Thermostat.Schedule[]) {
+                        if (hasLocalActor(session) || ("command" in session && session.command)) {
+                            // A list is written element-wise, and each step reads back what the previous step stored
+                            state.persistedSchedules = value;
+                        } else {
+                            endpoint.env
+                                .get(AtomicWriteHandler)
+                                .writeAttribute(
+                                    session,
+                                    endpoint,
+                                    ThermostatBaseServer,
+                                    Thermostat.attributes.schedules.id,
+                                    value,
+                                );
+                        }
+                    },
+                });
+            }
+
             return properties;
         }
     }
@@ -1692,6 +2260,10 @@ export namespace ThermostatBaseServer {
             Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();
         persistedPresets$Changing =
             Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();
+        persistedSchedules$Changed =
+            Observable<[value: Thermostat.Schedule[], oldValue: Thermostat.Schedule[], context: ActionContext]>();
+        persistedSchedules$Changing =
+            Observable<[value: Thermostat.Schedule[], oldValue: Thermostat.Schedule[], context: ActionContext]>();
 
         /**
          * Custom event emitted when the calibrated temperature changes.
@@ -1714,6 +2286,24 @@ export namespace ThermostatBaseServer {
          */
         presets$AtomicChanged =
             Observable<[value: Thermostat.Preset[], oldValue: Thermostat.Preset[], context: ActionContext]>();
+
+        /**
+         * Custom event emitted when the Schedules attribute is "virtually" changing as part of an atomic write
+         * operation.
+         * Info: The events is currently needed to be a pure Observable to get errors thrown in the event handler be
+         *  reported back to the emitter.
+         */
+        schedules$AtomicChanging =
+            Observable<[value: Thermostat.Schedule[], oldValue: Thermostat.Schedule[], context: ActionContext]>();
+
+        /**
+         * Custom event emitted when the Schedules attribute has "virtually" changed as part of an atomic write
+         * operation.
+         * Info: The events is currently needed to be a pure Observable to get errors thrown in the event handler be
+         * reported back to the emitter.
+         */
+        schedules$AtomicChanged =
+            Observable<[value: Thermostat.Schedule[], oldValue: Thermostat.Schedule[], context: ActionContext]>();
     }
 
     export class Internal {
@@ -1745,6 +2335,15 @@ export namespace ThermostatBaseServer {
          * takes any lock.
          */
         presetTransactions = new WeakMap<Transaction, { handles: Set<string>; validatesOnceSettled?: boolean }>();
+
+        /**
+         * What this behavior did to the schedules of each transaction in flight: the handles it issued, which no
+         * baseline within that transaction carries, and whether it enlisted the check of the settled schedules.
+         *
+         * Several transactions reach one endpoint at a time: an atomic write announces its staged schedules before it
+         * takes any lock.
+         */
+        scheduleTransactions = new WeakMap<Transaction, { handles: Set<string>; validatesOnceSettled?: boolean }>();
     }
 }
 
