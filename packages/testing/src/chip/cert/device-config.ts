@@ -5,9 +5,9 @@
  */
 
 import { env } from "node:process";
-import type { DeviceFlavor } from "./cert-context.js";
+import type { SelectableDeviceFlavor } from "./cert-context.js";
 
-function isDeviceFlavor(value: string): value is DeviceFlavor {
+function isSelectableDeviceFlavor(value: string): value is SelectableDeviceFlavor {
     return value === "chip-docker" || value === "chip-local" || value === "matterjs";
 }
 
@@ -17,15 +17,18 @@ function isDeviceFlavor(value: string): value is DeviceFlavor {
  * Unset defaults to `matterjs`, the only flavor that works with no configuration at all:
  * `chip-local` needs `MATTER_CERT_APP_DIR`/`MATTER_CHIP_BINS_SOURCE`, and `chip-docker` has no
  * published per-app images yet, so either would guarantee a failing default run.
+ *
+ * `python-wrapped` is not among the values this accepts: the harness neither builds nor starts such a
+ * device, so selecting it would name a device nothing could produce.
  */
-export function resolveDeviceFlavor(): DeviceFlavor {
+export function resolveDeviceFlavor(): SelectableDeviceFlavor {
     const value = env.MATTER_CERT_DEVICE;
 
     if (value === undefined || value === "") {
         return "matterjs";
     }
 
-    if (isDeviceFlavor(value)) {
+    if (isSelectableDeviceFlavor(value)) {
         return value;
     }
 

@@ -13,12 +13,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/testing
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
-    - Breaking: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
+    - Enhancement: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
     - Enhancement: A certification step's read may require a session that permits large payloads via `ReadAttributeOptions.largeMessage`
     - Enhancement: Chip certification test devices take simulation commands through the named pipe their app opens, so a step that operates the device runs against a chip app rather than skipping
     - Enhancement: Chip certification test devices also take simulation commands through their app's standard input, one character per poll interval, which is how chip's bridge app is operated
     - Enhancement: The matter.js bridge test device exposes the devices chip's bridge app does, on the same endpoints, and takes the same simulation commands
-    - Breaking: A certification step can ask what a controller holds for a node — its endpoints, or one attribute's value — rather than only what a read returns, via `CertNodeApi.clientEndpoints()` and `CertNodeApi.clientAttribute()`
+    - Enhancement: A certification run's evidence names every device it ran, each with its role, app, app variant, flavor and image revision, through `RunRecord.run.devices`; the single `run.device` and `run.chipRef` fields are gone, and a device that exits names its role. A device a wrapped python script spawns for itself is recorded as the new `python-wrapped` flavor, which no run can select
+    - Enhancement: A certification run may declare devices running different apps, so a case can drive two device roles at once
+    - Enhancement: A certification step can ask what a controller holds for a node — its endpoints, or one attribute's value — rather than only what a read returns, via `CertNodeApi.clientEndpoints()` and `CertNodeApi.clientAttribute()`
     - Enhancement: A certification step subscribing to events may ask for them urgently via `SubscribeEventOptions.urgent`, so a device reports them as they occur rather than at the subscription's maximum interval
     - Enhancement: A certification controller can host a WebRTC transport requestor cluster via `ControllerAdapterOptions.webRtcRequestor`, so a case whose peer initiates signaling has somewhere for the peer's `Offer` to land; `ControllerAdapter.webRtcRequestor` registers the sessions signaling is accepted for and reports each signal the peer sent, accepted or refused
     - Enhancement: A certification test requests a transport preference for its controllers via `certTest`'s `transport` option; `"tcp"` asks for a TCP-backed session where the peer supports one, and adapters receive the request through `ControllerAdapterOptions`
