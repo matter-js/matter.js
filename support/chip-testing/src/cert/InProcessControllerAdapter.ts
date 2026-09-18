@@ -23,11 +23,14 @@ import {
     Seconds,
     ServerNode,
     Time,
+    Timer,
     UnexpectedDataError,
 } from "@matter/main";
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
+import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-transport-requestor";
 import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
+import { CameraControllerDevice } from "@matter/main/devices";
 import {
     ClientRead,
     CommissionableDeviceIdentifiers,
@@ -88,6 +91,10 @@ import type {
     PicsValues,
     SubscribeOptions,
     TimedInteractionOptions,
+    WebRtcRequestorApi,
+    WebRtcSessionRecord,
+    WebRtcSessionSpec,
+    WebRtcSignalRecord,
 } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -1078,6 +1085,185 @@ async function settlePeer(peer: ClientNode) {
 }
 
 /**
+ * Endpoint the controller's requestor cluster lives on. Fixed: a provider addresses its `Offer` at
+ * whatever endpoint the solicitation named, and a case states that endpoint when it solicits.
+ */
+const WEBRTC_REQUESTOR_ENDPOINT = EndpointNumber(1);
+
+/**
+ * Exposes the controller's {@link WebRtcTransportRequestorServer} to a cert test: which sessions it
+ * tracks, and which signaling it accepted or refused.
+ */
+class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
+    readonly endpoint = Number(WEBRTC_REQUESTOR_ENDPOINT);
+
+    readonly #adapterId: string;
+    readonly #node: Endpoint<typeof CameraControllerDevice>;
+    readonly #controller: ServerNode;
+    readonly #fabric: Fabric;
+    readonly #signals = new Array<WebRtcSignalRecord>();
+    readonly #waiters = new Set<(signal: WebRtcSignalRecord | undefined) => void>();
+    readonly #observers = new ObserverGroup();
+    readonly #dispatch = new Array<WebRtcSignalRecord>();
+    #dispatching?: Timer;
+    #closed = false;
+
+    constructor(
+        adapterId: string,
+        endpoint: Endpoint<typeof CameraControllerDevice>,
+        controller: ServerNode,
+        fabric: Fabric,
+    ) {
+        this.#adapterId = adapterId;
+        this.#node = endpoint;
+        this.#controller = controller;
+        this.#fabric = fabric;
+
+        const events = endpoint.eventsOf(WebRtcTransportRequestorServer);
+        this.#observers.on(events.offer, session => this.#record("offer", session.id, "accepted"));
+        this.#observers.on(events.answer, session => this.#record("answer", session.id, "accepted"));
+        this.#observers.on(events.iceCandidates, session => this.#record("iceCandidates", session.id, "accepted"));
+        this.#observers.on(events.end, session => this.#record("end", session.id, "accepted"));
+        this.#observers.on(events.refused, (signal, sessionId) => this.#record(signal, sessionId, "refused"));
+    }
+
+    async upsertSession(session: WebRtcSessionSpec): Promise<void> {
+        const peerNodeId = this.#peerNodeIdOf(session.peer);
+        const videoStreams =
+            session.videoStreamId === undefined || session.videoStreamId === null ? undefined : [session.videoStreamId];
+        const audioStreams =
+            session.audioStreamId === undefined || session.audioStreamId === null ? undefined : [session.audioStreamId];
+
+        await runTagged(this.#adapterId, async () =>
+            this.#node.act(agent =>
+                agent.get(WebRtcTransportRequestorServer).upsertSession({
+                    id: session.id,
+                    peerNodeId,
+                    peerEndpointId: EndpointNumber(session.peerEndpointId),
+                    streamUsage: session.streamUsage,
+                    metadataEnabled: session.metadataEnabled ?? false,
+                    videoStreams,
+                    audioStreams,
+                    fabricIndex: this.#fabric.fabricIndex,
+                }),
+            ),
+        );
+    }
+
+    async removeSession(id: number): Promise<void> {
+        await runTagged(this.#adapterId, async () =>
+            this.#node.act(agent => agent.get(WebRtcTransportRequestorServer).removeSession(id)),
+        );
+    }
+
+    async sessions(): Promise<readonly WebRtcSessionRecord[]> {
+        return runTagged(this.#adapterId, async () =>
+            this.#node
+                .stateOf(WebRtcTransportRequestorServer)
+                .currentSessions.map(({ id, videoStreamId, audioStreamId }) => ({
+                    id,
+                    videoStreamId: videoStreamId ?? null,
+                    audioStreamId: audioStreamId ?? null,
+                })),
+        );
+    }
+
+    signals(): readonly WebRtcSignalRecord[] {
+        return [...this.#signals];
+    }
+
+    async nextSignal(
+        predicate: (signal: WebRtcSignalRecord) => boolean,
+        timeoutMs: number,
+    ): Promise<WebRtcSignalRecord | undefined> {
+        const already = this.#signals.find(predicate);
+        if (already !== undefined) {
+            return already;
+        }
+        if (this.#closed) {
+            return undefined;
+        }
+
+        return new Promise<WebRtcSignalRecord | undefined>(resolve => {
+            let waiter: (signal: WebRtcSignalRecord | undefined) => void;
+
+            const timer = Time.getTimer("webrtc signal wait", Millis(timeoutMs), () => {
+                this.#waiters.delete(waiter);
+                resolve(undefined);
+            });
+
+            waiter = signal => {
+                if (signal !== undefined && !predicate(signal)) {
+                    return;
+                }
+                timer.stop();
+                this.#waiters.delete(waiter);
+                resolve(signal);
+            };
+
+            this.#waiters.add(waiter);
+            timer.start();
+        });
+    }
+
+    /** Settles every wait: a controller that has closed will never see the signal one is waiting for. */
+    close() {
+        this.#closed = true;
+        this.#observers.close();
+        this.#dispatching?.stop();
+        this.#dispatching = undefined;
+        this.#dispatch.length = 0;
+        for (const waiter of [...this.#waiters]) {
+            waiter(undefined);
+        }
+        this.#waiters.clear();
+    }
+
+    /**
+     * A session names the peer it belongs to, and the requestor cluster judges the peer's signaling
+     * against it, so a session registered for a node this controller never commissioned can only
+     * refuse everything the real peer sends.
+     */
+    #peerNodeIdOf(ref: CertNodeRef): NodeId {
+        let nodeId: NodeId;
+        try {
+            nodeId = NodeId(BigInt(ref));
+        } catch (cause) {
+            throw new ImplementationError(`Node reference "${ref}" is not one this adapter minted`, { cause });
+        }
+
+        if (this.#controller.peers.get(this.#fabric.addressOf(nodeId)) === undefined) {
+            throw new NoCommissionedPeerError(
+                `Controller "${this.#adapterId}" has no commissioned peer with node id ${nodeId} to hold a WebRTC ` +
+                    "session with",
+            );
+        }
+
+        return nodeId;
+    }
+
+    #record(kind: WebRtcSignalRecord["kind"], sessionId: number, outcome: WebRtcSignalRecord["outcome"]) {
+        const signal: WebRtcSignalRecord = { kind, sessionId, outcome, at: Time.nowUs };
+        this.#signals.push(signal);
+
+        // These events fire inside the transaction handling the peer's command, which holds the
+        // cluster's state lock; a waiter resumed here writes to that state and fails to lock it
+        this.#dispatch.push(signal);
+        if (this.#dispatching === undefined) {
+            this.#dispatching = Time.getTimer("webrtc signal dispatch", Millis(0), () => {
+                this.#dispatching = undefined;
+                const pending = this.#dispatch.splice(0);
+                for (const each of pending) {
+                    for (const waiter of [...this.#waiters]) {
+                        waiter(each);
+                    }
+                }
+            }).start();
+        }
+    }
+}
+
+/**
  * Wraps a controller {@link ServerNode} as a {@link ControllerAdapter} for cert tests.
  *
  * Each instance gets its own {@link Environment} (child of {@link Environment.default}) with in-memory
@@ -1093,6 +1279,8 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     #controller?: ServerNode;
     #fabric?: Fabric;
     readonly #transport?: ControllerTransport;
+    readonly #hostsWebRtcRequestor: boolean;
+    #webRtcRequestor?: InProcessWebRtcRequestorApi;
 
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
@@ -1105,6 +1293,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
         this.id = id;
         this.#transport = options?.transport;
+        this.#hostsWebRtcRequestor = options?.webRtcRequestor === true;
         this.#env = new Environment(`cert-${id}`, Environment.default);
         this.#releaseLogOrigin = registerLogOrigin(this.#env.logOrigin, "adapter", this.#logStream);
         new MockStorageService(this.#env);
@@ -1152,6 +1341,19 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
             await controller.start();
 
+            if (this.#hostsWebRtcRequestor) {
+                const endpoint = await controller.add(CameraControllerDevice, {
+                    id: "webrtc-requestor",
+                    number: WEBRTC_REQUESTOR_ENDPOINT,
+                });
+                this.#webRtcRequestor = new InProcessWebRtcRequestorApi(
+                    this.id,
+                    endpoint,
+                    controller,
+                    this.#adminFabric,
+                );
+            }
+
             controller.env.get(PeerSet).timing = {
                 defaultConnectionTimeout: CERT_PEER_CONNECTION_TIMEOUT,
             };
@@ -1161,6 +1363,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     async close(): Promise<void> {
         try {
             await runTagged(this.id, async () => {
+                this.#webRtcRequestor?.close();
                 await this.#controller?.close();
             });
         } finally {
@@ -1220,6 +1423,10 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             await settlePeer(peer);
             return address.nodeId.toString();
         });
+    }
+
+    get webRtcRequestor(): WebRtcRequestorApi | undefined {
+        return this.#webRtcRequestor;
     }
 
     node(ref: CertNodeRef): CertNodeApi {

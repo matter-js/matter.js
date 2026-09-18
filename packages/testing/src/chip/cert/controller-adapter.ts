@@ -545,6 +545,12 @@ export interface ControllerAdapter {
      */
     group(groupId: number): CertGroupApi;
 
+    /**
+     * Present only where the adapter was built with {@link ControllerAdapterOptions.webRtcRequestor}
+     * and the controller can host the cluster.
+     */
+    webRtcRequestor?: WebRtcRequestorApi;
+
     log: LogFollower;
 }
 
@@ -636,6 +642,102 @@ export type ControllerTransport = "tcp";
 /** What a test asks of the controller before it starts. */
 export interface ControllerAdapterOptions {
     transport?: ControllerTransport;
+
+    /**
+     * Hosts a WebRTC transport requestor cluster on the controller, which a case whose peer initiates
+     * signaling needs: a provider answers a solicited offer by invoking `Offer` back on the
+     * controller, and a controller with no requestor cluster has nowhere for that command to land.
+     *
+     * Off by default. The cluster accepts signaling only for sessions the case registered through
+     * {@link WebRtcRequestorApi.upsertSession}, so a controller that hosts it still refuses everything
+     * until a case says otherwise.
+     *
+     * @see {@link MatterSpecification.v16.Device} § 16.8
+     */
+    webRtcRequestor?: boolean;
+}
+
+/**
+ * A WebRTC session as the requestor cluster tracks it. A session's id is minted by the provider, so a
+ * case learns it from the provider's own `SolicitOffer`/`ProvideOffer` response and registers it here
+ * before the provider signals against it.
+ *
+ * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5
+ */
+export interface WebRtcSessionSpec {
+    id: number;
+
+    /** The provider, as {@link ControllerAdapter.commission} named it. */
+    peer: CertNodeRef;
+
+    /** The endpoint of the provider cluster the session was solicited from. */
+    peerEndpointId: number;
+
+    streamUsage: number;
+    videoStreamId?: number | null;
+    audioStreamId?: number | null;
+
+    /** Defaults to false, which is what a session carrying no metadata stream states. */
+    metadataEnabled?: boolean;
+}
+
+/** A session the requestor cluster tracks, as it holds it. */
+export interface WebRtcSessionRecord {
+    id: number;
+    videoStreamId: number | null;
+    audioStreamId: number | null;
+}
+
+/** One signaling command the provider addressed at the controller's requestor cluster. */
+export interface WebRtcSignalRecord {
+    kind: "offer" | "answer" | "iceCandidates" | "end";
+
+    /** The session id the provider named, which for a refusal is an id the controller does not track. */
+    sessionId: number;
+
+    /**
+     * `"refused"` where the controller answered `NotFound` because it tracks no such session for this
+     * peer and fabric. A case proving a refusal reads the id off this record rather than off the
+     * peer's own log, which states the status without the id.
+     */
+    outcome: "accepted" | "refused";
+
+    /** Monotonic, for ordering records against each other rather than against wall-clock time. */
+    at: number;
+}
+
+/**
+ * The controller's requestor-side view of WebRTC signaling, present when the adapter was built with
+ * {@link ControllerAdapterOptions.webRtcRequestor}.
+ */
+export interface WebRtcRequestorApi {
+    /** Endpoint the requestor cluster lives on, which a solicitation states as its originating endpoint. */
+    readonly endpoint: number;
+
+    /**
+     * Registers a session the case has established with a provider, so the provider's later signaling
+     * for that id is accepted. Re-registering an id replaces the entry.
+     */
+    upsertSession(session: WebRtcSessionSpec): Promise<void>;
+
+    /** Stops tracking a session. No-op where the id is unknown. */
+    removeSession(id: number): Promise<void>;
+
+    /** The sessions the cluster tracks, which is what a refusal was judged against. */
+    sessions(): Promise<readonly WebRtcSessionRecord[]>;
+
+    /** Every signaling command the provider addressed here since {@link ControllerAdapter.start}, in arrival order. */
+    signals(): readonly WebRtcSignalRecord[];
+
+    /**
+     * Resolves with the first signal matching `predicate`, or `undefined` where none arrives within
+     * `timeoutMs`. Signals already recorded are matched too, so a case that registers a session and
+     * then waits does not race the provider.
+     */
+    nextSignal(
+        predicate: (signal: WebRtcSignalRecord) => boolean,
+        timeoutMs: number,
+    ): Promise<WebRtcSignalRecord | undefined>;
 }
 
 /**
