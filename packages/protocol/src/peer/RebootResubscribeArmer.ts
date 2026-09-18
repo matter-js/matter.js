@@ -49,20 +49,21 @@ interface ArmState {
  *
  * Callers arm a peer when they know it is about to reboot and return (e.g. OTA reaching its apply phase).  When the
  * peer's new session appears we (A) close older sessions and (B) start a grace window: if a subscription receives a
- * report within it over a session the peer opened on its return (a persistent device fed it), we leave the
- * subscription alone; otherwise we force re-subscription.
+ * report within it over any session the peer did not already hold when it was armed (a persistent device fed it), we
+ * leave the subscription alone; otherwise we force re-subscription.
  */
 export class RebootResubscribeArmer {
     readonly #sessions: SessionManager;
     readonly #subscriptions: ClientSubscriptions;
     readonly #armed = new PeerAddressMap<ArmState>();
     readonly #observers = new ObserverGroup();
+    readonly #reportRegistration: Disposable;
 
     constructor(sessions: SessionManager, subscriptions: ClientSubscriptions) {
         this.#sessions = sessions;
         this.#subscriptions = subscriptions;
         this.#observers.on(sessions.sessions.added, session => this.#onSessionAdded(session));
-        this.#observers.on(subscriptions.reportStarted, (peer, session) => this.#onReportStarted(peer, session));
+        this.#reportRegistration = subscriptions.onReport((peer, session) => this.#onReportStarted(peer, session));
     }
 
     arm(peerAddress: PeerAddress) {
@@ -196,6 +197,7 @@ export class RebootResubscribeArmer {
             state.returnTimer?.stop();
         }
         this.#armed.clear();
+        this.#reportRegistration[Symbol.dispose]();
         this.#observers.close();
     }
 }

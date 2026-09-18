@@ -18,7 +18,6 @@ import {
     Lifetime,
     Logger,
     Millis,
-    Observable,
     Time,
     Timer,
     Timestamp,
@@ -40,9 +39,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
     #inFlightCount = 0;
     #inFlightDrained?: { promise: Promise<void>; resolver: () => void };
     #readingAbort = new AbortController();
-    #reportStarted = Observable<[peer: PeerAddress, session: SecureSession]>(error =>
-        logger.warn("Unhandled error in report observer", error),
-    );
+    #reportListeners = new Set<ClientSubscriptions.ReportListener>();
 
     constructor(lifetime: Lifetime.Owner) {
         this.#lifetime = lifetime.join("client subscriptions");
@@ -153,22 +150,33 @@ export class ClientSubscriptions implements Lifetime.Owner {
     }
 
     /**
-     * Emitted when an inbound report starts arriving on one of a peer's subscriptions, with the session it arrived
-     * over.  A listener that must distinguish live data from a peer's pre-reboot traffic needs the session, because
-     * timestamps alone cannot tell the two apart.
+     * Listen for the start of an inbound report on one of a peer's subscriptions.  A listener that must distinguish
+     * live data from a peer's pre-reboot traffic needs the session the report arrived over, because timestamps alone
+     * cannot tell the two apart.
      *
-     * Listeners run while the report is being read, so they should do little and return nothing; an error or a
-     * promise from one is logged and otherwise ignored rather than disturbing the report.
+     * Listeners run for effect while the report is being read: each one sees every report whatever the others do,
+     * and a return value or a thrown error from one neither reaches the others nor disturbs the report.
      */
-    get reportStarted() {
-        return this.#reportStarted;
+    onReport(listener: ClientSubscriptions.ReportListener) {
+        this.#reportListeners.add(listener);
+        return {
+            [Symbol.dispose]: () => {
+                this.#reportListeners.delete(listener);
+            },
+        };
     }
 
     /**
      * Announce that an inbound report (data or keepalive) started arriving from {@link peer} over {@link session}.
      */
     noteReportStarted(peer: PeerAddress, session: SecureSession) {
-        this.#reportStarted.emit(peer, session);
+        for (const listener of [...this.#reportListeners]) {
+            try {
+                listener(peer, session);
+            } catch (error) {
+                logger.warn("Unhandled error in report listener", error);
+            }
+        }
     }
 
     /**
@@ -227,7 +235,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
 
         await this.#active.empty;
 
-        this.#reportStarted[Symbol.dispose]();
+        this.#reportListeners.clear();
     }
 
     /**
@@ -292,5 +300,9 @@ export class ClientSubscriptions implements Lifetime.Owner {
 export namespace ClientSubscriptions {
     export interface Listener {
         (reports: AsyncIterable<ReadResult.Chunk>): Promise<void>;
+    }
+
+    export interface ReportListener {
+        (peer: PeerAddress, session: SecureSession): void;
     }
 }

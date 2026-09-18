@@ -433,7 +433,7 @@ describe("Ota", () => {
         }));
 
         const reports = new Array<{ peer: PeerAddress; session: SecureSession }>();
-        subscriptions.reportStarted.on((peer, session) => {
+        subscriptions.onReport((peer, session) => {
             reports.push({ peer, session });
         });
 
