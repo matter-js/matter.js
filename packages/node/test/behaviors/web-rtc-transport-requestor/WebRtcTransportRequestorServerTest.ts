@@ -235,10 +235,10 @@ describe("WebRtcTransportRequestorServer", () => {
             });
         });
 
-        it("refused names the signal and the unknown session id", async () => {
-            const refusals = new Array<{ signal: string; sessionId: number }>();
-            cameraEndpoint!.eventsOf(WebRtcTransportRequestorServer).refused.on((signal, sessionId) => {
-                refusals.push({ signal, sessionId });
+        it("refused names the signal, the unknown session id and the status", async () => {
+            const refusals = new Array<{ signal: string; sessionId: number; status: Status }>();
+            cameraEndpoint!.eventsOf(WebRtcTransportRequestorServer).refused.on((signal, sessionId, _peer, status) => {
+                refusals.push({ signal, sessionId, status });
             });
 
             await expect(
@@ -250,7 +250,7 @@ describe("WebRtcTransportRequestorServer", () => {
                 }),
             ).to.be.rejectedWith(/NotFound|not found/i);
 
-            expect(refusals).to.deep.equal([{ signal: "offer", sessionId: 999 }]);
+            expect(refusals).to.deep.equal([{ signal: "offer", sessionId: 999, status: Status.NotFound }]);
         });
 
         it("refused does not fire for a session the peer holds", async () => {
@@ -269,7 +269,7 @@ describe("WebRtcTransportRequestorServer", () => {
             expect(refusals).to.equal(0);
         });
 
-        it("iceCandidates returns INVALID_COMMAND for an empty list", async () => {
+        it("iceCandidates returns CONSTRAINT_ERROR for an empty list", async () => {
             let thrownError: unknown;
             await withPeerContext(node, FABRIC, PEER_NODE, async context => {
                 await cameraEndpoint!
@@ -282,7 +282,7 @@ describe("WebRtcTransportRequestorServer", () => {
             if (!(thrownError instanceof StatusResponseError)) {
                 throw new Error(`Expected StatusResponseError, got: ${String(thrownError)}`);
             }
-            expect(thrownError.code).to.equal(Status.InvalidCommand);
+            expect(thrownError.code).to.equal(Status.ConstraintError);
         });
 
         it("end removes the session and a subsequent answer returns NOT_FOUND", async () => {

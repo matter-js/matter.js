@@ -2698,6 +2698,29 @@ Two more things the first live run settled, neither of which is visible from the
   the container's records arrive on (`bridge100` here; `dns-sd -B _matterc._udp local.` prints the
   interface index, and `python3 -c "import socket;print(socket.if_indextoname(N))"` names it).
 
+The rest of the block (`TC-WEBRTCR-2.2`, `2.6`, `2.7`) shares all of that through
+`tc-webrtcr-support.ts`: `certCameraCase()` owns the adapter, the recorder, the commissioning prompt
+and the teardown, and a case supplies only the prompt it answers and what it proves. Four more things
+those cases settled:
+
+- **Where the plan says `webrtc establish-session` without `--offer-type`, the DUT offers rather than
+  solicits.** `ProvideOffer` takes an SDP, and the provider only checks that it carries the
+  session-level lines plus the ICE and DTLS attributes (`ValidateSdpFields` in chip's
+  `webrtc-provider-manager.cpp`). A static offer describing a connection nobody builds is therefore
+  enough for every case that ends in a refusal — the provider answers it, which is what those cases
+  put to the DUT.
+- **A provider sends its own ICE candidates only after the requestor has sent some.** chip's provider
+  moves to `SendingICECandidates` when it handles `ProvideICECandidates`, so a case about incoming
+  `ICECandidates` has to send one first.
+- **A constraint violation never reaches the cluster.** Schema validation answers `ConstraintError`
+  for a command field that breaks its own constraint before the behavior runs, so the requestor's
+  `refused` event never fires for it and `signals()` stays empty. `TC-WEBRTCR-2.7` reads that refusal
+  from the controller's own log instead — mark the log before provoking it, or an earlier line can
+  satisfy the check.
+- **`2.3`, `2.4` and `2.5` are not reachable this way.** Each requires the provider to report
+  `PeerConnection State: Connected`, which means a real WebRTC stack on the controller: SDP answer,
+  ICE, DTLS and SCTP. Signaling alone cannot satisfy them.
+
 A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
 so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which
 the *next* `input()` consumes. Match the prompt's first line only.
