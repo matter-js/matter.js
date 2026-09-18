@@ -24,25 +24,35 @@ export interface RotateGroupKeyParams {
     groupKeySecurityPolicy?: GroupKeyManagement.GroupKeySecurityPolicy;
 }
 
-type RotationPhase = "distribute" | "activate" | "cleanup";
+type RotationPhase = "distribute" | "mark" | "switch" | "cleanup";
 
 const FAR_FUTURE_US = 100n * 365n * 24n * 3600n * 1_000_000n;
 
-// Index of "activate" in `phases`; reaching it is the rotation's point of no return (see class doc).
-const ACTIVATE_INDEX = 1;
+// Index of "switch" in `phases`; reaching it is the rotation's point of no return (see class doc).
+const SWITCH_INDEX = 2;
 
 /**
  * Rotates a group operational key across every member of the key set, gap-free and without relying on device
- * clock sync. Three gated phases: distribute the new key far-future-dormant → activate it now-dated while the old
- * key stays present (so a synced device flips to new while a lagging device stays on the still-valid old key) →
- * drop the old key, back-dating new so it is selectable on any clock. The sentinel top key in activate makes the
+ * clock sync. Four gated phases: distribute the new key far-future-dormant → mark the key set, which publishes
+ * the sentinel top key but leaves the new key dormant → switch, which dates the new key now while the old key
+ * stays present (so a synced device flips to new while a lagging device stays on the still-valid old key) →
+ * cleanup, which drops the old key, back-dating new so it is selectable on any clock. The sentinel makes the
  * flip hold under the spec's second-newest TX rule too, not only matter.js's clock-based selection. Each phase
  * blocks until ALL members commit; an offline member parks the task.
  *
- * Forward-only once activate begins: the new key starts going live per-member, so an early rollback would restore
+ * Mark is a phase of its own so that the window in which a member may still join has no member switched in it.
+ * Provisioning takes no lock on a key set, so a join can always slip past the check that refuses it; it is the
+ * sentinel that tells a join a rotation owns this key set, and until that sentinel is committed somewhere a
+ * join cannot see one coming. Mark commits it while every member still transmits with the old key, so the join
+ * is either carried through like one during distribute, or it fails a rotation that has changed nothing anyone
+ * transmits with. Publishing the sentinel in the same write that dates the new key would put that window after
+ * the first member has switched, where the same failure strands the newcomer on the old key until an operator
+ * rotates again.
+ *
+ * Forward-only once switch begins: the new key starts going live per-member, so an early rollback would restore
  * some members to old-key-only while others already TX the new key, opening an RX gap. A rotation may still be
- * cancelled/rolled-back during distribute — there the new key is dormant/future-dated and nobody TXes it, so
- * dropping it is clean. Recover a bad realized rotation by rotating to a NEW key, not by rolling back;
+ * cancelled/rolled-back during distribute and mark — there the new key is dormant/future-dated and nobody TXes
+ * it, so dropping it is clean. Recover a bad realized rotation by rotating to a NEW key, not by rolling back;
  * {@link rollbackable} declines cancel and auto-rollback past that point.
  *
  * @see {@link MatterSpecification.v16.Core} § 11.2.7.1, § 4.14.2.6
@@ -66,7 +76,7 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
     },
 
     rollbackable(run) {
-        return run.phaseIndex < ACTIVATE_INDEX;
+        return run.phaseIndex < SWITCH_INDEX;
     },
 
     notRollbackableReason:
@@ -80,9 +90,14 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
                 run: ctx => runPhase(ctx, params, "distribute"),
             },
             {
-                name: "activate",
-                requires: ctx => requireEveryMemberHoldsNewKey(ctx, params, "activate"),
-                run: ctx => runPhase(ctx, params, "activate"),
+                name: "mark",
+                requires: ctx => requireEveryMemberHoldsNewKey(ctx, params, "mark"),
+                run: ctx => runPhase(ctx, params, "mark"),
+            },
+            {
+                name: "switch",
+                requires: ctx => requireEveryMemberHoldsNewKey(ctx, params, "switch"),
+                run: ctx => runPhase(ctx, params, "switch"),
             },
             {
                 name: "cleanup",
@@ -144,22 +159,23 @@ async function runPhase(ctx: TaskContext, p: RotateGroupKeyParams, phase: Rotati
         await ctx.awaitCommitted(members.map(peer => ({ peer, kind: GroupKey, key })));
 
         // Provisioning a group takes no lock on its key set, so a member can join while this phase writes.
-        // Distribute adopts it: the new key is still dormant, so carrying the newcomer through costs one more
-        // write and is what keeps the group whole. The later phases cannot — by then the members they captured
-        // are already using the new key — and joining is refused for as long as that is true.
-        if (phase !== "distribute" || memberWithoutNewKey(ctx, p, key, phase) === undefined) {
+        // While the new key is dormant the phase adopts it: carrying the newcomer through costs one more write
+        // and is what keeps the group whole. Switch and cleanup cannot — by then the members they captured are
+        // already using the new key — and joining is refused for as long as that is true.
+        if ((phase !== "distribute" && phase !== "mark") || memberWithoutNewKey(ctx, p, key, phase) === undefined) {
             return;
         }
     }
 }
 
 /**
- * Whether a rotation of this key set has begun switching members to its new key.
+ * Whether a rotation owns this key set and will switch its members to a new key.
  *
- * Read from the members' own intents rather than from the task layer: activate is the phase that populates
- * slot 2, so a key set carrying one is mid-switch whoever is driving it.
+ * Read from the members' own intents rather than from the task layer: mark is the phase that populates slot 2,
+ * so a key set carrying one is being rotated whoever is driving it. True from mark onwards, which is before
+ * any member transmits with the new key — a join refused here is refused while the group is still whole.
  */
-export function rotationIsSwitchingKeys(ctx: TaskContext, groupKeySetId: number): boolean {
+export function rotationOwnsKeySet(ctx: TaskContext, groupKeySetId: number): boolean {
     const key = String(groupKeySetId);
     for (const peer of ctx.peersWithIntent(GroupKey, key)) {
         const current = ctx.intentOf(peer, GroupKey, key);
@@ -246,14 +262,30 @@ function struct(ctx: TaskContext, peer: ClientNode, p: RotateGroupKeyParams, pha
                 epochKey2: null,
                 epochStartTime2: null,
             };
-        case "activate":
+        case "mark": {
+            // The new key keeps the far-future start distribute gave it, so no member transmits with it yet:
+            // a sender takes the latest start that is not in the future, and `validate` refuses key set 0,
+            // whose selection rule counts positions instead. Keeping that start also makes the sentinel the
+            // only thing this phase changes, so it is the only reason a member is written again.
+            const dormantStart = toBigInt(current?.epochStartTime1) ?? futureStart;
+            return {
+                ...base,
+                epochKey0: opKey,
+                epochStartTime0: opStart,
+                epochKey1: p.newEpochKey,
+                epochStartTime1: dormantStart,
+                epochKey2: peer.env.get(Crypto).randomBytes(16),
+                epochStartTime2: dormantStart + 1n,
+            };
+        }
+        case "switch":
             return {
                 ...base,
                 epochKey0: opKey,
                 epochStartTime0: opStart,
                 epochKey1: p.newEpochKey,
                 epochStartTime1: newStart,
-                epochKey2: peer.env.get(Crypto).randomBytes(16),
+                epochKey2: current?.epochKey2 ?? peer.env.get(Crypto).randomBytes(16),
                 epochStartTime2: futureStart,
             };
         case "cleanup":

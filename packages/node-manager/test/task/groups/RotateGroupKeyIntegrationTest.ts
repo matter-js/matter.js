@@ -296,12 +296,12 @@ describe("RotateGroupKey task integration (two members)", () => {
 
         // Cleanup back-dates the sole surviving key to the ORIGINAL op start, so the final device start-set is
         // indistinguishable from the pre-rotation set (material is unreadable). The per-phase writes are the
-        // real proof both members were driven through the full rotation: distribute (2 starts) → activate
-        // (3) → cleanup (1). A no-op rotation (e.g. an empty member set) records nothing and fails here.
-        expect(writesA.map(s => s.length)).deep.equals([2, 3, 1]);
-        expect(writesB.map(s => s.length)).deep.equals([2, 3, 1]);
-        expect(writesA[2]).deep.equals([OP_START]); // sole surviving key back-dated to the original op start
-        expect(writesB[2]).deep.equals([OP_START]);
+        // real proof both members were driven through the full rotation: distribute (2 starts) → mark (3) →
+        // switch (3) → cleanup (1). A no-op rotation (e.g. an empty member set) records nothing and fails here.
+        expect(writesA.map(s => s.length)).deep.equals([2, 3, 3, 1]);
+        expect(writesB.map(s => s.length)).deep.equals([2, 3, 3, 1]);
+        expect(writesA[3]).deep.equals([OP_START]); // sole surviving key back-dated to the original op start
+        expect(writesB[3]).deep.equals([OP_START]);
 
         for (const [device, peer] of [
             [deviceA, peerA],
@@ -337,12 +337,12 @@ describe("RotateGroupKey task integration (two members)", () => {
         }
     });
 
-    it("refuses a join while cleanup is dropping the old key", async () => {
+    it("refuses a join while the switch is under way", async () => {
         await using site = new MockSite();
         const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site, { addB: false });
 
-        // Flip A offline as its activate write lands, so the run parks inside cleanup's barrier — the window in
-        // which a member can join after cleanup's opening check and be missed by the members it captured.
+        // Flip A offline as its mark write lands, so the run parks inside switch's barrier — the window in
+        // which a member can join after switch's opening check and be missed by the members it captured.
         const subscriptionA = subscriptionOf(peerA);
         let flipped = false;
         afterWriteA = s => {
@@ -395,12 +395,12 @@ describe("RotateGroupKey task integration (two members)", () => {
         }
     });
 
-    it("refuses a join once the rotation has begun switching members to the new key", async () => {
+    it("refuses a join once the rotation owns the key set, before any member switches", async () => {
         await using site = new MockSite();
         const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site, { addB: false });
 
-        // Flip A offline as its distribute write lands: activate then writes its intent but parks in the barrier,
-        // which is the window in which a member could join after activate's opening check.
+        // Flip A offline as its distribute write lands: mark then writes its intent but parks in the barrier,
+        // which is the window in which a member could join after mark's opening check.
         const subscriptionA = subscriptionOf(peerA);
         let flipped = false;
         afterWriteA = s => {
@@ -413,15 +413,28 @@ describe("RotateGroupKey task integration (two members)", () => {
         await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitParkedInPhase(controller, ROTATE_SLOT, 1);
 
+        // What the mark phase buys: it publishes the sentinel without dating the new key, so the refusal below
+        // lands while every member still transmits with the old one. Dating the key here — as one phase did
+        // once — would put this window after the first member had switched.
+        // A is offline, so mark's struct is in its desired state rather than on the device — which is the same
+        // thing a join reads.
+        const marked = intentStarts(peerA, GROUP_KEY_SET_ID);
+        expect(marked.length).equals(3);
+        expect(marked[0]).equals(OP_START);
+        // Still dormant: decades ahead of the old key's start, where a switch would date it within the run's
+        // own lifetime.
+        expect(marked[1] - marked[0] > 1_000_000_000_000_000n).equals(true);
+        expect(marked[2] > marked[1]).equals(true);
+
         writesA.length = writesB.length = 0;
-        // The members already carry the switch, so the join is refused rather than left holding a key the
-        // rotation is about to drop from everyone else.
+        // The members already carry the rotation's sentinel, so the join is refused rather than left holding a
+        // key the rotation is about to drop from everyone else. Nobody has switched yet at this point.
         await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(addressOfNode(peerB))));
         await awaitState(controller, addTaskId(addressOfNode(peerB)), "failed");
         const add = await controller.act(a =>
             statusOfSlot(a.get(TaskManagerBehavior), addTaskId(addressOfNode(peerB))),
         );
-        expect(add?.error).contains("switching to the new key");
+        expect(add?.error).contains("about to switch to a new key");
 
         // Nothing of the join reached the device, and the rotation finishes over its own member set.
         expect(writesB.length).equals(0);
@@ -471,9 +484,9 @@ describe("RotateGroupKey task integration (two members)", () => {
         await MockTime.resolve(subscriptionB.active.emit(true), { macrotasks: true });
         await awaitState(controller, ROTATE_SLOT, "completed");
 
-        // Both members were driven through all three phases once B returned (last three writes per device).
-        expect(writesA.map(s => s.length).slice(-3)).deep.equals([2, 3, 1]);
-        expect(writesB.map(s => s.length).slice(-3)).deep.equals([2, 3, 1]);
+        // Both members were driven through all four phases once B returned (last four writes per device).
+        expect(writesA.map(s => s.length).slice(-4)).deep.equals([2, 3, 3, 1]);
+        expect(writesB.map(s => s.length).slice(-4)).deep.equals([2, 3, 3, 1]);
         expect(deviceStarts(deviceA, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
         expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
     });
@@ -783,29 +796,30 @@ describe("RotateGroupKey task integration (two members)", () => {
         expect(await controller.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(before);
     });
 
-    it("declines cancel during the activate phase and leaves the rotation in place", async () => {
+    it("declines cancel during the switch phase and leaves the rotation in place", async () => {
         await using site = new MockSite();
         const { controller, deviceA, deviceB, peerB } = await twoMemberGroup(site);
 
-        // Flip B offline the instant its distribute write commits: distribute completes (both reachable through it),
-        // then activate's opening reachability re-check finds B gone and parks at phaseIndex 1 — the point of no return.
+        // Flip B offline the instant its mark write commits: mark completes (both reachable through it), then
+        // switch's opening reachability re-check finds B gone and parks at phaseIndex 2 — the point of no return.
         const subscriptionB = subscriptionOf(peerB);
         let flipped = false;
         afterWriteB = s => {
-            if (!flipped && s.length === 2) {
+            if (!flipped && s.length === 3) {
                 flipped = true;
                 subscriptionB.active.emit(false);
             }
         };
 
         await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
-        await awaitParkedInPhase(controller, ROTATE_SLOT, 1); // parked in activate, not distribute
+        await awaitParkedInPhase(controller, ROTATE_SLOT, 2); // parked in switch, not mark
 
-        // Distribute committed the 2-key struct on both members (old key still present); activate never wrote.
+        // Mark committed the 3-key struct on both members (old key still the one they transmit with); switch
+        // never wrote.
         const parkedStartsA = deviceStarts(deviceA, GROUP_KEY_SET_ID);
         const parkedStartsB = deviceStarts(deviceB, GROUP_KEY_SET_ID);
-        expect(parkedStartsA.length).equals(2);
-        expect(parkedStartsB.length).equals(2);
+        expect(parkedStartsA.length).equals(3);
+        expect(parkedStartsB.length).equals(3);
 
         // Cancel is declined with zero side effects: no rollback spawned, task stays parked, devices untouched.
         await expect(controller.act(a => cancelSlot(a.get(TaskManagerBehavior), ROTATE_SLOT))).rejectedWith(

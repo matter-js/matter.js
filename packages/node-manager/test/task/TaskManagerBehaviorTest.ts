@@ -256,7 +256,7 @@ describe("TaskManagerBehavior", () => {
         expect(found?.status.externalId).equals("myref");
     });
 
-    it("marks a rotation non-rollbackable once activate begins; tasks are rollbackable by default", () => {
+    it("marks a rotation non-rollbackable once the switch begins; tasks are rollbackable by default", () => {
         const registry = new TaskRegistry();
         registry.register(RotateGroupKey);
         registry.register(SyntheticTask);
@@ -270,9 +270,10 @@ describe("TaskManagerBehavior", () => {
             return registry.interpret(record.type, record.params).rollbackable(record);
         };
         expect(rotatableAt(0)).equals(true); // distribute in flight — new key dormant, rollback is clean
-        expect(rotatableAt(1)).equals(false); // activate in flight — new key going live, point of no return
-        expect(rotatableAt(2)).equals(false); // cleanup in flight
-        expect(rotatableAt(3)).equals(false); // completed
+        expect(rotatableAt(1)).equals(true); // mark in flight — the sentinel switches nobody, rollback is clean
+        expect(rotatableAt(2)).equals(false); // switch in flight — new key going live, point of no return
+        expect(rotatableAt(3)).equals(false); // cleanup in flight
+        expect(rotatableAt(4)).equals(false); // completed
 
         const plainRecord = new RunRecord(RunId(1), "synthetic:x", SyntheticTask.type, { tag: "x" });
         expect(registry.interpret(plainRecord.type, plainRecord.params).rollbackable(plainRecord)).equals(true);
