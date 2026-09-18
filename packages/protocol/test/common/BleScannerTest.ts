@@ -5,21 +5,48 @@
  */
 
 import { BlePeripheral, BleScanner, BleScannerClient } from "#common/BleScanner.js";
-import { Bytes, Seconds } from "@matter/general";
+import { Bytes, Duration, Instant, Millis, Seconds, Time, Timestamp } from "@matter/general";
 
 const SERVICE_DATA_A = Bytes.fromHex("00c9067c11018000"); // D=1737, VP=4476+32769
 const SERVICE_DATA_B = Bytes.fromHex("00e8037c11018000"); // D=1000, VP=4476+32769
 
 class MockBleScannerClient implements BleScannerClient {
-    readonly repeatsAdvertisements: boolean = true;
     callback?: (peripheral: BlePeripheral, data: Bytes) => void;
     setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void) {
         this.callback = callback;
     }
     stopScanningError?: Error;
-    async startScanning() {}
+
+    #listeningSince?: Timestamp;
+    #listenedTime = Instant;
+
+    get listeningTime(): Duration | undefined {
+        if (this.#listeningSince === undefined) {
+            return this.#listenedTime;
+        }
+        return Millis(this.#listenedTime + Timestamp.delta(this.#listeningSince, Time.nowUs));
+    }
+
+    async startScanning() {
+        this.startListening();
+    }
+
     async stopScanning() {
+        this.stopListening();
         if (this.stopScanningError) throw this.stopScanningError;
+    }
+
+    /** The radio scans, which for a real client is an event it receives rather than the request we made. */
+    startListening() {
+        this.#listeningSince ??= Time.nowUs;
+    }
+
+    /** The radio stopped, as when the adapter powers off under a scan we still believe is running. */
+    stopListening() {
+        if (this.#listeningSince !== undefined) {
+            this.#listenedTime = Millis(this.#listenedTime + Timestamp.delta(this.#listeningSince, Time.nowUs));
+            this.#listeningSince = undefined;
+        }
     }
 
     discover(address: string, data: Bytes) {
@@ -27,9 +54,11 @@ class MockBleScannerClient implements BleScannerClient {
     }
 }
 
-/** A client of a transport that reports a peripheral once per scan, such as one deduplicating advertisements. */
+/** A client of a transport that cannot tell how long it listened, such as one deduplicating advertisements. */
 class MockOneShotBleScannerClient extends MockBleScannerClient {
-    override readonly repeatsAdvertisements = false;
+    override get listeningTime() {
+        return undefined;
+    }
 }
 
 /** A client of a transport that can lose access to a peripheral, such as one routing through proxies. */
@@ -162,6 +191,22 @@ describe("BleScanner", () => {
             await stopScanning();
         });
 
+        it("keeps offering a peripheral while the radio does not scan, though we asked it to", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const stopScanning = await startScanning(scanner);
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            // The adapter powers off under the scan we still believe is running
+            client.stopListening();
+            await MockTime.advance(Seconds(3600));
+
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(1);
+
+            await stopScanning();
+        });
+
         it("keeps offering a peripheral that has not advertised while nothing scans", async () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);
@@ -244,7 +289,7 @@ describe("BleScanner", () => {
             await discovery;
         });
 
-        it("keeps offering a peripheral of a client that reports each peripheral once", async () => {
+        it("keeps offering a peripheral of a client that reports no listening time", async () => {
             const client = new MockOneShotBleScannerClient();
             const scanner = new BleScanner(client);
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger } from "@matter/general";
+import { Bytes, Diagnostic, Duration, Instant, Logger, Millis, Time, Timestamp } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
 import { BleScannerClient, MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
@@ -48,8 +48,8 @@ interface NobleListeners {
 }
 
 export class NobleBleClient implements BleScannerClient {
-    /** noble scans with duplicates allowed, so every advertisement reaches the scanner. */
-    readonly repeatsAdvertisements = true;
+    #listeningSince?: Timestamp;
+    #listenedTime = Instant;
 
     private readonly discoveredPeripherals = new Map<string, { peripheral: Peripheral; matterServiceData: Bytes }>();
     private shouldScan = false;
@@ -109,15 +109,33 @@ export class NobleBleClient implements BleScannerClient {
                     return;
                 }
                 this.isScanning = true;
+                this.#listeningSince ??= Time.nowUs;
             },
 
-            scanStop: () => (this.isScanning = false),
+            scanStop: () => {
+                this.isScanning = false;
+                if (this.#listeningSince !== undefined) {
+                    this.#listenedTime = Millis(this.#listenedTime + Timestamp.delta(this.#listeningSince, Time.nowUs));
+                    this.#listeningSince = undefined;
+                }
+            },
         };
 
         noble.on("stateChange", this.#listeners.stateChange);
         noble.on("discover", this.#listeners.discover);
         noble.on("scanStart", this.#listeners.scanStart);
         noble.on("scanStop", this.#listeners.scanStop);
+    }
+
+    /**
+     * Time noble's radio scanned, which noble reports through its own scan events rather than our requests: a scan we
+     * asked for may wait for the adapter, and one we have does not survive the adapter powering off.
+     */
+    get listeningTime(): Duration {
+        if (this.#listeningSince === undefined) {
+            return this.#listenedTime;
+        }
+        return Millis(this.#listenedTime + Timestamp.delta(this.#listeningSince, Time.nowUs));
     }
 
     public setDiscoveryCallback(callback: (peripheral: Peripheral, manufacturerData: Bytes) => void) {

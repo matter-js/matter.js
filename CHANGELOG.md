@@ -43,7 +43,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
 
 - @matter/nodejs-ble
-    - Enhancement: `NobleBleClient` states that it reports every advertisement of a peripheral, via the new `BleScannerClient.repeatsAdvertisements`, so the scanner can tell a device that went silent from one it has not heard from lately
+    - Enhancement: `NobleBleClient` reports how long its radio scanned, via the new `BleScannerClient.listeningTime`, so the scanner can tell a device that went silent from one nobody listened for. It counts noble's own scan events, so a scan waiting for the adapter, or one the adapter ended, counts for what it is
 
 - @matter/protocol
     - Enhancement: A BDX message the node sends names its block counter on the log line the exchange already writes for it, with a Block's or BlockEof's data length, a BlockQueryWithSkip's skip offset, and the counter and length of the block an ack or a driving receiver's next query reports having received. A transfer flow also names the negotiated maximum block size and the start offset when it starts
@@ -53,7 +53,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone
     - Fix: A running BLE discovery is woken by any advertisement of a device matching its query, not only by an address it has never seen, so a device that becomes a candidate again during the discovery is handed to it. Each device is still offered once per discovery
     - Fix: A device commissioned over BLE is forgotten by `BleScanner`, so a later discovery no longer offers the advertisement of a commissioning window that is closed — which a discovery by short discriminator matched even for a different device. A scanner states that it holds such records through the new optional `Scanner.forgetCommissionedDevice()`
-    - Fix: A BLE peripheral that stays silent through a minute of scanning is no longer offered for commissioning. The minute counts scanning time only, so a record does not age while nothing listens for it. This applies to a `BleScannerClient` that reports every advertisement and states so via the new `repeatsAdvertisements`; a client that reports a peripheral once keeps offering it as before
+    - Fix: A BLE peripheral that stays silent through a minute of listening is no longer offered for commissioning. The minute counts the time the client's radio actually scanned, which the client reports through the new optional `BleScannerClient.listeningTime`, so a record does not age while nothing listens for it. A client that reports no listening time keeps offering its records as before
     - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
     - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
 

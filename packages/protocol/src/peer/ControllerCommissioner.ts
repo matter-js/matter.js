@@ -297,7 +297,12 @@ export class ControllerCommissioner {
             return;
         }
         for (const scanner of environment.get(ScannerSet)) {
-            scanner.forgetCommissionedDevice?.(addresses);
+            try {
+                scanner.forgetCommissionedDevice?.(addresses);
+            } catch (error) {
+                // The device is commissioned either way, so a scanner's bookkeeping must not fail the commissioning
+                logger.warn(`Error forgetting commissioned device in ${scanner.type} scanner:`, error);
+            }
         }
     }
 
