@@ -30,6 +30,15 @@ export const SCHEDULES_ATTRIBUTE = Thermostat.attributes.schedules.id;
 export function newScheduleTransition(
     overrides: Partial<Thermostat.ScheduleTransition> = {},
 ): Thermostat.ScheduleTransition {
+    // A transition with a presetHandle must not also carry setpoints, so the default setpoints below only apply
+    // when the caller isn't testing the presetHandle path
+    if (overrides.presetHandle !== undefined) {
+        return {
+            dayOfWeek: { monday: true },
+            transitionTime: 360,
+            ...overrides,
+        };
+    }
     return {
         dayOfWeek: { monday: true },
         transitionTime: 360,

@@ -588,12 +588,15 @@ describe("Schedules local write", () => {
         await using ctx = await thermostat();
         const { deviceEp } = ctx;
 
+        // deviceEp.act() throws synchronously when the actor throws; wrap in a thenable so rejectedWith can catch it
         await expect(
             MockTime.resolve(
-                deviceEp.act(agent =>
-                    agent
-                        .get(SchedulesThermostatServer)
-                        .setActiveScheduleRequest({ scheduleHandle: new Uint8Array(16).fill(1) }),
+                Promise.resolve().then(() =>
+                    deviceEp.act(agent =>
+                        agent
+                            .get(SchedulesThermostatServer)
+                            .setActiveScheduleRequest({ scheduleHandle: new Uint8Array(16).fill(1) }),
+                    ),
                 ),
                 { macrotasks: true },
             ),
