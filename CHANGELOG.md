@@ -67,6 +67,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node
+    - Feature: The default `ThermostatServer` implementation supports the `MatterScheduleConfiguration` (MSCH) feature — the `Schedules`/`ActiveScheduleHandle` attributes with atomic-write handling, and the `SetActiveScheduleRequest` command — mirroring the existing `Presets` implementation
     - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
     - Fix: A bound the specification states on a bitmap is enforced. An upper bound states what the reserved-bit check already enforces, but a lower bound such as `FanControl.RockSupport`'s `min 1` states a flag that must be set, which nothing checked. A cluster implementation that supports rocking or wind and leaves the corresponding attribute with no flag set now fails validation where it previously passed
     - Fix: A bound on a duration is enforced rather than ignored. A duration is held as a number of milliseconds, and a constraint bounding one states milliseconds too
