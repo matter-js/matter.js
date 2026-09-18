@@ -378,7 +378,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         // real delays under load) a chance to fire the old timer prematurely.
         if (announcementReason !== OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement) {
             // If Urgent or UpdateAvailable, we schedule an update query earlier as we would have done before
-            const delay = Seconds(Math.floor(Math.random() * 599) + 1); // random delay 1..600s as per spec
+            const delay = this.announcedUpdateQueryDelay();
             logger.info(`Scheduling urgent update query in`, delay);
             this.#scheduleUpdateQuery(delay, ScheduleReason.Announced, provider);
         } else {
@@ -388,6 +388,19 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
         const peerAddress = PeerAddress({ nodeId: providerNodeId, fabricIndex });
         await (Node.forEndpoint(this.endpoint) as ServerNode).peers.forAddress(peerAddress); // Initialize the client node and store address
+    }
+
+    /**
+     * How long to wait before querying a provider that announced an update other than a simple one.
+     *
+     * The window is random so that the nodes of a fabric announced to together do not query at once.
+     * An implementation that knows it is alone with its provider — a test harness, a single-node
+     * deployment — may shorten it; anything longer than the specified ten minutes is non-conforming.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 11.20.3.6.1
+     */
+    protected announcedUpdateQueryDelay(): Duration {
+        return Seconds(Math.floor(Math.random() * 599) + 1);
     }
 
     /** Adds or updates an active OTA provider entry for a fabric index */

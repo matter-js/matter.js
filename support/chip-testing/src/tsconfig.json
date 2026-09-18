@@ -21,6 +21,9 @@
             "path": "../../../packages/model/src"
         },
         {
+            "path": "../../../packages/node/src"
+        },
+        {
             "path": "../../../packages/nodejs/src"
         },
         {
