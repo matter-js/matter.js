@@ -176,6 +176,7 @@ directory of symlinks to each app's own build output).
 | `MATTER_CERT_CHIP_IMAGE_BASE` | Docker image base name for `chip-docker` (image pulled is `<base>-<app>:latest`).          | `ghcr.io/matter-js/chip`        |
 | `MATTER_CERT_EVIDENCE_DIR`    | Where `result.json`/`*.log` evidence bundles are written.                                  | `<package cwd>/cert-evidence`   |
 | `MATTER_CERT_TH_SERVER_APP_PATH` | Container-side path to a TH_SERVER binary for python-wrapped TCs (e.g. `TC-SC-3.5`); unset means the TC self-skips. | none |
+| `MATTER_CERT_CAMERA_APP_PATH` | Container-side path to `chip-camera-app`, the TH_SERVER of the WebRTC TCs (e.g. `TC-WEBRTCR-2.1`); unset means the TC self-skips. | none |
 
 ### Running
 

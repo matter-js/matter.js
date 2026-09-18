@@ -2645,90 +2645,59 @@ that up stops after four bridged devices with `Failed to add dynamic endpoint: N
 available!`, and step 1a fails naming the endpoints the TH answered for. That is the TH being the
 wrong device, not the case being wrong.
 
-## The BDX block, where the DUT is asked to send a file (`TC-BDX-1.4`, `TC-BDX-2.1`)
+## When the DUT must start the signaling (`TC-WEBRTCR-2.1`)
 
-The BDX plans give their DUT the **sender** role, which in Matter means an OTA provider: nothing else
-in the protocol hands a file to a peer. So these cases invert nothing — the DUT is still the
-controller — but the controller has to become a provider, which no other case asks of it.
+The first case whose peer invokes commands *on the controller*. A WebRTC provider answers a
+solicitation by invoking `Offer` back on the requestor cluster, so a controller that hosts no such
+cluster gives the command nowhere to land and the case cannot run at all. Three things follow, and
+none of them is visible from the plan document:
 
-**`CertNodeApi.serveOtaUpdate()` is the whole capability, and it is one call for a reason.** It reads
-the vendor, product and software version the controller *already holds* for the node, builds an image
-one version newer, stages it, adds an OTA provider endpoint to the controller's own `ServerNode`,
-announces itself through `SoftwareUpdateManager.forceUpdate()`, and resolves only once the BDX
-transfer the node opens in response has completed. Splitting it would put a race between the stages:
-the transfer can finish before a separate "now wait for it" call is made.
+- **The controller has to be a node with an endpoint.** `ControllerAdapterOptions.webRtcRequestor`
+  adds a camera-controller endpoint to the in-process controller; chip-tool's adapter refuses the
+  option, since a commissioner process is not a node. A case wanting this must therefore skip on any
+  other controller implementation, which is what makes it matter.js-only rather than a flavor gap.
+- **The provider's Offer beats a registration made after the solicitation's response.** chip's camera
+  invokes `Offer` from inside its own handling of `SolicitOffer`, so where controller and provider
+  share a host the Offer lands first and a session registered on the response is refused — a failure
+  that looks exactly like the defect the case hunts. Register the id the provider is about to mint
+  *before* soliciting (ids are sequential, `WebRTCTransportProviderCluster::GenerateSessionId`) and
+  confirm it against the answer. A local run over a Docker bridge is slow enough to hide this; CI is
+  not.
+- **A refusal is only evidence once something comparable was accepted.** The requestor refuses
+  signaling for every id it does not track, so "it answered `NOT_FOUND`" is satisfied by an
+  implementation that looked at nothing. Registering the id the provider minted
+  (`ControllerAdapter.webRtcRequestor.upsertSession`) is necessary but not sufficient: the case also
+  solicits a second session once the injected fault is spent — it is armed for one call — and
+  requires *that* Offer to be accepted. Only the pair separates "refuses by session id" from
+  "refuses everything".
+- **A python-wrapped case names its own TH_SERVER variable.** `MATTER_CERT_TH_SERVER_APP_PATH` is
+  the CASE cases' all-clusters build; the WebRTC cases read `MATTER_CERT_CAMERA_APP_PATH` instead.
+  Sharing one variable would hand a case the wrong app rather than letting it skip.
+- **Judge the refusal from the controller, not from the peer's log.** chip's provider logs the status
+  it received and never the session id, so its `NOT_FOUND` line cannot say which id was refused. The
+  controller's own record can, and does (`WebRtcRequestorApi.signals()`). A prompt handler cannot read
+  the script's log while it runs, either: the loop reading that output is suspended for as long as the
+  handler is, so its line array is frozen and polling it waits forever.
+- **`webrtc establish-session` in a plan's prompt is two commands, not one.** chip's
+  camera-controller expands it to `VideoStreamAllocate` on the provider's
+  `CameraAvStreamManagement`, then `SolicitOffer` on its `WebRtcTransportProvider` — a case driving
+  the DUT by hand has to send both, in that order, and pass the allocated video stream id on.
 
-Three things in it are load-bearing:
+Two more things the first live run settled, neither of which is visible from the plan or the script:
 
-- **The identity comes from held client state, not from a read.** `SoftwareUpdateManager` validates a
-  `QueryImage`'s claimed vendor/product/version against what the controller holds
-  (`#validatePeerDetails`), so an image staged from a fresh read could be applicable to what the node
-  says and inapplicable to what the controller believes. The answer to that is `NotAvailable`, with
-  nothing in any log to point at.
-- **It rejects rather than reporting a partial result.** A node that never queried, one answered
-  `NotAvailable`, and one whose transfer stalled all reach the budget and throw. That is the failure
-  these cases exist to catch, so there is no shape of success it can return without a transfer.
-- **The adapter's environment needs a `MockFilesystem`.** `MockStorageService` covers KV storage only;
-  `openBlobStorage` still resolves a driver through the `Filesystem` service, which otherwise reaches
-  the developer's own `~/.matter`. The symptom is not a stray file but a crashed behavior —
-  `No blob storage driver registered for "dir"` — because a real `driver.json` there names a driver
-  the in-memory service does not have.
+- **Every WebRTC signaling command carries the specification's Large Message quality, so the
+  controller needs a TCP client.** matter.js requires a TCP session for such a command
+  (`ClientInteraction`'s `requiredTransport`) and its own server refuses one arriving on an MRP
+  session with `InvalidTransportType`, which is what the specification's "Large Message Quality"
+  section states. An adapter built without `transport: "tcp"` has no TCP interface at all, so the
+  solicitation stalls and then fails as `Peer has been unreachable for 15s` — a message that names
+  neither the transport nor the command. Ask for `transport: "tcp"` alongside `webRtcRequestor`.
+- **On macOS the harness container advertises on the Docker bridge, not on the LAN interface.** The
+  usual `MATTER_MDNS_NETWORKINTERFACE=en0` pins the controller to an interface the container's
+  records never reach, and the case fails in commissioning with nothing discovered. Name the bridge
+  the container's records arrive on (`bridge100` here; `dns-sd -B _matterc._udp local.` prints the
+  interface index, and `python3 -c "import socket;print(socket.if_indextoname(N))"` names it).
 
-**matter.js's OTA requestor waits a random 1–600 s before querying an announced provider, and chip's
-does not.** Matter Core § 11.20.3.6.1 asks for that window so a fabric's nodes do not all query at
-once; chip's `DefaultOTARequestorDriver` leaves it at `mOtaStartDelaySec`, which its Linux app
-defaults to zero. A cert run cannot wait out ten minutes, so the delay became an overridable
-`announcedUpdateQueryDelay()` on `OtaSoftwareUpdateRequestorServer` and `OtaRequestorTestInstance`
-shortens it to 250 ms — the harness subject only, not the library default. Without that the
-precondition step times out having done everything right.
-
-**The negotiated transfer is receiver-driven, so there are no `BlockAck` messages at all.** The
-requestor proposes `receiverDrive` alone (`OtaSoftwareUpdateRequestorServer.#handleBdxDownload`), and
-under it the receiver's `BlockQuery` for the next block is what acknowledges the last one. Both plans'
-step text says "TH sends a BlockAck message back to DUT", which describes the sender-drive form of the
-same exchange; TC-BDX-2.1 step 1 records the `BlockQuery` and says so in the check's own detail rather
-than asserting a message the negotiated mode never produces.
-
-**Neither side names a definite length, and the plans' rules are conditional on one.** A receiver's
-`ReceiveInit` carries no `maxLength` (`bdxSessionInitiator.buildInitMessage` only sets it for a
-sender), and matter.js's `ReceiveAccept` then derives its own Length from that proposal rather than
-from the file it is about to send — so the accept carries none either, and its Range Control's
-definite-length bit is clear. TC-BDX-1.4's Length check is written the way the plan writes it ("if
-this field is present, **and** the Initiator indicated a definite length"), so it passes on the
-consistency rather than on a comparison it cannot make. Whether a sender ought to announce the size it
-knows is a question for the library, not for the case.
-
-**The evidence is the wire, not a rendering of it.** For TC-BDX-1.4 the accept's four mandatory fields
-are checked against the bytes the TH's own log prints for the message it received
-(`receiveAcceptPayload` builds them from what the DUT reports having granted), and the proposal
-likewise against the `ReceiveInit`'s payload prefix. That is what makes "exactly one mode shall be
-chosen" a real check: a transfer control naming two modes is a different byte. chip's TH gets the
-structured `[ATM]` decode instead, whose values are computed from the same record.
-
-**chip's BDX receiver logs a `BlockEOF` and nothing for a `Block`.** `TransferSession::HandleBlock`
-records the block and returns; `HandleBlockEOF` beside it calls `LogMessage`, and so do the
-`ReceiveInit`, `ReceiveAccept` and `BlockAckEOF` paths (`BdxMessages.cpp`). So on a chip leg
-TC-BDX-2.1's steps 1 and 2 carry a device-log check that is `unverified` with an `accepted` reason
-naming that source, while step 3 and the whole of TC-BDX-1.4 are fully evidenced. Do not reach for
-`flavors: ["matterjs"]` there: the response checks are the DUT's own account and run on every leg, and
-a step restricted to one flavor would drop them too. Every chip pattern in this block is derived from
-`connectedhomeip`'s source rather than from a run — `ChipLogAutomation` prints under the module short
-name `ATM`, `%X` renders a byte without padding (`0x0`, not `0x00`), and `ChipLogFormatX64` is sixteen
-zero-padded uppercase digits — so a chip leg is what would confirm them.
-
-**One transfer, read by every step.** Both cases run their transfer in a precondition step `0` and
-hand the later steps the TH log cursor taken before it, because the whole exchange is over by the time
-step 1 runs. Step 0 also waits for the TH's own last line of the transfer (`BlockAckEOF`), which is
-what lets the numbered steps scan the buffer instead of waiting on it — a scan of a log that is still
-arriving is the mistake that rule exists to prevent. A step taking its own `mark()` would search a
-window every line it wants is already behind.
-
-**`npm run --workspace support/chip-testing test-cert -- --spec "…"` runs the whole cert suite.** The
-`test-cert` script already carries `--spec=test/cert/**/*.test.ts`, and a second `--spec` adds to it
-rather than replacing it. To iterate on one case use the direct form with the shutdown timeout set by
-hand:
-
-```bash
-MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 MATTER_MDNS_NETWORKINTERFACE=en0 \
-    npx matter-test esm -p support/chip-testing --spec "./test/cert/TC-BDX-*.test.ts"
-```
+A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
+so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which
+the *next* `input()` consumes. Match the prompt's first line only.

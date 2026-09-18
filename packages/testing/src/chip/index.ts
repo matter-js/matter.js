@@ -83,6 +83,10 @@ export type {
     SubscribeEventOptions,
     SubscribeOptions,
     TimedInteractionOptions,
+    WebRtcRequestorApi,
+    WebRtcSessionRecord,
+    WebRtcSessionSpec,
+    WebRtcSignalRecord,
 } from "./cert/controller-adapter.js";
 export { resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
 export type { ControllerImplementation } from "./cert/device-config.js";
