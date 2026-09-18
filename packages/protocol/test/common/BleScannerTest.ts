@@ -15,6 +15,7 @@ class MockBleScannerClient implements BleScannerClient {
     setDiscoveryCallback(callback: (peripheral: BlePeripheral, data: Bytes) => void) {
         this.callback = callback;
     }
+    startScanningError?: Error;
     stopScanningError?: Error;
 
     #listeningSince?: Timestamp;
@@ -28,6 +29,7 @@ class MockBleScannerClient implements BleScannerClient {
     }
 
     async startScanning() {
+        if (this.startScanningError) throw this.startScanningError;
         this.startListening();
     }
 
@@ -534,6 +536,39 @@ describe("BleScanner", () => {
     });
 
     describe("overlapping discoveries", () => {
+        it("fails every discovery waiting on a scan that cannot start", async () => {
+            const client = new MockBleScannerClient();
+            client.startScanningError = new Error("start failed");
+            const scanner = new BleScanner(client);
+
+            const first = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10));
+            const second = scanner.findCommissionableDevices({ longDiscriminator: 1000 }, Seconds(10));
+
+            await expect(first).to.be.rejectedWith("start failed");
+            await MockTime.advance(Seconds(11));
+            await expect(second).to.be.rejectedWith("start failed");
+        });
+
+        it("scans again for a later discovery after a scan could not start", async () => {
+            const client = new MockBleScannerClient();
+            client.startScanningError = new Error("start failed");
+            const scanner = new BleScanner(client);
+
+            await expect(
+                scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10)),
+            ).to.be.rejectedWith("start failed");
+
+            client.startScanningError = undefined;
+            const discovery = scanner.findCommissionableDevices({ longDiscriminator: 1737 }, Seconds(10));
+            await settleDiscovery();
+
+            expect(client.scanning).to.equal(true);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(await discovery).to.have.lengthOf(1);
+        });
+
         it("keeps scanning for a discovery that still runs when another ends", async () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);

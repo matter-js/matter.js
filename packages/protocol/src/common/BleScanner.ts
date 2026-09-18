@@ -96,6 +96,7 @@ export class BleScanner implements Scanner {
     >();
     readonly #discoveredMatterDevices = new Map<string, StoredDiscoveredBleDevice>();
     #activeDiscoveries = 0;
+    #scanStart?: Promise<void>;
     #closed = false;
 
     constructor(client: BleScannerClient) {
@@ -127,12 +128,13 @@ export class BleScanner implements Scanner {
      */
     async #startDiscovering() {
         this.#activeDiscoveries++;
-        if (this.#activeDiscoveries > 1) {
-            return;
-        }
         try {
-            await this.#client.startScanning();
+            // Every discovery awaits the one start, so a scan that cannot start fails all of them rather than
+            // leaving those that did not issue it waiting for advertisements that cannot arrive
+            this.#scanStart ??= this.#client.startScanning();
+            await this.#scanStart;
         } catch (error) {
+            this.#scanStart = undefined;
             this.#activeDiscoveries--;
             throw error;
         }
@@ -145,6 +147,7 @@ export class BleScanner implements Scanner {
         }
         this.#activeDiscoveries--;
         if (this.#activeDiscoveries === 0) {
+            this.#scanStart = undefined;
             await this.#client.stopScanning();
         }
     }
@@ -504,6 +507,7 @@ export class BleScanner implements Scanner {
         // trigger here; #closed makes the loop exit instead of re-registering after we resolve its awaiter.
         this.#closed = true;
         this.#activeDiscoveries = 0;
+        this.#scanStart = undefined;
         try {
             await this.closeClient();
         } finally {
