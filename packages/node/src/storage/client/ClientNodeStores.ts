@@ -63,10 +63,14 @@ export class ClientNodeStores {
     }
 
     /**
-     * Allocate a stable local ID for a peer.
+     * Allocate a local ID for a peer.
      *
      * The ID may be preassigned or we will assign using an incrementing sequential number.  The number is reserved for
      * the life of this process or, if data is persisted, until erased.
+     *
+     * The ID is not an identity that outlives the peer.  The counter starts from the IDs already in storage, so once a
+     * peer is removed and its data is gone, a peer commissioned later may receive the same ID.  Anything stored for
+     * longer than the peer itself must name it by `PeerAddress`, which is never reissued.
      */
     allocateId() {
         this.#construction.assert();
