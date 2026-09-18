@@ -113,6 +113,32 @@ describe("capacity admission", () => {
         await node.close();
     });
 
+    it("refuses a kind the reconciler does not own even while its peer is unreachable", async () => {
+        const environment = new Environment("test");
+        const peer = capPeer("p", { limit: 4, used: 0 });
+        TestTaskManager.peers.set("p", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        let ran = false;
+        // An address no peer answers to, so admission cannot resolve a node for it.
+        SyntheticTask.plannedChangesByTag["unowned-offline"] = [
+            { peer: testAddress("absent"), kind: kindOf("not-registered"), key: "x", intent: {} },
+        ];
+        SyntheticTask.phasesByTag["unowned-offline"] = [{ name: "should-not-run", run: async () => void (ran = true) }];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-unowned-offline" });
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "unowned-offline" }));
+
+        await awaitState(node, "synthetic:unowned-offline", "failed");
+        const rec = requireRecordFor(node.stateOf(TestTaskManager).runs, "synthetic:unowned-offline");
+        // Whether the reconciler owns the name does not depend on the peer, so an unreachable peer may not
+        // postpone the question to the first write of a run already holding its target.
+        expect(rec.error).contains('no item kind "not-registered" is registered');
+        expect(ran).equals(false);
+        await node.close();
+    });
+
     it("does not reject an excludeFromAdmission kind even at its capacity limit", async () => {
         const environment = new Environment("test");
         const peer = new FakePeer("p");
