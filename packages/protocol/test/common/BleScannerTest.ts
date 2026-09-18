@@ -36,6 +36,10 @@ class MockBleScannerClient implements BleScannerClient {
         if (this.stopScanningError) throw this.stopScanningError;
     }
 
+    get scanning() {
+        return this.#listeningSince !== undefined;
+    }
+
     /** The radio scans, which for a real client is an event it receives rather than the request we made. */
     startListening() {
         this.#listeningSince ??= Time.nowUs;
@@ -529,6 +533,36 @@ describe("BleScanner", () => {
         });
     });
 
+    describe("overlapping discoveries", () => {
+        it("keeps scanning for a discovery that still runs when another ends", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const running = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            const ending = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 7 }, () => {});
+            await settleDiscovery();
+            expect(client.scanning).to.equal(true);
+
+            scanner.cancelCommissionableDeviceDiscovery({ shortDiscriminator: 7 });
+            await ending;
+
+            expect(client.scanning).to.equal(true);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            scanner.cancelCommissionableDeviceDiscovery({ shortDiscriminator: 6 });
+            await running;
+
+            expect(client.scanning).to.equal(false);
+        });
+    });
+
     describe("close", () => {
         it("settles a timeout-less continuous discovery driven by an external cancel signal", async () => {
             const client = new MockBleScannerClient();
@@ -579,8 +613,9 @@ describe("BleScanner", () => {
 
             await Promise.resolve();
 
+            // close() owns the stop once it runs, so it alone reports the failure and the discovery simply ends
             await expect(scanner.close()).to.be.rejectedWith("stop failed");
-            await expect(discovery).to.be.rejectedWith("stop failed");
+            expect(await discovery).to.have.lengthOf(0);
         });
     });
 });

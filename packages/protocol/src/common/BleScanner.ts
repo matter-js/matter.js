@@ -95,6 +95,7 @@ export class BleScanner implements Scanner {
         }
     >();
     readonly #discoveredMatterDevices = new Map<string, StoredDiscoveredBleDevice>();
+    #activeDiscoveries = 0;
     #closed = false;
 
     constructor(client: BleScannerClient) {
@@ -118,6 +119,34 @@ export class BleScanner implements Scanner {
 
     #isReachable(address: string) {
         return this.#client.isPeripheralReachable?.(address) ?? true;
+    }
+
+    /**
+     * Scans for as long as the caller discovers. One radio serves every discovery, so the scan starts with the first
+     * and stops with the last: a discovery that ends must not take the scan away from one that still runs.
+     */
+    async #startDiscovering() {
+        this.#activeDiscoveries++;
+        if (this.#activeDiscoveries > 1) {
+            return;
+        }
+        try {
+            await this.#client.startScanning();
+        } catch (error) {
+            this.#activeDiscoveries--;
+            throw error;
+        }
+    }
+
+    async #stopDiscovering() {
+        if (this.#activeDiscoveries === 0) {
+            // close() stopped the client already
+            return;
+        }
+        this.#activeDiscoveries--;
+        if (this.#activeDiscoveries === 0) {
+            await this.#client.stopScanning();
+        }
     }
 
     /**
@@ -388,11 +417,13 @@ export class BleScanner implements Scanner {
         }
         let storedRecords = ignoreExistingRecords ? [] : this.#getCommissionableDevices(identifier);
         if (storedRecords.length === 0) {
-            await this.#client.startScanning();
-            await this.#registerWaiterPromise(queryKey, timeout);
-
-            storedRecords = this.#getCommissionableDevices(identifier);
-            await this.#client.stopScanning();
+            await this.#startDiscovering();
+            try {
+                await this.#registerWaiterPromise(queryKey, timeout);
+                storedRecords = this.#getCommissionableDevices(identifier);
+            } finally {
+                await this.#stopDiscovering();
+            }
         }
         return storedRecords.map(({ deviceData }) => deviceData);
     }
@@ -411,7 +442,7 @@ export class BleScanner implements Scanner {
         const discoveredDevices = new Set<string>();
 
         const discoveryEndTime = timeout ? Timestamp(Time.nowUs + timeout) : undefined;
-        await this.#client.startScanning();
+        await this.#startDiscovering();
 
         let queryResolver: ((value: void) => void) | undefined;
         if (cancelSignal === undefined) {
@@ -431,29 +462,32 @@ export class BleScanner implements Scanner {
             },
         );
 
-        while (!canceled && !this.#closed) {
-            this.#getCommissionableDevices(identifier).forEach(({ deviceData }) => {
-                const { deviceIdentifier } = deviceData;
-                if (!discoveredDevices.has(deviceIdentifier)) {
-                    discoveredDevices.add(deviceIdentifier);
-                    callback(deviceData);
-                }
-            });
+        try {
+            while (!canceled && !this.#closed) {
+                this.#getCommissionableDevices(identifier).forEach(({ deviceData }) => {
+                    const { deviceIdentifier } = deviceData;
+                    if (!discoveredDevices.has(deviceIdentifier)) {
+                        discoveredDevices.add(deviceIdentifier);
+                        callback(deviceData);
+                    }
+                });
 
-            let remainingTime;
-            if (discoveryEndTime !== undefined) {
-                remainingTime = Millis.ceil(Timespan(Time.nowUs, discoveryEndTime).duration);
-                if (remainingTime <= 0) {
-                    break;
+                let remainingTime;
+                if (discoveryEndTime !== undefined) {
+                    remainingTime = Millis.ceil(Timespan(Time.nowUs, discoveryEndTime).duration);
+                    if (remainingTime <= 0) {
+                        break;
+                    }
                 }
+
+                // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
+                // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
+                // tracking why it was not one before.
+                await this.#registerWaiterPromise(queryKey, remainingTime, true, queryResolver);
             }
-
-            // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
-            // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
-            // tracking why it was not one before.
-            await this.#registerWaiterPromise(queryKey, remainingTime, true, queryResolver);
+        } finally {
+            await this.#stopDiscovering();
         }
-        await this.#client.stopScanning();
         return this.#getCommissionableDevices(identifier).map(({ deviceData }) => deviceData);
     }
 
@@ -469,6 +503,7 @@ export class BleScanner implements Scanner {
         // A continuous-discovery loop is driven by an external cancelSignal, so it has no cancelResolver we can
         // trigger here; #closed makes the loop exit instead of re-registering after we resolve its awaiter.
         this.#closed = true;
+        this.#activeDiscoveries = 0;
         try {
             await this.closeClient();
         } finally {
