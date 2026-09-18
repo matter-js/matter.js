@@ -1511,13 +1511,10 @@ export class TaskManagerBehavior extends Behavior {
         }
         for (const group of byNodeKind.values()) {
             const { peer: address, kind } = group[0];
-            const peer = this.resolvePeerNode(address);
-            if (peer === undefined) {
-                continue; // unresolvable peer: the phase gate will park; capacity is re-checked on device write
-            }
-            const itemKind = await this.endpoint.act(agent => this.taskReconciler(agent).itemKind(kind.kind));
-            // `ItemKind` is structural, so a name the reconciler does not own would skip the capacity question
+            // Asked of the reconciler, not of the peer, so an unreachable peer does not excuse a name nothing
+            // owns: `ItemKind` is structural, and such a name would otherwise skip the capacity question
             // altogether and admit a run that can only fail at its first write, holding its target until then.
+            const itemKind = await this.endpoint.act(agent => this.taskReconciler(agent).itemKind(kind.kind));
             if (itemKind === undefined) {
                 throw new TaskFailedError(
                     `${runLabel(execution.runId)}: no item kind "${kind.kind}" is registered, so what it plans to change cannot be admitted`,
@@ -1525,6 +1522,10 @@ export class TaskManagerBehavior extends Behavior {
             }
             if (itemKind.excludeFromAdmission) {
                 continue; // capacity counts a coarser resource another kind already gates (e.g. membership vs group)
+            }
+            const peer = this.resolvePeerNode(address);
+            if (peer === undefined) {
+                continue; // unresolvable peer: the phase gate will park; capacity is re-checked on device write
             }
             const capacity = await itemKind.capacity?.(peer);
             if (capacity === undefined) {
