@@ -37,6 +37,8 @@ export { subjectFactoryFor } from "./cert/cert-dsl.js";
 export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
+/** @internal Test seam — not API. The wired test a `certTest()` declaration registered. */
+export { createRegisteredCertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. `ChipDockerDevice`'s own constructor, and its Docker collaborator types. */
 export { ChipDockerDevice, HARNESS_DBUS_CONTAINER } from "./cert/chip-app-subject.js";

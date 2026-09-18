@@ -4,8 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { certTest, DeviceIdentityExhaustedError, identityFor, subjectFactoryFor } from "@matter/testing";
+import {
+    certTest,
+    createRegisteredCertTest,
+    DeviceIdentityExhaustedError,
+    identityFor,
+    LogFollower,
+    PicsFile,
+    registerMatterJsCertSubject,
+    subjectFactoryFor,
+} from "@matter/testing";
+import type { CertDevice, CertDeviceFactory, DeviceExitInfo } from "@matter/testing";
 import { expect } from "chai";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { env } from "node:process";
 
 describe("certTest step declaration guard", () => {
     it("rejects an empty flavors list at declaration time", () => {
@@ -226,6 +240,124 @@ describe("per-device identity", () => {
 
         for (let index = 0; index <= 255; index++) {
             expect(forbidden.has(identityFor(index).passcode)).equal(false);
+        }
+    });
+});
+
+async function* noLines(): AsyncGenerator<string> {}
+
+/**
+ * A matterjs {@link CertDeviceFactory} whose device reports `app` truthfully — never anything the
+ * caller passed as `domain` — so a test can tell which registered factory actually built a device
+ * from the device's own identity, independent of the role it was placed under.
+ */
+function fakeMatterJsCertDevice(app: string): CertDeviceFactory {
+    return domain => ({
+        id: domain,
+        app,
+        commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
+        pics: new PicsFile([]),
+        async initialize() {},
+        async start() {},
+        async stop() {},
+        async close() {},
+        async snapshot() {
+            return {};
+        },
+        async restore() {},
+        async backchannel() {},
+        flavor: "matterjs",
+        log: new LogFollower(noLines(), domain),
+        exit: new Promise<DeviceExitInfo>(() => {}),
+    });
+}
+
+describe("multi-device wiring", () => {
+    // `#buildContext` (cert-dsl.ts) builds each non-primary role's device via
+    // `subjectFactoryFor(flavor, definition, app)`, using the loop's own `app` for that role;
+    // `deviceRecordsFor` separately states each role's app from the declaration
+    // (`certTest`'s `devices` option). Nothing before this test drove both through one real run, so a
+    // regression that fed `#buildContext` the primary's app instead of the loop's would start the
+    // wrong binary for a secondary role while the evidence bundle kept claiming the declared one —
+    // exactly the false claim this framework exists to prevent, and a green run would never say so.
+    it("starts each declared role from its own app, matching what the evidence bundle records", async () => {
+        const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+        const primaryApp = `wiring-primary-${suffix}`;
+        const secondaryApp = `wiring-secondary-${suffix}`;
+        const tc = `TC-WIRING-IDENTITY-${suffix}`;
+
+        registerMatterJsCertSubject(primaryApp, fakeMatterJsCertDevice(primaryApp));
+        registerMatterJsCertSubject(secondaryApp, fakeMatterJsCertDevice(secondaryApp));
+
+        // `certTest()` registers a mocha suite/test as a side effect (see `declare`/`declareAndWire`
+        // above); both are stubbed here too, since this must run to real completion — including the
+        // `it()` call `defineCertTest` makes — without leaking a rogue test into this run. The fake
+        // `it()` stands in for mocha's own and captures the descriptor `defineCertTest` assigns to it,
+        // which is the same object `registerCertTestFactory` used as its key.
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        const originalIt = Reflect.get(globalThis, "it");
+        const registered = new Array<{ descriptor?: Parameters<typeof createRegisteredCertTest>[0] }>();
+        Reflect.set(globalThis, "describe", (_name: string, body: () => void) => body());
+        Reflect.set(globalThis, "it", (_name: string, _fn: () => void) => {
+            const fakeTest: { descriptor?: Parameters<typeof createRegisteredCertTest>[0] } = {};
+            registered.push(fakeTest);
+            return fakeTest;
+        });
+
+        let capturedDevices: Record<string, CertDevice> | undefined;
+        try {
+            certTest(tc, {
+                plan: "n/a",
+                pics: [],
+                app: primaryApp,
+                devices: { th: primaryApp, th2: secondaryApp },
+                controllers: {},
+            }).step(1, "Capture which device each role actually started", async cx => {
+                capturedDevices = cx.devices;
+            });
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+            Reflect.set(globalThis, "it", originalIt);
+        }
+
+        const descriptor = registered[0]?.descriptor;
+        if (!descriptor) {
+            throw new Error(`certTest("${tc}") did not register a descriptor`);
+        }
+
+        // The real harness reads this from the environment (`cert-dsl.ts`'s `evidenceOutDir`); a temp
+        // dir keeps this run's bundle out of whatever the rest of this suite writes to.
+        const outDir = await mkdtemp(join(tmpdir(), "cert-dsl-wiring-"));
+        const originalEvidenceDir = env.MATTER_CERT_EVIDENCE_DIR;
+        env.MATTER_CERT_EVIDENCE_DIR = outDir;
+        try {
+            // Drives the registered `WiredCertTest` directly rather than through mocha/`State`: the
+            // primary device a real run would get from `State.activateSubject` is supplied here
+            // instead, so nothing beyond the two matterjs subjects above needs to exist.
+            const test = createRegisteredCertTest(descriptor);
+            const primary = fakeMatterJsCertDevice(primaryApp)("cert");
+
+            await test.invoke(primary, () => {}, [], false);
+
+            const entries = await readdir(outDir);
+            const runDir = entries.find(name => name.endsWith(`-${tc}`));
+            if (!runDir) {
+                throw new Error(`No evidence directory found for ${tc} under ${outDir}`);
+            }
+            const result = JSON.parse(await readFile(join(outDir, runDir, "result.json"), "utf-8"));
+
+            expect(result.verdict).equal("pass");
+            expect(capturedDevices).to.not.equal(undefined);
+            for (const record of result.run.devices) {
+                expect(capturedDevices?.[record.role]?.app, `role "${record.role}"`).equal(record.app);
+            }
+        } finally {
+            if (originalEvidenceDir === undefined) {
+                delete env.MATTER_CERT_EVIDENCE_DIR;
+            } else {
+                env.MATTER_CERT_EVIDENCE_DIR = originalEvidenceDir;
+            }
+            await rm(outDir, { recursive: true, force: true });
         }
     });
 });
