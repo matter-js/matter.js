@@ -15,7 +15,7 @@ import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
 import { Require } from "../validation.js";
 import { membershipKey } from "./keys.js";
-import { rotationIsSwitchingKeys } from "./RotateGroupKey.js";
+import { rotationOwnsKeySet } from "./RotateGroupKey.js";
 
 export const ADD_NODE_TO_GROUP_TYPE = "addNodeToGroup";
 
@@ -108,17 +108,17 @@ function keySet(p: AddNodeToGroupParams) {
 }
 
 /**
- * A rotation that has begun switching members to its new key may not take on another member.
+ * A rotation that owns this key set may not take on another member.
  *
  * Asked before this task writes and again after, because the rotation takes no lock either: a member added
- * while the switch is under way holds the old key alone, and the rotation drops that key from everyone else.
+ * once the switch is under way holds the old key alone, and the rotation drops that key from everyone else.
  * While the rotation is still handing the new key out, joining is fine — the rotation adopts the newcomer.
  */
 function refuseWhileKeysSwitch(ctx: TaskContext, p: AddNodeToGroupParams): void {
-    if (rotationIsSwitchingKeys(ctx, p.groupKeySetId)) {
+    if (rotationOwnsKeySet(ctx, p.groupKeySetId)) {
         throw new RotationPreconditionError(
             `Cannot add peer ${addressLabel(p.peer)} to group ${p.groupId}: group key set ${p.groupKeySetId} is being ` +
-                `rotated and its members are switching to the new key. Add the peer once the rotation ends.`,
+                `rotated and its members are about to switch to a new key. Add the peer once the rotation ends.`,
         );
     }
 
