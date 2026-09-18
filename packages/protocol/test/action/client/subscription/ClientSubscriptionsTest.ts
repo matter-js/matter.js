@@ -13,6 +13,7 @@ import type { SecureSession } from "#session/SecureSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
+    createPromise,
     Duration,
     ImplementationError,
     Lifetime,
@@ -110,12 +111,12 @@ describe("ClientSubscriptions", () => {
             expect(reached).equal(1);
         });
 
-        it("delivers to every listener whatever an earlier one returns", async () => {
+        it("does not wait for an asynchronous listener before reaching the rest", async () => {
             const session = await aSession();
             const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
             let reached = 0;
-            // A listener written as a concise arrow returns whatever its body evaluates to.
-            subscriptions.onReport(() => "a value");
+            const { promise, resolver } = createPromise<void>();
+            subscriptions.onReport(() => promise);
             subscriptions.onReport(() => {
                 reached++;
             });
@@ -123,6 +124,26 @@ describe("ClientSubscriptions", () => {
             subscriptions.noteReportStarted(PEER, session);
 
             expect(reached).equal(1);
+            resolver();
+            await promise;
+        });
+
+        it("survives an asynchronous listener that rejects", async () => {
+            const session = await aSession();
+            const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
+            let reached = 0;
+            subscriptions.onReport(async () => {
+                throw new ImplementationError("listener is broken");
+            });
+            subscriptions.onReport(() => {
+                reached++;
+            });
+
+            expect(() => subscriptions.noteReportStarted(PEER, session)).not.throw();
+            expect(reached).equal(1);
+
+            // The rejection settles after this turn and must be handled by then, not raised at the process.
+            await MockTime.yield();
         });
 
         it("drops listeners once closed", async () => {

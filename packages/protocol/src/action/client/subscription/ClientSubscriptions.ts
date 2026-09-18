@@ -17,6 +17,7 @@ import {
     InternalError,
     Lifetime,
     Logger,
+    MaybePromise,
     Millis,
     Time,
     Timer,
@@ -155,7 +156,9 @@ export class ClientSubscriptions implements Lifetime.Owner {
      * cannot tell the two apart.
      *
      * Listeners run for effect while the report is being read: each one sees every report whatever the others do,
-     * and a return value or a thrown error from one neither reaches the others nor disturbs the report.
+     * and an error from one neither reaches the others nor disturbs the report.  An asynchronous listener is invoked
+     * but never awaited — waiting would let a listener delay the report it is only being told about — so its work
+     * completes on its own schedule and a rejection is logged rather than reported to the caller.
      */
     onReport(listener: ClientSubscriptions.ReportListener) {
         this.#reportListeners.add(listener);
@@ -172,7 +175,9 @@ export class ClientSubscriptions implements Lifetime.Owner {
     noteReportStarted(peer: PeerAddress, session: SecureSession) {
         for (const listener of [...this.#reportListeners]) {
             try {
-                listener(peer, session);
+                MaybePromise.catch(listener(peer, session), error =>
+                    logger.warn("Unhandled error in report listener", error),
+                );
             } catch (error) {
                 logger.warn("Unhandled error in report listener", error);
             }
@@ -303,6 +308,6 @@ export namespace ClientSubscriptions {
     }
 
     export interface ReportListener {
-        (peer: PeerAddress, session: SecureSession): void;
+        (peer: PeerAddress, session: SecureSession): MaybePromise<void>;
     }
 }

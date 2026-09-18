@@ -27,18 +27,17 @@ const EXPECTED_RETURN_TIMEOUT = Minutes(3);
 
 interface ArmState {
     /**
-     * The peer's sessions when it was armed, before it rebooted.  A report arriving over one of these is traffic
-     * from before the reboot — a dying device flushes its subscription as it shuts down — so it says nothing about
-     * whether the subscription survived.
+     * Present once the peer has returned, and replaced on each further return.  Evidence must name the sessions it
+     * came from: a device flushes its subscription as it reboots, so only a report over a session opened since the
+     * peer last returned says the subscription survived.
      */
-    preRebootSessions: Set<SecureSession>;
+    return?: {
+        /** Sessions with the peer opened since it returned, starting with the one that announced the return. */
+        sessions: Set<SecureSession>;
 
-    /**
-     * Present once the peer has returned, and replaced on each further return.  A return and the evidence gathered
-     * for it are one fact: keeping them apart lets a later return inherit an earlier one's evidence, which would
-     * keep a subscription the later reboot has already destroyed.
-     */
-    return?: { fed: boolean };
+        /** Whether a report has arrived over one of them. */
+        fed: boolean;
+    };
 
     graceTimer?: Timer;
     returnTimer?: Timer;
@@ -49,8 +48,8 @@ interface ArmState {
  *
  * Callers arm a peer when they know it is about to reboot and return (e.g. OTA reaching its apply phase).  When the
  * peer's new session appears we (A) close older sessions and (B) start a grace window: if a subscription receives a
- * report within it over any session the peer did not already hold when it was armed (a persistent device fed it), we
- * leave the subscription alone; otherwise we force re-subscription.
+ * report within it over a session opened since that return (a persistent device fed it), we leave the subscription
+ * alone; otherwise we force re-subscription.
  */
 export class RebootResubscribeArmer {
     readonly #sessions: SessionManager;
@@ -75,8 +74,7 @@ export class RebootResubscribeArmer {
         previous?.graceTimer?.stop();
         previous?.returnTimer?.stop();
 
-        // The peer is on its way to a reboot but has not taken it yet, so everything it holds now is pre-reboot.
-        const state: ArmState = { preRebootSessions: new Set(this.#sessionsOf(peerAddress)) };
+        const state: ArmState = {};
         this.#armed.set(peerAddress, state);
 
         state.returnTimer = Time.getTimer("Reboot return deadline", EXPECTED_RETURN_TIMEOUT, () =>
@@ -104,15 +102,16 @@ export class RebootResubscribeArmer {
     }
 
     #onSessionAdded(session: NodeSession) {
-        if (session.isInitiator) {
-            // Only a device-pushed (incoming) session represents a reboot return; a session we ourselves
-            // initiated is our own connect and must not trigger the armer.
-            return;
-        }
-
         const peerAddress = PeerAddress(session.peerAddress);
         const state = this.#armed.get(peerAddress);
         if (state === undefined) {
+            return;
+        }
+
+        if (session.isInitiator) {
+            // Our own connect does not announce a return, but once the peer is back it carries the peer's data as
+            // well as the session the peer opened.
+            state.return?.sessions.add(session);
             return;
         }
 
@@ -120,7 +119,7 @@ export class RebootResubscribeArmer {
         state.returnTimer?.stop();
         state.returnTimer = undefined;
 
-        state.return = { fed: false };
+        state.return = { sessions: new Set([session]), fed: false };
 
         // Mechanism A — drop the dead pre-reboot sessions so probe/re-subscribe cannot pick them.
         this.#sessions
@@ -148,15 +147,11 @@ export class RebootResubscribeArmer {
 
     #onReportStarted(peerAddress: PeerAddress, session: SecureSession) {
         const state = this.#armed.get(PeerAddress(peerAddress));
-        if (state?.return === undefined || state.preRebootSessions.has(session)) {
+        if (state?.return?.sessions.has(session) !== true) {
             return;
         }
 
         state.return.fed = true;
-    }
-
-    #sessionsOf(peerAddress: PeerAddress) {
-        return this.#sessions.sessions.filter(session => PeerAddress.is(session.peerAddress, peerAddress));
     }
 
     #onReturnTimeout(peerAddress: PeerAddress) {

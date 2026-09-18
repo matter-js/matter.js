@@ -209,22 +209,25 @@ describe("RebootResubscribeArmer", () => {
         await createSession();
         await MockTime.macrotasks;
 
+        // A farewell report from the first return, delayed past the second one, is evidence for neither.
+        reportOver(firstReturn);
+
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
         armer[Symbol.dispose]();
     });
 
-    it("keeps the subscription when a report arrives over a session we opened after arming", async () => {
+    it("keeps the subscription when a report arrives over a session we opened after the return", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
         const subscription = registerSubscription();
         await createSession(); // pre-reboot session
         armer.arm(PEER);
 
-        // We reconnect before the device announces itself, so this session postdates the reboot even though we
-        // opened it ourselves.
-        const ourReconnect = await createSession(true);
+        // We reconnect after the device announces itself, so this session carries the returned peer's data even
+        // though we opened it.
         await createSession();
         await MockTime.macrotasks;
+        const ourReconnect = await createSession(true);
         reportOver(ourReconnect);
 
         await MockTime.advance(Seconds(30));
@@ -232,7 +235,7 @@ describe("RebootResubscribeArmer", () => {
         armer[Symbol.dispose]();
     });
 
-    it("treats the previous cycle's returning session as pre-reboot after a re-arm", async () => {
+    it("discards the previous cycle's returning session as evidence after a re-arm", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
         const subscription = registerSubscription();
 
@@ -240,7 +243,7 @@ describe("RebootResubscribeArmer", () => {
         const firstReturn = await createSession();
         await MockTime.macrotasks;
 
-        // The second reboot makes the first cycle's session a pre-reboot one.
+        // The second reboot leaves the first cycle's session outside the new return.
         armer.arm(PEER);
         await createSession();
         await MockTime.macrotasks;
