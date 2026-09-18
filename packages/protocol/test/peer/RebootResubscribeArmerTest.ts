@@ -13,16 +13,7 @@ import { RebootResubscribeArmer } from "#peer/RebootResubscribeArmer.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import {
-    Environment,
-    MemoryStorageDriver,
-    Minutes,
-    Seconds,
-    StandardCrypto,
-    StorageContext,
-    Time,
-    Timestamp,
-} from "@matter/general";
+import { Environment, MemoryStorageDriver, Minutes, Seconds, StandardCrypto, StorageContext } from "@matter/general";
 import { FabricIndex, NodeId } from "@matter/types";
 
 const PEER = PeerAddress({ fabricIndex: FabricIndex.NO_FABRIC, nodeId: NodeId(0x44cn) });
@@ -59,7 +50,7 @@ async function setup() {
     }
 
     let nextSubscriptionId = 1;
-    function registerSubscription(lastReportStartedAt?: Timestamp) {
+    function registerSubscription() {
         const subscription = new PeerSubscription({
             lifetime: subscriptions,
             request: Subscribe({ keepSubscriptions: true }),
@@ -68,9 +59,12 @@ async function setup() {
             response: { subscriptionId: nextSubscriptionId++, maxInterval: 3600 },
             maxPeerResponseTime: Seconds(1),
         });
-        subscription.lastReportStartedAt = lastReportStartedAt;
         subscriptions.addPeer(subscription);
         return subscription;
+    }
+
+    function reportOver(session: NodeSession) {
+        subscriptions.noteReportStarted(PeerAddress(session.peerAddress), session);
     }
 
     function isSubscribed(subscription: PeerSubscription) {
@@ -97,6 +91,7 @@ async function setup() {
         subscriptions,
         createSession,
         registerSubscription,
+        reportOver,
         isSubscribed,
         sessionLives,
         whenClosed,
@@ -133,31 +128,150 @@ describe("RebootResubscribeArmer", () => {
         armer[Symbol.dispose]();
     });
 
-    it("keeps the subscription when a report arrives within the grace window", async () => {
-        const { armer, createSession, registerSubscription, isSubscribed } = await setup();
+    it("keeps the subscription when a report arrives over the returning session", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
         const subscription = registerSubscription();
         armer.arm(PEER);
-        await createSession();
+        const returned = await createSession();
         await MockTime.macrotasks;
 
-        // Device fed the existing subscription after returning.
-        subscription.lastReportStartedAt = Time.nowMs;
+        reportOver(returned);
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(true);
         armer[Symbol.dispose]();
     });
 
-    it("re-subscribes when the last report predates the returning session", async () => {
-        const { armer, createSession, registerSubscription, isSubscribed } = await setup();
-        const subscription = registerSubscription(Time.nowMs); // stale report from before the reboot
-        await MockTime.advance(Seconds(5));
+    it("keeps the subscription when a report arrives over a session opened after the return", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        const subscription = registerSubscription();
         armer.arm(PEER);
+        await createSession();
+        await MockTime.macrotasks;
+
+        // A session we open ourselves after the return carries data just as well as the returning one.
+        const later = await createSession(true);
+        reportOver(later);
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(true);
+        armer[Symbol.dispose]();
+    });
+
+    it("re-subscribes when the only report arrives over a pre-reboot session", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        const subscription = registerSubscription();
+        const preReboot = await createSession();
+        armer.arm(PEER);
+        const returned = await createSession();
+        await MockTime.macrotasks;
+
+        // A rebooting device flushes its dying subscription, and that flush can be decoded at the same instant the
+        // returning session appears or well after it.  Either way it is data from before the reboot.
+        reportOver(preReboot);
+        expect(returned.createdAt).equals(preReboot.createdAt);
+        await MockTime.advance(Seconds(10));
+        reportOver(preReboot);
+
+        await MockTime.advance(Seconds(20));
+        expect(isSubscribed(subscription)).equals(false);
+        armer[Symbol.dispose]();
+    });
+
+    it("re-subscribes when the only report arrives before the peer returns", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        const subscription = registerSubscription();
+        const preReboot = await createSession();
+        armer.arm(PEER);
+
+        // Traffic between arming and the return is the device on its way out, not a subscription that survived.
+        reportOver(preReboot);
+
         await createSession();
         await MockTime.macrotasks;
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
+        armer[Symbol.dispose]();
+    });
+
+    it("re-subscribes when the peer reboots again inside the grace window", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        const subscription = registerSubscription();
+        armer.arm(PEER);
+
+        const firstReturn = await createSession();
+        await MockTime.macrotasks;
+        reportOver(firstReturn);
+
+        // A second return means a second reboot, which destroys the subscription the first return fed.
+        await MockTime.advance(Seconds(10));
+        await createSession();
+        await MockTime.macrotasks;
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(false);
+        armer[Symbol.dispose]();
+    });
+
+    it("keeps the subscription when a report arrives over a session we opened after arming", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        const subscription = registerSubscription();
+        await createSession(); // pre-reboot session
+        armer.arm(PEER);
+
+        // We reconnect before the device announces itself, so this session postdates the reboot even though we
+        // opened it ourselves.
+        const ourReconnect = await createSession(true);
+        await createSession();
+        await MockTime.macrotasks;
+        reportOver(ourReconnect);
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(true);
+        armer[Symbol.dispose]();
+    });
+
+    it("treats the previous cycle's returning session as pre-reboot after a re-arm", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        const subscription = registerSubscription();
+
+        armer.arm(PEER);
+        const firstReturn = await createSession();
+        await MockTime.macrotasks;
+
+        // The second reboot makes the first cycle's session a pre-reboot one.
+        armer.arm(PEER);
+        await createSession();
+        await MockTime.macrotasks;
+        reportOver(firstReturn);
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(false);
+        armer[Symbol.dispose]();
+    });
+
+    it("re-arming replaces the previous return deadline rather than leaving it to fire", async () => {
+        const { armer, sessions, createSession, registerSubscription } = await setup();
+        registerSubscription();
+        await createSession();
+
+        let peerLossCount = 0;
+        const realHandlePeerLoss = sessions.handlePeerLoss.bind(sessions);
+        sessions.handlePeerLoss = (address, context) => {
+            peerLossCount++;
+            return realHandlePeerLoss(address, context);
+        };
+
+        armer.arm(PEER);
+        await MockTime.advance(Minutes(2));
+        armer.arm(PEER);
+
+        // Past the first cycle's deadline but short of the second's: only the live deadline may recover the peer.
+        await MockTime.advance(Minutes(2));
+        await MockTime.macrotasks;
+
+        expect(peerLossCount).equals(0);
         armer[Symbol.dispose]();
     });
 
@@ -305,6 +419,25 @@ describe("RebootResubscribeArmer", () => {
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
 
+        armer[Symbol.dispose]();
+    });
+
+    it("re-arming requires fresh evidence for the new cycle", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        const subscription = registerSubscription();
+
+        armer.arm(PEER);
+        const firstReturn = await createSession();
+        await MockTime.macrotasks;
+        reportOver(firstReturn);
+
+        // A second reboot: what the peer sent during the first one says nothing about this one.
+        armer.arm(PEER);
+        await createSession();
+        await MockTime.macrotasks;
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(false);
         armer[Symbol.dispose]();
     });
 

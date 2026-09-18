@@ -8,6 +8,7 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import { SubscriptionId } from "#interaction/Subscription.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
+import type { SecureSession } from "#session/SecureSession.js";
 import {
     BasicSet,
     createPromise,
@@ -15,13 +16,17 @@ import {
     Environmental,
     InternalError,
     Lifetime,
+    Logger,
     Millis,
+    Observable,
     Time,
     Timer,
     Timestamp,
 } from "@matter/general";
 import { ClientSubscription } from "./ClientSubscription.js";
 import type { PeerSubscription } from "./PeerSubscription.js";
+
+const logger = Logger.get("ClientSubscriptions");
 
 /**
  * A managed set of {@link ActiveSubscription} instances.
@@ -35,6 +40,9 @@ export class ClientSubscriptions implements Lifetime.Owner {
     #inFlightCount = 0;
     #inFlightDrained?: { promise: Promise<void>; resolver: () => void };
     #readingAbort = new AbortController();
+    #reportStarted = Observable<[peer: PeerAddress, session: SecureSession]>(error =>
+        logger.warn("Unhandled error in report observer", error),
+    );
 
     constructor(lifetime: Lifetime.Owner) {
         this.#lifetime = lifetime.join("client subscriptions");
@@ -145,22 +153,22 @@ export class ClientSubscriptions implements Lifetime.Owner {
     }
 
     /**
-     * The most recent {@link PeerSubscription.lastReportStartedAt} across a peer's subscriptions, or `undefined` if
-     * the peer has no subscription that has yet started receiving a report.
+     * Emitted when an inbound report starts arriving on one of a peer's subscriptions, with the session it arrived
+     * over.  A listener that must distinguish live data from a peer's pre-reboot traffic needs the session, because
+     * timestamps alone cannot tell the two apart.
+     *
+     * Listeners run while the report is being read, so they should do little and return nothing; an error or a
+     * promise from one is logged and otherwise ignored rather than disturbing the report.
      */
-    lastReportStartedAtFor(address: PeerAddress): Timestamp | undefined {
-        const forPeer = this.#peers.get(address);
-        if (forPeer === undefined) {
-            return undefined;
-        }
-        let latest: Timestamp | undefined;
-        for (const subscription of forPeer.values()) {
-            const reportedAt = subscription.lastReportStartedAt;
-            if (reportedAt !== undefined && (latest === undefined || reportedAt > latest)) {
-                latest = reportedAt;
-            }
-        }
-        return latest;
+    get reportStarted() {
+        return this.#reportStarted;
+    }
+
+    /**
+     * Announce that an inbound report (data or keepalive) started arriving from {@link peer} over {@link session}.
+     */
+    noteReportStarted(peer: PeerAddress, session: SecureSession) {
+        this.#reportStarted.emit(peer, session);
     }
 
     /**
@@ -218,6 +226,8 @@ export class ClientSubscriptions implements Lifetime.Owner {
         }
 
         await this.#active.empty;
+
+        this.#reportStarted[Symbol.dispose]();
     }
 
     /**

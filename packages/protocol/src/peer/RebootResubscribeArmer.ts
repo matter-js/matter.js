@@ -8,8 +8,9 @@ import { ClientSubscriptions } from "#action/client/subscription/ClientSubscript
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
 import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import type { NodeSession } from "#session/NodeSession.js";
+import type { SecureSession } from "#session/SecureSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { Logger, Minutes, ObserverGroup, Seconds, Time, Timer, Timestamp } from "@matter/general";
+import { Logger, Minutes, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
 
 const logger = Logger.get("RebootResubscribeArmer");
 
@@ -25,7 +26,20 @@ const DEFAULT_REBOOT_RESUBSCRIBE_GRACE = Seconds(30);
 const EXPECTED_RETURN_TIMEOUT = Minutes(3);
 
 interface ArmState {
-    newSessionAt?: Timestamp;
+    /**
+     * The peer's sessions when it was armed, before it rebooted.  A report arriving over one of these is traffic
+     * from before the reboot — a dying device flushes its subscription as it shuts down — so it says nothing about
+     * whether the subscription survived.
+     */
+    preRebootSessions: Set<SecureSession>;
+
+    /**
+     * Present once the peer has returned, and replaced on each further return.  A return and the evidence gathered
+     * for it are one fact: keeping them apart lets a later return inherit an earlier one's evidence, which would
+     * keep a subscription the later reboot has already destroyed.
+     */
+    return?: { fed: boolean };
+
     graceTimer?: Timer;
     returnTimer?: Timer;
 }
@@ -34,9 +48,9 @@ interface ArmState {
  * Speeds up controller re-subscription after a peer reboot for devices that do NOT persist subscriptions.
  *
  * Callers arm a peer when they know it is about to reboot and return (e.g. OTA reaching its apply phase).  When the
- * peer's new session appears we (A) close older sessions and (B) start a grace window: if the existing subscription
- * receives a report within it (a persistent device fed it), we leave the subscription alone; otherwise we force
- * re-subscription.
+ * peer's new session appears we (A) close older sessions and (B) start a grace window: if a subscription receives a
+ * report within it over a session the peer opened on its return (a persistent device fed it), we leave the
+ * subscription alone; otherwise we force re-subscription.
  */
 export class RebootResubscribeArmer {
     readonly #sessions: SessionManager;
@@ -48,27 +62,33 @@ export class RebootResubscribeArmer {
         this.#sessions = sessions;
         this.#subscriptions = subscriptions;
         this.#observers.on(sessions.sessions.added, session => this.#onSessionAdded(session));
+        this.#observers.on(subscriptions.reportStarted, (peer, session) => this.#onReportStarted(peer, session));
     }
 
     arm(peerAddress: PeerAddress) {
         peerAddress = PeerAddress(peerAddress);
 
-        let state = this.#armed.get(peerAddress);
-        if (state === undefined) {
-            state = {};
-            this.#armed.set(peerAddress, state);
-        } else {
-            // Re-arming starts a fresh cycle; drop any grace timer/target from a previous arm.
-            state.graceTimer?.stop();
-            state.graceTimer = undefined;
-            state.newSessionAt = undefined;
-            state.returnTimer?.stop();
-        }
+        // A re-arm must leave nothing of the previous cycle behind: a field that survived would hand the new cycle
+        // the old one's evidence.
+        const previous = this.#armed.get(peerAddress);
+        previous?.graceTimer?.stop();
+        previous?.returnTimer?.stop();
+
+        // The peer is on its way to a reboot but has not taken it yet, so everything it holds now is pre-reboot.
+        const state: ArmState = { preRebootSessions: new Set(this.#sessionsOf(peerAddress)) };
+        this.#armed.set(peerAddress, state);
 
         state.returnTimer = Time.getTimer("Reboot return deadline", EXPECTED_RETURN_TIMEOUT, () =>
             this.#onReturnTimeout(peerAddress),
         );
         state.returnTimer.start();
+    }
+
+    /**
+     * Whether a peer is waiting for its reboot to resolve, either for its return or for its grace window to expire.
+     */
+    isArmed(peerAddress: PeerAddress) {
+        return this.#armed.has(PeerAddress(peerAddress));
     }
 
     disarm(peerAddress: PeerAddress) {
@@ -99,12 +119,12 @@ export class RebootResubscribeArmer {
         state.returnTimer?.stop();
         state.returnTimer = undefined;
 
+        state.return = { fed: false };
+
         // Mechanism A — drop the dead pre-reboot sessions so probe/re-subscribe cannot pick them.
         this.#sessions
             .handlePeerShutdown(peerAddress, session.createdAt)
             .catch(error => logger.warn(peerAddress, "Failed to close older sessions", error));
-
-        state.newSessionAt = session.createdAt;
         state.graceTimer?.stop();
         state.graceTimer = Time.getTimer("Reboot resubscribe grace", DEFAULT_REBOOT_RESUBSCRIBE_GRACE, () =>
             this.#onGraceExpired(peerAddress),
@@ -118,17 +138,24 @@ export class RebootResubscribeArmer {
             return;
         }
 
-        const lastReportStartedAt = this.#subscriptions.lastReportStartedAtFor(peerAddress);
-        const fedSinceReturn =
-            lastReportStartedAt !== undefined &&
-            state.newSessionAt !== undefined &&
-            lastReportStartedAt >= state.newSessionAt;
-
-        if (!fedSinceReturn) {
+        if (!state.return?.fed) {
             this.#subscriptions.closeForPeer(peerAddress);
         }
 
         this.disarm(peerAddress);
+    }
+
+    #onReportStarted(peerAddress: PeerAddress, session: SecureSession) {
+        const state = this.#armed.get(PeerAddress(peerAddress));
+        if (state?.return === undefined || state.preRebootSessions.has(session)) {
+            return;
+        }
+
+        state.return.fed = true;
+    }
+
+    #sessionsOf(peerAddress: PeerAddress) {
+        return this.#sessions.sessions.filter(session => PeerAddress.is(session.peerAddress, peerAddress));
     }
 
     #onReturnTimeout(peerAddress: PeerAddress) {
