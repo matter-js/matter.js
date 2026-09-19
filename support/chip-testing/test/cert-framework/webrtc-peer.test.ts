@@ -20,8 +20,8 @@ async function connected(a: WebRtcPeer, b: WebRtcPeer) {
 async function trickle(a: WebRtcPeer, b: WebRtcPeer) {
     const endsAt = Time.nowUs + Seconds(10);
     while (Time.nowUs < endsAt) {
-        b.add(a.take());
-        a.add(b.take());
+        await b.add(await a.take());
+        await a.add(await b.take());
         if (a.state === "connected" && b.state === "connected") {
             return true;
         }
@@ -38,15 +38,15 @@ describe("WebRtcPeer", () => {
         const answerer = new WebRtcPeer("answerer");
 
         try {
-            const answer = answerer.answer(offerer.offer());
-            offerer.accept(answer);
+            const answer = await answerer.answer(await offerer.offer());
+            await offerer.accept(answer);
 
             await trickle(offerer, answerer);
 
             expect(await connected(offerer, answerer)).equal(true);
         } finally {
-            offerer.close();
-            answerer.close();
+            await offerer.close();
+            await answerer.close();
         }
     });
 
@@ -57,18 +57,18 @@ describe("WebRtcPeer", () => {
         const answerer = new WebRtcPeer("answerer");
 
         try {
-            const answer = answerer.answer(offerer.offer());
+            const answer = await answerer.answer(await offerer.offer());
 
             // What chip's camera sends: an answer may not leave the role open, and the connection
             // refuses such an answer outright rather than choosing for itself
             const unsettled = answer.replaceAll("a=setup:active", "a=setup:actpass");
             expect(unsettled).not.equal(answer);
 
-            expect(offerer.accept(unsettled)).deep.equal({ rewroteRole: true });
+            expect(await offerer.accept(unsettled)).deep.equal({ rewroteRole: true });
             expect(await connected(offerer, answerer)).equal(true);
         } finally {
-            offerer.close();
-            answerer.close();
+            await offerer.close();
+            await answerer.close();
         }
     });
 
@@ -79,10 +79,12 @@ describe("WebRtcPeer", () => {
         const answerer = new WebRtcPeer("answerer");
 
         try {
-            expect(offerer.accept(answerer.answer(offerer.offer()))).deep.equal({ rewroteRole: false });
+            expect(await offerer.accept(await answerer.answer(await offerer.offer()))).deep.equal({
+                rewroteRole: false,
+            });
         } finally {
-            offerer.close();
-            answerer.close();
+            await offerer.close();
+            await answerer.close();
         }
     });
 
@@ -92,32 +94,32 @@ describe("WebRtcPeer", () => {
         const peer = new WebRtcPeer("gatherer");
 
         try {
-            peer.offer();
+            await peer.offer();
             await Time.sleep("gathering", Seconds(2));
 
-            const first = peer.take();
+            const first = await peer.take();
             expect(first.length).greaterThan(0);
-            expect(peer.take()).deep.equal([]);
+            expect(await peer.take()).deep.equal([]);
 
             // The library names the media section, and the index of that section is not ours to invent
             expect(first[0].sdpMid).not.equal(null);
             expect(first[0].sdpmLineIndex).equal(null);
         } finally {
-            peer.close();
+            await peer.close();
         }
     });
 
-    it("closes a peer that never offered, and so has no channel", () => {
+    it("closes a peer that never offered, and so has no channel", async () => {
         const peer = new WebRtcPeer("answerer-only");
-        expect(() => peer.close()).not.throw();
+        await peer.close();
     });
 
     it("reports a closed connection as not connected rather than waiting out the budget", async function () {
         this.timeout(30_000);
 
         const peer = new WebRtcPeer("closed");
-        peer.offer();
-        peer.close();
+        await peer.offer();
+        await peer.close();
 
         const started = Time.nowUs;
         expect(await peer.connected(Seconds(10))).equal(false);

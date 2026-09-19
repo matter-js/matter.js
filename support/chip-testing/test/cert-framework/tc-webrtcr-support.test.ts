@@ -63,13 +63,13 @@ function fakeRequestor(overrides: Partial<WebRtcRequestorApi> = {}): WebRtcReque
 function fakePeer(overrides: Partial<CameraSession["peer"]> = {}): CameraSession["peer"] {
     return {
         state: "new",
-        answer: () => "v=0 answer",
-        offer: () => "v=0 offer",
-        accept: () => ({ rewroteRole: false }),
-        add: () => {},
-        take: () => [],
+        answer: async () => "v=0 answer",
+        offer: async () => "v=0 offer",
+        accept: async () => ({ rewroteRole: false }),
+        add: async () => {},
+        take: async () => [],
         connected: async () => false,
-        close: () => {},
+        close: async () => {},
         ...overrides,
     } as CameraSession["peer"];
 }

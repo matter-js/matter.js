@@ -29,12 +29,7 @@ import {
 import { join } from "node:path";
 import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
-import { closeWebRtc, WebRtcPeer } from "./webrtc-peer.js";
-
-// The library keeps the process alive once a peer has connected, and only its process-wide cleanup
-// releases that. The harness's own shutdown runs after every spec and before the runner reports, which
-// is the one point where releasing it neither strands a later case nor loses the run's summary.
-chip.onClose(async () => closeWebRtc());
+import { WebRtcPeer } from "./webrtc-peer.js";
 
 /** Endpoint of TH_SERVER's camera clusters, which `chip-camera-app` fixes at 1. */
 const PROVIDER_ENDPOINT = 1;
@@ -337,7 +332,7 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
                 throw e;
             } finally {
                 try {
-                    peer.close();
+                    await peer.close();
                 } catch (e) {
                     // Everything below writes the run's evidence, and a native teardown fault must not
                     // take it with it
@@ -535,7 +530,7 @@ export async function provideOffer(session: CameraSession): Promise<number> {
 
 /** Offers the provider the session description the controller's own peer connection generated. */
 async function provideOfferFor(session: CameraSession): Promise<number> {
-    return provideOfferWith(session, session.peer.offer());
+    return provideOfferWith(session, await session.peer.offer());
 }
 
 async function provideOfferWith(session: CameraSession, sdp: string): Promise<number> {
@@ -625,9 +620,9 @@ export async function establishSession(
 
     let rewroteRole = false;
     if (mode === "solicit") {
-        await provideAnswer(session, id, session.peer.answer(description.sdp));
+        await provideAnswer(session, id, await session.peer.answer(description.sdp));
     } else {
-        rewroteRole = session.peer.accept(description.sdp).rewroteRole;
+        rewroteRole = (await session.peer.accept(description.sdp)).rewroteRole;
     }
 
     return { id, connected: await exchangeCandidates(session, id), reached: "signaled", rewroteRole };
@@ -655,7 +650,7 @@ const consumed = new WeakSet<WebRtcSignalRecord>();
  */
 async function exchangeCandidates(session: CameraSession, id: number): Promise<boolean> {
     for (;;) {
-        const ours = session.peer.take();
+        const ours = await session.peer.take();
         if (ours.length) {
             await provideIceCandidates(session, id, ours);
         }
@@ -679,7 +674,7 @@ async function exchangeCandidates(session: CameraSession, id: number): Promise<b
 
         if (theirs?.candidates?.length) {
             consumed.add(theirs);
-            session.peer.add(theirs.candidates);
+            await session.peer.add(theirs.candidates);
         }
     }
 }

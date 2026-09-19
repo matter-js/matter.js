@@ -2724,6 +2724,13 @@ those cases settled:
   application driving matter.js, not to the library. Three things that flow had to settle:
   - An offer needs something to negotiate: a peer connection with no data channel and no track cannot
     describe itself at all (`No DataChannel or Track to negotiate`).
+  - The connection lives in a **child process**, and that is not incidental. `node-datachannel` keeps a
+    process alive once a connection has run, and its only release is a process-wide `cleanup()` that
+    kills a process still doing work. The certification specs share one process and report at the end
+    of it, so in-process there is no safe option: without `cleanup()` the run never exits (`did not
+    exit cleanly`, exit 101), and with it — from a test hook or from the harness shutdown alike — the
+    process dies before the runner reports and a whole leg's summary goes with it. Both were observed
+    in CI with every case passing. A child process holds one connection and nothing else.
   - chip's camera answers `a=setup:actpass`. RFC 8842 § 5.3 sends the answerer to RFC 4145 § 4.1,
     whose table leaves it `active` or `passive` and never `actpass`. libdatachannel refuses such an
     answer, so `WebRtcPeer.accept` settles the role and the case records that it did, rather than
