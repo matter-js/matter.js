@@ -71,11 +71,18 @@ export function record(cx: CertStepContext, check: CheckRecord, what: string) {
  *
  * Each check is built on demand rather than taken as a list, so a builder that throws on the fifth
  * artifact leaves the first four recorded; its error carries the step, as {@link record}'s does.
+ *
+ * A builder may be asynchronous, which is what lets a step that waits on a device log put that wait
+ * in the same call as its response checks: a wait held outside the call is a check the step claims
+ * and never records once an earlier one fails.
  */
-export function recordAll(cx: CertStepContext, checks: readonly { check: () => CheckRecord; what: string }[]): void {
+export async function recordAll(
+    cx: CertStepContext,
+    checks: readonly { check: () => CheckRecord | Promise<CheckRecord>; what: string }[],
+): Promise<void> {
     const failed = new Array<string>();
     for (const { check, what } of checks) {
-        const record = check();
+        const record = await check();
         cx.recorder.check(record);
         if (record.verdict === "fail") {
             failed.push(`${what}: ${JSON.stringify(record)}`);

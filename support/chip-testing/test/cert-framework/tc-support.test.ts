@@ -1848,10 +1848,10 @@ describe("recordAll", () => {
     const pass = (detail: string): CheckRecord => ({ type: "response", verdict: "pass", detail });
     const fail = (detail: string): CheckRecord => ({ type: "response", verdict: "fail", detail });
 
-    it("records every check when they all pass", () => {
+    it("records every check when they all pass", async () => {
         const { checks, cx } = recordingContext();
 
-        recordAll(cx, [
+        await recordAll(cx, [
             { check: () => pass("first"), what: "one" },
             { check: () => pass("second"), what: "two" },
         ]);
@@ -1859,35 +1859,48 @@ describe("recordAll", () => {
         expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
     });
 
-    it("records the checks after a failing one rather than stopping at it", () => {
+    it("records the checks after a failing one rather than stopping at it", async () => {
         const { checks, cx } = recordingContext();
 
-        expect(() =>
+        await expect(
             recordAll(cx, [
                 { check: () => fail("first"), what: "one" },
                 { check: () => pass("second"), what: "two" },
                 { check: () => fail("third"), what: "three" },
             ]),
-        ).throw(CertCheckFailedError, /2 of 3 checks failed/);
+        ).rejectedWith(CertCheckFailedError, /2 of 3 checks failed/);
 
         expect(checks.map(check => check.detail)).deep.equal(["first", "second", "third"]);
     });
 
-    it("names every failure in the error it throws", () => {
+    it("names every failure in the error it throws", async () => {
         const { cx } = recordingContext();
 
-        expect(() =>
+        await expect(
             recordAll(cx, [
                 { check: () => fail("first"), what: "one" },
                 { check: () => fail("third"), what: "three" },
             ]),
-        ).throw(CertCheckFailedError, /one:.*three:/);
+        ).rejectedWith(CertCheckFailedError, /one:.*three:/);
     });
 
-    it("keeps the checks recorded before a builder threw", () => {
+    it("awaits an asynchronous builder and records what follows a failing check", async () => {
         const { checks, cx } = recordingContext();
 
-        expect(() =>
+        await expect(
+            recordAll(cx, [
+                { check: () => fail("first"), what: "one" },
+                { check: async () => pass("second"), what: "two" },
+            ]),
+        ).rejectedWith(CertCheckFailedError, /1 of 2 checks failed/);
+
+        expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
+    });
+
+    it("keeps the checks recorded before a builder threw", async () => {
+        const { checks, cx } = recordingContext();
+
+        await expect(
             recordAll(cx, [
                 { check: () => pass("first"), what: "one" },
                 {
@@ -1897,15 +1910,15 @@ describe("recordAll", () => {
                     what: "two",
                 },
             ]),
-        ).throw(InternalError);
+        ).rejectedWith(InternalError);
 
         expect(checks.map(check => check.detail)).deep.equal(["first"]);
     });
 
-    it("passes an unverified check through, as record does", () => {
+    it("passes an unverified check through, as record does", async () => {
         const { checks, cx } = recordingContext();
 
-        recordAll(cx, [
+        await recordAll(cx, [
             { check: () => ({ type: "device-log", verdict: "unverified" }), what: "matterjs has no pattern" },
         ]);
 

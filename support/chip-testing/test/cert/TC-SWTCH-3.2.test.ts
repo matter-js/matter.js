@@ -587,7 +587,7 @@ certTest("TC-SWTCH-3.2", {
                 () => eventsNamed("switchLatched", boundary).length >= simulated.length,
             );
             const latched = eventsNamed("switchLatched", boundary);
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => ({
                         type: "response",
@@ -731,7 +731,7 @@ certTest("TC-SWTCH-3.2", {
             );
             const cycle = eventsAfter(boundary);
 
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => {
                         const expected = sequence.map(({ name }) => eventId(name));
@@ -801,7 +801,7 @@ certTest("TC-SWTCH-3.2", {
             const arrived = await untilReceived(() => eventsNamed("multiPressComplete", boundary).length > 0);
             const counted = fieldOf(eventsNamed("multiPressComplete", boundary)[0], "totalNumberOfPressesCounted");
 
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => {
                         const presses = eventsNamed("initialPress", boundary);

@@ -13,6 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/testing
     - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own
+    - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
     - Enhancement: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
     - Enhancement: A certification step's read may require a session that permits large payloads via `ReadAttributeOptions.largeMessage`
@@ -71,6 +72,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node
+    - Enhancement: An OTA requestor's wait before querying a provider that announced an update can be set through `announcedUpdateQueryDelay`, so a node alone with its provider can shorten the random window the specification prefers
     - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
     - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
     - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
