@@ -1,0 +1,334 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Seconds } from "@matter/main";
+import type {
+    BdxTransferAccept,
+    BdxTransferProposal,
+    CertNodeRef,
+    CertStepContext,
+    CheckRecord,
+    LogFollower,
+    OtaBdxTransfer,
+} from "@matter/testing";
+import { expectDeviceLog, LOG_TIMEOUT, record } from "./tc-support.js";
+
+/**
+ * Budget for the whole OTA exchange the precondition step drives: the announcement, the TH's own
+ * `QueryImage`, and the BDX transfer of a 64 KiB image that follows.
+ *
+ * Shorter than the adapter's own default, because a BDX transfer is bounded by the peer's BDX-layer
+ * response timeout — 30s on chip's OTA requestor — which MRP acks do not reset. A run that has not
+ * finished inside this has not been delayed, it has stalled.
+ */
+const OTA_TRANSFER_TIMEOUT = Seconds(60);
+
+/**
+ * One BDX transfer the DUT served, with the TH log cursor that precedes it.
+ *
+ * The cursor is taken before the transfer is triggered and handed to every later step, because the
+ * whole transfer happens inside the precondition: a step taking its own mark afterwards would search
+ * a window the lines it wants are already behind.
+ */
+export interface BdxTransferEvidence {
+    transfer: OtaBdxTransfer;
+    from: number;
+}
+
+/**
+ * Has the DUT serve one OTA image to the TH over BDX and waits until the TH's own log has caught up
+ * with the end of it.
+ *
+ * Both BDX cases rest on a single transfer: their steps read different messages out of one exchange
+ * rather than driving one each, which is what the plans describe ("DUT sends the first Block … DUT
+ * sends further Blocks … DUT sends a BlockEOF") and what a real OTA does.
+ *
+ * The transfer is the DUT's own, in the role the plans give it: the TH opens it with a `ReceiveInit`
+ * and the DUT answers as BDX responder and sender. A transfer that never happened rejects here rather
+ * than leaving the later steps to find nothing.
+ */
+export async function serveOtaTransfer(cx: CertStepContext, ref: CertNodeRef): Promise<BdxTransferEvidence> {
+    const th = cx.devices.th;
+    const from = await th.log.markSettled();
+
+    let transfer: OtaBdxTransfer;
+    try {
+        transfer = await cx.controllers.dut.node(ref).serveOtaUpdate({ timeoutMs: OTA_TRANSFER_TIMEOUT });
+    } catch (e) {
+        cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
+        throw e;
+    }
+
+    record(
+        cx,
+        {
+            type: "response",
+            verdict: "pass",
+            detail:
+                `DUT served software version ${transfer.softwareVersion} as ${transfer.fileSize} bytes over BDX ` +
+                `from endpoint ${transfer.providerEndpoint}, transferring ${transfer.transferredBytes} bytes`,
+        },
+        "the DUT served an OTA image over BDX",
+    );
+
+    // The DUT's own account settles when it receives the TH's last acknowledgement, which is written
+    // on the TH before that; waiting for the TH to say so is what lets the later steps read its log
+    // as a finished record rather than one still arriving.
+    const { check } = await expectDeviceLog(th.log, th.flavor, endOfTransferPatterns(), from, LOG_TIMEOUT);
+    record(cx, check, "the TH acknowledged the end of the transfer");
+
+    return { transfer, from };
+}
+
+/**
+ * What a BDX message carried, as the TH's own log reports it.
+ *
+ * `length` is absent for a message that has none of its own — an acknowledgement.
+ */
+export interface BdxMessageRecord {
+    counter: number;
+    length?: number;
+    line: string;
+    index: number;
+}
+
+/**
+ * How each flavor's TH states one kind of BDX message in its own log.
+ *
+ * matter.js names the message and its fields on one line; chip prints the message name on a line of
+ * its own and then one indented line per field (`BdxMessages.cpp`'s `LogMessage`), so the two need
+ * different readers rather than two spellings of one pattern.
+ *
+ * A flavor with no entry cannot state the claim at all. That is the case for every `Block` a chip
+ * receiver takes in: `TransferSession::HandleBlock` records the block and returns, where
+ * `HandleBlockEOF` beside it calls `LogMessage`. It is an absence in chip's own source, not a pattern
+ * nobody has written.
+ */
+interface BdxMessageKind {
+    /** One line carrying the counter as group 1 and, where the message has one, the length as group 2. */
+    matterjs?: RegExp;
+
+    /** The name chip's `LogMessage` prints, and whether the fields under it include a data length. */
+    chip?: { name: string; hasLength: boolean };
+}
+
+// matter.js names a BDX message's own fields on the line the exchange writes for it rather than logging its own,
+// and an inbound message is logged before BDX decodes it — so what a receiver took is read from the message it
+// sends next: its query for the following block, or the ack that ends the transfer.
+const BLOCK_RECEIVED: BdxMessageKind = {
+    matterjs: /for: BDX\/BlockQuery .*\brcvdCnt: (\d+) rcvdLen: (\d+)/,
+};
+
+const BLOCK_EOF_RECEIVED: BdxMessageKind = {
+    matterjs: /for: BDX\/BlockAckEof cnt: (\d+) ackLen: (\d+)/,
+    chip: { name: "BlockEOF", hasLength: true },
+};
+
+const BLOCK_QUERY_SENT: BdxMessageKind = {
+    matterjs: /for: BDX\/BlockQuery cnt: (\d+)/,
+};
+
+const BLOCK_ACK_EOF_SENT: BdxMessageKind = {
+    matterjs: /for: BDX\/BlockAckEof cnt: (\d+)/,
+    chip: { name: "BlockAckEOF", hasLength: false },
+};
+
+const CHIP_BLOCK_COUNTER = /\[ATM\]\s+Block Counter: (\d+)\s*$/;
+const CHIP_DATA_LENGTH = /\[ATM\]\s+Data Length: (\d+)\s*$/;
+
+/**
+ * Every message of one kind the TH's log carries at or after `from`, in the order it logged them.
+ *
+ * This reads the buffer rather than waiting on it, which is only sound because the transfer is over:
+ * {@link serveOtaTransfer} has already waited for the TH's own last line of it. Answers `undefined`
+ * where the running flavor prints no such line at all.
+ */
+function messagesIn(
+    log: LogFollower,
+    flavor: string,
+    kind: BdxMessageKind,
+    from: number,
+): BdxMessageRecord[] | undefined {
+    const lines = log.lines.filter(line => !line.synthetic && line.index >= Math.max(0, from));
+
+    if (flavor === "matterjs") {
+        if (kind.matterjs === undefined) {
+            return undefined;
+        }
+        const records = new Array<BdxMessageRecord>();
+        for (const line of lines) {
+            const match = kind.matterjs.exec(line.text);
+            if (match !== null) {
+                records.push({
+                    counter: Number(match[1]),
+                    length: match[2] === undefined ? undefined : Number(match[2]),
+                    line: line.text,
+                    index: line.index,
+                });
+            }
+        }
+        return records;
+    }
+
+    if (!flavor.startsWith("chip") || kind.chip === undefined) {
+        return undefined;
+    }
+
+    // chip's fields follow the name line in a fixed order and nothing logs between them, so a field
+    // that is not where LogMessage puts it belongs to a different message
+    const { name, hasLength } = kind.chip;
+    const namePattern = new RegExp(`\\[ATM\\] ${name}\\s*$`);
+    const records = new Array<BdxMessageRecord>();
+    for (let i = 0; i < lines.length; i++) {
+        if (!namePattern.test(lines[i].text)) {
+            continue;
+        }
+        const counter = CHIP_BLOCK_COUNTER.exec(lines[i + 1]?.text ?? "");
+        if (counter === null) {
+            continue;
+        }
+        const length = hasLength ? CHIP_DATA_LENGTH.exec(lines[i + 2]?.text ?? "") : undefined;
+        if (hasLength && length === null) {
+            continue;
+        }
+        records.push({
+            counter: Number(counter[1]),
+            length: length === undefined || length === null ? undefined : Number(length[1]),
+            line: lines[i].text,
+            index: lines[i].index,
+        });
+    }
+    return records;
+}
+
+/** {@link messagesIn} for the `Block` messages the TH took in. */
+export function blocksReceived(log: LogFollower, flavor: string, from: number) {
+    return messagesIn(log, flavor, BLOCK_RECEIVED, from);
+}
+
+/** {@link messagesIn} for the `BlockEOF` the TH took in. */
+export function blockEofReceived(log: LogFollower, flavor: string, from: number) {
+    return messagesIn(log, flavor, BLOCK_EOF_RECEIVED, from);
+}
+
+/** {@link messagesIn} for the `BlockQuery` messages the TH sent. */
+export function blockQueriesSent(log: LogFollower, flavor: string, from: number) {
+    return messagesIn(log, flavor, BLOCK_QUERY_SENT, from);
+}
+
+/**
+ * What each flavor's TH writes for the last message of a transfer, derived from the same declaration
+ * {@link blockAckEofSent} reads so the two cannot drift.
+ */
+function endOfTransferPatterns() {
+    return {
+        matterjs: BLOCK_ACK_EOF_SENT.matterjs,
+        chip: BLOCK_ACK_EOF_SENT.chip && new RegExp(`\\[ATM\\] ${BLOCK_ACK_EOF_SENT.chip.name}\\s*$`),
+    };
+}
+
+/** {@link messagesIn} for the `BlockAckEOF` the TH sent. */
+export function blockAckEofSent(log: LogFollower, flavor: string, from: number) {
+    return messagesIn(log, flavor, BLOCK_ACK_EOF_SENT, from);
+}
+
+/**
+ * A device-log check the running flavor cannot settle, carrying why.
+ *
+ * `accepted` keeps the step passing while the run's unverified count still carries the gap — the
+ * declaration this directory's AGENTS.md reserves for a claim no pattern could match here, as opposed
+ * to one nobody has written a pattern for yet.
+ */
+export function unloggedByFlavor(what: string, source: string): CheckRecord {
+    return {
+        type: "device-log",
+        verdict: "unverified",
+        accepted:
+            `chip's BDX implementation writes no log line for ${what}: ${source} handles the message and returns, ` +
+            "where the BlockEOF and BlockAckEOF paths beside it call LogMessage",
+    };
+}
+
+/** chip renders a byte with `%X`, which pads to nothing: a zero byte prints as `0x0`. */
+function chipByte(value: number) {
+    return `0x${value.toString(16).toUpperCase()}`;
+}
+
+/** chip's own rendering of the transfer-control octet {@link transferControlByte} builds. */
+export function chipTransferControl(version: number, mode: "senderDrive" | "receiverDrive", asynchronous: boolean) {
+    return chipByte(transferControlByte(version, mode === "senderDrive", mode === "receiverDrive", asynchronous));
+}
+
+/** chip's own rendering of the range-control octet {@link rangeControlByte} builds. */
+export function chipRangeControl(definiteLength: number | undefined, startOffset?: number) {
+    return chipByte(rangeControlByte(definiteLength, startOffset));
+}
+
+/** chip's own rendering of a 64-bit value: `ChipLogFormatX64` is two zero-padded uppercase words. */
+export function chipX64(value: number | undefined) {
+    return `0x${(value ?? 0).toString(16).toUpperCase().padStart(16, "0")}`;
+}
+
+/** The transfer-control octet a BDX `*Init` or `*Accept` carries (§ 11.22.5.1). */
+function transferControlByte(
+    version: number,
+    senderDrive: boolean,
+    receiverDrive: boolean,
+    asynchronous: boolean,
+): number {
+    return (version & 0xf) | (senderDrive ? 1 << 4 : 0) | (receiverDrive ? 1 << 5 : 0) | (asynchronous ? 1 << 6 : 0);
+}
+
+/** The range-control octet, whose flags a message derives from the fields it carries (§ 11.22.5.1). */
+function rangeControlByte(definiteLength: number | undefined, startOffset: number | undefined): number {
+    return (definiteLength === undefined || definiteLength === 0 ? 0 : 1) | (startOffset === undefined ? 0 : 1 << 1);
+}
+
+function u8(value: number) {
+    return value.toString(16).padStart(2, "0");
+}
+
+function u16le(value: number) {
+    return u8(value & 0xff) + u8((value >> 8) & 0xff);
+}
+
+function u32le(value: number) {
+    return u16le(value & 0xffff) + u16le(Math.floor(value / 0x10000) & 0xffff);
+}
+
+/**
+ * The bytes a `ReceiveAccept` granting `accept` encodes to, as matter.js prints an inbound message's
+ * payload.
+ *
+ * This is the wire form rather than a rendering of it, which is what makes a pattern built from it
+ * evidence for the plan's "exactly one mode shall be chosen": a transfer control naming two modes,
+ * or a version the responder was not entitled to, is a different byte.
+ */
+export function receiveAcceptPayload(accept: BdxTransferAccept) {
+    const { version, mode, asynchronousTransfer, maxBlockSize, definiteLength } = accept;
+    return (
+        u8(transferControlByte(version, mode === "senderDrive", mode === "receiverDrive", asynchronousTransfer)) +
+        u8(rangeControlByte(definiteLength, undefined)) +
+        u16le(maxBlockSize) +
+        (definiteLength === undefined ? "" : u32le(definiteLength))
+    );
+}
+
+/**
+ * The bytes a `ReceiveInit` proposing `proposal` opens with, up to the file designator this does not
+ * predict.
+ */
+export function receiveInitPayloadPrefix(proposal: BdxTransferProposal) {
+    const { version, senderDrive, receiverDrive, asynchronousTransfer, maxBlockSize, startOffset, definiteLength } =
+        proposal;
+    return (
+        u8(transferControlByte(version, senderDrive, receiverDrive, asynchronousTransfer)) +
+        u8(rangeControlByte(definiteLength, startOffset)) +
+        u16le(maxBlockSize) +
+        (startOffset === undefined ? "" : u32le(startOffset)) +
+        (definiteLength === undefined ? "" : u32le(definiteLength))
+    );
+}
