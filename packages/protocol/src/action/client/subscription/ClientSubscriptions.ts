@@ -8,6 +8,7 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
 import { SubscriptionId } from "#interaction/Subscription.js";
 import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
+import type { SecureSession } from "#session/SecureSession.js";
 import {
     BasicSet,
     createPromise,
@@ -15,13 +16,17 @@ import {
     Environmental,
     InternalError,
     Lifetime,
+    Logger,
     Millis,
+    Observable,
     Time,
     Timer,
     Timestamp,
 } from "@matter/general";
 import { ClientSubscription } from "./ClientSubscription.js";
 import type { PeerSubscription } from "./PeerSubscription.js";
+
+const logger = Logger.get("ClientSubscriptions");
 
 /**
  * A managed set of {@link ActiveSubscription} instances.
@@ -145,23 +150,12 @@ export class ClientSubscriptions implements Lifetime.Owner {
     }
 
     /**
-     * The most recent {@link PeerSubscription.lastReportStartedAt} across a peer's subscriptions, or `undefined` if
-     * the peer has no subscription that has yet started receiving a report.
+     * Emits when a report the peer pushes starts arriving on one of its subscriptions, with the session it arrived
+     * over.  A priming report returned inline in the subscribe exchange does not emit.
      */
-    lastReportStartedAtFor(address: PeerAddress): Timestamp | undefined {
-        const forPeer = this.#peers.get(address);
-        if (forPeer === undefined) {
-            return undefined;
-        }
-        let latest: Timestamp | undefined;
-        for (const subscription of forPeer.values()) {
-            const reportedAt = subscription.lastReportStartedAt;
-            if (reportedAt !== undefined && (latest === undefined || reportedAt > latest)) {
-                latest = reportedAt;
-            }
-        }
-        return latest;
-    }
+    readonly reportStarted = Observable<[session: SecureSession]>(error =>
+        logger.warn("Unhandled error in reportStarted observer:", error),
+    );
 
     /**
      * Close all {@link PeerSubscription}s for a specific peer, triggering re-subscription.
@@ -217,7 +211,11 @@ export class ClientSubscriptions implements Lifetime.Owner {
             subscription.close();
         }
 
-        await this.#active.empty;
+        try {
+            await this.#active.empty;
+        } finally {
+            this.reportStarted[Symbol.dispose]();
+        }
     }
 
     /**
