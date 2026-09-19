@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError, InternalError } from "@matter/general";
 import { PeerConnection, cleanup } from "node-datachannel";
 
 /**
@@ -93,14 +94,14 @@ function perform(request: Request) {
 function described() {
     const local = connection.localDescription();
     if (local?.sdp === undefined) {
-        throw new Error("Peer connection produced no description");
+        throw new InternalError("Peer connection produced no description");
     }
     return local.sdp;
 }
 
 function required(sdp: string | undefined) {
     if (sdp === undefined) {
-        throw new Error("Request carried no session description");
+        throw new ImplementationError("Request carried no session description");
     }
     return sdp;
 }
