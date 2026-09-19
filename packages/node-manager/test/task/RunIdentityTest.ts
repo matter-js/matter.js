@@ -7,15 +7,17 @@
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
     TaskConflictError,
+    TaskFindingCode,
     TaskExternalIdInUseError,
     TaskIdentityExhaustedError,
     TaskNotInFlightError,
     TaskRollbackPendingError,
     TaskSlotOccupiedError,
+    TaskStoreVersionError,
     TaskTypeNotRegisteredError,
 } from "#task/errors.js";
 import { Rollback } from "#task/Rollback.js";
-import { RUN_ID_RESERVATION } from "#task/RunStore.js";
+import { RUN_ID_RESERVATION, RUN_STORE_VERSION } from "#task/RunStore.js";
 import { TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
@@ -286,6 +288,67 @@ describe("run identity", () => {
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "counter" }));
         expect(handle.status.runId).greaterThan(firstRunId);
+    });
+
+    it("refuses a stored run whose type now derives a different target from its parameters", async () => {
+        const environment = persistentEnvironment();
+        const peer = touchingPeer("drifting");
+        SyntheticTask.phasesByTag["drifting"] = [gateForever("drifting")];
+
+        let runId: RunId;
+        {
+            await using node = await makeNode(environment, "drift");
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+            const handle = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "drifting" }));
+            runId = handle.status.runId;
+            await pumpUntil("intent written", async () => peer.items[itemMapKey("groupMembership", "X")] !== undefined);
+        }
+
+        // The same type, but its target now derives differently — a build where the slot key gained a field.
+        const Drifted: TaskDefinition<{ tag: string }> = {
+            ...SyntheticTask,
+            slotKeyFor: params => `synthetic:${params.tag}:v2`,
+        };
+        await using node = await makeNode(environment, "drift");
+        await node.act(a => a.get(TestTaskManager).register(Drifted));
+
+        // Resuming it would drive a run under a target nothing else knows it holds, so it ends instead — and
+        // releases the target it did hold.
+        await pumpUntil("the record is given up on", async () =>
+            node.act(a => {
+                const state = a.get(TestTaskManager).get(runId)?.status.state;
+                return state !== undefined && state !== "running" && state !== "parked";
+            }),
+        );
+        const status = await node.act(a => a.get(TestTaskManager).get(runId)?.status);
+        expect(status?.state).equals("failed");
+        expect(status?.error).contains("now derives target synthetic:drifting:v2");
+        expect(await node.act(a => a.get(TestTaskManager).tasks.length)).equals(0);
+    });
+
+    it("refuses every verb while the stored table is newer than this build", async () => {
+        const environment = persistentEnvironment();
+        SyntheticTask.phasesByTag["future"] = [{ name: "a", run: async () => {} }];
+        {
+            await using node = await makeNode(environment, "future");
+            await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+            await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "future" }));
+            await settle(node, "synthetic:future");
+            // A later build wrote this table; nothing here knows what its records mean.
+            await node.act(a => (a.get(TestTaskManager).state.runsVersion = RUN_STORE_VERSION + 1));
+        }
+
+        await using node = await makeNode(environment, "future");
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+
+        // Asking what would happen is refused with the same cause as doing it, so a caller rendering the
+        // answer does not have to guess.
+        const verdict = await node.act(a => a.get(TestTaskManager).assess(SyntheticTask, { tag: "future" }));
+        expect(verdict.verdict).equals("blocked");
+        expect(verdict.findings[0].code).equals(TaskFindingCode.StoreVersion);
+        expect(() => node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "future" }))).throws(
+            TaskStoreVersionError,
+        );
     });
 
     it("refuses a re-run of a slot while the previous run's driver is still unwinding", async () => {

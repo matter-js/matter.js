@@ -115,3 +115,36 @@ describe("AclItemKind", () => {
         expect(await kind.capacity(node)).deep.equals({ limit: 4, used: 1 });
     });
 });
+
+describe("AclItemKind edges", () => {
+    it("writes nothing when the entry to remove is not there", async () => {
+        const kind = new AclItemKind();
+        const { node, store } = fakePeer([adminEntry()]);
+        const before = store.acl;
+        await kind.remove(node, item(desired));
+        // The same array, not an equal one: a write would have replaced it, and writing an unchanged list
+        // still costs a device round trip and a fabric ACL update.
+        expect(store.acl).equals(before);
+    });
+
+    it("counts a device that states no per-fabric limit against the mandatory minimum", async () => {
+        const kind = new AclItemKind();
+        const { node } = fakePeer([adminEntry()], undefined);
+        expect(await kind.capacity(node)).deep.equals({ limit: 4, used: 1 });
+    });
+
+    it("reads an absent list as empty rather than failing", async () => {
+        const kind = new AclItemKind();
+        const node = {
+            async getStateOf() {
+                return { acl: undefined };
+            },
+            async setStateOf() {},
+            stateOf() {
+                return { acl: undefined, accessControlEntriesPerFabric: 4 };
+            },
+        } as unknown as ClientNode;
+        expect(await kind.verify(node, item(desired))).equals(false);
+        expect(await kind.capacity(node)).deep.equals({ limit: 4, used: 0 });
+    });
+});

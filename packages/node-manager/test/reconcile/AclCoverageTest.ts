@@ -81,3 +81,37 @@ describe("acl-coverage", () => {
         });
     });
 });
+
+describe("acl-coverage edges", () => {
+    const base: AclGrant = { privilege: Operate, authMode: Case, subjects: [SubjectId(0x55n)], targets: null };
+
+    it("treats a wildcard field as covering any value, and a set field as covering only its own", () => {
+        const wildcard: AclGrant = {
+            ...base,
+            targets: [{ cluster: null, endpoint: null, deviceType: null }],
+        };
+        const specific: AclGrant = {
+            ...base,
+            targets: [{ cluster: ClusterId(6), endpoint: EndpointNumber(1), deviceType: null }],
+        };
+        expect(coversGrant([wildcard], specific)).equals(true);
+        expect(coversGrant([specific], wildcard)).equals(false);
+
+        // One differing field is enough to stop covering, in each position.
+        for (const differing of [
+            { cluster: ClusterId(8), endpoint: EndpointNumber(1), deviceType: null },
+            { cluster: ClusterId(6), endpoint: EndpointNumber(2), deviceType: null },
+        ]) {
+            expect(coversGrant([{ ...base, targets: [differing] }], specific)).equals(false);
+        }
+    });
+
+    it("compares subject sets by membership, and tells an empty list from no list", () => {
+        const two: AclGrant = { ...base, subjects: [SubjectId(0x55n), SubjectId(0x56n)] };
+        const reordered: AclGrant = { ...base, subjects: [SubjectId(0x56n), SubjectId(0x55n)] };
+        expect(grantsEqual(two, reordered)).equals(true);
+        expect(grantsEqual(two, base)).equals(false);
+        expect(grantsEqual({ ...base, subjects: null }, base)).equals(false);
+        expect(grantsEqual({ ...base, subjects: null }, { ...base, subjects: null })).equals(true);
+    });
+});

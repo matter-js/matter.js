@@ -122,3 +122,34 @@ describe("BindingItemKind", () => {
         expect(threw).equals(true);
     });
 });
+
+describe("BindingItemKind edges", () => {
+    it("removes nothing from an endpoint the peer no longer exposes", async () => {
+        const kind = new BindingItemKind();
+        const { node, store } = fakePeer([{ ...grant.target, fabricIndex: FabricIndex(1) }]);
+        const before = store.binding;
+        // An endpoint that is gone cannot be read, let alone written: removal is already true of it.
+        await kind.remove(node, item({ ...grant, localEndpoint: 99 }));
+        expect(store.binding).equals(before);
+    });
+
+    it("writes nothing when the binding to remove is not there", async () => {
+        const kind = new BindingItemKind();
+        const { node, store } = fakePeer([]);
+        const before = store.binding;
+        await kind.remove(node, item(grant));
+        expect(store.binding).equals(before);
+    });
+
+    it("removes only the exact target, leaving every other binding", async () => {
+        const kind = new BindingItemKind();
+        const foreign = { node: NodeId(0x11n), endpoint: EndpointNumber(2), cluster: ClusterId(8) };
+        const { node, store } = fakePeer([
+            { ...foreign, fabricIndex: FabricIndex(1) },
+            { ...grant.target, fabricIndex: FabricIndex(1) },
+        ]);
+        await kind.remove(node, item(grant));
+        expect(store.binding.length).equals(1);
+        expect(store.binding[0].node).equals(NodeId(0x11n));
+    });
+});
