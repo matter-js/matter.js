@@ -29,7 +29,12 @@ import {
 import { join } from "node:path";
 import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
-import { WebRtcPeer } from "./webrtc-peer.js";
+import { closeWebRtc, WebRtcPeer } from "./webrtc-peer.js";
+
+// The library keeps the process alive once a peer has connected, and only its process-wide cleanup
+// releases that. The harness's own shutdown runs after every spec and before the runner reports, which
+// is the one point where releasing it neither strands a later case nor loses the run's summary.
+chip.onClose(async () => closeWebRtc());
 
 /** Endpoint of TH_SERVER's camera clusters, which `chip-camera-app` fixes at 1. */
 const PROVIDER_ENDPOINT = 1;

@@ -6,7 +6,7 @@
 
 import { Duration, InternalError, Millis, Time } from "@matter/main";
 import type { WebRtcIceCandidate } from "@matter/testing";
-import { DataChannel, PeerConnection } from "node-datachannel";
+import { DataChannel, PeerConnection, cleanup } from "node-datachannel";
 
 /**
  * The controller's half of a WebRTC connection, for the cases whose plan step is "the session is
@@ -22,10 +22,9 @@ import { DataChannel, PeerConnection } from "node-datachannel";
  * Nothing here interprets media. Reaching `connected` is the whole purpose, because that is what the
  * plan asks the provider to report.
  *
- * Closing each peer is all the teardown there is. The library also offers a process-wide `cleanup()`,
- * which must not be called here: the certification specs share one process, and calling it at the end
- * of the run kills that process before the runner reports — seven cases pass and the leg still fails
- * with no summary. Closed peers leave nothing that holds the process open.
+ * A closed peer does not release everything the library holds: two connections in one process keep it
+ * alive afterwards, and the certification specs share one process. Only `cleanup()` releases that, and
+ * only once per process — see {@link closeWebRtc} for where it belongs.
  */
 export class WebRtcPeer {
     readonly #connection: PeerConnection;
@@ -175,4 +174,16 @@ export class WebRtcPeer {
         this.#channel?.close();
         this.#connection.close();
     }
+}
+
+/**
+ * Releases what the library holds for the whole process.
+ *
+ * Belongs to the end of the run rather than to a case: it tears down state every peer shares, so a
+ * case that called it would pull the library out from under the next one. It also must not run from a
+ * test hook — the process dies there before the runner reports, taking a whole leg's summary with it —
+ * so the harness's own shutdown is where it goes.
+ */
+export function closeWebRtc() {
+    cleanup();
 }
