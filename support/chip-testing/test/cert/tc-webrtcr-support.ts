@@ -49,12 +49,14 @@ const PROVIDER_ENDPOINT = 1;
 const CASE_BUDGET = Seconds(150);
 
 /**
- * The outer bound on a case, measured from the moment the case starts rather than from the first
- * prompt. TC-WEBRTCR-2.3 and 2.4 give the whole script three minutes, and commissioning alone may
- * take {@link COMMISSION_TIMEOUT}, so {@link CASE_BUDGET} on its own can outlast the script it runs
- * in. This leaves mobly ten seconds to end the script after the case has stated its verdict.
+ * What a case leaves its script once it has stated its verdict, so mobly ends the script on the
+ * script's own terms rather than aborting it while a handler still holds stdin.
+ *
+ * The scripts differ in what they allow — three minutes for TC-WEBRTCR-2.3, five for 2.5 — and
+ * commissioning alone may take {@link COMMISSION_TIMEOUT}, so {@link CASE_BUDGET} on its own can
+ * outlast the script it runs in. Each case reads its own script's allowance and subtracts this.
  */
-const SCRIPT_BUDGET = Seconds(170);
+const SCRIPT_MARGIN = Seconds(10);
 
 /** Caps on single waits, each further bounded by what is left of {@link CASE_BUDGET}. */
 const SIGNAL_TIMEOUT = Seconds(30);
@@ -280,13 +282,14 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
                 await dut.start();
 
                 let endsAt: number | undefined;
+                let scriptEndsAt = Number.MAX_SAFE_INTEGER;
                 const sessionOf = async () => {
                     // Starts at the first prompt, not at startup: container exec, camera spawn and
                     // commissioning all happen first, and a budget that included them would leave a
                     // slow run with nothing left and record that as the DUT answering nothing. The
                     // script's own deadline still caps it, so a slow start shortens the case instead
                     // of pushing it past the point where mobly aborts the script
-                    endsAt ??= Math.min(Time.nowUs + CASE_BUDGET, startedAt + SCRIPT_BUDGET);
+                    endsAt ??= Math.min(Time.nowUs + CASE_BUDGET, scriptEndsAt);
                     if (state.session === undefined) {
                         if (state.ref === undefined) {
                             throw new InternalError(
@@ -313,6 +316,7 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
                     ...definition.steps.map(step => stepHandler(step, sessionOf, answered, caseState)),
                 ];
                 test = new PromptDrivenPythonTest(descriptor, chip.container, handlers, cx);
+                scriptEndsAt = startedAt + Seconds(await test.declaredTimeout()) - SCRIPT_MARGIN;
 
                 await test.invoke(
                     stubSubject(definition.tc),
