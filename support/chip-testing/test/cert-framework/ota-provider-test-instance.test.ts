@@ -108,41 +108,45 @@ describe("OtaProviderTestInstance", () => {
         // commissioner's default ACL entry is scoped to its own CASE identity, so this device's own NodeId
         // cannot match it even though `adapter` commissions both onto the same fabric. Only the grant this
         // case writes can admit it.
-        const provider = new OtaProviderTestInstance({
-            domain: `ota-provider-test-${Math.random().toString(36).slice(2)}`,
-            commandPipeFactory: async () => {},
-            discriminator: PROVIDER_DISCRIMINATOR,
-            passcode: PROVIDER_PASSCODE,
-            port: PROVIDER_PORT,
-        });
-        await provider.initialize();
-        await provider.start();
-
-        // NodeTestInstance.start() logs a start failure and returns normally, so without this a port
-        // already in use would surface a minute later as a commissioning timeout blaming mDNS.
-        expect(provider.node.lifecycle.isOnline, "the provider is listening after start()").equal(true);
-
-        const peer = new OtaRequestorTestInstance({
-            domain: `ota-provider-test-peer-${Math.random().toString(36).slice(2)}`,
-            commandPipeFactory: async () => {},
-            discriminator: PEER_DISCRIMINATOR,
-            passcode: PEER_PASSCODE,
-            port: PEER_PORT,
-        });
-        await peer.initialize();
-        await peer.start();
-
-        expect(peer.node.lifecycle.isOnline, "the peer is listening after start()").equal(true);
-
-        const adapter = new InProcessControllerAdapter("ota-provider-dut");
-        await adapter.start();
-
-        // Cleanup runs regardless of what happens in the body, and in every case below: a ref may be
-        // set but its decommission fails, or never get set at all because commissioning itself failed.
+        // Setup is inside the guarded scope, not before it: a node this test started and then failed to
+        // commission still holds its port, and the next test blames mDNS for it. A ref may likewise be
+        // set but fail to decommission, or never get set at all.
+        let provider: OtaProviderTestInstance | undefined;
+        let peer: OtaRequestorTestInstance | undefined;
+        let adapter: InProcessControllerAdapter | undefined;
         let providerRef: CertNodeRef | undefined;
         let peerRef: CertNodeRef | undefined;
         let bodyFailure: unknown;
         try {
+            provider = new OtaProviderTestInstance({
+                domain: `ota-provider-test-${Math.random().toString(36).slice(2)}`,
+                commandPipeFactory: async () => {},
+                discriminator: PROVIDER_DISCRIMINATOR,
+                passcode: PROVIDER_PASSCODE,
+                port: PROVIDER_PORT,
+            });
+            await provider.initialize();
+            await provider.start();
+
+            // NodeTestInstance.start() logs a start failure and returns normally, so without this a port
+            // already in use would surface a minute later as a commissioning timeout blaming mDNS.
+            expect(provider.node.lifecycle.isOnline, "the provider is listening after start()").equal(true);
+
+            peer = new OtaRequestorTestInstance({
+                domain: `ota-provider-test-peer-${Math.random().toString(36).slice(2)}`,
+                commandPipeFactory: async () => {},
+                discriminator: PEER_DISCRIMINATOR,
+                passcode: PEER_PASSCODE,
+                port: PEER_PORT,
+            });
+            await peer.initialize();
+            await peer.start();
+
+            expect(peer.node.lifecycle.isOnline, "the peer is listening after start()").equal(true);
+
+            adapter = new InProcessControllerAdapter("ota-provider-dut");
+            await adapter.start();
+
             providerRef = await adapter.commission({
                 passcode: PROVIDER_PASSCODE,
                 discriminator: PROVIDER_DISCRIMINATOR,
@@ -245,11 +249,17 @@ describe("OtaProviderTestInstance", () => {
         // actual defect under test, and a cleanup failure on top of it is logged instead of thrown.
         try {
             await runCleanups(
-                () => (peerRef === undefined ? Promise.resolve() : adapter.node(peerRef).decommission()),
-                () => (providerRef === undefined ? Promise.resolve() : adapter.node(providerRef).decommission()),
-                () => adapter.close(),
-                () => peer.close(),
-                () => provider.close(),
+                () =>
+                    peerRef === undefined || adapter === undefined
+                        ? Promise.resolve()
+                        : adapter.node(peerRef).decommission(),
+                () =>
+                    providerRef === undefined || adapter === undefined
+                        ? Promise.resolve()
+                        : adapter.node(providerRef).decommission(),
+                () => adapter?.close() ?? Promise.resolve(),
+                () => peer?.close() ?? Promise.resolve(),
+                () => provider?.close() ?? Promise.resolve(),
             );
         } catch (cleanupFailure) {
             if (bodyFailure === undefined) {

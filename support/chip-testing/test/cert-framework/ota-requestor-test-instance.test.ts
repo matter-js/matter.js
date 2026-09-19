@@ -175,28 +175,30 @@ describe("OtaRequestorTestInstance", () => {
     it("commissions, comes online, and accepts an OTA provider announcement", async function () {
         this.timeout(30_000);
 
-        const device = new OtaRequestorTestInstance({
-            domain: `ota-requestor-test-${Math.random().toString(36).slice(2)}`,
-            commandPipeFactory: async () => {},
-            discriminator: REQUESTOR_DISCRIMINATOR,
-            passcode: REQUESTOR_PASSCODE,
-            port: REQUESTOR_PORT,
-        });
-        await device.initialize();
-        await device.start();
-
-        // NodeTestInstance.start() logs a start failure and returns normally, so without this a port
-        // already in use would surface a minute later as a commissioning timeout blaming mDNS.
-        expect(device.node.lifecycle.isOnline, "the subject is listening after start()").equal(true);
-
-        const adapter = new InProcessControllerAdapter("ota-requestor-dut");
-        await adapter.start();
-
-        // Cleanup runs regardless of what happens in the body: `ref` may never get set because
-        // commissioning itself failed.
+        // Setup is inside the guarded scope, not before it: a node this test started and then failed to
+        // commission still holds its port, and the next test blames mDNS for it.
+        let device: OtaRequestorTestInstance | undefined;
+        let adapter: InProcessControllerAdapter | undefined;
         let ref: CertNodeRef | undefined;
         let bodyFailure: unknown;
         try {
+            device = new OtaRequestorTestInstance({
+                domain: `ota-requestor-test-${Math.random().toString(36).slice(2)}`,
+                commandPipeFactory: async () => {},
+                discriminator: REQUESTOR_DISCRIMINATOR,
+                passcode: REQUESTOR_PASSCODE,
+                port: REQUESTOR_PORT,
+            });
+            await device.initialize();
+            await device.start();
+
+            // NodeTestInstance.start() logs a start failure and returns normally, so without this a port
+            // already in use would surface a minute later as a commissioning timeout blaming mDNS.
+            expect(device.node.lifecycle.isOnline, "the subject is listening after start()").equal(true);
+
+            adapter = new InProcessControllerAdapter("ota-requestor-dut");
+            await adapter.start();
+
             ref = await adapter.commission({ passcode: REQUESTOR_PASSCODE, discriminator: REQUESTOR_DISCRIMINATOR });
             const node = adapter.node(ref);
 
@@ -227,9 +229,10 @@ describe("OtaRequestorTestInstance", () => {
         // actual defect under test, and a cleanup failure on top of it is logged instead of thrown.
         try {
             await runCleanups(
-                () => (ref === undefined ? Promise.resolve() : adapter.node(ref).decommission()),
-                () => adapter.close(),
-                () => device.close(),
+                () =>
+                    ref === undefined || adapter === undefined ? Promise.resolve() : adapter.node(ref).decommission(),
+                () => adapter?.close() ?? Promise.resolve(),
+                () => device?.close() ?? Promise.resolve(),
             );
         } catch (cleanupFailure) {
             if (bodyFailure === undefined) {

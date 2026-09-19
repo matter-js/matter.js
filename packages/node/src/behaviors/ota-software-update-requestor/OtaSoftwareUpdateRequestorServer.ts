@@ -400,7 +400,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
      * @see {@link MatterSpecification.v16.Core} § 11.20.3.6.1
      */
     protected announcedUpdateQueryDelay(): Duration {
-        return Seconds(Math.floor(Math.random() * 599) + 1);
+        return Seconds(Math.floor(Math.random() * 600) + 1);
     }
 
     /** Adds or updates an active OTA provider entry for a fabric index */
@@ -1297,6 +1297,7 @@ export namespace OtaSoftwareUpdateRequestorServer {
     }
 
     export declare const ExtensionInterface: {
+        announcedUpdateQueryDelay(): Duration;
         requestUserConsent(newSoftwareVersion: number, newSoftwareVersionString: string): MaybePromise<boolean>;
         applyUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator): MaybePromise<void>;
         validateUpdateFile(newSoftwareVersion?: number): MaybePromise<OtaImageHeader>;
