@@ -697,8 +697,11 @@ export interface WebRtcSignalRecord {
 
     /**
      * `"refused"` where the controller answered `NotFound` because it tracks no such session for this
-     * peer and fabric. A case proving a refusal reads the id off this record rather than off the
+     * peer and fabric. A case proving that refusal reads the id off this record rather than off the
      * peer's own log, which states the status without the id.
+     *
+     * Signaling refused before it reaches the cluster — a command whose fields break their own
+     * constraints — is not recorded at all, so a case about one reads the controller's log instead.
      */
     outcome: "accepted" | "refused";
 
