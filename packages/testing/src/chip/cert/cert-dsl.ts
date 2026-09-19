@@ -19,6 +19,7 @@ import { ChipBinsSource, chipBinsSourceFor, resolveChipBinsSource } from "../chi
 import { chip } from "../chip.js";
 import { PicsExpression } from "../pics/expression.js";
 import { State } from "../state.js";
+import { picsWithOverrides } from "./cert-app-pics.js";
 import {
     CertDevice,
     CertDeviceFactory,
@@ -31,7 +32,7 @@ import {
 import { CertTest, registerCertTestFactory } from "./cert-test.js";
 import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
 import type { ControllerTransport } from "./controller-adapter.js";
-import { ControllerAdapter, controllerPicsOverridesFor, createControllerAdapter } from "./controller-adapter.js";
+import { ControllerAdapter, createControllerAdapter } from "./controller-adapter.js";
 import { ControllerImplementation, resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
 import { EvidenceRecorder, type RunDeviceRecord } from "./evidence.js";
 import { matterJsCertSubjectFor } from "./matterjs-subject-registry.js";
@@ -226,6 +227,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         plan: options.plan,
         pics: options.pics,
         app: options.app,
+        dutIsDevice: !Object.values(controllerRoles).includes("dut"),
         appVariant: options.appVariant,
         flavors: options.flavors,
         chipBinsSources: options.chipBinsSources,
@@ -441,7 +443,7 @@ function defineCertTest(
             // PICS resolves only once the container is up, so this gate cannot live beside the flavor
             // gate above. It still precedes activation: a test the PICS excludes must not start a
             // device, and its skip is the run's own record that it never ran.
-            const pics = certPicsFile();
+            const pics = certPicsFile(definition);
 
             // The report renders a test's PICS against this file rather than the device's alone, so a
             // capability the controller declares reads as met there too.
@@ -463,12 +465,12 @@ function defineCertTest(
 /**
  * The test-level PICS expression `definition` declares, if the run's own PICS does not satisfy it.
  *
- * The controller's own declarations overlay the device's PICS file: a cert test's DUT is the
- * controller, so a capability like batched invoke is the controller's to claim, while everything else
- * the expression names still comes from the device (see `controller-adapter.ts`'s
- * `controllerPicsOverridesFor`).
+ * Both sides' own declarations overlay the device's PICS file, the DUT's side last: a capability like
+ * batched invoke is the controller's to claim, a BDX receiver role is the cert app's, and everything
+ * else the expression names still comes from the device (see `cert-app-pics.ts`'s
+ * `picsWithOverrides`).
  */
-export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFile()): string | undefined {
+export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFile(definition)): string | undefined {
     if (!definition.pics.length) {
         return undefined;
     }
@@ -482,8 +484,8 @@ export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFil
  * The PICS a cert run evaluates against: the device's own file with the controller's declarations
  * overlaid.
  */
-export function certPicsFile() {
-    return chip.defaultPics.with(controllerPicsOverridesFor(resolveControllerImplementation()));
+export function certPicsFile(definition: Pick<CertTestDefinition, "app" | "dutIsDevice">) {
+    return picsWithOverrides(chip.defaultPics, definition);
 }
 
 let matterJsCommitPromise: Promise<string> | undefined;

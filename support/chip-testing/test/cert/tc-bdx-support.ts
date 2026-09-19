@@ -15,7 +15,7 @@ import type {
     LogFollower,
     OtaBdxTransfer,
 } from "@matter/testing";
-import { expectSequence, LOG_TIMEOUT, record } from "./tc-support.js";
+import { CertCheckFailedError, expectSequence, LOG_TIMEOUT, recordAll } from "./tc-support.js";
 
 /**
  * Budget for the whole OTA exchange the precondition step drives: the announcement, the TH's own
@@ -40,24 +40,64 @@ export interface BdxTransferEvidence {
 }
 
 /**
- * Has the DUT serve one OTA image to the TH over BDX and waits until the TH's own log has caught up
- * with the end of it.
+ * Role wiring for a case whose DUT receives the image, named for the roles its plan gives them rather
+ * than this suite's usual pair. The plan's DUT is a BDX receiver, which in Matter is an OTA
+ * requestor, so here it is the device and the controller is the TH.
+ */
+export const BDX_RECEIVER_ROLES = {
+    controllers: { th: "helper" },
+    devices: { dut: "ota-requestor" },
+} as const;
+
+/** The transfer a precondition step recorded, or a step failure naming what is missing. */
+export function transferOrFail(served: BdxTransferEvidence | undefined): BdxTransferEvidence {
+    if (served === undefined) {
+        throw new CertCheckFailedError("the precondition step served no BDX transfer for this step to read");
+    }
+    return served;
+}
+
+/**
+ * Which role serves the image and which receives it.
  *
- * Both BDX cases rest on a single transfer: their steps read different messages out of one exchange
+ * The same exchange carries two pairs of cases from opposite sides: TC-BDX-1.4 and TC-BDX-2.1 put
+ * their DUT in the sender's role, which here is the controller, and TC-BDX-1.2 and TC-BDX-2.2 put it
+ * in the receiver's, which is the device. Naming the roles rather than assuming them is what lets one
+ * precondition serve both, and the evidence text follows the names so a bundle says which side the
+ * claim is about.
+ */
+export interface OtaTransferRoles {
+    /** Controller role that serves the image, as a BDX responder and sender. */
+    sender: string;
+
+    /** Device role that receives it, as a BDX initiator and receiver. */
+    receiver: string;
+}
+
+/**
+ * Has `sender` serve one OTA image to `receiver` over BDX and waits until the receiver's own log has
+ * caught up with the end of it.
+ *
+ * Every BDX case rests on a single transfer: their steps read different messages out of one exchange
  * rather than driving one each, which is what the plans describe ("DUT sends the first Block … DUT
  * sends further Blocks … DUT sends a BlockEOF") and what a real OTA does.
  *
- * The transfer is the DUT's own, in the role the plans give it: the TH opens it with a `ReceiveInit`
- * and the DUT answers as BDX responder and sender. A transfer that never happened rejects here rather
- * than leaving the later steps to find nothing.
+ * The receiver opens the transfer with a `ReceiveInit` and the sender answers it. A transfer that
+ * never happened rejects here rather than leaving the later steps to find nothing.
  */
-export async function serveOtaTransfer(cx: CertStepContext, ref: CertNodeRef): Promise<BdxTransferEvidence> {
-    const th = cx.devices.th;
-    const from = await th.log.markSettled();
+export async function serveOtaTransfer(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    { sender, receiver }: OtaTransferRoles,
+): Promise<BdxTransferEvidence> {
+    const device = cx.devices[receiver];
+    const from = await device.log.markSettled();
+    const senderName = sender.toUpperCase();
+    const receiverName = receiver.toUpperCase();
 
     let transfer: OtaBdxTransfer;
     try {
-        transfer = await cx.controllers.dut.node(ref).serveOtaUpdate({ timeoutMs: OTA_TRANSFER_TIMEOUT });
+        transfer = await cx.controllers[sender].node(ref).serveOtaUpdate({ timeoutMs: OTA_TRANSFER_TIMEOUT });
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
         // recorded nothing, so recording first would fail the run on a controller that cannot serve at all.
@@ -68,30 +108,55 @@ export async function serveOtaTransfer(cx: CertStepContext, ref: CertNodeRef): P
         throw e;
     }
 
-    record(
-        cx,
+    await recordAll(cx, [
         {
-            type: "response",
-            verdict: "pass",
-            detail:
-                `DUT served software version ${transfer.softwareVersion} as ${transfer.fileSize} bytes over BDX ` +
-                `from endpoint ${transfer.providerEndpoint}, transferring ${transfer.transferredBytes} bytes`,
+            what: `the ${senderName} served an OTA image over BDX`,
+            check: () => ({
+                type: "response",
+                verdict: "pass",
+                detail:
+                    `${senderName} served software version ${transfer.softwareVersion} as ${transfer.fileSize} ` +
+                    `bytes over BDX from endpoint ${transfer.providerEndpoint}, transferring ` +
+                    `${transfer.transferredBytes} bytes`,
+            }),
         },
-        "the DUT served an OTA image over BDX",
-    );
-
-    // The DUT's own account settles when it receives the TH's last acknowledgement, which is written
-    // on the TH before that; waiting for the TH to say so is what lets the later steps read its log
-    // as a finished record rather than one still arriving.
-    const check = await expectSequence(
-        th.log,
-        th.flavor,
-        "BDX BlockAckEOF the TH sent",
-        endOfTransferLines(),
-        from,
-        LOG_TIMEOUT,
-    );
-    record(cx, check, "the TH acknowledged the end of the transfer");
+        {
+            // The sender's own account settles when it receives the last acknowledgement, which is
+            // written on the receiver before that; waiting for the receiver to say so is what lets the
+            // later steps read its log as a finished record rather than one still arriving.
+            what: `the ${receiverName} acknowledged the end of the transfer`,
+            check: () =>
+                expectSequence(
+                    device.log,
+                    device.flavor,
+                    `BDX BlockAckEOF the ${receiverName} sent`,
+                    endOfTransferLines(),
+                    from,
+                    LOG_TIMEOUT,
+                ),
+        },
+        {
+            // Recorded, never failed: the apply is how the OTA exchange ends, and this precondition
+            // waits for it so a case's teardown cannot strand the receiver mid-exchange. What the
+            // cases themselves are about is the transfer, which is complete either way, and failing
+            // here would take every later step's evidence with it.
+            what: `the ${receiverName} finished the OTA exchange the transfer belongs to`,
+            check: () =>
+                transfer.applyAcknowledged
+                    ? {
+                          type: "response",
+                          verdict: "pass",
+                          detail: `the ${receiverName} asked to apply the image and the ${senderName} allowed it`,
+                      }
+                    : {
+                          type: "response",
+                          verdict: "unverified",
+                          accepted:
+                              `the ${receiverName} had not asked to apply the image when the ${senderName} ` +
+                              "stopped waiting; the transfer this case reads was complete before that",
+                      },
+        },
+    ]);
 
     return { transfer, from };
 }
@@ -246,6 +311,30 @@ function messagesIn(
         });
     }
     return records;
+}
+
+/**
+ * A device-log check over messages a receiver's log carries, or the flavor's declared gap where it
+ * logs none.
+ */
+export function overMessages(
+    messages: BdxMessageRecord[] | undefined,
+    what: string,
+    source: string,
+    judge: (messages: BdxMessageRecord[]) => { ok: boolean; detail: string },
+): CheckRecord {
+    if (messages === undefined) {
+        return unloggedByFlavor(what, source);
+    }
+    const { ok, detail } = judge(messages);
+    return {
+        type: "device-log",
+        verdict: ok ? "pass" : "fail",
+        pattern: what,
+        detail,
+        matched: messages[0]?.line,
+        logLine: messages[0]?.index,
+    };
 }
 
 /** {@link messagesIn} for the `Block` messages the TH took in. */

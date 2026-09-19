@@ -1235,6 +1235,7 @@ export class SoftwareUpdateManager extends Behavior {
                     toVersion !== undefined ? ` for version ${toVersion}` : ""
                 }`,
             );
+            const wasApplying = entry.lastProgressStatus === OtaUpdateStatus.Applying;
             entry.lastProgressUpdateTime = Time.nowMs;
             entry.lastProgressStatus = status;
 
@@ -1244,6 +1245,12 @@ export class SoftwareUpdateManager extends Behavior {
             // still be stale then; the armer resolves purely on new-session + data-flow.
             if (status === OtaUpdateStatus.Applying) {
                 this.#rebootResubscribeArmer.arm(peerAddress);
+
+                // A retransmitted ApplyUpdateRequest re-enters the provider's handler and reports Applying
+                // again; the event says the peer reached this point, not how often it asked.
+                if (!wasApplying) {
+                    this.events.updateApplying.emit(peerAddress);
+                }
             }
         }
     }
@@ -1350,6 +1357,16 @@ export namespace SoftwareUpdateManager {
     export class Events extends EventEmitter {
         /** Emitted when an update is available for a Peer and there is no consent stored and contains update details */
         updateAvailable = Observable<[peer: PeerAddress, updateDetails: SoftwareUpdateInfo]>();
+
+        /**
+         * Emitted when a Peer has asked to apply the image it downloaded and this provider allowed it.
+         *
+         * This is the last thing a Peer needs from its provider: the download is complete, the
+         * `ApplyUpdateRequest` is answered, and what follows — applying and reporting back — is the
+         * Peer's own. {@link updateDone} is further off, because it waits for the `NotifyUpdateApplied`
+         * a device sends after it has restarted.
+         */
+        updateApplying = Observable<[peer: PeerAddress]>();
 
         /** Emitted when an update for a Peer is finished */
         updateDone = Observable<[peer: PeerAddress]>();

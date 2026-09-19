@@ -22,12 +22,17 @@ import type {
     TestFileDescriptor,
 } from "@matter/testing";
 import {
+    certAppPicsOverridesFor,
+    certPicsFile,
     CertTest,
     EvidenceRecorder,
     LogFollower,
+    PicsExpression,
     PicsFile,
     PicsUnavailableError,
+    registerCertAppPics,
     unmetTestPics,
+    unregisterCertAppPics,
     UnsupportedByControllerError,
 } from "@matter/testing";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -3129,5 +3134,69 @@ describe("test-level PICS gate", () => {
 
     it("is met for a test declaring no PICS at all", () => {
         expect(unmetTestPics(definitionWith([]))).undefined;
+    });
+});
+
+describe("cert app PICS", () => {
+    const APP = "pics-registry-test-app";
+    const originalController = env.MATTER_CERT_CONTROLLER;
+    const originalDevice = env.MATTER_CERT_DEVICE;
+
+    function restore(name: "MATTER_CERT_CONTROLLER" | "MATTER_CERT_DEVICE", value: string | undefined) {
+        if (value === undefined) {
+            delete env[name];
+        } else {
+            env[name] = value;
+        }
+    }
+
+    afterEach(() => {
+        unregisterCertAppPics("matterjs", APP);
+        restore("MATTER_CERT_CONTROLLER", originalController);
+        restore("MATTER_CERT_DEVICE", originalDevice);
+    });
+
+    function definitionFor(pics: string[], dutIsDevice: boolean): CertTestDefinition {
+        return { tc: "TC-PICS-0.1", plan: "bdx.adoc", pics, app: APP, dutIsDevice, steps: [] };
+    }
+
+    it("answers nothing for an app that declared nothing", () => {
+        expect(certAppPicsOverridesFor("matterjs", APP)).deep.equal({});
+    });
+
+    it("refuses a second declaration for one app and flavor", () => {
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 });
+
+        expect(() => registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 })).throw(/already registered/);
+    });
+
+    it("keeps one app's flavors apart", () => {
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 });
+
+        expect(certAppPicsOverridesFor("chip-local", APP)).deep.equal({});
+    });
+
+    it("admits a test the device's own PICS file would refuse", () => {
+        env.MATTER_CERT_DEVICE = "matterjs";
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 });
+
+        // The gate the runner applies before it starts a device, which is where a missing overlay
+        // shows up as a test that never ran rather than as a failure
+        expect(unmetTestPics(definitionFor(["MCORE.BDX.Receiver"], true), certPicsFile(definitionFor([], true))))
+            .undefined;
+    });
+
+    it("lets the DUT's own side answer where both sides declare one key", () => {
+        env.MATTER_CERT_DEVICE = "matterjs";
+        env.MATTER_CERT_CONTROLLER = "matterjs";
+
+        // The controller declares this 0 about its own sending; the app declares 1 about the device
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.BlockQueryWithSkip": 1 });
+
+        const forDevice = certPicsFile(definitionFor([], true));
+        const forController = certPicsFile(definitionFor([], false));
+
+        expect(new PicsExpression("MCORE.BDX.BlockQueryWithSkip").evaluate(forDevice)).equal(true);
+        expect(new PicsExpression("MCORE.BDX.BlockQueryWithSkip").evaluate(forController)).equal(false);
     });
 });

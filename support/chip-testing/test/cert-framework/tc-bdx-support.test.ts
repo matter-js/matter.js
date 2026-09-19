@@ -149,6 +149,8 @@ describe("tc-bdx-support", () => {
             receiverDrive: true,
             asynchronousTransfer: false,
             maxBlockSize: 1024,
+            fileDesignator: "update-token",
+            fileDesignatorLength: 12,
         };
 
         const RECEIVER_ACCEPT: BdxTransferAccept = {
@@ -202,6 +204,8 @@ describe("tc-bdx-support", () => {
                 receiverDrive: true,
                 asynchronousTransfer: false,
                 maxBlockSize: 1024,
+                fileDesignator: "update-token",
+                fileDesignatorLength: 12,
             };
             expect(chipProposedTransferControl(proposal)).equal("0x20");
             expect(chipProposedTransferControl({ ...proposal, senderDrive: true })).equal("0x30");

@@ -294,6 +294,15 @@ export interface BdxTransferProposal {
 
     /** The definite length proposed, absent where the initiator proposed an indefinite transfer. */
     definiteLength?: number;
+
+    /**
+     * File designator the initiator named, as the text its bytes carry. For an OTA download it is the
+     * path out of the image URI the provider answered `QueryImage` with, `ota/<filename>`.
+     */
+    fileDesignator: string;
+
+    /** Length of that designator in bytes, which is the message's own File Designator Length field. */
+    fileDesignatorLength: number;
 }
 
 /**
@@ -350,6 +359,15 @@ export interface OtaBdxTransfer {
 
     /** Bytes the controller's BDX sender moved, counted by the sending flow itself. */
     transferredBytes: number;
+
+    /**
+     * Whether the node asked to apply what it downloaded and this provider allowed it, which is the
+     * end of the OTA exchange as far as the node is concerned.
+     *
+     * A transfer can complete without it — a node may decide the image is not for it after all — so
+     * this is reported rather than being a condition of serving.
+     */
+    applyAcknowledged: boolean;
 }
 
 /** Options for {@link CertNodeApi.serveOtaUpdate}. */
