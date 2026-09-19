@@ -322,7 +322,7 @@ describe("Task lifecycle", () => {
             await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "reject" }));
 
             // The gate parks on its observers: OK commits, R stays pending.
-            for (let i = 0; i < 10_000 && !peer.itemRemoved.isObserved; i++) {
+            for (let i = 0; i < 10_000 && !peer.itemConcluded.isObserved; i++) {
                 await MockTime.advance(1);
             }
             expect(peer.items[itemMapKey("groupMembership", "OK")]?.status.state).equals("committed");

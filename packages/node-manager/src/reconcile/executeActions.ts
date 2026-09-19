@@ -6,7 +6,8 @@
 
 import { Logger } from "@matter/general";
 import type { ClientNode } from "@matter/node";
-import { ItemKindRegistry, ItemState, ManagedItem, UnknownItemKindError } from "@matter/node";
+import { ItemConclusion, ItemKindRegistry, ItemState, ManagedItem, UnknownItemKindError } from "@matter/node";
+import { Status } from "@matter/types";
 import { PlannedAction } from "./planActions.js";
 
 const logger = Logger.get("Reconciler");
@@ -25,8 +26,8 @@ export interface ReconcileTarget {
         state: "committed" | "commitFailed" | "pending",
         code?: number,
     ): Promise<void>;
-    /** `reason` says why the item is going, for the one moment before its status is unreachable. */
-    dropItem(kind: string, key: string, reason?: string): Promise<void>;
+    /** How the engine finished with the item, which is what a caller waiting on it has to be able to read. */
+    dropItem(kind: string, key: string, conclusion: ItemConclusion): Promise<void>;
     /**
      * The item as it stands now, re-read after a slow apply.
      *
@@ -93,9 +94,16 @@ export async function executeActions(
                     if (!stillPlanned(target, item, "deletePending")) {
                         break;
                     }
-                    await target.dropItem(item.kind, item.key);
+                    await target.dropItem(item.kind, item.key, { outcome: "removed" });
                 } catch (e) {
                     if (!stillPlanned(target, item, "deletePending")) {
+                        break;
+                    }
+                    // A device that says it does not have the thing has given the removal what it asked for.
+                    // The rule belongs to removal rather than to any one kind: stated per kind, a kind added
+                    // later states it or reports a failure for work that is already done.
+                    if (extractStatusCode(e) === Status.NotFound) {
+                        await target.dropItem(item.kind, item.key, { outcome: "removed" });
                         break;
                     }
                     logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not be removed:`, e);
@@ -107,17 +115,19 @@ export async function executeActions(
                 if (!stillPlanned(target, item)) {
                     break;
                 }
-                // The item goes, so this is the last moment anything knows why. A task waiting on it would
-                // otherwise be told only that it is gone.
                 // Only a status code says the device refused it; a local failure — an unregistered kind, a
                 // kind that threw — reaches this path with none, and naming the device for those sends an
                 // operator to the wrong place.
                 const reason =
                     item.status.failureCode === undefined
-                        ? "it could not be applied"
+                        ? `it could not be ${item.outstanding === "remove" ? "removed" : "applied"}`
                         : `the device rejected it with status ${item.status.failureCode}`;
-                logger.notice(`${item.kind}:${item.key} on ${target.node.id} dropped: ${reason}`);
-                await target.dropItem(item.kind, item.key, reason);
+                logger.notice(`${item.kind}:${item.key} on ${target.node.id} given up on: ${reason}`);
+                await target.dropItem(item.kind, item.key, {
+                    outcome: "abandoned",
+                    reason,
+                    failureCode: item.status.failureCode,
+                });
                 break;
             }
 

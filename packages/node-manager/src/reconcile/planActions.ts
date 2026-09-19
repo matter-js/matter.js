@@ -38,7 +38,13 @@ function actionFor(item: ManagedItem, opts: PlanOptions): ReconcileAction {
         case "deletePending":
             return "remove";
         case "commitFailed":
-            return opts.recoverable(item) ? "retry" : "drop";
+            // What failed decides what to try again. The reported state cannot say — it is the JFDS
+            // `CommitFailure`, which covers both — so a retry that read it alone would re-apply an item a
+            // caller asked to remove, and giving up on one would forget an entry the device still holds.
+            if (!opts.recoverable(item)) {
+                return "drop";
+            }
+            return item.outstanding === "remove" ? "remove" : "retry";
         case "committed":
             // A verify pass that finds drift re-applies in the same pass, so reconcile(verify) converges
             // deterministically without depending on a follow-up trigger.

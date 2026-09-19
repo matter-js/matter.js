@@ -10,7 +10,7 @@ import { Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { assertCapacity, CapacityCache } from "./capacity.js";
 import type { CapacityInfo } from "./ItemKind.js";
-import { itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
+import { ItemConclusion, itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
 
 /**
  * Per-ClientNode store of intended state. Holds persisted {@link ManagedItem}s and a volatile
@@ -37,7 +37,7 @@ export class DesiredStateBehavior extends Behavior {
     });
 
     setIntent<I>(kind: string, key: string, intent: I, mode: ItemMode = "converge"): ManagedItem<I> {
-        const item: ManagedItem<I> = { kind, key, intent, mode, status: newStatus("pending") };
+        const item: ManagedItem<I> = { kind, key, intent, mode, status: newStatus("pending"), outstanding: "apply" };
         this.state.items = { ...this.state.items, [itemMapKey(kind, key)]: item };
         this.events.itemChanged.emit(item);
         return item;
@@ -49,7 +49,7 @@ export class DesiredStateBehavior extends Behavior {
         if (existing === undefined) {
             return;
         }
-        const item: ManagedItem = { ...existing, status: newStatus("deletePending") };
+        const item: ManagedItem = { ...existing, status: newStatus("deletePending"), outstanding: "remove" };
         this.state.items = { ...this.state.items, [id]: item };
         this.events.itemChanged.emit(item);
     }
@@ -65,14 +65,20 @@ export class DesiredStateBehavior extends Behavior {
         this.events.itemChanged.emit(item);
     }
 
-    dropItem(kind: string, key: string): void {
+    /**
+     * Take an item out of desired state, saying how the engine finished with it.
+     *
+     * The conclusion is the point: a caller waiting on this item cannot tell a removal it asked for from an
+     * abandonment by the item's absence, and the two mean opposite things about what the device holds.
+     */
+    dropItem(kind: string, key: string, conclusion: ItemConclusion): void {
         const id = itemMapKey(kind, key);
         if (this.state.items[id] === undefined) {
             return;
         }
         const { [id]: _removed, ...rest } = this.state.items;
         this.state.items = rest;
-        this.events.itemRemoved.emit(kind, key);
+        this.events.itemConcluded.emit(kind, key, conclusion);
     }
 
     getItem(kind: string, key: string): ManagedItem | undefined {
@@ -108,6 +114,6 @@ export namespace DesiredStateBehavior {
 
     export class Events extends BaseEvents {
         itemChanged = new Observable<[item: ManagedItem]>();
-        itemRemoved = new Observable<[kind: string, key: string]>();
+        itemConcluded = new Observable<[kind: string, key: string, conclusion: ItemConclusion]>();
     }
 }

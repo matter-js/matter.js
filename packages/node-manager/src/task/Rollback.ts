@@ -81,7 +81,6 @@ async function rollback(ctx: TaskContext, params: RollbackParams): Promise<void>
         await ctx.awaitCommitted(restored);
     }
     if (removed.length > 0) {
-        const peers = [...new Set(removed.map(r => r.peer))];
-        await ctx.awaitGate(peers, () => removed.every(r => ctx.itemAbsent(r.peer, r.kind, r.key)));
+        await ctx.awaitRemoved(removed);
     }
 }

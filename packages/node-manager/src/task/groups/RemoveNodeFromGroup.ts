@@ -68,7 +68,7 @@ async function remove(ctx: TaskContext, p: RemoveNodeFromGroupParams): Promise<v
     }
 
     if (removed.length > 0) {
-        await ctx.awaitGate([peer], () => removed.every(r => ctx.itemAbsent(peer, r.kind, r.key)));
+        await ctx.awaitRemoved(removed.map(r => ({ peer, kind: r.kind, key: r.key })));
     }
 }
 

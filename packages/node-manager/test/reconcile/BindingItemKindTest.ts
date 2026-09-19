@@ -56,6 +56,7 @@ function item(g: BindingGrant): ManagedItem<BindingGrant> {
         intent: g,
         mode: "converge",
         status: { state: "pending", updateTimestamp: 0 },
+        outstanding: "apply",
     };
 }
 
