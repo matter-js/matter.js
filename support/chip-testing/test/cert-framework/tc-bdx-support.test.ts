@@ -37,15 +37,21 @@ async function follower(lines: string[]): Promise<LogFollowerType> {
     return log;
 }
 
-/** matter.js's own lines for a receiver taking in two blocks and the end of the transfer. */
+/**
+ * matter.js's own lines for a receiver taking in two blocks and the end of the transfer, as a real run
+ * writes them.
+ *
+ * A receiver's own messages carry what it took: an inbound message is logged as it arrives, before BDX
+ * decodes it, so a `Block` line names no counter and the query that follows reports the block before it.
+ */
 const MATTERJS_TRANSFER = [
-    "2026-09-13 16:27:20.956 DEBUG BdxMessenger Sending Bdx BlockQuery cnt: 0",
-    "2026-09-13 16:27:20.957 DEBUG BdxMessenger Received Bdx Block cnt: 0, len: 1024bytes",
-    "2026-09-13 16:27:20.957 DEBUG BdxMessenger Sending Bdx BlockQuery cnt: 1",
-    "2026-09-13 16:27:20.958 DEBUG BdxMessenger Received Bdx Block cnt: 1, len: 1024bytes",
-    "2026-09-13 16:27:20.958 DEBUG BdxMessenger Sending Bdx BlockQuery cnt: 2",
-    "2026-09-13 16:27:21.011 DEBUG BdxMessenger Received Bdx BlockEof cnt: 2, len: 103bytes",
-    "2026-09-13 16:27:21.011 DEBUG BdxMessenger Sending Bdx BlockAckEof cnt: 2",
+    "2026-09-19 11:35:13.900 DEBUG MessageChannel Message » for: BDX/BlockQuery cnt: 0 id: @1:5bfb•b7 type: 0x14/0x10",
+    "2026-09-19 11:35:13.910 DEBUG MessageChannel Message « for: BDX/Block id: @1:5bfb•b8 type: 0x14/0x11",
+    "2026-09-19 11:35:13.945 DEBUG MessageChannel Message » for: BDX/BlockQuery cnt: 1 rcvdCnt: 0 rcvdLen: 1024 id: @1:5bfb•b9 type: 0x14/0x10",
+    "2026-09-19 11:35:13.950 DEBUG MessageChannel Message « for: BDX/Block id: @1:5bfb•ba type: 0x14/0x11",
+    "2026-09-19 11:35:13.990 DEBUG MessageChannel Message » for: BDX/BlockQuery cnt: 2 rcvdCnt: 1 rcvdLen: 1024 id: @1:5bfb•bb type: 0x14/0x10",
+    "2026-09-19 11:35:14.010 DEBUG MessageChannel Message « for: BDX/BlockEof id: @1:5bfb•bc type: 0x14/0x12",
+    "2026-09-19 11:35:14.017 DEBUG MessageChannel Message » for: BDX/BlockAckEof cnt: 2 ackLen: 103 id: @1:5bfb•bd type: 0x14/0x14",
 ];
 
 const CHIP_PREFIX = "[1786133143.490] [61784:1234567:chip] [ATM] ";
