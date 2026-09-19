@@ -109,7 +109,13 @@ export async function executeActions(
                 }
                 // The item goes, so this is the last moment anything knows why. A task waiting on it would
                 // otherwise be told only that it is gone.
-                const reason = `the device rejected it${item.status.failureCode === undefined ? "" : ` with status ${item.status.failureCode}`}`;
+                // Only a status code says the device refused it; a local failure — an unregistered kind, a
+                // kind that threw — reaches this path with none, and naming the device for those sends an
+                // operator to the wrong place.
+                const reason =
+                    item.status.failureCode === undefined
+                        ? "it could not be applied"
+                        : `the device rejected it with status ${item.status.failureCode}`;
                 logger.notice(`${item.kind}:${item.key} on ${target.node.id} dropped: ${reason}`);
                 await target.dropItem(item.kind, item.key, reason);
                 break;
