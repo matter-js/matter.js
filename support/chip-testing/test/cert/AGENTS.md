@@ -2698,7 +2698,7 @@ Two more things the first live run settled, neither of which is visible from the
   the container's records arrive on (`bridge100` here; `dns-sd -B _matterc._udp local.` prints the
   interface index, and `python3 -c "import socket;print(socket.if_indextoname(N))"` names it).
 
-The rest of the block (`TC-WEBRTCR-2.2`, `2.6`, `2.7`) shares all of that through
+The rest of the block (`TC-WEBRTCR-2.2` … `2.7`) shares all of that through
 `tc-webrtcr-support.ts`: `certCameraCase()` owns the adapter, the recorder, the commissioning prompt
 and the teardown, and a case supplies only the prompt it answers and what it proves. Four more things
 those cases settled:
@@ -2718,9 +2718,19 @@ those cases settled:
   refusal from the controller's own log instead — take the mark with `markSettled()`, not `mark()`: a
   line already in the pump can otherwise sit at an index the mark does not exclude, and satisfy the
   check without the fault ever firing.
-- **`2.3`, `2.4` and `2.5` are not reachable this way.** Each requires the provider to report
-  `PeerConnection State: Connected`, which means a real WebRTC stack on the controller: SDP answer,
-  ICE, DTLS and SCTP. Signaling alone cannot satisfy them.
+- **`2.3`, `2.4` and `2.5` need the controller to be a real WebRTC endpoint**, because each asks the
+  provider to report `PeerConnection State: Connected`. `webrtc-peer.ts` is that endpoint, over
+  `node-datachannel` — a dependency of this package alone, since the WebRTC media plane belongs to the
+  application driving matter.js, not to the library. Three things that flow had to settle:
+  - An offer needs something to negotiate: a peer connection with no data channel and no track cannot
+    describe itself at all (`No DataChannel or Track to negotiate`).
+  - chip's camera answers `a=setup:actpass`, which RFC 8842 § 5.3 forbids in an answer — the answerer
+    picks `active` or `passive`. libdatachannel refuses the answer, so `WebRtcPeer.accept` settles the
+    role. Reported upstream.
+  - Ending a session is two things: `EndSession` tells the provider, and `removeSession` stops the
+    requestor reporting it. The cluster drops a session by itself only when the *peer* ends it, so a
+    controller that skips the second half keeps a session it ended in `CurrentSessions` — which is
+    what `TC-WEBRTCR-2.5`'s last read catches.
 
 A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
 so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which

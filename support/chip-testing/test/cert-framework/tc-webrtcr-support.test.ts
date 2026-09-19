@@ -59,7 +59,15 @@ function fakeSession(
     node: CertNodeApi = fakeCertNode(),
     remaining: Duration = Seconds(30),
 ): CameraSession {
-    return { node, requestor, ref: REF, videoStreamId: 3, remaining: () => remaining };
+    return {
+        node,
+        requestor,
+        ref: REF,
+        videoStreamId: 3,
+        remaining: () => remaining,
+        // No case helper under test drives a peer connection; the ones that do are the live cases
+        peer: undefined as unknown as CameraSession["peer"],
+    };
 }
 
 /** Captures what a helper records, with no controller log. */

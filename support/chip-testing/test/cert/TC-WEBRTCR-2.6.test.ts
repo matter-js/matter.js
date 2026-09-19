@@ -19,26 +19,32 @@ certCameraCase({
     script: "TC_WEBRTCR_2_6.py",
     subpath: "test_TC_WebRTCR_2_6",
     title: "Validate ICECandidates command with invalid session id [DUT_Requestor]",
-    signalPrompt: /Send 'ProvideOffer' command to the server app from DUT:/,
-    signalStep: "5",
+    commissioning: "manual-code",
 
-    async prove(cx, session) {
-        const held = await provideOffer(session);
+    steps: [
+        {
+            prompt: /Send 'ProvideOffer' command to the server app from DUT:/,
+            step: "5",
 
-        // The provider forwards its own candidates only once it has some from us, and it is those the
-        // injected fault gives a session id the DUT never established.
-        await provideIceCandidates(session, held);
+            async run(cx, session) {
+                const held = await provideOffer(session);
 
-        const refusal = await expectRefusal(cx, session, "iceCandidates", held);
-        if (!refusal.passed || refusal.refusedId === undefined) {
-            // The remaining checks all rest on a refusal having happened, and each costs a wait the
-            // script's own timeout does not have room for
-            return "fail";
-        }
-        const kept = await expectSessionHeld(cx, session, held);
-        const noneAccepted = expectNoneAccepted(cx, session, "iceCandidates", refusal.refusedId);
-        const control = await expectControlAccepted(cx, session, "iceCandidates", held, provideOffer);
+                // The provider forwards its own candidates only once it has some from us, and it is those the
+                // injected fault gives a session id the DUT never established.
+                await provideIceCandidates(session, held);
 
-        return kept && noneAccepted && control ? "pass" : "fail";
-    },
+                const refusal = await expectRefusal(cx, session, "iceCandidates", held);
+                if (!refusal.passed || refusal.refusedId === undefined) {
+                    // The remaining checks all rest on a refusal having happened, and each costs a wait the
+                    // script's own timeout does not have room for
+                    return "fail";
+                }
+                const kept = await expectSessionHeld(cx, session, held);
+                const noneAccepted = expectNoneAccepted(cx, session, "iceCandidates", refusal.refusedId);
+                const control = await expectControlAccepted(cx, session, "iceCandidates", held, provideOffer);
+
+                return kept && noneAccepted && control ? "pass" : "fail";
+            },
+        },
+    ],
 });
