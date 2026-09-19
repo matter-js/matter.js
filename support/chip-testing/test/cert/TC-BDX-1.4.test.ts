@@ -15,14 +15,7 @@ import {
     serveOtaTransfer,
     type BdxTransferEvidence,
 } from "./tc-bdx-support.js";
-import {
-    CertCheckFailedError,
-    CommissionedRefs,
-    expectSequence,
-    LOG_TIMEOUT,
-    record,
-    recordAll,
-} from "./tc-support.js";
+import { CertCheckFailedError, CommissionedRefs, expectSequence, LOG_TIMEOUT, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
@@ -150,31 +143,29 @@ async function recordAcceptFields(cx: CertStepContext) {
         },
     ]);
 
-    record(
-        cx,
-        await expectSequence(
-            th.log,
-            th.flavor,
-            "BDX ReceiveInit the TH sent",
-            receiveInitLines(proposal),
-            from,
-            LOG_TIMEOUT,
-        ),
-        "the TH proposed the transfer the DUT answered",
+    // Both waits run before either verdict is submitted: the step claims evidence for the init and for
+    // the accept, and a `record` per check would drop the second on the first one's failure.
+    const initSeen = await expectSequence(
+        th.log,
+        th.flavor,
+        "BDX ReceiveInit the TH sent",
+        receiveInitLines(proposal),
+        from,
+        LOG_TIMEOUT,
+    );
+    const acceptSeen = await expectSequence(
+        th.log,
+        th.flavor,
+        "BDX ReceiveAccept the TH received",
+        receiveAcceptLines(accept),
+        from,
+        LOG_TIMEOUT,
     );
 
-    record(
-        cx,
-        await expectSequence(
-            th.log,
-            th.flavor,
-            "BDX ReceiveAccept the TH received",
-            receiveAcceptLines(accept),
-            from,
-            LOG_TIMEOUT,
-        ),
-        "the TH received the accept the DUT reports having sent",
-    );
+    recordAll(cx, [
+        { check: () => initSeen, what: "the TH proposed the transfer the DUT answered" },
+        { check: () => acceptSeen, what: "the TH received the accept the DUT reports having sent" },
+    ]);
 }
 
 certTest("TC-BDX-1.4", {

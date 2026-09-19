@@ -15,7 +15,7 @@ import {
     serveOtaTransfer,
     unloggedByFlavor,
 } from "./tc-bdx-support.js";
-import { CertCheckFailedError, CommissionedRefs, record, recordAll } from "./tc-support.js";
+import { CertCheckFailedError, CommissionedRefs, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
@@ -119,40 +119,46 @@ function furtherBlocks(cx: CertStepContext) {
     const { transfer, from } = transferOrFail();
     const th = cx.devices.th;
 
-    record(
-        cx,
-        overMessages(
-            blocksReceived(th.log, th.flavor, from),
-            "the Blocks the TH received",
-            "TransferSession::HandleBlock",
-            blocks => {
-                if (blocks.length < 2) {
-                    return { ok: false, detail: `the TH logged ${blocks.length} Block messages, so none followed` };
-                }
-                const outOfOrder = blocks.findIndex((block, index) => block.counter !== index);
-                return {
-                    ok: outOfOrder === -1,
-                    detail:
-                        outOfOrder === -1
-                            ? `${blocks.length} Blocks with counters 0..${blocks.length - 1}, ascending and sequential`
-                            : `Block ${outOfOrder} of ${blocks.length} carries counter ${blocks[outOfOrder].counter}`,
-                };
-            },
-        ),
-        "the Blocks after the first are ascending and sequential",
-    );
-
-    record(
-        cx,
+    // One `recordAll`, not a `record` each: the step claims the ordering and the size, and a per-check
+    // `record` would drop the size on an ordering failure — exactly the path the evidence is for.
+    recordAll(cx, [
         {
-            type: "response",
-            verdict: transfer.transferredBytes > transfer.accept.maxBlockSize ? "pass" : "fail",
-            detail:
-                `the DUT sent ${transfer.transferredBytes} bytes, more than the ${transfer.accept.maxBlockSize} ` +
-                "bytes one block carries, so blocks followed the first",
+            what: "the Blocks after the first are ascending and sequential",
+            check: () =>
+                overMessages(
+                    blocksReceived(th.log, th.flavor, from),
+                    "the Blocks the TH received",
+                    "TransferSession::HandleBlock",
+                    blocks => {
+                        if (blocks.length < 2) {
+                            return {
+                                ok: false,
+                                detail: `the TH logged ${blocks.length} Block messages, so none followed`,
+                            };
+                        }
+                        const outOfOrder = blocks.findIndex((block, index) => block.counter !== index);
+                        return {
+                            ok: outOfOrder === -1,
+                            detail:
+                                outOfOrder === -1
+                                    ? `${blocks.length} Blocks with counters 0..${blocks.length - 1}, ascending and sequential`
+                                    : `Block ${outOfOrder} of ${blocks.length} carries counter ${blocks[outOfOrder].counter}`,
+                        };
+                    },
+                ),
         },
-        "the DUT sent more than one block",
-    );
+        {
+            what: "the DUT sent more than one block",
+            check: () => ({
+                type: "response" as const,
+                verdict:
+                    transfer.transferredBytes > transfer.accept.maxBlockSize ? ("pass" as const) : ("fail" as const),
+                detail:
+                    `the DUT sent ${transfer.transferredBytes} bytes, more than the ${transfer.accept.maxBlockSize} ` +
+                    "bytes one block carries, so blocks followed the first",
+            }),
+        },
+    ]);
 }
 
 function blockEof(cx: CertStepContext) {

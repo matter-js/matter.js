@@ -1059,6 +1059,8 @@ class InProcessCertNodeApi implements CertNodeApi {
                             targetSoftwareVersion: softwareVersion,
                         }),
                     ),
+                async () =>
+                    provider.act(agent => agent.get(SoftwareUpdateManager).removeConsent(peerAddress, softwareVersion)),
                 options?.timeoutMs === undefined ? OTA_TRANSFER_TIMEOUT : Millis(options.timeoutMs),
             );
 
@@ -1143,6 +1145,7 @@ class InProcessCertNodeApi implements CertNodeApi {
     async #runOtaTransfer(
         peerAddress: PeerAddress,
         trigger: () => Promise<unknown>,
+        abandon: () => Promise<unknown>,
         timeout: Duration,
     ): Promise<BdxSession> {
         const observers = new ObserverGroup();
@@ -1172,9 +1175,13 @@ class InProcessCertNodeApi implements CertNodeApi {
 
         const expiry = Time.sleep("cert OTA transfer", timeout);
         try {
-            await trigger();
-            const completed = await Promise.race([promise, expiry.then(() => undefined)]);
+            // The announce is inside the race, not before it: it waits on the peer, so a provider the node
+            // never answers would otherwise hold this call open past the budget it documents.
+            const completed = await Promise.race([trigger().then(() => promise), expiry.then(() => undefined)]);
             if (completed === undefined) {
+                // The queue would otherwise still hold this update, and a later forceUpdate() for the same
+                // node sees an active session and declines to start a replacement.
+                await abandon();
                 throw new OtaTransferError(
                     `Node id ${this.#nodeId} did not take the offered OTA image within ${Duration.format(timeout)}` +
                         (transfer === undefined ? " — it opened no BDX transfer at all" : ""),

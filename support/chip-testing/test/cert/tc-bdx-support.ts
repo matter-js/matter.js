@@ -5,6 +5,7 @@
  */
 
 import { Seconds } from "@matter/main";
+import { UnsupportedByControllerError } from "@matter/testing";
 import type {
     BdxTransferAccept,
     BdxTransferProposal,
@@ -58,6 +59,11 @@ export async function serveOtaTransfer(cx: CertStepContext, ref: CertNodeRef): P
     try {
         transfer = await cx.controllers.dut.node(ref).serveOtaUpdate({ timeoutMs: OTA_TRANSFER_TIMEOUT });
     } catch (e) {
+        // Before the check, not after: the runner turns this into a skipped step only while the step has
+        // recorded nothing, so recording first would fail the run on a controller that cannot serve at all.
+        if (e instanceof UnsupportedByControllerError) {
+            throw e;
+        }
         cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
         throw e;
     }
