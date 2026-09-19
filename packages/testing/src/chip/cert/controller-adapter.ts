@@ -273,6 +273,96 @@ export interface ReadAttributeOptions {
 }
 
 /**
+ * The transfer an initiator proposed in the `*Init` message a responder answered.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.22.5.1
+ */
+export interface BdxTransferProposal {
+    /** Protocol version the initiator proposed, from the Transfer Control field's low nibble. */
+    version: number;
+
+    /** Driver modes the initiator offered; a responder chooses exactly one of those it set. */
+    senderDrive: boolean;
+    receiverDrive: boolean;
+    asynchronousTransfer: boolean;
+
+    /** Largest block, in bytes, the initiator said it can take. */
+    maxBlockSize: number;
+
+    /** Offset into the file the transfer is to start at, absent where the initiator named none. */
+    startOffset?: number;
+
+    /** The definite length proposed, absent where the initiator proposed an indefinite transfer. */
+    definiteLength?: number;
+}
+
+/**
+ * What a responder granted in the `*Accept` message it answered a {@link BdxTransferProposal} with.
+ *
+ * Read back from the responder's own session rather than decoded from the wire, so a case whose DUT
+ * *is* the responder states what the DUT sent rather than what the peer reports having received.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.22.5.2, § 11.22.5.3
+ */
+export interface BdxTransferAccept {
+    /** Protocol version the responder chose, which may not be newer than the proposed one. */
+    version: number;
+
+    /** The one driver mode chosen, named as the proposal names them. */
+    mode: "senderDrive" | "receiverDrive";
+
+    /** Whether the responder granted asynchronous transfer. */
+    asynchronousTransfer: boolean;
+
+    /** Block size granted, which may not exceed the proposed maximum. */
+    maxBlockSize: number;
+
+    /**
+     * The definite length granted, absent where the accept carried none.
+     *
+     * A `ReceiveAccept` carries no Range Control field of its own on the API surface: the flag is
+     * derived from this length, so its presence *is* the definite-length bit the peer reads.
+     */
+    definiteLength?: number;
+}
+
+/**
+ * One OTA image the controller served over BDX, and what its BDX session negotiated and moved.
+ *
+ * The controller answers a requestor's `ReceiveInit` here, so this is the sender's and responder's
+ * own account: what it was asked for, what it granted, and how much it then sent.
+ */
+export interface OtaBdxTransfer {
+    /** Endpoint on the controller that hosts the OTA provider which served the image. */
+    providerEndpoint: number;
+
+    /** Software version of the image staged and announced, one newer than the node reported. */
+    softwareVersion: number;
+
+    /** Size of the staged OTA file in bytes, which is the definite length the transfer carries. */
+    fileSize: number;
+
+    /** What the node proposed in the `ReceiveInit` that opened the transfer. */
+    proposal: BdxTransferProposal;
+
+    /** What the controller granted in the `ReceiveAccept` it answered with. */
+    accept: BdxTransferAccept;
+
+    /** Bytes the controller's BDX sender moved, counted by the sending flow itself. */
+    transferredBytes: number;
+}
+
+/** Options for {@link CertNodeApi.serveOtaUpdate}. */
+export interface ServeOtaUpdateOptions {
+    /**
+     * How long the whole exchange may take — the announcement, the node's `QueryImage`, and the BDX
+     * transfer that follows. Expiry rejects; there is no partial result, because a transfer that did
+     * not happen is the failure a BDX case exists to catch.
+     */
+    timeoutMs?: number;
+}
+
+/**
  * One live session a controller holds with a node.
  *
  * Held state, like {@link ClientEndpointEntry}: the controller's own view of a session it
@@ -459,6 +549,25 @@ export interface CertNodeApi {
      * survive the sever must not assume this touches only the one it named.
      */
     severTransportConnection(sessionId: number): Promise<void>;
+
+    /**
+     * Stages an OTA image applicable to this node, announces the controller to it as an OTA provider,
+     * and resolves once the node has pulled the image over BDX.
+     *
+     * This is what puts the controller in the BDX **sender and responder** role the BDX plans give
+     * their DUT: the node opens the transfer with a `ReceiveInit` and the controller answers it. The
+     * image is derived from what the controller already holds about the node — its vendor, product
+     * and software version — so it is applicable by construction rather than by a constant a test
+     * would have to keep in step with the subject.
+     *
+     * Resolves only for a transfer that completed. A node that never asked, one answered
+     * `NotAvailable`, and one whose transfer stalled all reject, so a case cannot pass on an OTA
+     * flow that never moved a byte.
+     *
+     * A controller with no OTA provider of its own refuses with {@link UnsupportedByControllerError}
+     * (see {@link CertNodeApi}'s own doc for the general contract).
+     */
+    serveOtaUpdate(options?: ServeOtaUpdateOptions): Promise<OtaBdxTransfer>;
 
     openCommissioningWindow(opts: {
         timeout: number;

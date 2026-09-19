@@ -1150,7 +1150,7 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
 
     const removed = await expectDeviceLog(th.log, th.flavor, removeFabricSucceeded(fabricIndex), from, LOG_TIMEOUT);
     const expired = await expectDeviceLog(th.log, th.flavor, fabricSessionsEnded(fabricIndex), from, LOG_TIMEOUT);
-    recordAll(cx, [
+    await recordAll(cx, [
         { check: () => removed.check, what: "TH reported a successful fabric removal" },
         { check: () => expired.check, what: "TH ended the DUT's fabric's sessions" },
     ]);

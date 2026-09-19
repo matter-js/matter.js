@@ -6,18 +6,23 @@
 
 import {
     Boot,
+    Bytes,
     ClientNode,
     ControllerBehavior,
+    createPromise,
+    Crypto,
     Diagnostic,
     Duration,
     Endpoint,
     Environment,
+    Filesystem,
     ImplementationError,
     InternalError,
     Logger,
     ChannelType,
     MatterError,
     Millis,
+    MockFilesystem,
     MockStorageService,
     ObserverGroup,
     Seconds,
@@ -26,18 +31,27 @@ import {
     Timer,
     UnexpectedDataError,
 } from "@matter/main";
+import { BasicInformationClient } from "@matter/main/behaviors/basic-information";
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
+import { OtaSoftwareUpdateProviderServer } from "@matter/main/behaviors/ota-software-update-provider";
 import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-transport-requestor";
 import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import { CameraControllerDevice } from "@matter/main/devices";
+import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
+import type { BdxInit, PeerAddress, StorageScope } from "@matter/main/protocol";
 import {
+    BdxProtocol,
+    BdxSession,
     ClientRead,
+    Flow,
     CommissionableDeviceIdentifiers,
     Fabric,
     FabricAuthority,
+    BDX_VERSION,
     getOperationalDeviceQname,
     Invoke,
+    OtaImageWriter,
     NodeSession,
     Peer as ProtocolPeer,
     PeerSet,
@@ -63,6 +77,8 @@ import {
     VendorId,
 } from "@matter/main/types";
 import { AttributeModel } from "@matter/model";
+import { DclBehavior } from "@matter/node/behaviors/system/dcl";
+import { SoftwareUpdateManager } from "@matter/node/behaviors/system/software-update";
 import type {
     AttributePathSpec,
     AttributeReadEntry,
@@ -84,8 +100,12 @@ import type {
     GroupKeySetSpec,
     ManualPairingCodeFields,
     OnboardingPayloadFields,
+    BdxTransferAccept,
+    BdxTransferProposal,
+    OtaBdxTransfer,
     ReadAttributeOptions,
     ReadEventOptions,
+    ServeOtaUpdateOptions,
     CertSessionInfo,
     SubscribeEventOptions,
     PicsValues,
@@ -98,6 +118,7 @@ import type {
 } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { OTA_TEST_PAYLOAD_SIZE, otaTestPayload, otaTestSoftwareVersionString } from "../OtaTestIdentity.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
 import { OriginDestination, registerLogOrigin } from "./log-origins.js";
 import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
@@ -175,6 +196,20 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     // switch this controller observes is an action switch, so that is what it declares.
     "SWTCH.C.F02": 0,
     "SWTCH.C.F05": 1,
+
+    // BDX roles the controller takes when it serves an OTA image (TC-BDX-1.4, TC-BDX-2.1). The CHIP
+    // PICS file answers these for a *device*; here the BDX sender and responder is the controller,
+    // which answers a requestor's ReceiveInit and then sends the image.
+    "MCORE.BDX.Sender": 1,
+    "MCORE.BDX.Responder": 1,
+    "MCORE.BDX.SynchronousSender": 1,
+
+    // Asynchronous transfer is refused outright, whichever side proposes it (`bdxSessionInitiator`).
+    "MCORE.BDX.AsynchronousSender": 0,
+
+    // matter.js honors an inbound BlockQueryWithSkip but never sends one, and this key asks about
+    // sending it.
+    "MCORE.BDX.BlockQueryWithSkip": 0,
 
     // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
     // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
@@ -279,6 +314,123 @@ function groupCommandRequestFor(cluster: string | number, command: string, args?
 
 function isConcretePath(path: AttributePathSpec) {
     return path.endpoint !== undefined && path.cluster !== undefined && path.attribute !== undefined;
+}
+
+/**
+ * Endpoint the controller puts an OTA provider on the first time a case asks it to serve an image.
+ *
+ * Distinct from {@link WEBRTC_REQUESTOR_ENDPOINT}, which a case enabling the WebRTC requestor
+ * installs on the same controller: one number cannot carry both.
+ */
+const OTA_PROVIDER_ENDPOINT = 2;
+
+/** Endpoint id for {@link OTA_PROVIDER_ENDPOINT}, which is also how a later call finds it again. */
+const OTA_PROVIDER_ENDPOINT_ID = "ota-provider";
+
+/**
+ * Budget for the whole OTA exchange {@link InProcessCertNodeApi.serveOtaUpdate} drives: the
+ * announcement, the node's own `QueryImage`, and the BDX transfer that follows.
+ *
+ * It has to outlast the peer's own BDX-layer response timeout rather than fit inside it — a peer that
+ * gives up is what this should report, and reporting it needs the give-up to have happened.
+ */
+const OTA_TRANSFER_TIMEOUT = Seconds(90);
+
+/** An OTA image the controller offered a node was not transferred. */
+export class OtaTransferError extends MatterError {}
+
+/** What the controller holds about a node, which is what its OTA provider matches an image against. */
+interface PeerOtaIdentity {
+    vendorId: VendorId;
+    productId: number;
+    softwareVersion: number;
+}
+
+/** The `*Init` a BDX responder answered, as a plain record a step can assert against. */
+function bdxProposalOf(init: BdxInit): BdxTransferProposal {
+    const { transferProtocol, maxBlockSize, startOffset, maxLength } = init;
+    const definiteLength = maxLength === undefined ? undefined : Number(maxLength);
+    return {
+        version: transferProtocol.version ?? 0,
+        senderDrive: !!transferProtocol.senderDrive,
+        receiverDrive: !!transferProtocol.receiverDrive,
+        asynchronousTransfer: !!transferProtocol.asynchronousTransfer,
+        maxBlockSize,
+        startOffset: startOffset === undefined ? undefined : Number(startOffset),
+
+        // A zero length means indefinite on the wire as an absent field does (§ 11.22.5.1)
+        definiteLength: definiteLength === 0 ? undefined : definiteLength,
+    };
+}
+
+/**
+ * The `*Accept` a BDX responder granted, read back from the parameters its own flow settled on.
+ *
+ * matter.js answers the version it supports rather than echoing the proposal, and the accept schema
+ * refuses any other, so {@link BDX_VERSION} is what went on the wire.
+ */
+function bdxAcceptOf(parameters: Flow.NegotiatedParameters): BdxTransferAccept {
+    const { transferMode, asynchronousTransfer, blockSize, dataLength } = parameters;
+    return {
+        version: BDX_VERSION,
+        mode: transferMode === Flow.DriverMode.SenderDrive ? "senderDrive" : "receiverDrive",
+        asynchronousTransfer,
+        maxBlockSize: blockSize,
+        definiteLength: dataLength,
+    };
+}
+
+/**
+ * Stages an OTA image for `identity` in the controller's own image catalog, one software version newer
+ * than the node reports, and returns what was staged.
+ *
+ * The payload is the harness's own test payload, which `OtaRequestorTestInstance` recomputes and compares
+ * byte for byte once the transfer lands — so a transfer that completes having delivered the wrong bytes
+ * fails at the receiver rather than passing here.
+ */
+async function stageOtaImage(controller: ServerNode, identity: PeerOtaIdentity) {
+    const { vendorId, productId, softwareVersion: currentSoftwareVersion } = identity;
+    const softwareVersion = currentSoftwareVersion + 1;
+    const softwareVersionString = otaTestSoftwareVersionString(controller.id.slice(-20));
+
+    const { image } = await OtaImageWriter.create(controller.env.get(Crypto), {
+        vendorId,
+        productId,
+        softwareVersion,
+        softwareVersionString,
+        minApplicableSoftwareVersion: 0,
+        maxApplicableSoftwareVersion: currentSoftwareVersion,
+        payload: otaTestPayload(OTA_TEST_PAYLOAD_SIZE),
+    });
+
+    // DclOtaUpdateService has no Environmental.create factory of its own; loading DclBehavior on the
+    // root endpoint is the door SoftwareUpdateManager itself uses to reach it.
+    const { otaUpdateService } = await controller.act(agent => agent.load(DclBehavior));
+    await otaUpdateService.construction;
+
+    await otaUpdateService.store(
+        new ReadableStream<Uint8Array>({
+            start(streamController) {
+                streamController.enqueue(Bytes.of(image));
+                streamController.close();
+            },
+        }),
+        {
+            vid: vendorId,
+            pid: productId,
+            softwareVersion,
+            softwareVersionString,
+            minApplicableSoftwareVersion: 0,
+            maxApplicableSoftwareVersion: currentSoftwareVersion,
+            cdVersionNumber: 1,
+            softwareVersionValid: true,
+            schemaVersion: 0,
+            source: "dcl-test",
+        },
+        "test",
+    );
+
+    return { softwareVersion, fileSize: image.byteLength };
 }
 
 const DESCRIPTOR_ID = DescriptorClient.cluster.id;
@@ -895,6 +1047,176 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    serveOtaUpdate(options?: ServeOtaUpdateOptions): Promise<OtaBdxTransfer> {
+        return runTagged(this.#adapterId, async () => {
+            const peerAddress = this.#fabric.addressOf(this.#nodeId);
+            const identity = this.#otaIdentity;
+            const provider = await this.#otaProvider();
+            const { softwareVersion, fileSize } = await stageOtaImage(this.#controller, identity);
+
+            const session = await this.#runOtaTransfer(
+                peerAddress,
+                await provider.act(agent => agent.get(OtaSoftwareUpdateProviderServer).updateStorage.scope),
+                async () =>
+                    provider.act(agent =>
+                        agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
+                            vendorId: identity.vendorId,
+                            productId: identity.productId,
+                            targetSoftwareVersion: softwareVersion,
+                        }),
+                    ),
+                async () =>
+                    provider.act(agent => agent.get(SoftwareUpdateManager).removeConsent(peerAddress, softwareVersion)),
+                options?.timeoutMs === undefined ? OTA_TRANSFER_TIMEOUT : Millis(options.timeoutMs),
+            );
+
+            const initMessage = session.initMessage;
+            const parameters = session.transferParameters;
+            if (initMessage === undefined || parameters === undefined) {
+                throw new InternalError(
+                    `BDX session with node id ${this.#nodeId} completed without recording what it negotiated`,
+                );
+            }
+
+            return {
+                providerEndpoint: OTA_PROVIDER_ENDPOINT,
+                softwareVersion,
+                fileSize,
+                proposal: bdxProposalOf(initMessage),
+                accept: bdxAcceptOf(parameters),
+                transferredBytes: session.transferredBytes,
+            };
+        });
+    }
+
+    /**
+     * Vendor, product and software version the controller holds for this node.
+     *
+     * Read from the controller's own client state rather than from the wire, because this is the same
+     * state the provider's own applicability check reads (`SoftwareUpdateManager` validates a
+     * `QueryImage`'s claimed identity against it) — an image staged from a fresh read could be
+     * applicable to what the node says and inapplicable to what the controller believes, which
+     * answers `NotAvailable` with nothing to point at.
+     */
+    get #otaIdentity(): PeerOtaIdentity {
+        const peer = this.#peer;
+        const basicInformation = peer.maybeStateOf(BasicInformationClient);
+        const vendorId = basicInformation?.vendorId;
+        const productId = basicInformation?.productId;
+        const softwareVersion = basicInformation?.softwareVersion;
+        if (vendorId === undefined || productId === undefined || softwareVersion === undefined) {
+            throw new OtaTransferError(
+                `Controller "${this.#adapterId}" holds no vendor/product/software version for node id ` +
+                    `${this.#nodeId}, so it cannot stage an image that node's provider check would accept`,
+            );
+        }
+        return { vendorId, productId, softwareVersion };
+    }
+
+    /**
+     * The controller's own OTA provider endpoint, added on first use.
+     *
+     * Every other cert test's controller is a plain commissioner, and an OTA provider that is always
+     * present would put a cluster, an ACL entry and a `SoftwareUpdateManager` into every run's
+     * evidence for the sake of two cases.
+     */
+    async #otaProvider(): Promise<Endpoint> {
+        const existing = this.#controller.parts.get(OTA_PROVIDER_ENDPOINT_ID);
+        if (existing !== undefined) {
+            return existing;
+        }
+
+        const provider = new Endpoint(OtaProviderEndpoint.with(OtaSoftwareUpdateProviderServer), {
+            id: OTA_PROVIDER_ENDPOINT_ID,
+            number: OTA_PROVIDER_ENDPOINT,
+        });
+        await this.#controller.add(provider);
+
+        // A staged image is a test image: it carries no DCL signature, which is what a provider
+        // otherwise requires before it will offer one.
+        await provider.act(agent => {
+            agent.get(SoftwareUpdateManager).state.allowTestOtaImages = true;
+        });
+
+        return provider;
+    }
+
+    /**
+     * Runs `trigger` and resolves with the BDX session the node opened back to this controller for it.
+     *
+     * The session is what carries the evidence, so nothing here settles on the trigger alone: a node
+     * that never queried, one the provider answered `NotAvailable`, and one whose transfer stalled all
+     * reach the budget and reject.
+     */
+    async #runOtaTransfer(
+        peerAddress: PeerAddress,
+        scope: StorageScope,
+        trigger: () => Promise<unknown>,
+        abandon: () => Promise<unknown>,
+        timeout: Duration,
+    ): Promise<BdxSession> {
+        const observers = new ObserverGroup();
+        const { promise, resolver, rejecter } = createPromise<BdxSession>();
+
+        // The race below stops awaiting `promise` when the budget expires first, and a session closing
+        // after that would then reject it with nobody listening
+        promise.catch(() => {});
+
+        let transfer: BdxSession | undefined;
+        observers.on(this.#controller.env.get(BdxProtocol).sessionStarted, (session, sessionScope) => {
+            const { fabricIndex, nodeId } = session.peerAddress;
+
+            // Scope as well as peer: this controller may hold another BDX transfer with the same node —
+            // a diagnostic-log retrieval is one — and reporting its bytes as the OTA transfer's would
+            // be evidence for a different exchange entirely.
+            if (
+                transfer !== undefined ||
+                sessionScope !== scope ||
+                fabricIndex !== peerAddress.fabricIndex ||
+                nodeId !== peerAddress.nodeId
+            ) {
+                return;
+            }
+            transfer = session;
+            observers.on(session.progressFinished, () => resolver(session));
+            observers.on(session.closed, () =>
+                rejecter(
+                    new OtaTransferError(
+                        `BDX transfer to node id ${this.#nodeId} ended after ${session.transferredBytes} of ` +
+                            `${session.dataLength ?? "an indefinite number of"} bytes without completing`,
+                    ),
+                ),
+            );
+        });
+
+        const expiry = Time.sleep("cert OTA transfer", timeout);
+
+        // Anything but a completed transfer leaves the update queued, and a later forceUpdate() for this
+        // node then finds an active session and declines to start a replacement. Tracked here rather than
+        // per failure branch: a throw from the announce, a session that closed, and the budget expiring all
+        // have to undo it, and attaching that to one branch is what let two of them escape before.
+        let served = false;
+        try {
+            // The announce is inside the race, not before it: it waits on the peer, so a provider the node
+            // never answers would otherwise hold this call open past the budget it documents.
+            const completed = await Promise.race([trigger().then(() => promise), expiry.then(() => undefined)]);
+            if (completed === undefined) {
+                throw new OtaTransferError(
+                    `Node id ${this.#nodeId} did not take the offered OTA image within ${Duration.format(timeout)}` +
+                        (transfer === undefined ? " — it opened no BDX transfer at all" : ""),
+                );
+            }
+            served = true;
+            return completed;
+        } finally {
+            expiry.cancel();
+            observers.close();
+            if (!served) {
+                await abandon();
+            }
+        }
+    }
+
     readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]> {
         return runTagged(this.#adapterId, async () => {
             if (paths.length === 0) {
@@ -1297,6 +1619,12 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         this.#env = new Environment(`cert-${id}`, Environment.default);
         this.#releaseLogOrigin = registerLogOrigin(this.#env.logOrigin, "adapter", this.#logStream);
         new MockStorageService(this.#env);
+
+        // Blob storage is not covered by the mock KV store: opening it detects a driver from a
+        // `driver.json` under the Filesystem service, which without this resolves to the developer's
+        // own `~/.matter` — where an OTA image a case stages would then be written, and where an
+        // existing "dir" driver makes the open fail outright against the in-memory blob driver.
+        this.#env.set(Filesystem, new MockFilesystem());
         this.log = new LogFollower(this.#logStream.follow(), id);
 
         adapterStreams.set(id, this.#logStream);

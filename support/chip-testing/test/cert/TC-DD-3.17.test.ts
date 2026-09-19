@@ -176,7 +176,7 @@ certTest("TC-DD-3.17", {
         async cx => {
             const parts = await thCodeParts(cx);
             const source = manualPairingCode(parts);
-            recordAll(
+            await recordAll(
                 cx,
                 INVALID_PASSCODES.map(passcode => ({
                     check: () =>
@@ -222,7 +222,7 @@ certTest("TC-DD-3.17", {
         async cx => {
             const parts = await thCodeParts(cx);
             const source = manualPairingCode(parts);
-            recordAll(
+            await recordAll(
                 cx,
                 TEST_VENDOR_IDS.map(vendorId => ({
                     check: () =>
