@@ -20,6 +20,9 @@ const USER_HANGUP = 2;
 interface Progress {
     established?: number;
     ended: boolean;
+
+    /** Which of the script's three reads of the attribute this is; they share one prompt. */
+    reads: number;
 }
 
 certCameraCase<Progress>({
@@ -29,16 +32,18 @@ certCameraCase<Progress>({
     title: "Validate CurrentSessions attribute read [DUT_Requestor]",
     commissioning: "manual-code",
 
-    begin: () => ({ ended: false }),
+    begin: () => ({ ended: false, reads: 0 }),
 
     steps: [
         {
             prompt: /Read CurrentSessions attribute from DUT:/,
-            step: "4",
+            // The plan numbers the three reads 4, 6 and 8, and the script prints one prompt for all of
+            // them, so the step this answers follows from how many have gone before
+            step: progress => ["4", "6", "8"][progress.reads] ?? "8",
 
-            // The script prints one prompt for all three of its reads, so which read this is follows
-            // from what the case has done rather than from the text
             async run(cx, session, progress) {
+                progress.reads++;
+
                 if (progress.established === undefined || progress.ended) {
                     return (await expectSessions(cx, session, [])) ? "pass" : "fail";
                 }

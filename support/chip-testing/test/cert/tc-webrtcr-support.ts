@@ -31,6 +31,11 @@ import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
 import { closeWebRtc, WebRtcPeer } from "./webrtc-peer.js";
 
+// node-datachannel's cleanup tears down its worker threads for the whole process, so it runs once
+// after every camera case rather than per case, which would pull the library out from under the next
+// one. This module is loaded once however many cases import it.
+after(() => closeWebRtc());
+
 /** Endpoint of TH_SERVER's camera clusters, which `chip-camera-app` fixes at 1. */
 const PROVIDER_ENDPOINT = 1;
 
@@ -52,11 +57,8 @@ const CASE_BUDGET = Seconds(150);
 const SIGNAL_TIMEOUT = Seconds(30);
 const INVOKE_TIMEOUT = Seconds(30);
 
-/** How long a connection gets to complete once both ends hold each other's candidates. */
-const CONNECT_TIMEOUT = Seconds(30);
-
-/** What the controller's peer connection gets to gather before its candidates go to the provider. */
-const ICE_GATHERING = Seconds(2);
+/** How long one round of the candidate exchange waits before trying the next. */
+const ICE_ROUND = Seconds(2);
 
 /** Bounds the commissioning step, which is a step of its own and has the script's budget to itself. */
 const COMMISSION_TIMEOUT = Seconds(60);
@@ -160,8 +162,11 @@ export interface CameraStep<S> {
     /** First line of the prompt the script prints for this step. */
     prompt: RegExp;
 
-    /** The step number that prompt belongs to, as the plan numbers it. */
-    step: string;
+    /**
+     * The step number that prompt belongs to, as the plan numbers it — or how to derive it, for a
+     * script that prints one prompt for several of its steps.
+     */
+    step: string | ((state: S) => string);
 
     /**
      * Answers it. Every check recorded reaches the evidence bundle, and the verdict decides what the
@@ -210,8 +215,8 @@ export interface CameraCase<S = void> {
  * Declares a python-wrapped certification case against `chip-camera-app`.
  *
  * The script drives its own scenario and prompts for the actions a DUT must take; this answers those
- * prompts with our own controller. Commissioning is handled here because every case asks for it the
- * same way; `prove` is what differs.
+ * prompts with our own controller. Commissioning is handled here because every case asks for it in one
+ * of two ways; the steps are what differ.
  */
 export function certCameraCase<S = void>(definition: CameraCase<S>) {
     const descriptor = {
@@ -236,7 +241,7 @@ export function certCameraCase<S = void>(definition: CameraCase<S>) {
 
             this.timeout(10 * 60_000);
 
-            const answered = new Set<string>();
+            const answered = new Set<CameraStep<S>>();
             const state: { ref?: CertNodeRef; session?: CameraSession } = {};
             const peer = new WebRtcPeer();
             let bodyFailure: unknown;
@@ -265,8 +270,12 @@ export function certCameraCase<S = void>(definition: CameraCase<S>) {
             try {
                 await dut.start();
 
-                const endsAt = Time.nowUs + CASE_BUDGET;
+                let endsAt: number | undefined;
                 const sessionOf = async () => {
+                    // Starts at the first prompt, not at startup: container exec, camera spawn and
+                    // commissioning all happen first, and a budget that included them would leave a
+                    // slow run with nothing left and record that as the DUT answering nothing
+                    endsAt ??= Time.nowUs + CASE_BUDGET;
                     if (state.session === undefined) {
                         if (state.ref === undefined) {
                             throw new InternalError(
@@ -280,7 +289,7 @@ export function certCameraCase<S = void>(definition: CameraCase<S>) {
                             ref: state.ref,
                             peer,
                             videoStreamId: 0,
-                            remaining: () => Millis(Math.max(0, endsAt - Time.nowUs)),
+                            remaining: () => Millis(Math.max(0, (endsAt ?? Time.nowUs) - Time.nowUs)),
                         };
                         state.session.videoStreamId = await allocateVideoStream(state.session);
                     }
@@ -310,11 +319,11 @@ export function certCameraCase<S = void>(definition: CameraCase<S>) {
 
                 // A script reaches its own verdict whether or not a prompt was answered, so a prompt
                 // this no longer matches leaves the case passing on nothing
-                const unanswered = definition.steps.filter(step => !answered.has(step.step));
+                const unanswered = definition.steps.filter(step => !answered.has(step));
                 if (unanswered.length) {
                     throw new InternalError(
                         `${definition.script} printed no line matching ` +
-                            `${unanswered.map(step => `step ${step.step}'s ${step.prompt}`).join(", ")}, so nothing ` +
+                            `${unanswered.map(step => `${step.prompt}`).join(", ")}, so nothing ` +
                             "put those to the DUT",
                     );
                 }
@@ -322,8 +331,14 @@ export function certCameraCase<S = void>(definition: CameraCase<S>) {
                 bodyFailure = e;
                 throw e;
             } finally {
-                peer.close();
-                closeWebRtc();
+                try {
+                    peer.close();
+                } catch (e) {
+                    // Everything below writes the run's evidence, and a native teardown fault must not
+                    // take it with it
+                    console.warn(`${definition.tc} could not close its peer connection:`, e);
+                }
+
                 recorder.attachLog("controller-dut", dut.log.lines);
                 if (test !== undefined) {
                     recorder.attachLog("device-python", test.logLines);
@@ -388,13 +403,15 @@ const FIXED_PASSCODE = 20202021;
  * camera-controller hints, and a handler matching one of those would write a second answer into the
  * script's stdin, which the *next* prompt's `input()` would consume.
  */
-function commissionHandler(definition: CameraCase<unknown>, state: { ref?: CertNodeRef }): PromptHandler {
+function commissionHandler(definition: Pick<CameraCase, "commissioning">, state: { ref?: CertNodeRef }): PromptHandler {
     const byManualCode = definition.commissioning === "manual-code";
 
     return {
         pattern: byManualCode
             ? /Please commission the server app from DUT: manual code='\d+'/
-            : /Please commission the server app from DUT:$/,
+            : // Not anchored at the end: the scripts that print no pairing code end the line there today,
+              // and a trailing space would otherwise stop the handler firing at all
+              /Please commission the server app from DUT:(?! manual code)/,
         async action(cx: CertStepContext, promptText: string) {
             const stepDef: CertStepDefinition = {
                 number: byManualCode ? "3" : "1",
@@ -441,15 +458,16 @@ function commissionHandler(definition: CameraCase<unknown>, state: { ref?: CertN
 function stepHandler<S>(
     step: CameraStep<S>,
     sessionOf: () => Promise<CameraSession>,
-    answered: Set<string>,
+    answered: Set<CameraStep<S>>,
     state: S,
 ): PromptHandler {
     return {
         pattern: step.prompt,
         async action(cx: CertStepContext, promptText: string) {
-            const stepDef: CertStepDefinition = { number: step.step, text: promptText, run: async () => {} };
+            const number = typeof step.step === "string" ? step.step : step.step(state);
+            const stepDef: CertStepDefinition = { number, text: promptText, run: async () => {} };
             cx.recorder.beginStep(stepDef);
-            answered.add(step.step);
+            answered.add(step);
 
             let verdict: StepVerdict = "fail";
             let answer: string | undefined;
@@ -564,68 +582,133 @@ export async function provideIceCandidates(
  * "the session is established" asks the provider to report.
  *
  * `"solicit"` has the provider offer and the controller answer; `"provide"` has the controller offer
- * and the provider answer. Both then trade ICE candidates: the provider forwards its own only once it
- * has some from us, so ours go first.
+ * and the provider answer. Both then trade ICE candidates.
+ *
+ * Registers the id the provider is about to mint *before* asking for it: the provider signals from
+ * inside its own handling of that command, so a registration made after the response is too late and
+ * the DUT would refuse signaling for a session it is about to hold. Ids are minted in sequence, so the
+ * next one follows the session the case already holds, and the first is 0.
  */
 export async function establishSession(
     session: CameraSession,
     mode: "solicit" | "provide",
-): Promise<{ id: number; connected: boolean }> {
+    held?: number,
+): Promise<Established> {
+    const expected = held === undefined ? 0 : held + 1;
+    await registerSession(session, expected);
+
     const id = mode === "solicit" ? await solicitOffer(session) : await provideOfferFor(session);
-
-    if (mode === "solicit") {
-        const offer = await session.requestor.nextSignal(
-            signal => signal.kind === "offer" && signal.sessionId === id,
-            within(session, SIGNAL_TIMEOUT),
+    if (id !== expected) {
+        await session.requestor.removeSession(expected);
+        throw new CertCheckFailedError(
+            `The provider minted session ${id} where ${expected} was registered ahead of it, so its signaling for ` +
+                "that session could not be accepted and this run cannot establish one",
         );
-        if (offer?.sdp === undefined) {
-            return { id, connected: false };
-        }
-        await provideAnswer(session, id, session.peer.answer(offer.sdp));
-    } else {
-        const answer = await session.requestor.nextSignal(
-            signal => signal.kind === "answer" && signal.sessionId === id,
-            within(session, SIGNAL_TIMEOUT),
-        );
-        if (answer?.sdp === undefined) {
-            return { id, connected: false };
-        }
-        session.peer.accept(answer.sdp);
     }
 
-    // Gathering is continuous and a host-only connection announces no end to it, so this takes what
-    // the peer has and lets the provider's reply carry the rest
-    await Time.sleep("ICE gathering", ICE_GATHERING);
-    const ours = session.peer.take();
-    if (ours.length) {
-        await provideIceCandidates(session, id, ours);
-    }
-
-    const theirs = await session.requestor.nextSignal(
-        signal => signal.kind === "iceCandidates" && signal.sessionId === id,
+    const description = await session.requestor.nextSignal(
+        signal =>
+            signal.kind === (mode === "solicit" ? "offer" : "answer") &&
+            signal.outcome === "accepted" &&
+            signal.sessionId === id,
         within(session, SIGNAL_TIMEOUT),
     );
-    if (theirs?.candidates?.length) {
-        session.peer.add(theirs.candidates);
+
+    if (description?.sdp === undefined) {
+        return { id, connected: false, reached: mode === "solicit" ? "no-offer" : "no-answer", rewroteRole: false };
     }
 
-    return { id, connected: await session.peer.connected(within(session, CONNECT_TIMEOUT)) };
+    let rewroteRole = false;
+    if (mode === "solicit") {
+        await provideAnswer(session, id, session.peer.answer(description.sdp));
+    } else {
+        rewroteRole = session.peer.accept(description.sdp).rewroteRole;
+    }
+
+    return { id, connected: await exchangeCandidates(session, id), reached: "signaled", rewroteRole };
 }
 
-/** Records whether the session reached a connected peer connection, which is the plan's own wording. */
-export function expectEstablished(
-    cx: CertStepContext,
-    session: CameraSession,
-    established: { id: number; connected: boolean },
-): boolean {
+/** What {@link establishSession} reached, so a failure names the stage rather than only the outcome. */
+export interface Established {
+    id: number;
+    connected: boolean;
+    reached: "no-offer" | "no-answer" | "signaled";
+
+    /** Whether the provider's answer had to have its DTLS role settled before the connection would take it. */
+    rewroteRole: boolean;
+}
+
+/** Candidate batches already fed to the peer connection, so a later round waits for the next one. */
+const consumed = new WeakSet<WebRtcSignalRecord>();
+
+/**
+ * Trades ICE candidates until the connection completes or the case runs out of budget.
+ *
+ * Both ends trickle: each gathers as it goes and sends more than one batch. A single exchange connects
+ * on a quiet host and leaves the connection waiting on one that finds a working candidate late, so
+ * this keeps sending what has been gathered and taking what has arrived.
+ */
+async function exchangeCandidates(session: CameraSession, id: number): Promise<boolean> {
+    for (;;) {
+        const ours = session.peer.take();
+        if (ours.length) {
+            await provideIceCandidates(session, id, ours);
+        }
+
+        if (await session.peer.connected(within(session, ICE_ROUND))) {
+            return true;
+        }
+
+        if (session.remaining() <= 0) {
+            return false;
+        }
+
+        const theirs = await session.requestor.nextSignal(
+            signal =>
+                signal.kind === "iceCandidates" &&
+                signal.outcome === "accepted" &&
+                signal.sessionId === id &&
+                !consumed.has(signal),
+            within(session, ICE_ROUND),
+        );
+
+        if (theirs?.candidates?.length) {
+            consumed.add(theirs);
+            session.peer.add(theirs.candidates);
+        }
+    }
+}
+
+/**
+ * Records whether the session reached a connected peer connection, which is the plan's own wording,
+ * and where it stopped when it did not.
+ */
+export function expectEstablished(cx: CertStepContext, session: CameraSession, established: Established): boolean {
+    const stage = {
+        "no-offer": "the provider sent no Offer the DUT accepted",
+        "no-answer": "the provider sent no Answer the DUT accepted",
+        signaled: `the DUT's peer connection reports "${session.peer.state}"`,
+    }[established.reached];
+
     cx.recorder.check({
         type: "response",
         verdict: established.connected ? "pass" : "fail",
         detail: established.connected
             ? `session ${established.id} reached a connected peer connection between the DUT and TH_SERVER`
-            : `session ${established.id} did not connect; the DUT's peer connection reports ` +
-              `"${session.peer.state}"`,
+            : `session ${established.id} did not connect: ${stage}`,
     });
+
+    // States the deviation rather than certifying a connection built on an answer the harness altered
+    if (established.rewroteRole) {
+        cx.recorder.check({
+            type: "response",
+            verdict: "pass",
+            detail:
+                `TH_SERVER's answer for session ${established.id} carried a=setup:actpass, which an answer may not ` +
+                "carry and which the DUT's peer connection refuses outright, so the harness settled the role to " +
+                "a=setup:active before feeding it in; the connection below rests on that substitution",
+        });
+    }
 
     return established.connected;
 }
@@ -639,7 +722,7 @@ export function expectEstablished(
  * `removeSession` when it tears a stream down locally. A controller that skipped this would keep
  * reporting a session it has ended in `CurrentSessions`.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.5.6.6
+ * @see {@link MatterSpecification.v16.Cluster} § 11.5.6.7
  */
 export async function endSession(session: CameraSession, id: number, reason: number): Promise<void> {
     await settled(

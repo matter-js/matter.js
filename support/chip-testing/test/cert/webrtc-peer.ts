@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis, Time } from "@matter/main";
+import { Duration, InternalError, Millis, Time } from "@matter/main";
 import type { WebRtcIceCandidate } from "@matter/testing";
 import { DataChannel, PeerConnection, cleanup } from "node-datachannel";
 
@@ -19,24 +19,32 @@ import { DataChannel, PeerConnection, cleanup } from "node-datachannel";
  * precisely so an application can drive its own peer connection — so the harness brings one, through
  * a dependency of this package alone.
  *
- * Nothing here interprets media. The connection carries no track and no data; reaching `connected` is
- * the whole purpose, because that is what the plan asks the provider to report.
+ * Nothing here interprets media. Reaching `connected` is the whole purpose, because that is what the
+ * plan asks the provider to report.
  */
 export class WebRtcPeer {
     readonly #connection: PeerConnection;
     readonly #localCandidates = new Array<WebRtcIceCandidate>();
     #channel?: DataChannel;
     #state = "new";
+    #everConnected = false;
 
     constructor(name = "dut") {
         // No ICE servers: both ends are on the same host, so host candidates reach each other and a
         // STUN round trip would only add a way for this to fail
         this.#connection = new PeerConnection(name, { iceServers: [] });
 
+        // The library reports the media id; the index of that section is not something this can know,
+        // and the field is nullable for exactly that case
         this.#connection.onLocalCandidate((candidate, mid) =>
-            this.#localCandidates.push({ candidate, sdpMid: mid, sdpmLineIndex: 0 }),
+            this.#localCandidates.push({ candidate, sdpMid: mid, sdpmLineIndex: null }),
         );
-        this.#connection.onStateChange(state => (this.#state = state));
+        this.#connection.onStateChange(state => {
+            this.#state = state;
+            // Sampled state misses a connection that completes and drops between two polls, and the
+            // plan asks whether it connected, not whether it still is
+            this.#everConnected ||= state === "connected";
+        });
     }
 
     /** What the connection last reported, as `node-datachannel` names it. */
@@ -54,7 +62,7 @@ export class WebRtcPeer {
         this.#connection.setRemoteDescription(offer, "offer");
         const local = this.#connection.localDescription();
         if (local?.sdp === undefined) {
-            throw new Error("Peer connection produced no answer for the provider's offer");
+            throw new InternalError("Peer connection produced no answer for the provider's offer");
         }
         return local.sdp;
     }
@@ -72,7 +80,7 @@ export class WebRtcPeer {
         this.#connection.setLocalDescription();
         const local = this.#connection.localDescription();
         if (local?.sdp === undefined) {
-            throw new Error("Peer connection produced no offer");
+            throw new InternalError("Peer connection produced no offer");
         }
         return local.sdp;
     }
@@ -81,14 +89,19 @@ export class WebRtcPeer {
      * Accepts the provider's answer to {@link offer}.
      *
      * chip's camera answers `a=setup:actpass`, which an answer may not carry — RFC 8842 § 5.3 has the
-     * answerer pick `active` or `passive`, since `actpass` is the offer's way of leaving the choice
-     * open. libdatachannel refuses such an answer outright ("Illegal role actpass in remote answer
-     * description"), so this settles the role the way the specification says the answerer should have:
+     * answerer follow RFC 4145 § 4.1, whose table leaves an answerer `active` or `passive` and never
+     * `actpass`, that being the offer's way of leaving the choice open. libdatachannel refuses such an
+     * answer outright ("Illegal role actpass in remote answer description"), so this settles the role the way the specification says the answerer should have:
      * the answerer becomes the DTLS client. Reported upstream; rewriting it here is what lets the case
      * test what it is about, which is the Answer command rather than DTLS role negotiation.
+     *
+     * Reports whether it had to, so a case can say so in its evidence rather than certifying a
+     * connection built on an answer the harness altered.
      */
-    accept(answer: string) {
-        this.#connection.setRemoteDescription(answer.replaceAll("a=setup:actpass", "a=setup:active"), "answer");
+    accept(answer: string): { rewroteRole: boolean } {
+        const settled = answer.replaceAll("a=setup:actpass", "a=setup:active");
+        this.#connection.setRemoteDescription(settled, "answer");
+        return { rewroteRole: settled !== answer };
     }
 
     /** Adds what the provider's `ICECandidates` carried. */
@@ -107,19 +120,20 @@ export class WebRtcPeer {
         return this.#localCandidates.splice(0);
     }
 
-    /** Resolves once the connection reports `connected`, or `false` where it does not within `timeout`. */
+    /** Whether the connection has reported `connected`, waiting up to `timeout` for it to do so. */
     async connected(timeout: Duration): Promise<boolean> {
         const endsAt = Time.nowUs + timeout;
-        while (Time.nowUs < endsAt) {
-            if (this.#state === "connected") {
+        do {
+            if (this.#everConnected) {
                 return true;
             }
             if (this.#state === "failed" || this.#state === "closed") {
                 return false;
             }
             await Time.sleep("webrtc connection", Millis(100));
-        }
-        return this.#state === "connected";
+        } while (Time.nowUs < endsAt);
+
+        return this.#everConnected;
     }
 
     close() {
