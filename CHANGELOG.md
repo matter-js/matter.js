@@ -71,6 +71,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
+    - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
     - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
     - Fix: A bound the specification states on a bitmap is enforced. An upper bound states what the reserved-bit check already enforces, but a lower bound such as `FanControl.RockSupport`'s `min 1` states a flag that must be set, which nothing checked. A cluster implementation that supports rocking or wind and leaves the corresponding attribute with no flag set now fails validation where it previously passed
     - Fix: A bound on a duration is enforced rather than ignored. A duration is held as a number of milliseconds, and a constraint bounding one states milliseconds too
