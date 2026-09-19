@@ -27,9 +27,9 @@ const EXPECTED_RETURN_TIMEOUT = Minutes(3);
 
 interface ArmState {
     /**
-     * Present once the peer has returned, and replaced on each further return.  Evidence must name the sessions it
-     * came from: a device flushes its subscription as it reboots, so only a report over a session opened since the
-     * peer last returned says the subscription survived.
+     * Present once the peer has returned.  Evidence must name the sessions it came from: a device flushes its
+     * subscription as it reboots, so only a report over a session from after the return says the subscription
+     * survived.
      */
     returned?: {
         /** Sessions with the peer opened since it returned, starting with the one that announced the return. */
@@ -102,10 +102,15 @@ export class RebootResubscribeArmer {
             return;
         }
 
+        if (state.returned !== undefined) {
+            // The peer is already back.  A device opens further sessions for its own reasons, so one is not a
+            // second reboot: the session carries the peer's data and the grace window it is running in stands.
+            state.returned.sessions.add(session);
+            return;
+        }
+
         if (session.isInitiator) {
-            // Our own connect does not announce a return, but once the peer is back it carries the peer's data as
-            // well as the session the peer opened.
-            state.returned?.sessions.add(session);
+            // Our own connect does not announce a return.
             return;
         }
 
@@ -119,7 +124,6 @@ export class RebootResubscribeArmer {
         this.#sessions
             .handlePeerShutdown(peerAddress, session.createdAt)
             .catch(error => logger.warn(peerAddress, "Failed to close older sessions", error));
-        state.graceTimer?.stop();
         state.graceTimer = Time.getTimer("Reboot resubscribe grace", DEFAULT_REBOOT_RESUBSCRIBE_GRACE, () =>
             this.#onGraceExpired(peerAddress),
         );

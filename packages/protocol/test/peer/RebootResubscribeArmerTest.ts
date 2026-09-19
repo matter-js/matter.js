@@ -195,7 +195,31 @@ describe("RebootResubscribeArmer", () => {
         expect(isSubscribed(subscription)).equals(false);
     });
 
-    it("re-subscribes when the peer reboots again inside the grace window", async () => {
+    it("keeps the subscription when the peer opens a second session after reporting", async () => {
+        const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER);
+
+        const returned = await createSession();
+        await MockTime.macrotasks;
+        reportOver(returned);
+
+        // A device opens further sessions for its own reasons — bindings, its own reads, an OTA notification — so
+        // one does not mean it rebooted again and must not discard what it already proved.
+        await MockTime.advance(Seconds(10));
+        await createSession();
+        await MockTime.macrotasks;
+
+        await MockTime.advance(Seconds(30));
+        expect(isSubscribed(subscription)).equals(true);
+    });
+
+    it("characterization: a second reboot inside the grace window keeps the first return's evidence", async () => {
+        // Accepted behaviour, not a goal: telling a second reboot apart from a second session needs a reason for
+        // the session that the session itself cannot give. A device that reboots twice inside the grace therefore
+        // falls back to the subscription's own liveness timeout, which is what happens without this component at
+        // all. Reboot-then-one-session is the case it is built for.
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
         using _armer = armer;
         const subscription = registerSubscription();
@@ -205,16 +229,12 @@ describe("RebootResubscribeArmer", () => {
         await MockTime.macrotasks;
         reportOver(firstReturn);
 
-        // A second return means a second reboot, which destroys the subscription the first return fed.
         await MockTime.advance(Seconds(10));
         await createSession();
         await MockTime.macrotasks;
 
-        // A farewell report from the first return, delayed past the second one, is evidence for neither.
-        reportOver(firstReturn);
-
         await MockTime.advance(Seconds(30));
-        expect(isSubscribed(subscription)).equals(false);
+        expect(isSubscribed(subscription)).equals(true);
     });
 
     it("keeps the subscription when a report arrives over a session we opened after the return", async () => {
