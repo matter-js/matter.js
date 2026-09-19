@@ -30,7 +30,7 @@ certCameraCase({
         const from = await cx.controllers.dut.log.markSettled();
         await provideIceCandidates(session, held);
 
-        const refused = await expectConstraintRefusal(cx, from);
+        const refused = await expectConstraintRefusal(cx, session, from);
         const kept = await expectSessionHeld(cx, session, held);
         const control = await expectControlAccepted(cx, session, "iceCandidates", held, provideOffer);
 

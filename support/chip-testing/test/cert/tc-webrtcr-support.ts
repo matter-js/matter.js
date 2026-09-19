@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, InternalError, Seconds } from "@matter/main";
+import { Duration, InternalError, Millis, Seconds, Time } from "@matter/main";
 import { StreamUsage } from "@matter/main/types";
 import type {
     CertNodeApi,
@@ -33,14 +33,23 @@ import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-suppo
 const PROVIDER_ENDPOINT = 1;
 
 /**
- * Every wait here is bounded so that the whole step fits inside the script's own `default_timeout` of
- * three minutes, which covers the prompt this handler is answering. A budget that outlives it has
- * mobly abort the script while the handler still holds stdin, and the case then fails as a script
- * timeout rather than as the verdict it had reached. The provider answers in milliseconds when it
- * answers at all.
+ * What a signaling step may spend in total.
+ *
+ * The script's own `default_timeout` of three minutes covers its whole test body — setup,
+ * commissioning and both prompts — not the single wait a handler is in. A step whose waits only cap
+ * each other individually can traverse six of them and outlive that, and mobly then aborts the script
+ * while the handler still holds stdin: the case fails as a script timeout rather than as the verdict
+ * it had reached. So the waits share one deadline, and what is left of it caps each.
+ *
+ * The provider answers in milliseconds when it answers at all, so this is headroom, not a target.
  */
+const STEP_BUDGET = Seconds(60);
+
+/** Caps on single waits, each further bounded by what is left of {@link STEP_BUDGET}. */
 const SIGNAL_TIMEOUT = Seconds(30);
 const INVOKE_TIMEOUT = Seconds(30);
+
+/** Bounds the commissioning step, which is a step of its own and has the script's budget to itself. */
 const COMMISSION_TIMEOUT = Seconds(60);
 
 /**
@@ -124,6 +133,14 @@ export interface CameraSession {
     requestor: WebRtcRequestorApi;
     ref: CertNodeRef;
     videoStreamId: number;
+
+    /** What is left of {@link STEP_BUDGET}, which every wait in the step shares. */
+    remaining(): Duration;
+}
+
+/** `cap`, or what is left of the step's budget where that is less. */
+function within(session: CameraSession, cap: Duration): Duration {
+    return Millis(Math.min(cap, session.remaining()));
 }
 
 /** A certification case driving `chip-camera-app` through one of its python scripts. */
@@ -359,12 +376,18 @@ function signalHandler(
                     throw new InternalError("The script asked for signaling before the DUT commissioned TH_SERVER");
                 }
 
-                const node = cx.controllers.dut.node(ref);
-                verdict = await definition.prove(cx, {
-                    node,
+                const endsAt = Time.nowUs + STEP_BUDGET;
+                const session: CameraSession = {
+                    node: cx.controllers.dut.node(ref),
                     requestor,
                     ref,
-                    videoStreamId: await allocateVideoStream(node),
+                    videoStreamId: 0,
+                    remaining: () => Millis(Math.max(0, endsAt - Time.nowUs)),
+                };
+
+                verdict = await definition.prove(cx, {
+                    ...session,
+                    videoStreamId: await allocateVideoStream(session),
                 });
             } finally {
                 // The recorder drops a step that never ends, so a throw from an invoke here would take
@@ -386,6 +409,7 @@ function signalHandler(
  */
 export async function solicitOffer(session: CameraSession): Promise<number> {
     const solicitation = await settled(
+        session,
         "SolicitOffer",
         session.node.invoke(
             "WebRtcTransportProvider",
@@ -412,6 +436,7 @@ export async function solicitOffer(session: CameraSession): Promise<number> {
  */
 export async function provideOffer(session: CameraSession): Promise<number> {
     const provided = await settled(
+        session,
         "ProvideOffer",
         session.node.invoke(
             "WebRtcTransportProvider",
@@ -438,6 +463,7 @@ export async function provideOffer(session: CameraSession): Promise<number> {
  */
 export async function provideIceCandidates(session: CameraSession, webRtcSessionId: number): Promise<void> {
     await settled(
+        session,
         "ProvideICECandidates",
         session.node.invoke(
             "WebRtcTransportProvider",
@@ -472,9 +498,10 @@ export async function expectRefusal(
     kind: WebRtcSignalRecord["kind"],
     held: number,
 ): Promise<{ passed: boolean; refusedId?: number }> {
+    const waited = within(session, SIGNAL_TIMEOUT);
     const refusal = await session.requestor.nextSignal(
         signal => signal.kind === kind && signal.outcome === "refused",
-        SIGNAL_TIMEOUT,
+        waited,
     );
 
     if (refusal === undefined) {
@@ -482,8 +509,8 @@ export async function expectRefusal(
             type: "response",
             verdict: "fail",
             detail:
-                `the DUT refused no ${signalName(kind)} within ${Duration.format(SIGNAL_TIMEOUT)} of establishing ` +
-                `session ${held}, so it either accepted what the fault produced or was never signaled`,
+                `the DUT refused no ${signalName(kind)} within ${Duration.format(waited)} of establishing session ` +
+                `${held}, so it either accepted what the fault produced or was never signaled`,
         });
         return { passed: false };
     }
@@ -517,15 +544,14 @@ export async function expectRefusal(
  */
 export async function expectConstraintRefusal(
     cx: CertStepContext,
+    session: CameraSession,
     from: number,
     timeout: Duration = SIGNAL_TIMEOUT,
 ): Promise<boolean> {
+    const waited = within(session, timeout);
     let matched: string | undefined;
     try {
-        const line = await cx.controllers.dut.log.expectPattern(CONSTRAINT_REFUSAL, {
-            from,
-            timeoutMs: timeout,
-        });
+        const line = await cx.controllers.dut.log.expectPattern(CONSTRAINT_REFUSAL, { from, timeoutMs: waited });
         matched = line.text;
     } catch (e) {
         if (!(e instanceof CertLogTimeoutError)) {
@@ -538,7 +564,7 @@ export async function expectConstraintRefusal(
         verdict: matched === undefined ? "fail" : "pass",
         detail:
             matched === undefined
-                ? `the DUT answered no ICECandidates with CONSTRAINT_ERROR within ${Duration.format(timeout)}, so ` +
+                ? `the DUT answered no ICECandidates with CONSTRAINT_ERROR within ${Duration.format(waited)}, so ` +
                   `it accepted a candidate list the specification states must hold at least one`
                 : `the DUT answered ICECandidates with CONSTRAINT_ERROR: ${matched}`,
     });
@@ -612,7 +638,7 @@ export async function expectControlAccepted(
 
     const accepted = await session.requestor.nextSignal(
         signal => signal.kind === kind && signal.outcome === "accepted" && signal.sessionId === control,
-        SIGNAL_TIMEOUT,
+        within(session, SIGNAL_TIMEOUT),
     );
 
     cx.recorder.check({
@@ -661,10 +687,11 @@ export function expectNoneAccepted(
 }
 
 /** Allocates the video stream a session names, as `chip-camera-controller` does before establishing one. */
-async function allocateVideoStream(node: CertNodeApi): Promise<number> {
+async function allocateVideoStream(session: CameraSession): Promise<number> {
     const allocation = await settled(
+        session,
         "VideoStreamAllocate",
-        node.invoke("CameraAvStreamManagement", "videoStreamAllocate", VIDEO_STREAM, PROVIDER_ENDPOINT),
+        session.node.invoke("CameraAvStreamManagement", "videoStreamAllocate", VIDEO_STREAM, PROVIDER_ENDPOINT),
     );
     return numberField(allocation, "videoStreamId", "VideoStreamAllocateResponse");
 }
@@ -673,17 +700,16 @@ async function allocateVideoStream(node: CertNodeApi): Promise<number> {
  * Bounds an interaction the provider may never answer, so a step fails with its evidence written
  * rather than being aborted by the mocha timeout with the bundle still unflushed.
  */
-async function settled<T>(label: string, op: Promise<T>): Promise<T> {
-    const outcome = await settleWithin(label, op, INVOKE_TIMEOUT);
+async function settled<T>(session: CameraSession, label: string, op: Promise<T>): Promise<T> {
+    const budget = within(session, INVOKE_TIMEOUT);
+    const outcome = await settleWithin(label, op, budget);
     switch (outcome.kind) {
         case "resolved":
             return outcome.value;
         case "rejected":
             throw outcome.error instanceof Error ? outcome.error : new CertCheckFailedError(String(outcome.error));
         case "timeout":
-            throw new CertCheckFailedError(
-                `${label} neither resolved nor rejected within ${Duration.format(INVOKE_TIMEOUT)}`,
-            );
+            throw new CertCheckFailedError(`${label} neither resolved nor rejected within ${Duration.format(budget)}`);
     }
 }
 

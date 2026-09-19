@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Millis } from "@matter/general";
+import { Duration, InternalError, Millis, Seconds } from "@matter/general";
 import type {
     CertNodeApi,
     CertStepContext,
@@ -54,8 +54,12 @@ function fakeRequestor(overrides: Partial<WebRtcRequestorApi> = {}): WebRtcReque
     };
 }
 
-function fakeSession(requestor: WebRtcRequestorApi, node: CertNodeApi = fakeCertNode()): CameraSession {
-    return { node, requestor, ref: REF, videoStreamId: 3 };
+function fakeSession(
+    requestor: WebRtcRequestorApi,
+    node: CertNodeApi = fakeCertNode(),
+    remaining: Duration = Seconds(30),
+): CameraSession {
+    return { node, requestor, ref: REF, videoStreamId: 3, remaining: () => remaining };
 }
 
 /** Captures what a helper records, with no controller log. */
@@ -115,6 +119,27 @@ describe("expectRefusal", () => {
         expect(outcome.passed).equal(false);
         expect(checks.map(check => check.verdict)).deep.equal(["fail"]);
         expect(checks[0].detail).match(/the very session it registered/);
+    });
+});
+
+describe("the step's shared budget", () => {
+    it("caps a wait at what is left of it rather than at the per-wait cap", async () => {
+        const { cx } = fakeContext();
+        const waits = new Array<number>();
+        const session = fakeSession(
+            fakeRequestor({
+                nextSignal: async (_predicate, timeoutMs) => {
+                    waits.push(timeoutMs);
+                    return undefined;
+                },
+            }),
+            fakeCertNode(),
+            Millis(750),
+        );
+
+        await expectRefusal(cx, session, "offer", 7);
+
+        expect(waits).deep.equal([750]);
     });
 });
 
@@ -227,7 +252,7 @@ describe("expectConstraintRefusal", () => {
                 "Invoke error 1.webRtcTransportRequestor.iceCandidates: Status=ConstraintError(135), ClusterStatus=undefined",
             ],
             async (cx, checks) => {
-                expect(await expectConstraintRefusal(cx, 0)).equal(true);
+                expect(await expectConstraintRefusal(cx, fakeSession(fakeRequestor()), 0)).equal(true);
                 expect(checks[0].verdict).equal("pass");
             },
         );
@@ -240,7 +265,7 @@ describe("expectConstraintRefusal", () => {
 
         const { cx, checks } = fakeContext(log);
         try {
-            expect(await expectConstraintRefusal(cx, 0, Millis(50))).equal(false);
+            expect(await expectConstraintRefusal(cx, fakeSession(fakeRequestor()), 0, Millis(50))).equal(false);
             expect(checks[0].verdict).equal("fail");
         } finally {
             await log.close();
@@ -256,7 +281,7 @@ describe("expectConstraintRefusal", () => {
 
         const { cx, checks } = fakeContext(log);
         try {
-            expect(await expectConstraintRefusal(cx, 0, Millis(50))).equal(false);
+            expect(await expectConstraintRefusal(cx, fakeSession(fakeRequestor()), 0, Millis(50))).equal(false);
             expect(checks[0].verdict).equal("fail");
         } finally {
             await log.close();
@@ -265,7 +290,7 @@ describe("expectConstraintRefusal", () => {
 
     it("throws rather than blaming the DUT where the log ends before anything matched", async () => {
         await withLog([], async (cx, checks) => {
-            await expect(expectConstraintRefusal(cx, 0)).rejectedWith(CertLogClosedError);
+            await expect(expectConstraintRefusal(cx, fakeSession(fakeRequestor()), 0)).rejectedWith(CertLogClosedError);
             expect(checks).deep.equal([]);
         });
     });
