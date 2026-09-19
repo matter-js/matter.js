@@ -698,7 +698,8 @@ export function expectEstablished(cx: CertStepContext, session: CameraSession, e
             : `session ${established.id} did not connect: ${stage}`,
     });
 
-    // States the deviation rather than certifying a connection built on an answer the harness altered
+    // States the deviation rather than certifying a connection built on an answer the harness altered.
+    // Goes when the substitution does — https://github.com/project-chip/connectedhomeip/issues/74310
     if (established.rewroteRole) {
         cx.recorder.check({
             type: "response",

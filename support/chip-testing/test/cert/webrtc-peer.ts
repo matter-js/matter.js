@@ -83,7 +83,9 @@ export class WebRtcPeer {
      * `actpass`, that being the offer's way of leaving the choice open. libdatachannel refuses such an
      * answer outright ("Illegal role actpass in remote answer description"), so this settles the role
      * the way the specification says the answerer should have: the answerer becomes the DTLS client.
-     * Reported upstream.
+     *
+     * TODO: remove this substitution, and the check that records it, once the camera app answers with a
+     * settled role — https://github.com/project-chip/connectedhomeip/issues/74310
      *
      * Reports whether it had to, so a case can say so in its evidence rather than certifying a
      * connection built on an answer the harness altered.

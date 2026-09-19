@@ -2734,7 +2734,9 @@ those cases settled:
   - chip's camera answers `a=setup:actpass`. RFC 8842 § 5.3 sends the answerer to RFC 4145 § 4.1,
     whose table leaves it `active` or `passive` and never `actpass`. libdatachannel refuses such an
     answer, so `WebRtcPeer.accept` settles the role and the case records that it did, rather than
-    certifying a connection built on an answer the harness altered. Reported upstream.
+    certifying a connection built on an answer the harness altered. Reported upstream as
+    [connectedhomeip#74310](https://github.com/project-chip/connectedhomeip/issues/74310); both the
+    substitution and the check that records it go when the camera app answers with a settled role.
   - Ending a session is two things: `EndSession` tells the provider, and `removeSession` stops the
     requestor reporting it. The cluster drops a session by itself only when the *peer* ends it (chip's
     camera answers `EndSession` by cleaning up its own side and sends no `End` back), so a controller
