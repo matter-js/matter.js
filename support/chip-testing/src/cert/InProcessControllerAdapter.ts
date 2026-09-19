@@ -39,7 +39,7 @@ import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-t
 import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import { CameraControllerDevice } from "@matter/main/devices";
 import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
-import type { BdxInit, PeerAddress } from "@matter/main/protocol";
+import type { BdxInit, PeerAddress, StorageScope } from "@matter/main/protocol";
 import {
     BdxProtocol,
     BdxSession,
@@ -1051,6 +1051,7 @@ class InProcessCertNodeApi implements CertNodeApi {
 
             const session = await this.#runOtaTransfer(
                 peerAddress,
+                await provider.act(agent => agent.get(OtaSoftwareUpdateProviderServer).updateStorage.scope),
                 async () =>
                     provider.act(agent =>
                         agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
@@ -1144,6 +1145,7 @@ class InProcessCertNodeApi implements CertNodeApi {
      */
     async #runOtaTransfer(
         peerAddress: PeerAddress,
+        scope: StorageScope,
         trigger: () => Promise<unknown>,
         abandon: () => Promise<unknown>,
         timeout: Duration,
@@ -1156,9 +1158,18 @@ class InProcessCertNodeApi implements CertNodeApi {
         promise.catch(() => {});
 
         let transfer: BdxSession | undefined;
-        observers.on(this.#controller.env.get(BdxProtocol).sessionStarted, (session: BdxSession) => {
+        observers.on(this.#controller.env.get(BdxProtocol).sessionStarted, (session, sessionScope) => {
             const { fabricIndex, nodeId } = session.peerAddress;
-            if (transfer !== undefined || fabricIndex !== peerAddress.fabricIndex || nodeId !== peerAddress.nodeId) {
+
+            // Scope as well as peer: this controller may hold another BDX transfer with the same node —
+            // a diagnostic-log retrieval is one — and reporting its bytes as the OTA transfer's would
+            // be evidence for a different exchange entirely.
+            if (
+                transfer !== undefined ||
+                sessionScope !== scope ||
+                fabricIndex !== peerAddress.fabricIndex ||
+                nodeId !== peerAddress.nodeId
+            ) {
                 return;
             }
             transfer = session;
@@ -1174,23 +1185,30 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
 
         const expiry = Time.sleep("cert OTA transfer", timeout);
+
+        // Anything but a completed transfer leaves the update queued, and a later forceUpdate() for this
+        // node then finds an active session and declines to start a replacement. Tracked here rather than
+        // per failure branch: a throw from the announce, a session that closed, and the budget expiring all
+        // have to undo it, and attaching that to one branch is what let two of them escape before.
+        let served = false;
         try {
             // The announce is inside the race, not before it: it waits on the peer, so a provider the node
             // never answers would otherwise hold this call open past the budget it documents.
             const completed = await Promise.race([trigger().then(() => promise), expiry.then(() => undefined)]);
             if (completed === undefined) {
-                // The queue would otherwise still hold this update, and a later forceUpdate() for the same
-                // node sees an active session and declines to start a replacement.
-                await abandon();
                 throw new OtaTransferError(
                     `Node id ${this.#nodeId} did not take the offered OTA image within ${Duration.format(timeout)}` +
                         (transfer === undefined ? " — it opened no BDX transfer at all" : ""),
                 );
             }
+            served = true;
             return completed;
         } finally {
             expiry.cancel();
             observers.close();
+            if (!served) {
+                await abandon();
+            }
         }
     }
 
