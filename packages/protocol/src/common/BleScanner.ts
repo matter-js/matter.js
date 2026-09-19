@@ -96,7 +96,8 @@ export class BleScanner implements Scanner {
     >();
     readonly #discoveredMatterDevices = new Map<string, StoredDiscoveredBleDevice>();
     #activeDiscoveries = 0;
-    #scanStart?: Promise<void>;
+    #scanning = false;
+    #scanTransitions: Promise<unknown> = Promise.resolve();
     #closed = false;
 
     constructor(client: BleScannerClient) {
@@ -123,18 +124,39 @@ export class BleScanner implements Scanner {
     }
 
     /**
+     * Drives the client to the scan the current discoveries need. Transitions run one after another, and each decides
+     * again what is needed, so a client that reports its scan state asynchronously cannot be handed a start and a stop
+     * that overlap. A caller learns the outcome of the transition it waits for, not of one another caller started.
+     */
+    #reconcileScan() {
+        const transition = this.#scanTransitions.then(async () => {
+            const wanted = this.#activeDiscoveries > 0 && !this.#closed;
+            if (wanted === this.#scanning) {
+                return;
+            }
+            if (wanted) {
+                await this.#client.startScanning();
+            } else {
+                await this.#client.stopScanning();
+            }
+            this.#scanning = wanted;
+        });
+
+        // A failed transition ends here; the next one decides again from the state it left behind
+        this.#scanTransitions = transition.catch(() => {});
+
+        return transition;
+    }
+
+    /**
      * Scans for as long as the caller discovers. One radio serves every discovery, so the scan starts with the first
      * and stops with the last: a discovery that ends must not take the scan away from one that still runs.
      */
     async #startDiscovering() {
         this.#activeDiscoveries++;
         try {
-            // Every discovery awaits the one start, so a scan that cannot start fails all of them rather than
-            // leaving those that did not issue it waiting for advertisements that cannot arrive
-            this.#scanStart ??= this.#client.startScanning();
-            await this.#scanStart;
+            await this.#reconcileScan();
         } catch (error) {
-            this.#scanStart = undefined;
             this.#activeDiscoveries--;
             throw error;
         }
@@ -146,10 +168,7 @@ export class BleScanner implements Scanner {
             return;
         }
         this.#activeDiscoveries--;
-        if (this.#activeDiscoveries === 0) {
-            this.#scanStart = undefined;
-            await this.#client.stopScanning();
-        }
+        await this.#reconcileScan();
     }
 
     /**
@@ -507,9 +526,9 @@ export class BleScanner implements Scanner {
         // trigger here; #closed makes the loop exit instead of re-registering after we resolve its awaiter.
         this.#closed = true;
         this.#activeDiscoveries = 0;
-        this.#scanStart = undefined;
         try {
             await this.closeClient();
+            this.#scanning = false;
         } finally {
             for (const queryId of [...this.#recordWaiters.keys()]) {
                 this.#finishWaiter(queryId, true);

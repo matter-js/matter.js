@@ -5,7 +5,7 @@
  */
 
 import { BlePeripheral, BleScanner, BleScannerClient } from "#common/BleScanner.js";
-import { Bytes, Duration, Instant, Millis, Seconds, Time, Timestamp } from "@matter/general";
+import { Bytes, createPromise, Duration, Instant, Millis, Seconds, Time, Timestamp } from "@matter/general";
 
 const SERVICE_DATA_A = Bytes.fromHex("00c9067c11018000"); // D=1737, VP=4476+32769
 const SERVICE_DATA_B = Bytes.fromHex("00e8037c11018000"); // D=1000, VP=4476+32769
@@ -28,14 +28,36 @@ class MockBleScannerClient implements BleScannerClient {
         return Millis(this.#listenedTime + Timestamp.delta(this.#listeningSince, Time.nowUs));
     }
 
+    /** Each call the scanner made, so a test can see whether transitions overlapped. */
+    readonly scanCalls = new Array<"start" | "stop">();
+
+    #stopGate?: Promise<void>;
+    #openStopGate?: () => void;
+
     async startScanning() {
+        this.scanCalls.push("start");
         if (this.startScanningError) throw this.startScanningError;
         this.startListening();
     }
 
     async stopScanning() {
+        this.scanCalls.push("stop");
+        await this.#stopGate;
         this.stopListening();
         if (this.stopScanningError) throw this.stopScanningError;
+    }
+
+    /** Leaves the next `stopScanning()` in flight, as a client whose radio reports its state asynchronously does. */
+    holdStop() {
+        const { promise, resolver } = createPromise<void>();
+        this.#stopGate = promise;
+        this.#openStopGate = resolver;
+    }
+
+    releaseStop() {
+        this.#stopGate = undefined;
+        this.#openStopGate?.();
+        this.#openStopGate = undefined;
     }
 
     get scanning() {
@@ -567,6 +589,34 @@ describe("BleScanner", () => {
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
 
             expect(await discovery).to.have.lengthOf(1);
+        });
+
+        it("starts the next scan only once the previous stop finished", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const first = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+
+            client.holdStop();
+            scanner.cancelCommissionableDeviceDiscovery({ shortDiscriminator: 6 });
+            await settleDiscovery();
+
+            const second = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 7 }, () => {});
+            await settleDiscovery();
+
+            // The stop is still in flight, so the radio is not asked to start again yet
+            expect(client.scanCalls).to.deep.equal(["start", "stop"]);
+
+            client.releaseStop();
+            await first;
+            await settleDiscovery();
+
+            expect(client.scanCalls).to.deep.equal(["start", "stop", "start"]);
+            expect(client.scanning).to.equal(true);
+
+            await scanner.close();
+            await second;
         });
 
         it("keeps scanning for a discovery that still runs when another ends", async () => {
