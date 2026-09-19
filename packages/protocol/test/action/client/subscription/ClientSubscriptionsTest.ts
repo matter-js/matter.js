@@ -14,6 +14,7 @@ import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
     Duration,
+    ImplementationError,
     Lifetime,
     MemoryStorageDriver,
     Seconds,
@@ -78,19 +79,34 @@ describe("ClientSubscriptions", () => {
             });
         }
 
-        it("announces a report with its peer and session", async () => {
+        it("announces the session a report arrived over", async () => {
             const session = await aSession();
             const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
-            const announced = new Array<[PeerAddress, SecureSession]>();
-            subscriptions.reportStarted.on((peer, reported) => {
-                announced.push([peer, reported]);
+            const announced = new Array<SecureSession>();
+            subscriptions.reportStarted.on(reported => {
+                announced.push(reported);
             });
 
-            subscriptions.noteReportStarted(PEER, session);
+            subscriptions.reportStarted.emit(session);
 
             expect(announced.length).equal(1);
-            expect(announced[0][0]).equal(PEER);
-            expect(announced[0][1]).equal(session);
+            expect(announced[0]).equal(session);
+        });
+
+        it("contains an observer that throws", async () => {
+            const session = await aSession();
+            const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
+            let reached = 0;
+            subscriptions.reportStarted.on(() => {
+                throw new ImplementationError("observer is broken");
+            });
+            subscriptions.reportStarted.on(() => {
+                reached++;
+            });
+
+            // The emit runs on the inbound report path, so a bad observer must not abort the report being read.
+            expect(() => subscriptions.reportStarted.emit(session)).not.throw();
+            expect(reached).equal(1);
         });
 
         it("drops observers once closed", async () => {
@@ -102,7 +118,7 @@ describe("ClientSubscriptions", () => {
             });
 
             await subscriptions.close();
-            subscriptions.noteReportStarted(PEER, session);
+            subscriptions.reportStarted.emit(session);
 
             expect(announced).equal(0);
         });

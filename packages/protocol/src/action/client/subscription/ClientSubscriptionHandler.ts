@@ -109,7 +109,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
 
             // Announce the report (data or keepalive) as it starts arriving, not on completion — a multi-chunk
             // report may stream for a while, and liveness is proven the moment the peer starts sending.
-            this.#subscriptions.noteReportStarted(subscription.peer, session);
+            this.#subscriptions.reportStarted.emit(session);
 
             // If this is just a ping, only reset the timeout
             if (!initialReport.attributeReports?.length && !initialReport.eventReports?.length) {

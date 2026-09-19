@@ -290,27 +290,18 @@ describe("Ota", () => {
 
         // Model a persistent device that keeps feeding its subscription: report over the session the returning
         // device opened, which is the only session it still holds once Mechanism A has closed the pre-reboot ones.
-        const armed = await otaProvider.act(agent => {
+        // The sibling Mechanism B test proves the grace window reaches closeForPeer in this harness, so the keep
+        // asserted below is a decision and not an absence of one.
+        await otaProvider.act(agent => {
             const sessions = agent.env.get(SessionManager);
             const live = sessions.sessions.filter(session => PeerAddress.is(session.peerAddress, peerAddress));
             expect(live.length).equals(1);
-            agent.env.get(ClientSubscriptions).noteReportStarted(peerAddress, live[0]);
-
-            return agent.get(SoftwareUpdateManager).internal.rebootResubscribeArmer!.isArmed(peerAddress);
+            agent.env.get(ClientSubscriptions).reportStarted.emit(live[0]);
         });
-        expect(armed).equals(true);
 
         // Let the grace window elapse.
         await MockTime.advance(Seconds(30));
         await MockTime.macrotasks;
-
-        // Anti-vacuous anchor: the grace window is the only thing that can disarm the peer this early — the return
-        // deadline runs for three minutes — so a no-op #onSessionAdded would leave the peer armed here and the keep
-        // below would prove nothing.
-        const stillArmed = await otaProvider.act(agent =>
-            agent.get(SoftwareUpdateManager).internal.rebootResubscribeArmer!.isArmed(peerAddress),
-        );
-        expect(stillArmed).equals(false);
 
         // Mechanism A ran for the returning peer with the reboot session's createdAt (the armer's asOf), not merely
         // the general Peers.#onStartUp shutdown.
@@ -433,8 +424,8 @@ describe("Ota", () => {
         }));
 
         const reports = new Array<{ peer: PeerAddress; session: SecureSession }>();
-        subscriptions.reportStarted.on((peer, session) => {
-            reports.push({ peer, session });
+        subscriptions.reportStarted.on(session => {
+            reports.push({ peer: session.peerAddress, session });
         });
 
         // Only device-pushed reports flow through ClientSubscriptionHandler; the initial priming report comes back

@@ -64,7 +64,7 @@ async function setup() {
     }
 
     function reportOver(session: NodeSession) {
-        subscriptions.noteReportStarted(PeerAddress(session.peerAddress), session);
+        subscriptions.reportStarted.emit(session);
     }
 
     function isSubscribed(subscription: PeerSubscription) {
@@ -103,6 +103,7 @@ describe("RebootResubscribeArmer", () => {
 
     it("closes older sessions when the armed device returns", async () => {
         const { armer, createSession, sessionLives, whenClosed } = await setup();
+        using _armer = armer;
         const older = await createSession();
         armer.arm(PEER);
         await MockTime.advance(Seconds(1));
@@ -112,11 +113,11 @@ describe("RebootResubscribeArmer", () => {
 
         expect(sessionLives(older)).equals(false);
         expect(sessionLives(returned)).equals(true);
-        armer[Symbol.dispose]();
     });
 
     it("re-subscribes when no report arrives within the grace window", async () => {
         const { armer, createSession, registerSubscription, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         armer.arm(PEER);
         await createSession();
@@ -125,11 +126,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
-        armer[Symbol.dispose]();
     });
 
     it("keeps the subscription when a report arrives over the returning session", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         armer.arm(PEER);
         const returned = await createSession();
@@ -139,11 +140,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(true);
-        armer[Symbol.dispose]();
     });
 
     it("keeps the subscription when a report arrives over a session opened after the return", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         armer.arm(PEER);
         await createSession();
@@ -155,11 +156,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(true);
-        armer[Symbol.dispose]();
     });
 
     it("re-subscribes when the only report arrives over a pre-reboot session", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         const preReboot = await createSession();
         armer.arm(PEER);
@@ -175,11 +176,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(20));
         expect(isSubscribed(subscription)).equals(false);
-        armer[Symbol.dispose]();
     });
 
     it("re-subscribes when the only report arrives before the peer returns", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         const preReboot = await createSession();
         armer.arm(PEER);
@@ -192,11 +193,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
-        armer[Symbol.dispose]();
     });
 
     it("re-subscribes when the peer reboots again inside the grace window", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         armer.arm(PEER);
 
@@ -214,11 +215,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
-        armer[Symbol.dispose]();
     });
 
     it("keeps the subscription when a report arrives over a session we opened after the return", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         await createSession(); // pre-reboot session
         armer.arm(PEER);
@@ -232,11 +233,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(true);
-        armer[Symbol.dispose]();
     });
 
     it("discards the previous cycle's returning session as evidence after a re-arm", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
 
         armer.arm(PEER);
@@ -251,11 +252,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
-        armer[Symbol.dispose]();
     });
 
     it("re-arming replaces the previous return deadline rather than leaving it to fire", async () => {
         const { armer, sessions, createSession, registerSubscription } = await setup();
+        using _armer = armer;
         registerSubscription();
         await createSession();
 
@@ -275,11 +276,11 @@ describe("RebootResubscribeArmer", () => {
         await MockTime.macrotasks;
 
         expect(peerLossCount).equals(0);
-        armer[Symbol.dispose]();
     });
 
     it("ignores sessions for peers that are not armed", async () => {
         const { armer, createSession, sessionLives } = await setup();
+        using _armer = armer;
         const older = await createSession();
         await MockTime.advance(Seconds(1));
         await createSession();
@@ -287,11 +288,11 @@ describe("RebootResubscribeArmer", () => {
 
         // Mechanism A never ran, so the older session is untouched.
         expect(sessionLives(older)).equals(true);
-        armer[Symbol.dispose]();
     });
 
     it("disarm cancels a pending re-subscribe", async () => {
         const { armer, createSession, registerSubscription, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         armer.arm(PEER);
         await createSession();
@@ -300,11 +301,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(true);
-        armer[Symbol.dispose]();
     });
 
     it("still handles a late session if the device returns before the deadline", async () => {
         const { armer, createSession, sessionLives, whenClosed } = await setup();
+        using _armer = armer;
         const older = await createSession();
         armer.arm(PEER);
         await MockTime.advance(Minutes(2)); // still short of the return deadline
@@ -315,11 +316,11 @@ describe("RebootResubscribeArmer", () => {
         await MockTime.resolve(olderClosed);
         expect(sessionLives(older)).equals(false);
         expect(sessionLives(returned)).equals(true);
-        armer[Symbol.dispose]();
     });
 
     it("recovers the peer when no session returns within the return deadline", async () => {
         const { armer, createSession, registerSubscription, isSubscribed, sessionLives } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         const stale = await createSession(); // pre-reboot session, established before arming
         armer.arm(PEER);
@@ -336,11 +337,11 @@ describe("RebootResubscribeArmer", () => {
 
         expect(sessionLives(stale)).equals(false); // handlePeerLoss dropped the stale session
         expect(isSubscribed(subscription)).equals(false); // closeForPeer forced re-subscription
-        armer[Symbol.dispose]();
     });
 
     it("cancels the return deadline once the device returns", async () => {
         const { armer, sessions, createSession } = await setup();
+        using _armer = armer;
         await createSession(); // pre-reboot session
 
         let peerLossCount = 0;
@@ -359,11 +360,11 @@ describe("RebootResubscribeArmer", () => {
         await MockTime.macrotasks;
 
         expect(peerLossCount).equals(0); // return-timeout recovery never ran
-        armer[Symbol.dispose]();
     });
 
     it("disarm before the deadline cancels the recovery", async () => {
         const { armer, sessions, createSession } = await setup();
+        using _armer = armer;
         await createSession(); // pre-reboot session
 
         let peerLossCount = 0;
@@ -380,11 +381,11 @@ describe("RebootResubscribeArmer", () => {
         await MockTime.macrotasks;
 
         expect(peerLossCount).equals(0);
-        armer[Symbol.dispose]();
     });
 
     it("ignores a controller-initiated session (isInitiator true) even for an armed peer", async () => {
         const { armer, createSession, registerSubscription, isSubscribed, sessionLives } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
         const older = await createSession();
         armer.arm(PEER);
@@ -395,11 +396,11 @@ describe("RebootResubscribeArmer", () => {
         expect(sessionLives(older)).equals(true); // Mechanism A must not run
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(true);
-        armer[Symbol.dispose]();
     });
 
     it("re-arming drops the prior grace timer so it cannot fire closeForPeer on its own schedule", async () => {
         const { armer, createSession, registerSubscription, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
 
         // First cycle: arm, session arrives, grace starts.
@@ -421,12 +422,11 @@ describe("RebootResubscribeArmer", () => {
         await MockTime.macrotasks;
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
-
-        armer[Symbol.dispose]();
     });
 
     it("re-arming requires fresh evidence for the new cycle", async () => {
         const { armer, createSession, registerSubscription, reportOver, isSubscribed } = await setup();
+        using _armer = armer;
         const subscription = registerSubscription();
 
         armer.arm(PEER);
@@ -441,12 +441,11 @@ describe("RebootResubscribeArmer", () => {
 
         await MockTime.advance(Seconds(30));
         expect(isSubscribed(subscription)).equals(false);
-        armer[Symbol.dispose]();
     });
 
     it("disarm of an un-armed peer is a no-op", async () => {
         const { armer } = await setup();
+        using _armer = armer;
         expect(() => armer.disarm(PEER)).not.throw();
-        armer[Symbol.dispose]();
     });
 });

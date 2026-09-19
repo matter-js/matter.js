@@ -31,12 +31,12 @@ interface ArmState {
      * came from: a device flushes its subscription as it reboots, so only a report over a session opened since the
      * peer last returned says the subscription survived.
      */
-    return?: {
+    returned?: {
         /** Sessions with the peer opened since it returned, starting with the one that announced the return. */
         sessions: Set<SecureSession>;
 
         /** Whether a report has arrived over one of them. */
-        fed: boolean;
+        reported: boolean;
     };
 
     graceTimer?: Timer;
@@ -61,32 +61,27 @@ export class RebootResubscribeArmer {
         this.#sessions = sessions;
         this.#subscriptions = subscriptions;
         this.#observers.on(sessions.sessions.added, session => this.#onSessionAdded(session));
-        this.#observers.on(subscriptions.reportStarted, (peer, session) => this.#onReportStarted(peer, session));
+        this.#observers.on(subscriptions.reportStarted, session => this.#onReportStarted(session));
     }
 
     arm(peerAddress: PeerAddress) {
         peerAddress = PeerAddress(peerAddress);
 
-        // A re-arm must leave nothing of the previous cycle behind: a field that survived would hand the new cycle
-        // the old one's evidence.
         const previous = this.#armed.get(peerAddress);
         previous?.graceTimer?.stop();
         previous?.returnTimer?.stop();
 
-        const state: ArmState = {};
+        const state: ArmState = {
+            returned: undefined,
+            graceTimer: undefined,
+            returnTimer: undefined,
+        };
         this.#armed.set(peerAddress, state);
 
         state.returnTimer = Time.getTimer("Reboot return deadline", EXPECTED_RETURN_TIMEOUT, () =>
             this.#onReturnTimeout(peerAddress),
         );
         state.returnTimer.start();
-    }
-
-    /**
-     * Whether a peer is waiting for its reboot to resolve, either for its return or for its grace window to expire.
-     */
-    isArmed(peerAddress: PeerAddress) {
-        return this.#armed.has(PeerAddress(peerAddress));
     }
 
     disarm(peerAddress: PeerAddress) {
@@ -110,7 +105,7 @@ export class RebootResubscribeArmer {
         if (session.isInitiator) {
             // Our own connect does not announce a return, but once the peer is back it carries the peer's data as
             // well as the session the peer opened.
-            state.return?.sessions.add(session);
+            state.returned?.sessions.add(session);
             return;
         }
 
@@ -118,7 +113,7 @@ export class RebootResubscribeArmer {
         state.returnTimer?.stop();
         state.returnTimer = undefined;
 
-        state.return = { sessions: new Set([session]), fed: false };
+        state.returned = { sessions: new Set([session]), reported: false };
 
         // Mechanism A — drop the dead pre-reboot sessions so probe/re-subscribe cannot pick them.
         this.#sessions
@@ -137,20 +132,20 @@ export class RebootResubscribeArmer {
             return;
         }
 
-        if (!state.return?.fed) {
+        if (!state.returned?.reported) {
             this.#subscriptions.closeForPeer(peerAddress);
         }
 
         this.disarm(peerAddress);
     }
 
-    #onReportStarted(peerAddress: PeerAddress, session: SecureSession) {
-        const state = this.#armed.get(PeerAddress(peerAddress));
-        if (state?.return?.sessions.has(session) !== true) {
+    #onReportStarted(session: SecureSession) {
+        const state = this.#armed.get(session.peerAddress);
+        if (state?.returned?.sessions.has(session) !== true) {
             return;
         }
 
-        state.return.fed = true;
+        state.returned.reported = true;
     }
 
     #onReturnTimeout(peerAddress: PeerAddress) {
