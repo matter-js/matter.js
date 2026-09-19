@@ -305,9 +305,15 @@ function chipByte(value: number) {
     return `0x${value.toString(16).toUpperCase()}`;
 }
 
-/** chip's own rendering of the transfer-control octet {@link transferControlByte} builds. */
+/** chip's own rendering of the transfer-control octet an accept carries, which names one mode. */
 export function chipTransferControl(version: number, mode: "senderDrive" | "receiverDrive", asynchronous: boolean) {
     return chipByte(transferControlByte(version, mode === "senderDrive", mode === "receiverDrive", asynchronous));
+}
+
+/** chip's own rendering of the transfer-control octet a proposal carries, which may name both modes. */
+export function chipProposedTransferControl(proposal: BdxTransferProposal) {
+    const { version, senderDrive, receiverDrive, asynchronousTransfer } = proposal;
+    return chipByte(transferControlByte(version, senderDrive, receiverDrive, asynchronousTransfer));
 }
 
 /** chip's own rendering of the range-control octet {@link rangeControlByte} builds. */
@@ -330,9 +336,17 @@ function transferControlByte(
     return (version & 0xf) | (senderDrive ? 1 << 4 : 0) | (receiverDrive ? 1 << 5 : 0) | (asynchronous ? 1 << 6 : 0);
 }
 
+/**
+ * Whether a message carries a Length field at all. Zero is the indefinite-length form, so it clears
+ * the flag and writes no field, as `BdxReceiveAcceptSchema` and `BdxReceiveInitSchema` encode it.
+ */
+function hasDefiniteLength(definiteLength: number | undefined): definiteLength is number {
+    return definiteLength !== undefined && definiteLength !== 0;
+}
+
 /** The range-control octet, whose flags a message derives from the fields it carries (§ 11.22.5.1). */
 function rangeControlByte(definiteLength: number | undefined, startOffset: number | undefined): number {
-    return (definiteLength === undefined || definiteLength === 0 ? 0 : 1) | (startOffset === undefined ? 0 : 1 << 1);
+    return (hasDefiniteLength(definiteLength) ? 1 : 0) | (startOffset === undefined ? 0 : 1 << 1);
 }
 
 function u8(value: number) {
@@ -361,7 +375,7 @@ export function receiveAcceptPayload(accept: BdxTransferAccept) {
         u8(transferControlByte(version, mode === "senderDrive", mode === "receiverDrive", asynchronousTransfer)) +
         u8(rangeControlByte(definiteLength, undefined)) +
         u16le(maxBlockSize) +
-        (definiteLength === undefined ? "" : u32le(definiteLength))
+        (hasDefiniteLength(definiteLength) ? u32le(definiteLength) : "")
     );
 }
 
@@ -377,6 +391,6 @@ export function receiveInitPayloadPrefix(proposal: BdxTransferProposal) {
         u8(rangeControlByte(definiteLength, startOffset)) +
         u16le(maxBlockSize) +
         (startOffset === undefined ? "" : u32le(startOffset)) +
-        (definiteLength === undefined ? "" : u32le(definiteLength))
+        (hasDefiniteLength(definiteLength) ? u32le(definiteLength) : "")
     );
 }

@@ -7,6 +7,7 @@
 import type { BdxTransferAccept, BdxTransferProposal, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
+    chipProposedTransferControl,
     chipRangeControl,
     chipTransferControl,
     chipX64,
@@ -71,13 +72,7 @@ function receiveInitLines(proposal: BdxTransferProposal) {
         matterjs: [new RegExp(`Message » for: BDX/ReceiveInit .* payload: ${receiveInitPayloadPrefix(proposal)}`)],
         chip: [
             /\[ATM\] ReceiveInit\s*$/,
-            new RegExp(
-                `\\[ATM\\]\\s+Proposed Transfer Control: ${chipTransferControl(
-                    proposal.version,
-                    proposal.senderDrive ? "senderDrive" : "receiverDrive",
-                    proposal.asynchronousTransfer,
-                )}\\s*$`,
-            ),
+            new RegExp(`\\[ATM\\]\\s+Proposed Transfer Control: ${chipProposedTransferControl(proposal)}\\s*$`),
             new RegExp(
                 `\\[ATM\\]\\s+Range Control: ${chipRangeControl(proposal.definiteLength, proposal.startOffset)}\\s*$`,
             ),

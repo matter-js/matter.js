@@ -11,6 +11,7 @@ import {
     blockEofReceived,
     blockQueriesSent,
     blocksReceived,
+    chipProposedTransferControl,
     chipRangeControl,
     chipTransferControl,
     chipX64,
@@ -173,6 +174,11 @@ describe("tc-bdx-support", () => {
             expect(receiveAcceptPayload({ ...RECEIVER_ACCEPT, definiteLength: 0x10065 })).equal("2001000465000100");
         });
 
+        it("writes no Length for the indefinite-length form, which is what a zero length is", () => {
+            expect(receiveAcceptPayload({ ...RECEIVER_ACCEPT, definiteLength: 0 })).equal("20000004");
+            expect(receiveInitPayloadPrefix({ ...RECEIVER_PROPOSAL, definiteLength: 0 })).equal("20000004");
+        });
+
         it("distinguishes a mode and a version", () => {
             expect(receiveAcceptPayload({ ...RECEIVER_ACCEPT, mode: "senderDrive" })).equal("10000004");
             expect(receiveAcceptPayload({ ...RECEIVER_ACCEPT, version: 1 })).equal("21000004");
@@ -187,6 +193,18 @@ describe("tc-bdx-support", () => {
             expect(chipRangeControl(undefined)).equal("0x0");
             expect(chipRangeControl(1024)).equal("0x1");
             expect(chipRangeControl(1024, 16)).equal("0x3");
+        });
+
+        it("keeps both modes a proposal offers, where an accept names one", () => {
+            const proposal: BdxTransferProposal = {
+                version: 0,
+                senderDrive: false,
+                receiverDrive: true,
+                asynchronousTransfer: false,
+                maxBlockSize: 1024,
+            };
+            expect(chipProposedTransferControl(proposal)).equal("0x20");
+            expect(chipProposedTransferControl({ ...proposal, senderDrive: true })).equal("0x30");
         });
 
         it("prints a 64-bit value as sixteen zero-padded uppercase digits", () => {
