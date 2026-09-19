@@ -395,6 +395,51 @@ describe("RotateGroupKey task integration (two members)", () => {
         }
     });
 
+    it("fails the rotation when a member joined the key set behind its back", async () => {
+        await using site = new MockSite();
+        const { controller, peerA, peerB } = await twoMemberGroup(site, { addB: false });
+
+        // Park the rotation inside the switch with A offline, then give B the key set directly — the path the
+        // join refusal does not guard, and the reason each phase asks again after its own writes. Parked in
+        // mark instead, the rotation would simply adopt B; from the switch on it cannot, because the members
+        // it captured are already using the new key.
+        const subscriptionA = subscriptionOf(peerA);
+        let flipped = false;
+        afterWriteA = s => {
+            if (!flipped && s.length === 3) {
+                flipped = true;
+                subscriptionA.active.emit(false);
+            }
+        };
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
+        await awaitParkedInPhase(controller, ROTATE_SLOT, 2);
+
+        await peerB.act(agent =>
+            agent.get(DesiredStateBehavior).setIntent(
+                "groupKey",
+                String(GROUP_KEY_SET_ID),
+                {
+                    groupKeySetId: GROUP_KEY_SET_ID,
+                    groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+                    epochKey0: OP_KEY,
+                    epochStartTime0: OP_START,
+                    epochKey1: null,
+                    epochStartTime1: null,
+                    epochKey2: null,
+                    epochStartTime2: null,
+                },
+                "converge",
+            ),
+        );
+
+        // The rotation refuses rather than dropping the old key from everyone but B.
+        await MockTime.resolve(subscriptionA.active.emit(true), { macrotasks: true });
+        await awaitState(controller, ROTATE_SLOT, "failed");
+        const status = await controller.act(a => statusOfSlot(a.get(TaskManagerBehavior), ROTATE_SLOT));
+        expect(status?.error).contains("does not hold this rotation's new key");
+        expect(status?.error).contains("Rotate again");
+    });
+
     it("refuses a join once the rotation owns the key set, before any member switches", async () => {
         await using site = new MockSite();
         const { controller, deviceA, deviceB, peerA, peerB } = await twoMemberGroup(site, { addB: false });

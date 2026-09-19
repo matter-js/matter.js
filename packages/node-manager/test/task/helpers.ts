@@ -349,12 +349,19 @@ export class FakePeer {
     }
 
     stateOf(type: unknown): unknown {
-        return type === DesiredStateBehavior ? { items: this.items } : { isDisabled: false };
+        return type === DesiredStateBehavior ? { items: this.items } : { isDisabled: this.networkDisabled };
+    }
+
+    #addressed = true;
+
+    /** Forget the peer's identity, as a node being torn down has. */
+    forgetAddress() {
+        this.#addressed = false;
     }
 
     /** What `ClientNode` exposes and the task layer reads: a peer's identity, not its local id. */
-    get peerAddress(): PeerAddress {
-        return this.address;
+    get peerAddress(): PeerAddress | undefined {
+        return this.#addressed ? this.address : undefined;
     }
 
     maybeStateOf(type: unknown): unknown {
@@ -364,10 +371,17 @@ export class FakePeer {
         return type === CommissioningClient ? { peerAddress: this.address } : undefined;
     }
 
+    /** A peer with no networking at all, as a group or a node still being built has. */
+    networkless = false;
+
+    /** A peer whose networking is switched off, which reads as unreachable however its subscription looks. */
+    networkDisabled = false;
+
     get behaviors() {
         const activeSubscription = this.#activeSubscription;
+        const networkless = this.networkless;
         return {
-            has: () => true,
+            has: () => !networkless,
             internalsOf: () => ({ activeSubscription }),
         };
     }

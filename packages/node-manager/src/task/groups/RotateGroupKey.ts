@@ -135,9 +135,9 @@ function requireSingleKeySteadyState(ctx: TaskContext, p: RotateGroupKeyParams):
 function requireEveryMemberHoldsNewKey(ctx: TaskContext, p: RotateGroupKeyParams, phase: RotationPhase): void {
     const late = memberWithoutNewKey(ctx, p, String(p.groupKeySetId), phase);
     if (late !== undefined) {
-        // Asked before activate writes and again after, and the two differ in what the device holds: after,
-        // the members captured at entry are already transmitting with the new key. So the message states the
-        // member and the remedy, and claims nothing about whether the new key is in use yet.
+        // Asked before a phase writes and again after, and the two differ in what the device holds: after the
+        // switch, the members captured at entry are already transmitting with the new key. So the message
+        // states the member and the remedy, and claims nothing about whether the new key is in use yet.
         throw new RotationPreconditionError(
             `Cannot ${phase} group key set ${p.groupKeySetId}: peer ${peerLabel(late)} does not hold this ` +
                 `rotation's new key, so it joined the key set while the rotation was running. Rotate again ` +

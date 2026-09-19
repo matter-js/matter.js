@@ -14,6 +14,7 @@ import { TaskDefinition } from "#task/Task.js";
 import { RunId } from "#task/types.js";
 import { ImplementationError } from "@matter/general";
 import { ItemKind } from "@matter/node";
+import { FabricIndex, NodeId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { testAddress } from "./helpers.js";
 
@@ -177,5 +178,54 @@ describe("built-in task parameter validation", () => {
         }
         expect(message).contains("newEpochKey");
         expect(message).not.contains("1,2,3");
+    });
+});
+
+describe("what a parameter check refuses", () => {
+    // Each of these reaches a built-in through its own `validate`, which is the only door a caller or a
+    // stored record has to them.
+    it("refuses key material that is not bytes, and says what arrived instead", () => {
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, epochKey0: "sixteen chars!!!" } as never)).throws(
+            ImplementationError,
+            /"epochKey0" must be a Uint8Array, not string/,
+        );
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, epochKey0: new Uint8Array(8) })).throws(
+            ImplementationError,
+            /"epochKey0" must be 16 bytes, not 8/,
+        );
+        // The description of a rejected value never carries the value: params hold raw group keys.
+        expect(() => RotateGroupKey.validate?.({ ...ROTATE, newEpochKey: new Uint8Array(20) })).throws(
+            ImplementationError,
+            /must be 16 bytes, not 20/,
+        );
+    });
+
+    it("refuses a group name carrying an information separator", () => {
+        // A conformant encoder refuses it far from the caller that supplied it, so this one refuses it here.
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: "kitchen\u001flights" })).throws(
+            ImplementationError,
+            /must not contain an information separator/,
+        );
+    });
+
+    it("refuses an address that could never be resolved again", () => {
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, peer: { fabricIndex: 1, nodeId: 7 } as never })).throws(
+            ImplementationError,
+            /"peer.nodeId" must be a node id/,
+        );
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, peer: { fabricIndex: 1, nodeId: 0n } as never })).throws(
+            ImplementationError,
+            /must not be the unspecified node id/,
+        );
+    });
+
+    it("refuses a group address for work that drives one peer", () => {
+        // Group addresses are a different thing entirely: nothing answers for them individually.
+        expect(() =>
+            RemoveNodeFromGroup.validate?.({
+                ...REMOVE,
+                peer: { fabricIndex: FabricIndex(1), nodeId: NodeId(0xffffffffffff0001n) },
+            }),
+        ).throws(ImplementationError, /is a group address/);
     });
 });

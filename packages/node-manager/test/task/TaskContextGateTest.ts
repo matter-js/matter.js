@@ -310,3 +310,46 @@ describe("TaskContext gates", () => {
         expect(settled).equals(true);
     });
 });
+
+describe("what a gate counts as reachable", () => {
+    // The task layer parks on the same signal the reconciler converges on, so a peer that cannot be reached
+    // has to read the same way through every door — not only when its subscription happens to be gone.
+    it("parks for a peer with no networking, one switched off, and one with no subscription", async () => {
+        for (const make of [
+            () => {
+                const peer = new FakePeer("no-network");
+                peer.networkless = true;
+                return peer;
+            },
+            () => {
+                const peer = new FakePeer("disabled");
+                peer.networkDisabled = true;
+                return peer;
+            },
+            () => {
+                const peer = new FakePeer("unsubscribed");
+                peer.setReachable(false);
+                return peer;
+            },
+        ]) {
+            const peer = make();
+            const { ctx, states } = makeContext(peer);
+            const gate = ctx.awaitGate([peer.asNode()], () => false);
+            await MockTime.advance(1);
+            expect(states, peer.id).contains("parked");
+
+            // And it leaves nothing running once the task is torn down.
+            peer.setReachable(true);
+            peer.networkless = peer.networkDisabled = false;
+            peer.itemChanged.emit({
+                kind: "groupMembership",
+                key: "X",
+                intent: {},
+                mode: "converge",
+                status: { state: "committed", updateTimestamp: 0 },
+            });
+            await MockTime.advance(1);
+            void gate.catch(() => {});
+        }
+    });
+});
