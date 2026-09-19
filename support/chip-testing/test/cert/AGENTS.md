@@ -60,7 +60,9 @@ to an app this way:
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 
-The three "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
+A single TC may name two of these at once through `devices` — see "More than one device in a run".
+
+The four "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
 exist (verify with `MATTER_CERT_APP_DIR`/an app-specific image, or `MATTER_CHIP_BINS_SOURCE=cert-bins`
 for the official binaries — see the root `README.md`'s "Choosing a CHIP binary source"), same as any
 pilot. They're blocked
@@ -75,7 +77,9 @@ device-flavor capability gap").
 
 ## Flavor policy: chip is the pass/fail bar, matterjs is optional
 
-Three flavors exist (`DeviceFlavor` in `cert-context.ts`): `chip-local`, `chip-docker`, `matterjs`.
+Three flavors can be selected (`SelectableDeviceFlavor` in `cert-context.ts`): `chip-local`,
+`chip-docker`, `matterjs`. `DeviceFlavor` adds `python-wrapped`, which only ever appears in evidence,
+for a device a wrapped python script spawns for itself.
 The convention this series has followed, worth stating explicitly for the next TC:
 
 - **At least one chip flavor (`chip-local` or `chip-docker`) passing is the actual certification
@@ -501,7 +505,7 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
 A TC's TH app can exist for some flavors but not support the cluster/commands the plan needs on others
 — `TC-ACT-3.2` needs an Actions cluster on the bridge app, which the real `chip-bridge-app` has (even if
 most of its commands aren't implemented) but matter.js's own `BridgeTestInstance` doesn't have at all. The DSL had no way to express "this step/TC only makes sense on
-some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: DeviceFlavor[]`
+some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: SelectableDeviceFlavor[]`
 (`cert-dsl.ts`), threaded through to `CertStepDefinition.flavors` (`cert-context.ts`) and checked in
 `CertTest.invoke()` (`cert-test.ts`) via `currentFlavor()` (every device in one run shares the same
 flavor, so any one's `.flavor` speaks for the whole run) — a step whose `flavors` doesn't include the
@@ -1806,12 +1810,25 @@ deciding a `.b` step's parse is redundant: it usually is, and there it is not.
 own onboarding identity — discriminator, passcode, and operational port — from `identityFor(index)`
 in `cert-dsl.ts`. This used to throw.
 
+**Roles may name different apps** — an OTA requestor as `th` and an OTA provider as `th2` in one run.
+One of them must name the test's own `app` option, which is the device the harness activates itself;
+the rest are started by `WiredCertTest` in declaration order. The evidence bundle carries
+`run.devices`, one `RunDeviceRecord` per role naming the role, the binary, its variant, the flavor and
+the chip revision that binary came from, so a reader of a finished bundle can say what every device in
+the run actually was. Nothing in the bundle states a single app any more; a consumer that read
+`run.device` or `run.chipRef` reads the array instead.
+
+**A device crash names its role.** `deviceExit` in the record, the `deviceExited(role, info)` recorder
+hook and the run's own failure text all carry the role of the first device to exit — with several
+devices in a run, "a device exited unexpectedly" sends the reader to the wrong log. Only the first
+exit is recorded: one device dying commonly takes the rest with it.
+
 **Why it had to.** Every discovery instrument in this directory matches on the long discriminator
 alone, and every flavor defaulted to 3840 / 20202021 / 5540. Two subjects sharing that would have the
 commissioner reach whichever the scanner found first, and the run would pass having proven nothing
 about which device it talked to. The chip flavors would not even get that far: two apps contend for
-port 5540 and the second exits, which surfaces as "a cert-test device exited unexpectedly while a
-step was running" rather than as a port collision.
+port 5540 and the second exits, which surfaces as `Cert-test device "<role>" exited unexpectedly while
+a step was running` rather than as a port collision.
 
 **The primary keeps chip's defaults, deliberately.** Index 0 is 3840 / 20202021 / 5540, so all
 fifteen existing single-device TCs record exactly what they recorded before — same discriminator in
@@ -2680,6 +2697,30 @@ Two more things the first live run settled, neither of which is visible from the
   records never reach, and the case fails in commissioning with nothing discovered. Name the bridge
   the container's records arrive on (`bridge100` here; `dns-sd -B _matterc._udp local.` prints the
   interface index, and `python3 -c "import socket;print(socket.if_indextoname(N))"` names it).
+
+The rest of the block (`TC-WEBRTCR-2.2`, `2.6`, `2.7`) shares all of that through
+`tc-webrtcr-support.ts`: `certCameraCase()` owns the adapter, the recorder, the commissioning prompt
+and the teardown, and a case supplies only the prompt it answers and what it proves. Four more things
+those cases settled:
+
+- **Where the plan says `webrtc establish-session` without `--offer-type`, the DUT offers rather than
+  solicits.** `ProvideOffer` takes an SDP, and the provider only checks that it carries the
+  session-level lines plus the ICE and DTLS attributes (`ValidateSdpFields` in chip's
+  `webrtc-provider-manager.cpp`). A static offer describing a connection nobody builds is therefore
+  enough for every case that ends in a refusal — the provider answers it, which is what those cases
+  put to the DUT.
+- **A provider sends its own ICE candidates only after the requestor has sent some.** chip's provider
+  moves to `SendingICECandidates` when it handles `ProvideICECandidates`, so a case about incoming
+  `ICECandidates` has to send one first.
+- **A constraint violation never reaches the cluster.** Schema validation answers `ConstraintError`
+  for a command field that breaks its own constraint before the behavior runs, so the requestor's
+  `refused` event never fires for it and no refusal reaches `signals()`. `TC-WEBRTCR-2.7` reads that
+  refusal from the controller's own log instead — take the mark with `markSettled()`, not `mark()`: a
+  line already in the pump can otherwise sit at an index the mark does not exclude, and satisfy the
+  check without the fault ever firing.
+- **`2.3`, `2.4` and `2.5` are not reachable this way.** Each requires the provider to report
+  `PeerConnection State: Connected`, which means a real WebRTC stack on the controller: SDP answer,
+  ICE, DTLS and SCTP. Signaling alone cannot satisfy them.
 
 A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
 so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which

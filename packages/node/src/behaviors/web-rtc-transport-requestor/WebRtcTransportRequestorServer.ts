@@ -148,7 +148,9 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
             `incoming ICECandidates webRtcSessionId=${request.webRtcSessionId} count=${request.iceCandidates.length}`,
         );
         if (request.iceCandidates.length === 0) {
-            throw new StatusResponseError("ICE candidates list must not be empty", Status.InvalidCommand);
+            // Reached only from a local caller: a peer's empty list is answered ConstraintError by schema
+            // validation, before this behavior runs
+            throw new StatusResponseError("ICE candidates list must not be empty", Status.ConstraintError);
         }
         const session = this.#findSessionStrict("iceCandidates", request.webRtcSessionId);
         this.events.iceCandidates.emit(session, request.iceCandidates);
@@ -193,9 +195,11 @@ export namespace WebRtcTransportRequestorServer {
         end = Observable<[session: WebRtcSession, reason: WebRtcTransportDefinitions.WebRtcEndReason]>();
 
         /**
-         * Peer signaled against a session this cluster does not track for it, which it was answered NotFound for. The
-         * session id is the one the peer named, so a listener sees which id was refused rather than only that something
-         * was.
+         * Peer signaled against a session this cluster does not track for it, which it answered `NotFound`. The session
+         * id is the one the peer named, so a listener sees which id was refused rather than only that something was.
+         *
+         * Signaling this cluster never sees is not reported here: a command whose fields break their own constraints is
+         * refused by schema validation before any of this runs.
          */
         refused = Observable<[signal: SignalKind, webRtcSessionId: number, peer: PeerAddress]>();
     }

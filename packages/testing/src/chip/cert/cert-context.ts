@@ -19,9 +19,19 @@ export interface LogSource {
 }
 
 /**
- * Kind of implementation backing a {@link CertDevice}.
+ * Kind of implementation backing a {@link CertDevice} that a run can select through
+ * `MATTER_CERT_DEVICE`, and that the harness therefore knows how to build and start.
  */
-export type DeviceFlavor = "chip-docker" | "chip-local" | "matterjs";
+export type SelectableDeviceFlavor = "chip-docker" | "chip-local" | "matterjs";
+
+/**
+ * Kind of implementation backing a {@link CertDevice}.
+ *
+ * `"python-wrapped"` names a device a wrapped python script spawns for itself from a path the run was
+ * pointed at. No run selects it and no factory here builds one: it exists so a record can state what
+ * ran without describing such a device as one of the flavors the harness does start.
+ */
+export type DeviceFlavor = SelectableDeviceFlavor | "python-wrapped";
 
 /**
  * How a {@link CertDevice}'s backing process or container ended.
@@ -108,11 +118,11 @@ export interface StepRecorder {
     /** Returns the checks recorded for `step` (empty if it never began), for the caller's own end-of-step reporting. */
     endStep(step: CertStepDefinition, verdict: StepVerdict, skipReason?: string): CheckRecord[];
     /**
-     * Records that a device exited unexpectedly while the run was in progress. {@link CertTest}
-     * calls this and then fails the run itself; a recorder need only persist the information (see
-     * {@link EvidenceRecorder.deviceExited}).
+     * Records that the device declared under `role` exited unexpectedly while the run was in progress.
+     * {@link CertTest} calls this and then fails the run itself; a recorder need only persist the
+     * information (see {@link EvidenceRecorder.deviceExited}).
      */
-    deviceExited?(info: DeviceExitInfo): void;
+    deviceExited?(role: string, info: DeviceExitInfo): void;
     /**
      * Records that {@link CertTestDefinition.finalize} threw. {@link CertTest} calls this and then
      * fails the run itself unless a step already failed; a recorder need only persist the
@@ -196,7 +206,7 @@ export interface CertStepDefinition {
     expected?: string;
     pics?: string;
     /** Device flavors this step supports; absent runs on every flavor (see `cert-dsl.ts`'s `certTest`/`.step`). */
-    flavors?: DeviceFlavor[];
+    flavors?: SelectableDeviceFlavor[];
     /** Reason this step can never execute; present makes the engine skip it (see `cert-dsl.ts`'s `CertStepOptions`). */
     notApplicable?: string;
     run: (cx: CertStepContext) => Promise<void>;
@@ -213,7 +223,7 @@ export interface CertTestDefinition {
     /** Variant of `app` to run, where the flavor supports one (see `cert-dsl.ts`'s `CertTestOptions`). */
     appVariant?: CertAppVariant;
     /** Device flavors this test supports; absent runs on every flavor (see `cert-dsl.ts`'s `CertTestOptions`). */
-    flavors?: DeviceFlavor[];
+    flavors?: SelectableDeviceFlavor[];
     /** Chip binary sources this test supports; absent runs on every source (see `cert-dsl.ts`'s `CertTestOptions`). */
     chipBinsSources?: ChipBinsSource[];
     steps: CertStepDefinition[];

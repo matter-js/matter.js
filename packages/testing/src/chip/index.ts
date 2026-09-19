@@ -19,6 +19,7 @@ export type {
     DeviceExitInfo,
     DeviceFlavor,
     LogSource,
+    SelectableDeviceFlavor,
     StepRecorder,
     StepVerdict,
 } from "./cert/cert-context.js";
@@ -28,10 +29,16 @@ export { DeviceIdentityExhaustedError, identityFor } from "./cert/cert-dsl.js";
 export type { CertAppVariant, CertStepOptions, CertTestBuilder, CertTestOptions } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Which app build a flavor runs, given a per-source declaration. */
 export { appVariantFor } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. The provenance a run's evidence bundle states for each of its devices. */
+export { deviceRecordsFor } from "./cert/cert-dsl.js";
+/** @internal Test seam — not API. Selects the device a declared role runs. */
+export { subjectFactoryFor } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
 export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
+/** @internal Test seam — not API. The wired test a `certTest()` declaration registered. */
+export { createRegisteredCertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. `ChipDockerDevice`'s own constructor, and its Docker collaborator types. */
 export { ChipDockerDevice, HARNESS_DBUS_CONTAINER } from "./cert/chip-app-subject.js";
@@ -88,7 +95,7 @@ export type {
 export { resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
 export type { ControllerImplementation } from "./cert/device-config.js";
 export { EvidenceRecorder } from "./cert/evidence.js";
-export type { RunRecord, StepRecord } from "./cert/evidence.js";
+export type { RunDeviceRecord, RunRecord, StepRecord } from "./cert/evidence.js";
 export { CertLogClosedError, CertLogTimeoutError, forFlavor, LogFollower } from "./cert/log-follower.js";
 export type {
     LogExpectOptions,

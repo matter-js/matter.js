@@ -26,13 +26,14 @@ import {
     CertStepDefinition,
     CertTestDefinition,
     DeviceFlavor,
+    SelectableDeviceFlavor,
 } from "./cert-context.js";
 import { CertTest, registerCertTestFactory } from "./cert-test.js";
 import { chipImageBase, ChipDockerSubject, ChipLocalSubject, resolveChipLocalAppDir } from "./chip-app-subject.js";
 import type { ControllerTransport } from "./controller-adapter.js";
 import { ControllerAdapter, controllerPicsOverridesFor, createControllerAdapter } from "./controller-adapter.js";
 import { ControllerImplementation, resolveControllerImplementation, resolveDeviceFlavor } from "./device-config.js";
-import { EvidenceRecorder } from "./evidence.js";
+import { EvidenceRecorder, type RunDeviceRecord } from "./evidence.js";
 import { matterJsCertSubjectFor } from "./matterjs-subject-registry.js";
 
 const execFileAsync = promisify(execFile);
@@ -55,6 +56,9 @@ export interface CertTestOptions {
      * Selects a variant of `app` CHIP builds as its own binary — `nlfaultinject`, whose fault-injection
      * hooks TC-IDM-1.3 arms. Only the `chip-local` flavor can run one, so a test declaring a variant
      * declares `flavors` to match.
+     *
+     * It qualifies `app` and nothing else: a role in {@link CertTestOptions.devices} naming a different
+     * app runs that app's plain binary, since no variant of it was asked for.
      */
     appVariant?: CertAppVariant;
 
@@ -65,7 +69,7 @@ export interface CertTestOptions {
      * whose device cannot exist on a flavor (an app variant only `chip-local` can spawn) skips rather
      * than failing to activate.
      */
-    flavors?: DeviceFlavor[];
+    flavors?: SelectableDeviceFlavor[];
 
     /**
      * Chip binary sources this test supports; absent runs on every source.
@@ -77,7 +81,14 @@ export interface CertTestOptions {
     chipBinsSources?: ChipBinsSource[];
     /** Role name → "dut" (device under test) or "helper" (auxiliary controller). Default: `{ dut: "dut" }`. */
     controllers?: Record<string, "dut" | "helper">;
-    /** Role name → app name. Default: `{ th: options.app }`. */
+    /**
+     * Role name → app name. Default: `{ th: options.app }`.
+     *
+     * Roles may name different apps — an OTA requestor and an OTA provider in one run. The evidence
+     * bundle names each role's binary and the revision it came from, so a reader can say what every
+     * device in the run actually was. One of the roles must name {@link CertTestOptions.app}, which is
+     * the device the harness itself activates.
+     */
     devices?: Record<string, string>;
 
     /**
@@ -96,7 +107,7 @@ export interface CertStepOptions {
      * whose TH app lacks a cluster/command on some flavors (see `TC-ACT-3.2.test.ts`'s AGENTS.md
      * entry). Absent runs the step on every flavor, matching prior behavior.
      */
-    flavors?: DeviceFlavor[];
+    flavors?: SelectableDeviceFlavor[];
     /**
      * Marks a step the certification harness cannot execute — no attribute of the required data type
      * exists to write, or the plan itself declares the step out of scope. The engine skips it with
@@ -132,26 +143,6 @@ function assertUsableRoleName(tc: string, role: string) {
         throw new Error(
             `certTest "${tc}" declares a device role "${role}"; a role name becomes part of the subject's id, so ` +
                 "it must start with a letter and carry only letters, digits and underscores",
-        );
-    }
-}
-
-/**
- * Rejects a run whose devices do not all use the same app.
- *
- * Nothing needs one yet, and an evidence bundle cannot currently describe one: `RunRecord` names a
- * single `device` and resolves one chip image revision, both from `options.app`. A mixed-app run would
- * therefore publish a passing bundle that never names the second binary or the revision it came from,
- * which is a worse outcome than not supporting it. Lift this together with per-role metadata in the
- * recorder.
- */
-function assertOneApp(tc: string, deviceRoles: Record<string, string>) {
-    const apps = new Set(Object.values(deviceRoles));
-    if (apps.size > 1) {
-        throw new Error(
-            `certTest "${tc}" declares devices running different apps (${[...apps].join(", ")}); the evidence ` +
-                "bundle records one app and one chip image revision, so such a run could not say what it ran " +
-                "against. Give the recorder per-role metadata before declaring one",
         );
     }
 }
@@ -228,7 +219,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         identityFor(index);
         assertUsableRoleName(tc, role);
     });
-    assertOneApp(tc, deviceRoles);
+    primaryDeviceRole(deviceRoles, options.app);
 
     const definition: CertTestDefinition = {
         tc,
@@ -305,6 +296,14 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
     return builder;
 }
 
+/**
+ * The role the harness activates itself: the first that names `app`, so declaration order decides
+ * which of several roles running the same app is primary.
+ *
+ * The harness activates exactly one device for `app` whatever the declaration says, so a declaration
+ * no role of which names it would record every role as running some other binary than the one it was
+ * handed.
+ */
 function primaryDeviceRole(deviceRoles: Record<string, string>, app: string): string {
     for (const [role, roleApp] of Object.entries(deviceRoles)) {
         if (roleApp === app) {
@@ -328,7 +327,21 @@ export function appVariantFor(flavor: DeviceFlavor, variant?: CertAppVariant) {
     return flavor === "chip-local" ? variant[resolveChipBinsSource()] : undefined;
 }
 
-function subjectFactoryFor(flavor: DeviceFlavor, app: string, appVariant?: string): CertDeviceFactory {
+/**
+ * The factory for a role running `app` in a run of `definition`.
+ *
+ * {@link CertTestDefinition.appVariant} qualifies `definition.app` alone: a variant is a binary CHIP
+ * builds under its own name, and only the test's own app was declared to have one.
+ *
+ * @internal Test seam — not API.
+ */
+export function subjectFactoryFor(
+    flavor: SelectableDeviceFlavor,
+    definition: Pick<CertTestDefinition, "app" | "appVariant">,
+    app: string,
+): CertDeviceFactory {
+    const appVariant = app === definition.app ? appVariantFor(flavor, definition.appVariant) : undefined;
+
     switch (flavor) {
         case "chip-docker":
             return ChipDockerSubject(app, appVariant);
@@ -400,7 +413,7 @@ function defineCertTest(
         // not leave this run's evidence disagreeing with the controller it actually used.
         resolveControllerImplementation();
         const primaryRole = primaryDeviceRole(deviceRoles, definition.app);
-        const factory = subjectFactoryFor(flavor, definition.app, appVariantFor(flavor, definition.appVariant));
+        const factory = subjectFactoryFor(flavor, definition, definition.app);
 
         registerCertTestFactory(
             descriptor,
@@ -501,12 +514,45 @@ async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | u
             case "chip-local":
                 return await chipLocalMarkerRevision();
             case "matterjs":
+            // A wrapped script's device comes from a path, with no image or extraction behind it to name
+            case "python-wrapped":
                 return undefined;
         }
     } catch (e) {
         console.warn(`Cert test cannot determine the chip ref for ${flavor} app "${app}":`, e);
         return undefined;
     }
+}
+
+/**
+ * Provenance for every device in a run: which binary each role ran and the revision it came from.
+ *
+ * `appVariant` comes from the started device, not the definition: a flavor that cannot run a variant
+ * ignores the request, and a bundle claiming a variant that never started would be a lie.
+ *
+ * `chipRef` is resolved once per distinct app, but only `chip-docker` actually varies with it: a
+ * `chip-local` revision names the extraction directory the binaries all came from, so every device of
+ * such a run reports the same one, and `matterjs` has no binary whose revision could be read.
+ */
+export async function deviceRecordsFor(
+    flavor: DeviceFlavor,
+    deviceRoles: Record<string, string>,
+    devices: Record<string, Pick<CertDevice, "appVariant">>,
+): Promise<RunDeviceRecord[]> {
+    const refs = new Map<string, Promise<string | undefined>>();
+
+    return Promise.all(
+        Object.entries(devices).map(async ([role, device]): Promise<RunDeviceRecord> => {
+            const app = deviceRoles[role];
+            let ref = refs.get(app);
+            if (ref === undefined) {
+                ref = chipRefFor(flavor, app);
+                refs.set(app, ref);
+            }
+
+            return { role, app, appVariant: device.appVariant, flavor, chipRef: await ref };
+        }),
+    );
 }
 
 async function chipDockerImageRevision(app: string): Promise<string | undefined> {
@@ -580,7 +626,7 @@ function isCertDevice(subject: Subject): subject is CertDevice {
  * signature `CertTest.invoke` expects); the async setup/teardown wraps `super.invoke()` instead.
  */
 class WiredCertTest extends CertTest {
-    #flavor: DeviceFlavor;
+    #flavor: SelectableDeviceFlavor;
     #primaryRole: string;
     #controllerRoles: Record<string, "dut" | "helper">;
     #deviceRoles: Record<string, string>;
@@ -594,7 +640,7 @@ class WiredCertTest extends CertTest {
         definition: CertTestDefinition,
         descriptor: TestFileDescriptor,
         container: Container,
-        flavor: DeviceFlavor,
+        flavor: SelectableDeviceFlavor,
         primaryRole: string,
         controllerRoles: Record<string, "dut" | "helper">,
         deviceRoles: Record<string, string>,
@@ -633,7 +679,7 @@ class WiredCertTest extends CertTest {
         return this.#teardown(controllers);
     }
 
-    protected override flavorFor(): DeviceFlavor {
+    protected override flavorFor(): SelectableDeviceFlavor {
         return this.#flavor;
     }
 
@@ -669,11 +715,7 @@ class WiredCertTest extends CertTest {
                 if (role === this.#primaryRole) {
                     continue;
                 }
-                const factory = subjectFactoryFor(
-                    this.#flavor,
-                    app,
-                    appVariantFor(this.#flavor, this.definition.appVariant),
-                );
+                const factory = subjectFactoryFor(this.#flavor, this.definition, app);
                 // The role, not the test case's name: the primary's domain is `descriptor.kind`
                 // ("cert"), and a name like "TC-DD-3.18" carries dots a matter.js subject rejects as
                 // an endpoint id.
@@ -698,9 +740,9 @@ class WiredCertTest extends CertTest {
                 await controller.start();
             }
 
-            const [matterJsRef, chipRef, chipToolRef] = await Promise.all([
+            const [matterJsRef, deviceRecords, chipToolRef] = await Promise.all([
                 matterJsCommit(),
-                chipRefFor(this.#flavor, this.definition.app),
+                deviceRecordsFor(this.#flavor, this.#deviceRoles, devices),
                 chipToolRefFor(controllerImplementation),
             ]);
 
@@ -710,13 +752,8 @@ class WiredCertTest extends CertTest {
                 timestamp: new Date().toISOString(),
                 controller: Object.keys(this.#controllerRoles).join(","),
                 controllerImplementation,
-                // From the device, not from the definition: a flavor that cannot run a variant ignores
-                // the request, and evidence claiming a variant that never started would be a lie.
-                device: `${this.#flavor}:${this.definition.app}${
-                    subject.appVariant === undefined ? "" : `-${subject.appVariant}`
-                }`,
+                devices: deviceRecords,
                 matterJsCommit: matterJsRef,
-                chipRef,
                 chipToolRef,
             });
         } catch (e) {

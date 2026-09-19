@@ -6,7 +6,14 @@
 
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { CertStepDefinition, CheckRecord, DeviceExitInfo, StepRecorder, StepVerdict } from "./cert-context.js";
+import type {
+    CertStepDefinition,
+    CheckRecord,
+    DeviceExitInfo,
+    DeviceFlavor,
+    StepRecorder,
+    StepVerdict,
+} from "./cert-context.js";
 import type { LogLine } from "./log-follower.js";
 
 // StepRecorder.check() needs this shape too, so cert-context.ts is CheckRecord's canonical home;
@@ -26,6 +33,34 @@ export interface StepRecord {
 }
 
 /**
+ * One device a run declared, and the binary it actually ran.
+ *
+ * A run may declare several devices running different apps — an OTA requestor and an OTA provider,
+ * say — so provenance is stated per device rather than once for the run.
+ */
+export interface RunDeviceRecord {
+    /** Role this device was declared under (a key of `certTest`'s `devices` option). */
+    role: string;
+    /**
+     * The binary this role ran: a chip example-app name for a device the harness spawned (a value of
+     * `certTest`'s `devices` option, or its `app`), or the path a wrapped script was pointed at.
+     */
+    app: string;
+    /** The variant of `app` this device actually runs, absent where its flavor has no binary to vary. */
+    appVariant?: string;
+    flavor: DeviceFlavor;
+    /**
+     * Revision of the image or extraction this device's binary came from, absent where none is
+     * available.
+     *
+     * Only `chip-docker` states a per-binary revision. `chip-local` names the extraction directory the
+     * whole run's binaries came from, so every device of such a run repeats one value, and neither
+     * `matterjs` nor `python-wrapped` has an image or extraction to name at all.
+     */
+    chipRef?: string;
+}
+
+/**
  * The evidence bundle for one cert-test run, written to `result.json` by {@link EvidenceRecorder.flush}
  * and settled there by {@link EvidenceRecorder.concludeRun}.
  */
@@ -36,9 +71,9 @@ export interface RunRecord {
         timestamp: string;
         controller: string;
         controllerImplementation: string;
-        device: string;
+        /** Every device the run declared: the primary first, then the rest in declaration order. */
+        devices: RunDeviceRecord[];
         matterJsCommit: string;
-        chipRef?: string;
         chipToolRef?: string;
     };
     steps: StepRecord[];
@@ -49,7 +84,12 @@ export interface RunRecord {
      * leave a passing record standing for a run that failed.
      */
     verdict: "pass" | "fail" | "unverified" | "skipped" | "incomplete";
-    deviceExit?: { code: number | null; signal?: string };
+    /**
+     * The device that exited unexpectedly, named by its role — the role is what tells a reader of a
+     * multi-device bundle which binary to look at. The run races its devices and reports one exit,
+     * the first: one device dying commonly takes the rest with it.
+     */
+    deviceExit?: { role: string; code: number | null; signal?: string };
     /** Why the run's own cleanup failed, if it did (see {@link EvidenceRecorder.finalizationFailed}). */
     finalizationError?: string;
     /** Why closing the run's controllers or devices failed, if it did (see {@link EvidenceRecorder.teardownFailed}). */
@@ -95,6 +135,12 @@ function errorText(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
 }
 
+/** One device's line in the run header: the role, the binary it ran, and where that binary came from. */
+function describeDevice({ role, app, appVariant, flavor, chipRef }: RunDeviceRecord): string {
+    const binary = appVariant === undefined ? app : `${app}-${appVariant}`;
+    return `${role} = ${flavor}:${binary} (chip ref ${chipRef ?? "(unknown)"})`;
+}
+
 /**
  * Collects a {@link CertTest} run's per-step evidence and writes it to disk as `result.json` plus one
  * `<name>.log` per {@link attachLog} call.
@@ -110,7 +156,7 @@ export class EvidenceRecorder implements StepRecorder {
     #steps = new Array<StepRecord>();
     #logs = new Map<string, LogLine[]>();
     #current?: { def: CertStepDefinition; checks: CheckRecord[] };
-    #deviceExit?: { code: number | null; signal?: string };
+    #deviceExit?: { role: string; code: number | null; signal?: string };
     #finalizationError?: string;
     #teardownError?: string;
     #evidenceError?: string;
@@ -163,11 +209,12 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
-     * Records that a device's backing process/container exited during the run. A device crash fails
-     * the run regardless of how far its steps got (see {@link RunRecord.deviceExit}).
+     * Records that the device declared under `role`'s backing process/container exited during the run.
+     * A device crash fails the run regardless of how far its steps got (see
+     * {@link RunRecord.deviceExit}).
      */
-    deviceExited(info: DeviceExitInfo): void {
-        this.#deviceExit = { code: info.code, signal: info.signal ?? undefined };
+    deviceExited(role: string, info: DeviceExitInfo): void {
+        this.#deviceExit = { role, code: info.code, signal: info.signal ?? undefined };
     }
 
     /**
@@ -299,9 +346,8 @@ export class EvidenceRecorder implements StepRecorder {
                 timestamp: this.#meta.timestamp,
                 controller: this.#meta.controller,
                 controllerImplementation: this.#meta.controllerImplementation,
-                device: this.#meta.device,
+                devices: this.#meta.devices,
                 matterJsCommit: this.#meta.matterJsCommit,
-                chipRef: this.#meta.chipRef,
                 chipToolRef: this.#meta.chipToolRef,
             },
             steps: this.#steps,
@@ -325,14 +371,13 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
-     * Lines describing this run's configuration — TC, plan, device, controller, matter.js commit,
-     * chip ref, and where evidence will land — emitted once before the first step through the same
-     * channel step boundaries use (see `cert-test.ts`'s `announceStep`). A log excerpt then carries
-     * its own provenance.
+     * Lines describing this run's configuration — TC, plan, one line per device naming its binary and
+     * chip ref, controller, matter.js commit, and where evidence will land — emitted once before the
+     * first step through the same channel step boundaries use (see `cert-test.ts`'s `announceStep`).
+     * A log excerpt then carries its own provenance.
      */
     runHeaderLines(): string[] {
-        const { tc, plan, device, controller, controllerImplementation, chipToolRef, matterJsCommit, chipRef } =
-            this.#meta;
+        const { tc, plan, devices, controller, controllerImplementation, chipToolRef, matterJsCommit } = this.#meta;
         const controllerLine =
             chipToolRef === undefined
                 ? `${controllerImplementation} (${controller})`
@@ -341,10 +386,9 @@ export class EvidenceRecorder implements StepRecorder {
         return [
             `===== ${tc} =====`,
             `plan       : ${plan}`,
-            `device     : ${device}`,
+            ...devices.map(device => `device     : ${describeDevice(device)}`),
             `controller : ${controllerLine}`,
             `matter.js  : ${matterJsCommit}`,
-            `chip ref   : ${chipRef ?? "(unknown)"}`,
             `evidence   : ${this.#dir}`,
         ];
     }

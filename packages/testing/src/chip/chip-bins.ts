@@ -51,7 +51,7 @@ export function chipBinsPlatformSupported(platform: string): boolean {
 
 /**
  * File written into an extraction target directory recording the tag last extracted there. Doubles
- * as the marker `cert-dsl.ts`'s `chipLocalMarkerRevision()` already reads for `RunRecord.chipRef` —
+ * as the marker `cert-dsl.ts`'s `chipLocalMarkerRevision()` already reads for each device's `chipRef` —
  * a cert-bins extraction populates that evidence field for free, with no separate wiring.
  */
 const STAMP_FILE = "CHIP_REF";

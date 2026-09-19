@@ -281,7 +281,9 @@ describe("TC-SC-3.5", () => {
             timestamp: new Date().toISOString(),
             controller: "dut",
             controllerImplementation: resolveControllerImplementation(),
-            device: `python-wrapped:${DESCRIPTOR.path}`,
+            // The script spawns TH_SERVER itself, so the binary the run was pointed at is the only
+            // provenance the harness can state for it.
+            devices: [{ role: "th_server", app: appPath, flavor: "python-wrapped" }],
             matterJsCommit: "(not recorded)",
         });
 

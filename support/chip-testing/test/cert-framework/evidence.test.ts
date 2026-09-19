@@ -5,7 +5,7 @@
  */
 
 import type { CertStepDefinition, LogLine } from "@matter/testing";
-import { EvidenceRecorder } from "@matter/testing";
+import { deviceRecordsFor, EvidenceRecorder } from "@matter/testing";
 import * as fsp from "node:fs/promises";
 import * as osMod from "node:os";
 import * as pathMod from "node:path";
@@ -38,6 +38,90 @@ const step3: CertStepDefinition = {
     run: async () => {},
 };
 
+// The matterjs flavor has no binary whose revision could be read, which is what lets these run
+// without a chip extraction or a Docker daemon
+describe("deviceRecordsFor", () => {
+    it("names every role's own app, so a mixed-app run's bundle names both binaries", async () => {
+        const records = await deviceRecordsFor(
+            "matterjs",
+            { th: "ota-requestor", th2: "ota-provider" },
+            { th: {}, th2: {} },
+        );
+
+        expect(records).deep.equal([
+            { role: "th", app: "ota-requestor", appVariant: undefined, flavor: "matterjs", chipRef: undefined },
+            { role: "th2", app: "ota-provider", appVariant: undefined, flavor: "matterjs", chipRef: undefined },
+        ]);
+    });
+
+    // A flavor that cannot run a variant ignores the request, so a bundle claiming one that never
+    // started would be a lie. Roles running the same app can still differ here, which is why the
+    // variant is read per device rather than once per app alongside the chip ref.
+    it("reports the variant each device itself started with", async () => {
+        const records = await deviceRecordsFor(
+            "matterjs",
+            { th: "all-clusters", th2: "all-clusters" },
+            { th: {}, th2: { appVariant: "nlfaultinject" } },
+        );
+
+        expect(records.map(record => record.appVariant)).deep.equal([undefined, "nlfaultinject"]);
+    });
+
+    // The harness neither built nor started such a device, so any chip provenance it stated would be
+    // about a binary it never ran
+    it("states no revision for a device a wrapped script spawned itself", async () => {
+        const records = await deviceRecordsFor(
+            "python-wrapped",
+            { th_server: "/opt/th/chip-th-server" },
+            {
+                th_server: {},
+            },
+        );
+
+        expect(records).deep.equal([
+            {
+                role: "th_server",
+                app: "/opt/th/chip-th-server",
+                appVariant: undefined,
+                flavor: "python-wrapped",
+                chipRef: undefined,
+            },
+        ]);
+    });
+
+    // One marker for the whole extraction directory, so a bundle that showed two chip-local devices
+    // with different revisions would be describing a run nothing can produce
+    it("gives every device of a chip-local run the revision of the one directory they were spawned from", async () => {
+        const appDir = await fsp.mkdtemp(pathMod.join(osMod.tmpdir(), "matter-cert-app-dir-"));
+        const previousAppDir = process.env.MATTER_CERT_APP_DIR;
+        const previousBinsSource = process.env.MATTER_CHIP_BINS_SOURCE;
+
+        await fsp.writeFile(pathMod.join(appDir, "CHIP_REF"), "aaa1111\n");
+        process.env.MATTER_CERT_APP_DIR = appDir;
+        delete process.env.MATTER_CHIP_BINS_SOURCE;
+
+        try {
+            const records = await deviceRecordsFor(
+                "chip-local",
+                { th: "ota-requestor", th2: "ota-provider" },
+                { th: {}, th2: {} },
+            );
+
+            expect(records.map(record => record.chipRef)).deep.equal(["aaa1111", "aaa1111"]);
+        } finally {
+            if (previousAppDir === undefined) {
+                delete process.env.MATTER_CERT_APP_DIR;
+            } else {
+                process.env.MATTER_CERT_APP_DIR = previousAppDir;
+            }
+            if (previousBinsSource !== undefined) {
+                process.env.MATTER_CHIP_BINS_SOURCE = previousBinsSource;
+            }
+            await fsp.rm(appDir, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("EvidenceRecorder", () => {
     let outDir: string;
 
@@ -56,7 +140,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T12:34:56.789Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
@@ -94,7 +178,7 @@ describe("EvidenceRecorder", () => {
                 timestamp: "2026-08-07T12:34:56.789Z",
                 controller: "matterjs",
                 controllerImplementation: "matterjs",
-                device: "chip-docker",
+                devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
                 matterJsCommit: "abc1234",
             },
             steps: [
@@ -143,7 +227,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
@@ -165,6 +249,62 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.deviceExit).equal(undefined);
     });
 
+    // A mixed-app run is the case the recorder's per-role metadata exists for: a bundle that named
+    // only one of the binaries would stand behind a certification claim it cannot support. Only
+    // chip-docker has a per-binary revision to state, which is why this run is a docker one.
+    it("names every app and every revision of a mixed-app run in the persisted record", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SU-2.7",
+            plan: "softwareupdate.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            devices: [
+                { role: "th", app: "ota-requestor", flavor: "chip-docker", chipRef: "aaa1111" },
+                { role: "th2", app: "ota-provider", flavor: "chip-docker", chipRef: "bbb2222" },
+            ],
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.run.devices).deep.equal([
+            { role: "th", app: "ota-requestor", flavor: "chip-docker", chipRef: "aaa1111" },
+            { role: "th2", app: "ota-provider", flavor: "chip-docker", chipRef: "bbb2222" },
+        ]);
+    });
+
+    // With several devices in a run, "a device exited" is not a report anyone can act on
+    it("names the role of the device that exited", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SU-2.7",
+            plan: "softwareupdate.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            devices: [
+                { role: "th", app: "ota-requestor", flavor: "chip-local" },
+                { role: "th2", app: "ota-provider", flavor: "chip-local" },
+            ],
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.deviceExited("th2", { code: 134, signal: null });
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("fail");
+        expect(resultJson.deviceExit).deep.equal({ role: "th2", code: 134 });
+    });
+
     it("reports the run skipped when every step was skipped and none passed", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-CADMIN-1.17",
@@ -172,7 +312,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
@@ -192,7 +332,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
@@ -209,7 +349,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
@@ -230,19 +370,19 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
         recorder.beginStep(step1);
         recorder.endStep(step1, "pass");
-        recorder.deviceExited({ code: null, signal: "SIGKILL" });
+        recorder.deviceExited("th", { code: null, signal: "SIGKILL" });
 
         const dir = await publish(recorder);
         const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
 
         expect(resultJson.verdict).equal("fail");
-        expect(resultJson.deviceExit).deep.equal({ code: null, signal: "SIGKILL" });
+        expect(resultJson.deviceExit).deep.equal({ role: "th", code: null, signal: "SIGKILL" });
     });
 
     it("marks the run failed when cleanup failed, even though every step passed", async () => {
@@ -252,7 +392,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
@@ -274,7 +414,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
@@ -290,7 +430,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "matterjs",
             controllerImplementation: "matterjs",
-            device: "chip-docker",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-docker" }],
             matterJsCommit: "abc1234",
         });
 
@@ -305,7 +445,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "chip-tool",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
             chipToolRef: "df8bd0308caa0680e2a78cda724a959e5b385205",
         });
@@ -324,7 +464,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "chip-tool",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -347,7 +487,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "chip-tool",
-            device: "chip-local:bridge",
+            devices: [{ role: "th", app: "bridge", flavor: "chip-local" }],
             matterJsCommit: "abc1234",
         });
 
@@ -370,7 +510,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "chip-tool",
-            device: "chip-local:bridge",
+            devices: [{ role: "th", app: "bridge", flavor: "chip-local" }],
             matterJsCommit: "abc1234",
         });
 
@@ -390,7 +530,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -410,7 +550,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -438,7 +578,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -463,14 +603,14 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
         recorder.beginStep(step1);
         recorder.check({ type: "device-log", verdict: "unverified" });
         recorder.endStep(step1, "unverified");
-        recorder.deviceExited({ code: 134, signal: null });
+        recorder.deviceExited("th", { code: 134, signal: null });
 
         await recorder.flush();
         await recorder.concludeRun({ failed: true, detail: "device exited", unproven: true });
@@ -489,7 +629,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -521,7 +661,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "chip-tool",
-            device: "chip-local:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-local" }],
             matterJsCommit: "abc1234",
         });
 
@@ -549,7 +689,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "chip-tool",
-            device: "chip-local:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-local" }],
             matterJsCommit: "abc1234",
         });
 
@@ -576,7 +716,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "chip-tool",
-            device: "chip-local:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-local" }],
             matterJsCommit: "abc1234",
         });
 
@@ -603,7 +743,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "chip-tool",
-            device: "chip-local:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "chip-local" }],
             matterJsCommit: "abc1234",
         });
 
@@ -625,7 +765,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "python-wrapped:TC_SC_3_5.py",
+            devices: [{ role: "th_server", app: "all-clusters", flavor: "chip-local" }],
             matterJsCommit: "abc1234",
         });
 
@@ -649,7 +789,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -670,7 +810,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -695,7 +835,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -715,7 +855,7 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T00:00:00.000Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "abc1234",
         });
 
@@ -725,28 +865,77 @@ describe("EvidenceRecorder", () => {
         expect("chipToolRef" in resultJson.run).equal(false);
     });
 
-    it("renders a run header naming the TC, plan, device, controller (with roles), matter.js commit, chip ref, and the eventual evidence directory", () => {
+    it("renders a run header naming the TC, plan, each device with its binary and chip ref, controller (with roles), matter.js commit, and the eventual evidence directory", () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-IDM-3.1",
             plan: "interactionmodel.adoc",
             timestamp: "2026-08-07T12:34:56.789Z",
             controller: "dut,helper",
             controllerImplementation: "chip-tool",
-            device: "matterjs:all-clusters",
+            devices: [
+                {
+                    role: "th",
+                    app: "all-clusters",
+                    flavor: "chip-local",
+                    chipRef: "df8bd0308caa0680e2a78cda724a959e5b385205",
+                },
+            ],
             matterJsCommit: "f97efb011",
-            chipRef: "df8bd0308caa0680e2a78cda724a959e5b385205",
             chipToolRef: "df8bd0308caa0680e2a78cda724a959e5b385205",
         });
 
         expect(recorder.runHeaderLines()).deep.equal([
             "===== TC-IDM-3.1 =====",
             "plan       : interactionmodel.adoc",
-            "device     : matterjs:all-clusters",
+            "device     : th = chip-local:all-clusters (chip ref df8bd0308caa0680e2a78cda724a959e5b385205)",
             "controller : chip-tool (dut,helper, df8bd0308caa0680e2a78cda724a959e5b385205)",
             "matter.js  : f97efb011",
-            "chip ref   : df8bd0308caa0680e2a78cda724a959e5b385205",
             `evidence   : ${pathMod.join(outDir, "2026-08-07T12-34-56.789Z-TC-IDM-3.1")}`,
         ]);
+    });
+
+    it("gives every device of a mixed-app run its own header line, naming each binary and the one revision a chip-local extraction states for all of them", () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SU-2.7",
+            plan: "softwareupdate.adoc",
+            timestamp: "2026-08-07T12:34:56.789Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            devices: [
+                { role: "th", app: "ota-requestor", flavor: "chip-local", chipRef: "aaa1111" },
+                {
+                    role: "th2",
+                    app: "ota-provider",
+                    appVariant: "nlfaultinject",
+                    flavor: "chip-local",
+                    chipRef: "aaa1111",
+                },
+            ],
+            matterJsCommit: "f97efb011",
+        });
+
+        expect(recorder.runHeaderLines()).to.include.members([
+            "device     : th = chip-local:ota-requestor (chip ref aaa1111)",
+            "device     : th2 = chip-local:ota-provider-nlfaultinject (chip ref aaa1111)",
+        ]);
+    });
+
+    // The run header is where a reader learns what ran; naming a chip flavor for a device the harness
+    // never started would be a false claim about the binary behind the whole bundle
+    it("names a wrapped script's own device by the path it was pointed at, and as python-wrapped", () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SC-3.5",
+            plan: "securechannel.adoc",
+            timestamp: "2026-08-07T12:34:56.789Z",
+            controller: "dut",
+            controllerImplementation: "matterjs",
+            devices: [{ role: "th_server", app: "/opt/th/chip-th-server", flavor: "python-wrapped" }],
+            matterJsCommit: "f97efb011",
+        });
+
+        expect(recorder.runHeaderLines()).to.include(
+            "device     : th_server = python-wrapped:/opt/th/chip-th-server (chip ref (unknown))",
+        );
     });
 
     it("renders the controller line without a chip-tool reference, and falls back to '(unknown)' for a missing chip ref", () => {
@@ -756,13 +945,13 @@ describe("EvidenceRecorder", () => {
             timestamp: "2026-08-07T12:34:56.789Z",
             controller: "dut",
             controllerImplementation: "matterjs",
-            device: "matterjs:all-clusters",
+            devices: [{ role: "th", app: "all-clusters", flavor: "matterjs" }],
             matterJsCommit: "f97efb011",
         });
 
         const lines = recorder.runHeaderLines();
 
         expect(lines).to.include("controller : matterjs (dut)");
-        expect(lines).to.include("chip ref   : (unknown)");
+        expect(lines).to.include("device     : th = matterjs:all-clusters (chip ref (unknown))");
     });
 });
