@@ -19,7 +19,11 @@ import { expect } from "chai";
 import { CertCheckFailedError } from "../cert/tc-support.js";
 import {
     CameraSession,
+    endSession,
+    establishSession,
     expectConstraintRefusal,
+    expectEstablished,
+    expectSessions,
     expectControlAccepted,
     expectNoneAccepted,
     expectRefusal,
@@ -33,8 +37,9 @@ function signal(
     kind: WebRtcSignalRecord["kind"],
     sessionId: number,
     outcome: WebRtcSignalRecord["outcome"],
+    payload: Pick<WebRtcSignalRecord, "sdp" | "candidates"> = {},
 ): WebRtcSignalRecord {
-    return { kind, sessionId, outcome, at: 0 };
+    return { kind, sessionId, outcome, ...payload, at: 0 };
 }
 
 /**
@@ -54,12 +59,28 @@ function fakeRequestor(overrides: Partial<WebRtcRequestorApi> = {}): WebRtcReque
     };
 }
 
+/** A peer that answers as a case's own would, without a connection behind it. */
+function fakePeer(overrides: Partial<CameraSession["peer"]> = {}): CameraSession["peer"] {
+    return {
+        state: "new",
+        answer: () => "v=0 answer",
+        offer: () => "v=0 offer",
+        accept: () => ({ rewroteRole: false }),
+        add: () => {},
+        take: () => [],
+        connected: async () => false,
+        close: () => {},
+        ...overrides,
+    } as CameraSession["peer"];
+}
+
 function fakeSession(
     requestor: WebRtcRequestorApi,
     node: CertNodeApi = fakeCertNode(),
     remaining: Duration = Seconds(30),
+    peer: CameraSession["peer"] = fakePeer(),
 ): CameraSession {
-    return { node, requestor, ref: REF, videoStreamId: 3, remaining: () => remaining };
+    return { node, requestor, ref: REF, videoStreamId: 3, remaining: () => remaining, peer };
 }
 
 /** Captures what a helper records, with no controller log. */
@@ -122,7 +143,7 @@ describe("expectRefusal", () => {
     });
 });
 
-describe("the step's shared budget", () => {
+describe("the case's shared budget", () => {
     it("caps a wait at what is left of it rather than at the per-wait cap", async () => {
         const { cx } = fakeContext();
         const waits = new Array<number>();
@@ -224,6 +245,156 @@ describe("expectControlAccepted", () => {
         );
         expect(removed).deep.equal([8]);
         expect(checks).deep.equal([]);
+    });
+});
+
+describe("establishSession", () => {
+    it("registers the id the provider is about to mint before asking for it", async () => {
+        const order = new Array<string>();
+        const session = fakeSession(
+            fakeRequestor({
+                upsertSession: async ({ id }) => {
+                    order.push(`register ${id}`);
+                },
+                nextSignal: async () => signal("answer", 0, "accepted", { sdp: "v=0 remote" }),
+            }),
+            fakeCertNode({
+                invoke: async (_cluster, command) => {
+                    order.push(command);
+                    return { webRtcSessionId: 0 };
+                },
+            }),
+            Seconds(30),
+            fakePeer({ connected: async () => true }),
+        );
+
+        const outcome = await establishSession(session, "provide");
+
+        // The provider answers from inside its own handling of ProvideOffer, so the registration has
+        // to be in place before that invoke rather than after its response
+        expect(order[0]).equal("register 0");
+        expect(order[1]).equal("provideOffer");
+        expect(outcome).deep.contain({ id: 0, connected: true, reached: "signaled" });
+    });
+
+    it("raises rather than blaming the DUT where the provider minted another id", async () => {
+        const { cx, checks } = fakeContext();
+        const removed = new Array<number>();
+        const session = fakeSession(
+            fakeRequestor({
+                upsertSession: async () => {},
+                removeSession: async id => {
+                    removed.push(id);
+                },
+            }),
+            fakeCertNode({ invoke: async () => ({ webRtcSessionId: 4 }) }),
+        );
+
+        await expect(establishSession(session, "solicit")).rejectedWith(CertCheckFailedError, /minted session 4/);
+        expect(removed).deep.equal([0]);
+        expect(checks).deep.equal([]);
+        void cx;
+    });
+
+    it("passes over a refused signal to the description the DUT accepted", async () => {
+        // A refusal carries the same kind and session id as the acceptance that follows it, and comes
+        // first: a wait that does not filter the outcome takes the refusal, which carries no
+        // description, and the case then reports a connection failure the DUT is not responsible for
+        const recorded = [signal("offer", 0, "refused"), signal("offer", 0, "accepted", { sdp: "v=0 remote" })];
+
+        const answered = new Array<string>();
+        const session = fakeSession(
+            fakeRequestor({
+                upsertSession: async () => {},
+                nextSignal: async predicate => recorded.find(predicate),
+            }),
+            fakeCertNode({
+                invoke: async (_cluster, command) => {
+                    answered.push(command);
+                    return { webRtcSessionId: 0 };
+                },
+            }),
+            Seconds(30),
+            fakePeer({ connected: async () => true }),
+        );
+
+        expect(await establishSession(session, "solicit")).deep.contain({ connected: true, reached: "signaled" });
+        expect(answered).contain("provideAnswer");
+    });
+});
+
+describe("expectEstablished", () => {
+    it("names the stage a session that did not connect reached", async () => {
+        const { cx, checks } = fakeContext();
+        const session = fakeSession(fakeRequestor(), fakeCertNode(), Seconds(30), fakePeer({ state: "failed" }));
+
+        expectEstablished(cx, session, { id: 2, connected: false, reached: "signaled", rewroteRole: false });
+        expectEstablished(cx, session, { id: 3, connected: false, reached: "no-answer", rewroteRole: false });
+
+        expect(checks[0].detail).match(/peer connection reports "failed"/);
+        expect(checks[1].detail).match(/sent no Answer the DUT accepted/);
+    });
+
+    it("states a rewritten DTLS role alongside a connection that rests on it", async () => {
+        const { cx, checks } = fakeContext();
+        const session = fakeSession(fakeRequestor(), fakeCertNode(), Seconds(30), fakePeer({ state: "connected" }));
+
+        expectEstablished(cx, session, { id: 1, connected: true, reached: "signaled", rewroteRole: true });
+
+        expect(checks.map(check => check.verdict)).deep.equal(["pass", "pass"]);
+        expect(checks[1].detail).match(/a=setup:actpass.*rests on that substitution/s);
+    });
+});
+
+describe("expectSessions", () => {
+    it("passes on the sessions the plan states, and names what is held otherwise", async () => {
+        const { cx, checks } = fakeContext();
+        const held = [{ id: 7, videoStreamId: 3, audioStreamId: null }];
+
+        expect(await expectSessions(cx, fakeSession(fakeRequestor({ sessions: async () => held })), [7])).equal(true);
+        expect(await expectSessions(cx, fakeSession(fakeRequestor({ sessions: async () => held })), [])).equal(false);
+
+        expect(checks[0].verdict).equal("pass");
+        expect(checks[1].verdict).equal("fail");
+        expect(checks[1].detail).match(/holds session 7, where the plan states no session/);
+    });
+
+    it("fails on a session held beyond the ones the plan states", async () => {
+        const { cx, checks } = fakeContext();
+        const held = [
+            { id: 5, videoStreamId: 3, audioStreamId: null },
+            { id: 6, videoStreamId: 3, audioStreamId: null },
+        ];
+
+        // The plan's reads are exhaustive: a session the DUT holds and should not is as much a failure
+        // as a missing one, and this is the shape that catches it
+        expect(await expectSessions(cx, fakeSession(fakeRequestor({ sessions: async () => held })), [5])).equal(false);
+        expect(checks[0].verdict).equal("fail");
+    });
+});
+
+describe("endSession", () => {
+    it("tells the provider and stops the requestor reporting it", async () => {
+        const invoked = new Array<string>();
+        const removed = new Array<number>();
+        const session = fakeSession(
+            fakeRequestor({
+                removeSession: async id => {
+                    removed.push(id);
+                },
+            }),
+            fakeCertNode({
+                invoke: async (_cluster, command) => {
+                    invoked.push(command);
+                    return {};
+                },
+            }),
+        );
+
+        await endSession(session, 5, 2);
+
+        expect(invoked).deep.equal(["endSession"]);
+        expect(removed).deep.equal([5]);
     });
 });
 
