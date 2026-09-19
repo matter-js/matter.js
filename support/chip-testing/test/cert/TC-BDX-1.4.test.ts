@@ -113,7 +113,7 @@ async function recordAcceptFields(cx: CertStepContext) {
     const { proposal, accept } = transfer;
     const th = cx.devices.th;
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             what: "Transfer Control names one of the proposed modes, at a version no newer than proposed",
             check: () => ({
@@ -141,30 +141,30 @@ async function recordAcceptFields(cx: CertStepContext) {
                 detail: lengthDetail(proposal, accept),
             }),
         },
-    ]);
-
-    // Both waits run before either verdict is submitted: the step claims evidence for the init and for
-    // the accept, and a `record` per check would drop the second on the first one's failure.
-    const initSeen = await expectSequence(
-        th.log,
-        th.flavor,
-        "BDX ReceiveInit the TH sent",
-        receiveInitLines(proposal),
-        from,
-        LOG_TIMEOUT,
-    );
-    const acceptSeen = await expectSequence(
-        th.log,
-        th.flavor,
-        "BDX ReceiveAccept the TH received",
-        receiveAcceptLines(accept),
-        from,
-        LOG_TIMEOUT,
-    );
-
-    recordAll(cx, [
-        { check: () => initSeen, what: "the TH proposed the transfer the DUT answered" },
-        { check: () => acceptSeen, what: "the TH received the accept the DUT reports having sent" },
+        {
+            what: "the TH proposed the transfer the DUT answered",
+            check: () =>
+                expectSequence(
+                    th.log,
+                    th.flavor,
+                    "BDX ReceiveInit the TH sent",
+                    receiveInitLines(proposal),
+                    from,
+                    LOG_TIMEOUT,
+                ),
+        },
+        {
+            what: "the TH received the accept the DUT reports having sent",
+            check: () =>
+                expectSequence(
+                    th.log,
+                    th.flavor,
+                    "BDX ReceiveAccept the TH received",
+                    receiveAcceptLines(accept),
+                    from,
+                    LOG_TIMEOUT,
+                ),
+        },
     ]);
 }
 

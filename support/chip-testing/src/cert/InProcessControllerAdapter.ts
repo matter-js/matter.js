@@ -316,8 +316,13 @@ function isConcretePath(path: AttributePathSpec) {
     return path.endpoint !== undefined && path.cluster !== undefined && path.attribute !== undefined;
 }
 
-/** Endpoint the controller puts an OTA provider on the first time a case asks it to serve an image. */
-const OTA_PROVIDER_ENDPOINT = 1;
+/**
+ * Endpoint the controller puts an OTA provider on the first time a case asks it to serve an image.
+ *
+ * Distinct from {@link WEBRTC_REQUESTOR_ENDPOINT}, which a case enabling the WebRTC requestor
+ * installs on the same controller: one number cannot carry both.
+ */
+const OTA_PROVIDER_ENDPOINT = 2;
 
 /** Endpoint id for {@link OTA_PROVIDER_ENDPOINT}, which is also how a later call finds it again. */
 const OTA_PROVIDER_ENDPOINT_ID = "ota-provider";

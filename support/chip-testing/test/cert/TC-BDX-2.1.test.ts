@@ -50,12 +50,12 @@ function overMessages(
     };
 }
 
-function firstBlock(cx: CertStepContext) {
+async function firstBlock(cx: CertStepContext) {
     const { transfer, from } = transferOrFail();
     const th = cx.devices.th;
     const { maxBlockSize } = transfer.accept;
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             what: "the DUT's own account of the transfer it sent",
             check: () => ({
@@ -115,13 +115,13 @@ function firstBlock(cx: CertStepContext) {
     ]);
 }
 
-function furtherBlocks(cx: CertStepContext) {
+async function furtherBlocks(cx: CertStepContext) {
     const { transfer, from } = transferOrFail();
     const th = cx.devices.th;
 
     // One `recordAll`, not a `record` each: the step claims the ordering and the size, and a per-check
     // `record` would drop the size on an ordering failure — exactly the path the evidence is for.
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             what: "the Blocks after the first are ascending and sequential",
             check: () =>
@@ -161,13 +161,18 @@ function furtherBlocks(cx: CertStepContext) {
     ]);
 }
 
-function blockEof(cx: CertStepContext) {
+async function blockEof(cx: CertStepContext) {
     const { transfer, from } = transferOrFail();
     const th = cx.devices.th;
     const { maxBlockSize } = transfer.accept;
-    const blocks = blocksReceived(th.log, th.flavor, from);
 
-    recordAll(cx, [
+    // Counted from the bytes the DUT sent, so that the BlockEOF and its acknowledgement are both
+    // compared against a number neither of them supplied
+    const eofLength = blockEofReceived(th.log, th.flavor, from)?.[0]?.length ?? 0;
+    const expectedCounter = (transfer.transferredBytes - eofLength) / maxBlockSize;
+    const counterDerivation = `${expectedCounter} from ${transfer.transferredBytes} bytes transferred at ${maxBlockSize} bytes a block`;
+
+    await recordAll(cx, [
         {
             what: "the BlockEOF the TH received",
             check: () =>
@@ -181,14 +186,14 @@ function blockEof(cx: CertStepContext) {
                         }
                         const [eof] = eofs;
                         const length = eof.length ?? 0;
-                        // A BlockEOF continues the block counter, so where this run can also see the
-                        // Blocks it must be the one after the last of them
-                        const expectedCounter = blocks === undefined ? eof.counter : blocks.length;
                         return {
-                            ok: eof.counter === expectedCounter && length >= 0 && length <= maxBlockSize,
+                            ok:
+                                Number.isInteger(expectedCounter) &&
+                                eof.counter === expectedCounter &&
+                                length <= maxBlockSize,
                             detail:
-                                `BlockEOF counter ${eof.counter} (expected ${expectedCounter}), data length ` +
-                                `${length} bytes, against a negotiated Max Block Size of ${maxBlockSize}`,
+                                `BlockEOF counter ${eof.counter} (expected ${counterDerivation}), ` +
+                                `data length ${length} bytes`,
                         };
                     },
                 ),
@@ -200,16 +205,16 @@ function blockEof(cx: CertStepContext) {
                     blockAckEofSent(th.log, th.flavor, from),
                     "the BlockAckEOF the TH sent",
                     "TransferSession::PrepareBlockAck",
-                    acks => {
-                        const eofs = blockEofReceived(th.log, th.flavor, from);
-                        const expected = eofs?.[0]?.counter;
-                        return {
-                            ok: acks.length === 1 && (expected === undefined || acks[0].counter === expected),
-                            detail:
-                                `the TH sent ${acks.length} BlockAckEOF messages` +
-                                (acks.length === 1 ? ` naming block ${acks[0].counter}` : ""),
-                        };
-                    },
+                    acks => ({
+                        ok:
+                            acks.length === 1 &&
+                            Number.isInteger(expectedCounter) &&
+                            acks[0].counter === expectedCounter,
+                        detail:
+                            `the TH sent ${acks.length} BlockAckEOF messages` +
+                            (acks.length === 1 ? ` naming block ${acks[0].counter}` : "") +
+                            `, against an expected ${counterDerivation}`,
+                    }),
                 ),
         },
         {

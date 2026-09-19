@@ -15,7 +15,7 @@ import type {
     LogFollower,
     OtaBdxTransfer,
 } from "@matter/testing";
-import { expectDeviceLog, LOG_TIMEOUT, record } from "./tc-support.js";
+import { expectSequence, LOG_TIMEOUT, record } from "./tc-support.js";
 
 /**
  * Budget for the whole OTA exchange the precondition step drives: the announcement, the TH's own
@@ -83,7 +83,14 @@ export async function serveOtaTransfer(cx: CertStepContext, ref: CertNodeRef): P
     // The DUT's own account settles when it receives the TH's last acknowledgement, which is written
     // on the TH before that; waiting for the TH to say so is what lets the later steps read its log
     // as a finished record rather than one still arriving.
-    const { check } = await expectDeviceLog(th.log, th.flavor, endOfTransferPatterns(), from, LOG_TIMEOUT);
+    const check = await expectSequence(
+        th.log,
+        th.flavor,
+        "BDX BlockAckEOF the TH sent",
+        endOfTransferLines(),
+        from,
+        LOG_TIMEOUT,
+    );
     record(cx, check, "the TH acknowledged the end of the transfer");
 
     return { transfer, from };
@@ -145,6 +152,38 @@ const BLOCK_ACK_EOF_SENT: BdxMessageKind = {
 const CHIP_BLOCK_COUNTER = /\[ATM\]\s+Block Counter: (\d+)\s*$/;
 const CHIP_DATA_LENGTH = /\[ATM\]\s+Data Length: (\d+)\s*$/;
 
+/** The lines chip's `LogMessage` writes for one message kind, in the order it writes them. */
+interface ChipMessageLines {
+    name: RegExp;
+    counter: RegExp;
+    length?: RegExp;
+}
+
+/**
+ * A wait for one chip message and a later read of it both come from here, because a wait that
+ * settles on the name alone can return before the fields behind it have reached the follower, and
+ * the read would then find no message at all.
+ */
+function chipLines(kind: BdxMessageKind): ChipMessageLines | undefined {
+    if (kind.chip === undefined) {
+        return undefined;
+    }
+    return {
+        name: new RegExp(`\\[ATM\\] ${kind.chip.name}\\s*$`),
+        counter: CHIP_BLOCK_COUNTER,
+        length: kind.chip.hasLength ? CHIP_DATA_LENGTH : undefined,
+    };
+}
+
+/** {@link chipLines} as the adjacent run {@link expectSequence} waits for. */
+function chipSequence(lines: ChipMessageLines | undefined) {
+    if (lines === undefined) {
+        return undefined;
+    }
+    const { name, counter, length } = lines;
+    return length === undefined ? [name, counter] : [name, counter, length];
+}
+
 /**
  * Every message of one kind the TH's log carries at or after `from`, in the order it logged them.
  *
@@ -179,25 +218,24 @@ function messagesIn(
         return records;
     }
 
-    if (!flavor.startsWith("chip") || kind.chip === undefined) {
+    const patterns = chipLines(kind);
+    if (!flavor.startsWith("chip") || patterns === undefined) {
         return undefined;
     }
 
     // chip's fields follow the name line in a fixed order and nothing logs between them, so a field
     // that is not where LogMessage puts it belongs to a different message
-    const { name, hasLength } = kind.chip;
-    const namePattern = new RegExp(`\\[ATM\\] ${name}\\s*$`);
     const records = new Array<BdxMessageRecord>();
     for (let i = 0; i < lines.length; i++) {
-        if (!namePattern.test(lines[i].text)) {
+        if (!patterns.name.test(lines[i].text)) {
             continue;
         }
-        const counter = CHIP_BLOCK_COUNTER.exec(lines[i + 1]?.text ?? "");
+        const counter = patterns.counter.exec(lines[i + 1]?.text ?? "");
         if (counter === null) {
             continue;
         }
-        const length = hasLength ? CHIP_DATA_LENGTH.exec(lines[i + 2]?.text ?? "") : undefined;
-        if (hasLength && length === null) {
+        const length = patterns.length === undefined ? undefined : patterns.length.exec(lines[i + 2]?.text ?? "");
+        if (length === null) {
             continue;
         }
         records.push({
@@ -228,11 +266,15 @@ export function blockQueriesSent(log: LogFollower, flavor: string, from: number)
 /**
  * What each flavor's TH writes for the last message of a transfer, derived from the same declaration
  * {@link blockAckEofSent} reads so the two cannot drift.
+ *
+ * Ordered, not adjacent: a line another module writes between these must not fail the precondition
+ * every step of both cases rests on.
  */
-function endOfTransferPatterns() {
+function endOfTransferLines() {
+    const chip = chipSequence(chipLines(BLOCK_ACK_EOF_SENT));
     return {
-        matterjs: BLOCK_ACK_EOF_SENT.matterjs,
-        chip: BLOCK_ACK_EOF_SENT.chip && new RegExp(`\\[ATM\\] ${BLOCK_ACK_EOF_SENT.chip.name}\\s*$`),
+        matterjs: BLOCK_ACK_EOF_SENT.matterjs && [BLOCK_ACK_EOF_SENT.matterjs],
+        chip: chip && { ordered: chip },
     };
 }
 
