@@ -378,7 +378,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         // real delays under load) a chance to fire the old timer prematurely.
         if (announcementReason !== OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement) {
             // If Urgent or UpdateAvailable, we schedule an update query earlier as we would have done before
-            const delay = this.announcedUpdateQueryDelay();
+            const delay = this.state.announcedUpdateQueryDelay ?? Seconds(Math.floor(Math.random() * 600) + 1);
             logger.info(`Scheduling urgent update query in`, delay);
             this.#scheduleUpdateQuery(delay, ScheduleReason.Announced, provider);
         } else {
@@ -388,19 +388,6 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
         const peerAddress = PeerAddress({ nodeId: providerNodeId, fabricIndex });
         await (Node.forEndpoint(this.endpoint) as ServerNode).peers.forAddress(peerAddress); // Initialize the client node and store address
-    }
-
-    /**
-     * How long to wait before querying a provider that announced an update other than a simple one.
-     *
-     * The window is random so that the nodes of a fabric announced to together do not query at once.
-     * An implementation that knows it is alone with its provider — a test harness, a single-node
-     * deployment — may shorten it; anything longer than the specified ten minutes is non-conforming.
-     *
-     * @see {@link MatterSpecification.v16.Core} § 11.20.3.6.1
-     */
-    protected announcedUpdateQueryDelay(): Duration {
-        return Seconds(Math.floor(Math.random() * 600) + 1);
     }
 
     /** Adds or updates an active OTA provider entry for a fabric index */
@@ -1225,6 +1212,17 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 export namespace OtaSoftwareUpdateRequestorServer {
     export class State extends OtaSoftwareUpdateRequestorBehavior.State {
         /**
+         * How long to wait before querying a provider that announced an update other than a simple one.
+         *
+         * Unset draws the specified random window, so that the nodes of a fabric announced to together do
+         * not query at once. A node that knows it is alone with its provider may name a shorter wait; the
+         * specification states a preference rather than a requirement, so a fixed value still conforms.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.7.4.1.3
+         */
+        announcedUpdateQueryDelay?: Duration = undefined;
+
+        /**
          * The list of OTA providers that were recently active (by announcement or by being used).
          * The error counter is increased when a provider could not be reached or returned an unexpected error.
          * After 3 errors the provider is removed from this list and also from the defaultProviders list.
@@ -1297,7 +1295,6 @@ export namespace OtaSoftwareUpdateRequestorServer {
     }
 
     export declare const ExtensionInterface: {
-        announcedUpdateQueryDelay(): Duration;
         requestUserConsent(newSoftwareVersion: number, newSoftwareVersionString: string): MaybePromise<boolean>;
         applyUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator): MaybePromise<void>;
         validateUpdateFile(newSoftwareVersion?: number): MaybePromise<OtaImageHeader>;

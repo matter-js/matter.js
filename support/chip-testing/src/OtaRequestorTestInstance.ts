@@ -95,16 +95,6 @@ export async function verifyOtaTestTransfer(
  * what an observer reads to see that the update was applied.
  */
 class CertOtaRequestorServer extends OtaSoftwareUpdateRequestorServer {
-    /**
-     * A cert run is one requestor with one provider, so the specified random window — up to ten
-     * minutes — only makes the run's own duration unpredictable; its purpose, spreading a fabric's
-     * queries, has nothing to spread here. chip's `ota-requestor-app` is configurable the same way
-     * and ships with the delay at zero.
-     */
-    protected override announcedUpdateQueryDelay() {
-        return ANNOUNCED_QUERY_DELAY;
-    }
-
     protected override async applyUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) {
         const blob = await fileDesignator.openBlob();
         await verifyOtaTestTransfer(this.env.get(Crypto), blob, newSoftwareVersion);
@@ -184,6 +174,12 @@ export class OtaRequestorTestInstance extends NodeTestInstance {
             new Endpoint(OtaRequestorEndpoint.with(CertOtaRequestorServer), {
                 id: "ota-requestor",
                 number: ENDPOINT.otaRequestor,
+
+                // A cert run is one requestor with one provider, so the specified random window — up to
+                // ten minutes — only makes the run's own duration unpredictable; its purpose, spreading a
+                // fabric's queries, has nothing to spread here. chip's `ota-requestor-app` ships with the
+                // same wait at zero.
+                otaSoftwareUpdateRequestor: { announcedUpdateQueryDelay: ANNOUNCED_QUERY_DELAY },
             }),
         );
 
