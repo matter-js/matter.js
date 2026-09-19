@@ -6,7 +6,7 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Duration, Seconds } from "@matter/general";
-import { AclCapacityExceededError, DesiredStateBehavior, itemMapKey } from "@matter/node";
+import { AclCapacityExceededError, DesiredStateBehavior, ItemConclusion, itemMapKey } from "@matter/node";
 import { AccessControlServer } from "@matter/node/behaviors/access-control";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { NodeId, SubjectId } from "@matter/types";
@@ -122,26 +122,30 @@ describe("Reconciler integration (single peer)", () => {
         expect(hasOurs()).equals(true);
     });
 
-    it("says why it gave up on an item, until something writes that intent again", async () => {
+    it("says how it finished with an item, so absence is never the whole answer", async () => {
         await using site = new MockSite();
         const { controller, device } = await controllerWithReconciler(site);
         const peer = await subscribedPeer(controller, "peer1");
 
         // An entry the device refuses for good: a subject the ACL cannot hold.
         const unusable = { ...grant, subjects: [NodeId(0n)] };
+        const concluded = new Array<ItemConclusion>();
+        peer.eventsOf(DesiredStateBehavior).itemConcluded.on((_kind, _key, conclusion) => {
+            concluded.push(conclusion);
+        });
         await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("acl", "bad", unusable, "converge"));
         await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
 
-        // The item is gone, so its own status can no longer say why — the reconciler holds the reason instead.
+        // Gone from desired state, and the conclusion says the engine gave up rather than that the entry was
+        // removed — the same absence, opposite meanings for the device.
         expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "bad")]).equals(undefined);
-        const reason = await controller.act(agent => agent.get(ReconcilerBehavior).dropReasonFor(peer, "acl", "bad"));
-        expect(reason).not.equals(undefined);
+        expect(concluded.length).equals(1);
+        expect(concluded[0].outcome).equals("abandoned");
+        expect(concluded[0].outcome === "abandoned" && concluded[0].reason.length).greaterThan(0);
 
-        // Writing the intent again is a new question, so the old answer goes.
+        // Writing the intent again is new work, and it converges.
         await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("acl", "bad", grant, "converge"));
-        expect(await controller.act(agent => agent.get(ReconcilerBehavior).dropReasonFor(peer, "acl", "bad"))).equals(
-            undefined,
-        );
+        await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
         expect(device.state.accessControl.acl.length).greaterThan(0);
     });
 

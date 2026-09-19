@@ -149,10 +149,21 @@ export interface TaskContext {
     resolvePeer(peer: PeerAddress): ClientNode;
     tryResolvePeer(peer: PeerAddress): ClientNode | undefined;
     setIntent<I>(peer: ClientNode, kind: ItemKind<I>, key: string, intent: I, mode?: ItemMode): Promise<void>;
-    removeIntent(peer: ClientNode, kind: ItemKind, key: string): Promise<void>;
+    /** Ask for an item's removal. False when there was nothing to remove, so nothing will conclude. */
+    removeIntent(peer: ClientNode, kind: ItemKind, key: string): Promise<boolean>;
+
+    /** The same, unless another item still depends on this one. False also means nothing was asked for. */
     removeIntentIfUnreferenced(peer: ClientNode, kind: ItemKind, key: string): Promise<boolean>;
     awaitGate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<void>;
     awaitCommitted(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): Promise<void>;
+
+    /**
+     * Suspend until the engine has removed each item, failing if it gave up on one instead.
+     *
+     * What a task waiting for a removal wants, rather than {@link itemAbsent}: an item the engine abandoned
+     * is equally absent, and the device may still hold what it names.
+     */
+    awaitRemoved(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): Promise<void>;
     itemAbsent(peer: ClientNode, kind: ItemKind, key: string): boolean;
     peersWithIntent(kind: ItemKind, key: string): ClientNode[];
 

@@ -53,18 +53,52 @@ describe("DesiredStateBehavior", () => {
         });
     });
 
-    it("dropItem removes the item and emits itemRemoved", async () => {
+    it("dropItem removes the item and says how it ended", async () => {
         await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
         await endpoint.act(agent => {
             const ds = agent.get(DesiredStateBehavior);
             ds.setIntent("binding", "7", { node: 2 });
-            const removed = new Array<string>();
-            ds.events.itemRemoved.on((kind, key) => {
-                removed.push(`${kind}/${key}`);
+            const concluded = new Array<string>();
+            ds.events.itemConcluded.on((kind, key, conclusion) => {
+                concluded.push(`${kind}/${key}/${conclusion.outcome}`);
             });
-            ds.dropItem("binding", "7");
+            ds.dropItem("binding", "7", { outcome: "removed" });
             expect(ds.getItem("binding", "7")).equals(undefined);
-            expect(removed).deep.equals(["binding/7"]);
+            expect(concluded).deep.equals(["binding/7/removed"]);
+        });
+    });
+
+    it("distinguishes an item it gave up on from one that was removed", async () => {
+        await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+        await endpoint.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            ds.setIntent("binding", "7", { node: 2 });
+            let seen: { outcome: string; reason?: string } | undefined;
+            ds.events.itemConcluded.on((_kind, _key, conclusion) => {
+                seen = conclusion;
+            });
+            // Absence is the same either way, which is why the conclusion carries the difference.
+            ds.dropItem("binding", "7", { outcome: "abandoned", reason: "the device refused it", failureCode: 133 });
+            expect(seen?.outcome).equals("abandoned");
+            expect(seen?.reason).equals("the device refused it");
+        });
+    });
+
+    it("remembers which operation an item is waiting for", async () => {
+        await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+        await endpoint.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+            ds.setIntent("binding", "7", { node: 2 });
+            expect(ds.getItem("binding", "7")?.outstanding).equals("apply");
+
+            // A failure reports `commitFailed` either way, so what failed has to survive somewhere else.
+            ds.updateStatus("binding", "7", "commitFailed", 133);
+            expect(ds.getItem("binding", "7")?.outstanding).equals("apply");
+
+            ds.removeIntent("binding", "7");
+            expect(ds.getItem("binding", "7")?.outstanding).equals("remove");
+            ds.updateStatus("binding", "7", "commitFailed", 133);
+            expect(ds.getItem("binding", "7")?.outstanding).equals("remove");
         });
     });
 

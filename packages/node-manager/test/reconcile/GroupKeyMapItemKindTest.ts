@@ -43,6 +43,7 @@ function item(g: GroupKeyMapGrant): ManagedItem<GroupKeyMapGrant> {
         intent: g,
         mode: "converge",
         status: { state: "pending", updateTimestamp: 0 },
+        outstanding: "apply",
     };
 }
 

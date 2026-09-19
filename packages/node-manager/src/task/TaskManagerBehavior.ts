@@ -1566,7 +1566,13 @@ export class TaskManagerBehavior extends Behavior {
                 // abort accepted meanwhile can still prevent the write.
                 this.#throwIfAborted(execution);
                 phase.requires?.(ctx);
-                await phase.run(ctx);
+                try {
+                    await phase.run(ctx);
+                } finally {
+                    // The context follows what the engine concludes about the items this phase asked about,
+                    // and those observers live on the peers.
+                    ctx.close();
+                }
                 // Asked before the phase's own post-write check: a transition that claimed the run while the
                 // phase ran owns its outcome, and a precondition that refuses here is an ordinary failure, so
                 // asking first would record `failed` over the `cancelled` the transition is about to write.

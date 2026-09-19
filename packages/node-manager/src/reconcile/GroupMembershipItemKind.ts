@@ -66,8 +66,11 @@ export class GroupMembershipItemKind implements ItemKind<GroupMembershipGrant> {
         if (!node.endpoints.has(localEndpoint)) {
             return;
         }
+        // Groups carries its status in the response payload rather than as a command status, so a failure
+        // reaches the engine only if it is thrown. `NotFound` is not special-cased here: the engine treats a
+        // removal of something absent as done, for every kind.
         const { status } = await this.#commands(node, localEndpoint).removeGroup({ groupId });
-        if (status !== Status.Success && status !== Status.NotFound) {
+        if (status !== Status.Success) {
             throw new StatusResponseError(`RemoveGroup(${groupId}) on endpoint ${localEndpoint} failed`, status);
         }
     }

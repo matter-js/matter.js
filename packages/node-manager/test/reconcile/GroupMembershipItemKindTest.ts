@@ -79,6 +79,7 @@ function item(g: GroupMembershipGrant): ManagedItem<GroupMembershipGrant> {
         intent: g,
         mode: "converge",
         status: { state: "pending", updateTimestamp: 0 },
+        outstanding: "apply",
     };
 }
 
@@ -145,10 +146,18 @@ describe("GroupMembershipItemKind", () => {
         expect(members.has(0x101)).equals(false);
     });
 
-    it("remove treats NOT_FOUND as success", async () => {
+    it("remove reports NOT_FOUND like any other refusal, and the engine decides what it means", async () => {
         const kind = new GroupMembershipItemKind();
         const { node } = fakePeer({ removeStatus: Status.NotFound });
-        await kind.remove(node, item(grant)); // must not throw
+        let err: unknown;
+        try {
+            await kind.remove(node, item(grant));
+        } catch (e) {
+            err = e;
+        }
+        // "Already absent is done" is a rule about removal, so it lives in the executor rather than in each
+        // kind — see the executor's own test.
+        expect(err).instanceOf(StatusResponseError);
     });
 
     it("remove throws StatusResponseError on other failures", async () => {

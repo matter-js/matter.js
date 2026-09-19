@@ -236,10 +236,12 @@ describe("TaskContext gates", () => {
         const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
         await expect(MockTime.resolve(gate)).rejectedWith("state write refused");
 
-        // Observers outliving the gate keep reconciling the peer for a task that is already gone.
+        // Observers outliving the gate keep reconciling the peer for a task that is already gone. What the
+        // engine concluded is followed for the phase, not the gate, so that one goes with `close`.
         expect(peer.itemChanged.isObserved).equals(false);
-        expect(peer.itemRemoved.isObserved).equals(false);
         expect(peer.subscriptionStatusChanged.isObserved).equals(false);
+        ctx.close();
+        expect(peer.itemConcluded.isObserved).equals(false);
     });
 
     it("fails when an awaited item is dropped while the gate is parked", async () => {
@@ -253,12 +255,13 @@ describe("TaskContext gates", () => {
         await MockTime.resolve(Promise.resolve());
 
         // A reconcile pass this gate did not drive gives up on the item and drops it.
-        peer.dropItem("groupMembership", "1");
+        peer.dropItem("groupMembership", "1", { outcome: "abandoned", reason: "the device rejected it" });
 
-        await expect(MockTime.resolve(gate)).rejectedWith(TaskFailedError);
+        await expect(MockTime.resolve(gate)).rejectedWith(TaskFailedError, /the device rejected it/);
         expect(peer.itemChanged.isObserved).equals(false);
-        expect(peer.itemRemoved.isObserved).equals(false);
         expect(peer.subscriptionStatusChanged.isObserved).equals(false);
+        ctx.close();
+        expect(peer.itemConcluded.isObserved).equals(false);
     });
 
     it("resolves a parked removal gate when the reconciler drops a rejected item", async () => {
@@ -345,6 +348,7 @@ describe("what a gate counts as reachable", () => {
                 kind: "groupMembership",
                 key: "X",
                 intent: {},
+                outstanding: "apply",
                 mode: "converge",
                 status: { state: "committed", updateTimestamp: 0 },
             });

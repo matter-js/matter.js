@@ -13,7 +13,8 @@
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions } from "#reconcile/planActions.js";
 import { buildVerifyResult, refreshCapacities, shouldStartSweep } from "#ReconcilerBehavior.js";
-import { ClientNode, ItemKind, ItemKindRegistry, itemMapKey, ManagedItem } from "@matter/node";
+import { ClientNode, ItemConclusion, ItemKind, ItemKindRegistry, itemMapKey, ManagedItem } from "@matter/node";
+import { Status, StatusResponseError } from "@matter/types";
 
 // ---------------------------------------------------------------------------
 // Synthetic ItemKind for executor tests.
@@ -72,15 +73,42 @@ function makeTarget(items: Record<string, ManagedItem> = {}): ReconcileTarget & 
 }
 
 function pendingItem(kind: string, key: string): ManagedItem {
-    return { kind, key, intent: {}, mode: "converge", status: { state: "pending", updateTimestamp: 0 } };
+    return {
+        kind,
+        key,
+        intent: {},
+        mode: "converge",
+        status: { state: "pending", updateTimestamp: 0 },
+        outstanding: "apply",
+    };
 }
 
-function itemWithState(kind: string, key: string, state: ManagedItem["status"]["state"], code?: number): ManagedItem {
-    return { kind, key, intent: {}, mode: "converge", status: { state, updateTimestamp: 0, failureCode: code } };
+function itemWithState(
+    kind: string,
+    key: string,
+    state: ManagedItem["status"]["state"],
+    code?: number,
+    outstanding: ManagedItem["outstanding"] = "apply",
+): ManagedItem {
+    return {
+        kind,
+        key,
+        intent: {},
+        mode: "converge",
+        status: { state, updateTimestamp: 0, failureCode: code },
+        outstanding,
+    };
 }
 
 function deletePendingItem(kind: string, key: string): ManagedItem {
-    return { kind, key, intent: {}, mode: "converge", status: { state: "deletePending", updateTimestamp: 0 } };
+    return {
+        kind,
+        key,
+        intent: {},
+        mode: "converge",
+        status: { state: "deletePending", updateTimestamp: 0 },
+        outstanding: "remove",
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +208,7 @@ describe("executeActions (executor)", () => {
             intent: {},
             mode: "maintain",
             status: { state: "committed", updateTimestamp: 0 },
+            outstanding: "apply",
         };
         const target = makeTarget({ [id]: drifted });
 
@@ -231,6 +260,36 @@ describe("executeActions (failure paths)", () => {
         expect(target.items[id]?.status.failureCode).equals(0x87);
     });
 
+    it("counts a removal the device says it never had as done", async () => {
+        class AbsentKind extends FakeKind {
+            override async remove() {
+                throw new StatusResponseError("nothing to remove", Status.NotFound);
+            }
+        }
+        const registry = new ItemKindRegistry();
+        registry.register(new AbsentKind());
+
+        const id = "fake:ghost";
+        const target = makeTarget({ [id]: deletePendingItem("fake", "ghost") });
+        const conclusions = new Array<ItemConclusion>();
+        await executeActions(
+            {
+                ...target,
+                async dropItem(k: string, key: string, conclusion: ItemConclusion) {
+                    conclusions.push(conclusion);
+                    await target.dropItem(k, key, conclusion);
+                },
+            },
+            planActions(Object.values(target.items), { verify: false, recoverable: () => false }),
+            registry,
+        );
+
+        // The rule is the executor's, so a kind added later cannot forget it and report a failure for work
+        // that is already done.
+        expect(conclusions[0]?.outcome).equals("removed");
+        expect(target.items[id]).equals(undefined);
+    });
+
     it("fails an item whose kind nothing registered, rather than reporting it applied", async () => {
         const registry = new ItemKindRegistry();
         const id = "ghost:k1";
@@ -248,19 +307,22 @@ describe("executeActions (failure paths)", () => {
 
         const id = "fake:refused";
         const target = makeTarget({ [id]: itemWithState("fake", "refused", "commitFailed", 0x85) });
-        const reasons = new Array<string | undefined>();
+        const conclusions = new Array<ItemConclusion>();
         const dropping = {
             ...target,
-            async dropItem(k: string, key: string, reason?: string) {
-                reasons.push(reason);
-                await target.dropItem(k, key);
+            async dropItem(k: string, key: string, conclusion: ItemConclusion) {
+                conclusions.push(conclusion);
+                await target.dropItem(k, key, conclusion);
             },
         };
         const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
         await executeActions(dropping, planned, registry);
 
         expect(target.items[id]).equals(undefined);
-        expect(reasons[0]).contains("status 133");
+        // Given up on, not removed — the two are the same absence and must not read the same.
+        expect(conclusions[0].outcome).equals("abandoned");
+        expect(conclusions[0].outcome === "abandoned" && conclusions[0].reason).contains("status 133");
+        expect(conclusions[0].outcome === "abandoned" && conclusions[0].failureCode).equals(0x85);
 
         // A failure with no status code came from here, not from the device, and says so.
         const local = makeTarget({ ["ghost:k2"]: itemWithState("ghost", "k2", "commitFailed") });
@@ -268,9 +330,9 @@ describe("executeActions (failure paths)", () => {
         await executeActions(
             {
                 ...local,
-                async dropItem(k: string, key: string, reason?: string) {
-                    localReasons.push(reason);
-                    await local.dropItem(k, key);
+                async dropItem(k: string, key: string, conclusion: ItemConclusion) {
+                    localReasons.push(conclusion.outcome === "abandoned" ? conclusion.reason : undefined);
+                    await local.dropItem(k, key, conclusion);
                 },
             },
             planActions(Object.values(local.items), { verify: false, recoverable: () => false }),
@@ -358,6 +420,7 @@ describe("buildVerifyResult", () => {
                 intent: {},
                 mode: "converge",
                 status: { state: "committed", updateTimestamp: 0 },
+                outstanding: "apply",
             },
             {
                 kind: "fake",
@@ -365,6 +428,7 @@ describe("buildVerifyResult", () => {
                 intent: {},
                 mode: "converge",
                 status: { state: "committed", updateTimestamp: 0 },
+                outstanding: "apply",
             },
             {
                 kind: "fake",
@@ -372,6 +436,7 @@ describe("buildVerifyResult", () => {
                 intent: {},
                 mode: "converge",
                 status: { state: "pending", updateTimestamp: 0 },
+                outstanding: "apply",
             },
         ];
         const result = await buildVerifyResult(STUB_NODE, items, registry);
@@ -388,6 +453,7 @@ describe("buildVerifyResult", () => {
                 intent: {},
                 mode: "converge",
                 status: { state: "committed", updateTimestamp: 0 },
+                outstanding: "apply",
             },
         ];
         const result = await buildVerifyResult(STUB_NODE, items, registry);

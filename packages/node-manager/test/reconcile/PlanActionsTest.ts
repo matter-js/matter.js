@@ -13,7 +13,14 @@ function item(
     state: ManagedItem["status"]["state"],
     mode: ManagedItem["mode"] = "converge",
 ): ManagedItem {
-    return { kind, key, intent: {}, mode, status: { state, updateTimestamp: 0 } };
+    return {
+        kind,
+        key,
+        intent: {},
+        mode,
+        status: { state, updateTimestamp: 0 },
+        outstanding: state === "deletePending" ? "remove" : "apply",
+    };
 }
 
 const recoverableAll = () => true;
@@ -66,5 +73,23 @@ describe("planActions", () => {
             recoverable: recoverableNone,
         });
         expect(result.map(r => r.action)).deep.equals(["apply", "skip"]);
+    });
+});
+
+describe("planActions after a failure", () => {
+    it("tries the operation that failed, not the other one", () => {
+        // The reported state is the JFDS `CommitFailure` for both, so planning from it alone would re-apply
+        // an item a caller asked to remove — putting back on the device what the run is undoing.
+        const failedApply = item("k", "1", "commitFailed");
+        const failedRemoval = { ...item("k", "2", "commitFailed"), outstanding: "remove" as const };
+
+        const planned = planActions([failedApply, failedRemoval], { verify: false, recoverable: recoverableAll });
+        expect(planned.map(p => p.action)).deep.equals(["retry", "remove"]);
+    });
+
+    it("gives up on either one the same way", () => {
+        const failedRemoval = { ...item("k", "2", "commitFailed"), outstanding: "remove" as const };
+        const planned = planActions([failedRemoval], { verify: false, recoverable: recoverableNone });
+        expect(planned[0].action).equals("drop");
     });
 });

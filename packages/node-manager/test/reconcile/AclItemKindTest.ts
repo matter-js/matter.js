@@ -56,6 +56,7 @@ function item(grant: AclGrant): ManagedItem<AclGrant> {
         intent: grant,
         mode: "converge",
         status: { state: "pending", updateTimestamp: 0 },
+        outstanding: "apply",
     };
 }
 
