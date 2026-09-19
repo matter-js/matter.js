@@ -48,6 +48,14 @@ const PROVIDER_ENDPOINT = 1;
  */
 const CASE_BUDGET = Seconds(150);
 
+/**
+ * The outer bound on a case, measured from the moment the case starts rather than from the first
+ * prompt. TC-WEBRTCR-2.3 and 2.4 give the whole script three minutes, and commissioning alone may
+ * take {@link COMMISSION_TIMEOUT}, so {@link CASE_BUDGET} on its own can outlast the script it runs
+ * in. This leaves mobly ten seconds to end the script after the case has stated its verdict.
+ */
+const SCRIPT_BUDGET = Seconds(170);
+
 /** Caps on single waits, each further bounded by what is left of {@link CASE_BUDGET}. */
 const SIGNAL_TIMEOUT = Seconds(30);
 const INVOKE_TIMEOUT = Seconds(30);
@@ -266,6 +274,7 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
             const cx: CertStepContext = { controllers: { dut }, devices: {}, recorder };
 
             let test: PromptDrivenPythonTest | undefined;
+            const startedAt = Time.nowUs;
 
             try {
                 await dut.start();
@@ -274,8 +283,10 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
                 const sessionOf = async () => {
                     // Starts at the first prompt, not at startup: container exec, camera spawn and
                     // commissioning all happen first, and a budget that included them would leave a
-                    // slow run with nothing left and record that as the DUT answering nothing
-                    endsAt ??= Time.nowUs + CASE_BUDGET;
+                    // slow run with nothing left and record that as the DUT answering nothing. The
+                    // script's own deadline still caps it, so a slow start shortens the case instead
+                    // of pushing it past the point where mobly aborts the script
+                    endsAt ??= Math.min(Time.nowUs + CASE_BUDGET, startedAt + SCRIPT_BUDGET);
                     if (state.session === undefined) {
                         if (state.ref === undefined) {
                             throw new InternalError(

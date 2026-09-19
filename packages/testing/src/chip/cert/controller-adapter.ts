@@ -797,7 +797,11 @@ export interface WebRtcSessionRecord {
     audioStreamId: number | null;
 }
 
-/** An ICE candidate as the provider stated it, per RFC 8839's candidate-attribute. */
+/**
+ * An ICE candidate as the provider stated it, per RFC 8839's candidate-attribute.
+ *
+ * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+ */
 export interface WebRtcIceCandidate {
     candidate: string;
     sdpMid: string | null;
