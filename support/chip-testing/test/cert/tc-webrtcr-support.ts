@@ -29,12 +29,7 @@ import {
 import { join } from "node:path";
 import { env } from "node:process";
 import { CertCheckFailedError, CertCleanupError, settleWithin } from "./tc-support.js";
-import { closeWebRtc, WebRtcPeer } from "./webrtc-peer.js";
-
-// node-datachannel's cleanup tears down its worker threads for the whole process, so it runs once
-// after every camera case rather than per case, which would pull the library out from under the next
-// one. This module is loaded once however many cases import it.
-after(() => closeWebRtc());
+import { WebRtcPeer } from "./webrtc-peer.js";
 
 /** Endpoint of TH_SERVER's camera clusters, which `chip-camera-app` fixes at 1. */
 const PROVIDER_ENDPOINT = 1;
@@ -201,14 +196,17 @@ export interface CameraCase<S = void> {
      */
     commissioning: "manual-code" | "fixed-passcode";
 
-    /**
-     * What the case's steps share, created once per run. A script that prints the same prompt for
-     * several of its steps needs this to tell them apart.
-     */
-    begin?(): S;
-
     /** Answers the script's remaining prompts, in any order the script prints them. */
     steps: CameraStep<S>[];
+}
+
+/**
+ * A case whose steps share state, created once per run. A script that prints the same prompt for
+ * several of its steps needs this to tell them apart, and a case that declares such state must say how
+ * to create it.
+ */
+export interface StatefulCameraCase<S> extends CameraCase<S> {
+    begin(): S;
 }
 
 /**
@@ -218,7 +216,9 @@ export interface CameraCase<S = void> {
  * prompts with our own controller. Commissioning is handled here because every case asks for it in one
  * of two ways; the steps are what differ.
  */
-export function certCameraCase<S = void>(definition: CameraCase<S>) {
+export function certCameraCase(definition: CameraCase): void;
+export function certCameraCase<S>(definition: StatefulCameraCase<S>): void;
+export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S }) {
     const descriptor = {
         kind: "py" as const,
         name: definition.tc,

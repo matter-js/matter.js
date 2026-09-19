@@ -10,8 +10,7 @@ import { WebRtcPeer } from "../cert/webrtc-peer.js";
 
 /**
  * Two peers in this process stand in for the controller and the camera, so everything but the camera's
- * own quirks is exercised without a chip binary. `closeWebRtc()` is deliberately not called here: it
- * tears the library down for the whole process, and the camera cases run in the same one.
+ * own quirks is exercised without a chip binary.
  */
 async function connected(a: WebRtcPeer, b: WebRtcPeer) {
     return (await Promise.all([a.connected(Seconds(10)), b.connected(Seconds(10))])).every(Boolean);

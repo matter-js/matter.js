@@ -6,7 +6,7 @@
 
 import { Duration, InternalError, Millis, Time } from "@matter/main";
 import type { WebRtcIceCandidate } from "@matter/testing";
-import { DataChannel, PeerConnection, cleanup } from "node-datachannel";
+import { DataChannel, PeerConnection } from "node-datachannel";
 
 /**
  * The controller's half of a WebRTC connection, for the cases whose plan step is "the session is
@@ -21,6 +21,11 @@ import { DataChannel, PeerConnection, cleanup } from "node-datachannel";
  *
  * Nothing here interprets media. Reaching `connected` is the whole purpose, because that is what the
  * plan asks the provider to report.
+ *
+ * Closing each peer is all the teardown there is. The library also offers a process-wide `cleanup()`,
+ * which must not be called here: the certification specs share one process, and calling it at the end
+ * of the run kills that process before the runner reports — seven cases pass and the leg still fails
+ * with no summary. Closed peers leave nothing that holds the process open.
  */
 export class WebRtcPeer {
     readonly #connection: PeerConnection;
@@ -104,11 +109,41 @@ export class WebRtcPeer {
         return { rewroteRole: settled !== answer };
     }
 
-    /** Adds what the provider's `ICECandidates` carried. */
+    /**
+     * Adds what the provider's `ICECandidates` carried.
+     *
+     * A candidate names its media section either way round: by id, or by the index of that section in
+     * the description. The library takes the id, so a candidate that carries only an index has it
+     * resolved against the remote description's own sections rather than being attached to the first
+     * one — which is a different section as soon as a description carries more than one, and a
+     * candidate attached to the wrong one is simply ignored by the far end.
+     *
+     * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+     */
     add(candidates: readonly WebRtcIceCandidate[]) {
-        for (const { candidate, sdpMid } of candidates) {
-            this.#connection.addRemoteCandidate(candidate, sdpMid ?? "0");
+        for (const { candidate, sdpMid, sdpmLineIndex } of candidates) {
+            this.#connection.addRemoteCandidate(candidate, this.#mediaIdFor(sdpMid, sdpmLineIndex));
         }
+    }
+
+    #mediaIdFor(sdpMid: string | null, sdpmLineIndex: number | null): string {
+        if (sdpMid !== null) {
+            return sdpMid;
+        }
+
+        const mids = [...(this.#connection.remoteDescription()?.sdp ?? "").matchAll(/^a=mid:(.*)$/gm)].map(match =>
+            match[1].trim(),
+        );
+
+        const named = sdpmLineIndex === null ? undefined : mids[sdpmLineIndex];
+        if (named === undefined) {
+            throw new InternalError(
+                `ICE candidate names neither a media id nor a section of the ${mids.length} the remote description ` +
+                    `carries (index ${sdpmLineIndex}), so there is nothing to attach it to`,
+            );
+        }
+
+        return named;
     }
 
     /**
@@ -140,14 +175,4 @@ export class WebRtcPeer {
         this.#channel?.close();
         this.#connection.close();
     }
-}
-
-/**
- * Releases `node-datachannel`'s worker threads, which otherwise keep the process alive past the run.
- *
- * Per-process rather than per-connection, so a run calls this once everything that used a peer is
- * closed.
- */
-export function closeWebRtc() {
-    cleanup();
 }
