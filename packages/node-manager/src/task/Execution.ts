@@ -37,6 +37,16 @@ export class Execution {
      */
     settled = false;
 
+    /**
+     * Whether the driver stopped without recording an outcome and nothing in this process will record one.
+     *
+     * Set when a run's failure cannot be persisted but its record is durable: the run stays unfinished and
+     * keeps its target, and a later start resumes it, but no write is on its way. Admission reads this to
+     * report the target as awaiting resume rather than as settling, which would promise a release that is not
+     * coming. `cancel` and `abandon` still find the execution and may restore a driver.
+     */
+    driverGaveUp = false;
+
     #phases?: TaskPhase[];
 
     constructor(record: RunRecord, bound: BoundDefinition) {
@@ -44,7 +54,7 @@ export class Execution {
         this.bound = bound;
         // The link to the run this undoes comes from params; a rollback rebuilt on resume or redrive must
         // keep the one already recorded rather than let a fresh read of its own params override it.
-        record.revertOf ??= bound.undoes;
+        record.rollbackOf ??= bound.undoes;
     }
 
     get runId(): RunId {

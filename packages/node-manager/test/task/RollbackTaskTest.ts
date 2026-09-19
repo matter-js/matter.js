@@ -1,0 +1,76 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Rollback, RollbackParams } from "#task/Rollback.js";
+import { RunningTaskContext } from "#task/RunningTaskContext.js";
+import { BoundDefinition, RunRecord } from "#task/Task.js";
+import { TaskState } from "#task/types.js";
+import { RunId } from "#task/types.js";
+import { itemMapKey } from "@matter/node";
+import { testAddress } from "./helpers.js";
+import { FakePeer, kindOf } from "./helpers.js";
+
+function runRollback(peer: FakePeer, params: RollbackParams, referenced = new Set<string>()) {
+    const bound = new BoundDefinition(Rollback, params);
+    const record = new RunRecord(RunId(1), "rollback:1", bound.type, params);
+    const setState = (s: TaskState) => {
+        record.state = s;
+    };
+    peer.kindResolver = kind =>
+        kindOf(kind, { isReferenced: (_n: unknown, key: string) => referenced.has(`${kind}:${key}`) });
+    const ctx = new RunningTaskContext(record, () => peer.asNode(), peer, setState);
+    return bound.phases()[0].run(ctx);
+}
+
+describe("Rollback task", () => {
+    before(() => MockTime.init());
+
+    it("removes an added (prior-absent) entry", async () => {
+        const peer = new FakePeer("p1");
+        peer.addItem("alpha", "42", "committed");
+        await MockTime.resolve(
+            runRollback(peer, {
+                originalRunId: RunId(1),
+                entries: [{ peer: testAddress("p1"), kind: "alpha", key: "42" }],
+            }),
+        );
+        expect(peer.items[itemMapKey("alpha", "42")]).equals(undefined);
+    });
+
+    it("restores a prior intent rather than deleting", async () => {
+        const peer = new FakePeer("p1");
+        peer.setIntent("shared", "257", { current: true });
+        peer.markHas("shared", "257");
+        await MockTime.resolve(
+            runRollback(peer, {
+                originalRunId: RunId(1),
+                entries: [
+                    {
+                        peer: testAddress("p1"),
+                        kind: "shared",
+                        key: "257",
+                        prior: { intent: { old: true }, mode: "converge" },
+                    },
+                ],
+            }),
+        );
+        expect(peer.items[itemMapKey("shared", "257")]?.intent).deep.equals({ old: true });
+        expect(peer.items[itemMapKey("shared", "257")]?.status.state).equals("committed");
+    });
+
+    it("keeps a still-referenced shared entry (gate does not wait on it)", async () => {
+        const peer = new FakePeer("p1");
+        peer.addItem("alpha", "42", "committed");
+        await MockTime.resolve(
+            runRollback(
+                peer,
+                { originalRunId: RunId(1), entries: [{ peer: testAddress("p1"), kind: "alpha", key: "42" }] },
+                new Set(["alpha:42"]),
+            ),
+        );
+        expect(peer.items[itemMapKey("alpha", "42")]).not.equals(undefined);
+    });
+});

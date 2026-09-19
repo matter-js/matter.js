@@ -4,11 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BUILT_IN_KINDS } from "#reconcile/kinds.js";
 import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
-import { Immutable, InternalError, Observable } from "@matter/general";
-import { ClientNode, DesiredStateBehavior, ItemKind, ItemMode, ItemState, ManagedItem, itemMapKey } from "@matter/node";
+import { Immutable, InternalError, MaybePromise, Observable } from "@matter/general";
+import {
+    ClientNode,
+    CommissioningClient,
+    DesiredStateBehavior,
+    ItemKind,
+    ItemMode,
+    ItemState,
+    ManagedItem,
+    itemMapKey,
+} from "@matter/node";
+import { PeerAddress } from "@matter/protocol";
+import { FabricIndex, NodeId } from "@matter/types";
 import { Status } from "@matter/types";
 
 /** Mirrors the reconciler's default recoverability rule for a failure status code. */
@@ -42,6 +54,70 @@ export const SyntheticTask: TaskDefinition<{ tag: string }> & {
  * The record backing the run this process is driving for `runId`. Valid in the synchronous continuation right
  * after `run()` returns, before any phase has had a chance to advance the driver past this tick.
  */
+/**
+ * Whether a state is one no driver will advance.
+ *
+ * Mirrors `TERMINAL_STATES` in `RunStore`. One place, because a waiter that misses a state polls for a run
+ * that has already finished — and every copy of this list except this one omitted `abandoned`.
+ */
+export async function pumpUntil(name: string, condition: () => MaybePromise<boolean>): Promise<void> {
+    for (let i = 0; i < 10_000; i++) {
+        if (await condition()) {
+            return;
+        }
+        await MockTime.advance(1);
+    }
+    throw new InternalError(`Condition "${name}" never held`);
+}
+
+export function isTerminalState(state: string): boolean {
+    return ["completed", "failed", "cancelled", "abandoned"].includes(state);
+}
+
+const testKinds = new Map<string, ItemKind>();
+
+/**
+ * A stand-in item kind, memoized by name.
+ *
+ * Tests name kinds that no reconciler registers, and the task surface takes kind references rather than
+ * names. Memoized because the reference is the identity: two calls for one name must give the same kind.
+ */
+export function kindOf(name: string, extra: Partial<ItemKind> = {}): ItemKind {
+    // A built-in answers for its own name, so a test driving a real task gets the very kind the reconciler
+    // registers — the task surface matches on identity, and a stand-in would be refused exactly as a
+    // lookalike is. A test that wants different behaviour names a kind of its own.
+    const builtIn = BUILT_IN_KINDS.find(k => k.kind === name);
+    if (builtIn !== undefined) {
+        if (Object.keys(extra).length > 0) {
+            throw new InternalError(`Built-in kind "${name}" cannot be redefined by a test; name a new kind`);
+        }
+        return builtIn;
+    }
+    let kind = testKinds.get(name);
+    if (kind === undefined) {
+        kind = { kind: name, priority: 0, apply: async () => {} };
+        testKinds.set(name, kind);
+    }
+    // Rebuilt in place rather than merged: the object identity is what the task surface matches on, so it has
+    // to survive — but a hook left on it by an earlier test would otherwise still be there for the next one,
+    // which is how a suite becomes order-dependent. Every optional member is named so it is cleared.
+    Object.assign(kind, {
+        kind: name,
+        priority: 0,
+        apply: async () => {},
+        read: undefined,
+        diff: undefined,
+        verify: undefined,
+        remove: undefined,
+        recoverable: undefined,
+        capacity: undefined,
+        excludeFromAdmission: undefined,
+        isReferenced: undefined,
+        ...extra,
+    });
+    return kind;
+}
+
 export function liveRecord(manager: TaskManagerBehavior, runId: RunId): RunRecord {
     const execution = manager.internal.runs.executionOf(runId);
     if (execution === undefined) {
@@ -84,6 +160,19 @@ export function onTerminalWrite(manager: TaskManagerBehavior, runId: RunId, onCo
  * One simplification of the real engine: a key the device neither has nor fails stays `pending` instead of
  * committing, which is how a test holds a gate parked.
  */
+/**
+ * A stable address for a fixture peer, derived from its name so a test that writes one can name the same peer.
+ *
+ * Fabric 1 throughout: these fixtures have one fabric, and a node id is unique within it.
+ */
+export function testAddress(name: string): PeerAddress {
+    let hash = 0n;
+    for (const ch of name) {
+        hash = (hash * 131n + BigInt(ch.codePointAt(0) ?? 0)) % 0xffff_ffffn;
+    }
+    return PeerAddress({ fabricIndex: FabricIndex(1), nodeId: NodeId(hash + 1n) });
+}
+
 export class FakePeer {
     readonly items: Record<string, ManagedItem> = {};
     readonly has = new Set<string>();
@@ -91,13 +180,21 @@ export class FakePeer {
     readonly rejects = new Set<string>();
     /** Remaining recoverable apply failures per key: each pass consumes one, then the key behaves normally. */
     readonly transientFailures = new Map<string, number>();
+    readonly dropReasons = new Map<string, string>();
     readonly itemChanged = new Observable<[item: ManagedItem]>();
     readonly itemRemoved = new Observable<[kind: string, key: string]>();
     readonly subscriptionStatusChanged = new Observable<[isActive: boolean]>();
     #subscribed = true;
     reconciles = 0;
 
-    constructor(readonly id: string) {}
+    readonly address: PeerAddress;
+
+    constructor(
+        readonly id: string,
+        address = testAddress(id),
+    ) {
+        this.address = address;
+    }
 
     /** A real (non-Sustained) subscription instance reads as active; undefined reads as unreachable. */
     get #activeSubscription() {
@@ -122,7 +219,7 @@ export class FakePeer {
         this.itemChanged.emit(item);
     }
 
-    /** Record the desired-state mutations the gate observes so cancel-revert order can be asserted. */
+    /** Record the desired-state mutations the gate observes so cancel-rollback order can be asserted. */
     readonly removeOrder = new Array<string>();
 
     // Stores real intent+mode (not a placeholder) so the context's prior-capture reads true values.
@@ -210,6 +307,11 @@ export class FakePeer {
                     if (recoverable(item.status.failureCode)) {
                         peer.#apply(item);
                     } else {
+                        // Mirrors the executor: the reason outlives the item, which takes its status with it.
+                        peer.dropReasons.set(
+                            itemMapKey(item.kind, item.key),
+                            `the device rejected it with status ${item.status.failureCode}`,
+                        );
                         peer.dropItem(item.kind, item.key);
                     }
                     break;
@@ -236,9 +338,19 @@ export class FakePeer {
         }
     }
 
-    /** Reconciler stand-in: no kind has dependents by default (tests override per case). */
-    itemKind(_kind: string): ItemKind | undefined {
-        return undefined;
+    /**
+     * What this peer's reconciler stand-in registers, for a test that needs a name it does not own, or a kind
+     * whose `isReferenced` answers differently from the shared one.
+     */
+    kindResolver?: (kind: string) => ItemKind | undefined;
+
+    /** Reconciler stand-in: resolves any name, and no kind has dependents unless a test supplies one. */
+    itemKind(kind: string): ItemKind | undefined {
+        return this.kindResolver === undefined ? kindOf(kind) : this.kindResolver(kind);
+    }
+
+    dropReasonFor(_peer: ClientNode, kind: string, key: string): string | undefined {
+        return this.dropReasons.get(itemMapKey(kind, key));
     }
 
     eventsOf(type: unknown): unknown {
@@ -248,13 +360,39 @@ export class FakePeer {
     }
 
     stateOf(type: unknown): unknown {
-        return type === DesiredStateBehavior ? { items: this.items } : { isDisabled: false };
+        return type === DesiredStateBehavior ? { items: this.items } : { isDisabled: this.networkDisabled };
     }
+
+    #addressed = true;
+
+    /** Forget the peer's identity, as a node being torn down has. */
+    forgetAddress() {
+        this.#addressed = false;
+    }
+
+    /** What `ClientNode` exposes and the task layer reads: a peer's identity, not its local id. */
+    get peerAddress(): PeerAddress | undefined {
+        return this.#addressed ? this.address : undefined;
+    }
+
+    maybeStateOf(type: unknown): unknown {
+        if (type === DesiredStateBehavior) {
+            return { items: this.items };
+        }
+        return type === CommissioningClient ? { peerAddress: this.address } : undefined;
+    }
+
+    /** A peer with no networking at all, as a group or a node still being built has. */
+    networkless = false;
+
+    /** A peer whose networking is switched off, which reads as unreachable however its subscription looks. */
+    networkDisabled = false;
 
     get behaviors() {
         const activeSubscription = this.#activeSubscription;
+        const networkless = this.networkless;
         return {
-            has: () => true,
+            has: () => !networkless,
             internalsOf: () => ({ activeSubscription }),
         };
     }
@@ -295,21 +433,21 @@ export function requireRecordFor(runs: RunRecords, slotKey: string): PersistedRe
 
 /**
  * The persisted rollback the newest run of `slotKey` *recorded*, resolved through that run's own
- * `revertRunId`.
+ * `rollbackRunId`.
  *
- * Deliberately not `find(r => r.revertOf === original.runId)`: an assertion on the result's `revertOf` would
+ * Deliberately not `find(r => r.rollbackOf === original.runId)`: an assertion on the result's `rollbackOf` would
  * then be checking the predicate that selected it, which is how a migration ends up with a test that cannot
  * fail. Resolving through the forward link keeps the two sides independent.
  */
-export function revertRecordOf(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
-    const revertRunId = recordFor(runs, slotKey)?.revertRunId;
-    return revertRunId === undefined ? undefined : runs[String(revertRunId)];
+export function rollbackRecordOf(runs: RunRecords, slotKey: string): PersistedRecord | undefined {
+    const rollbackRunId = recordFor(runs, slotKey)?.rollbackRunId;
+    return rollbackRunId === undefined ? undefined : runs[String(rollbackRunId)];
 }
 
 /** Every persisted rollback of any run of `slotKey`, for asserting that none exists. */
-export function revertRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
+export function rollbackRecordsOf(runs: RunRecords, slotKey: string): readonly PersistedRecord[] {
     const undone = new Set(recordsFor(runs, slotKey).map(r => r.runId));
-    return Object.values(runs).filter(r => r.revertOf !== undefined && undone.has(r.revertOf));
+    return Object.values(runs).filter(r => r.rollbackOf !== undefined && undone.has(r.rollbackOf));
 }
 
 /**
@@ -368,8 +506,8 @@ export function cancelSlotOutcome(manager: TaskManagerBehavior, slotKey: string)
 }
 
 /** The slot key of the rollback of the newest run of `slotKey`, or undefined if none was recorded. */
-export function revertSlotOf(runs: RunRecords, slotKey: string): string | undefined {
-    return revertRecordOf(runs, slotKey)?.slotKey;
+export function rollbackSlotOf(runs: RunRecords, slotKey: string): string | undefined {
+    return rollbackRecordOf(runs, slotKey)?.slotKey;
 }
 
 /**
@@ -390,10 +528,7 @@ export async function awaitRun(
                 return false;
             }
             // A run turns terminal one step before it retires; a caller acting here would find the slot held.
-            return (
-                !(["completed", "failed", "cancelled", "abandoned"] as string[]).includes(state) ||
-                !m.tasks.some(t => t.runId === runId)
-            );
+            return !isTerminalState(state) || !m.tasks.some(t => t.runId === runId);
         });
         if (settled) {
             return;

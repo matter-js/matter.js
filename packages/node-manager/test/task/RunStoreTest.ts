@@ -6,8 +6,9 @@
 
 import { RunStore } from "#task/RunStore.js";
 import { RunRecord, TaskPersistence } from "#task/Task.js";
-import { RetireSeq, RunId } from "#task/types.js";
+import { ChangeEntry, RetireSeq, RunId } from "#task/types.js";
 import { InternalError } from "@matter/general";
+import { testAddress } from "./helpers.js";
 
 /**
  * The store answers these without a node, a gate or a clock, so a table can be built by hand — the only way
@@ -32,12 +33,19 @@ function retired(
     seq: number,
     state: "completed" | "failed" | "cancelled",
     wrote = false,
+    changeSet: ChangeEntry[] = [],
 ) {
     return new RunRecord(RunId(runId), slotKey, "synthetic", undefined, {
         state,
         retireSeq: RetireSeq(seq),
         wrote,
+        changeSet,
     });
+}
+
+/** A retired run still holding priors, so a rollback that can replay them pins it. */
+function pinned(runId: number, slotKey: string, seq: number) {
+    return retired(runId, slotKey, seq, "failed", true, [{ peer: testAddress("p"), kind: "groupKey", key: "42" }]);
 }
 
 describe("RunStore", () => {
@@ -47,7 +55,7 @@ describe("RunStore", () => {
             // attached to it yet. `isAttached` is false here and the rollback is nonetheless live — a re-run
             // of the target would rewrite exactly the intents it is going to restore.
             const undone = retired(1, "synthetic:t", 1, "cancelled", true);
-            const rollback = new RunRecord(RunId(2), "revert:1", "revert", undefined, { revertOf: RunId(1) });
+            const rollback = new RunRecord(RunId(2), "rollback:1", "rollback", undefined, { rollbackOf: RunId(1) });
             const store = storeWith(undone, rollback);
 
             expect(store.isAttached(RunId(2))).equals(false);
@@ -80,18 +88,45 @@ describe("RunStore", () => {
         });
     });
     describe("a corrupt stored table", () => {
+        const describeValue = (value: unknown) =>
+            typeof value === "object" && value !== null
+                ? Array.isArray(value)
+                    ? "a list"
+                    : "an object"
+                : String(value);
+
         const KEY_MATERIAL = new Uint8Array([1, 2, 3, 4]);
+
+        function loadField(field: string, value: unknown) {
+            const store = new RunStore();
+            return () =>
+                store.load({
+                    runs: {
+                        "1": {
+                            runId: 1,
+                            slotKey: "synthetic:t",
+                            type: "synthetic",
+                            state: "running",
+                            phaseIndex: 0,
+                            changeSet: [],
+                            wrote: false,
+                            [field]: value,
+                        },
+                    } as unknown as Record<string, TaskPersistence>,
+                });
+        }
 
         function loadWith(runId: unknown) {
             const store = new RunStore();
             return () =>
                 store.load({
                     runs: {
-                        "run:1": {
+                        "1": {
                             runId,
                             slotKey: "synthetic:t",
                             type: "rotateGroupKey",
                             state: "running",
+                            phaseIndex: 0,
                             changeSet: [],
                             wrote: false,
                             // What a group task actually carries: raw key material, and a bigint that cannot be
@@ -117,7 +152,7 @@ describe("RunStore", () => {
             } catch (e) {
                 message = (e as Error).message;
             }
-            expect(message).contains("run:1");
+            expect(message).contains('record "1"');
             // A `bigint` in params would make serializing the record throw before the refusal could be built,
             // and its key material would reach the log if it did not.
             expect(message).not.contains("epochStartTime0");
@@ -126,6 +161,142 @@ describe("RunStore", () => {
 
         it("accepts the smallest identity a caller can hold", () => {
             expect(loadWith(1)).not.throws();
+        });
+
+        // Each of these decides something no later check revisits: `state` decides whether the record holds
+        // its target, `phaseIndex` which phase resumes, `retireSeq` seeds the counter every retirement reads.
+        for (const [field, value] of [
+            ["state", "sometimes"],
+            ["state", 3],
+            ["phaseIndex", -1],
+            ["phaseIndex", 1.5],
+            ["phaseIndex", Number.NaN],
+            ["retireSeq", 0],
+            ["retireSeq", "2"],
+            ["changeSet", {}],
+            // Each entry, not only the container: a run walks them as it writes, and a rollback replays them.
+            ["changeSet", [null]],
+            ["changeSet", [{ peer: testAddress("p"), kind: "groupKey" }]],
+            ["changeSet", [{ peer: testAddress("p"), kind: "groupKey", key: "1", prior: { mode: "converge" } }]],
+            [
+                "changeSet",
+                [{ peer: testAddress("p"), kind: "groupKey", key: "1", prior: { intent: {}, mode: "sometimes" } }],
+            ],
+            ["slotKey", ""],
+            ["slotKey", 7],
+            ["type", ""],
+            ["wrote", "false"],
+            ["rollbackOf", "2"],
+            ["rollbackRunId", 0],
+        ] as Array<[string, unknown]>) {
+            // Named without JSON: a change entry carries a node id, which is a bigint and cannot be stringified.
+            it(`refuses a record whose ${field} is ${describeValue(value)}`, () => {
+                expect(loadField(field, value)).throws(InternalError);
+            });
+        }
+
+        it("refuses a table whose key and record name different runs", () => {
+            const store = new RunStore();
+            expect(() =>
+                store.load({
+                    runs: {
+                        "run:7": {
+                            runId: 1,
+                            slotKey: "synthetic:t",
+                            type: "synthetic",
+                            state: "running",
+                            phaseIndex: 0,
+                            changeSet: [],
+                            wrote: false,
+                        },
+                    } as unknown as Record<string, TaskPersistence>,
+                }),
+            ).throws(InternalError);
+        });
+
+        it("refuses a table whose records claim one target", () => {
+            const store = new RunStore();
+            const record = (runId: number) => ({
+                runId,
+                slotKey: "synthetic:t",
+                type: "synthetic",
+                state: "running",
+                phaseIndex: 0,
+                changeSet: [],
+                wrote: false,
+            });
+            expect(() =>
+                store.load({
+                    runs: { "1": record(1), "2": record(2) } as unknown as Record<string, TaskPersistence>,
+                }),
+            ).throws(InternalError);
+        });
+
+        it("accepts a record whose optional retirement order is absent", () => {
+            expect(loadField("retireSeq", undefined)).not.throws();
+        });
+    });
+    describe("bounded history", () => {
+        it("keeps everything while retired runs fit the limit", () => {
+            const store = storeWith(retired(1, "s:a", 1, "completed"), retired(2, "s:b", 2, "completed"));
+            expect(store.evictableRetired(2)).deep.equals([]);
+        });
+
+        it("forgets the oldest retirements first", () => {
+            const store = storeWith(
+                retired(1, "s:a", 1, "completed"),
+                retired(2, "s:b", 2, "completed"),
+                retired(3, "s:c", 3, "completed"),
+            );
+            expect(store.evictableRetired(1).map(r => r.runId)).deep.equals([RunId(1), RunId(2)]);
+        });
+
+        it("stops at a run whose priors a rollback can still replay, and keeps everything after it", () => {
+            const store = storeWith(
+                retired(1, "s:a", 1, "completed"),
+                pinned(2, "s:b", 2),
+                retired(3, "s:c", 3, "completed"),
+                retired(4, "s:d", 4, "completed"),
+            );
+            // Not a filter: run 3 and 4 are younger than the pin, so they stay even though they are evictable
+            // on their own. Skipping the pin would let `liveRollbackOfTarget` lose the record it walks from.
+            expect(store.evictableRetired(0).map(r => r.runId)).deep.equals([RunId(1)]);
+        });
+
+        it("forgets nothing until told to", () => {
+            const store = storeWith(retired(1, "s:a", 1, "completed"), retired(2, "s:b", 2, "completed"));
+            const evictable = store.evictableRetired(0);
+            expect(store.get(RunId(1))).not.equals(undefined);
+            store.forget(evictable);
+            expect(store.get(RunId(1))).equals(undefined);
+            expect(store.get(RunId(2))).equals(undefined);
+        });
+
+        it("keeps every superseder of a run it keeps", () => {
+            // A superseder always retired later, so a prefix eviction cannot remove one while its subject
+            // survives — the property `supersederOf` depends on.
+            const store = storeWith(
+                retired(1, "s:a", 1, "cancelled", true),
+                retired(2, "s:a", 2, "completed", true),
+                retired(3, "s:a", 3, "completed", true),
+            );
+            store.forget(store.evictableRetired(2));
+            expect(store.get(RunId(1))).equals(undefined);
+            expect(store.supersederOf(RunId(2))?.runId).equals(RunId(3));
+        });
+
+        it("tells an evicted run apart from one that never existed", () => {
+            const store = new RunStore();
+            store.noteReserved(100);
+            const issued = store.allocate();
+            const record = retired(issued, "s:a", 1, "completed");
+            store.admit(record);
+            store.commitRetirement(record);
+            store.forget(store.evictableRetired(0));
+
+            expect(store.get(issued)).equals(undefined);
+            expect(store.wasEvicted(issued)).equals(true);
+            expect(store.wasEvicted(RunId(99))).equals(false);
         });
     });
 });

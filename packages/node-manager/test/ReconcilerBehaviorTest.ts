@@ -65,8 +65,8 @@ function makeTarget(items: Record<string, ManagedItem> = {}): ReconcileTarget & 
         async dropItem(kind, key) {
             delete state[`${kind}:${key}`];
         },
-        currentState(kind, key) {
-            return state[`${kind}:${key}`]?.status.state;
+        currentItem(kind, key) {
+            return state[`${kind}:${key}`];
         },
     };
 }
@@ -207,6 +207,76 @@ describe("executeActions (executor)", () => {
 
         expect(fake.applied).deep.equals([]);
         expect(target.items[id]?.status.state).equals("committed");
+    });
+});
+
+describe("executeActions (failure paths)", () => {
+    it("records a failed removal instead of forgetting the item", async () => {
+        class UnremovableKind extends FakeKind {
+            override async remove() {
+                throw Object.assign(new Error("device said no"), { code: 0x87 });
+            }
+        }
+        const kind = new UnremovableKind();
+        const registry = new ItemKindRegistry();
+        registry.register(kind);
+
+        const id = "fake:gone";
+        const target = makeTarget({ [id]: itemWithState("fake", "gone", "deletePending") });
+        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        await executeActions(target, planned, registry);
+
+        // Still there, carrying why: dropping it would claim the device no longer holds what it does.
+        expect(target.items[id]?.status.state).equals("commitFailed");
+        expect(target.items[id]?.status.failureCode).equals(0x87);
+    });
+
+    it("fails an item whose kind nothing registered, rather than reporting it applied", async () => {
+        const registry = new ItemKindRegistry();
+        const id = "ghost:k1";
+        const target = makeTarget({ [id]: pendingItem("ghost", "k1") });
+        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        await executeActions(target, planned, registry);
+
+        expect(target.items[id]?.status.state).equals("commitFailed");
+    });
+
+    it("says why it dropped an item the device rejected, with the status it gave", async () => {
+        const kind = new FakeKind();
+        const registry = new ItemKindRegistry();
+        registry.register(kind);
+
+        const id = "fake:refused";
+        const target = makeTarget({ [id]: itemWithState("fake", "refused", "commitFailed", 0x85) });
+        const reasons = new Array<string | undefined>();
+        const dropping = {
+            ...target,
+            async dropItem(k: string, key: string, reason?: string) {
+                reasons.push(reason);
+                await target.dropItem(k, key);
+            },
+        };
+        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        await executeActions(dropping, planned, registry);
+
+        expect(target.items[id]).equals(undefined);
+        expect(reasons[0]).contains("status 133");
+
+        // A failure with no status code came from here, not from the device, and says so.
+        const local = makeTarget({ ["ghost:k2"]: itemWithState("ghost", "k2", "commitFailed") });
+        const localReasons = new Array<string | undefined>();
+        await executeActions(
+            {
+                ...local,
+                async dropItem(k: string, key: string, reason?: string) {
+                    localReasons.push(reason);
+                    await local.dropItem(k, key);
+                },
+            },
+            planActions(Object.values(local.items), { verify: false, recoverable: () => false }),
+            registry,
+        );
+        expect(localReasons[0]).equals("it could not be applied");
     });
 });
 

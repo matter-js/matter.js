@@ -4,17 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup, AddNodeToGroupParams } from "#task/groups/AddNodeToGroup.js";
+import { ADD_NODE_TO_GROUP_TYPE, AddNodeToGroup } from "#task/groups/AddNodeToGroup.js";
 import { ROTATE_GROUP_KEY_TYPE, RotateGroupKey, RotateGroupKeyParams } from "#task/groups/RotateGroupKey.js";
+import { addressLabel, addressOf } from "#task/peer.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { Bytes } from "@matter/general";
-import { DesiredStateBehavior, itemMapKey, ServerNode } from "@matter/node";
+import { InternalError } from "@matter/general";
+import { DesiredStateBehavior, itemMapKey, ServerNode, ClientNode } from "@matter/node";
 import { GroupKeyManagementServer } from "@matter/node/behaviors/group-key-management";
 import { GroupsServer } from "@matter/node/behaviors/groups";
 import { OnOffLightSwitchDevice } from "@matter/node/devices/on-off-light-switch";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
+import { PeerAddress } from "@matter/protocol";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { recordFor, statusOfSlot } from "../helpers.js";
+import { isTerminalState, recordFor, statusOfSlot } from "../helpers.js";
 
 const { TrustFirst } = GroupKeyManagement.GroupKeySecurityPolicy;
 
@@ -25,8 +28,16 @@ const NEW_KEY = new Uint8Array(16).fill(0xcd);
 
 const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
 
-const ADD_PARAMS: AddNodeToGroupParams = {
-    peerId: "peer1",
+function addressOfNode(node: ClientNode): PeerAddress {
+    const address = addressOf(node);
+    if (address === undefined) {
+        throw new InternalError(`${node.id} has no address`);
+    }
+    return address;
+}
+
+const addParamsFor = (peer: ClientNode) => ({
+    peer: addressOfNode(peer),
     endpoint: 1,
     groupId: 0x101,
     groupName: "kitchen",
@@ -34,17 +45,14 @@ const ADD_PARAMS: AddNodeToGroupParams = {
     groupKeySecurityPolicy: TrustFirst,
     epochKey0: OP_KEY,
     epochStartTime0: OP_START,
-};
-
-const ROTATION_ID = "r1";
+});
 
 const ROTATE_PARAMS: RotateGroupKeyParams = {
     groupKeySetId: GROUP_KEY_SET_ID,
     newEpochKey: NEW_KEY,
-    rotationId: ROTATION_ID,
 };
 
-const ADD_ID = `${ADD_NODE_TO_GROUP_TYPE}:peer1:${0x101}:1`;
+const addIdFor = (peer: ClientNode) => `${ADD_NODE_TO_GROUP_TYPE}:${addressLabel(addressOfNode(peer))}:${0x101}:1`;
 const ROTATE_SLOT = `${ROTATE_GROUP_KEY_TYPE}:${GROUP_KEY_SET_ID}`;
 
 /** Snapshot of a keySetWrite, captured before the server mutates the request (MAX-sentinel nulling). */
@@ -70,7 +78,7 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
             // A run turns terminal one step before it retires, so a caller that acts here would find the
             // slot still held.
             const settled =
-                !(["completed", "failed", "cancelled"] as string[]).includes(state) ||
+                !isTerminalState(state) ||
                 (await node.act(a => !a.get(TaskManagerBehavior).tasks.some(t => t.status.slotKey === id)));
             if (settled) {
                 return;
@@ -100,27 +108,27 @@ describe("RotateGroupKey task integration (single member)", () => {
     before(() => MockTime.init());
     beforeEach(() => (writes.length = 0));
 
-    it("rotates through distribute→activate→cleanup to a single new key", async () => {
+    it("rotates through distribute→mark→switch→cleanup to a single new key", async () => {
         await using site = new MockSite();
         const { controller, device } = await site.addCommissionedPair({
             controller: { type: ControllerRoot },
             device: { type: DeviceRoot, device: OnOffLightSwitchDevice.with(GroupsServer) },
         });
-        await subscribedPeer(controller, "peer1");
+        const peer = await subscribedPeer(controller, "peer1");
 
         // Provision the operational key set (the "op") first, then rotate it.
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, ADD_PARAMS));
-        await awaitState(controller, ADD_ID, "completed");
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peer)));
+        await awaitState(controller, addIdFor(peer), "completed");
         expect(deviceStarts(device, GROUP_KEY_SET_ID)).deep.equals([OP_START]);
 
         writes.length = 0; // ignore the provisioning write; record only the rotation
         await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
         await awaitState(controller, ROTATE_SLOT, "completed");
 
-        // Three phases, each a distinct start-time set that write-if-set-differs actually wrote.
-        expect(writes.length).equals(3);
-        const [distribute, activate, cleanup] = writes;
-        expect(writes.map(w => starts(w).length)).deep.equals([2, 3, 1]);
+        // Four phases, each a distinct start-time set that write-if-set-differs actually wrote.
+        expect(writes.length).equals(4);
+        const [distribute, mark, activate, cleanup] = writes;
+        expect(writes.map(w => starts(w).length)).deep.equals([2, 3, 3, 1]);
 
         // distribute: {op(past), new(far-future dormant)} — everyone still TX op, all now hold new.
         expect(starts(distribute)[0]).equals(OP_START);
@@ -131,7 +139,17 @@ describe("RotateGroupKey task integration (single member)", () => {
         const farFuture = BigInt(distribute.epochStartTime1!);
         expect(farFuture < MAX_64BIT_TIME).equals(true);
 
-        // activate: {op(past) < new(now, past) < sentinel(far-future)} — TX flips to new gap-free.
+        // mark: {op(past) < new(far-future) < sentinel(further)} — the sentinel is published while the new key
+        // is still dormant, so no member transmits with it and a join sees a rotation coming.
+        const [mOp, mNew, mSentinel] = starts(mark);
+        expect(mOp).equals(OP_START);
+        expect(mNew).equals(farFuture);
+        expect(mNew < mSentinel).equals(true);
+        expect(Bytes.areEqual(mark.epochKey0!, OP_KEY)).equals(true);
+        expect(Bytes.areEqual(mark.epochKey1!, NEW_KEY)).equals(true);
+        expect(mark.epochKey2).not.equals(null);
+
+        // switch: {op(past) < new(now, past) < sentinel(far-future)} — TX flips to new gap-free.
         const [aOp, aNew, aSentinel] = starts(activate);
         expect(aOp).equals(OP_START);
         expect(aOp < aNew).equals(true);
@@ -139,7 +157,9 @@ describe("RotateGroupKey task integration (single member)", () => {
         expect(aSentinel < MAX_64BIT_TIME).equals(true);
         expect(Bytes.areEqual(activate.epochKey0!, OP_KEY)).equals(true);
         expect(Bytes.areEqual(activate.epochKey1!, NEW_KEY)).equals(true);
-        // Sentinel is fresh random material, distinct from both op and new, present only in activate slot 2.
+        // Sentinel is fresh random material, distinct from both op and new, and the same one mark published:
+        // re-rolling it here would be a second key change nobody needs.
+        expect(Bytes.areEqual(activate.epochKey2!, mark.epochKey2!)).equals(true);
         expect(activate.epochKey2).not.equals(null);
         expect(Bytes.areEqual(activate.epochKey2!, OP_KEY)).equals(false);
         expect(Bytes.areEqual(activate.epochKey2!, NEW_KEY)).equals(false);
@@ -152,8 +172,8 @@ describe("RotateGroupKey task integration (single member)", () => {
         // The sole surviving key is back-dated to a firmly-past start so it is selectable on any device clock
         // (a "now"-dated sole key would fail TX on a device whose clock lags the controller).
         expect(starts(cleanup)[0]).equals(OP_START);
-        expect(aNew > OP_START).equals(true); // and it is genuinely earlier than the now-dated activate start
-        // Same material is TX in activate (slot 1) and survives cleanup (slot 0) — no second gap.
+        expect(aNew > OP_START).equals(true); // and it is genuinely earlier than the now-dated switch start
+        // Same material is TX in switch (slot 1) and survives cleanup (slot 0) — no second gap.
         expect(Bytes.areEqual(activate.epochKey1!, cleanup.epochKey0!)).equals(true);
 
         // Steady state on the device is exactly one key.
@@ -168,8 +188,8 @@ describe("RotateGroupKey task integration (single member)", () => {
         });
         const peer = await subscribedPeer(controller, "peer1");
 
-        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, ADD_PARAMS));
-        await awaitState(controller, ADD_ID, "completed");
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(peer)));
+        await awaitState(controller, addIdFor(peer), "completed");
 
         // Seed a committed multi-epoch intent (slot 1 populated) directly, without emitting itemChanged so no
         // reconcile fires — the object identity below is the proof the rotation never rewrote the intent.

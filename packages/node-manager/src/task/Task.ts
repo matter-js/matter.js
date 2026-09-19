@@ -23,16 +23,24 @@ export interface TaskPersistence {
     externalId?: string;
     changeSet: ChangeEntry[];
     /**
-     * Whether this run wrote an intent. Separate from {@link changeSet}, which holds what a rollback would
-     * restore and is dropped once nothing can restore it — a run that changed the device stays a run that
-     * changed the device.
+     * Whether this run changed what a device is asked to hold.
+     *
+     * Set when an intent is written, not when the reconciler reports it applied: an intent that is written is
+     * one the reconciler will apply unless something removes it, so a run that wrote one has changed the
+     * outcome whether or not it has reached the device yet. Reading it the other way would let a run that
+     * stopped before its commit claim it changed nothing while its intent was still on its way to a device.
+     *
+     * Separate from {@link changeSet}, which holds what a rollback would restore and is dropped once nothing
+     * can restore it.
      */
     wrote: boolean;
     error?: string;
     /** Order in which runs retired. The only ordering key for history; never use `runId`. */
     retireSeq?: RetireSeq;
-    revertRunId?: RunId;
-    revertOf?: RunId;
+    /** The undo this run answers to, once one exists. Pass it to `abandon`, never to `retryRollback`. */
+    rollbackRunId?: RunId;
+    /** The run this one undoes, when it is itself a rollback. Pass that id to `retryRollback`. */
+    rollbackOf?: RunId;
 }
 
 /**
@@ -49,10 +57,10 @@ export type DroppableField = "params";
  * strip cannot reach a required field: `params` is typed `unknown`, which widens the indexed type enough that
  * deleting `runId` or `state` would type-check.
  */
-const OPTIONAL_FIELDS = ["params", "externalId", "error", "retireSeq", "revertRunId", "revertOf"] as const;
+const OPTIONAL_FIELDS = ["params", "externalId", "error", "retireSeq", "rollbackRunId", "rollbackOf"] as const;
 
 /** Reason a cancel is declined when a definition states none of its own. */
-export const NOT_REVERTIBLE_REASON = "it has passed its point of no return";
+export const NOT_ROLLBACKABLE_REASON = "it has passed its point of no return";
 
 /**
  * One run, in one shape, whatever phase it is in.
@@ -74,8 +82,10 @@ export class RunRecord implements RunView {
     wrote: boolean;
     error?: string;
     retireSeq?: RetireSeq;
-    revertRunId?: RunId;
-    revertOf?: RunId;
+    /** The undo this run answers to, once one exists. Pass it to `abandon`, never to `retryRollback`. */
+    rollbackRunId?: RunId;
+    /** The run this one undoes, when it is itself a rollback. Pass that id to `retryRollback`. */
+    rollbackOf?: RunId;
 
     /**
      * Whether any write of this run has landed. Until one has, the run exists only in this process — a property
@@ -95,8 +105,8 @@ export class RunRecord implements RunView {
         this.wrote = persisted?.wrote ?? false;
         this.error = persisted?.error;
         this.retireSeq = persisted?.retireSeq;
-        this.revertRunId = persisted?.revertRunId;
-        this.revertOf = persisted?.revertOf;
+        this.rollbackRunId = persisted?.rollbackRunId;
+        this.rollbackOf = persisted?.rollbackOf;
     }
 
     static fromPersistence(record: TaskPersistence): RunRecord {
@@ -126,8 +136,8 @@ export class RunRecord implements RunView {
             wrote: this.wrote,
             error: this.error,
             retireSeq: this.retireSeq,
-            revertRunId: this.revertRunId,
-            revertOf: this.revertOf,
+            rollbackRunId: this.rollbackRunId,
+            rollbackOf: this.rollbackOf,
         };
         // Only what `next` actually carries: a field it leaves undefined means "unchanged", and spreading it
         // would erase the value the run already holds. Clearing a field is not expressible, and nothing needs
@@ -135,8 +145,8 @@ export class RunRecord implements RunView {
         for (const [key, value] of Object.entries(next ?? {})) {
             if (value !== undefined) {
                 // Arrays copied for the same reason the base snapshot copies `changeSet`: the caller's literal
-                // is adopted onto the live record after the write, so sharing it would leave storage holding
-                // the array a phase then appends to.
+                // is adopted onto the live record after the write, so storage and the run would otherwise hold
+                // one object between them.
                 Object.assign(persisted, { [key]: Array.isArray(value) ? [...value] : value });
             }
         }
@@ -160,6 +170,20 @@ export class RunRecord implements RunView {
             }
         }
         return persisted;
+    }
+
+    /**
+     * Apply a write's intended state to the in-memory run, once that write has landed.
+     *
+     * A field the write leaves undefined means "unchanged", exactly as {@link toPersistence} reads it, so the
+     * run and storage never disagree about what a write carried.
+     */
+    adopt(next: Partial<TaskPersistence>): void {
+        for (const [key, value] of Object.entries(next)) {
+            if (value !== undefined) {
+                Object.assign(this, { [key]: value });
+            }
+        }
     }
 
     /** Apply a write's removals to the in-memory run, once that write has landed. */
@@ -207,8 +231,10 @@ export interface RunView {
     readonly externalId?: string;
     readonly error?: string;
     readonly retireSeq?: RetireSeq;
-    readonly revertRunId?: RunId;
-    readonly revertOf?: RunId;
+    /** The undo this run answers to, once one exists. Pass it to `abandon`, never to `retryRollback`. */
+    readonly rollbackRunId?: RunId;
+    /** The run this one undoes, when it is itself a rollback. Pass that id to `retryRollback`. */
+    readonly rollbackOf?: RunId;
 }
 
 /**
@@ -263,10 +289,10 @@ export interface TaskDefinition<P = unknown> {
      * Answered from the record rather than from a live object, so a run that finished before this start can be
      * asked the same question.
      */
-    revertible?(run: RunView, params: P): boolean;
+    rollbackable?(run: RunView, params: P): boolean;
 
-    /** Operator-facing reason a cancel is declined while {@link revertible} is false. */
-    readonly notRevertibleReason?: string;
+    /** Operator-facing reason a cancel is declined while {@link rollbackable} is false. */
+    readonly notRollbackableReason?: string;
 }
 
 /**
@@ -304,16 +330,16 @@ export class BoundDefinition<P = unknown> {
         return this.definition.undoes?.(this.params);
     }
 
-    get notRevertibleReason(): string {
-        return this.definition.notRevertibleReason ?? NOT_REVERTIBLE_REASON;
+    get notRollbackableReason(): string {
+        return this.definition.notRollbackableReason ?? NOT_ROLLBACKABLE_REASON;
     }
 
     plannedChanges(): PlannedChange[] {
         return this.definition.plannedChanges?.(this.params) ?? new Array<PlannedChange>();
     }
 
-    revertible(run: RunView): boolean {
-        return this.definition.revertible?.(run, this.params) ?? true;
+    rollbackable(run: RunView): boolean {
+        return this.definition.rollbackable?.(run, this.params) ?? true;
     }
 
     phases(): TaskPhase[] {
@@ -329,10 +355,11 @@ export function statusOf(record: RunView): TaskStatus {
         type: record.type,
         state: record.state,
         phaseIndex: record.phaseIndex,
+        wrote: record.wrote,
         externalId: record.externalId,
         error: record.error,
         retireSeq: record.retireSeq,
-        revertRunId: record.revertRunId,
-        revertOf: record.revertOf,
+        rollbackRunId: record.rollbackRunId,
+        rollbackOf: record.rollbackOf,
     };
 }

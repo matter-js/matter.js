@@ -10,36 +10,7 @@ import { BoundDefinition, RunRecord } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
-import { FakePeer } from "../helpers.js";
-
-/** Mirror the real ItemKind.isReferenced: live (non-deletePending) dependents keep an entry referenced. */
-function wireItemKind(peer: FakePeer) {
-    (peer as unknown as { itemKind(kind: string): unknown }).itemKind = (kind: string) => {
-        if (kind === "groupKeyMap") {
-            return {
-                isReferenced: (_n: unknown, key: string) =>
-                    Object.values(peer.items).some(
-                        item =>
-                            item.kind === "endpointGroupMembership" &&
-                            item.status.state !== "deletePending" &&
-                            Number((item.intent as { groupId: number }).groupId) === Number(key),
-                    ),
-            };
-        }
-        if (kind === "groupKey") {
-            return {
-                isReferenced: (_n: unknown, key: string) =>
-                    Object.values(peer.items).some(
-                        item =>
-                            item.kind === "groupKeyMap" &&
-                            item.status.state !== "deletePending" &&
-                            (item.intent as { groupKeySetId: number }).groupKeySetId === Number(key),
-                    ),
-            };
-        }
-        return undefined;
-    };
-}
+import { FakePeer, testAddress } from "../helpers.js";
 
 function runRemove(peer: FakePeer, params: RemoveNodeFromGroupParams) {
     const bound = new BoundDefinition(RemoveNodeFromGroup, params);
@@ -47,7 +18,6 @@ function runRemove(peer: FakePeer, params: RemoveNodeFromGroupParams) {
     const setState = (s: TaskState) => {
         record.state = s;
     };
-    wireItemKind(peer);
     const ctx = new RunningTaskContext(record, () => peer.asNode(), peer, setState);
     return bound.phases()[0].run(ctx);
 }
@@ -67,7 +37,7 @@ describe("RemoveNodeFromGroup task", () => {
     it("removes membership, then unshared map and key set", async () => {
         const peer = new FakePeer("p1");
         seedGroup(peer);
-        await MockTime.resolve(runRemove(peer, { peerId: "p1", endpoint: 1, groupId: 0x101 }));
+        await MockTime.resolve(runRemove(peer, { peer: testAddress("p1"), endpoint: 1, groupId: 0x101 }));
         expect(peer.items[itemMapKey("endpointGroupMembership", "257:1")]).equals(undefined);
         expect(peer.items[itemMapKey("groupKeyMap", "257")]).equals(undefined);
         expect(peer.items[itemMapKey("groupKey", "42")]).equals(undefined);
@@ -78,7 +48,7 @@ describe("RemoveNodeFromGroup task", () => {
         seedGroup(peer);
         peer.setIntent("groupKeyMap", "258", { groupId: 258, groupKeySetId: 42 });
         peer.setState("groupKeyMap", "258", "committed");
-        await MockTime.resolve(runRemove(peer, { peerId: "p1", endpoint: 1, groupId: 0x101 }));
+        await MockTime.resolve(runRemove(peer, { peer: testAddress("p1"), endpoint: 1, groupId: 0x101 }));
         expect(peer.items[itemMapKey("endpointGroupMembership", "257:1")]).equals(undefined);
         expect(peer.items[itemMapKey("groupKeyMap", "257")]).equals(undefined);
         expect(peer.items[itemMapKey("groupKey", "42")]).not.equals(undefined);
