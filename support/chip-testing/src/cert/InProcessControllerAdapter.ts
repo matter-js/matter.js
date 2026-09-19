@@ -40,7 +40,7 @@ import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clust
 import { CameraControllerDevice } from "@matter/main/devices";
 import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
 import type { BdxInit, StorageScope } from "@matter/main/protocol";
-import { PeerAddress } from "@matter/main/protocol";
+import { FileDesignator, PeerAddress } from "@matter/main/protocol";
 import {
     BdxProtocol,
     BdxSession,
@@ -371,7 +371,9 @@ function bdxProposalOf(init: BdxInit): BdxTransferProposal {
         // A zero length means indefinite on the wire as an absent field does (§ 11.22.5.1)
         definiteLength: definiteLength === 0 ? undefined : definiteLength,
 
-        fileDesignator: Bytes.toString(fileDesignator),
+        // FileDesignator.text, not a bare UTF-8 decode: a designator that is not a printable name
+        // renders as hex rather than as replacement characters a reader would take for the real value
+        fileDesignator: new FileDesignator(fileDesignator).text,
         fileDesignatorLength: Bytes.of(fileDesignator).byteLength,
     };
 }
