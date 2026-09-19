@@ -7,7 +7,13 @@
 import { Duration, InternalError, MAX_UDP_MESSAGE_SIZE, Millis, Seconds, Time } from "@matter/general";
 import { Matter } from "@matter/model";
 import { MATTER_MESSAGE_OVERHEAD } from "@matter/protocol";
-import type { CertNodeRef, CertSessionInfo, CertStepContext, CheckRecord, DeviceFlavor } from "@matter/testing";
+import type {
+    CertNodeRef,
+    CertSessionInfo,
+    CertStepContext,
+    CheckRecord,
+    SelectableDeviceFlavor,
+} from "@matter/testing";
 import { resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
 import {
     CertCheckFailedError,
@@ -37,7 +43,7 @@ const VENDOR_NAME_ID = requireId(BASIC_INFORMATION.attributes.require("vendorNam
  * here does not advertise it, and a run against it silently uses UDP instead, which would leave these
  * cases claiming a transport nobody used.
  */
-export const TCP_FLAVORS: DeviceFlavor[] = ["matterjs"];
+export const TCP_FLAVORS: SelectableDeviceFlavor[] = ["matterjs"];
 
 export const TCP_PICS = ["MCORE.SC.TCP"];
 

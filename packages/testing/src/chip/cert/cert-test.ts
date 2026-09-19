@@ -92,7 +92,8 @@ export class CertTest extends BaseTest {
                 }
             },
             endStep: (step, verdict, skipReason) => recorded.endStep(step, verdict, skipReason),
-            deviceExited: recorded.deviceExited === undefined ? undefined : info => recorded.deviceExited?.(info),
+            deviceExited:
+                recorded.deviceExited === undefined ? undefined : (role, info) => recorded.deviceExited?.(role, info),
             finalizationFailed:
                 recorded.finalizationFailed === undefined ? undefined : detail => recorded.finalizationFailed?.(detail),
             runHeaderLines: recorded.runHeaderLines === undefined ? undefined : () => recorded.runHeaderLines?.() ?? [],
@@ -177,7 +178,10 @@ export class CertTest extends BaseTest {
                     // A step that declares flavors never runs on an unknown one: taking silence for
                     // consent would run it wherever the flavor could not be determined, which is the
                     // one case its declaration cannot speak for.
-                    if (stepDef.flavors !== undefined && (flavor === undefined || !stepDef.flavors.includes(flavor))) {
+                    if (
+                        stepDef.flavors !== undefined &&
+                        (flavor === undefined || !stepDef.flavors.some(supported => supported === flavor))
+                    ) {
                         report(
                             stepDef,
                             "skipped",
@@ -356,8 +360,8 @@ export class CertTest extends BaseTest {
                 if (exited !== undefined) {
                     failed = true;
                     failure = new Error(
-                        `A cert-test device exited unexpectedly (code ${exited.code}, signal ${exited.signal}) ` +
-                            "during the run",
+                        `Cert-test device "${exited.role}" exited unexpectedly (code ${exited.info.code}, signal ` +
+                            `${exited.info.signal}) during the run`,
                     );
                 } else if (teardownErrors.length > 0) {
                     failed = true;
@@ -586,18 +590,18 @@ const FINALIZATION_TIMEOUT_MS = 120_000;
 async function runFinalizer(
     finalize: (cx: CertStepContext) => Promise<void>,
     cx: CertStepContext,
-    deviceExit: Promise<DeviceExitInfo>,
+    deviceExit: Promise<DeviceExit>,
     tc: string,
     timeoutMs: number,
 ): Promise<void> {
     const run = finalize(cx);
     const timeout = delay(timeoutMs);
 
-    let outcome: "done" | "exited" | "timeout";
+    let outcome: "done" | "timeout" | { exited: DeviceExit };
     try {
         outcome = await Promise.race([
             run.then((): "done" => "done"),
-            deviceExit.then((): "exited" => "exited"),
+            deviceExit.then(exited => ({ exited })),
             timeout.promise,
         ]);
     } finally {
@@ -613,9 +617,9 @@ async function runFinalizer(
     });
 
     throw new Error(
-        outcome === "exited"
-            ? `Cert test ${tc}: a device exited before the run's cleanup finished`
-            : `Cert test ${tc}: cleanup did not finish within ${timeoutMs}ms`,
+        outcome === "timeout"
+            ? `Cert test ${tc}: cleanup did not finish within ${timeoutMs}ms`
+            : `Cert test ${tc}: device "${outcome.exited.role}" exited before the run's cleanup finished`,
     );
 }
 
@@ -661,19 +665,28 @@ function announceStepEnd(
 }
 
 /**
+ * A device exit with the role that identifies which device it was — the run declares devices by role,
+ * so an exit that names none cannot be attributed to a binary in a run that declares several.
+ */
+interface DeviceExit {
+    role: string;
+    info: DeviceExitInfo;
+}
+
+/**
  * A {@link watchDeviceExits} subscription: `exit` resolves the same way every time (first device to
  * exit wins), but the reaction that reports it to `recorder` must be {@link disarm}ed once the run is
  * done with it.
  */
 interface DeviceExitWatch {
-    exit: Promise<DeviceExitInfo>;
+    exit: Promise<DeviceExit>;
     /**
      * The exit observed while the watch was armed, if any. A device exit can settle outside any
      * step race (all steps skipped, or after the last step) — {@link CertTest.invoke} checks this
      * after the step loop so such a run still rejects instead of reporting success while the
      * evidence says fail.
      */
-    readonly observed: DeviceExitInfo | undefined;
+    readonly observed: DeviceExit | undefined;
     /**
      * Drops the watch's reference to `recorder`. A matterjs device's `exit` never resolves, so
      * without this the reaction below stays attached to it for the process's lifetime, keeping
@@ -688,17 +701,19 @@ interface DeviceExitWatch {
  * for, so a resolution here means the device died independently of anything the test asked it to do.
  */
 function watchDeviceExits(devices: Record<string, CertDevice>, recorder: StepRecorder): DeviceExitWatch {
-    let observed: DeviceExitInfo | undefined;
-    let onExit: ((info: DeviceExitInfo) => void) | undefined = info => recorder.deviceExited?.(info);
-    const exit = Promise.race(Object.values(devices).map(device => device.exit));
+    let observed: DeviceExit | undefined;
+    let onExit: ((exit: DeviceExit) => void) | undefined = ({ role, info }) => recorder.deviceExited?.(role, info);
+    const exit = Promise.race(
+        Object.entries(devices).map(async ([role, device]): Promise<DeviceExit> => ({ role, info: await device.exit })),
+    );
 
-    void exit.then(info => {
+    void exit.then(exited => {
         if (onExit === undefined) {
             return;
         }
-        observed = info;
+        observed = exited;
         try {
-            onExit(info);
+            onExit(exited);
         } catch (e) {
             console.warn("Cert test deviceExited hook failed:", e);
         }
@@ -721,19 +736,22 @@ function watchDeviceExits(devices: Record<string, CertDevice>, recorder: StepRec
  */
 async function raceAgainstDeviceExit(
     stepRun: Promise<void>,
-    deviceExit: Promise<DeviceExitInfo>,
+    deviceExit: Promise<DeviceExit>,
     tc: string,
     step: number | string,
 ): Promise<void> {
-    const outcome = await Promise.race([stepRun.then((): "ran" => "ran"), deviceExit.then((): "exited" => "exited")]);
-    if (outcome === "exited") {
+    const exitedRole = await Promise.race([
+        stepRun.then((): string | undefined => undefined),
+        deviceExit.then(({ role }) => role),
+    ]);
+    if (exitedRole !== undefined) {
         // stepRun keeps running independently of this race and settles on its own time; observe
         // its eventual rejection so it can't surface as an unhandled rejection attributed to
         // whatever runs later, without trying to cancel the operation itself.
         void stepRun.catch(e => {
             console.warn(`Cert test ${tc} step ${step}: orphaned step run settled after the device exit:`, e);
         });
-        throw new Error("A cert-test device exited unexpectedly while a step was running");
+        throw new Error(`Cert-test device "${exitedRole}" exited unexpectedly while a step was running`);
     }
 }
 

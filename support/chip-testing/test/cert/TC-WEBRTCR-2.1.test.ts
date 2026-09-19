@@ -461,7 +461,13 @@ describe("TC-WEBRTCR-2.1", () => {
             timestamp: new Date().toISOString(),
             controller: "dut",
             controllerImplementation: resolveControllerImplementation(),
-            device: `python-wrapped:${DESCRIPTOR.path}`,
+            devices: [
+                {
+                    role: "th_server",
+                    app: DESCRIPTOR.path,
+                    flavor: "python-wrapped",
+                },
+            ],
             matterJsCommit: "(not recorded)",
         });
 

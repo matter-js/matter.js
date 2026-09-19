@@ -60,7 +60,9 @@ to an app this way:
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 
-The three "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
+A single TC may name two of these at once through `devices` — see "More than one device in a run".
+
+The four "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
 exist (verify with `MATTER_CERT_APP_DIR`/an app-specific image, or `MATTER_CHIP_BINS_SOURCE=cert-bins`
 for the official binaries — see the root `README.md`'s "Choosing a CHIP binary source"), same as any
 pilot. They're blocked
@@ -75,7 +77,9 @@ device-flavor capability gap").
 
 ## Flavor policy: chip is the pass/fail bar, matterjs is optional
 
-Three flavors exist (`DeviceFlavor` in `cert-context.ts`): `chip-local`, `chip-docker`, `matterjs`.
+Three flavors can be selected (`SelectableDeviceFlavor` in `cert-context.ts`): `chip-local`,
+`chip-docker`, `matterjs`. `DeviceFlavor` adds `python-wrapped`, which only ever appears in evidence,
+for a device a wrapped python script spawns for itself.
 The convention this series has followed, worth stating explicitly for the next TC:
 
 - **At least one chip flavor (`chip-local` or `chip-docker`) passing is the actual certification
@@ -501,7 +505,7 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
 A TC's TH app can exist for some flavors but not support the cluster/commands the plan needs on others
 — `TC-ACT-3.2` needs an Actions cluster on the bridge app, which the real `chip-bridge-app` has (even if
 most of its commands aren't implemented) but matter.js's own `BridgeTestInstance` doesn't have at all. The DSL had no way to express "this step/TC only makes sense on
-some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: DeviceFlavor[]`
+some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: SelectableDeviceFlavor[]`
 (`cert-dsl.ts`), threaded through to `CertStepDefinition.flavors` (`cert-context.ts`) and checked in
 `CertTest.invoke()` (`cert-test.ts`) via `currentFlavor()` (every device in one run shares the same
 flavor, so any one's `.flavor` speaks for the whole run) — a step whose `flavors` doesn't include the
@@ -1806,12 +1810,25 @@ deciding a `.b` step's parse is redundant: it usually is, and there it is not.
 own onboarding identity — discriminator, passcode, and operational port — from `identityFor(index)`
 in `cert-dsl.ts`. This used to throw.
 
+**Roles may name different apps** — an OTA requestor as `th` and an OTA provider as `th2` in one run.
+One of them must name the test's own `app` option, which is the device the harness activates itself;
+the rest are started by `WiredCertTest` in declaration order. The evidence bundle carries
+`run.devices`, one `RunDeviceRecord` per role naming the role, the binary, its variant, the flavor and
+the chip revision that binary came from, so a reader of a finished bundle can say what every device in
+the run actually was. Nothing in the bundle states a single app any more; a consumer that read
+`run.device` or `run.chipRef` reads the array instead.
+
+**A device crash names its role.** `deviceExit` in the record, the `deviceExited(role, info)` recorder
+hook and the run's own failure text all carry the role of the first device to exit — with several
+devices in a run, "a device exited unexpectedly" sends the reader to the wrong log. Only the first
+exit is recorded: one device dying commonly takes the rest with it.
+
 **Why it had to.** Every discovery instrument in this directory matches on the long discriminator
 alone, and every flavor defaulted to 3840 / 20202021 / 5540. Two subjects sharing that would have the
 commissioner reach whichever the scanner found first, and the run would pass having proven nothing
 about which device it talked to. The chip flavors would not even get that far: two apps contend for
-port 5540 and the second exits, which surfaces as "a cert-test device exited unexpectedly while a
-step was running" rather than as a port collision.
+port 5540 and the second exits, which surfaces as `Cert-test device "<role>" exited unexpectedly while
+a step was running` rather than as a port collision.
 
 **The primary keeps chip's defaults, deliberately.** Index 0 is 3840 / 20202021 / 5540, so all
 fifteen existing single-device TCs record exactly what they recorded before — same discriminator in
