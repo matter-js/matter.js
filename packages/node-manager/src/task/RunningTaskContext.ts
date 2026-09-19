@@ -102,16 +102,22 @@ export class RunningTaskContext implements TaskContext {
     }
 
     /**
-     * The reconciler's kind for the **name** a task's reference carries, asked for by every verb that takes
-     * one.
+     * The reconciler's own kind for the reference a task passed, asked for by every verb that takes one.
      *
-     * {@link ItemKind} is structural, so a value the reconciler never registered satisfies the signature, and
-     * an intent written under a name no kind owns never converges and never commits — the task then parks on
-     * its own gate with nothing to say why. The registered kind is also what answers `isReferenced`, never the
-     * reference passed in.
+     * The instance, not merely the name. {@link ItemKind} is structural and generic in its intent type, so a
+     * lookalike carrying a registered name type-checks a task's intent against *its* type while the registered
+     * kind goes on to read that value as its own — the intent reaches the device shaped for a kind nobody
+     * registered. A name the reconciler does not own is the same hazard one step earlier: the intent never
+     * converges and the task parks on its own gate with nothing to say why.
      */
     #requireRegistered(kind: ItemKind): ItemKind {
-        return this.kindNamed(kind.kind);
+        const registered = this.kindNamed(kind.kind);
+        if (registered !== kind) {
+            throw new TaskFailedError(
+                `Task ${runLabel(this.record.runId)}: item kind "${kind.kind}" is not the one the reconciler registered under that name`,
+            );
+        }
+        return registered;
     }
 
     /**

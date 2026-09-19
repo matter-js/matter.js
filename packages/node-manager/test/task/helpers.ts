@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BUILT_IN_KINDS } from "#reconcile/kinds.js";
 import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
@@ -82,6 +83,16 @@ const testKinds = new Map<string, ItemKind>();
  * names. Memoized because the reference is the identity: two calls for one name must give the same kind.
  */
 export function kindOf(name: string, extra: Partial<ItemKind> = {}): ItemKind {
+    // A built-in answers for its own name, so a test driving a real task gets the very kind the reconciler
+    // registers — the task surface matches on identity, and a stand-in would be refused exactly as a
+    // lookalike is. A test that wants different behaviour names a kind of its own.
+    const builtIn = BUILT_IN_KINDS.find(k => k.kind === name);
+    if (builtIn !== undefined) {
+        if (Object.keys(extra).length > 0) {
+            throw new InternalError(`Built-in kind "${name}" cannot be redefined by a test; name a new kind`);
+        }
+        return builtIn;
+    }
     let kind = testKinds.get(name);
     if (kind === undefined) {
         kind = { kind: name, priority: 0, apply: async () => {} };

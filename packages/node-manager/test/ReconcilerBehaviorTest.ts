@@ -261,6 +261,22 @@ describe("executeActions (failure paths)", () => {
 
         expect(target.items[id]).equals(undefined);
         expect(reasons[0]).contains("status 133");
+
+        // A failure with no status code came from here, not from the device, and says so.
+        const local = makeTarget({ ["ghost:k2"]: itemWithState("ghost", "k2", "commitFailed") });
+        const localReasons = new Array<string | undefined>();
+        await executeActions(
+            {
+                ...local,
+                async dropItem(k: string, key: string, reason?: string) {
+                    localReasons.push(reason);
+                    await local.dropItem(k, key);
+                },
+            },
+            planActions(Object.values(local.items), { verify: false, recoverable: () => false }),
+            registry,
+        );
+        expect(localReasons[0]).equals("it could not be applied");
     });
 });
 

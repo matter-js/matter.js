@@ -30,47 +30,47 @@ describe("Rollback task", () => {
 
     it("removes an added (prior-absent) entry", async () => {
         const peer = new FakePeer("p1");
-        peer.addItem("groupKey", "42", "committed");
+        peer.addItem("alpha", "42", "committed");
         await MockTime.resolve(
             runRollback(peer, {
                 originalRunId: RunId(1),
-                entries: [{ peer: testAddress("p1"), kind: "groupKey", key: "42" }],
+                entries: [{ peer: testAddress("p1"), kind: "alpha", key: "42" }],
             }),
         );
-        expect(peer.items[itemMapKey("groupKey", "42")]).equals(undefined);
+        expect(peer.items[itemMapKey("alpha", "42")]).equals(undefined);
     });
 
     it("restores a prior intent rather than deleting", async () => {
         const peer = new FakePeer("p1");
-        peer.setIntent("groupKeyMap", "257", { current: true });
-        peer.markHas("groupKeyMap", "257");
+        peer.setIntent("shared", "257", { current: true });
+        peer.markHas("shared", "257");
         await MockTime.resolve(
             runRollback(peer, {
                 originalRunId: RunId(1),
                 entries: [
                     {
                         peer: testAddress("p1"),
-                        kind: "groupKeyMap",
+                        kind: "shared",
                         key: "257",
                         prior: { intent: { old: true }, mode: "converge" },
                     },
                 ],
             }),
         );
-        expect(peer.items[itemMapKey("groupKeyMap", "257")]?.intent).deep.equals({ old: true });
-        expect(peer.items[itemMapKey("groupKeyMap", "257")]?.status.state).equals("committed");
+        expect(peer.items[itemMapKey("shared", "257")]?.intent).deep.equals({ old: true });
+        expect(peer.items[itemMapKey("shared", "257")]?.status.state).equals("committed");
     });
 
     it("keeps a still-referenced shared entry (gate does not wait on it)", async () => {
         const peer = new FakePeer("p1");
-        peer.addItem("groupKey", "42", "committed");
+        peer.addItem("alpha", "42", "committed");
         await MockTime.resolve(
             runRollback(
                 peer,
-                { originalRunId: RunId(1), entries: [{ peer: testAddress("p1"), kind: "groupKey", key: "42" }] },
-                new Set(["groupKey:42"]),
+                { originalRunId: RunId(1), entries: [{ peer: testAddress("p1"), kind: "alpha", key: "42" }] },
+                new Set(["alpha:42"]),
             ),
         );
-        expect(peer.items[itemMapKey("groupKey", "42")]).not.equals(undefined);
+        expect(peer.items[itemMapKey("alpha", "42")]).not.equals(undefined);
     });
 });

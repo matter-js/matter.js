@@ -10,36 +10,7 @@ import { BoundDefinition, RunRecord } from "#task/Task.js";
 import { TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { itemMapKey } from "@matter/node";
-import { FakePeer, kindOf, testAddress } from "../helpers.js";
-
-/** Mirror the real ItemKind.isReferenced: live (non-deletePending) dependents keep an entry referenced. */
-function wireItemKind(peer: FakePeer) {
-    peer.kindResolver = (kind: string) => {
-        if (kind === "groupKeyMap") {
-            return kindOf(kind, {
-                isReferenced: (_n: unknown, key: string) =>
-                    Object.values(peer.items).some(
-                        item =>
-                            item.kind === "endpointGroupMembership" &&
-                            item.status.state !== "deletePending" &&
-                            Number((item.intent as { groupId: number }).groupId) === Number(key),
-                    ),
-            });
-        }
-        if (kind === "groupKey") {
-            return kindOf(kind, {
-                isReferenced: (_n: unknown, key: string) =>
-                    Object.values(peer.items).some(
-                        item =>
-                            item.kind === "groupKeyMap" &&
-                            item.status.state !== "deletePending" &&
-                            (item.intent as { groupKeySetId: number }).groupKeySetId === Number(key),
-                    ),
-            });
-        }
-        return kindOf(kind);
-    };
-}
+import { FakePeer, testAddress } from "../helpers.js";
 
 function runRemove(peer: FakePeer, params: RemoveNodeFromGroupParams) {
     const bound = new BoundDefinition(RemoveNodeFromGroup, params);
@@ -47,7 +18,6 @@ function runRemove(peer: FakePeer, params: RemoveNodeFromGroupParams) {
     const setState = (s: TaskState) => {
         record.state = s;
     };
-    wireItemKind(peer);
     const ctx = new RunningTaskContext(record, () => peer.asNode(), peer, setState);
     return bound.phases()[0].run(ctx);
 }
