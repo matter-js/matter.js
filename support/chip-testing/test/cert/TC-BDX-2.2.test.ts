@@ -182,7 +182,11 @@ async function blockEofAcknowledged(cx: CertStepContext) {
 
 certTest("TC-BDX-2.2", {
     plan: "bdx.adoc",
-    pics: ["MCORE.BDX.SynchronousReceiver"],
+
+    // The plan's own Required Devices put the TH in the sender's role, and here the TH is the
+    // controller: a controller that cannot serve a file cannot give the DUT one to receive, and the
+    // case has to be skipped before it commissions rather than one step at a time.
+    pics: ["MCORE.BDX.SynchronousReceiver", "MCORE.BDX.SynchronousSender", "MCORE.BDX.Sender"],
     app: "ota-requestor",
     ...BDX_RECEIVER_ROLES,
 })

@@ -122,7 +122,11 @@ async function recordProposalFields(cx: CertStepContext) {
 
 certTest("TC-BDX-1.2", {
     plan: "bdx.adoc",
-    pics: ["MCORE.BDX.Receiver", "MCORE.BDX.Initiator"],
+
+    // The plan's own Required Devices put the TH in the sender's and responder's roles, and here the TH
+    // is the controller: a controller that cannot serve a file cannot give the DUT one to ask for, and
+    // the case has to be skipped before it commissions rather than one step at a time.
+    pics: ["MCORE.BDX.Receiver", "MCORE.BDX.Initiator", "MCORE.BDX.Sender", "MCORE.BDX.Responder"],
     app: "ota-requestor",
     ...BDX_RECEIVER_ROLES,
 })
