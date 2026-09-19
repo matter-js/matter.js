@@ -58,7 +58,7 @@ to an app this way:
 | Media Playback/App-cluster TCs      | `tv`         | `chip-tv-app`               | no — `TvTestInstance` exists but isn't wired into `registerMatterJsCertSubject` yet |
 | `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
-| `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | no — no matterjs OTA provider/requestor `TestInstance` in this package yet |
+| `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 
 A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
