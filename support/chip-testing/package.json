@@ -45,6 +45,7 @@
         "@matter/testing": "*",
         "@types/ws": "^8.18.1",
         "chai": "^6.2.2",
+        "node-datachannel": "^0.33.4",
         "ws": "^8.21.2"
     },
     "nacho": {

@@ -2698,9 +2698,9 @@ Two more things the first live run settled, neither of which is visible from the
   the container's records arrive on (`bridge100` here; `dns-sd -B _matterc._udp local.` prints the
   interface index, and `python3 -c "import socket;print(socket.if_indextoname(N))"` names it).
 
-The rest of the block (`TC-WEBRTCR-2.2`, `2.6`, `2.7`) shares all of that through
+The rest of the block (`TC-WEBRTCR-2.2` … `2.7`) shares all of that through
 `tc-webrtcr-support.ts`: `certCameraCase()` owns the adapter, the recorder, the commissioning prompt
-and the teardown, and a case supplies only the prompt it answers and what it proves. Four more things
+and the teardown, and a case supplies its commissioning shape and a step per prompt it answers. Four more things
 those cases settled:
 
 - **Where the plan says `webrtc establish-session` without `--offer-type`, the DUT offers rather than
@@ -2718,9 +2718,31 @@ those cases settled:
   refusal from the controller's own log instead — take the mark with `markSettled()`, not `mark()`: a
   line already in the pump can otherwise sit at an index the mark does not exclude, and satisfy the
   check without the fault ever firing.
-- **`2.3`, `2.4` and `2.5` are not reachable this way.** Each requires the provider to report
-  `PeerConnection State: Connected`, which means a real WebRTC stack on the controller: SDP answer,
-  ICE, DTLS and SCTP. Signaling alone cannot satisfy them.
+- **`2.3`, `2.4` and `2.5` need the controller to be a real WebRTC endpoint**, because each asks the
+  provider to report `PeerConnection State: Connected`. `webrtc-peer.ts` is that endpoint, over
+  `node-datachannel` — a dependency of this package alone, since the WebRTC media plane belongs to the
+  application driving matter.js, not to the library. Three things that flow had to settle:
+  - An offer needs something to negotiate: a peer connection with no data channel and no track cannot
+    describe itself at all (`No DataChannel or Track to negotiate`).
+  - The connection lives in a **child process**, and that is not incidental. `node-datachannel` keeps a
+    process alive once a connection has run, and its only release is a process-wide `cleanup()` that
+    kills a process still doing work. The certification specs share one process and report at the end
+    of it, so in-process there is no safe option: without `cleanup()` the run never exits (`did not
+    exit cleanly`, exit 101), and with it — from a test hook or from the harness shutdown alike — the
+    process dies before the runner reports and a whole leg's summary goes with it. Both were observed
+    in CI with every case passing. A child process holds one connection and nothing else.
+  - chip's camera answers `a=setup:actpass`. RFC 8842 § 5.3 sends the answerer to RFC 4145 § 4.1,
+    whose table leaves it `active` or `passive` and never `actpass`. libdatachannel refuses such an
+    answer, so `WebRtcPeer.accept` settles the role and the case records that it did, rather than
+    certifying a connection built on an answer the harness altered. Reported upstream as
+    [connectedhomeip#74310](https://github.com/project-chip/connectedhomeip/issues/74310); both the
+    substitution and the check that records it go when the camera app answers with a settled role.
+  - Ending a session is two things: `EndSession` tells the provider, and `removeSession` stops the
+    requestor reporting it. The cluster drops a session by itself only when the *peer* ends it (chip's
+    camera answers `EndSession` by cleaning up its own side and sends no `End` back), so a controller
+    that skips the second half keeps a session it ended in `CurrentSessions`. Read `TC-WEBRTCR-2.5`'s
+    last read for what it is: the harness performs the removal, so that read states the controller
+    stopped reporting the session, not that the cluster decided to.
 
 A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
 so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which

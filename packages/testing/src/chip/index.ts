@@ -87,6 +87,7 @@ export type {
     SubscribeEventOptions,
     SubscribeOptions,
     TimedInteractionOptions,
+    WebRtcIceCandidate,
     WebRtcRequestorApi,
     WebRtcSessionRecord,
     WebRtcSessionSpec,
