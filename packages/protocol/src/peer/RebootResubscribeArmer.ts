@@ -56,13 +56,12 @@ export class RebootResubscribeArmer {
     readonly #subscriptions: ClientSubscriptions;
     readonly #armed = new PeerAddressMap<ArmState>();
     readonly #observers = new ObserverGroup();
-    readonly #reportRegistration: Disposable;
 
     constructor(sessions: SessionManager, subscriptions: ClientSubscriptions) {
         this.#sessions = sessions;
         this.#subscriptions = subscriptions;
         this.#observers.on(sessions.sessions.added, session => this.#onSessionAdded(session));
-        this.#reportRegistration = subscriptions.onReport((peer, session) => this.#onReportStarted(peer, session));
+        this.#observers.on(subscriptions.reportStarted, (peer, session) => this.#onReportStarted(peer, session));
     }
 
     arm(peerAddress: PeerAddress) {
@@ -192,7 +191,6 @@ export class RebootResubscribeArmer {
             state.returnTimer?.stop();
         }
         this.#armed.clear();
-        this.#reportRegistration[Symbol.dispose]();
         this.#observers.close();
     }
 }

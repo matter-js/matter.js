@@ -16,17 +16,14 @@ import {
     Environmental,
     InternalError,
     Lifetime,
-    Logger,
-    MaybePromise,
     Millis,
+    Observable,
     Time,
     Timer,
     Timestamp,
 } from "@matter/general";
 import { ClientSubscription } from "./ClientSubscription.js";
 import type { PeerSubscription } from "./PeerSubscription.js";
-
-const logger = Logger.get("ClientSubscriptions");
 
 /**
  * A managed set of {@link ActiveSubscription} instances.
@@ -40,7 +37,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
     #inFlightCount = 0;
     #inFlightDrained?: { promise: Promise<void>; resolver: () => void };
     #readingAbort = new AbortController();
-    #reportListeners = new Set<ClientSubscriptions.ReportListener>();
+    #reportStarted = Observable<[peer: PeerAddress, session: SecureSession]>();
 
     constructor(lifetime: Lifetime.Owner) {
         this.#lifetime = lifetime.join("client subscriptions");
@@ -151,37 +148,19 @@ export class ClientSubscriptions implements Lifetime.Owner {
     }
 
     /**
-     * Listen for the start of an inbound report on one of a peer's subscriptions.  A listener that must distinguish
-     * live data from a peer's pre-reboot traffic needs the session the report arrived over, because timestamps alone
-     * cannot tell the two apart.
-     *
-     * Listeners run for effect while the report is being read: each one sees every report whatever the others do,
-     * and an error from one neither reaches the others nor disturbs the report.  An asynchronous listener is invoked
-     * but never awaited — waiting would let a listener delay the report it is only being told about — so its work
-     * completes on its own schedule and a rejection is logged rather than reported to the caller.
+     * Emitted when an inbound report starts arriving on one of a peer's subscriptions, with the session it arrived
+     * over.  A listener that must distinguish live data from a peer's pre-reboot traffic needs the session, because
+     * timestamps alone cannot tell the two apart.
      */
-    onReport(listener: ClientSubscriptions.ReportListener) {
-        this.#reportListeners.add(listener);
-        return {
-            [Symbol.dispose]: () => {
-                this.#reportListeners.delete(listener);
-            },
-        };
+    get reportStarted() {
+        return this.#reportStarted;
     }
 
     /**
      * Announce that an inbound report (data or keepalive) started arriving from {@link peer} over {@link session}.
      */
     noteReportStarted(peer: PeerAddress, session: SecureSession) {
-        for (const listener of [...this.#reportListeners]) {
-            try {
-                MaybePromise.catch(listener(peer, session), error =>
-                    logger.warn("Unhandled error in report listener", error),
-                );
-            } catch (error) {
-                logger.warn("Unhandled error in report listener", error);
-            }
-        }
+        this.#reportStarted.emit(peer, session);
     }
 
     /**
@@ -240,7 +219,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
 
         await this.#active.empty;
 
-        this.#reportListeners.clear();
+        this.#reportStarted[Symbol.dispose]();
     }
 
     /**
@@ -305,9 +284,5 @@ export class ClientSubscriptions implements Lifetime.Owner {
 export namespace ClientSubscriptions {
     export interface Listener {
         (reports: AsyncIterable<ReadResult.Chunk>): Promise<void>;
-    }
-
-    export interface ReportListener {
-        (peer: PeerAddress, session: SecureSession): MaybePromise<void>;
     }
 }
