@@ -169,9 +169,7 @@ export namespace PumpRequirements {
             PressureMeasurement: PressureMeasurementClient,
             FlowMeasurement: FlowMeasurementClient,
             OccupancySensing: OccupancySensingClient
-        },
-
-        mandatory: {}
+        }
     };
 }
 

@@ -89,17 +89,66 @@ export namespace EndpointType {
         };
 
         /**
-         * Device type requirements for component device types (child endpoints) per the Matter specification.
-         * These describe what device types must or may be present as child endpoints.
+         * Device types this device type requires of its child endpoints per the Matter specification.
          *
-         * TODO: support multiple instances of the same component device type.  The spec allows e.g.
-         * BatteryStorage to require two ElectricalSensor endpoints (AC + DC) and two PowerSource endpoints
-         * (Wired + Battery) each with different cluster/feature configurations.  Currently we deduplicate
-         * to a single entry per device type.
+         * A device type requiring several endpoints of the same type, such as Battery Storage requiring an AC and a DC
+         * Electrical Sensor, states each one separately and the key carries the instance number.
          */
-        deviceTypes?: {
-            mandatory?: Record<string, { deviceType: number }>;
-            optional?: Record<string, { deviceType: number }>;
-        };
+        deviceTypes?: ComposedRequirements<ComposedDeviceType>;
+
+        /**
+         * Conditions this device type's requirements are stated against, keyed by condition name.
+         *
+         * A condition is a named predicate about the node, such as `Ethernet` or `PowerSourceCond`, declared by
+         * another device type. It is not a device type in its own right. Nothing evaluates these yet; recording them
+         * keeps the specification's statement available to whatever does.
+         */
+        conditions?: ComposedRequirements<ComposedCondition>;
+    }
+
+    export interface ComposedRequirements<T> {
+        mandatory?: Record<string, T>;
+        optional?: Record<string, T>;
+    }
+
+    interface RequirementDetail {
+        /** The conformance the specification states, when it is neither plain mandatory nor plain optional */
+        conformance?: string;
+
+        /** An instance count such as "min 1", when the specification states one */
+        constraint?: string;
+    }
+
+    export interface ComposedDeviceType extends RequirementDetail {
+        deviceType: number;
+
+        /**
+         * What the specification requires of the composed device type beyond its identity — the clusters it must
+         * carry and the features, attributes, commands and events those clusters must support.
+         *
+         * This is what distinguishes two instances of one device type. Battery Storage requires two Electrical
+         * Sensors, one measuring AC and one DC, and only these requirements say which is which.
+         */
+        requires?: ComposedElement[];
+    }
+
+    /**
+     * An element the specification requires of a composed device type, as the model states it.
+     */
+    export interface ComposedElement extends RequirementDetail {
+        /** The kind of element, such as `serverCluster`, `feature` or `attribute` */
+        element: string;
+
+        name: string;
+        id?: number;
+        requires?: ComposedElement[];
+    }
+
+    export interface ComposedCondition extends RequirementDetail {
+        /** The device type that declares the condition, such as `RootNode` */
+        declaredBy?: string;
+
+        /** The device type the condition applies to, where the specification states an identifier */
+        deviceType?: number;
     }
 }

@@ -459,7 +459,7 @@ export declare namespace GroupKeyManagement {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.2.7.6.1
          */
-        groupKeySetIDs: number[];
+        groupKeySetIds: number[];
     }
 
     /**

@@ -31,6 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/general
+    - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
     - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
     - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
@@ -57,6 +58,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
 
 - @matter/model
+    - Fix: The Heat Pump device type carries the eight element requirements its specification section states; the column heading that section uses discarded every row
+    - Fix: The Base device type's conditions carry their descriptions; nine of twenty-three were discarded because their table heads the column `Summary`
+    - Fix: A device type requirement carries the instance-count constraint the specification states, such as `min 1`
+    - Fix: `AnnounceOtaProvider` is fabric-scoped, which its command's field table states and its Access column omits
+    - Breaking: Eleven model elements whose names contain a pluralised acronym are renamed for consistency with the singular form, such as `TariffComponentIDs` to `TariffComponentIds`
+    - Enhancement: `Conformance.isProvisional` states whether the specification has not finished an element, which reads as optional and so cannot be told from a plain optional otherwise
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
     - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
     - Enhancement: `Constraint.referencesOf` states each name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it — where it previously stated the name alone. `Constraint.validateReferences` is replaced by it
@@ -71,6 +78,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node
+    - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
+    - Enhancement: A device type's generated requirements name the device types it requires of its child endpoints, through `deviceTypes` and `conditions` on the requirements namespace. Eighty-seven such requirements reached the model and no further
+    - Enhancement: A device type that relaxes a cluster's mandatory element to optional is honoured. Temperature Sensor and Room Air Conditioner required `KeypadLockout`, which the specification makes optional for them
+    - Enhancement: A device type feature gated on `Rev >= vN` is enabled when the device type's revision satisfies it, which enables `ChangeEvent` on Water Freeze Detector, Water Leak Detector and Rain Sensor
+    - Enhancement: A generated requirement's documentation says when the specification states a cluster is provisional, rather than reporting it as plainly optional
+    - Fix: A generated device type no longer emits an empty `mandatory: {}`, and states `mandatory` before `optional` regardless of which it has
     - Enhancement: An OTA requestor's wait before querying a provider that announced an update can be set through `announcedUpdateQueryDelay`, so a node alone with its provider can shorten the random window the specification prefers
     - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
     - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
@@ -112,6 +125,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
 
 - @matter/types
+    - Breaking: A property whose name contains a pluralised acronym is now camelised the way the singular already was, so `tariffComponentIDs` is `tariffComponentIds`. Eight properties are renamed: `tariffComponentIDs`, `dayEntryIDs`, `dayPatternIDs`, `uniqueLocationIDs`, `uniqueLocationIDsLastEdit`, `groupKeySetIDs`, `messageIDs` and `activeMessageIDs`
     - Fix: A `status` field in a cluster that defines its own status codes is now `Status | <Cluster>.StatusCode`, so producing a cluster-specific code needs no cast and consuming one needs narrowing. This affects `DoorLock.SetCredentialResponse` and the DoorLock schedule responses
 
 - @matter/protocol

@@ -25,9 +25,6 @@ import { Identity } from "@matter/general";
  * A Snapshot Camera device is a camera which can only support retrieving still images on-demand via the Capture
  * Snapshot command in the Camera AV Stream Management cluster.
  *
- * SnapshotCameraDevice requires CameraAvStreamManagement cluster but CameraAvStreamManagement is not added by default
- * because you must select the features your device supports. You can add manually using SnapshotCameraDevice.with().
- *
  * @see {@link MatterSpecification.v16.Device} § 16.6
  */
 export interface SnapshotCameraDevice extends Identity<typeof SnapshotCameraDeviceDefinition> {}
@@ -82,6 +79,20 @@ export namespace SnapshotCameraRequirements {
             CameraAvSettingsUserLevelManagement: CameraAvSettingsUserLevelManagementServer
         }
     };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = { optional: { OccupancySensor: { deviceType: 0x107 } } };
+
+    /**
+     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
+     *
+     * specification.
+     */
+    export const conditions = {
+        mandatory: { PowerSourceCond: { declaredBy: "RootNode" }, TimeSyncWithTzCond: { declaredBy: "RootNode" } }
+    };
 }
 
 export const SnapshotCameraDeviceDefinition = MutableEndpoint({
@@ -89,7 +100,7 @@ export const SnapshotCameraDeviceDefinition = MutableEndpoint({
     deviceType: 0x145,
     deviceRevision: 1,
     requirements: SnapshotCameraRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(SnapshotCameraRequirements.server.mandatory.CameraAvStreamManagement)
 });
 
 Object.freeze(SnapshotCameraDeviceDefinition);

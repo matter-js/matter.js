@@ -35,7 +35,9 @@ export namespace WaterFreezeDetectorRequirements {
      *
      * This version of {@link BooleanStateServer} is specialized per the specification.
      */
-    export const BooleanStateServer = BaseBooleanStateServer.alter({ events: { stateChange: { optional: false } } });
+    export const BooleanStateServer = BaseBooleanStateServer
+        .with("ChangeEvent")
+        .alter({ events: { stateChange: { optional: false } } });
 
     /**
      * The BooleanStateConfiguration cluster is optional per the Matter specification.

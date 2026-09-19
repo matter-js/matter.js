@@ -20,12 +20,16 @@ import {
     TraverseMap,
 } from "#model";
 import { generateResource } from "#mom/common/generate-resource.js";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import { AcknowledgedRemovals } from "./acknowledged-removals.js";
 import { generateElement } from "./mom/common/generate-element.js";
 import { DEFAULT_MATTER_VERSION } from "./mom/spec/md/load-markdown-files.js";
-import { clean } from "./util/file.js";
+import { clean, OutputSession } from "./util/file.js";
 import { finalizeModel } from "./util/finalize-model.js";
+import { digestOf, findLosses, ModelDigest } from "./util/model-digest.js";
 import { camelize } from "./util/string.js";
 import "./util/setup.js";
 import { TsFile } from "./util/TsFile.js";
@@ -36,6 +40,17 @@ const logger = Logger.get("generate-model");
 const args = await yargs(hideBin(process.argv))
     .usage("Generates the matter.js file from intermediate files")
     .option("save", { type: "boolean", default: true, describe: "writes the generated model to disk" })
+    .option("allow-invalid", {
+        type: "boolean",
+        default: false,
+        describe: "generates even when the model fails validation, for spec revision bring-up",
+    })
+    .option("allow-removals", {
+        type: "boolean",
+        default: false,
+        describe:
+            "generates even when elements disappear without an entry in acknowledged-removals.ts, which a revision we no longer scrape requires",
+    })
     .option("revision", {
         type: "string",
         default: DEFAULT_MATTER_VERSION,
@@ -211,29 +226,102 @@ if (!matter.get(DatatypeModel, "bool") || !matter.get(AttributeModel, "FeatureMa
     }
 }
 
-logger.info("remove matter model elements");
-if (args.save) {
-    clean("!elements");
-    clean("!resources");
+validationResult.report();
+
+/**
+ * Compare against the model we currently ship.
+ *
+ * The digest comes from a child process because loading the shipped model in this one installs it as the traversal
+ * fallback root and freezes its resources, which breaks generation.
+ */
+function unacknowledgedLosses() {
+    const dump = execFileSync(process.execPath, [fileURLToPath(new URL("./dump-model-digest.js", import.meta.url))], {
+        encoding: "utf-8",
+        maxBuffer: 256 * 1024 * 1024,
+    });
+
+    const previous = JSON.parse(dump) as ModelDigest;
+
+    // An entry excuses one loss of one kind while generating the revision that caused it.  Matching on the key alone
+    // would let an entry recorded for a later revision hide a genuine accidental loss in every earlier one.
+    const acknowledged = new Set(
+        AcknowledgedRemovals.filter(entry => entry.revision === args.revision).map(
+            entry => `${entry.kind}\u0000${entry.key}`,
+        ),
+    );
+
+    return findLosses(previous, digestOf(matter)).filter(loss => !acknowledged.has(`${loss.kind}\u0000${loss.key}`));
 }
 
-logger.info("generate matter model");
-Logger.nest(() => {
-    const withResources = Array<Model>();
+// A guard that cannot read its baseline is not a guard, so a failure here stops the run rather than waving it through
+let losses: ReturnType<typeof unacknowledgedLosses> | undefined;
+try {
+    losses = unacknowledgedLosses();
+} catch (e) {
+    logger.error("Cannot read the model we currently ship, so losses cannot be detected", e);
+    if (!args.allowRemovals) {
+        process.exitCode = 1;
+        throw new InternalError("Removal detection failed; pass --allow-removals to generate without it");
+    }
+}
 
-    for (const child of matter.children) {
-        Logger.nest(() => {
-            generateElementFile(child);
-            if (generateResourceFile(child)) {
-                withResources.push(child);
-            }
-        });
+if (losses?.length) {
+    logger.error(`*** ${losses.length} specification statement${losses.length === 1 ? "" : "s"} would be lost ***`);
+    Logger.nest(() => {
+        for (const { kind, key, was, now } of losses) {
+            logger.error(now === undefined ? `${key} loses its ${kind} (${was})` : `${key} ${kind}: ${was} -> ${now}`);
+        }
+    });
+    logger.error(
+        "Record each in support/codegen/src/acknowledged-removals.ts with the specification change that caused it, " +
+            "or pass --allow-removals",
+    );
+}
+
+const losesContent = !!losses?.length && !args.allowRemovals;
+
+const invalid = validationResult.errors.length > 0;
+if (losesContent) {
+    logger.error("Not generating because specification content would be lost");
+    process.exitCode = 1;
+} else if (invalid && !args.allowInvalid) {
+    logger.error("Not generating because the model failed validation; pass --allow-invalid to generate anyway");
+    process.exitCode = 1;
+} else {
+    using session = args.save ? OutputSession.open() : undefined;
+
+    if (args.save) {
+        clean("!elements");
+        clean("!resources");
     }
 
-    logger.info("index");
-    generateElementIndex(matter.children as Model[]);
-    generateModelIndex(matter.children as Model[]);
-    generateResourceIndex(withResources);
-});
+    logger.info("generate matter model");
+    Logger.nest(() => {
+        const withResources = Array<Model>();
 
-validationResult.report();
+        for (const child of matter.children) {
+            Logger.nest(() => {
+                generateElementFile(child);
+                if (generateResourceFile(child)) {
+                    withResources.push(child);
+                }
+            });
+        }
+
+        logger.info("index");
+        generateElementIndex(matter.children as Model[]);
+        generateModelIndex(matter.children as Model[]);
+        generateResourceIndex(withResources);
+    });
+
+    if (invalid) {
+        // Exiting non-zero here would stop the composite generate script with a new model beside old types, which is
+        // the mixed tree the output session exists to prevent.  The caller asked for this generation.
+        logger.warn("Generated from a model that failed validation because --allow-invalid was given");
+    }
+
+    if (session) {
+        const { written, unchanged, removed } = session.commit();
+        logger.info(`Wrote ${written} files, ${unchanged} unchanged, removed ${removed}`);
+    }
+}

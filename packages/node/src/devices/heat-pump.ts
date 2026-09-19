@@ -42,12 +42,100 @@ export namespace HeatPumpRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { optional: { Identify: IdentifyServer }, mandatory: {} };
+    export const server = { optional: { Identify: IdentifyServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { Thermostat: ThermostatClient }, mandatory: {} };
+    export const client = { optional: { Thermostat: ThermostatClient } };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = {
+        mandatory: {
+            PowerSource: {
+                deviceType: 0x11,
+
+                requires: [
+                    {
+                        element: "serverCluster",
+                        name: "PowerSource",
+                        id: 0x2f,
+                        requires: [{ element: "feature", name: "WIRED" }]
+                    },
+
+                    {
+                        element: "serverCluster",
+                        name: "Descriptor",
+                        id: 0x1d,
+                        requires: [{ element: "feature", name: "TAGLIST" }]
+                    }
+                ]
+            },
+
+            DeviceEnergyManagement: {
+                deviceType: 0x50d,
+
+                requires: [{
+                    element: "serverCluster",
+                    name: "DeviceEnergyManagement",
+                    id: 0x98,
+                    requires: [{ element: "feature", name: "POWERADJUSTMENT" }]
+                }]
+            },
+
+            ElectricalSensor: {
+                deviceType: 0x510,
+                constraint: "min 1",
+
+                requires: [
+                    {
+                        element: "serverCluster",
+                        name: "ElectricalPowerMeasurement",
+                        id: 0x90,
+                        requires: [
+                            { element: "feature", name: "ALTERNATINGCURRENT" },
+                            { element: "attribute", name: "Voltage" },
+                            { element: "attribute", name: "ActiveCurrent" }
+                        ]
+                    },
+
+                    { element: "serverCluster", name: "ElectricalEnergyMeasurement", id: 0x91 }
+                ]
+            }
+        },
+
+        optional: {
+            Thermostat: {
+                deviceType: 0x301,
+
+                requires: [
+                    { element: "serverCluster", name: "UserLabel", id: 0x41 },
+
+                    {
+                        element: "serverCluster",
+                        name: "Descriptor",
+                        id: 0x1d,
+                        requires: [{ element: "feature", name: "TAGLIST" }]
+                    }
+                ]
+            },
+
+            TemperatureSensor: {
+                deviceType: 0x302,
+
+                requires: [{
+                    element: "serverCluster",
+                    name: "Descriptor",
+                    id: 0x1d,
+                    requires: [{ element: "feature", name: "TAGLIST" }]
+                }]
+            },
+
+            WaterHeater: { deviceType: 0x50f }
+        }
+    };
 }
 
 export const HeatPumpDeviceDefinition = MutableEndpoint({

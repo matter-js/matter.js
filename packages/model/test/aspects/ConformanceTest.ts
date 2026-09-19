@@ -634,3 +634,26 @@ describe("Conformance", () => {
         });
     });
 });
+
+describe("provisionality", () => {
+    it("finds a provisional term anywhere in an otherwise list", () => {
+        expect(new Conformance("P, M").isProvisional).true;
+        expect(new Conformance("D, P, M").isProvisional).true;
+        expect(new Conformance("M, P").isProvisional).true;
+        expect(new Conformance("P").isProvisional).true;
+    });
+
+    it("is false where nothing is provisional", () => {
+        expect(new Conformance("M").isProvisional).false;
+        expect(new Conformance("O").isProvisional).false;
+        expect(new Conformance(undefined).isProvisional).false;
+    });
+
+    it("does not make an element optional where a mandatory term precedes the provisional one", () => {
+        // isMandatory stops at whichever of Mandatory and Provisional comes first, so the two are not opposites
+        for (const definition of ["P, M", "D, P, M"]) {
+            expect(new Conformance(definition).isMandatory, definition).false;
+        }
+        expect(new Conformance("M, P").isMandatory).true;
+    });
+});

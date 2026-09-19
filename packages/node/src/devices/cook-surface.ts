@@ -55,8 +55,7 @@ export namespace CookSurfaceRequirements {
             OnOff: OnOffServer,
             TemperatureControl: TemperatureControlServer,
             TemperatureMeasurement: TemperatureMeasurementServer
-        },
-        mandatory: {}
+        }
     };
 }
 

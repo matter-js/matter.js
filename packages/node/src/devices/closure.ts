@@ -46,6 +46,17 @@ export namespace ClosureRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = { mandatory: { Identify: IdentifyServer, ClosureControl: ClosureControlServer } };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = {
+        optional: {
+            DoorLock: { deviceType: 0xa },
+            OnOffLight: { deviceType: 0x100 },
+            ClosurePanel: { deviceType: 0x231 }
+        }
+    };
 }
 
 export const ClosureDeviceDefinition = MutableEndpoint({

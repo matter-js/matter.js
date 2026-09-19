@@ -39,9 +39,6 @@ import { Identity } from "@matter/general";
  *
  *   - Entry door to individual units in a multi-tenant building
  *
- * IntercomDevice requires CameraAvStreamManagement cluster but CameraAvStreamManagement is not added by default because
- * you must select the features your device supports. You can add manually using IntercomDevice.with().
- *
  * @see {@link MatterSpecification.v16.Device} § 16.4
  */
 export interface IntercomDevice extends Identity<typeof IntercomDeviceDefinition> {}
@@ -129,6 +126,40 @@ export namespace IntercomRequirements {
         },
         optional: { Chime: ChimeClient }
     };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = {
+        mandatory: {
+            GenericSwitch: {
+                deviceType: 0xf,
+                constraint: "min 1",
+
+                requires: [{
+                    element: "serverCluster",
+                    name: "Switch",
+                    id: 0x3b,
+                    requires: [{ element: "feature", name: "MOMENTARYSWITCH" }]
+                }]
+            }
+        }
+    };
+
+    /**
+     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
+     *
+     * specification.
+     */
+    export const conditions = {
+        mandatory: {
+            TlsCertificatesCond: { declaredBy: "RootNode" },
+            PowerSourceCond: { declaredBy: "RootNode" },
+            TimeSyncWithNtpcCond: { declaredBy: "RootNode" },
+            TimeSyncWithClientCond: { declaredBy: "RootNode" },
+            TimeSyncWithTzCond: { declaredBy: "RootNode" }
+        }
+    };
 }
 
 export const IntercomDeviceDefinition = MutableEndpoint({
@@ -137,6 +168,7 @@ export const IntercomDeviceDefinition = MutableEndpoint({
     deviceRevision: 2,
     requirements: IntercomRequirements,
     behaviors: SupportedBehaviors(
+        IntercomRequirements.server.mandatory.CameraAvStreamManagement,
         IntercomRequirements.server.mandatory.WebRtcTransportProvider,
         IntercomRequirements.server.mandatory.WebRtcTransportRequestor
     )

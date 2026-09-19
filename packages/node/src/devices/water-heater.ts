@@ -21,9 +21,6 @@ import { Identity } from "@matter/general";
 /**
  * A water heater is a device that is generally installed in properties to heat water for showers, baths etc.
  *
- * WaterHeaterDevice requires Thermostat cluster but Thermostat is not added by default because you must select the
- * features your device supports. You can add manually using WaterHeaterDevice.with().
- *
  * @see {@link MatterSpecification.v16.Device} § 14.2
  */
 export interface WaterHeaterDevice extends Identity<typeof WaterHeaterDeviceDefinition> {}
@@ -68,6 +65,36 @@ export namespace WaterHeaterRequirements {
         },
         optional: { Identify: IdentifyServer }
     };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = {
+        optional: {
+            PowerSource: { deviceType: 0x11 },
+            TemperatureSensor: { deviceType: 0x302 },
+
+            DeviceEnergyManagement: {
+                deviceType: 0x50d,
+
+                requires: [{
+                    element: "serverCluster",
+                    name: "DeviceEnergyManagement",
+                    id: 0x98,
+                    requires: [{ element: "feature", name: "POWERFORECASTREPORTING" }]
+                }]
+            },
+
+            ElectricalSensor: {
+                deviceType: 0x510,
+                conformance: "desc",
+                requires: [
+                    { element: "serverCluster", name: "ElectricalPowerMeasurement", id: 0x90 },
+                    { element: "serverCluster", name: "ElectricalEnergyMeasurement", id: 0x91 }
+                ]
+            }
+        }
+    };
 }
 
 export const WaterHeaterDeviceDefinition = MutableEndpoint({
@@ -77,7 +104,8 @@ export const WaterHeaterDeviceDefinition = MutableEndpoint({
     requirements: WaterHeaterRequirements,
     behaviors: SupportedBehaviors(
         WaterHeaterRequirements.server.mandatory.WaterHeaterManagement,
-        WaterHeaterRequirements.server.mandatory.WaterHeaterMode
+        WaterHeaterRequirements.server.mandatory.WaterHeaterMode,
+        WaterHeaterRequirements.server.mandatory.Thermostat
     )
 });
 

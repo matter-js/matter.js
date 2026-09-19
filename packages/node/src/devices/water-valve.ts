@@ -63,7 +63,7 @@ export namespace WaterValveRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { FlowMeasurement: FlowMeasurementClient }, mandatory: {} };
+    export const client = { optional: { FlowMeasurement: FlowMeasurementClient } };
 }
 
 export const WaterValveDeviceDefinition = MutableEndpoint({

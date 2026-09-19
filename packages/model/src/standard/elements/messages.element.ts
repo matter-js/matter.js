@@ -33,7 +33,7 @@ export const Messages = Cluster(
         Field({ name: "entry", type: "MessageStruct" })
     ),
     Attribute(
-        { name: "ActiveMessageIDs", id: 0x1, type: "list", access: "R V", conformance: "M", constraint: "max 8" },
+        { name: "ActiveMessageIds", id: 0x1, type: "list", access: "R V", conformance: "M", constraint: "max 8" },
         Field({ name: "entry", type: "MessageID" })
     ),
     Event(
@@ -85,7 +85,7 @@ export const Messages = Cluster(
             response: "status"
         },
         Field(
-            { name: "MessageIDs", id: 0x0, type: "list", conformance: "M", constraint: "max 8" },
+            { name: "MessageIds", id: 0x0, type: "list", conformance: "M", constraint: "max 8" },
             Field({ name: "entry", type: "MessageID" })
         )
     ),

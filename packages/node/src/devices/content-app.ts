@@ -121,7 +121,7 @@ export namespace ContentAppRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { ContentAppObserver: ContentAppObserverClient }, mandatory: {} };
+    export const client = { optional: { ContentAppObserver: ContentAppObserverClient } };
 }
 
 export const ContentAppDeviceDefinition = MutableEndpoint({

@@ -47,7 +47,7 @@ export namespace OtaProviderRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { OtaSoftwareUpdateRequestor: OtaSoftwareUpdateRequestorClient }, mandatory: {} };
+    export const client = { optional: { OtaSoftwareUpdateRequestor: OtaSoftwareUpdateRequestorClient } };
 }
 
 export const OtaProviderEndpointDefinition = MutableEndpoint({

@@ -83,7 +83,7 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "UrLs", xref: "cluster§11.4.5.3.1",
+                    tag: "field", name: "Urls", xref: "cluster§11.4.5.3.1",
                     details: "This field shall specify a list of URLs pointing to the STUN and/or TURN servers. The URL scheme " +
                         "distinguishes whether it is a STUN or TURN server (stun:, stuns:, turn:, or turns: respectively). " +
                         "This field maps to the RTCIceServer urls field."

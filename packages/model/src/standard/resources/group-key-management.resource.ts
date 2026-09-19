@@ -164,7 +164,7 @@ Resource.add({
                 "GroupKeySetID for all Group Key Sets associated with the scoped Fabric.",
 
             children: [{
-                tag: "field", name: "GroupKeySetIDs", xref: "core§11.2.7.6.1",
+                tag: "field", name: "GroupKeySetIds", xref: "core§11.2.7.6.1",
                 details: "This field references the set of group keys that generate operational group keys for use with the " +
                     "accessing fabric." +
                     "\n" +

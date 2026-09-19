@@ -3454,7 +3454,7 @@ export const SpecMatter = Matter(
 
         Attribute(
             {
-                name: "ActiveMessageIDs", id: 0x1, type: "list", access: "R V", conformance: "M",
+                name: "ActiveMessageIds", id: 0x1, type: "list", access: "R V", conformance: "M",
                 constraint: "max 8", xref: "cluster§1.16.6.2",
                 details: "Indicates a list of the MessageIDs of the Messages currently being presented. If this list is empty, " +
                     "no messages are currently being presented." +
@@ -3622,7 +3622,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "MessageIDs", id: 0x0, type: "list", conformance: "M", constraint: "max 8",
+                    name: "MessageIds", id: 0x0, type: "list", conformance: "M", constraint: "max 8",
                     xref: "cluster§1.16.7.2.1",
 
                     details: "This field shall indicate the MessageIDs for the messages being cancelled." +
@@ -25301,7 +25301,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "TariffComponentIDs", id: 0x0, type: "list", conformance: "M", constraint: "max 128",
+                    name: "TariffComponentIds", id: 0x0, type: "list", conformance: "M", constraint: "max 128",
                     xref: "cluster§9.11.4.1.1",
                     details: "Indicates the specific TariffComponentStructs associated with the metered commodity."
                 },
@@ -25585,7 +25585,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "DayEntryIDs", id: 0x1, type: "list", conformance: "M", constraint: "1 to 96",
+                    name: "DayEntryIds", id: 0x1, type: "list", conformance: "M", constraint: "1 to 96",
                     xref: "cluster§9.12.7.2.2",
                     details: "This field shall indicate a list of DayEntryIDs for the DayEntryStructs during which the tariff " +
                         "component is active."
@@ -25740,7 +25740,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "DayPatternIDs", id: 0x1, type: "list", conformance: "M", constraint: "1 to 7",
+                    name: "DayPatternIds", id: 0x1, type: "list", conformance: "M", constraint: "1 to 7",
                     xref: "cluster§9.12.5.9.2",
 
                     details: "This field shall indicate a list of DayPatternIDs for the DayPatternStructs in use during this " +
@@ -25900,7 +25900,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "DayEntryIDs", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96",
+                    name: "DayEntryIds", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96",
                     xref: "cluster§9.12.5.11.3",
 
                     details: "This field shall indicate a list of DayEntryIDs for the DayEntryStructs to apply during the date " +
@@ -25959,7 +25959,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "DayEntryIDs", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96",
+                    name: "DayEntryIds", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96",
                     xref: "cluster§9.12.5.12.3",
                     details: "This field shall indicate a list of DayEntryIDs for the DayEntryStructs to apply during the days " +
                         "specified by DaysOfWeek, ordered by StartTime." +
@@ -26139,7 +26139,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "DayEntryIDs", id: 0x1, type: "list", conformance: "M", constraint: "1 to 20",
+                    name: "DayEntryIds", id: 0x1, type: "list", conformance: "M", constraint: "1 to 20",
                     xref: "cluster§9.12.5.17.2",
                     details: "This field shall indicate a list of DayEntryIDs for the DayEntryStructs during which the tariff " +
                         "components are active." +
@@ -26153,7 +26153,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "TariffComponentIDs", id: 0x2, type: "list", conformance: "M", constraint: "1 to 20",
+                    name: "TariffComponentIds", id: 0x2, type: "list", conformance: "M", constraint: "1 to 20",
                     xref: "cluster§9.12.5.17.3",
                     details: "This field shall indicate a list of TariffComponentIDs for the TariffComponentStructs active during " +
                         "the specified day entries."
@@ -28660,7 +28660,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "UrLs", id: 0x0, type: "list", conformance: "M", constraint: "max 10[max 2000]",
+                    name: "Urls", id: 0x0, type: "list", conformance: "M", constraint: "max 10[max 2000]",
                     xref: "cluster§11.4.5.3.1",
                     details: "This field shall specify a list of URLs pointing to the STUN and/or TURN servers. The URL scheme " +
                         "distinguishes whether it is a STUN or TURN server (stun:, stuns:, turn:, or turns: respectively). " +
@@ -34066,7 +34066,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "UniqueLocationIDs", id: 0x5, type: "list", access: "S", conformance: "M",
+                    name: "UniqueLocationIds", id: 0x5, type: "list", access: "S", conformance: "M",
                     constraint: "max 64[max 64]", xref: "core§9.17.4.2.6",
                     details: "This field shall specify the EcosystemLocationStruct entries in the LocationDirectory attribute " +
                         "associated with this EcosystemDeviceStruct."
@@ -34076,7 +34076,7 @@ export const SpecMatter = Matter(
             ),
 
             Field({
-                name: "UniqueLocationIDsLastEdit", id: 0x6, type: "epoch-us", access: "S", conformance: "M",
+                name: "UniqueLocationIdsLastEdit", id: 0x6, type: "epoch-us", access: "S", conformance: "M",
                 default: 0, xref: "core§9.17.4.2.7",
 
                 details: "This field shall indicate the timestamp of when the UniqueLocationIDs was last modified." +
@@ -34808,7 +34808,7 @@ export const SpecMatter = Matter(
 
             Field(
                 {
-                    name: "GroupKeySetIDs", id: 0x0, type: "list", conformance: "M", xref: "core§11.2.7.6.1",
+                    name: "GroupKeySetIds", id: 0x0, type: "list", conformance: "M", xref: "core§11.2.7.6.1",
                     details: "This field references the set of group keys that generate operational group keys for use with the " +
                         "accessing fabric." +
                         "\n" +
@@ -40377,7 +40377,7 @@ export const SpecMatter = Matter(
 
         Attribute(
             {
-                name: "NoCs", id: 0x0, type: "list", access: "R F A", conformance: "M",
+                name: "Nocs", id: 0x0, type: "list", access: "R F A", conformance: "M",
                 constraint: "max supportedFabrics", quality: "N C", xref: "core§11.18.5.1",
 
                 details: "This attribute shall contain all NOCs applicable to this Node, encoded as a read-only list of " +
@@ -41990,7 +41990,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "AnnounceOtaProvider", id: 0x0, access: "A", conformance: "O", direction: "request",
+                name: "AnnounceOtaProvider", id: 0x0, access: "F A", conformance: "O", direction: "request",
                 response: "status", xref: "core§11.20.7.6.1",
                 details: "This command may be invoked by Administrators to announce the presence of a particular OTA Provider." +
                     "\n" +
@@ -45365,15 +45365,49 @@ export const SpecMatter = Matter(
             xref: "device§1.1.4"
         }),
         Condition({ name: "Active", description: "The node is always able to communicate", xref: "device§1.1.4" }),
-        Condition({ name: "Node", xref: "device§1.1.5" }),
-        Condition({ name: "App", xref: "device§1.1.5" }),
-        Condition({ name: "Simple", xref: "device§1.1.5" }),
-        Condition({ name: "Dynamic", xref: "device§1.1.5" }),
-        Condition({ name: "Composed", xref: "device§1.1.5" }),
-        Condition({ name: "Client", xref: "device§1.1.6" }),
-        Condition({ name: "Server", xref: "device§1.1.6" }),
-        Condition({ name: "Duplicate", xref: "device§1.1.6" }),
-        Condition({ name: "BridgedPowerSourceInfo", xref: "device§1.1.6" }),
+        Condition({
+            name: "Node",
+            description: "the device type is classified as a Node device type (see Data Model specification)",
+            xref: "device§1.1.5"
+        }),
+        Condition({
+            name: "App",
+            description: "the device type is classified as an Application device type (see Data Model specification)",
+            xref: "device§1.1.5"
+        }),
+        Condition({
+            name: "Simple",
+            description: "the device type is classified as a Simple device type (see Data Model specification)",
+            xref: "device§1.1.5"
+        }),
+        Condition({
+            name: "Dynamic",
+            description: "the device type is classified as a Dynamic device type (see Data Model specification)",
+            xref: "device§1.1.5"
+        }),
+        Condition({
+            name: "Composed",
+            description: "the device type is composed of 2 or more device types (see System Model specification)",
+            xref: "device§1.1.5"
+        }),
+        Condition({
+            name: "Client", description: "there exists a client application cluster on the endpoint",
+            xref: "device§1.1.6"
+        }),
+        Condition({
+            name: "Server", description: "there exists a server application cluster on the endpoint",
+            xref: "device§1.1.6"
+        }),
+        Condition({
+            name: "Duplicate",
+            description: "the endpoint and at least one of its siblings have overlap in application device type(s)",
+            xref: "device§1.1.6"
+        }),
+        Condition({
+            name: "BridgedPowerSourceInfo",
+            description: "the endpoint represents a Bridged Device, for which information about the state of its power source is available to the Bridge",
+            xref: "device§1.1.6"
+        }),
         Requirement(
             { name: "Descriptor", id: 0x1d, conformance: "M", element: "serverCluster", xref: "device§1.1.7" },
             Requirement({ name: "TAGLIST", conformance: "Duplicate", element: "feature" })
@@ -46272,7 +46306,10 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "FlowMeasurement", id: 0x404, conformance: "O", element: "clientCluster", xref: "device§5.7.6" }
         ),
-        Requirement({ name: "WaterValve", id: 0x42, conformance: "M", element: "deviceType", xref: "device§5.7.5" })
+        Requirement({
+            name: "WaterValve", id: 0x42, conformance: "M", constraint: "min 1", element: "deviceType",
+            xref: "device§5.7.5"
+        })
     ),
 
     DeviceType(
@@ -46579,7 +46616,10 @@ export const SpecMatter = Matter(
             name: "CarbonMonoxideConcentrationMeasurement", id: 0x40c, conformance: "O",
             element: "serverCluster", xref: "device§7.9.5"
         }),
-        Requirement({ name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§7.9.4" })
+        Requirement({
+            name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 1", element: "deviceType",
+            xref: "device§7.9.4"
+        })
     ),
 
     DeviceType(
@@ -47410,8 +47450,8 @@ export const SpecMatter = Matter(
             element: "serverCluster", xref: "device§13.2.7"
         }),
         Requirement({
-            name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType",
-            xref: "device§13.2.6"
+            name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", constraint: "min 1",
+            element: "deviceType", xref: "device§13.2.6"
         })
     ),
 
@@ -47631,7 +47671,10 @@ export const SpecMatter = Matter(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§13.8.5" },
             Requirement({ name: "OFFONLY", conformance: "M", element: "feature" })
         ),
-        Requirement({ name: "CookSurface", id: 0x77, conformance: "O", element: "deviceType", xref: "device§13.8.4" })
+        Requirement({
+            name: "CookSurface", id: 0x77, conformance: "O", constraint: "min 1", element: "deviceType",
+            xref: "device§13.8.4"
+        })
     ),
 
     DeviceType(
@@ -47652,10 +47695,13 @@ export const SpecMatter = Matter(
         }),
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.9.7" }),
         Requirement({
-            name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType",
-            xref: "device§13.9.6"
+            name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", constraint: "min 1",
+            element: "deviceType", xref: "device§13.9.6"
         }),
-        Requirement({ name: "Cooktop", id: 0x78, conformance: "O", element: "deviceType", xref: "device§13.9.6" })
+        Requirement({
+            name: "Cooktop", id: 0x78, conformance: "O", constraint: "max 1", element: "deviceType",
+            xref: "device§13.9.6"
+        })
     ),
 
     DeviceType(
@@ -47755,12 +47801,15 @@ export const SpecMatter = Matter(
             name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster",
             xref: "device§14.1.5"
         }),
-        Requirement({ name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.1.6" }),
+        Requirement({
+            name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 1", element: "deviceType",
+            xref: "device§14.1.6"
+        }),
 
         Requirement(
             {
-                name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType",
-                xref: "device§14.1.6"
+                name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", constraint: "min 1",
+                element: "deviceType", xref: "device§14.1.6"
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
@@ -47770,7 +47819,10 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", xref: "device§14.1.6" },
+            {
+                name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 1", element: "deviceType",
+                xref: "device§14.1.6"
+            },
             Requirement({ name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" }),
             Requirement({ name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" })
         )
@@ -47833,7 +47885,10 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§14.3.5" }),
 
         Requirement(
-            { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.3.6" },
+            {
+                name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 1", element: "deviceType",
+                xref: "device§14.3.6"
+            },
             Requirement(
                 { name: "PowerSource", id: 0x2f, element: "serverCluster" },
                 Requirement({ name: "WIRED", conformance: "M", element: "feature" })
@@ -47864,7 +47919,10 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", xref: "device§14.3.6" },
+            {
+                name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 1", element: "deviceType",
+                xref: "device§14.3.6"
+            },
             Requirement({ name: "UserLabel", id: 0x41, conformance: "desc", element: "serverCluster" }),
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
@@ -47895,7 +47953,10 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§14.4.5" }),
 
         Requirement(
-            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", instance: 1 },
+            {
+                name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 2", element: "deviceType",
+                instance: 1
+            },
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
@@ -47915,7 +47976,10 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", instance: 2 },
+            {
+                name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 2", element: "deviceType",
+                instance: 2
+            },
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
@@ -47935,7 +47999,10 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", instance: 1 },
+            {
+                name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 2", element: "deviceType",
+                instance: 1
+            },
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
                 Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
@@ -47947,7 +48014,10 @@ export const SpecMatter = Matter(
         ),
 
         Requirement(
-            { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", instance: 2 },
+            {
+                name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 2", element: "deviceType",
+                instance: 2
+            },
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
                 Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
@@ -48008,19 +48078,62 @@ export const SpecMatter = Matter(
         ),
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§14.5.5" }),
         Requirement({ name: "Thermostat", id: 0x201, conformance: "O", element: "clientCluster", xref: "device§14.5.5" }),
-        Requirement({ name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.5.6" }),
+
+        Requirement(
+            { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.5.6" },
+            Requirement(
+                { name: "PowerSource", id: 0x2f, element: "serverCluster" },
+                Requirement({ name: "WIRED", conformance: "M", element: "feature" })
+            ),
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+            )
+        ),
+
         Requirement(
             { name: "Thermostat", id: 0x301, conformance: "O", element: "deviceType", xref: "device§14.5.6" },
-            Requirement({ name: "UserLabel", id: 0x41, conformance: "M", element: "serverCluster" })
+            Requirement({ name: "UserLabel", id: 0x41, conformance: "M", element: "serverCluster" }),
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+            )
         ),
+
         Requirement(
-            { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.5.6" }
+            { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.5.6" },
+            Requirement(
+                { name: "Descriptor", id: 0x1d, element: "serverCluster" },
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+            )
         ),
-        Requirement({ name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType", xref: "device§14.5.6" }),
+
+        Requirement(
+            {
+                name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType",
+                xref: "device§14.5.6"
+            },
+            Requirement(
+                { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
+                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature" })
+            )
+        ),
+
         Requirement({ name: "WaterHeater", id: 0x50f, conformance: "O", element: "deviceType", xref: "device§14.5.6" }),
+
         Requirement(
-            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", xref: "device§14.5.6" },
-            Requirement({ name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" }),
+            {
+                name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 1", element: "deviceType",
+                xref: "device§14.5.6"
+            },
+
+            Requirement(
+                { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
+                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature" }),
+                Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
+                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
+            ),
+
             Requirement({ name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" })
         )
     ),
@@ -48044,7 +48157,7 @@ export const SpecMatter = Matter(
         Requirement(
             {
                 name: "ElectricalEnergyTariff", id: 0x513, conformance: "[ElectricalEnergy].a+",
-                element: "deviceType", xref: "device§14.6.6"
+                constraint: "min 1", element: "deviceType", xref: "device§14.6.6"
             },
             Requirement(
                 { name: "CommodityTariff", id: 0x700, element: "serverCluster" },
@@ -48053,8 +48166,8 @@ export const SpecMatter = Matter(
         ),
 
         Requirement({
-            name: "ElectricalMeter", id: 0x514, conformance: "[ElectricalEnergy].a+", element: "deviceType",
-            xref: "device§14.6.6"
+            name: "ElectricalMeter", id: 0x514, conformance: "[ElectricalEnergy].a+", constraint: "min 1",
+            element: "deviceType", xref: "device§14.6.6"
         })
     ),
 
@@ -48105,9 +48218,10 @@ export const SpecMatter = Matter(
             name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster",
             xref: "device§14.8.4"
         }),
-        Requirement(
-            { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", xref: "device§14.8.3" }
-        )
+        Requirement({
+            name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 1", element: "deviceType",
+            xref: "device§14.8.3"
+        })
     ),
 
     DeviceType(
@@ -48319,8 +48433,11 @@ export const SpecMatter = Matter(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 324, revision: 1 } ], element: "attribute" })
         ),
-        Requirement({ name: "OnOffLight", id: 0x100, conformance: "M", element: "deviceType", xref: "device§16.2.4" }),
-        Requirement({ name: "Camera", id: 0x142, conformance: "M", element: "deviceType", xref: "device§16.2.4" })
+        Requirement({
+            name: "OnOffLight", id: 0x100, conformance: "M", constraint: "min 1", element: "deviceType",
+            xref: "device§16.2.4"
+        }),
+        Requirement({ name: "Camera", id: 0x142, conformance: "M", constraint: "1", element: "deviceType", xref: "device§16.2.4" })
     ),
 
     DeviceType(
@@ -48333,8 +48450,11 @@ export const SpecMatter = Matter(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 323, revision: 1 } ], element: "attribute" })
         ),
-        Requirement({ name: "Camera", id: 0x142, conformance: "M", element: "deviceType", xref: "device§16.3.3" }),
-        Requirement({ name: "Doorbell", id: 0x148, conformance: "M", element: "deviceType", xref: "device§16.3.3" })
+        Requirement({ name: "Camera", id: 0x142, conformance: "M", constraint: "1", element: "deviceType", xref: "device§16.3.3" }),
+        Requirement({
+            name: "Doorbell", id: 0x148, conformance: "M", constraint: "min 1", element: "deviceType",
+            xref: "device§16.3.3"
+        })
     ),
 
     DeviceType(
@@ -48409,7 +48529,10 @@ export const SpecMatter = Matter(
         Requirement({ name: "Chime", id: 0x556, conformance: "O", element: "clientCluster", xref: "device§16.4.6" }),
 
         Requirement(
-            { name: "GenericSwitch", id: 0xf, conformance: "M", element: "deviceType", xref: "device§16.4.4" },
+            {
+                name: "GenericSwitch", id: 0xf, conformance: "M", constraint: "min 1", element: "deviceType",
+                xref: "device§16.4.4"
+            },
             Requirement(
                 { name: "Switch", id: 0x3b, element: "serverCluster" },
                 Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature" })
