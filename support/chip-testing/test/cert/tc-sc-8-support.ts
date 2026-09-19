@@ -764,7 +764,7 @@ export async function recordSeveredSession(
     // evidence, and a device check recorded after it would be missing from the bundle exactly when the step fails
     const eviction = await sessionEvictionCheck(cx, severed, from, timeout);
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => sessionGoneCheck(severed, sessions),
             what: `the TH no longer holds session ${severed.controllerSessionId}`,
@@ -809,7 +809,7 @@ export async function recordReestablishedSession(
     const sessions = await heldSessions(cx, ref);
     const id = tcpSessionIdOf(sessions);
     const further = await furtherSessionCheck(cx, from);
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => sessionGoneCheck(previous, sessions),
             what: "the session the TH holds is not the one it severed",

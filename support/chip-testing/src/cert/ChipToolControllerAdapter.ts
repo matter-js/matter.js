@@ -64,6 +64,15 @@ const CONTROLLER = "chip-tool";
  * `controllerPicsOverridesFor`). Only what differs from the CHIP PICS file, which describes a device.
  */
 export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
+    // chip-tool speaks no BDX at all: it is a commissioner, hosts no OTA provider and has no image to
+    // send. The CHIP PICS file answers these for a device, so without this a BDX case would be gated
+    // on what the TH supports rather than on what this controller can do.
+    "MCORE.BDX.Sender": 0,
+    "MCORE.BDX.Responder": 0,
+    "MCORE.BDX.SynchronousSender": 0,
+    "MCORE.BDX.AsynchronousSender": 0,
+    "MCORE.BDX.BlockQueryWithSkip": 0,
+
     // command-by-id sends one command path per invoke and no CommandRef.
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
 
@@ -901,6 +910,15 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return responseModel === undefined
             ? response.value
             : chipJsonToMatter(response.value, responseModel, clusterModel);
+    }
+
+    async serveOtaUpdate(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "serveOtaUpdate",
+            CONTROLLER,
+            "chip-tool is a commissioner, not an OTA provider: it hosts no OtaSoftwareUpdateProvider cluster and " +
+                "keeps no image catalog to serve one from",
+        );
     }
 
     async invokeBatch(commands: BatchCommandSpec[]): Promise<BatchCommandResult[]> {
