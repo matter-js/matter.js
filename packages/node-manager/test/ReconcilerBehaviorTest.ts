@@ -80,6 +80,7 @@ function pendingItem(kind: string, key: string): ManagedItem {
         mode: "converge",
         status: { state: "pending", updateTimestamp: 0 },
         outstanding: "apply",
+        generation: 1,
     };
 }
 
@@ -97,6 +98,7 @@ function itemWithState(
         mode: "converge",
         status: { state, updateTimestamp: 0, failureCode: code },
         outstanding,
+        generation: 1,
     };
 }
 
@@ -108,6 +110,7 @@ function deletePendingItem(kind: string, key: string): ManagedItem {
         mode: "converge",
         status: { state: "deletePending", updateTimestamp: 0 },
         outstanding: "remove",
+        generation: 1,
     };
 }
 
@@ -209,6 +212,7 @@ describe("executeActions (executor)", () => {
             mode: "maintain",
             status: { state: "committed", updateTimestamp: 0 },
             outstanding: "apply",
+            generation: 1,
         };
         const target = makeTarget({ [id]: drifted });
 
@@ -421,6 +425,7 @@ describe("buildVerifyResult", () => {
                 mode: "converge",
                 status: { state: "committed", updateTimestamp: 0 },
                 outstanding: "apply",
+                generation: 1,
             },
             {
                 kind: "fake",
@@ -429,6 +434,7 @@ describe("buildVerifyResult", () => {
                 mode: "converge",
                 status: { state: "committed", updateTimestamp: 0 },
                 outstanding: "apply",
+                generation: 1,
             },
             {
                 kind: "fake",
@@ -437,6 +443,7 @@ describe("buildVerifyResult", () => {
                 mode: "converge",
                 status: { state: "pending", updateTimestamp: 0 },
                 outstanding: "apply",
+                generation: 1,
             },
         ];
         const result = await buildVerifyResult(STUB_NODE, items, registry);
@@ -454,6 +461,7 @@ describe("buildVerifyResult", () => {
                 mode: "converge",
                 status: { state: "committed", updateTimestamp: 0 },
                 outstanding: "apply",
+                generation: 1,
             },
         ];
         const result = await buildVerifyResult(STUB_NODE, items, registry);

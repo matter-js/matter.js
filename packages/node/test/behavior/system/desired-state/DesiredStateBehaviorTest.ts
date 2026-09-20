@@ -84,6 +84,32 @@ describe("DesiredStateBehavior", () => {
         });
     });
 
+    it("counts a new intent as a new thing to converge, whatever its value", async () => {
+        await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
+        await endpoint.act(agent => {
+            const ds = agent.get(DesiredStateBehavior);
+
+            // The same value twice, and the same object twice: neither tells a slow apply that what it is
+            // working on has been replaced, which is why the count exists rather than a comparison.
+            const shared = { node: 2 };
+            const first = ds.setIntent("binding", "7", shared).generation;
+            const second = ds.setIntent("binding", "7", shared).generation;
+            expect(second).greaterThan(first);
+
+            const primitive = ds.setIntent("counter", "1", 5).generation;
+            expect(ds.setIntent("counter", "1", 5).generation).greaterThan(primitive);
+
+            // A status write is not a new intent.
+            const before = ds.getItem("binding", "7")?.generation;
+            ds.updateStatus("binding", "7", "committed");
+            expect(ds.getItem("binding", "7")?.generation).equals(before);
+
+            // Asking for removal is.
+            ds.removeIntent("binding", "7");
+            expect(ds.getItem("binding", "7")?.generation).greaterThan(before!);
+        });
+    });
+
     it("remembers which operation an item is waiting for", async () => {
         await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
         await endpoint.act(agent => {

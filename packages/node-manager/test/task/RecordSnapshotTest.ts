@@ -6,7 +6,7 @@
 
 import { RUN_STORE_VERSION, RunStore } from "#task/RunStore.js";
 import { RunRecord, TaskPersistence } from "#task/Task.js";
-import { ChangeEntry, RunId, TaskState } from "#task/types.js";
+import { ChangeEntry, RetireSeq, RunId, TaskState } from "#task/types.js";
 import { InternalError } from "@matter/general";
 import { testAddress } from "./helpers.js";
 
@@ -64,6 +64,38 @@ describe("run record snapshots", () => {
     it("refuses a write that both sets a field and drops it", () => {
         // Which one wins would otherwise be decided by the order the two lists are applied in.
         expect(() => record().toPersistence({ params: { tag: "new" } }, ["params"])).throws(InternalError);
+    });
+});
+
+describe("an outcome and its place in the retirement order", () => {
+    // The two are written in one transaction, so a record holding one without the other did not come from
+    // this layer. A terminal record with no sequence sorts at zero — ahead of every real retirement — so
+    // history would forget it first and supersession would read the wrong run as the later one.
+    it("refuses a finished record that does not say when it retired", () => {
+        const store = new RunStore();
+        expect(() => store.load({ runs: { "1": persisted(1, "completed") }, nextRunId: 10 })).throws(
+            InternalError,
+            /completed but has no retirement sequence/,
+        );
+    });
+
+    it("refuses an unfinished record that says it retired", () => {
+        const store = new RunStore();
+        expect(() =>
+            store.load({
+                runs: { "1": { ...persisted(1, "running"), retireSeq: RetireSeq(3) } },
+                nextRunId: 10,
+            }),
+        ).throws(InternalError, /running but has a retirement sequence/);
+    });
+
+    it("accepts the pair the layer writes", () => {
+        const store = new RunStore();
+        store.load({
+            runs: { "1": { ...persisted(1, "completed"), retireSeq: RetireSeq(3) } },
+            nextRunId: 10,
+        });
+        expect(store.get(RunId(1))?.retireSeq).equals(3);
     });
 });
 

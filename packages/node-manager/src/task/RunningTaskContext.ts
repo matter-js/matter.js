@@ -203,7 +203,7 @@ export class RunningTaskContext implements TaskContext {
         if (gone === undefined) {
             return;
         }
-        const conclusion = this.#conclusions.get(itemMapKey(gone.kind.kind, gone.key));
+        const conclusion = this.#conclusionOf(gone.peer, gone.kind.kind, gone.key);
         // An item awaited for commit that was *removed* is as fatal as one abandoned — something else took
         // it away — but the two say different things about the device, so the message does not guess.
         const ending =
@@ -219,12 +219,20 @@ export class RunningTaskContext implements TaskContext {
     }
 
     /**
-     * How the engine finished with items this phase asked about, by item key.
+     * How the engine finished with items this phase asked about, per peer.
+     *
+     * Keyed by the peer as well as the item: one key names a different item on every device that holds it,
+     * and a rollback commonly removes the same group key from several peers at once. Keyed by item alone,
+     * the first device to answer would answer for all of them.
      *
      * Phase-scoped on purpose: a conclusion matters to whoever is waiting on that item now, and an answer
      * kept longer would describe an intent a later run never wrote.
      */
-    readonly #conclusions = new Map<string, ItemConclusion>();
+    readonly #conclusions = new Map<ClientNode, Map<string, ItemConclusion>>();
+
+    #conclusionOf(peer: ClientNode, kind: string, key: string): ItemConclusion | undefined {
+        return this.#conclusions.get(peer)?.get(itemMapKey(kind, key));
+    }
 
     /** Peers whose conclusions this context is following, with the observers doing the following. */
     readonly #watched = new Set<ClientNode>();
@@ -236,7 +244,12 @@ export class RunningTaskContext implements TaskContext {
         }
         this.#watched.add(peer);
         this.#watchers.on(peer.eventsOf(DesiredStateBehavior).itemConcluded, (kind, key, conclusion) => {
-            this.#conclusions.set(itemMapKey(kind, key), conclusion);
+            let forPeer = this.#conclusions.get(peer);
+            if (forPeer === undefined) {
+                forPeer = new Map<string, ItemConclusion>();
+                this.#conclusions.set(peer, forPeer);
+            }
+            forPeer.set(itemMapKey(kind, key), conclusion);
         });
     }
 
@@ -263,7 +276,7 @@ export class RunningTaskContext implements TaskContext {
             // A peer that left took the item with it, which is the removal this was waiting for.
             const awaited = items.filter(i => this.#stillCommissioned(i.peer));
             for (const item of awaited) {
-                const conclusion = this.#conclusions.get(itemMapKey(item.kind.kind, item.key));
+                const conclusion = this.#conclusionOf(item.peer, item.kind.kind, item.key);
                 if (conclusion?.outcome === "abandoned") {
                     throw new TaskFailedError(
                         `Task ${runLabel(this.record.runId)}: ${item.kind.kind}:${item.key} on ${peerLabel(item.peer)} was not removed — ` +
@@ -272,7 +285,7 @@ export class RunningTaskContext implements TaskContext {
                 }
             }
             return awaited.every(
-                item => this.#conclusions.get(itemMapKey(item.kind.kind, item.key))?.outcome === "removed",
+                item => this.#conclusionOf(item.peer, item.kind.kind, item.key)?.outcome === "removed",
             );
         });
     }

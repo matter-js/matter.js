@@ -181,6 +181,15 @@ export class RunStore {
             if (stored.retireSeq !== undefined && !isRetireSeq(stored.retireSeq)) {
                 throw new InternalError(`Stored task record "${key}" has no usable retirement sequence`);
             }
+            // An outcome and its place in the retirement order are written in one transaction, so a record
+            // carrying one without the other was not written by this layer. It matters which way round: a
+            // terminal record with no sequence sorts at zero, which is ahead of every real retirement, so
+            // history would evict it first and `supersederOf` would read the wrong run as the later one.
+            if (isTerminal(stored.state) !== (stored.retireSeq !== undefined)) {
+                throw new InternalError(
+                    `Stored task record "${key}" is ${stored.state} but ${stored.retireSeq === undefined ? "has no" : "has a"} retirement sequence`,
+                );
+            }
             if (!Array.isArray(stored.changeSet)) {
                 throw new InternalError(`Stored task record "${key}" has no usable change set`);
             }

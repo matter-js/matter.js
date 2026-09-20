@@ -37,7 +37,15 @@ export class DesiredStateBehavior extends Behavior {
     });
 
     setIntent<I>(kind: string, key: string, intent: I, mode: ItemMode = "converge"): ManagedItem<I> {
-        const item: ManagedItem<I> = { kind, key, intent, mode, status: newStatus("pending"), outstanding: "apply" };
+        const item: ManagedItem<I> = {
+            kind,
+            key,
+            intent,
+            mode,
+            status: newStatus("pending"),
+            outstanding: "apply",
+            generation: (this.state.items[itemMapKey(kind, key)]?.generation ?? 0) + 1,
+        };
         this.state.items = { ...this.state.items, [itemMapKey(kind, key)]: item };
         this.events.itemChanged.emit(item);
         return item;
@@ -49,7 +57,12 @@ export class DesiredStateBehavior extends Behavior {
         if (existing === undefined) {
             return;
         }
-        const item: ManagedItem = { ...existing, status: newStatus("deletePending"), outstanding: "remove" };
+        const item: ManagedItem = {
+            ...existing,
+            status: newStatus("deletePending"),
+            outstanding: "remove",
+            generation: existing.generation + 1,
+        };
         this.state.items = { ...this.state.items, [id]: item };
         this.events.itemChanged.emit(item);
     }

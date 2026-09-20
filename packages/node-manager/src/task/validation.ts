@@ -88,6 +88,16 @@ export const Require = {
         }
     },
 
+    /**
+     * An endpoint a task can address.
+     *
+     * `0xffff` is the wildcard, not an endpoint: {@link EndpointNumber} stops at `0xfffe`, so accepting it
+     * would admit a run that can never reach what it names.
+     */
+    endpoint(field: string, value: unknown): void {
+        Require.uint(field, value, 0xfffe);
+    },
+
     /** One of the values the field's type defines. */
     oneOf(field: string, value: unknown, allowed: readonly unknown[]): void {
         if (!allowed.includes(value)) {
@@ -148,9 +158,13 @@ export const Require = {
         if (typeof address.nodeId !== "bigint" || address.nodeId < 0n || address.nodeId > UINT64_MAX) {
             throw new ImplementationError(`"${field}.nodeId" must be a node id`);
         }
-        // The unspecified node id names nothing, so a record carrying it could never be resolved again.
-        if (address.nodeId === NodeId.UNSPECIFIED_NODE_ID) {
-            throw new ImplementationError(`"${field}.nodeId" must not be the unspecified node id`);
+        // A uint64 is not yet an address a peer can answer to: the reserved ranges — unspecified, the
+        // temporary-local and CASE-authenticated-tag ids, PAKE subjects — name no commissioned node, so a
+        // record carrying one holds a target nothing can ever drive. A group address is the one other thing
+        // that resolves; `peer` refuses that separately, because the task decides which it accepts.
+        const nodeId = NodeId(address.nodeId);
+        if (!NodeId.isOperationalNodeId(nodeId) && !PeerAddress.isGroup({ fabricIndex: FabricIndex(1), nodeId })) {
+            throw new ImplementationError(`"${field}.nodeId" must be an operational node id or a group address`);
         }
     },
 

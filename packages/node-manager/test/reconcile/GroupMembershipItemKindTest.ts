@@ -80,6 +80,7 @@ function item(g: GroupMembershipGrant): ManagedItem<GroupMembershipGrant> {
         mode: "converge",
         status: { state: "pending", updateTimestamp: 0 },
         outstanding: "apply",
+        generation: 1,
     };
 }
 

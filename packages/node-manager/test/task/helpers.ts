@@ -215,6 +215,7 @@ export class FakePeer {
             mode: "converge",
             status: { state, updateTimestamp: 0 },
             outstanding: state === "deletePending" ? "remove" : "apply",
+            generation: 1,
         };
         this.items[itemMapKey(kind, key)] = item;
         this.itemChanged.emit(item);
@@ -233,6 +234,7 @@ export class FakePeer {
             mode,
             status: existing?.status ?? { state: "pending", updateTimestamp: 0 },
             outstanding: "apply",
+            generation: 1,
         };
         this.items[itemMapKey(kind, key)] = item;
         this.itemChanged.emit(item);
