@@ -160,8 +160,8 @@ export interface TaskContext {
     /**
      * Suspend until the engine has removed each item, failing if it gave up on one instead.
      *
-     * What a task waiting for a removal wants, rather than {@link itemAbsent}: an item the engine abandoned
-     * is equally absent, and the device may still hold what it names.
+     * What a task waiting for a removal wants, rather than {@link itemAbsent}: an item the engine gave up on
+     * stays in desired state, so a poll on absence never ends, and the device still holds what it names.
      */
     awaitRemoved(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): Promise<void>;
     itemAbsent(peer: ClientNode, kind: ItemKind, key: string): boolean;

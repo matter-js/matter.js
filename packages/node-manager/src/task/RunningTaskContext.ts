@@ -241,8 +241,8 @@ export class RunningTaskContext implements TaskContext {
     /**
      * Suspend until the engine has removed each item, failing if it gave up on one instead.
      *
-     * Not "until the item is absent": an item the engine abandoned is equally absent, and reading that as
-     * success tells a caller the device no longer holds something it does.
+     * Not "until the item is absent": an item the engine gave up on keeps its place, so waiting for absence
+     * waits forever where this fails with what the device said.
      */
     async awaitRemoved(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): Promise<void> {
         for (const item of items) {

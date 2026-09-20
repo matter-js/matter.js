@@ -313,7 +313,7 @@ export namespace ReconcilerBehavior {
         sweepTimer?: Timer;
         settleTimer?: Timer;
         locks = new Map<ClientNode, Mutex>();
-        /** Why the reconciler gave up on an item, per peer. Dropped with the peer, so it cannot outlive it. */
+        /** The reconcile pass each peer has coming, coalesced. Dropped with the peer, so it cannot outlive it. */
         pending = new Map<ClientNode, PendingPass>();
         disposed = false;
     }

@@ -24,7 +24,7 @@ const MIN_GROUPS_PER_FABRIC = 4;
  * The `endpointGroupMembership` ItemKind: adds a peer endpoint to a Groups-cluster group. Per-endpoint
  * and command-based (AddGroup / GetGroupMembership / RemoveGroup). The Groups commands carry their
  * application status in the response payload, so non-success statuses are re-thrown as
- * StatusResponseError to drive the engine's retry/drop handling. The group name is written but not
+ * StatusResponseError to drive the engine's retry and give-up handling. The group name is written but not
  * verified — GetGroupMembership returns only group IDs. Requires the group's key set and map to exist
  * first; the keyset(10) < group(20) < membership(30) priority bands enforce that order.
  *
