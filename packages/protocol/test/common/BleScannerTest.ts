@@ -31,11 +31,14 @@ class MockBleScannerClient implements BleScannerClient {
     /** Each call the scanner made, so a test can see whether transitions overlapped. */
     readonly scanCalls = new Array<"start" | "stop">();
 
+    #startGate?: Promise<void>;
+    #openStartGate?: () => void;
     #stopGate?: Promise<void>;
     #openStopGate?: () => void;
 
     async startScanning() {
         this.scanCalls.push("start");
+        await this.#startGate;
         if (this.startScanningError) throw this.startScanningError;
         this.startListening();
     }
@@ -45,6 +48,19 @@ class MockBleScannerClient implements BleScannerClient {
         await this.#stopGate;
         this.stopListening();
         if (this.stopScanningError) throw this.stopScanningError;
+    }
+
+    /** Leaves the next `startScanning()` in flight, as a client waiting for its radio does. */
+    holdStart() {
+        const { promise, resolver } = createPromise<void>();
+        this.#startGate = promise;
+        this.#openStartGate = resolver;
+    }
+
+    releaseStart() {
+        this.#startGate = undefined;
+        this.#openStartGate?.();
+        this.#openStartGate = undefined;
     }
 
     /** Leaves the next `stopScanning()` in flight, as a client whose radio reports its state asynchronously does. */
@@ -617,6 +633,25 @@ describe("BleScanner", () => {
 
             await scanner.close();
             await second;
+        });
+
+        it("leaves no scan running when it closes while one is starting", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            client.holdStart();
+            const discovery = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+
+            const closed = scanner.close();
+            await settleDiscovery();
+
+            client.releaseStart();
+            await closed;
+            await discovery;
+
+            expect(client.scanCalls).to.deep.equal(["start", "stop"]);
+            expect(client.scanning).to.equal(false);
         });
 
         it("keeps scanning for a discovery that still runs when another ends", async () => {

@@ -124,12 +124,22 @@ export class BleScanner implements Scanner {
     }
 
     /**
-     * Drives the client to the scan the current discoveries need. Transitions run one after another, and each decides
-     * again what is needed, so a client that reports its scan state asynchronously cannot be handed a start and a stop
-     * that overlap. A caller learns the outcome of the transition it waits for, not of one another caller started.
+     * Runs a transition of the client's scan after every transition queued before it. A client that learns its scan
+     * state from its radio cannot answer a start issued while its stop is still in flight, so no two transitions may
+     * overlap. The caller awaits the transition it queued and learns that outcome, not one another caller started.
      */
+    #enqueueScanTransition(transition: () => Promise<void>) {
+        const result = this.#scanTransitions.then(transition);
+
+        // A failed transition ends here; the next one decides again from the state it left behind
+        this.#scanTransitions = result.catch(() => {});
+
+        return result;
+    }
+
+    /** Drives the client to the scan the discoveries present at the time the transition runs need. */
     #reconcileScan() {
-        const transition = this.#scanTransitions.then(async () => {
+        return this.#enqueueScanTransition(async () => {
             const wanted = this.#activeDiscoveries > 0 && !this.#closed;
             if (wanted === this.#scanning) {
                 return;
@@ -141,11 +151,6 @@ export class BleScanner implements Scanner {
             }
             this.#scanning = wanted;
         });
-
-        // A failed transition ends here; the next one decides again from the state it left behind
-        this.#scanTransitions = transition.catch(() => {});
-
-        return transition;
     }
 
     /**
@@ -527,8 +532,11 @@ export class BleScanner implements Scanner {
         this.#closed = true;
         this.#activeDiscoveries = 0;
         try {
-            await this.closeClient();
-            this.#scanning = false;
+            // Shutdown queues like any other transition, so a scan still starting cannot outlive the scanner
+            await this.#enqueueScanTransition(async () => {
+                await this.closeClient();
+                this.#scanning = false;
+            });
         } finally {
             for (const queryId of [...this.#recordWaiters.keys()]) {
                 this.#finishWaiter(queryId, true);
