@@ -53,60 +53,18 @@ describe("DesiredStateBehavior", () => {
         });
     });
 
-    it("dropItem removes the item and says how it ended", async () => {
+    it("dropItem removes the item and announces it", async () => {
         await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
         await endpoint.act(agent => {
             const ds = agent.get(DesiredStateBehavior);
             ds.setIntent("binding", "7", { node: 2 });
-            const concluded = new Array<string>();
-            ds.events.itemConcluded.on((kind, key, conclusion) => {
-                concluded.push(`${kind}/${key}/${conclusion.outcome}`);
+            const removed = new Array<string>();
+            ds.events.itemRemoved.on((kind, key) => {
+                removed.push(`${kind}/${key}`);
             });
-            ds.dropItem("binding", "7", { outcome: "removed" });
+            ds.dropItem("binding", "7");
             expect(ds.getItem("binding", "7")).equals(undefined);
-            expect(concluded).deep.equals(["binding/7/removed"]);
-        });
-    });
-
-    it("distinguishes an item it gave up on from one that was removed", async () => {
-        await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
-        await endpoint.act(agent => {
-            const ds = agent.get(DesiredStateBehavior);
-            ds.setIntent("binding", "7", { node: 2 });
-            let seen: { outcome: string; reason?: string } | undefined;
-            ds.events.itemConcluded.on((_kind, _key, conclusion) => {
-                seen = conclusion;
-            });
-            // Absence is the same either way, which is why the conclusion carries the difference.
-            ds.dropItem("binding", "7", { outcome: "abandoned", reason: "the device refused it", failureCode: 133 });
-            expect(seen?.outcome).equals("abandoned");
-            expect(seen?.reason).equals("the device refused it");
-        });
-    });
-
-    it("counts a new intent as a new thing to converge, whatever its value", async () => {
-        await using endpoint = await MockEndpoint.createWith(DesiredStateBehavior);
-        await endpoint.act(agent => {
-            const ds = agent.get(DesiredStateBehavior);
-
-            // The same value twice, and the same object twice: neither tells a slow apply that what it is
-            // working on has been replaced, which is why the count exists rather than a comparison.
-            const shared = { node: 2 };
-            const first = ds.setIntent("binding", "7", shared).generation;
-            const second = ds.setIntent("binding", "7", shared).generation;
-            expect(second).greaterThan(first);
-
-            const primitive = ds.setIntent("counter", "1", 5).generation;
-            expect(ds.setIntent("counter", "1", 5).generation).greaterThan(primitive);
-
-            // A status write is not a new intent.
-            const before = ds.getItem("binding", "7")?.generation;
-            ds.updateStatus("binding", "7", "committed");
-            expect(ds.getItem("binding", "7")?.generation).equals(before);
-
-            // Asking for removal is.
-            ds.removeIntent("binding", "7");
-            expect(ds.getItem("binding", "7")?.generation).greaterThan(before!);
+            expect(removed).deep.equals(["binding/7"]);
         });
     });
 

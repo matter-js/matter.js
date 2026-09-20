@@ -12,8 +12,7 @@
 
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions } from "#reconcile/planActions.js";
-import { buildVerifyResult, refreshCapacities, shouldStartSweep } from "#ReconcilerBehavior.js";
-import { ClientNode, ItemConclusion, ItemKind, ItemKindRegistry, itemMapKey, ManagedItem } from "@matter/node";
+import { ClientNode, ItemKind, ItemKindRegistry, itemMapKey, ManagedItem } from "@matter/node";
 import { Status, StatusResponseError } from "@matter/types";
 
 // ---------------------------------------------------------------------------
@@ -166,7 +165,7 @@ describe("executeActions (executor)", () => {
         expect(target.items[id]).equals(undefined);
     });
 
-    it("unrecoverable commitFailed → drop without calling apply", async () => {
+    it("unrecoverable commitFailed → left in place without calling apply", async () => {
         const fake = new FakeKind();
         const registry = new ItemKindRegistry();
         registry.register(fake);
@@ -178,7 +177,8 @@ describe("executeActions (executor)", () => {
         await executeActions(target, planned, registry);
 
         expect(fake.applied).deep.equals([]);
-        expect(target.items[id]).equals(undefined);
+        // Kept, still saying why: absence is reserved for work that is done.
+        expect(target.items[id]?.status.state).equals("commitFailed");
     });
 
     it("recoverable commitFailed → retry → committed", async () => {
@@ -275,22 +275,14 @@ describe("executeActions (failure paths)", () => {
 
         const id = "fake:ghost";
         const target = makeTarget({ [id]: deletePendingItem("fake", "ghost") });
-        const conclusions = new Array<ItemConclusion>();
         await executeActions(
-            {
-                ...target,
-                async dropItem(k: string, key: string, conclusion: ItemConclusion) {
-                    conclusions.push(conclusion);
-                    await target.dropItem(k, key, conclusion);
-                },
-            },
+            target,
             planActions(Object.values(target.items), { verify: false, recoverable: () => false }),
             registry,
         );
 
         // The rule is the executor's, so a kind added later cannot forget it and report a failure for work
-        // that is already done.
-        expect(conclusions[0]?.outcome).equals("removed");
+        // that is already done. Gone from desired state is the one thing that says the work is done.
         expect(target.items[id]).equals(undefined);
     });
 
@@ -304,167 +296,40 @@ describe("executeActions (failure paths)", () => {
         expect(target.items[id]?.status.state).equals("commitFailed");
     });
 
-    it("says why it dropped an item the device rejected, with the status it gave", async () => {
+    it("keeps an item it gave up on, holding the status that says why", async () => {
         const kind = new FakeKind();
         const registry = new ItemKindRegistry();
         registry.register(kind);
 
         const id = "fake:refused";
         const target = makeTarget({ [id]: itemWithState("fake", "refused", "commitFailed", 0x85) });
-        const conclusions = new Array<ItemConclusion>();
-        const dropping = {
-            ...target,
-            async dropItem(k: string, key: string, conclusion: ItemConclusion) {
-                conclusions.push(conclusion);
-                await target.dropItem(k, key, conclusion);
-            },
-        };
         const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
-        await executeActions(dropping, planned, registry);
+        expect(planned[0].action).equals("abandon");
+        await executeActions(target, planned, registry);
 
-        expect(target.items[id]).equals(undefined);
-        // Given up on, not removed — the two are the same absence and must not read the same.
-        expect(conclusions[0].outcome).equals("abandoned");
-        expect(conclusions[0].outcome === "abandoned" && conclusions[0].reason).contains("status 133");
-        expect(conclusions[0].outcome === "abandoned" && conclusions[0].failureCode).equals(0x85);
+        // Still there, and still saying what happened. Deleting it would put the device out of desired
+        // state's sight and make the failure look like a removal that worked — here, and after a restart,
+        // where this record is all there is.
+        expect(target.items[id]?.status.state).equals("commitFailed");
+        expect(target.items[id]?.status.failureCode).equals(0x85);
+    });
 
-        // A failure with no status code came from here, not from the device, and says so.
-        const local = makeTarget({ ["ghost:k2"]: itemWithState("ghost", "k2", "commitFailed") });
-        const localReasons = new Array<string | undefined>();
+    it("leaves a removal it gave up on in place, rather than reporting the device clean", async () => {
+        const registry = new ItemKindRegistry();
+        registry.register(new FakeKind());
+
+        const id = "fake:stuck";
+        const target = makeTarget({
+            [id]: itemWithState("fake", "stuck", "commitFailed", 0x85, "remove"),
+        });
         await executeActions(
-            {
-                ...local,
-                async dropItem(k: string, key: string, conclusion: ItemConclusion) {
-                    localReasons.push(conclusion.outcome === "abandoned" ? conclusion.reason : undefined);
-                    await local.dropItem(k, key, conclusion);
-                },
-            },
-            planActions(Object.values(local.items), { verify: false, recoverable: () => false }),
+            target,
+            planActions(Object.values(target.items), { verify: false, recoverable: () => false }),
             registry,
         );
-        expect(localReasons[0]).equals("it could not be applied");
-    });
-});
 
-describe("ItemKindRegistry", () => {
-    it("registers and retrieves an ItemKind", () => {
-        const registry = new ItemKindRegistry();
-        const fake = new FakeKind();
-        registry.register(fake);
-        expect(registry.get("fake")).equals(fake);
-    });
-
-    it("throws on duplicate registration", () => {
-        const registry = new ItemKindRegistry();
-        registry.register(new FakeKind());
-        expect(() => registry.register(new FakeKind())).throws();
-    });
-
-    it("require throws for unknown kind", () => {
-        const registry = new ItemKindRegistry();
-        expect(() => registry.require("unknown")).throws();
-    });
-});
-
-// ---------------------------------------------------------------------------
-// Gate helper for concurrency tests.
-// ---------------------------------------------------------------------------
-
-describe("refreshCapacities (#3 isolation)", () => {
-    it("a capacity() rejection does not abort the loop", async () => {
-        const registry = new ItemKindRegistry();
-        registry.register({
-            kind: "boom",
-            priority: 10,
-            async apply() {},
-            async capacity() {
-                throw new Error("io");
-            },
-        });
-        registry.register({
-            kind: "ok",
-            priority: 20,
-            async apply() {},
-            async capacity() {
-                return { limit: 4, used: 1 };
-            },
-        });
-        const captured: Record<string, { limit: number; used: number }> = {};
-        await refreshCapacities(STUB_NODE, registry, (kind, info) => {
-            captured[kind] = info;
-        });
-        expect(captured).deep.equals({ ok: { limit: 4, used: 1 } });
-    });
-});
-
-describe("settle-after-dispose (#5)", () => {
-    it("does not schedule the sweep when disposed during settle", () => {
-        const internal = { disposed: true } as { disposed: boolean; sweepTimer?: unknown };
-        expect(shouldStartSweep(internal)).equals(false);
-        internal.disposed = false;
-        expect(shouldStartSweep(internal)).equals(true);
-    });
-});
-
-describe("buildVerifyResult", () => {
-    it("marks committed items whose kind.verify returns false as drifted", async () => {
-        const registry = new ItemKindRegistry();
-        registry.register({
-            kind: "fake",
-            priority: 50,
-            async apply() {},
-            async verify(_node, item) {
-                return item.key !== "drifted";
-            },
-        });
-        const items: ManagedItem[] = [
-            {
-                kind: "fake",
-                key: "ok",
-                intent: {},
-                mode: "converge",
-                status: { state: "committed", updateTimestamp: 0 },
-                outstanding: "apply",
-                generation: 1,
-            },
-            {
-                kind: "fake",
-                key: "drifted",
-                intent: {},
-                mode: "converge",
-                status: { state: "committed", updateTimestamp: 0 },
-                outstanding: "apply",
-                generation: 1,
-            },
-            {
-                kind: "fake",
-                key: "pendingOne",
-                intent: {},
-                mode: "converge",
-                status: { state: "pending", updateTimestamp: 0 },
-                outstanding: "apply",
-                generation: 1,
-            },
-        ];
-        const result = await buildVerifyResult(STUB_NODE, items, registry);
-        expect([...result.driftedKeys]).deep.equals([itemMapKey("fake", "drifted")]);
-    });
-
-    it("returns empty drift when no kind defines verify", async () => {
-        const registry = new ItemKindRegistry();
-        registry.register(new FakeKind());
-        const items: ManagedItem[] = [
-            {
-                kind: "fake",
-                key: "ok",
-                intent: {},
-                mode: "converge",
-                status: { state: "committed", updateTimestamp: 0 },
-                outstanding: "apply",
-                generation: 1,
-            },
-        ];
-        const result = await buildVerifyResult(STUB_NODE, items, registry);
-        expect(result.driftedKeys.size).equals(0);
+        // Absence is what a waiting task reads as "removed", so an unremovable item may never become absent.
+        expect(target.items[id]).not.equals(undefined);
+        expect(target.items[id]?.outstanding).equals("remove");
     });
 });

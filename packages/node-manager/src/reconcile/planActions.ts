@@ -6,7 +6,7 @@
 
 import { ManagedItem, itemMapKey } from "@matter/node";
 
-export type ReconcileAction = "apply" | "remove" | "retry" | "drop" | "skip";
+export type ReconcileAction = "apply" | "remove" | "retry" | "abandon" | "skip";
 
 export interface VerifyResult {
     driftedKeys: ReadonlySet<string>;
@@ -42,7 +42,7 @@ function actionFor(item: ManagedItem, opts: PlanOptions): ReconcileAction {
             // `CommitFailure`, which covers both — so a retry that read it alone would re-apply an item a
             // caller asked to remove, and giving up on one would forget an entry the device still holds.
             if (!opts.recoverable(item)) {
-                return "drop";
+                return "abandon";
             }
             return item.outstanding === "remove" ? "remove" : "retry";
         case "committed":

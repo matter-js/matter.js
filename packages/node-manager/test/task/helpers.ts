@@ -11,7 +11,6 @@ import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
 import { Immutable, InternalError, MaybePromise, Observable } from "@matter/general";
 import {
     ClientNode,
-    ItemConclusion,
     CommissioningClient,
     DesiredStateBehavior,
     ItemKind,
@@ -182,7 +181,7 @@ export class FakePeer {
     /** Remaining recoverable apply failures per key: each pass consumes one, then the key behaves normally. */
     readonly transientFailures = new Map<string, number>();
     readonly itemChanged = new Observable<[item: ManagedItem]>();
-    readonly itemConcluded = new Observable<[kind: string, key: string, conclusion: ItemConclusion]>();
+    readonly itemRemoved = new Observable<[kind: string, key: string]>();
     readonly subscriptionStatusChanged = new Observable<[isActive: boolean]>();
     #subscribed = true;
     reconciles = 0;
@@ -277,13 +276,13 @@ export class FakePeer {
         this.transientFailures.set(itemMapKey(kind, key), times);
     }
 
-    /** DesiredStateBehavior.dropItem stand-in: forget the item and say how the engine finished with it. */
-    dropItem(kind: string, key: string, conclusion: ItemConclusion = { outcome: "removed" }) {
+    /** DesiredStateBehavior.dropItem stand-in: the item's work is done, so it goes. */
+    dropItem(kind: string, key: string) {
         if (this.items[itemMapKey(kind, key)] === undefined) {
             return;
         }
         delete this.items[itemMapKey(kind, key)];
-        this.itemConcluded.emit(kind, key, conclusion);
+        this.itemRemoved.emit(kind, key);
     }
 
     setState(kind: string, key: string, state: ItemState, failureCode?: number) {
@@ -312,12 +311,8 @@ export class FakePeer {
                     if (recoverable(item.status.failureCode)) {
                         peer.#apply(item);
                     } else {
-                        // Mirrors the executor: giving up is a conclusion of its own, not a removal.
-                        peer.dropItem(item.kind, item.key, {
-                            outcome: "abandoned",
-                            reason: `the device rejected it with status ${item.status.failureCode}`,
-                            failureCode: item.status.failureCode,
-                        });
+                        // Mirrors the executor: an item it gives up on keeps its place and its status.
+                        break;
                     }
                     break;
                 case "deletePending":
@@ -356,7 +351,7 @@ export class FakePeer {
 
     eventsOf(type: unknown): unknown {
         return type === DesiredStateBehavior
-            ? { itemChanged: this.itemChanged, itemConcluded: this.itemConcluded }
+            ? { itemChanged: this.itemChanged, itemRemoved: this.itemRemoved }
             : { subscriptionStatusChanged: this.subscriptionStatusChanged };
     }
 

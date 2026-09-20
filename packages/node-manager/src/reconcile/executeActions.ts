@@ -6,7 +6,7 @@
 
 import { Logger } from "@matter/general";
 import type { ClientNode } from "@matter/node";
-import { ItemConclusion, ItemKindRegistry, ItemState, ManagedItem, UnknownItemKindError } from "@matter/node";
+import { ItemKindRegistry, ItemState, ManagedItem, UnknownItemKindError } from "@matter/node";
 import { Status } from "@matter/types";
 import { PlannedAction } from "./planActions.js";
 
@@ -26,8 +26,12 @@ export interface ReconcileTarget {
         state: "committed" | "commitFailed" | "pending",
         code?: number,
     ): Promise<void>;
-    /** How the engine finished with the item, which is what a caller waiting on it has to be able to read. */
-    dropItem(kind: string, key: string, conclusion: ItemConclusion): Promise<void>;
+    /**
+     * Take the item out of desired state, which now says only one thing: what it asked for is done.
+     *
+     * An item the engine gave up on keeps its place and its status instead — see the `abandon` action.
+     */
+    dropItem(kind: string, key: string): Promise<void>;
     /**
      * The item as it stands now, re-read after a slow apply.
      *
@@ -94,7 +98,7 @@ export async function executeActions(
                     if (!stillPlanned(target, item, "deletePending")) {
                         break;
                     }
-                    await target.dropItem(item.kind, item.key, { outcome: "removed" });
+                    await target.dropItem(item.kind, item.key);
                 } catch (e) {
                     if (!stillPlanned(target, item, "deletePending")) {
                         break;
@@ -103,7 +107,7 @@ export async function executeActions(
                     // The rule belongs to removal rather than to any one kind: stated per kind, a kind added
                     // later states it or reports a failure for work that is already done.
                     if (extractStatusCode(e) === Status.NotFound) {
-                        await target.dropItem(item.kind, item.key, { outcome: "removed" });
+                        await target.dropItem(item.kind, item.key);
                         break;
                     }
                     logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not be removed:`, e);
@@ -111,23 +115,20 @@ export async function executeActions(
                 }
                 break;
 
-            case "drop": {
+            case "abandon": {
                 if (!stillPlanned(target, item)) {
                     break;
                 }
-                // Only a status code says the device refused it; a local failure — an unregistered kind, a
-                // kind that threw — reaches this path with none, and naming the device for those sends an
-                // operator to the wrong place.
+                // The item stays, holding the status that says why. Deleting it would leave the device holding
+                // something desired state no longer mentions, and would make a failure indistinguishable from
+                // a removal that worked — to a caller now, and to the next start, which has only what is
+                // stored. Only a status code says the device refused it; a local failure reaches this with
+                // none, and naming the device for those sends an operator to the wrong place.
                 const reason =
                     item.status.failureCode === undefined
                         ? `it could not be ${item.outstanding === "remove" ? "removed" : "applied"}`
                         : `the device rejected it with status ${item.status.failureCode}`;
                 logger.notice(`${item.kind}:${item.key} on ${target.node.id} given up on: ${reason}`);
-                await target.dropItem(item.kind, item.key, {
-                    outcome: "abandoned",
-                    reason,
-                    failureCode: item.status.failureCode,
-                });
                 break;
             }
 

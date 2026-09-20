@@ -141,7 +141,7 @@ describe("TaskContext gates", () => {
         expect(record.state).equals("running");
     });
 
-    it("fails once its own evaluation drops the awaited item after an unrecoverable rejection", async () => {
+    it("fails once its own evaluation finds the awaited item given up on", async () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupMembership", "1", "pending");
         peer.markRejects("groupMembership", "1");
@@ -149,8 +149,6 @@ describe("TaskContext gates", () => {
 
         const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
 
-        // The message says why, not only that the intent is gone: the item's own status went with it, so the
-        // reason is the one thing a caller cannot find out for itself.
         let failure: unknown;
         try {
             await MockTime.resolve(gate);
@@ -158,11 +156,11 @@ describe("TaskContext gates", () => {
             failure = e;
         }
         expect(failure).instanceOf(TaskFailedError);
-        expect((failure as Error).message).contains("the device rejected it with status");
-        expect(peer.items[itemMapKey("groupMembership", "1")]).equals(undefined);
+        expect((failure as Error).message).contains("was refused by the device with status");
+        // The item stays, holding the status the message quotes — a caller can read it for itself, and so
+        // can the next start.
+        expect(peer.items[itemMapKey("groupMembership", "1")]?.status.state).equals("commitFailed");
         expect(record.state).does.not.equal("completed");
-        // The failure takes two reconcile passes: one to record the rejection, the next to give up on the item.
-        expect(peer.reconciles).greaterThan(1);
     });
 
     it("waits through a recoverable commit failure instead of failing the task", async () => {
@@ -237,12 +235,11 @@ describe("TaskContext gates", () => {
         const gate = ctx.awaitCommitted([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
         await expect(MockTime.resolve(gate)).rejectedWith("state write refused");
 
-        // Observers outliving the gate keep reconciling the peer for a task that is already gone. What the
-        // engine concluded is followed for the phase, not the gate, so that one goes with `close`.
+        // Observers outliving the gate keep reconciling the peer for a task that is already gone.
         expect(peer.itemChanged.isObserved).equals(false);
         expect(peer.subscriptionStatusChanged.isObserved).equals(false);
-        ctx.close();
-        expect(peer.itemConcluded.isObserved).equals(false);
+        expect(peer.itemRemoved.isObserved).equals(false);
+        expect(peer.itemRemoved.isObserved).equals(false);
     });
 
     it("fails when an awaited item is dropped while the gate is parked", async () => {
@@ -256,40 +253,43 @@ describe("TaskContext gates", () => {
         await MockTime.resolve(Promise.resolve());
 
         // A reconcile pass this gate did not drive gives up on the item and drops it.
-        peer.dropItem("groupMembership", "1", { outcome: "abandoned", reason: "the device rejected it" });
+        peer.dropItem("groupMembership", "1");
 
-        await expect(MockTime.resolve(gate)).rejectedWith(TaskFailedError, /the device rejected it/);
+        await expect(MockTime.resolve(gate)).rejectedWith(TaskFailedError);
         expect(peer.itemChanged.isObserved).equals(false);
         expect(peer.subscriptionStatusChanged.isObserved).equals(false);
-        ctx.close();
-        expect(peer.itemConcluded.isObserved).equals(false);
+        expect(peer.itemRemoved.isObserved).equals(false);
+        expect(peer.itemRemoved.isObserved).equals(false);
     });
 
-    it("resolves a parked removal gate when the reconciler drops a rejected item", async () => {
+    it("fails a parked removal gate when the engine gives up on the item", async () => {
         const peer = new FakePeer("p1");
         peer.addItem("groupMembership", "1", "pending");
         const { ctx } = makeContext(peer);
 
-        let settled = false;
-        const gate = ctx
-            .awaitGate([peer.asNode()], () => ctx.itemAbsent(peer.asNode(), kindOf("groupMembership"), "1"))
-            .then(() => (settled = true));
+        const gate = ctx.awaitRemoved([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "1" }]);
+        let outcome: unknown;
+        void gate.then(
+            () => (outcome = "resolved"),
+            e => (outcome = e),
+        );
 
         // Let the initial evaluate settle so the gate is parked on the peer's observers.
         await MockTime.resolve(Promise.resolve());
-        expect(settled).equals(false);
+        expect(outcome).equals(undefined);
 
-        // The device rejects the item unrecoverably, and a reconcile pass this gate did not drive drops it.
+        // The device rejects the item unrecoverably, and a reconcile pass this gate did not drive gives up.
         peer.markRejects("groupMembership", "1");
         await peer.reconcile(peer.asNode(), { verify: true });
 
-        // Bounded so a gate that never wakes fails here rather than hanging.
-        for (let i = 0; i < 100 && !settled; i++) {
+        for (let i = 0; i < 100 && outcome === undefined; i++) {
             await MockTime.advance(1);
         }
-        expect(settled).equals(true);
-        await MockTime.resolve(gate);
-        expect(peer.items[itemMapKey("groupMembership", "1")]).equals(undefined);
+
+        // Waiting for a removal ends in failure, not success: the item is still there and so, as far as
+        // anything here knows, is what it names on the device.
+        expect(outcome).instanceOf(TaskFailedError);
+        expect(peer.items[itemMapKey("groupMembership", "1")]?.status.state).equals("commitFailed");
     });
 
     it("does not resolve on cached committed state while a node is unreachable", async () => {
@@ -390,15 +390,14 @@ describe("a removal waited for on several peers", () => {
         );
 
         // Only A's copy is gone.
-        a.dropItem("groupMembership", "X", { outcome: "removed" });
+        a.dropItem("groupMembership", "X");
         await MockTime.advance(1);
         await MockTime.macrotask;
         expect(settled).equals(false);
 
-        b.dropItem("groupMembership", "X", { outcome: "removed" });
+        b.dropItem("groupMembership", "X");
         await MockTime.resolve(waiting);
         expect(settled).equals(true);
-        ctx.close();
     });
 
     it("blames the peer that was given up on, not another holding the same key", async () => {
@@ -421,10 +420,10 @@ describe("a removal waited for on several peers", () => {
             { peer: a.asNode(), kind, key: "X" },
             { peer: b.asNode(), kind, key: "X" },
         ]);
-        a.dropItem("groupMembership", "X", { outcome: "removed" });
-        b.dropItem("groupMembership", "X", { outcome: "abandoned", reason: "the device refused it" });
+        // A removed its copy; B's device refused, so B's item stays, saying so.
+        a.dropItem("groupMembership", "X");
+        b.setState("groupMembership", "X", "commitFailed", 0x85);
 
-        await expect(MockTime.resolve(waiting)).rejectedWith(TaskFailedError, /b.*the device refused it/);
-        ctx.close();
+        await expect(MockTime.resolve(waiting)).rejectedWith(TaskFailedError, /b.*status 133/);
     });
 });
