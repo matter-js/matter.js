@@ -6,7 +6,7 @@
 
 import { Logger } from "@matter/general";
 import type { ClientNode } from "@matter/node";
-import { ItemKindRegistry, ItemState, ManagedItem, UnknownItemKindError } from "@matter/node";
+import { ItemKindRegistry, ManagedItem } from "@matter/node";
 import { Status } from "@matter/types";
 import { PlannedAction } from "./planActions.js";
 
@@ -35,10 +35,10 @@ export interface ReconcileTarget {
     /**
      * The item as it stands now, re-read after a slow apply.
      *
-     * The whole item, not just its state: an apply yields, and `setIntent` may have replaced what is stored
-     * under this `(kind, key)` meanwhile. Writing a status then would describe the new intent by what happened
-     * to the old one. Only `setIntent` installs a new `intent` reference — a status write spreads the existing
-     * item — so the reference is what tells a replacement from a status change.
+     * The whole item, not just its state: an apply yields, and a caller may have replaced what is stored under
+     * this `(kind, key)` meanwhile. Writing a status then would describe the new intent by what happened to the
+     * old one. Only `setIntent` and `removeIntent` advance {@link ManagedItem.generation}, so that number is
+     * what tells a replacement from a status change.
      */
     currentItem(kind: string, key: string): ManagedItem | undefined;
 }
@@ -61,15 +61,11 @@ export async function executeActions(
     removes.sort((a, b) => priority(b.item, registry) - priority(a.item, registry));
 
     for (const { item, action } of [...others, ...removes]) {
-        const kind = registry.get(item.kind);
         switch (action) {
             case "apply":
             case "retry":
                 try {
-                    if (kind === undefined) {
-                        throw new UnknownItemKindError(`No item kind registered for "${item.kind}"`);
-                    }
-                    await kind.apply(target.node, item);
+                    await registry.require(item.kind).apply(target.node, item);
                     // A rollback that flipped the intent to delete during this apply must win: a status
                     // write here would resurrect the item the rollback is trying to remove.
                     if (!stillPlanned(target, item)) {
@@ -80,9 +76,9 @@ export async function executeActions(
                     if (!stillPlanned(target, item)) {
                         break;
                     }
-                    // Every apply failure, not only the one class this used to name: the status code the item
-                    // carries from here is a number, so this log is the only place the cause survives — and a
-                    // local schema refusal and a device's own status read identically once it is gone.
+                    // Every apply failure: the item carries away a status code at most, so this log is the only
+                    // place the cause survives — and a local schema refusal and a device's own status read
+                    // identically once it is gone.
                     logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, e);
                     await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
                 }
@@ -90,17 +86,18 @@ export async function executeActions(
 
             case "remove":
                 try {
-                    if (kind?.remove !== undefined) {
+                    const kind = registry.require(item.kind);
+                    if (kind.remove !== undefined) {
                         await kind.remove(target.node, item);
                     }
                     // A re-add that flipped the intent back during this remove must win: dropping here
                     // would discard the freshly re-applied intent.
-                    if (!stillPlanned(target, item, "deletePending")) {
+                    if (!stillPlanned(target, item)) {
                         break;
                     }
                     await target.dropItem(item.kind, item.key);
                 } catch (e) {
-                    if (!stillPlanned(target, item, "deletePending")) {
+                    if (!stillPlanned(target, item)) {
                         break;
                     }
                     // A device that says it does not have the thing has given the removal what it asked for.
@@ -128,7 +125,7 @@ export async function executeActions(
                     item.status.failureCode === undefined
                         ? `it could not be ${item.outstanding === "remove" ? "removed" : "applied"}`
                         : `the device rejected it with status ${item.status.failureCode}`;
-                logger.notice(`${item.kind}:${item.key} on ${target.node.id} given up on: ${reason}`);
+                logger.debug(`${item.kind}:${item.key} on ${target.node.id} given up on: ${reason}`);
                 break;
             }
 
@@ -141,15 +138,13 @@ export async function executeActions(
 /**
  * Whether the item this action was planned for is still the item stored under its `(kind, key)`.
  *
- * `requiring` names a state the plan depends on; without it any state but `deletePending` will do, since a
- * delete that arrived during the action must win over the status this action would write.
+ * Only `setIntent` and `removeIntent` advance {@link ManagedItem.generation}, so an equal generation says the
+ * intent this action was planned for is the one stored now. A status write leaves it alone, which is why a
+ * retry of a failed action still recognizes its own item.
  */
-function stillPlanned(target: ReconcileTarget, item: ManagedItem, requiring?: ItemState): boolean {
+function stillPlanned(target: ReconcileTarget, item: ManagedItem): boolean {
     const current = target.currentItem(item.kind, item.key);
-    if (current === undefined || current.generation !== item.generation) {
-        return false;
-    }
-    return requiring === undefined ? current.status.state !== "deletePending" : current.status.state === requiring;
+    return current !== undefined && current.generation === item.generation;
 }
 
 function priority(item: ManagedItem, registry: ItemKindRegistry): number {

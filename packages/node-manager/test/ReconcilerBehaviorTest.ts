@@ -296,6 +296,43 @@ describe("executeActions (failure paths)", () => {
         expect(target.items[id]?.status.state).equals("commitFailed");
     });
 
+    it("finishes a removal that is retried after a recoverable failure", async () => {
+        const kind = new FakeKind();
+        const registry = new ItemKindRegistry();
+        registry.register(kind);
+
+        // What the engine left behind when the device answered Busy: the removal still outstanding, the state
+        // carrying why. A retry has to recognize this item as the one it planned for.
+        const id = "fake:retried";
+        const target = makeTarget({ [id]: itemWithState("fake", "retried", "commitFailed", 0x82, "remove") });
+        const planned = planActions(Object.values(target.items), {
+            verify: false,
+            recoverable: item => item.status.failureCode === 0x82,
+        });
+        expect(planned[0].action).equals("remove");
+        await executeActions(target, planned, registry);
+
+        expect(kind.removed).deep.equals(["retried"]);
+        // Absence is what a waiting task reads as "removed", so a removal the device accepted must reach it.
+        expect(target.items[id]).equals(undefined);
+    });
+
+    it("fails a removal whose kind nothing registered, rather than reporting the device clean", async () => {
+        const registry = new ItemKindRegistry();
+        const id = "ghost:k1";
+        const target = makeTarget({ [id]: deletePendingItem("ghost", "k1") });
+        await executeActions(
+            target,
+            planActions(Object.values(target.items), { verify: false, recoverable: () => false }),
+            registry,
+        );
+
+        // No registered kind means nothing asked the device, so nothing was removed. Dropping the item would
+        // say the removal is done while the device still holds what it names.
+        expect(target.items[id]?.status.state).equals("commitFailed");
+        expect(target.items[id]?.outstanding).equals("remove");
+    });
+
     it("keeps an item it gave up on, holding the status that says why", async () => {
         const kind = new FakeKind();
         const registry = new ItemKindRegistry();
