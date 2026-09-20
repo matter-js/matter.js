@@ -13,7 +13,13 @@ import type {
     DeviceFlavor,
     Subject,
 } from "@matter/testing";
-import { LineQueue, LogFollower, registerControllerAdapterFactory, registerMatterJsCertSubject } from "@matter/testing";
+import {
+    LineQueue,
+    LogFollower,
+    registerCertAppPics,
+    registerControllerAdapterFactory,
+    registerMatterJsCertSubject,
+} from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import { env } from "node:process";
@@ -225,3 +231,33 @@ registerMatterJsCertSubject("all-clusters", MatterJsCertSubject(AllClustersTestI
 registerMatterJsCertSubject("bridge", MatterJsCertSubject(BridgeTestInstance));
 registerMatterJsCertSubject("ota-requestor", MatterJsCertSubject(OtaRequestorTestInstance));
 registerMatterJsCertSubject("ota-provider", MatterJsCertSubject(OtaProviderTestInstance));
+
+// BDX roles an OTA requestor takes when it downloads an image: it opens the transfer with a
+// ReceiveInit and receives the blocks. The CHIP PICS file answers these for a generic device, where
+// no app in this suite has the receiver role, so it answers 0 for every app alike. Both flavors'
+// requestors were observed in those roles by TC-BDX-1.4 and TC-BDX-2.1, which read this exchange
+// from the other side.
+const OTA_REQUESTOR_BDX_ROLES = {
+    "MCORE.BDX.Receiver": 1,
+    "MCORE.BDX.Initiator": 1,
+    "MCORE.BDX.SynchronousReceiver": 1,
+    "MCORE.BDX.Driver": 1,
+} as const;
+
+registerCertAppPics("matterjs", "ota-requestor", {
+    ...OTA_REQUESTOR_BDX_ROLES,
+
+    // Asynchronous transfer is refused outright, whichever side proposes it (`bdxSessionInitiator`).
+    "MCORE.BDX.AsynchronousReceiver": 0,
+
+    // matter.js honors an inbound BlockQueryWithSkip but never sends one, and this key asks about
+    // sending it.
+    "MCORE.BDX.BlockQueryWithSkip": 0,
+});
+
+// Only the roles, for chip's requestor: what it does with BlockQueryWithSkip and asynchronous transfer
+// has not been observed here. Note this leaves the controller's own answers standing for those keys,
+// which describe the controller rather than chip's requestor — a step gated on one of them would need
+// this app to declare it first.
+registerCertAppPics("chip-local", "ota-requestor", { ...OTA_REQUESTOR_BDX_ROLES });
+registerCertAppPics("chip-docker", "ota-requestor", { ...OTA_REQUESTOR_BDX_ROLES });

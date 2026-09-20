@@ -11,6 +11,7 @@ import { TestDescriptor, TestFileDescriptor } from "../../test-descriptor.js";
 import { delay } from "../../util/async.js";
 import { PicsExpression } from "../pics/expression.js";
 import { PicsUnavailableError, type PicsFile } from "../pics/file.js";
+import { picsWithOverrides } from "./cert-app-pics.js";
 import {
     CertDevice,
     CertStepContext,
@@ -22,8 +23,7 @@ import {
     StepRecorder,
     StepVerdict,
 } from "./cert-context.js";
-import { controllerPicsOverridesFor, UnsupportedByControllerError } from "./controller-adapter.js";
-import { resolveControllerImplementation } from "./device-config.js";
+import { UnsupportedByControllerError } from "./controller-adapter.js";
 
 const inertRecorder: StepRecorder = {
     beginStep() {},
@@ -150,9 +150,8 @@ export class CertTest extends BaseTest {
         try {
             // Inside the try: reading the subject's PICS, and resolving what the controller declares,
             // can both throw, and everything this run opened is closed by the teardown below.
-            const picsFile = resolvePicsFile(subject)?.with(
-                controllerPicsOverridesFor(resolveControllerImplementation()),
-            );
+            const subjectPics = resolvePicsFile(subject);
+            const picsFile = subjectPics && picsWithOverrides(subjectPics, this.#definition);
 
             // Provenance reporting must never be why a run that would otherwise pass its steps
             // aborts before running any of them.

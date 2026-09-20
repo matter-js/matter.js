@@ -44,6 +44,9 @@ export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js"
 export { ChipDockerDevice, HARNESS_DBUS_CONTAINER } from "./cert/chip-app-subject.js";
 /** @internal Test seam — not API. */
 export type { CompositionHandle, DockerHandle } from "./cert/chip-app-subject.js";
+export { certAppPicsOverridesFor, registerCertAppPics } from "./cert/cert-app-pics.js";
+/** @internal Test seam — not API. Registration has no other way to be undone. */
+export { unregisterCertAppPics } from "./cert/cert-app-pics.js";
 export {
     controllerPicsOverridesFor,
     registerControllerAdapterFactory,
@@ -87,6 +90,7 @@ export type {
     SubscribeEventOptions,
     SubscribeOptions,
     TimedInteractionOptions,
+    WebRtcIceCandidate,
     WebRtcRequestorApi,
     WebRtcSessionRecord,
     WebRtcSessionSpec,

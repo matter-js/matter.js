@@ -55,17 +55,33 @@ const MATTERJS_TRANSFER = [
     "2026-09-19 11:35:14.017 DEBUG MessageChannel Message » for: BDX/BlockAckEof cnt: 2 ackLen: 103 id: @1:5bfb•bd type: 0x14/0x14",
 ];
 
-const CHIP_PREFIX = "[1786133143.490] [61784:1234567:chip] [ATM] ";
+const CHIP_DMG = "[1789855480.294] [4500:4500] [DMG] ";
 
-/** chip's own lines for the two messages its receiver logs, as `LogMessage` prints them. */
-const CHIP_TRANSFER = [
-    `${CHIP_PREFIX}BlockEOF`,
-    `${CHIP_PREFIX}  Block Counter: 2`,
-    `${CHIP_PREFIX}  Data Length: 103`,
-    "[1786133143.491] [61784:1234567:chip] [BDX] Stop polling for messages",
-    `${CHIP_PREFIX}Sending BDX Message`,
-    `${CHIP_PREFIX}BlockAckEOF`,
-    `${CHIP_PREFIX}  Block Counter: 2`,
+/**
+ * chip's own dump of one BDX message, copied from a `chip-ota-requestor-app` run's log: a received
+ * Block, then the BlockQuery the requestor sent for the next one. `LogMessage` names neither.
+ */
+const CHIP_DUMP = [
+    `${CHIP_DMG}<< from UDP:[fe80::1%eth0]:44141 | 93002293 | [Bulk Data Exchange  (2) / Block (0x11) / Session = 14676 / Exchange = 53116]`,
+    `${CHIP_DMG}Header Flags =`,
+    `${CHIP_DMG}Decrypted Payload (1028 bytes) =`,
+    `${CHIP_DMG}{`,
+    `${CHIP_DMG}    data = 00000000deadbeef`,
+    `${CHIP_DMG}}`,
+    `${CHIP_DMG}Data (1028 bytes) =`,
+    `${CHIP_DMG}{`,
+    `${CHIP_DMG}    BlockCounter = 7`,
+    `${CHIP_DMG}    Data (853) = DEADBEEF`,
+    `${CHIP_DMG}}`,
+    `${CHIP_DMG}>> to UDP:[fe80::1%eth0]:44141 | 151936889 | [Bulk Data Exchange  (2) / Block Query (0x10) / Session = 58888 / Exchange = 53116]`,
+    `${CHIP_DMG}Decrypted Payload (4 bytes) =`,
+    `${CHIP_DMG}{`,
+    `${CHIP_DMG}    data = 08000000`,
+    `${CHIP_DMG}}`,
+    `${CHIP_DMG}Data =`,
+    `${CHIP_DMG}{`,
+    `${CHIP_DMG}    BlockCounter = 8`,
+    `${CHIP_DMG}}`,
 ];
 
 describe("tc-bdx-support", () => {
@@ -102,8 +118,15 @@ describe("tc-bdx-support", () => {
     });
 
     describe("messages a chip TH logged", () => {
-        it("assembles a message from the name line and the fields under it", async () => {
-            const log = await follower(CHIP_TRANSFER);
+        it("assembles the end of a transfer from the dump's two directions", async () => {
+            const log = await follower([
+                `${CHIP_DMG}<< from UDP:[fe80::1%eth0]:1 | 1 | [Bulk Data Exchange  (2) / Block End Of File (0x12) / Session = 1 / Exchange = 2]`,
+                `${CHIP_DMG}Decrypted Payload (107 bytes) =`,
+                `${CHIP_DMG}    BlockCounter = 2`,
+                `${CHIP_DMG}>> to UDP:[fe80::1%eth0]:1 | 2 | [Bulk Data Exchange  (2) / Block Ack End Of File (0x14) / Session = 1 / Exchange = 2]`,
+                `${CHIP_DMG}Decrypted Payload (4 bytes) =`,
+                `${CHIP_DMG}    BlockCounter = 2`,
+            ]);
 
             expect(blockEofReceived(log, "chip-local", 0)?.map(({ counter, length }) => [counter, length])).deep.equal([
                 [2, 103],
@@ -113,29 +136,53 @@ describe("tc-bdx-support", () => {
             ]);
         });
 
-        it("refuses a message whose fields are not where LogMessage puts them", async () => {
+        it("refuses a message whose counter the dump does not carry", async () => {
             const log = await follower([
-                `${CHIP_PREFIX}BlockEOF`,
-                "[1786133143.491] [61784:1234567:chip] [BDX] Stop polling for messages",
-                `${CHIP_PREFIX}  Block Counter: 2`,
-                `${CHIP_PREFIX}  Data Length: 103`,
+                `${CHIP_DMG}<< from UDP:[fe80::1%eth0]:1 | 1 | [Bulk Data Exchange  (2) / Block End Of File (0x12) / Session = 1 / Exchange = 2]`,
+                `${CHIP_DMG}Decrypted Payload (107 bytes) =`,
             ]);
 
             expect(blockEofReceived(log, "chip-local", 0)).deep.equal([]);
         });
 
-        it("refuses a message whose data length is missing", async () => {
-            const log = await follower([`${CHIP_PREFIX}BlockEOF`, `${CHIP_PREFIX}  Block Counter: 2`]);
+        it("does not read one message's counter as the next message's", async () => {
+            const log = await follower([
+                `${CHIP_DMG}<< from UDP:[fe80::1%eth0]:1 | 1 | [Bulk Data Exchange  (2) / Block End Of File (0x12) / Session = 1 / Exchange = 2]`,
+                `${CHIP_DMG}<< from UDP:[fe80::1%eth0]:1 | 2 | [Bulk Data Exchange  (2) / Block End Of File (0x12) / Session = 1 / Exchange = 2]`,
+                `${CHIP_DMG}Decrypted Payload (107 bytes) =`,
+                `${CHIP_DMG}    BlockCounter = 9`,
+            ]);
 
-            expect(blockEofReceived(log, "chip-local", 0)).deep.equal([]);
+            expect(blockEofReceived(log, "chip-local", 0)?.map(({ counter }) => counter)).deep.equal([9]);
         });
 
-        it("states the gap for a message chip logs nothing for", async () => {
-            const log = await follower(CHIP_TRANSFER);
+        it("reads a Block and its size out of chip's own message dump", async () => {
+            const log = await follower(CHIP_DUMP);
 
-            expect(blocksReceived(log, "chip-local", 0)).equal(undefined);
-            expect(blockQueriesSent(log, "chip-local", 0)).equal(undefined);
+            // 1028 payload bytes less the four the block counter occupies
+            expect(blocksReceived(log, "chip-local", 0)?.map(({ counter, length }) => [counter, length])).deep.equal([
+                [7, 1024],
+            ]);
+        });
 
+        it("reads a BlockQuery the receiver sent, which carries no data", async () => {
+            const log = await follower(CHIP_DUMP);
+
+            expect(blockQueriesSent(log, "chip-local", 0)?.map(({ counter, length }) => [counter, length])).deep.equal([
+                [8, undefined],
+            ]);
+        });
+
+        it("tells the two directions apart", async () => {
+            const log = await follower(CHIP_DUMP);
+
+            // The dump carries a Block the node received and a BlockQuery it sent; neither reader may
+            // take the other's message for its own
+            expect(blocksReceived(log, "chip-local", 0)).length(1);
+            expect(blockQueriesSent(log, "chip-local", 0)).length(1);
+        });
+
+        it("states the gap for a flavor with no declaration at all", async () => {
             const gap = unloggedByFlavor("a Block the TH received", "TransferSession::HandleBlock");
             expect(gap.verdict).equal("unverified");
             expect(gap.accepted).contains("TransferSession::HandleBlock");
@@ -149,6 +196,8 @@ describe("tc-bdx-support", () => {
             receiverDrive: true,
             asynchronousTransfer: false,
             maxBlockSize: 1024,
+            fileDesignator: "update-token",
+            fileDesignatorLength: 12,
         };
 
         const RECEIVER_ACCEPT: BdxTransferAccept = {
@@ -202,6 +251,8 @@ describe("tc-bdx-support", () => {
                 receiverDrive: true,
                 asynchronousTransfer: false,
                 maxBlockSize: 1024,
+                fileDesignator: "update-token",
+                fileDesignatorLength: 12,
             };
             expect(chipProposedTransferControl(proposal)).equal("0x20");
             expect(chipProposedTransferControl({ ...proposal, senderDrive: true })).equal("0x30");

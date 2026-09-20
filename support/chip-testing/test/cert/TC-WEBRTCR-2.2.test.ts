@@ -18,24 +18,30 @@ certCameraCase({
     script: "TC_WEBRTCR_2_2.py",
     subpath: "test_TC_WebRTCR_2_2",
     title: "Validate Answer command with invalid session id [DUT_Requestor]",
-    signalPrompt: /Send 'ProvideOffer' command to the server app from DUT:/,
-    signalStep: "5",
+    commissioning: "manual-code",
 
-    async prove(cx, session) {
-        // The DUT offers here rather than soliciting, so the provider answers, and it is that Answer
-        // the injected fault gives a session id the DUT never established.
-        const held = await provideOffer(session);
+    steps: [
+        {
+            prompt: /Send 'ProvideOffer' command to the server app from DUT:/,
+            step: "5",
 
-        const refusal = await expectRefusal(cx, session, "answer", held);
-        if (!refusal.passed || refusal.refusedId === undefined) {
-            // The remaining checks all rest on a refusal having happened, and each costs a wait the
-            // script's own timeout does not have room for
-            return "fail";
-        }
-        const kept = await expectSessionHeld(cx, session, held);
-        const noneAccepted = expectNoneAccepted(cx, session, "answer", refusal.refusedId);
-        const control = await expectControlAccepted(cx, session, "answer", held, provideOffer);
+            async run(cx, session) {
+                // The DUT offers here rather than soliciting, so the provider answers, and it is that Answer
+                // the injected fault gives a session id the DUT never established.
+                const held = await provideOffer(session);
 
-        return kept && noneAccepted && control ? "pass" : "fail";
-    },
+                const refusal = await expectRefusal(cx, session, "answer", held);
+                if (!refusal.passed || refusal.refusedId === undefined) {
+                    // The remaining checks all rest on a refusal having happened, and each costs a wait the
+                    // script's own timeout does not have room for
+                    return "fail";
+                }
+                const kept = await expectSessionHeld(cx, session, held);
+                const noneAccepted = expectNoneAccepted(cx, session, "answer", refusal.refusedId);
+                const control = await expectControlAccepted(cx, session, "answer", held, provideOffer);
+
+                return kept && noneAccepted && control ? "pass" : "fail";
+            },
+        },
+    ],
 });

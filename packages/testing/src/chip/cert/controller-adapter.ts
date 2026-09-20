@@ -294,6 +294,15 @@ export interface BdxTransferProposal {
 
     /** The definite length proposed, absent where the initiator proposed an indefinite transfer. */
     definiteLength?: number;
+
+    /**
+     * File designator the initiator named, as the text its bytes carry. For an OTA download it is the
+     * path out of the image URI the provider answered `QueryImage` with, `ota/<filename>`.
+     */
+    fileDesignator: string;
+
+    /** Length of that designator in bytes, which is the message's own File Designator Length field. */
+    fileDesignatorLength: number;
 }
 
 /**
@@ -350,6 +359,15 @@ export interface OtaBdxTransfer {
 
     /** Bytes the controller's BDX sender moved, counted by the sending flow itself. */
     transferredBytes: number;
+
+    /**
+     * Whether the node asked to apply what it downloaded and this provider allowed it, which is the
+     * end of the OTA exchange as far as the node is concerned.
+     *
+     * A transfer can complete without it — a node may decide the image is not for it after all — so
+     * this is reported rather than being a condition of serving.
+     */
+    applyAcknowledged: boolean;
 }
 
 /** Options for {@link CertNodeApi.serveOtaUpdate}. */
@@ -360,6 +378,17 @@ export interface ServeOtaUpdateOptions {
      * not happen is the failure a BDX case exists to catch.
      */
     timeoutMs?: number;
+
+    /**
+     * Whether the node is expected to ask to apply what it downloaded, which is the last thing it
+     * needs from the provider.
+     *
+     * Where it will not ask, waiting for it only delays the caller: chip's `ota-requestor-app` treats
+     * the download as the end of the update unless started with `--autoApplyImage`, and chip's own
+     * certification material starts it without that flag for the download cases (`Test_TC_SU_3_3`).
+     * Absent, the node is expected to ask.
+     */
+    expectApply?: boolean;
 }
 
 /**
@@ -797,6 +826,17 @@ export interface WebRtcSessionRecord {
     audioStreamId: number | null;
 }
 
+/**
+ * An ICE candidate as the provider stated it, per RFC 8839's candidate-attribute.
+ *
+ * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+ */
+export interface WebRtcIceCandidate {
+    candidate: string;
+    sdpMid: string | null;
+    sdpmLineIndex: number | null;
+}
+
 /** One signaling command the provider addressed at the controller's requestor cluster. */
 export interface WebRtcSignalRecord {
     kind: "offer" | "answer" | "iceCandidates" | "end";
@@ -816,6 +856,12 @@ export interface WebRtcSignalRecord {
 
     /** Monotonic, for ordering records against each other rather than against wall-clock time. */
     at: number;
+
+    /** The session description an accepted `offer` or `answer` carried, which a case feeds to its own peer connection. */
+    sdp?: string;
+
+    /** What an accepted `iceCandidates` carried. */
+    candidates?: readonly WebRtcIceCandidate[];
 }
 
 /**

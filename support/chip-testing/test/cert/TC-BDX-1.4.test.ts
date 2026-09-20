@@ -182,7 +182,7 @@ certTest("TC-BDX-1.4", {
             });
             commissioned.set("dut", ref);
 
-            served = await serveOtaTransfer(cx, ref);
+            served = await serveOtaTransfer(cx, ref, { sender: "dut", receiver: "th" });
         },
         {
             expected:

@@ -4,54 +4,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { CertStepContext, CheckRecord } from "@matter/testing";
+import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import type { BdxMessageRecord, BdxTransferEvidence } from "./tc-bdx-support.js";
+import type { BdxTransferEvidence } from "./tc-bdx-support.js";
 import {
     blockAckEofSent,
     blockEofReceived,
     blockQueriesSent,
     blocksReceived,
+    overMessages,
     serveOtaTransfer,
-    unloggedByFlavor,
+    transferOrFail,
 } from "./tc-bdx-support.js";
-import { CertCheckFailedError, CommissionedRefs, recordAll } from "./tc-support.js";
+import { CommissionedRefs, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
 /** The one transfer this case reads, served by the precondition step. */
 let served: BdxTransferEvidence | undefined;
 
-function transferOrFail(): BdxTransferEvidence {
-    if (served === undefined) {
-        throw new CertCheckFailedError("the precondition step served no BDX transfer for this step to read");
-    }
-    return served;
-}
-
-/** A device-log check over messages the TH logged, or the flavor's declared gap where it logs none. */
-function overMessages(
-    messages: BdxMessageRecord[] | undefined,
-    what: string,
-    source: string,
-    judge: (messages: BdxMessageRecord[]) => { ok: boolean; detail: string },
-): CheckRecord {
-    if (messages === undefined) {
-        return unloggedByFlavor(what, source);
-    }
-    const { ok, detail } = judge(messages);
-    return {
-        type: "device-log",
-        verdict: ok ? "pass" : "fail",
-        pattern: what,
-        detail,
-        matched: messages[0]?.line,
-        logLine: messages[0]?.index,
-    };
-}
-
 async function firstBlock(cx: CertStepContext) {
-    const { transfer, from } = transferOrFail();
+    const { transfer, from } = transferOrFail(served);
     const th = cx.devices.th;
     const { maxBlockSize } = transfer.accept;
 
@@ -116,7 +89,7 @@ async function firstBlock(cx: CertStepContext) {
 }
 
 async function furtherBlocks(cx: CertStepContext) {
-    const { transfer, from } = transferOrFail();
+    const { transfer, from } = transferOrFail(served);
     const th = cx.devices.th;
 
     // One `recordAll`, not a `record` each: the step claims the ordering and the size, and a per-check
@@ -162,15 +135,14 @@ async function furtherBlocks(cx: CertStepContext) {
 }
 
 async function blockEof(cx: CertStepContext) {
-    const { transfer, from } = transferOrFail();
+    const { transfer, from } = transferOrFail(served);
     const th = cx.devices.th;
     const { maxBlockSize } = transfer.accept;
 
-    // Counted from the bytes the DUT sent, so that the BlockEOF and its acknowledgement are both
-    // compared against a number neither of them supplied
-    const eofLength = blockEofReceived(th.log, th.flavor, from)?.[0]?.length ?? 0;
-    const expectedCounter = (transfer.transferredBytes - eofLength) / maxBlockSize;
-    const counterDerivation = `${expectedCounter} from ${transfer.transferredBytes} bytes transferred at ${maxBlockSize} bytes a block`;
+    // Counted from the size the sender staged, which neither of the messages under test supplies: a
+    // length read back off one of them would leave the counter on it compared against itself.
+    const expectedCounter = Math.floor(transfer.fileSize / maxBlockSize);
+    const counterDerivation = `${expectedCounter} from a ${transfer.fileSize}-byte image at ${maxBlockSize} bytes a block`;
 
     await recordAll(cx, [
         {
@@ -251,7 +223,7 @@ certTest("TC-BDX-2.1", {
             });
             commissioned.set("dut", ref);
 
-            served = await serveOtaTransfer(cx, ref);
+            served = await serveOtaTransfer(cx, ref, { sender: "dut", receiver: "th" });
         },
         {
             expected:
