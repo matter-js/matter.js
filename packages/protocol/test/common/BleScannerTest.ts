@@ -683,6 +683,101 @@ describe("BleScanner", () => {
         });
     });
 
+    describe("discoveries for one identifier", () => {
+        it("hands an advertisement to every discovery waiting for it", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const first = new Array<string>();
+            const second = new Array<string>();
+            const firstDiscovery = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => first.push(deviceIdentifier),
+            );
+            const secondDiscovery = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => second.push(deviceIdentifier),
+            );
+            await settleDiscovery();
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+
+            expect(first).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+            expect(second).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await firstDiscovery;
+            await secondDiscovery;
+        });
+
+        it("ends one discovery on its timeout and leaves the other waiting", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const candidates = new Array<string>();
+            const running = scanner.findCommissionableDevicesContinuously(
+                { shortDiscriminator: 6 },
+                ({ deviceIdentifier }) => candidates.push(deviceIdentifier),
+            );
+            const expiring = scanner.findCommissionableDevices({ shortDiscriminator: 6 }, Seconds(10));
+            await settleDiscovery();
+
+            await MockTime.advance(Seconds(11));
+            expect(await expiring).to.have.lengthOf(0);
+
+            // The discovery without a timeout still runs, and the radio still scans for it
+            expect(client.scanning).to.equal(true);
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+            await settleDiscovery();
+            expect(candidates).to.deep.equal(["aa:aa:aa:aa:aa:aa"]);
+
+            await scanner.close();
+            await running;
+        });
+
+        it("does not end a discovery when another discovery's timeout expires", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const shortWait = scanner.findCommissionableDevices({ shortDiscriminator: 6 }, Seconds(10));
+            const longWait = scanner.findCommissionableDevices({ shortDiscriminator: 6 }, Seconds(60));
+            let longWaitSettled = false;
+            const trackedLongWait = longWait.then(devices => {
+                longWaitSettled = true;
+                return devices;
+            });
+            await settleDiscovery();
+
+            await MockTime.advance(Seconds(11));
+            expect(await shortWait).to.have.lengthOf(0);
+            await settleDiscovery();
+
+            expect(longWaitSettled).to.equal(false);
+
+            client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
+
+            expect(await trackedLongWait).to.have.lengthOf(1);
+        });
+
+        it("ends every discovery for an identifier that is canceled", async () => {
+            const client = new MockBleScannerClient();
+            const scanner = new BleScanner(client);
+
+            const first = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            const second = scanner.findCommissionableDevicesContinuously({ shortDiscriminator: 6 }, () => {});
+            await settleDiscovery();
+
+            scanner.cancelCommissionableDeviceDiscovery({ shortDiscriminator: 6 });
+
+            await first;
+            await second;
+            await settleDiscovery();
+
+            expect(client.scanning).to.equal(false);
+        });
+    });
+
     describe("close", () => {
         it("settles a timeout-less continuous discovery driven by an external cancel signal", async () => {
             const client = new MockBleScannerClient();
