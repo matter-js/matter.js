@@ -92,7 +92,7 @@ export function parseFrontmatter(content: string): { frontmatter: MarkdownFrontm
 export function stripMarkdown(text: string): string {
     return (
         text
-            // Images: only the alt text survives, and it names the figure rather than describing it
+            // Images: remove the alt text too, because it names the figure rather than describing it
             .replace(/!\[[^\]]*\]\([^)]*\)\s*/g, "")
             // HTML anchor tags: <a id="..."></a> or <a id="...">text</a>
             .replace(/<a\s+[^>]*>\s*<\/a>/gi, "")
