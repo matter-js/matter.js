@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/testing
+    - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own
     - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
     - Enhancement: `CertNodeApi.serveOtaUpdate()` also reports the OTA commands the controller's own provider answered, and the new `CertNodeApi.announceOtaProvider()` announces a provider to a node without staging anything. Every `CertNodeApi` implementation must provide the new method
     - Enhancement: A certification test can give each of its devices its own app arguments, via `certTest`'s `appArgs`, and the evidence bundle records what each role was started with
