@@ -826,6 +826,17 @@ export interface WebRtcSessionRecord {
     audioStreamId: number | null;
 }
 
+/**
+ * An ICE candidate as the provider stated it, per RFC 8839's candidate-attribute.
+ *
+ * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+ */
+export interface WebRtcIceCandidate {
+    candidate: string;
+    sdpMid: string | null;
+    sdpmLineIndex: number | null;
+}
+
 /** One signaling command the provider addressed at the controller's requestor cluster. */
 export interface WebRtcSignalRecord {
     kind: "offer" | "answer" | "iceCandidates" | "end";
@@ -845,6 +856,12 @@ export interface WebRtcSignalRecord {
 
     /** Monotonic, for ordering records against each other rather than against wall-clock time. */
     at: number;
+
+    /** The session description an accepted `offer` or `answer` carried, which a case feeds to its own peer connection. */
+    sdp?: string;
+
+    /** What an accepted `iceCandidates` carried. */
+    candidates?: readonly WebRtcIceCandidate[];
 }
 
 /**

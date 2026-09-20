@@ -1536,9 +1536,19 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
         this.#fabric = fabric;
 
         const events = endpoint.eventsOf(WebRtcTransportRequestorServer);
-        this.#observers.on(events.offer, session => this.#record("offer", session.id, "accepted"));
-        this.#observers.on(events.answer, session => this.#record("answer", session.id, "accepted"));
-        this.#observers.on(events.iceCandidates, session => this.#record("iceCandidates", session.id, "accepted"));
+        this.#observers.on(events.offer, (session, request) =>
+            this.#record("offer", session.id, "accepted", { sdp: request.sdp }),
+        );
+        this.#observers.on(events.answer, (session, sdp) => this.#record("answer", session.id, "accepted", { sdp }));
+        this.#observers.on(events.iceCandidates, (session, candidates) =>
+            this.#record("iceCandidates", session.id, "accepted", {
+                candidates: candidates.map(({ candidate, sdpMid, sdpmLineIndex }) => ({
+                    candidate,
+                    sdpMid,
+                    sdpmLineIndex,
+                })),
+            }),
+        );
         this.#observers.on(events.end, session => this.#record("end", session.id, "accepted"));
         this.#observers.on(events.refused, (signal, sessionId) => this.#record(signal, sessionId, "refused"));
     }
@@ -1658,8 +1668,13 @@ class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
         return nodeId;
     }
 
-    #record(kind: WebRtcSignalRecord["kind"], sessionId: number, outcome: WebRtcSignalRecord["outcome"]) {
-        const signal: WebRtcSignalRecord = { kind, sessionId, outcome, at: Time.nowUs };
+    #record(
+        kind: WebRtcSignalRecord["kind"],
+        sessionId: number,
+        outcome: WebRtcSignalRecord["outcome"],
+        payload?: Pick<WebRtcSignalRecord, "sdp" | "candidates">,
+    ) {
+        const signal: WebRtcSignalRecord = { kind, sessionId, outcome, ...payload, at: Time.nowUs };
         this.#signals.push(signal);
 
         // These events fire inside the transaction handling the peer's command, which holds the
