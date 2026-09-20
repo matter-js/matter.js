@@ -6,7 +6,7 @@
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { Duration, Seconds } from "@matter/general";
-import { AclCapacityExceededError, DesiredStateBehavior, ItemConclusion, itemMapKey } from "@matter/node";
+import { AclCapacityExceededError, DesiredStateBehavior, itemMapKey } from "@matter/node";
 import { AccessControlServer } from "@matter/node/behaviors/access-control";
 import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { NodeId, SubjectId } from "@matter/types";
@@ -122,31 +122,27 @@ describe("Reconciler integration (single peer)", () => {
         expect(hasOurs()).equals(true);
     });
 
-    it("says how it finished with an item, so absence is never the whole answer", async () => {
+    it("keeps an item it gave up on, so absence still means the work is done", async () => {
         await using site = new MockSite();
         const { controller, device } = await controllerWithReconciler(site);
         const peer = await subscribedPeer(controller, "peer1");
 
         // An entry the device refuses for good: a subject the ACL cannot hold.
         const unusable = { ...grant, subjects: [NodeId(0n)] };
-        const concluded = new Array<ItemConclusion>();
-        peer.eventsOf(DesiredStateBehavior).itemConcluded.on((_kind, _key, conclusion) => {
-            concluded.push(conclusion);
-        });
         await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("acl", "bad", unusable, "converge"));
         await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
 
-        // Gone from desired state, and the conclusion says the engine gave up rather than that the entry was
-        // removed — the same absence, opposite meanings for the device.
-        expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "bad")]).equals(undefined);
-        expect(concluded.length).equals(1);
-        expect(concluded[0].outcome).equals("abandoned");
-        expect(concluded[0].outcome === "abandoned" && concluded[0].reason.length).greaterThan(0);
+        // It stays, carrying the status that says why. Dropping it would tell a caller reading desired state
+        // that the device is as asked, and leave nothing behind for the next start to read.
+        const failed = peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "bad")];
+        expect(failed?.status.state).equals("commitFailed");
+        expect(failed?.status.failureCode).not.equals(undefined);
 
         // Writing the intent again is new work, and it converges.
         await peer.act(agent => agent.get(DesiredStateBehavior).setIntent("acl", "bad", grant, "converge"));
         await MockTime.resolve(controller.act(agent => agent.get(ReconcilerBehavior).reconcile(peer)));
         expect(device.state.accessControl.acl.length).greaterThan(0);
+        expect(peer.stateOf(DesiredStateBehavior).items[itemMapKey("acl", "bad")]?.status.state).equals("committed");
     });
 
     it("re-pends and re-applies when the entry is removed behind the engine", async () => {

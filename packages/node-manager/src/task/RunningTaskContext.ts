@@ -5,11 +5,11 @@
  */
 
 import { ReconcilerSurface } from "#reconcile/ReconcilerSurface.js";
+import { defaultRecoverable } from "#ReconcilerBehavior.js";
 import { asError, Logger, ObserverGroup } from "@matter/general";
 import {
     ClientNode,
     DesiredStateBehavior,
-    ItemConclusion,
     ItemKind,
     itemMapKey,
     ItemMode,
@@ -74,9 +74,6 @@ export class RunningTaskContext implements TaskContext {
 
     async removeIntent(peer: ClientNode, kind: ItemKind, key: string): Promise<boolean> {
         this.#requireRegistered(kind);
-        // Before the removal is issued, or a conclusion reached before a gate starts is missed and the gate
-        // has only the item's absence to read — which is what a removal and an abandonment look like alike.
-        this.#watchConclusions(peer);
         // Nothing to remove is nothing changed: `DesiredStateBehavior.removeIntent` is a no-op for an item that
         // is not there, and recording it would give the run a change set entry that restores nothing and a
         // claim that it altered a device. The caller is told so, because an item that was never there will
@@ -193,71 +190,52 @@ export class RunningTaskContext implements TaskContext {
         const address = addressOf(peer);
         return address !== undefined && this.peerResolver(address) !== undefined;
     }
-
     /**
-     * A commit gate only ever observes success, so an intent the engine gave up on would park the task
-     * forever. Fail it into the driver's rollback path, saying which end the item reached.
+     * A commit gate only ever observes success, so an intent nothing will converge would park the task
+     * forever. Fail it into the driver's rollback path, saying which of the two happened.
      */
     #requireAwaited(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): void {
-        const gone = items.find(i => this.#itemState(i.peer, i.kind.kind, i.key) === undefined);
-        if (gone === undefined) {
-            return;
+        for (const item of items) {
+            const current = this.#itemOf(item.peer, item.kind.kind, item.key);
+            if (current === undefined) {
+                throw new TaskFailedError(
+                    `Task ${runLabel(this.record.runId)}: awaited intent ${item.kind.kind}:${item.key} on ${peerLabel(item.peer)} ` +
+                        `was removed while this run awaited it, so it can no longer commit`,
+                );
+            }
+            if (this.#abandoned(item.kind, current)) {
+                throw new TaskFailedError(
+                    `Task ${runLabel(this.record.runId)}: awaited intent ${item.kind.kind}:${item.key} on ${peerLabel(item.peer)} ` +
+                        `${this.#whyAbandoned(current)}, so it will not commit`,
+                );
+            }
         }
-        const conclusion = this.#conclusionOf(gone.peer, gone.kind.kind, gone.key);
-        // An item awaited for commit that was *removed* is as fatal as one abandoned — something else took
-        // it away — but the two say different things about the device, so the message does not guess.
-        const ending =
-            conclusion === undefined
-                ? "it is gone, and nothing said how"
-                : conclusion.outcome === "removed"
-                  ? "it was removed while this run awaited it"
-                  : conclusion.reason;
-        throw new TaskFailedError(
-            `Task ${runLabel(this.record.runId)}: awaited intent ${gone.kind.kind}:${gone.key} on ${peerLabel(gone.peer)} is gone — ` +
-                `${ending}, so it can no longer commit`,
-        );
+    }
+
+    #itemOf(peer: ClientNode, kind: string, key: string): ManagedItem | undefined {
+        return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
     }
 
     /**
-     * How the engine finished with items this phase asked about, per peer.
+     * Whether the engine has stopped working on this item.
      *
-     * Keyed by the peer as well as the item: one key names a different item on every device that holds it,
-     * and a rollback commonly removes the same group key from several peers at once. Keyed by item alone,
-     * the first device to answer would answer for all of them.
-     *
-     * Phase-scoped on purpose: a conclusion matters to whoever is waiting on that item now, and an answer
-     * kept longer would describe an intent a later run never wrote.
+     * `commitFailed` alone does not say so — a recoverable status is tried again — so the kind that owns the
+     * item answers, which is the same question the planner asks before it gives up.
      */
-    readonly #conclusions = new Map<ClientNode, Map<string, ItemConclusion>>();
-
-    #conclusionOf(peer: ClientNode, kind: string, key: string): ItemConclusion | undefined {
-        return this.#conclusions.get(peer)?.get(itemMapKey(kind, key));
-    }
-
-    /** Peers whose conclusions this context is following, with the observers doing the following. */
-    readonly #watched = new Set<ClientNode>();
-    readonly #watchers = new ObserverGroup();
-
-    #watchConclusions(peer: ClientNode) {
-        if (this.#watched.has(peer)) {
-            return;
+    #abandoned(kind: ItemKind, item: ManagedItem): boolean {
+        if (item.status.state !== "commitFailed") {
+            return false;
         }
-        this.#watched.add(peer);
-        this.#watchers.on(peer.eventsOf(DesiredStateBehavior).itemConcluded, (kind, key, conclusion) => {
-            let forPeer = this.#conclusions.get(peer);
-            if (forPeer === undefined) {
-                forPeer = new Map<string, ItemConclusion>();
-                this.#conclusions.set(peer, forPeer);
-            }
-            forPeer.set(itemMapKey(kind, key), conclusion);
-        });
+        const code = item.status.failureCode ?? 0;
+        // The planner's own question, asked the same way: a gate that answered it differently would wait for
+        // a retry nothing plans, or fail a task the engine is about to satisfy.
+        return !(this.kindNamed(kind.kind).recoverable?.(code) ?? defaultRecoverable(code));
     }
 
-    /** Stop following conclusions. The phase that asked for them has ended. */
-    close() {
-        this.#watchers.close();
-        this.#watched.clear();
-        this.#conclusions.clear();
+    #whyAbandoned(item: ManagedItem): string {
+        return item.status.failureCode === undefined
+            ? "could not be applied"
+            : `was refused by the device with status ${item.status.failureCode}`;
     }
 
     /**
@@ -269,24 +247,21 @@ export class RunningTaskContext implements TaskContext {
     async awaitRemoved(items: Array<{ peer: ClientNode; kind: ItemKind; key: string }>): Promise<void> {
         for (const item of items) {
             this.#requireRegistered(item.kind);
-            this.#watchConclusions(item.peer);
         }
         const peers = [...new Set(items.map(i => i.peer))];
         await this.awaitGate(peers, () => {
             // A peer that left took the item with it, which is the removal this was waiting for.
             const awaited = items.filter(i => this.#stillCommissioned(i.peer));
             for (const item of awaited) {
-                const conclusion = this.#conclusionOf(item.peer, item.kind.kind, item.key);
-                if (conclusion?.outcome === "abandoned") {
+                const current = this.#itemOf(item.peer, item.kind.kind, item.key);
+                if (current !== undefined && this.#abandoned(item.kind, current)) {
                     throw new TaskFailedError(
-                        `Task ${runLabel(this.record.runId)}: ${item.kind.kind}:${item.key} on ${peerLabel(item.peer)} was not removed — ` +
-                            `${conclusion.reason}, so the device may still hold it`,
+                        `Task ${runLabel(this.record.runId)}: ${item.kind.kind}:${item.key} on ${peerLabel(item.peer)} ` +
+                            `${this.#whyAbandoned(current)}, so the device may still hold it`,
                     );
                 }
             }
-            return awaited.every(
-                item => this.#conclusionOf(item.peer, item.kind.kind, item.key)?.outcome === "removed",
-            );
+            return awaited.every(item => this.#itemOf(item.peer, item.kind.kind, item.key) === undefined);
         });
     }
 
@@ -370,8 +345,7 @@ export class RunningTaskContext implements TaskContext {
                 // An item that concluded announces itself here, not on `itemChanged`: without this a gate
                 // waiting on one the engine gave up on parks with nothing left to wake it. The conclusion is
                 // recorded before the re-evaluation that reads it.
-                this.#watchConclusions(node);
-                observers.on(items.itemConcluded, recheck);
+                observers.on(items.itemRemoved, recheck);
                 observers.on(node.eventsOf(NetworkClient).subscriptionStatusChanged, recheck);
             }
             unregisterAbort = this.gate?.onAbort(recheck);

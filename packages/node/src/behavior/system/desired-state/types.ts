@@ -9,23 +9,19 @@ import { Time, Timestamp } from "@matter/general";
 /**
  * Lifecycle state of a managed item, mirroring the JFDS DatastoreStateEnum.
  *
- * What is *reported* about an item. `commitFailed` is the specification's `CommitFailure`, which says an
- * operation failed without saying which — so it is not what the engine plans from. See
- * {@link ManagedItem.outstanding} for that, and {@link ItemConclusion} for how an item ends.
+ * An item leaves desired state only when what it asked for is done: an applied item reaches `committed` and
+ * stays, a removed item goes. An item the engine gave up on keeps its place in `commitFailed`, carrying the
+ * status that says why. Deleting that one would leave the device holding something desired state no longer
+ * mentions, and would make a failure indistinguishable from a removal that worked — to a caller now, and to
+ * the next start, which has only what is stored.
+ *
+ * `commitFailed` is the specification's `CommitFailure`, which says an operation failed without saying which.
+ * See {@link ManagedItem.outstanding} for that.
  */
 export type ItemState = "pending" | "committed" | "deletePending" | "commitFailed";
 
 /** The operation an item is waiting for the engine to carry out. */
 export type ItemOperation = "apply" | "remove";
-
-/**
- * How the engine finished with an item, stated rather than inferred.
- *
- * An item that reaches `committed` concluded by being applied. The other two ends both take the item out of
- * desired state, and a caller has to tell them apart: `removed` is the removal a caller asked for, while
- * `abandoned` is the engine giving up, which leaves the device holding whatever it holds.
- */
-export type ItemConclusion = { outcome: "removed" } | { outcome: "abandoned"; reason: string; failureCode?: number };
 
 /** Whether an item is pushed once (`converge`) or continuously enforced (`maintain`). */
 export type ItemMode = "converge" | "maintain";

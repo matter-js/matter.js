@@ -5,12 +5,15 @@
  */
 
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
+import { TaskFailedError } from "#task/errors.js";
+import { RunningTaskContext } from "#task/RunningTaskContext.js";
+import { RunRecord } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId } from "#task/types.js";
 import { ClientNode, ServerNode } from "@matter/node";
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import { PeerAddress } from "@matter/protocol";
-import { FakePeer, pumpUntil } from "./helpers.js";
+import { FakePeer, kindOf, pumpUntil } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -72,5 +75,30 @@ describe("the startup resume pass", () => {
         await pumpUntil("the stored rollback finishes", async () =>
             node.act(a => a.get(TestTaskManager).get(RunId(5))?.status.state === "completed"),
         );
+    });
+
+    it("still knows a removal failed after a restart", async () => {
+        await using site = new MockSite();
+        const peer = new FakePeer("stuck");
+        TestTaskManager.peers.set("stuck", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        // What the engine leaves behind when it gives up: the item in place, carrying the device's status.
+        // Nothing in memory survives a restart, so this is all a resumed run has to go on.
+        const node = await site.addNode(RootEndpoint, { id: "stuck-removal", index: 2 });
+        peer.addItem("groupMembership", "X", "commitFailed");
+        peer.setState("groupMembership", "X", "commitFailed", 0x85);
+
+        const record = new RunRecord(RunId(9), "stuck:1", "stuck", {});
+        const ctx = new RunningTaskContext(
+            record,
+            () => peer.asNode(),
+            peer,
+            () => {},
+        );
+        await expect(
+            MockTime.resolve(ctx.awaitRemoved([{ peer: peer.asNode(), kind: kindOf("groupMembership"), key: "X" }])),
+        ).rejectedWith(TaskFailedError, /status 133/);
+        await MockTime.resolve(node.close(), { macrotasks: true });
     });
 });

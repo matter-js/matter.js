@@ -36,13 +36,13 @@ describe("planActions", () => {
         expect(result.map(r => r.action)).deep.equals(["apply", "remove"]);
     });
 
-    it("retries recoverable commitFailed and drops unrecoverable", () => {
+    it("retries a recoverable failure and gives up on an unrecoverable one", () => {
         const recoverable = (i: ManagedItem) => i.key === "ok";
         const result = planActions([item("acl", "ok", "commitFailed"), item("acl", "bad", "commitFailed")], {
             verify: false,
             recoverable,
         });
-        expect(result.map(r => r.action)).deep.equals(["retry", "drop"]);
+        expect(result.map(r => r.action)).deep.equals(["retry", "abandon"]);
     });
 
     it("skips committed items on a cheap pass", () => {
@@ -91,6 +91,6 @@ describe("planActions after a failure", () => {
     it("gives up on either one the same way", () => {
         const failedRemoval = { ...item("k", "2", "commitFailed"), outstanding: "remove" as const };
         const planned = planActions([failedRemoval], { verify: false, recoverable: recoverableNone });
-        expect(planned[0].action).equals("drop");
+        expect(planned[0].action).equals("abandon");
     });
 });

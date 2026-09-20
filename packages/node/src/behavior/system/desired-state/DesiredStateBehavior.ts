@@ -10,7 +10,7 @@ import { Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { assertCapacity, CapacityCache } from "./capacity.js";
 import type { CapacityInfo } from "./ItemKind.js";
-import { ItemConclusion, itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
+import { itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
 
 /**
  * Per-ClientNode store of intended state. Holds persisted {@link ManagedItem}s and a volatile
@@ -79,19 +79,19 @@ export class DesiredStateBehavior extends Behavior {
     }
 
     /**
-     * Take an item out of desired state, saying how the engine finished with it.
+     * Take an item out of desired state, which says that what it asked for is done.
      *
-     * The conclusion is the point: a caller waiting on this item cannot tell a removal it asked for from an
-     * abandonment by the item's absence, and the two mean opposite things about what the device holds.
+     * The only meaning absence carries. An item the engine gave up on stays, in `commitFailed` — see
+     * {@link ItemState} — so nothing has to infer from a missing item what became of it.
      */
-    dropItem(kind: string, key: string, conclusion: ItemConclusion): void {
+    dropItem(kind: string, key: string): void {
         const id = itemMapKey(kind, key);
         if (this.state.items[id] === undefined) {
             return;
         }
         const { [id]: _removed, ...rest } = this.state.items;
         this.state.items = rest;
-        this.events.itemConcluded.emit(kind, key, conclusion);
+        this.events.itemRemoved.emit(kind, key);
     }
 
     getItem(kind: string, key: string): ManagedItem | undefined {
@@ -127,6 +127,6 @@ export namespace DesiredStateBehavior {
 
     export class Events extends BaseEvents {
         itemChanged = new Observable<[item: ManagedItem]>();
-        itemConcluded = new Observable<[kind: string, key: string, conclusion: ItemConclusion]>();
+        itemRemoved = new Observable<[kind: string, key: string]>();
     }
 }

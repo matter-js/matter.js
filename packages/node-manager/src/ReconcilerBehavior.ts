@@ -26,7 +26,8 @@ import { Status } from "@matter/types";
 
 const logger = Logger.get("Reconciler");
 
-function defaultRecoverable(code: number): boolean {
+/** Whether a device status is worth trying again when the kind itself does not say. */
+export function defaultRecoverable(code: number): boolean {
     return code === Status.Timeout || code === Status.Busy;
 }
 
@@ -258,10 +259,8 @@ export class ReconcilerBehavior extends Behavior {
                     peer.act(agent => agent.get(DesiredStateBehavior).updateStatus(kind, key, state, code)),
                 );
             },
-            dropItem: (kind, key, conclusion) => {
-                return Promise.resolve(
-                    peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key, conclusion)),
-                );
+            dropItem: (kind, key) => {
+                return Promise.resolve(peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key)));
             },
             currentItem(kind, key) {
                 return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
