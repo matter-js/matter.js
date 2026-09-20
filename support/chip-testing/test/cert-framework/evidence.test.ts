@@ -532,6 +532,50 @@ describe("EvidenceRecorder", () => {
         expect(resultJson.picsSkips).equal(1);
     });
 
+    it("records how many steps were skipped for costing minutes of real time", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SU-3.2",
+            plan: "softwareupdate.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            devices: [{ role: "th", app: "ota-requestor", flavor: "chip-local" }],
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.endStep(step2, "skipped", "the TH waits out three minutes; set MATTER_CERT_LONG_RUNNING=1 to run it");
+        recorder.recordLongRunningSkips(1);
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.longRunningSkips).equal(1);
+    });
+
+    // A bundle carrying no count covers the whole plan, so the field must be absent rather than zero
+    it("omits the long-running skip count when no step was skipped that way", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SU-3.2",
+            plan: "softwareupdate.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            devices: [{ role: "th", app: "ota-requestor", flavor: "chip-local" }],
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect("longRunningSkips" in resultJson).equal(false);
+    });
+
     it("omits the PICS-skip count when every step's PICS was met", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-ACT-3.2",

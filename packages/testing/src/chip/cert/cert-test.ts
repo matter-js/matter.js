@@ -500,16 +500,16 @@ function currentFlavor(devices: Record<string, CertDevice>): DeviceFlavor | unde
     return Object.values(devices)[0]?.flavor;
 }
 
-/**
- * A malformed step PICS expression, evaluated against a PICS file that *is* available, is a step-level
- * failure — unlike a missing PICS file (see {@link resolvePicsFile}), the expression itself is broken.
- */
 /** Whether this run asked for the steps that cost minutes of real time. */
 export function longRunningEnabled() {
     const value = env.MATTER_CERT_LONG_RUNNING;
     return value !== undefined && value !== "" && value !== "0" && value.toLowerCase() !== "false";
 }
 
+/**
+ * A malformed step PICS expression, evaluated against a PICS file that *is* available, is a step-level
+ * failure — unlike a missing PICS file (see {@link resolvePicsFile}), the expression itself is broken.
+ */
 function stepPicsMet(stepDef: CertStepDefinition, picsFile: PicsFile | undefined): boolean {
     if (stepDef.pics === undefined || !picsFile) {
         return true;

@@ -2303,6 +2303,93 @@ describe("CertTest", () => {
         expect(banners).to.include("TC-CADMIN-1.17 — 2 steps skipped by their own PICS");
     });
 
+    async function runLongRunning(enabled: boolean) {
+        const previous = process.env.MATTER_CERT_LONG_RUNNING;
+        if (enabled) {
+            process.env.MATTER_CERT_LONG_RUNNING = "1";
+        } else {
+            delete process.env.MATTER_CERT_LONG_RUNNING;
+        }
+
+        const ran = new Array<number | string>();
+        const definition: CertTestDefinition = {
+            tc: "TC-SU-3.2",
+            plan: "softwareupdate.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step costing minutes",
+                    longRunning: "the TH waits out three minutes",
+                    run: async () => {
+                        ran.push(1);
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Ordinary step",
+                    run: async () => {
+                        ran.push(2);
+                    },
+                },
+            ],
+        };
+
+        const deviceLog = new LogFollower(noLines(), "device");
+        const longRunningSkips = new Array<number>();
+        const endStepVerdicts = new Array<{ number: number | string; verdict: StepVerdict; reason?: string }>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: { th: { ...stubCertDevice(new Promise<DeviceExitInfo>(() => {})), log: deviceLog } },
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepVerdicts.push({ number: step.number, verdict, reason: skipReason });
+                    return [];
+                },
+                recordLongRunningSkips(count) {
+                    longRunningSkips.push(count);
+                },
+            }),
+        };
+
+        const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+        try {
+            await test.invoke(stubSubject(new PicsFile([])), () => {}, [], false);
+        } finally {
+            // Captured and put back rather than deleted: it may have been set before this ran
+            if (previous === undefined) {
+                delete process.env.MATTER_CERT_LONG_RUNNING;
+            } else {
+                process.env.MATTER_CERT_LONG_RUNNING = previous;
+            }
+        }
+
+        const banners = deviceLog.lines.filter(line => line.synthetic).map(line => line.text);
+        return { ran, longRunningSkips, endStepVerdicts, banners };
+    }
+
+    // Such a step costs minutes of real time on a flavor the harness cannot speed up, so every push
+    // would pay for it; the count is what tells a reader of the bundle that the run covered less
+    it("skips a long-running step, and counts it, when the run did not ask for one", async () => {
+        const { ran, longRunningSkips, endStepVerdicts, banners } = await runLongRunning(false);
+
+        expect(ran).deep.equal([2]);
+        expect(longRunningSkips).deep.equal([1]);
+        expect(endStepVerdicts[0].verdict).equal("skipped");
+        expect(endStepVerdicts[0].reason).contains("the TH waits out three minutes");
+        expect(endStepVerdicts[0].reason).contains("MATTER_CERT_LONG_RUNNING=1");
+        expect(banners).to.include("TC-SU-3.2 — 1 step skipped for costing minutes on this flavor");
+    });
+
+    it("runs it, and counts nothing, when the run asked for it", async () => {
+        const { ran, longRunningSkips, endStepVerdicts } = await runLongRunning(true);
+
+        expect(ran).deep.equal([1, 2]);
+        expect(longRunningSkips).deep.equal([]);
+        expect(endStepVerdicts.map(entry => entry.verdict)).deep.equal(["pass", "pass"]);
+    });
+
     it("reports no PICS-skip count for a run whose steps all ran", async () => {
         const definition: CertTestDefinition = {
             tc: "TC-CADMIN-1.17",

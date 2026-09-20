@@ -11,6 +11,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/protocol
+    - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 - @matter/node
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
 - @matter/testing
