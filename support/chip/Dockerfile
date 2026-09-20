@@ -228,6 +228,13 @@ COPY --from=source /connectedhomeip/src/app/ota_image_tool.py /src/app/ota_image
 COPY --from=source /connectedhomeip/credentials/development/paa-root-certs /credentials/development/paa-root-certs
 COPY --from=source /connectedhomeip/credentials/development/cd-certs /credentials/development/cd-certs
 
+# Attestation revocation test vectors: a revocation case starts the test app with one of the DAC
+# providers and gives the commissioner the revocation set naming those certificates
+COPY --from=source /connectedhomeip/credentials/test/revoked-attestation-certificates/dac-provider-test-vectors \
+    /credentials/test/revoked-attestation-certificates/dac-provider-test-vectors
+COPY --from=source /connectedhomeip/credentials/test/revoked-attestation-certificates/revocation-sets \
+    /credentials/test/revoked-attestation-certificates/revocation-sets
+
 # Idempotent: the media packages above pull in dbus, whose own install creates this directory
 RUN mkdir -p /run/dbus
 
