@@ -75,6 +75,11 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
         ];
     },
 
+    // Everything this run does is on that one peer, so there is nothing left to provision.
+    survivesWithout() {
+        return false;
+    },
+
     plannedChanges(p) {
         return [
             { peer: p.peer, kind: GroupKey, key: String(p.groupKeySetId), intent: keySet(p) },

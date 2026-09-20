@@ -42,6 +42,12 @@ export const RemoveNodeFromGroup: TaskDefinition<RemoveNodeFromGroupParams> = {
         return `${REMOVE_NODE_FROM_GROUP_TYPE}:${addressLabel(p.peer)}:${p.groupId}:${p.endpoint}`;
     },
 
+    // A departed peer's intents are erased with the node, which is this task's whole purpose; what remains
+    // is the shared items it may free, and those are on the controller's side of the fabric.
+    survivesWithout() {
+        return true;
+    },
+
     phases(params) {
         return [{ name: "remove", run: ctx => remove(ctx, params) }];
     },

@@ -260,9 +260,95 @@ export class TaskManagerBehavior extends Behavior {
         } else {
             this.reactTo(this.#rootNode.lifecycle.online, this.#resumePersisted);
         }
+        this.reactTo(this.#rootNode.peers.deleted, this.#reviewDepartedPeers);
+    }
+
+    /**
+     * Settle every run that names a peer which is no longer on the fabric.
+     *
+     * A peer address names one device only while that device is commissioned. A run that goes on holding one
+     * after the peer is gone holds a name a later commissioning may give to a different device — so no run may
+     * outlive the registration of a peer it names, and the ones that can carry on say so themselves.
+     *
+     * Keyed on what no longer resolves rather than on the node the event carries: a deleted node has already
+     * given up its address by the time this runs, and a restart has no event at all — the same sweep answers
+     * for a peer that left while this process was not running.
+     */
+    async #reviewDepartedPeers(): Promise<void> {
+        for (const record of this.internal.runs.unfinished) {
+            let bound;
+            try {
+                bound = this.#boundFor(record, this.internal.runs.executionOf(record.runId));
+            } catch (e) {
+                // A record this build cannot rebuild cannot be asked, and it cannot be driven either. The
+                // resume pass already ends those; leave it to say why.
+                logger.debug(`Cannot ask ${runLabel(record.runId)} what a peer's departure means for it`, e);
+                continue;
+            }
+            for (const address of this.#departedPeersOf(record, bound)) {
+                await this.#departed(record, bound, address);
+            }
+        }
+    }
+
+    /** The peers a run names — through what it changed, or through what it said it would change — that are gone. */
+    #departedPeersOf(record: RunRecord, bound: BoundDefinition): PeerAddress[] {
+        const named = [...record.changeSet.map(entry => entry.peer), ...bound.plannedChanges().map(c => c.peer)];
+        const departed = new Array<PeerAddress>();
+        for (const address of named) {
+            if (this.resolvePeerNode(address) === undefined && !departed.some(a => PeerAddress.is(a, address))) {
+                departed.push(address);
+            }
+        }
+        return departed;
+    }
+
+    /**
+     * Settle one run's business with a peer that has left.
+     *
+     * Its priors for that peer go either way: an intent is erased with the node that held it, so nothing can
+     * replay them, and a change set kept for a peer that cannot be restored pins a record history can never
+     * forget.
+     */
+    async #departed(record: RunRecord, bound: BoundDefinition, address: PeerAddress): Promise<void> {
+        const changeSet = record.changeSet.filter(entry => !PeerAddress.is(entry.peer, address));
+        if (bound.survivesWithout(address)) {
+            if (changeSet.length !== record.changeSet.length) {
+                await this.#commit({ record, next: { changeSet } });
+            }
+            // A gate parked on that peer waits on events the node can no longer emit.
+            this.internal.runs.executionOf(record.runId)?.gate.wake.emit();
+            return;
+        }
+        logger.notice(
+            `${runLabel(record.runId)} ends: ${addressLabel(address)} left the fabric and ${record.type} cannot continue without it`,
+        );
+        const execution = this.internal.runs.executionOf(record.runId);
+        if (execution === undefined) {
+            // Nothing is driving it, so this has to do what the driver's failure path would.
+            await this.#commitRetiring({
+                record,
+                next: {
+                    state: "failed",
+                    error: `${addressLabel(address)} left the fabric`,
+                    retireSeq: this.internal.runs.nextRetirement(record),
+                    changeSet,
+                },
+                drop: RETIRE,
+            });
+            this.internal.runs.commitRetirement(record);
+            return;
+        }
+        // Driven: the driver owns the outcome, so it is aborted and its own failure path records it — which
+        // is also what spawns the rollback for what the run changed on peers that are still here.
+        execution.abort(new TaskFailedError(`${addressLabel(address)} left the fabric`));
+        execution.gate.wake.emit();
     }
 
     #resumePersisted(): void {
+        this.#reviewDepartedPeers().catch(e =>
+            logger.error("Cannot settle runs naming peers that are no longer on the fabric", e),
+        );
         for (const type of new Set(this.#resumable.map(r => r.type))) {
             this.#resumeType(type);
         }

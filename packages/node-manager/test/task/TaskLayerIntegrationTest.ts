@@ -101,6 +101,12 @@ interface FanOutParams {
 const FanOut: TaskDefinition<FanOutParams> = {
     type: "fanOut",
     slotKeyFor: params => `fanOut:${params.tag}`,
+
+    // Provisioning several peers is still worth doing for the ones that remain.
+    survivesWithout: () => true,
+
+    plannedChanges: params =>
+        params.peers.map(peer => ({ peer, kind: GroupMembership, key: `${GROUP}:${LOCAL_EP}`, intent: {} })),
     phases(params) {
         return [
             {
@@ -355,6 +361,50 @@ describe("task layer against commissioned nodes", () => {
             unknown = e;
         }
         expect(unknown).instanceOf(TaskNotFoundError);
+    });
+
+    it("ends a run whose work was only for a peer that left the fabric", async () => {
+        await using site = new MockSite();
+        const { controller, peerA } = await twoDevices(site);
+        const address = addressOfNode(peerA);
+        const slot = `addNodeToGroup:${addressLabel(address)}:${GROUP}:${LOCAL_EP}`;
+
+        // Park the run so it is still in flight when its only peer goes.
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(address)));
+        await awaitState(controller, slot, "parked");
+
+        await MockTime.resolve(peerA.delete(), { macrotasks: true });
+
+        // Provisioning one node is pointless once that node is gone, and the task says so itself.
+        await awaitState(controller, slot, "failed");
+        const record = await controller.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, slot));
+        expect(record?.error).contains("left the fabric");
+        // Its target is free again, and nothing it recorded still names the departed peer — an entry naming
+        // one could never be replayed, and would pin the record against the history limit forever.
+        expect(await controller.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(0);
+        expect(record?.changeSet.some(entry => PeerAddress.is(entry.peer, address))).equals(false);
+    });
+
+    it("carries on with the peers that remain when the work is not about the one that left", async () => {
+        await using site = new MockSite();
+        const { controller, deviceB, peerA, peerB } = await twoDevices(site);
+
+        // One run over both devices; A goes while it is parked waiting for A to come back.
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
+        const handle = await controller.act(a =>
+            a
+                .get(TaskManagerBehavior)
+                .run(FanOut, { tag: "survives", peers: [addressOfNode(peerB), addressOfNode(peerA)] }),
+        );
+        await awaitState(controller, "fanOut:survives", "parked", "running");
+
+        await MockTime.resolve(peerA.delete(), { macrotasks: true });
+
+        // The work still makes sense for B, so it finishes rather than failing with A.
+        await awaitState(controller, "fanOut:survives", "completed");
+        expect(handle.status.state).equals("completed");
+        expect(isMember(deviceB)).equals(true);
     });
 
     it("answers what starting a task would do while another run holds its target", async () => {

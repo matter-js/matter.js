@@ -82,6 +82,12 @@ export const RotateGroupKey: TaskDefinition<RotateGroupKeyParams> = {
     notRollbackableReason:
         "a realized group-key rotation is forward-only — rotate to a new key instead of rolling back",
 
+    // The rotation covers a key set, not a node. A member that leaves takes its copy of the key with it, and
+    // the members that remain still need the new one.
+    survivesWithout() {
+        return true;
+    },
+
     phases(params) {
         return [
             {
