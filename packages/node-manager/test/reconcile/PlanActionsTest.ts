@@ -20,6 +20,7 @@ function item(
         mode,
         status: { state, updateTimestamp: 0 },
         outstanding: state === "deletePending" ? "remove" : "apply",
+        generation: 1,
     };
 }
 

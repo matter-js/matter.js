@@ -85,6 +85,7 @@ function item(g: GroupKeyGrant): ManagedItem<GroupKeyGrant> {
         mode: "converge",
         status: { state: "pending", updateTimestamp: 0 },
         outstanding: "apply",
+        generation: 1,
     };
 }
 
@@ -210,6 +211,7 @@ function mapItem(groupId: number, groupKeySetId: number, state: ItemState = "com
         mode: "converge",
         status: { state, updateTimestamp: 0 },
         outstanding: state === "deletePending" ? "remove" : "apply",
+        generation: 1,
     };
 }
 

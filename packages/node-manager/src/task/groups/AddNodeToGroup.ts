@@ -49,7 +49,7 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
     validate(params) {
         Require.params(ADD_NODE_TO_GROUP_TYPE, params);
         Require.peer("peer", params.peer);
-        Require.uint("endpoint", params.endpoint, 0xffff);
+        Require.endpoint("endpoint", params.endpoint);
         Require.id("groupId", params.groupId, 0xffff);
         Require.id("groupKeySetId", params.groupKeySetId, 0xffff);
         Require.oneOf("groupKeySecurityPolicy", params.groupKeySecurityPolicy, SECURITY_POLICIES);

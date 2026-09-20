@@ -145,7 +145,7 @@ export async function executeActions(
  */
 function stillPlanned(target: ReconcileTarget, item: ManagedItem, requiring?: ItemState): boolean {
     const current = target.currentItem(item.kind, item.key);
-    if (current === undefined || current.intent !== item.intent) {
+    if (current === undefined || current.generation !== item.generation) {
         return false;
     }
     return requiring === undefined ? current.status.state !== "deletePending" : current.status.state === requiring;

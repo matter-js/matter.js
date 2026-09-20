@@ -51,6 +51,16 @@ export interface ManagedItem<I = unknown> {
      * caller asked to remove.
      */
     outstanding: ItemOperation;
+
+    /**
+     * Counts every intent written for this `(kind, key)`, so a slow operation can tell whether the item it
+     * was working on is still the one stored.
+     *
+     * An identity of its own rather than the intent value: an intent may be a primitive, and a caller may
+     * write the same object twice, so comparing what was written cannot tell a replacement from the original.
+     * A status write leaves it alone — only a new intent, or a removal, is a new thing to converge.
+     */
+    generation: number;
 }
 
 export function newStatus(state: ItemState, failureCode?: number): StatusEntry {

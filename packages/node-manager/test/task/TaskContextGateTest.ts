@@ -11,6 +11,7 @@ import { TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { Observable } from "@matter/general";
 import { ClientNode, itemMapKey } from "@matter/node";
+import { PeerAddress } from "@matter/protocol";
 import { kindOf, FakePeer } from "./helpers.js";
 
 const GateTask: TaskDefinition = {
@@ -349,11 +350,81 @@ describe("what a gate counts as reachable", () => {
                 key: "X",
                 intent: {},
                 outstanding: "apply",
+                generation: 1,
                 mode: "converge",
                 status: { state: "committed", updateTimestamp: 0 },
             });
             await MockTime.advance(1);
             void gate.catch(() => {});
         }
+    });
+});
+
+describe("a removal waited for on several peers", () => {
+    // One key names a different item on every device that holds it. A rollback removes the same group key
+    // from every member at once, so one device answering must not answer for the rest.
+    it("waits for each peer to remove its own copy", async () => {
+        const a = new FakePeer("a");
+        const b = new FakePeer("b");
+        a.addItem("groupMembership", "X", "committed");
+        b.addItem("groupMembership", "X", "committed");
+        const record = new RunRecord(RunId(1), "gate-test:1", GateTask.type, {});
+        const ctx = new RunningTaskContext(
+            record,
+            address => [a, b].find(p => PeerAddress.is(p.address, address))?.asNode(),
+            a,
+            () => {},
+            undefined,
+            () => [a.asNode(), b.asNode()],
+        );
+
+        const kind = kindOf("groupMembership");
+        const waiting = ctx.awaitRemoved([
+            { peer: a.asNode(), kind, key: "X" },
+            { peer: b.asNode(), kind, key: "X" },
+        ]);
+        let settled = false;
+        void waiting.then(
+            () => (settled = true),
+            () => (settled = true),
+        );
+
+        // Only A's copy is gone.
+        a.dropItem("groupMembership", "X", { outcome: "removed" });
+        await MockTime.advance(1);
+        await MockTime.macrotask;
+        expect(settled).equals(false);
+
+        b.dropItem("groupMembership", "X", { outcome: "removed" });
+        await MockTime.resolve(waiting);
+        expect(settled).equals(true);
+        ctx.close();
+    });
+
+    it("blames the peer that was given up on, not another holding the same key", async () => {
+        const a = new FakePeer("a");
+        const b = new FakePeer("b");
+        a.addItem("groupMembership", "X", "committed");
+        b.addItem("groupMembership", "X", "committed");
+        const record = new RunRecord(RunId(1), "gate-test:1", GateTask.type, {});
+        const ctx = new RunningTaskContext(
+            record,
+            address => [a, b].find(p => PeerAddress.is(p.address, address))?.asNode(),
+            a,
+            () => {},
+            undefined,
+            () => [a.asNode(), b.asNode()],
+        );
+
+        const kind = kindOf("groupMembership");
+        const waiting = ctx.awaitRemoved([
+            { peer: a.asNode(), kind, key: "X" },
+            { peer: b.asNode(), kind, key: "X" },
+        ]);
+        a.dropItem("groupMembership", "X", { outcome: "removed" });
+        b.dropItem("groupMembership", "X", { outcome: "abandoned", reason: "the device refused it" });
+
+        await expect(MockTime.resolve(waiting)).rejectedWith(TaskFailedError, /b.*the device refused it/);
+        ctx.close();
     });
 });

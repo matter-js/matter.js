@@ -200,6 +200,16 @@ describe("what a parameter check refuses", () => {
         );
     });
 
+    it("refuses the wildcard endpoint, which names no endpoint at all", () => {
+        for (const definition of [AddNodeToGroup, RemoveNodeFromGroup] as const) {
+            expect(() => definition.validate?.({ ...ADD, ...REMOVE, endpoint: 0xffff } as never)).throws(
+                ImplementationError,
+                /"endpoint" must be an integer in 0\.\.65534/,
+            );
+            expect(() => definition.validate?.({ ...ADD, ...REMOVE, endpoint: 0xfffe } as never)).not.throws();
+        }
+    });
+
     it("refuses a group name carrying an information separator", () => {
         // A conformant encoder refuses it far from the caller that supplied it, so this one refuses it here.
         expect(() => AddNodeToGroup.validate?.({ ...ADD, groupName: "kitchen\u001flights" })).throws(
@@ -215,8 +225,15 @@ describe("what a parameter check refuses", () => {
         );
         expect(() => AddNodeToGroup.validate?.({ ...ADD, peer: { fabricIndex: 1, nodeId: 0n } as never })).throws(
             ImplementationError,
-            /must not be the unspecified node id/,
+            /must be an operational node id/,
         );
+        // A uint64 in a reserved range is not an address either: no commissioned peer answers to a
+        // CASE-authenticated tag or a PAKE subject, so a run naming one would hold a target forever.
+        for (const reserved of [0xfffffffd00000001n, 0xfffffffe00000001n, 0xfffffffb00000001n]) {
+            expect(() =>
+                AddNodeToGroup.validate?.({ ...ADD, peer: { fabricIndex: 1, nodeId: reserved } as never }),
+            ).throws(ImplementationError, /must be an operational node id/);
+        }
     });
 
     it("refuses a group address for work that drives one peer", () => {
