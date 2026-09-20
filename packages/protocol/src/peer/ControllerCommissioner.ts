@@ -120,6 +120,7 @@ export const DEFAULT_CASE_CONNECTION_TIMEOUT = Seconds(255);
  * Configuration for commissioning a previously discovered node.
  */
 export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
+    /** Addresses of the one node to commission, which are raced against each other. */
     addresses: ServerAddress[];
     discoveryData?: DiscoveryData;
 

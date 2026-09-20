@@ -89,8 +89,10 @@ async function startScanning(scanner: BleScanner) {
     const discovery = scanner.findCommissionableDevicesContinuously({ productId: 1 }, () => {});
     await settleDiscovery();
     return async () => {
-        await scanner.close();
+        // Ends the scan and leaves the scanner usable, unlike close()
+        scanner.cancelCommissionableDeviceDiscovery({ productId: 1 });
         await discovery;
+        await settleDiscovery();
     };
 }
 
@@ -254,6 +256,7 @@ describe("BleScanner", () => {
 
             expect(candidates).to.have.lengthOf(0);
 
+            await scanner.close();
             await discovery;
         });
 
@@ -261,10 +264,14 @@ describe("BleScanner", () => {
             const client = new MockBleScannerClient();
             const scanner = new BleScanner(client);
 
+            const stopScanning = await startScanning(scanner);
             client.discover("aa:aa:aa:aa:aa:aa", SERVICE_DATA_A);
             await MockTime.advance(Seconds(61));
+            expect(scanner.getDiscoveredCommissionableDevices({ shortDiscriminator: 6 })).to.have.lengthOf(0);
 
             expect(scanner.getDiscoveredDevice("aa:aa:aa:aa:aa:aa")).to.exist;
+
+            await stopScanning();
         });
 
         it("stops offering a peripheral that goes stale while a discovery runs", async () => {
