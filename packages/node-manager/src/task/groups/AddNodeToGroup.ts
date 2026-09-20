@@ -5,12 +5,13 @@
  */
 
 import { Bytes } from "@matter/general";
+import type { ClientNode } from "@matter/node";
 import { PeerAddress } from "@matter/protocol";
 import { GroupId } from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { GroupKey, GroupKeyMap, GroupMembership } from "../../reconcile/kinds.js";
 import { RotationPreconditionError } from "../errors.js";
-import { addressLabel } from "../peer.js";
+import { addressLabel, peerLabel } from "../peer.js";
 import { TaskDefinition } from "../Task.js";
 import { TaskContext } from "../types.js";
 import { Require } from "../validation.js";
@@ -130,22 +131,30 @@ function refuseWhileKeysSwitch(ctx: TaskContext, p: AddNodeToGroupParams): void 
     // A member joins the key the group is using, not the one the caller last saw. This is also what closes the
     // window after a rotation's last write and before it retires: the switching marker is gone by then, but the
     // members already carry the new key, so a join carrying the old one is refused here instead.
-    const operational = operationalKeyOf(ctx, p.groupKeySetId);
-    if (operational !== undefined && !Bytes.areEqual(operational, p.epochKey0)) {
+    const disagreeing = memberWithAnotherKey(ctx, p);
+    if (disagreeing !== undefined) {
         throw new RotationPreconditionError(
-            `Cannot add peer ${addressLabel(p.peer)} to group ${p.groupId}: group key set ${p.groupKeySetId} is in use ` +
-                `with a different key than these parameters carry. Add the peer with the key set's current key.`,
+            `Cannot add peer ${addressLabel(p.peer)} to group ${p.groupId}: ${peerLabel(disagreeing)} holds group key ` +
+                `set ${p.groupKeySetId} with a different key than these parameters carry. Add the peer with the key ` +
+                `set's current key.`,
         );
     }
 }
 
 /** The key the members of this key set are using, if any member holds one. */
-function operationalKeyOf(ctx: TaskContext, groupKeySetId: number): AllowSharedBufferSource | undefined {
-    const key = String(groupKeySetId);
+/**
+ * A member whose operational key is not the one these parameters carry, if there is one.
+ *
+ * Every member, not the first one found: the peer being added holds an intent of its own by the time this is
+ * asked again after the write, and if that one is reached first a stale key would answer for itself while the
+ * members that matter hold another.
+ */
+function memberWithAnotherKey(ctx: TaskContext, p: AddNodeToGroupParams): ClientNode | undefined {
+    const key = String(p.groupKeySetId);
     for (const peer of ctx.peersWithIntent(GroupKey, key)) {
-        const current = ctx.intentOf(peer, GroupKey, key);
-        if (current?.epochKey0 !== undefined && current.epochKey0 !== null) {
-            return current.epochKey0;
+        const operational = ctx.intentOf(peer, GroupKey, key)?.epochKey0;
+        if (operational !== undefined && operational !== null && !Bytes.areEqual(operational, p.epochKey0)) {
+            return peer;
         }
     }
     return undefined;
