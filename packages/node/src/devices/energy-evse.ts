@@ -61,6 +61,39 @@ export namespace EnergyEvseRequirements {
         mandatory: { EnergyEvse: EnergyEvseServer, EnergyEvseMode: EnergyEvseModeServer },
         optional: { Identify: IdentifyServer, TemperatureMeasurement: TemperatureMeasurementServer }
     };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = {
+        mandatory: {
+            PowerSource: { deviceType: 0x11, constraint: "min 1" },
+
+            DeviceEnergyManagement: {
+                deviceType: 0x50d,
+                constraint: "min 1",
+
+                requires: [{
+                    element: "serverCluster",
+                    name: "DeviceEnergyManagement",
+                    id: 0x98,
+                    requires: [
+                        { element: "feature", name: "POWERFORECASTREPORTING" },
+                        { element: "feature", name: "POWERADJUSTMENT", conformance: "desc" }
+                    ]
+                }]
+            },
+
+            ElectricalSensor: {
+                deviceType: 0x510,
+                constraint: "min 1",
+                requires: [
+                    { element: "serverCluster", name: "ElectricalPowerMeasurement", id: 0x90 },
+                    { element: "serverCluster", name: "ElectricalEnergyMeasurement", id: 0x91 }
+                ]
+            }
+        }
+    };
 }
 
 export const EnergyEvseDeviceDefinition = MutableEndpoint({

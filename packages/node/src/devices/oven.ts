@@ -31,7 +31,22 @@ export namespace OvenRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { optional: { Identify: IdentifyServer }, mandatory: {} };
+    export const server = { optional: { Identify: IdentifyServer } };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = {
+        mandatory: { TemperatureControlledCabinet: { deviceType: 0x71, constraint: "min 1" } },
+        optional: { Cooktop: { deviceType: 0x78, constraint: "max 1" } }
+    };
+
+    /**
+     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
+     *
+     * specification.
+     */
+    export const conditions = { mandatory: { Heater: { declaredBy: "TemperatureControlledCabinet" } } };
 }
 
 export const OvenDeviceDefinition = MutableEndpoint({

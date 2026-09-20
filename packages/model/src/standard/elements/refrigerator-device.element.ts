@@ -31,7 +31,7 @@ export const RefrigeratorDt = DeviceType(
     Requirement(
         { name: "ActivatedCarbonFilterMonitoring", id: 0x72, conformance: "[Rev >= v3]", element: "serverCluster" }
     ),
-    Requirement({ name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType" })
+    Requirement({ name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", constraint: "min 1", element: "deviceType" })
 );
 
 MatterDefinition.children.push(RefrigeratorDt);

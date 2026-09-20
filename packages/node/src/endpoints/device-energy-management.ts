@@ -65,7 +65,7 @@ export namespace DeviceEnergyManagementRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { ElectricalGridConditions: ElectricalGridConditionsClient }, mandatory: {} };
+    export const client = { optional: { ElectricalGridConditions: ElectricalGridConditionsClient } };
 }
 
 export const DeviceEnergyManagementEndpointDefinition = MutableEndpoint({

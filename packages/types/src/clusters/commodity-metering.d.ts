@@ -131,7 +131,7 @@ export declare namespace CommodityMetering {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.11.4.1.1
          */
-        tariffComponentIDs: number[];
+        tariffComponentIds: number[];
 
         /**
          * This field indicates the amount of a commodity metered during the associated TariffComponentStructs.

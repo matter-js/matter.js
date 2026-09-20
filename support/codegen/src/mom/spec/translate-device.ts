@@ -50,6 +50,13 @@ export function* translateDevice(deviceRef: DeviceReference) {
     yield device;
 }
 
+function revisionOf(deviceRef: DeviceReference) {
+    const revisions = translateTable("deviceType", deviceRef.revisions, {
+        revision: Alias(Integer, "rev"),
+    });
+    return revisions[revisions.length - 1]?.revision;
+}
+
 function createDevice(deviceRef: DeviceReference) {
     if (deviceRef.name === "Base") {
         return DeviceTypeElement({
@@ -88,10 +95,7 @@ function createDevice(deviceRef: DeviceReference) {
         return;
     }
 
-    const revisions = translateTable("deviceType", deviceRef.revisions, {
-        revision: Alias(Integer, "rev"),
-    });
-    let revision = revisions[revisions.length - 1]?.revision;
+    let revision = revisionOf(deviceRef);
     if (revision === undefined) {
         logger.error(`No revision for device ${deviceRef.name}, assuming 1`);
         revision = 1;
@@ -151,7 +155,7 @@ function addConditions(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 "capabilitytag",
                 "classtag",
             ),
-            description: Optional(StrWithSuperscripts),
+            description: Optional(Alias(StrWithSuperscripts, "summary")),
         });
 
         if (definitions) {
@@ -308,6 +312,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
         name: Alias(Identifier, "devicename", "devicetypename", "devicetype"),
         element: Constant("deviceType"),
         quality: Optional(Str),
+        constraint: Optional(ConstraintStr),
         conformance: Optional(ConformanceCode),
     });
 
@@ -375,12 +380,15 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
             return base;
         }
 
-        // Create an instance-specific RequirementElement copied from the base
+        // Every property the base states, or the instance silently loses what the specification said about it
         const instanceType = RequirementElement({
             id: base.id,
             name: base.name,
             element: RequirementElement.ElementType.DeviceType,
             conformance: base.conformance,
+            constraint: base.constraint,
+            quality: base.quality,
+            access: base.access,
             instance,
         });
         instanceMap.set(key, instanceType);
@@ -418,7 +426,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const composingClusters = deviceRef.composingClusters;
     const composingClusterRecords = translateTable("composingClusters", composingClusters, {
         deviceid: Alias(Integer, "devicetypeid"),
-        device: Alias(Identifier, "devicetypename"),
+        device: Alias(Identifier, "devicetypename", "devicename"),
         clusterid: Integer,
         cluster: Alias(ClusterName, "clustername"),
         element: Alias((text: string) => {
@@ -446,7 +454,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const composingElements = deviceRef.composingElements;
     const composingElementRecords = translateTable("composingElements", composingElements, {
         deviceid: Alias(Integer, "devicetypeid"),
-        device: Alias(Identifier, "devicetypename"),
+        device: Alias(Identifier, "devicetypename", "devicename"),
         clusterid: Integer,
         cluster: Alias(ClusterName, "clustername"),
         element: LowerIdentifier,

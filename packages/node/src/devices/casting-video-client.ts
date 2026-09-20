@@ -157,7 +157,8 @@ export namespace CastingVideoClientRequirements {
     export const AccountLoginClient = BaseAccountLoginClient;
 
     /**
-     * The ContentControl cluster is optional per the Matter specification.
+     * The ContentControl cluster is provisional per the Matter specification (conformance P, O), so it is treated as
+     * optional.
      *
      * We provide this alias to the default implementation {@link ContentControlClient} for convenience.
      */
@@ -166,7 +167,7 @@ export namespace CastingVideoClientRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { optional: { ContentAppObserver: ContentAppObserverServer }, mandatory: {} };
+    export const server = { optional: { ContentAppObserver: ContentAppObserverServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.

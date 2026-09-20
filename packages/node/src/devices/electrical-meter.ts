@@ -46,7 +46,8 @@ export namespace ElectricalMeterRequirements {
     export const ElectricalEnergyMeasurementServer = BaseElectricalEnergyMeasurementServer;
 
     /**
-     * The CommodityMetering cluster is optional per the Matter specification.
+     * The CommodityMetering cluster is provisional per the Matter specification (conformance P, M), so it is treated as
+     * optional.
      *
      * We provide this alias to the default implementation {@link CommodityMeteringServer} for convenience.
      */
@@ -62,6 +63,11 @@ export namespace ElectricalMeterRequirements {
         },
         optional: { CommodityMetering: CommodityMeteringServer }
     };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = { mandatory: { ElectricalSensor: { deviceType: 0x510, constraint: "min 1" } } };
 }
 
 export const ElectricalMeterDeviceDefinition = MutableEndpoint({

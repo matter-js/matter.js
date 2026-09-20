@@ -136,7 +136,7 @@ export declare namespace WebRtcTransportDefinitions {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.3.1
          */
-        urLs: string[];
+        urls: string[];
 
         /**
          * (Optional for STUN, usually required for TURN) The RFC 8489 compliant UTF-8 encoded username required for

@@ -9,6 +9,7 @@ import { DeviceClassification, DeviceTypeModel } from "#model";
 import { clean } from "../util/file.js";
 import { describeList, serialize } from "../util/string.js";
 import { Block, TsFile } from "../util/TsFile.js";
+import { ComposedTypeGenerator } from "./ComposedTypeGenerator.js";
 import { RequirementGenerator } from "./RequirementGenerator.js";
 
 const logger = Logger.get("EndpointFile");
@@ -75,6 +76,8 @@ export class EndpointFile extends TsFile {
     private generate() {
         logger.info(`${this.model.name} → ${this.name}.ts`);
 
+        ComposedTypeGenerator.assertAllKindsHandled(this);
+
         const serverBehaviors = new RequirementGenerator(this, "server");
         const server = serverBehaviors.generate();
         if (server !== undefined) {
@@ -90,6 +93,8 @@ export class EndpointFile extends TsFile {
                 "A definition for each client cluster supported by the endpoint per the Matter specification.",
             );
         }
+
+        new ComposedTypeGenerator(this).generate();
 
         if (this.model.id === undefined) {
             // For base endpoints (of which I believe there is only one, called

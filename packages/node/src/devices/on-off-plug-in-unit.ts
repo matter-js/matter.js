@@ -79,8 +79,8 @@ export namespace OnOffPlugInUnitRequirements {
         .alter({
             attributes: {
                 currentLevel: { min: 1, max: 254 },
-                minLevel: { default: 1, min: 1, max: 2 },
-                maxLevel: { default: 254, min: 254, max: 255 }
+                minLevel: { min: 1, max: 1, default: 1 },
+                maxLevel: { min: 254, max: 254, default: 254 }
             }
         });
 
@@ -108,7 +108,7 @@ export namespace OnOffPlugInUnitRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { OccupancySensing: OccupancySensingClient }, mandatory: {} };
+    export const client = { optional: { OccupancySensing: OccupancySensingClient } };
 }
 
 export const OnOffPlugInUnitDeviceDefinition = MutableEndpoint({

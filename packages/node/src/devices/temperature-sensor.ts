@@ -42,10 +42,10 @@ export namespace TemperatureSensorRequirements {
     /**
      * The ThermostatUserInterfaceConfiguration cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ThermostatUserInterfaceConfigurationServer} for
-     * convenience.
+     * This version of {@link ThermostatUserInterfaceConfigurationServer} is specialized per the specification.
      */
-    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer;
+    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer
+        .alter({ attributes: { keypadLockout: { optional: true } } });
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.

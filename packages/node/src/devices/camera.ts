@@ -40,9 +40,6 @@ import { Identity } from "@matter/general";
  * A Camera device is a camera that provides interfaces for controlling and transporting captured media, such as Audio,
  * Video or Snapshots.
  *
- * CameraDevice requires CameraAvStreamManagement cluster but CameraAvStreamManagement is not added by default because
- * you must select the features your device supports. You can add manually using CameraDevice.with().
- *
  * @see {@link MatterSpecification.v16.Device} § 16.1
  */
 export interface CameraDevice extends Identity<typeof CameraDeviceDefinition> {}
@@ -145,6 +142,27 @@ export namespace CameraRequirements {
         mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorClient },
         optional: { WebRtcTransportProvider: WebRtcTransportProviderClient }
     };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = { optional: { OccupancySensor: { deviceType: 0x107 } } };
+
+    /**
+     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
+     *
+     * specification.
+     */
+    export const conditions = {
+        mandatory: {
+            TlsCertificatesCond: { declaredBy: "RootNode" },
+            PowerSourceCond: { declaredBy: "RootNode" },
+            TimeSyncWithNtpcCond: { declaredBy: "RootNode" },
+            TimeSyncWithClientCond: { declaredBy: "RootNode" },
+            TimeSyncWithTzCond: { declaredBy: "RootNode" },
+            TlsClientCond: { declaredBy: "RootNode" }
+        }
+    };
 }
 
 export const CameraDeviceDefinition = MutableEndpoint({
@@ -152,7 +170,10 @@ export const CameraDeviceDefinition = MutableEndpoint({
     deviceType: 0x142,
     deviceRevision: 1,
     requirements: CameraRequirements,
-    behaviors: SupportedBehaviors(CameraRequirements.server.mandatory.WebRtcTransportProvider)
+    behaviors: SupportedBehaviors(
+        CameraRequirements.server.mandatory.CameraAvStreamManagement,
+        CameraRequirements.server.mandatory.WebRtcTransportProvider
+    )
 });
 
 Object.freeze(CameraDeviceDefinition);

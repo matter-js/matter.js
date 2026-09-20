@@ -65,6 +65,11 @@ export namespace ThreadBorderRouterRequirements {
         },
         optional: { ThreadNetworkDirectory: ThreadNetworkDirectoryServer }
     };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = { optional: { SecondaryNetworkInterface: { deviceType: 0x19 } } };
 }
 
 export const ThreadBorderRouterDeviceDefinition = MutableEndpoint({

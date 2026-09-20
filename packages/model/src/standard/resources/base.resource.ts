@@ -65,15 +65,49 @@ Resource.add({
             tag: "condition", name: "Active", description: "The node is always able to communicate",
             xref: "device§1.1.4"
         },
-        { tag: "condition", name: "Node", xref: "device§1.1.5" },
-        { tag: "condition", name: "App", xref: "device§1.1.5" },
-        { tag: "condition", name: "Simple", xref: "device§1.1.5" },
-        { tag: "condition", name: "Dynamic", xref: "device§1.1.5" },
-        { tag: "condition", name: "Composed", xref: "device§1.1.5" },
-        { tag: "condition", name: "Client", xref: "device§1.1.6" },
-        { tag: "condition", name: "Server", xref: "device§1.1.6" },
-        { tag: "condition", name: "Duplicate", xref: "device§1.1.6" },
-        { tag: "condition", name: "BridgedPowerSourceInfo", xref: "device§1.1.6" },
+        {
+            tag: "condition", name: "Node",
+            description: "the device type is classified as a Node device type (see Data Model specification)",
+            xref: "device§1.1.5"
+        },
+        {
+            tag: "condition", name: "App",
+            description: "the device type is classified as an Application device type (see Data Model specification)",
+            xref: "device§1.1.5"
+        },
+        {
+            tag: "condition", name: "Simple",
+            description: "the device type is classified as a Simple device type (see Data Model specification)",
+            xref: "device§1.1.5"
+        },
+        {
+            tag: "condition", name: "Dynamic",
+            description: "the device type is classified as a Dynamic device type (see Data Model specification)",
+            xref: "device§1.1.5"
+        },
+        {
+            tag: "condition", name: "Composed",
+            description: "the device type is composed of 2 or more device types (see System Model specification)",
+            xref: "device§1.1.5"
+        },
+        {
+            tag: "condition", name: "Client",
+            description: "there exists a client application cluster on the endpoint", xref: "device§1.1.6"
+        },
+        {
+            tag: "condition", name: "Server",
+            description: "there exists a server application cluster on the endpoint", xref: "device§1.1.6"
+        },
+        {
+            tag: "condition", name: "Duplicate",
+            description: "the endpoint and at least one of its siblings have overlap in application device type(s)",
+            xref: "device§1.1.6"
+        },
+        {
+            tag: "condition", name: "BridgedPowerSourceInfo",
+            description: "the endpoint represents a Bridged Device, for which information about the state of its power source is available to the Bridge",
+            xref: "device§1.1.6"
+        },
         { tag: "requirement", name: "Descriptor", xref: "device§1.1.7" },
         { tag: "requirement", name: "Binding", xref: "device§1.1.7" },
         { tag: "requirement", name: "FixedLabel", xref: "device§1.1.7" },

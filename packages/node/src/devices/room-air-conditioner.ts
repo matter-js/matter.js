@@ -106,10 +106,10 @@ export namespace RoomAirConditionerRequirements {
     /**
      * The ThermostatUserInterfaceConfiguration cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ThermostatUserInterfaceConfigurationServer} for
-     * convenience.
+     * This version of {@link ThermostatUserInterfaceConfigurationServer} is specialized per the specification.
      */
-    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer;
+    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer
+        .alter({ attributes: { keypadLockout: { optional: true } } });
 
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.
@@ -141,6 +141,13 @@ export namespace RoomAirConditionerRequirements {
             TemperatureMeasurement: TemperatureMeasurementServer,
             RelativeHumidityMeasurement: RelativeHumidityMeasurementServer
         }
+    };
+
+    /**
+     * The device types this device type requires of its child endpoints per the Matter specification.
+     */
+    export const deviceTypes = {
+        optional: { TemperatureSensor: { deviceType: 0x302 }, HumiditySensor: { deviceType: 0x307 } }
     };
 }
 

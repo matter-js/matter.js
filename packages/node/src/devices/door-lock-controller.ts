@@ -51,6 +51,13 @@ export namespace DoorLockControllerRequirements {
         mandatory: { DoorLock: DoorLockClient },
         optional: { Groups: GroupsClient, ScenesManagement: ScenesManagementClient }
     };
+
+    /**
+     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
+     *
+     * specification.
+     */
+    export const conditions = { optional: { TimeSyncCond: { declaredBy: "RootNode" } } };
 }
 
 export const DoorLockControllerDeviceDefinition = MutableEndpoint({
