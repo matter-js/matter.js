@@ -380,8 +380,9 @@ export class Peers extends EndpointContainer<ClientNode> {
      *
      * Look up by {@link PeerAddress} for anything held while a peer is commissioned: a local id may be reissued to a
      * different device once the peer it named is gone, so the same string can resolve to a peer that never saw the
-     * work it is being used for. An address is stable for as long as its peer stays commissioned — matter.js does not
-     * reissue one it allocated, though an application that assigns node IDs itself can.
+     * work it is being used for. An address is stable for as long as its peer stays commissioned. Afterwards only
+     * `nodeIdAssignment: "sequential"` promises not to reuse it; a random draw and a caller-supplied node ID are both
+     * checked against live peers alone. So a lookup that *succeeds* is not proof this is the peer the caller meant.
      */
     override get(id: number | string | PeerAddress) {
         if (typeof id !== "string" && typeof id !== "number") {
