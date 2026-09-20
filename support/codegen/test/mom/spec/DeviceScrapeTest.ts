@@ -168,6 +168,38 @@ function childNamed(element: { children?: unknown[] }, name: string) {
     return (element.children as Array<{ name: string }> | undefined)?.find(child => child.name === name);
 }
 
+describe("scrape of the Base device type", () => {
+    const BaseChapter = `
+# 1. Base Device Type
+
+## 1.1. Base Device Type
+
+The Base device type defines conformance for all device types.
+
+## 1.1.1. Revision History
+
+| Revision | Description |
+| --- | --- |
+| 1 | Initial revision |
+| 2 | Conditions added |
+| 3 | Clarifications |
+`;
+
+    it("records the revision its own table states, having no device type id to carry one", () => {
+        const document: SpecReference = {
+            xref: { document: "device", section: "" },
+            name: "Device Library",
+            path: "device_library.md",
+            markdownContent: BaseChapter,
+        };
+
+        const devices = [...loadDevices(document)].flatMap(deviceRef => [...translateDevice(deviceRef)]);
+
+        expect(devices.map(device => device.name)).deep.equal(["Base"]);
+        expect(devices[0].revision).equals(3);
+    });
+});
+
 describe("scrape of a chapter that is not a device type", () => {
     function scrapeArchitecture() {
         const document: SpecReference = {
