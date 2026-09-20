@@ -395,6 +395,27 @@ describe("RotateGroupKey task integration (two members)", () => {
         }
     });
 
+    it("refuses a join carrying a stale key, even once the joiner holds an intent of its own", async () => {
+        await using site = new MockSite();
+        const { controller, deviceB, peerB } = await twoMemberGroup(site, { addB: false });
+
+        // A completed rotation, so member A holds the new key and the marker is gone.
+        await controller.act(a => a.get(TaskManagerBehavior).run(RotateGroupKey, ROTATE_PARAMS));
+        await awaitState(controller, ROTATE_SLOT, "completed");
+
+        // B joins with the key the caller last saw. Its own key-set intent is written before the precondition
+        // is asked again, so a check that reads one member's key can read B's own stale one and pass.
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParamsFor(addressOfNode(peerB))));
+        await awaitState(controller, addTaskId(addressOfNode(peerB)), "failed");
+
+        const status = await controller.act(a =>
+            statusOfSlot(a.get(TaskManagerBehavior), addTaskId(addressOfNode(peerB))),
+        );
+        expect(status?.error).contains("a different key than these parameters carry");
+        // And the group is not left split: B never joined.
+        expect(deviceStarts(deviceB, GROUP_KEY_SET_ID)).deep.equals([]);
+    });
+
     it("fails the rotation when a member joined the key set behind its back", async () => {
         await using site = new MockSite();
         const { controller, peerA, peerB } = await twoMemberGroup(site, { addB: false });
