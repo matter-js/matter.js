@@ -62,6 +62,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Fix: A device type's documentation carries the prose its specification chapter states below a subsection heading. Sixty-two device types gain text, and the Base device type is documented at all for the first time. Each subsection appears under a heading of its own depth, so a chapter that repeats a subsection name states which operation each one belongs to
     - Fix: A condition carries the prose of the section that describes it, and an element requirement carries the section its table came from, so a section such as `device§8.5.6` has a cross reference
+    - Fix: Scraping says which device library chapter it ignores and how many sections below it go with it, rather than dropping them without a word
     - Fix: Generated documentation drops an image's alt text and a table or figure caption, which name the artifact rather than describing the subject, and resolves a reference link such as `[[Aliro]](#ref_Aliro)` to the name it refers to
     - Fix: The Heat Pump device type carries the eight element requirements its specification section states; the column heading that section uses discarded every row
     - Fix: The Base device type's conditions carry their descriptions; nine of twenty-three were discarded because their table heads the column `Summary`

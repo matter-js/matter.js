@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Diagnostic, LogFormat, Logger } from "#general";
 import type { ConditionElement, DeviceTypeElement, RequirementElement } from "#model";
 import { loadDevices } from "#mom/spec/load-devices.js";
 import type { SpecReference } from "#mom/spec/spec-types.js";
@@ -101,6 +102,55 @@ The closure SHALL be closed.
 The closure is open.
 `;
 
+const ArchitectureChapter = `
+# 10. Media Device Types
+
+## 10.1. Video Player Architecture
+
+### 10.1.1. Introduction
+
+A Video Player renders content.
+
+### 10.1.2. Commissioning
+
+A Video Player SHALL support commissioning from a casting device.
+
+## 10.2. Basic Video Player Device Type
+
+A Basic Video Player renders content.
+
+## 10.2.1. Revision History
+
+| Revision | Description |
+| --- | --- |
+| 1 | Initial revision |
+
+## 10.2.2. Classification
+
+| Device Type ID | Device Type Name | Class | Scope |
+| --- | --- | --- | --- |
+| 0x0028 | Basic Video Player | Simple | Endpoint |
+`;
+
+/**
+ * Capture what a scrape writes to the log.
+ */
+function captured(fn: () => void) {
+    const destination = Logger.destinations.default;
+    const original = { ...destination };
+    const messages = new Array<string>();
+    try {
+        destination.format = LogFormat.formats.plain;
+        destination.write = (message: string, _diagnostic: Diagnostic.Message) => {
+            messages.push(message);
+        };
+        fn();
+    } finally {
+        Object.assign(destination, original);
+    }
+    return messages;
+}
+
 function scrapeClosure() {
     const document: SpecReference = {
         xref: { document: "device", section: "" },
@@ -117,6 +167,80 @@ function scrapeClosure() {
 function childNamed(element: { children?: unknown[] }, name: string) {
     return (element.children as Array<{ name: string }> | undefined)?.find(child => child.name === name);
 }
+
+describe("scrape of a chapter that is not a device type", () => {
+    function scrapeArchitecture() {
+        const document: SpecReference = {
+            xref: { document: "device", section: "" },
+            name: "Device Library",
+            path: "device_library.md",
+            markdownContent: ArchitectureChapter,
+        };
+
+        let devices = Array<DeviceTypeElement>();
+        const messages = captured(() => {
+            devices = [...loadDevices(document)].flatMap(deviceRef => [...translateDevice(deviceRef)]);
+        });
+        return { devices, messages };
+    }
+
+    it("reports what an architecture chapter costs rather than dropping it in silence", () => {
+        const { messages } = scrapeArchitecture();
+        expect(
+            messages.some(message =>
+                message.includes("ignored Video Player Architecture and the 2 sections below it (device § 10.1)"),
+            ),
+            messages.join("\n"),
+        ).true;
+    });
+
+    it("keeps the device type that follows an architecture chapter", () => {
+        const { devices } = scrapeArchitecture();
+        expect(devices.map(device => device.name)).deep.equal(["BasicVideoPlayer"]);
+    });
+
+    it("reports an architecture chapter that ends the document", () => {
+        const document: SpecReference = {
+            xref: { document: "device", section: "" },
+            name: "Device Library",
+            path: "device_library.md",
+            markdownContent:
+                "# 10. Media Device Types\n\n## 10.1. Video Player Architecture\n\n### 10.1.1. Introduction\n\nA Video Player renders content.\n",
+        };
+
+        const messages = captured(() => {
+            expect([...loadDevices(document)]).deep.equal([]);
+        });
+
+        expect(
+            messages.some(message =>
+                message.includes("ignored Video Player Architecture and the 1 section below it (device § 10.1)"),
+            ),
+            messages.join("\n"),
+        ).true;
+    });
+
+    it("reports an architecture chapter that a new category follows", () => {
+        const document: SpecReference = {
+            xref: { document: "device", section: "" },
+            name: "Device Library",
+            path: "device_library.md",
+            markdownContent:
+                "# 10. Media Device Types\n\n## 10.1. Video Player Architecture\n\n### 10.1.1. Introduction\n\nA Video Player renders content.\n\n# 11. Generic Device Types\n",
+        };
+
+        const messages = captured(() => {
+            expect([...loadDevices(document)]).deep.equal([]);
+        });
+
+        expect(
+            messages.some(message =>
+                message.includes("ignored Video Player Architecture and the 1 section below it (device § 10.1)"),
+            ),
+            messages.join("\n"),
+        ).true;
+    });
+});
 
 describe("scrape of a device type chapter", () => {
     it("documents the device from its subsections and omits the sections the model already states", () => {
