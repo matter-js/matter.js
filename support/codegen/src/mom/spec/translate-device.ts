@@ -7,7 +7,7 @@
 import { Diagnostic, Logger } from "#general";
 import { ConditionElement, DeviceClassification, DeviceTypeElement, RequirementElement } from "#model";
 import { camelize } from "../../util/string.js";
-import { addDocumentation } from "./add-documentation.js";
+import { addDeviceDocumentation } from "./add-documentation.js";
 import { repairConstraint } from "./repairs/aspect-repairs.js";
 import { DeviceReference, SpecReference } from "./spec-types.js";
 import { Alias, Constant, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
@@ -41,7 +41,7 @@ export function* translateDevice(deviceRef: DeviceReference) {
         return;
     }
 
-    addDocumentation(device, deviceRef);
+    addDeviceDocumentation(device, deviceRef);
     addConditions(device, deviceRef);
     addConditionRequirements(device, deviceRef);
     addClusters(device, deviceRef);
@@ -139,7 +139,7 @@ function addConditions(device: DeviceTypeElement, deviceRef: DeviceReference) {
         return;
     }
 
-    const records = Array<{ name: string; description?: string; xref?: any }>();
+    const records = Array<{ name: string; description?: string; details?: string; xref?: any }>();
     deviceRef.conditionSets.forEach(conditionRef => {
         const definitions = translateTable("condition", conditionRef, {
             name: Alias(
@@ -172,6 +172,7 @@ function addConditions(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 ConditionElement({
                     name: r.name,
                     description: r.description,
+                    details: r.details,
                     xref: r.xref,
                 }),
             );
@@ -300,6 +301,7 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
                     constraint: record.constraint,
                     access: record.access,
                     conformance: record.conformance,
+                    xref: record.xref,
                 }),
             );
         }
@@ -493,6 +495,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 constraint: record.constraint,
                 access: record.access,
                 conformance: record.conformance,
+                xref: record.xref,
             }),
         );
     }

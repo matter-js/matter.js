@@ -17,7 +17,14 @@ Resource.add({
         "A Node supporting multiple network interfaces shall include the primary interface on the Root Node " +
         "endpoint, along with secondary interfaces on other endpoints. The priorities of these network " +
         "interfaces are determined by the order of their endpoints, where interfaces with smaller endpoint " +
-        "numbers are higher priority.",
+        "numbers are higher priority." +
+        "\n" +
+        "### Cluster Requirements" +
+        "\n" +
+        "> [!NOTE]" +
+        "\n" +
+        "> NOTE: The Network Diagnostics cluster present in this device type shall serve the secondary " +
+        "network interface as specified in the Network Commissioning cluster.",
 
     children: [
         { tag: "requirement", name: "NetworkCommissioning", xref: "device§2.8.3" },

@@ -20,6 +20,13 @@ import { Identity } from "@matter/general";
 /**
  * A Temperature Sensor device reports measurements of temperature.
  *
+ * ### Cluster Requirements
+ *
+ * #### Thermostat User Interface Configuration Cluster
+ *
+ * This cluster provides an interface to allow configuration of the user interface for a temperature sensor that
+ * supports keypad or screen.
+ *
  * @see {@link MatterSpecification.v16.Device} § 7.4
  */
 export interface TemperatureSensorDevice extends Identity<typeof TemperatureSensorDeviceDefinition> {}

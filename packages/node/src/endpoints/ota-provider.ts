@@ -20,6 +20,10 @@ import { Identity } from "@matter/general";
 /**
  * An OTA Provider is a node that is capable of providing an OTA software update to other nodes on the same fabric.
  *
+ * ### Cluster Requirements
+ *
+ * A node shall only ever have, at most, one instance of the OTA Provider's required clusters.
+ *
  * @see {@link MatterSpecification.v16.Device} § 2.4
  */
 export interface OtaProviderEndpoint extends Identity<typeof OtaProviderEndpointDefinition> {}

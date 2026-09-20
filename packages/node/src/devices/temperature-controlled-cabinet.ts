@@ -32,6 +32,13 @@ import { Identity } from "@matter/general";
  * part of a refrigerator, freezer, wine chiller, or other similar device. Equally, such a cabinet may be warming or
  * heating food, for example as part of an oven, range, or similar device.
  *
+ * ### Element Requirements
+ *
+ * Temperature Controlled cabinets only allow the Temperature Control cluster to use the TemperatureNumber feature (i.e.
+ * actual temperature in °C). This is because using qualitative temperature levels (e.g. Low/Medium/High) does not allow
+ * the behavior expected by the majority of clients. Clients would be trying to "set the temperature" of a cabinet using
+ * that cluster, such as an oven's cooking temperature, or a refrigerator's internal cabinet temperature setpoint.
+ *
  * @see {@link MatterSpecification.v16.Device} § 13.4
  */
 export interface TemperatureControlledCabinetDevice extends Identity<typeof TemperatureControlledCabinetDeviceDefinition> {}

@@ -22,6 +22,10 @@ import { Identity } from "@matter/general";
 /**
  * An Electrical Meter device meters the electrical energy being imported and/or exported for billing purposes.
  *
+ * ### Device Type Requirements
+ *
+ * An Electrical Meter shall be composed of at least one endpoint with device types as defined by the conformance below.
+ *
  * ElectricalMeterDevice requires ElectricalPowerMeasurement and ElectricalEnergyMeasurement clusters but they are not
  * added by default because you must select the features your device supports. You can add manually using
  * ElectricalMeterDevice.with().

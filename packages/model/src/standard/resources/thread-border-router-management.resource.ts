@@ -134,8 +134,7 @@ Resource.add({
 
                 {
                     tag: "field", name: "Breadcrumb", xref: "cluster§10.3.6.4.2",
-                    details: "See Breadcrumb Attribute section of General Commissioning Cluster in [[MatterCore]](#ref_MatterCore) " +
-                        "for usage."
+                    details: "See Breadcrumb Attribute section of General Commissioning Cluster in MatterCore for usage."
                 }
             ]
         },

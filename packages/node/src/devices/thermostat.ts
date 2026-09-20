@@ -38,6 +38,25 @@ import { Identity } from "@matter/general";
  * and/or cooling requirement notifications to a heating/cooling unit (for example, an indoor air handler) or is capable
  * of including a mechanism to control a heating or cooling unit directly.
  *
+ * ### Thermostat Suggestion and Predicted Activity Considerations
+ *
+ * The thermostat cluster contains the Thermostat Suggestion feature, which allows clients to provide suggestions based
+ * on external contexts. The thermostat might also support the Ambient Context Sensing client and take action based on
+ * the context provided by the Predicted Activity feature. Thermostats may support either of these features. If both
+ * functionalities are supported, the following recommendations are provided to Thermostat devices:
+ *
+ *   - Changes which the thermostat wants to apply as a result of the data provided by the Ambient Context Sensing
+ *     server, SHOULD be translated into a Thermostat Suggestion and SHOULD NOT be directly applied, in order to let the
+ *     thermostat evaluate the change in state with any other suggestion provided by other clients.
+ *
+ *   - If the resulting action from the context provided by the Ambient Context Sensing client can not be translated
+ *     into a supported Thermostat Suggestion, the Thermostat may apply the change directly, but should be aware that it
+ *     might impact the evaluation of any current suggestions and the behavior related to conflict resolution between
+ *     the current suggestions and the input from the Ambient Context Sensing client is manufacturer specific.
+ *
+ *   - The thermostat may prioritize the data provided by the Ambient Context Sensing server, in case there are multiple
+ *     suggestions present, and use this as input when deciding which suggestion to apply.
+ *
  * ThermostatDevice requires Thermostat cluster but Thermostat is not added by default because you must select the
  * features your device supports. You can add manually using ThermostatDevice.with().
  *
