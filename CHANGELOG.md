@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/testing
+    - Enhancement: A certification controller can judge device attestation against the chip test roots and revocation information a case installs, via `ControllerAdapterOptions.attestation` and `ControllerAdapter.attestation`. Such a controller refuses an error-level attestation finding and names it, where a controller without the option accepts whatever a test device presents; chip-tool refuses the option, since it reads revocation from a file its process was started with
     - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own
     - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
@@ -49,6 +50,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
 
 - @matter/protocol
+    - Enhancement: `DclCertificateService` can be constructed `offline`, where it reaches no network and answers from what it was seeded and told about revocation
     - Enhancement: A commissioner can be given revocation information the DCL does not publish, through `DclCertificateService.installRevocations()` or the new `revocations` option. `DclCertificateService.parseRevocationSet()` reads such a set in the format the CHIP SDK's revocation-set tool writes. The entries stay in memory and only add revocations — a serial they do not name is still checked against the DCL
     - Enhancement: A BDX message the node sends names its block counter on the log line the exchange already writes for it, with a Block's or BlockEof's data length, a BlockQueryWithSkip's skip offset, and the counter and length of the block an ack or a driving receiver's next query reports having received. A transfer flow also names the negotiated maximum block size and the start offset when it starts
     - Enhancement: `BdxSession` reports the `*Init` a responder received and what its transfer settled on, so a responder's own account of what it granted is readable without decoding the wire

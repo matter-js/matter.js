@@ -689,6 +689,13 @@ export interface ControllerAdapter {
      */
     webRtcRequestor?: WebRtcRequestorApi;
 
+    /**
+     * Device attestation as this controller judges it.
+     *
+     * Present only where the adapter was built with {@link ControllerAdapterOptions.attestation}.
+     */
+    attestation?: AttestationApi;
+
     log: LogFollower;
 }
 
@@ -793,6 +800,33 @@ export interface ControllerAdapterOptions {
      * @see {@link MatterSpecification.v16.Device} § 16.8
      */
     webRtcRequestor?: boolean;
+
+    /**
+     * Judges device attestation against a trust store and whatever revocation information the case
+     * installs, rather than accepting what a test device presents.
+     *
+     * Off by default, because a cert device presents test certificates that a commissioner holding a
+     * production trust policy has to refuse. With it on, the controller trusts the chip test roots and
+     * nothing else, so an attestation a case expects to be refused is refused for the reason the case
+     * is about.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 6.2.3.1
+     */
+    attestation?: boolean;
+}
+
+/** What a case can tell a controller about the certificates it will be shown. */
+export interface AttestationApi {
+    /**
+     * Gives the controller revocation information, as a revocation set in the format the CHIP SDK's
+     * revocation-set tool writes.
+     *
+     * A commissioner normally reads revocation from the DCL. A certification run is against a PKI the
+     * DCL does not publish, so the set has to come from the case.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 6.2.6.2
+     */
+    installRevocations(revocationSet: string): Promise<void>;
 }
 
 /**

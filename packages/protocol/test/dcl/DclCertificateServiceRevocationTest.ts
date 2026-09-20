@@ -256,6 +256,48 @@ describe("DclCertificateService revocation outside the DCL", () => {
         await dcl.close();
     });
 
+    describe("offline", () => {
+        it("asks the DCL nothing, neither for certificates nor for a CRL", async () => {
+            fetchMock.install();
+            const dcl = new DclCertificateService(environment, {
+                updateInterval: null,
+                offline: true,
+                revocations: [{ issuerSubjectKeyId: PAI_AKID, revokedSerialNumbers: [REVOKED_SERIAL] }],
+            });
+            await dcl.construction;
+
+            expect(await dcl.isRevoked(PAI_AKID, REVOKED_SERIAL)).equal(true);
+            expect(await dcl.isRevoked(PAI_AKID, OTHER_SERIAL)).equal(false);
+            expect(fetchMock.getCallLog()).deep.equal([]);
+
+            await dcl.close();
+        });
+
+        it("answers a CD signer it does not hold without asking the DCL", async () => {
+            fetchMock.install();
+            const dcl = new DclCertificateService(environment, { updateInterval: null, offline: true });
+            await dcl.construction;
+
+            // Attestation asks about the signer of every Certification Declaration it reads, so an
+            // unguarded lookup here is one DCL request per commissioning attempt
+            expect(await dcl.getOrFetchCdSigner("62FA823359ACFAA9963E1CFA140ADDF504F37160")).equal(undefined);
+            expect(fetchMock.getCallLog()).deep.equal([]);
+
+            await dcl.close();
+        });
+
+        it("still updates nothing when asked to", async () => {
+            fetchMock.install();
+            const dcl = new DclCertificateService(environment, { updateInterval: null, offline: true });
+            await dcl.construction;
+
+            await dcl.update(true);
+            expect(fetchMock.getCallLog()).deep.equal([]);
+
+            await dcl.close();
+        });
+    });
+
     describe("parseRevocationSet()", () => {
         it("reads the set as the revocation-set tool writes it", () => {
             const entries = DclCertificateService.parseRevocationSet(

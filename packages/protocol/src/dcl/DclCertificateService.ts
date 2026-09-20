@@ -186,9 +186,10 @@ export class DclCertificateService {
             if (options.seed?.cdSigners) {
                 await this.#consumeCertSeed(options.seed.cdSigners, "CDSigner");
             }
+            // `update()` answers an offline service by doing nothing, so this needs no condition
             await this.update();
 
-            if (options.updateInterval !== null) {
+            if (!options.offline && options.updateInterval !== null) {
                 // Start periodic update timer
                 const updateInterval = options.updateInterval ?? Days.one;
                 this.#updateTimer = Time.getPeriodicTimer("DCL Certificate Update", updateInterval, () =>
@@ -337,6 +338,10 @@ export class DclCertificateService {
         isProduction: boolean,
         options?: DclCertificateService.GetCertificateOptions,
     ): Promise<Bytes | undefined> {
+        if (this.#options.offline) {
+            return undefined;
+        }
+
         if (this.#fetchPromise !== undefined) {
             await this.#fetchPromise;
         }
@@ -523,6 +528,10 @@ export class DclCertificateService {
             }
         }
 
+        if (this.#options.offline) {
+            return false;
+        }
+
         let entry: DclCertificateService.RevocationEntry;
         try {
             entry = await this.#revocationCache.get(akid);
@@ -683,6 +692,10 @@ export class DclCertificateService {
             return { publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
         }
 
+        if (this.#options.offline) {
+            return undefined;
+        }
+
         // DCL fallback
         try {
             const config = this.#options.dclConfig ?? DclConfig.production;
@@ -764,7 +777,7 @@ export class DclCertificateService {
      * Update certificates from DCL and GitHub. Returns true if update succeeded, false if it failed.
      */
     async update(force = false) {
-        if (this.#closed || !this.#storage) {
+        if (this.#closed || !this.#storage || this.#options.offline) {
             return;
         }
         if (this.#fetchPromise !== undefined) {
@@ -1685,6 +1698,17 @@ export namespace DclCertificateService {
 
         /** Revocation information from outside the DCL — see {@link DclCertificateService.installRevocations}. */
         revocations?: RevocationSetEntry[];
+
+        /**
+         * Reaches no network at all: no update, no CRL, no certificate fetched on demand and no
+         * re-fetch of one that would not parse. The trust store is whatever `seed` carried, revocation
+         * is whatever {@link DclCertificateService.installRevocations} was given, and a certificate
+         * neither of those holds reads as absent.
+         *
+         * For a deployment with no route to the ledger, and for a test that must judge attestation
+         * against a stated PKI rather than against whatever the ledger holds today.
+         */
+        offline?: boolean;
     }
 
     /** One authority's revoked serial numbers, as a DCL revocation set states them. */
