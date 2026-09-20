@@ -69,7 +69,7 @@ import {
     TaskPersistence,
 } from "./Task.js";
 import { TaskRegistry } from "./TaskRegistry.js";
-import { PlannedChange, RunId, TaskState, TaskStatus, Teardown } from "./types.js";
+import { ChangeEntry, PlannedChange, RunId, TaskState, TaskStatus, Teardown } from "./types.js";
 
 const logger = Logger.get("TaskManager");
 
@@ -260,7 +260,6 @@ export class TaskManagerBehavior extends Behavior {
         } else {
             this.reactTo(this.#rootNode.lifecycle.online, this.#resumePersisted);
         }
-        this.reactTo(this.#rootNode.peers.deleted, this.#reviewDepartedPeers);
     }
 
     /**
@@ -276,6 +275,11 @@ export class TaskManagerBehavior extends Behavior {
      */
     async #reviewDepartedPeers(): Promise<void> {
         for (const record of this.internal.runs.unfinished) {
+            // Another verb already owns this run's outcome and will settle it; deciding here too would write a
+            // second outcome over the first.
+            if (this.internal.runs.transitionOf(record.runId) !== undefined) {
+                continue;
+            }
             let bound;
             try {
                 bound = this.#boundFor(record, this.internal.runs.executionOf(record.runId));
@@ -285,8 +289,19 @@ export class TaskManagerBehavior extends Behavior {
                 logger.debug(`Cannot ask ${runLabel(record.runId)} what a peer's departure means for it`, e);
                 continue;
             }
-            for (const address of this.#departedPeersOf(record, bound)) {
-                await this.#departed(record, bound, address);
+            try {
+                for (const address of this.#departedPeersOf(record, bound)) {
+                    // The previous address may have ended the run; a second settlement would take a second
+                    // place in the retirement order and shrink a change set a rollback is already replaying.
+                    if (isTerminal(record.state)) {
+                        break;
+                    }
+                    await this.#departed(record, bound, address);
+                }
+            } catch (e) {
+                // Each record answers for itself: a refused write for one may not leave every run after it
+                // holding an address a later commissioning can hand to a different device.
+                logger.error(`Cannot settle ${runLabel(record.runId)} against a peer that left the fabric`, e);
             }
         }
     }
@@ -325,18 +340,9 @@ export class TaskManagerBehavior extends Behavior {
         );
         const execution = this.internal.runs.executionOf(record.runId);
         if (execution === undefined) {
-            // Nothing is driving it, so this has to do what the driver's failure path would.
-            await this.#commitRetiring({
-                record,
-                next: {
-                    state: "failed",
-                    error: `${addressLabel(address)} left the fabric`,
-                    retireSeq: this.internal.runs.nextRetirement(record),
-                    changeSet,
-                },
-                drop: RETIRE,
-            });
-            this.internal.runs.commitRetirement(record);
+            // Nothing is driving it, so this has to do what the driver's failure path would, including the
+            // rollback of what the run changed on the peers that are still here.
+            await this.#failUndriven(record, bound, changeSet, `${addressLabel(address)} left the fabric`);
             return;
         }
         // Driven: the driver owns the outcome, so it is aborted and its own failure path records it — which
@@ -345,13 +351,75 @@ export class TaskManagerBehavior extends Behavior {
         execution.gate.wake.emit();
     }
 
-    #resumePersisted(): void {
-        this.#reviewDepartedPeers().catch(e =>
-            logger.error("Cannot settle runs naming peers that are no longer on the fabric", e),
-        );
-        for (const type of new Set(this.#resumable.map(r => r.type))) {
-            this.#resumeType(type);
+    /**
+     * End a run nothing is driving, the way the driver's failure path ends one it is driving.
+     *
+     * The priors for the peer that left go first, in a write of their own, so the rollback replays what is
+     * left: an entry for a peer that cannot be restored pins the record against the history limit forever. A
+     * crash between the two writes leaves the run as the next start finds it, and the same sweep settles it
+     * again.
+     */
+    async #failUndriven(
+        record: RunRecord,
+        bound: BoundDefinition,
+        changeSet: ChangeEntry[],
+        error: string,
+    ): Promise<void> {
+        let rollback = NO_ROLLBACK;
+        try {
+            if (changeSet.length !== record.changeSet.length) {
+                await this.#commit({ record, next: { changeSet } });
+            }
+            let rollbackRefused = false;
+            try {
+                rollback = this.#prepareRollback(record, bound);
+            } catch (e) {
+                // Only a refusal is transient; anything else is a decline, and then nothing will replay these
+                // priors.
+                rollbackRefused = e instanceof TaskRefusedError;
+                logger.error(`${runLabel(record.runId)}: cannot roll back`, e);
+            }
+            await this.#commitRetiring(
+                {
+                    record,
+                    next: {
+                        state: "failed",
+                        error,
+                        retireSeq: this.internal.runs.nextRetirement(record),
+                        rollbackRunId: rollback.record?.runId,
+                        ...this.#retiringPriors(record, rollbackRefused),
+                    },
+                    drop: RETIRE,
+                },
+                ...(rollback.record === undefined ? [] : [{ record: rollback.record }]),
+            );
+        } catch (e) {
+            rollback.discard();
+            // Nothing else will state this run's outcome: no driver holds it, and this sweep is what the next
+            // start would run again. A caller awaiting it is owed that answer rather than a wait until dispose.
+            this.#giveUpOnStating(record, this.#unstated(record.runId));
+            throw e;
         }
+        this.internal.runs.commitRetirement(record);
+        // The rollback mutates peers, so it may not drive before the record that names it is durable.
+        rollback.start();
+    }
+
+    #resumePersisted(): void {
+        // Subscribed here rather than at initialize: reading `peers` builds the container, which is not ready
+        // while this early behavior initializes. A peer removed before this point is settled by the sweep
+        // below, which keys on what no longer resolves rather than on the event.
+        this.reactTo(this.#rootNode.peers.deleted, this.#reviewDepartedPeers);
+        // Awaited before anything is driven: a run the sweep is about to end must not pick up a driver that
+        // would write to the peers the sweep is rolling back.
+        this.#reviewDepartedPeers()
+            .catch(e => logger.error("Cannot settle runs naming peers that are no longer on the fabric", e))
+            .then(() => {
+                for (const type of new Set(this.#resumable.map(r => r.type))) {
+                    this.#resumeType(type);
+                }
+            })
+            .catch(e => logger.error("Cannot resume persisted runs", e));
     }
 
     /** Records still awaiting resume, in ascending runId — the only order defined for resume. */
@@ -411,10 +479,17 @@ export class TaskManagerBehavior extends Behavior {
             if (record.type !== type) {
                 continue;
             }
+            // A transition owns this run's outcome and will settle it; a driver attached now would advance a
+            // run that is being ended.
+            if (this.internal.runs.transitionOf(record.runId) !== undefined) {
+                continue;
+            }
             const owner = this.internal.runs.ownerOf(record.slotKey);
             // A record holds its own slot from load, so only a foreign owner blocks its resume.
             if (owner !== undefined && owner.runId !== record.runId) {
-                logger.warn(`Not resuming run ${record.runId}: slot ${record.slotKey} is owned by run ${owner.runId}`);
+                logger.warn(
+                    `Not resuming ${runLabel(record.runId)}: slot ${record.slotKey} is owned by ${runLabel(owner.runId)}`,
+                );
                 continue;
             }
             let bound;
