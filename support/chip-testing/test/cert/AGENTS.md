@@ -2932,11 +2932,12 @@ chip's requestor floors the same waits at compile time, so there the step costs 
 minutes and carries `longRunning`, which skips it unless `MATTER_CERT_LONG_RUNNING` is set. The daily
 schedule sets it; a push does not.
 
-What a shortened run gives up is stated rather than hidden. The plans' expected outcome is that the
-DUT *sends* three minutes, and only a run that scripted three minutes tests that — comparing a
-scripted one second against the same one second is the step agreeing with itself. So
-`delayedActionTimeCheck` records `unverified` with an `accepted` reason on a shortened run and a real
-pass/fail on a plan-literal one. Every other claim in those steps — the status answered, the second
+What a shortened run gives up is stated rather than hidden, and it takes two checks to state it. A
+single check whose verdict changed with an environment variable could not fail at all, which is how a
+dropped field once stopped being a defect. So `delayedActionTimeCheck` asks only whether the DUT
+echoed the value the case scripted — a pass or a fail on every run — and `planDelayCoverageCheck`
+separately records whether that value was the plan's three minutes, reporting `unverified` with an
+`accepted` reason where it was not. Every other claim in those steps — the status answered, the second
 command, the download that followed — holds either way. `RunRecord.longRunningSkips` counts what a run left out, so a
 bundle without it covers the plan and one with it covers the plan minus what its reasons name.
 
