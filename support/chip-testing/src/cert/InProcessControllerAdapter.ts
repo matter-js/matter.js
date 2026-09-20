@@ -39,7 +39,8 @@ import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-t
 import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import { CameraControllerDevice } from "@matter/main/devices";
 import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
-import type { BdxInit, PeerAddress, StorageScope } from "@matter/main/protocol";
+import type { BdxInit, StorageScope } from "@matter/main/protocol";
+import { FileDesignator, PeerAddress } from "@matter/main/protocol";
 import {
     BdxProtocol,
     BdxSession,
@@ -336,6 +337,15 @@ const OTA_PROVIDER_ENDPOINT_ID = "ota-provider";
  */
 const OTA_TRANSFER_TIMEOUT = Seconds(90);
 
+/**
+ * How long {@link InProcessCertNodeApi.serveOtaUpdate} waits for the peer to ask to apply what it
+ * downloaded, once the transfer itself is complete.
+ *
+ * Short, because the request follows the last block immediately: this is here so a case's teardown
+ * does not land between the two, not to wait out a peer that decided against applying.
+ */
+const OTA_APPLY_TIMEOUT = Seconds(10);
+
 /** An OTA image the controller offered a node was not transferred. */
 export class OtaTransferError extends MatterError {}
 
@@ -348,7 +358,7 @@ interface PeerOtaIdentity {
 
 /** The `*Init` a BDX responder answered, as a plain record a step can assert against. */
 function bdxProposalOf(init: BdxInit): BdxTransferProposal {
-    const { transferProtocol, maxBlockSize, startOffset, maxLength } = init;
+    const { transferProtocol, maxBlockSize, startOffset, maxLength, fileDesignator } = init;
     const definiteLength = maxLength === undefined ? undefined : Number(maxLength);
     return {
         version: transferProtocol.version ?? 0,
@@ -360,6 +370,11 @@ function bdxProposalOf(init: BdxInit): BdxTransferProposal {
 
         // A zero length means indefinite on the wire as an absent field does (§ 11.22.5.1)
         definiteLength: definiteLength === 0 ? undefined : definiteLength,
+
+        // FileDesignator.text, not a bare UTF-8 decode: a designator that is not a printable name
+        // renders as hex rather than as replacement characters a reader would take for the real value
+        fileDesignator: new FileDesignator(fileDesignator).text,
+        fileDesignatorLength: Bytes.of(fileDesignator).byteLength,
     };
 }
 
@@ -1054,39 +1069,77 @@ class InProcessCertNodeApi implements CertNodeApi {
             const provider = await this.#otaProvider();
             const { softwareVersion, fileSize } = await stageOtaImage(this.#controller, identity);
 
-            const session = await this.#runOtaTransfer(
-                peerAddress,
-                await provider.act(agent => agent.get(OtaSoftwareUpdateProviderServer).updateStorage.scope),
-                async () =>
-                    provider.act(agent =>
-                        agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
-                            vendorId: identity.vendorId,
-                            productId: identity.productId,
-                            targetSoftwareVersion: softwareVersion,
-                        }),
-                    ),
-                async () =>
-                    provider.act(agent => agent.get(SoftwareUpdateManager).removeConsent(peerAddress, softwareVersion)),
-                options?.timeoutMs === undefined ? OTA_TRANSFER_TIMEOUT : Millis(options.timeoutMs),
-            );
+            // Armed before the transfer starts, not after it ends: the peer asks to apply as soon as the
+            // last block lands, and an observer attached afterwards can miss its own event.
+            const applied =
+                options?.expectApply === false ? undefined : await this.#applyAllowed(provider, peerAddress);
 
-            const initMessage = session.initMessage;
-            const parameters = session.transferParameters;
-            if (initMessage === undefined || parameters === undefined) {
-                throw new InternalError(
-                    `BDX session with node id ${this.#nodeId} completed without recording what it negotiated`,
+            try {
+                return await this.#serveStagedImage(
+                    provider,
+                    peerAddress,
+                    identity,
+                    softwareVersion,
+                    fileSize,
+                    applied,
+                    options,
                 );
+            } finally {
+                // The transfer rejecting is the path that leaves these attached: a node that never opened
+                // one never reaches the settled() that would otherwise close them.
+                applied?.close();
             }
-
-            return {
-                providerEndpoint: OTA_PROVIDER_ENDPOINT,
-                softwareVersion,
-                fileSize,
-                proposal: bdxProposalOf(initMessage),
-                accept: bdxAcceptOf(parameters),
-                transferredBytes: session.transferredBytes,
-            };
         });
+    }
+
+    async #serveStagedImage(
+        provider: Endpoint,
+        peerAddress: PeerAddress,
+        identity: PeerOtaIdentity,
+        softwareVersion: number,
+        fileSize: number,
+        applied: { settled: () => Promise<boolean>; close: () => void } | undefined,
+        options?: ServeOtaUpdateOptions,
+    ): Promise<OtaBdxTransfer> {
+        const session = await this.#runOtaTransfer(
+            peerAddress,
+            await provider.act(agent => agent.get(OtaSoftwareUpdateProviderServer).updateStorage.scope),
+            async () =>
+                provider.act(agent =>
+                    agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
+                        vendorId: identity.vendorId,
+                        productId: identity.productId,
+                        targetSoftwareVersion: softwareVersion,
+                    }),
+                ),
+            async () =>
+                provider.act(agent => agent.get(SoftwareUpdateManager).removeConsent(peerAddress, softwareVersion)),
+            options?.timeoutMs === undefined ? OTA_TRANSFER_TIMEOUT : Millis(options.timeoutMs),
+        );
+
+        // A BDX transfer is not the end of the exchange: the peer answers a completed download with
+        // ApplyUpdateRequest, and a provider that goes away before answering leaves the peer waiting
+        // out its own unreachable-peer budget. The caller tears this controller down when the case
+        // ends, so the exchange has to be over before this resolves.
+        const applyAcknowledged = applied === undefined ? false : await applied.settled();
+
+        const initMessage = session.initMessage;
+        const parameters = session.transferParameters;
+        if (initMessage === undefined || parameters === undefined) {
+            throw new InternalError(
+                `BDX session with node id ${this.#nodeId} completed without recording what it negotiated`,
+            );
+        }
+
+        return {
+            providerEndpoint: OTA_PROVIDER_ENDPOINT,
+            softwareVersion,
+            fileSize,
+            proposal: bdxProposalOf(initMessage),
+            accept: bdxAcceptOf(parameters),
+            transferredBytes: session.transferredBytes,
+            applyAcknowledged,
+        };
     }
 
     /**
@@ -1139,6 +1192,47 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
 
         return provider;
+    }
+
+    /**
+     * Watches for this provider allowing `peerAddress` to apply what it downloaded, which is the last
+     * thing the peer needs from it.
+     *
+     * Resolves rather than rejecting when the peer never asks: the image was still served, which is
+     * what the BDX cases are about, and `applyAcknowledged` reports what happened instead.
+     */
+    async #applyAllowed(provider: Endpoint, peerAddress: PeerAddress) {
+        const observers = new ObserverGroup();
+        const { promise, resolver } = createPromise<boolean>();
+
+        await provider.act(agent => {
+            const events = agent.get(SoftwareUpdateManager).events;
+            observers.on(events.updateApplying, peer => {
+                if (PeerAddress.is(peer, peerAddress)) {
+                    resolver(true);
+                }
+            });
+            observers.on(events.updateFailed, peer => {
+                if (PeerAddress.is(peer, peerAddress)) {
+                    resolver(false);
+                }
+            });
+        });
+
+        // Arming and awaiting are two calls: the observers attach before the transfer and settle after
+        // it, and a single awaited promise would collapse both into one wait on the wrong side of it.
+        return {
+            settled: async () => {
+                const expiry = Time.sleep("cert OTA apply", OTA_APPLY_TIMEOUT);
+                try {
+                    return await Promise.race([promise, expiry.then(() => false)]);
+                } finally {
+                    expiry.cancel();
+                }
+            },
+
+            close: () => observers.close(),
+        };
     }
 
     /**

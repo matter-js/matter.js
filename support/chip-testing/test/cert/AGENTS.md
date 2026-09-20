@@ -150,10 +150,13 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
   (`MATTERJS_CONTROLLER_PICS`/`CHIP_TOOL_CONTROLLER_PICS`, overlaid by `controllerPicsOverridesFor`).
   Gating a step on a `.C` key the adapter has not declared is how a step comes to skip on every leg
   without anyone noticing, so declare it there rather than expecting the device file to carry it.
-  The overlay is for what the *controller* is, never for what the TH advertises: `certPicsFile()` feeds
-  every cert test's report, so a device-scoped key declared there would make every run's evidence claim
-  something about its TH that the TH never said. `MCORE.DD.DISCOVERY_BLE`/`DISCOVERY_PAF` are the
-  device's, and a test in `controller-adapter.test.ts` holds the adapters to it.
+  The *controller* overlay is for what the controller is, never for what the TH advertises:
+  `certPicsFile()` feeds every cert test's report, so a device-scoped key declared there would make
+  every run's evidence claim something about its TH that the TH never said.
+  `MCORE.DD.DISCOVERY_BLE`/`DISCOVERY_PAF` are the device's, and a test in
+  `controller-adapter.test.ts` holds the adapters to it. A key that *is* the device's belongs in the
+  cert app's own declaration instead (`registerCertAppPics`, see "A case whose DUT is a device
+  declares its own PICS"), which is scoped to the app and flavor that answer it.
 - **`RunRecord.picsSkips` counts what the gate excluded**, which is the instrument for exactly that
   mistake: a count that moves without the plan moving means a PICS value is wrong, not that the run
   had less to test.
@@ -652,9 +655,9 @@ three (`{dut: "dut", th_cr2: "helper", th_cr3: "helper"}`), all commissioning th
 (TH_CE). It worked as-is — `WiredCertTest.#buildContext` (`cert-dsl.ts`) already iterates
 `Object.keys(controllerRoles)` and constructs one `InProcessControllerAdapter` per name, each with its
 own `Environment`/`CommissioningController`/storage (see `InProcessControllerAdapter`'s class doc) — no
-cert-dsl.ts changes were needed. The `"dut" | "helper"` role *kind* itself is still inert (nothing reads
-it; only the role *name* is used as the adapter id and as the per-controller `adminFabricLabel`) — worth
-knowing if a future TC's design assumes the kind changes behavior.
+cert-dsl.ts changes were needed. The role *name* is the adapter id and the per-controller
+`adminFabricLabel`; the `"dut" | "helper"` *kind* says which side is under test, which decides whose
+self-declared PICS win (see "A case whose DUT is a device declares its own PICS" below).
 
 **Each controller's fabric gets the device's own `Label` field set to its role name**, because
 `ControllerCommissioningFlow`'s `#updateFabricLabel()` step sends `label: this.fabric.label`, and
@@ -1550,7 +1553,8 @@ flavor answers it from the same file: CHIP's `ci-pics-values` says `DISCOVERY_PA
 PICS skip everywhere and the run reports `picsSkips: 2`. Do **not** answer these from a controller
 overlay to force a skip — a test asserts that neither adapter declares them, because `certPicsFile()`
 feeds every cert test's report, so a device-scoped key set there makes every other run's evidence claim
-something false about its TH. And note `notApplicable` is evaluated *before* both the `flavors` and
+something false about its TH. A device-scoped key with a real answer goes in the cert app's own
+declaration (`registerCertAppPics`), which says it only for the app and flavor it is true of. And note `notApplicable` is evaluated *before* both the `flavors` and
 the PICS gate in `cert-test.ts`, so a step carrying both never evaluates its PICS on any flavor —
 combining them documents nothing and hides the gate that would otherwise fire.
 
@@ -2227,7 +2231,34 @@ the endpoint it exercises, because that is what the certification report describ
 TCP server, TH is a TCP client" — so these tests name their roles the plan's way
 (`controllers: { th: … }`, `devices: { dut: … }`) and read `cx.devices.dut`'s log. Nothing else in the
 DSL changes: the controller still commissions the device, which is the same direction as always. The
-role *kind* (`"dut"`/`"helper"`) is only a label; nothing consumes it.
+role *kind* (`"dut"`/`"helper"`) says which side is under test: a declaration giving no controller the
+`"dut"` kind is what `CertTestDefinition.dutIsDevice` reads, and that decides whose self-declared PICS
+win where the device's and the controller's disagree.
+
+## A case whose DUT is a device declares its own PICS
+
+The PICS file a run loads describes a generic device, and both sides state what they are on top of it:
+a controller through `controllerPicsOverridesFor` and a cert app through `registerCertAppPics`. Where
+the two disagree the DUT's own side wins, because the claim a step makes is about the DUT.
+`MCORE.BDX.BlockQueryWithSkip` is the case in point: the controller answers for its own sending, which
+says nothing about a device the plan puts in the sender's place.
+
+**An app's declaration is per flavor**, because one app name is two implementations. `ota-requestor`
+is `chip-ota-requestor-app` on a chip leg and matter.js's own requestor on a matterjs one, and they
+answer differently — matter.js sends no `BlockQueryWithSkip` at all, where CHIP's PICS file answers
+that key `1`. Only what was observed is declared: the BDX receiver roles were read off both flavors by
+TC-BDX-1.4 and TC-BDX-2.1, which watch this exchange from the other side.
+
+**Both PICS gates apply the overlays the same way** (`cert-app-pics.ts`'s `picsWithOverrides`): the one
+that runs before a device is started (`cert-dsl.ts`, over `chip.defaultPics`) and the one that gates
+each step (`cert-test.ts`, over the subject's own file). The bases still differ, so the two can still
+disagree about a key the files themselves answer differently — what is shared is which side's
+declaration wins. The overlays were applied in only one of the two once, and that is worth knowing
+because the symptom is silent: a PICS-skipped cert test writes no evidence bundle and the suite still
+reports green.
+
+**A declaration answers what an app *is*, never what a case would like it to be.** A case that could
+answer its own PICS could never be skipped by them.
 
 **A transport is a property of the session, so it is requested before the controller starts.**
 `certTest`'s `transport: "tcp"` reaches the adapter through the factory (`ControllerAdapterOptions`),

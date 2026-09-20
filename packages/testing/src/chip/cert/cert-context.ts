@@ -220,6 +220,15 @@ export interface CertTestDefinition {
     plan: string;
     pics: string[];
     app: string;
+    /**
+     * Whether the device under test is a device rather than a controller, which the declaration says by
+     * giving no controller role the `"dut"` kind (see `cert-dsl.ts`'s `CertTestOptions.controllers`).
+     *
+     * It decides whose self-declared PICS win where the device's and the controller's disagree: the
+     * claim a step makes is about the DUT, so the DUT's own side answers it. Absent, the controller
+     * is the DUT, which is what every case declaring no roles of its own is.
+     */
+    dutIsDevice?: boolean;
     /** Variant of `app` to run, where the flavor supports one (see `cert-dsl.ts`'s `CertTestOptions`). */
     appVariant?: CertAppVariant;
     /** Device flavors this test supports; absent runs on every flavor (see `cert-dsl.ts`'s `CertTestOptions`). */
