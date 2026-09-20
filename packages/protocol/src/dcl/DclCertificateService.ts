@@ -23,6 +23,7 @@ import {
     hashAlgorithmForId,
     Hours,
     ImplementationError,
+    isObject,
     Logger,
     LogLevel,
     Pem,
@@ -44,17 +45,6 @@ import type { CertSeedEntry, SeedSource } from "./SeedTypes.js";
 
 const logger = Logger.get("DclCertificateService");
 
-/** A revocation set entry as the JSON states it, before anything has checked what its fields hold. */
-interface RevocationSetJson {
-    issuer_subject_key_id?: unknown;
-    issuer_name?: unknown;
-    revoked_serial_numbers?: unknown;
-}
-
-function isRevocationSetJson(value: unknown): value is RevocationSetJson {
-    return typeof value === "object" && value !== null;
-}
-
 function statedString(value: unknown, field: string, index: number) {
     if (typeof value !== "string") {
         throw new ImplementationError(`Revocation set entry ${index} states ${field} as something other than a string`);
@@ -62,34 +52,66 @@ function statedString(value: unknown, field: string, index: number) {
     return value;
 }
 
-function statedSerials(value: unknown, index: number) {
-    if (!Array.isArray(value) || value.some(serial => typeof serial !== "string")) {
+/**
+ * A hex field, as the entry states it.
+ *
+ * An identifier or serial that is not hex matches no certificate, so a set that states one would be
+ * installed, reported as installed, and then answer "not revoked" for everything it names. It is
+ * refused instead.
+ */
+function statedHex(value: unknown, field: string, index: number) {
+    const stated = statedString(value, field, index).replace(/:/g, "");
+    if (stated === "" || stated.length % 2 !== 0 || !/^[0-9A-Fa-f]+$/.test(stated)) {
         throw new ImplementationError(
-            `Revocation set entry ${index} states revoked_serial_numbers as something other than a list of hex strings`,
+            `Revocation set entry ${index} states ${field} as "${stated}", which is not an even number of hex digits`,
         );
     }
-    return value.map((serial, position) => statedString(serial, `revoked_serial_numbers[${position}]`, index));
+    return stated;
+}
+
+function statedSerials(value: unknown, index: number) {
+    if (!Array.isArray(value)) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states revoked_serial_numbers as something other than a list`,
+        );
+    }
+    return value.map((serial, position) => statedHex(serial, `revoked_serial_numbers[${position}]`, index));
 }
 
 /**
- * The issuer name an entry states, as hex of the DER it encodes. An entry that states none, or states
- * an empty one, is matched on its key identifier alone.
+ * The issuer name an entry states, as base64 of the DER it encodes. An entry that states none, or
+ * states an empty one, is matched on its key identifier alone.
  */
-function issuerDnOf(issuerName: string | undefined, index: number) {
-    if (issuerName === undefined || issuerName === "") {
+function statedIssuerName(value: unknown, index: number) {
+    if (value === undefined || value === "") {
         return undefined;
     }
 
-    let der;
+    const stated = statedString(value, "issuer_name", index);
     try {
-        der = Bytes.fromBase64(issuerName);
+        Bytes.fromBase64(stated);
     } catch (error) {
         throw new ImplementationError(
-            `Revocation set entry ${index} states an issuer name that is not base64: ${asError(error).message}`,
+            `Revocation set entry ${index} states an issuer_name that is not base64: ${asError(error).message}`,
         );
     }
+    return stated;
+}
 
-    return Bytes.toHex(der).toUpperCase();
+/** What the DCL's revocation sets state as their type, and the only kind of entry this reads. */
+const REVOCATION_SET_TYPE = "revocation_set";
+
+function statedType(value: unknown, index: number) {
+    if (value !== undefined && value !== REVOCATION_SET_TYPE) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states type "${String(value)}" rather than "${REVOCATION_SET_TYPE}"`,
+        );
+    }
+}
+
+/** The issuer name an entry states, as hex of the DER it encodes. */
+function issuerDnOf(issuerName: string | undefined) {
+    return issuerName === undefined ? undefined : Bytes.toHex(Bytes.fromBase64(issuerName)).toUpperCase();
 }
 
 /**
@@ -419,9 +441,11 @@ export class DclCertificateService {
         // Nothing is installed until every entry has been read, so a set with a bad entry in the middle
         // does not leave half of itself in force
         const read = entries.map((entry, index) => ({
-            akid: this.#normalizeSubjectKeyId(entry.issuerSubjectKeyId),
-            issuerDnDerHex: issuerDnOf(entry.issuerName, index),
-            serials: entry.revokedSerialNumbers.map(canonicalSerial),
+            akid: this.#normalizeSubjectKeyId(statedHex(entry.issuerSubjectKeyId, "issuerSubjectKeyId", index)),
+            issuerDnDerHex: issuerDnOf(statedIssuerName(entry.issuerName, index)),
+            serials: entry.revokedSerialNumbers.map((serial, position) =>
+                canonicalSerial(statedHex(serial, `revokedSerialNumbers[${position}]`, index)),
+            ),
         }));
 
         for (const { akid, issuerDnDerHex, serials } of read) {
@@ -448,9 +472,18 @@ export class DclCertificateService {
         }
     }
 
-    /** Revocation information installed from outside the DCL, by the key identifier it was stated for. */
-    get installedRevocations(): ReadonlyMap<string, readonly DclCertificateService.RevocationEntry[]> {
-        return this.#installedRevocations;
+    /**
+     * Revocation information installed from outside the DCL, by the key identifier it was stated for.
+     *
+     * A copy: what this service holds can only be added to, through {@link installRevocations}.
+     */
+    get installedRevocations(): ReadonlyMap<string, readonly DclCertificateService.InstalledRevocation[]> {
+        return new Map(
+            [...this.#installedRevocations].map(([akid, entries]) => [
+                akid,
+                entries.map(({ serials, issuerDnDerHex }) => ({ serials: new Set(serials), issuerDnDerHex })),
+            ]),
+        );
     }
 
     /**
@@ -1435,14 +1468,15 @@ export class DclCertificateService {
         const stated: unknown[] = parsed;
 
         return stated.map((entry, index) => {
-            if (!isRevocationSetJson(entry)) {
+            if (!isObject(entry)) {
                 throw new ImplementationError(`Revocation set entry ${index} is not an object`);
             }
 
+            statedType(entry.type, index);
+
             return {
-                issuerSubjectKeyId: statedString(entry.issuer_subject_key_id, "issuer_subject_key_id", index),
-                issuerName:
-                    entry.issuer_name === undefined ? undefined : statedString(entry.issuer_name, "issuer_name", index),
+                issuerSubjectKeyId: statedHex(entry.issuer_subject_key_id, "issuer_subject_key_id", index),
+                issuerName: statedIssuerName(entry.issuer_name, index),
                 revokedSerialNumbers: statedSerials(entry.revoked_serial_numbers, index),
             };
         });
@@ -1689,6 +1723,12 @@ export namespace DclCertificateService {
         /** Epoch timestamp (ms) when this certificate was first fetched and added to the local trust store. */
         fetchedAt?: number;
     };
+
+    /** Revocation information installed from outside the DCL, as {@link installedRevocations} reports it. */
+    export interface InstalledRevocation {
+        readonly serials: ReadonlySet<string>;
+        readonly issuerDnDerHex?: string;
+    }
 
     /** Cached revocation data for a single AKID. */
     export interface RevocationEntry {

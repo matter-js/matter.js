@@ -151,6 +151,13 @@ describe("DclCertificateService revocation outside the DCL", () => {
         expect(await dcl.isRevoked(PAI_AKID, REVOKED_SERIAL, nameAsDerHex(PAI_NAME))).equal(true);
         expect(dcl.installedRevocations.get(PAI_AKID)).lengthOf(1);
 
+        // A copy each time, so what a reader holds is never what the service checks against
+        const first = dcl.installedRevocations.get(PAI_AKID)?.[0].serials;
+        const second = dcl.installedRevocations.get(PAI_AKID)?.[0].serials;
+        expect(first).not.equal(second);
+        expect([...(first ?? [])]).deep.equal([REVOKED_SERIAL]);
+        expect([...(second ?? [])]).deep.equal([REVOKED_SERIAL]);
+
         await dcl.close();
     });
 
@@ -173,6 +180,22 @@ describe("DclCertificateService revocation outside the DCL", () => {
         });
 
         expect(await dcl.isRevoked(PAI_AKID, REVOKED_SERIAL, nameAsDerHex(OTHER_NAME))).equal(true);
+
+        await dcl.close();
+    });
+
+    it("installs nothing when an entry hands in a serial that is not hex", async () => {
+        dclKnowsNothing();
+        const dcl = await service();
+
+        expect(() =>
+            dcl.installRevocations([
+                { issuerSubjectKeyId: PAI_AKID, revokedSerialNumbers: [REVOKED_SERIAL] },
+                { issuerSubjectKeyId: PAI_AKID, revokedSerialNumbers: ["nonsense"] },
+            ]),
+        ).throws(ImplementationError, "revokedSerialNumbers[0]");
+
+        expect(await dcl.isRevoked(PAI_AKID, REVOKED_SERIAL)).equal(false);
 
         await dcl.close();
     });
@@ -234,7 +257,7 @@ describe("DclCertificateService revocation outside the DCL", () => {
     });
 
     describe("parseRevocationSet()", () => {
-        it("reads the set as the DCL states it", () => {
+        it("reads the set as the revocation-set tool writes it", () => {
             const entries = DclCertificateService.parseRevocationSet(
                 JSON.stringify([
                     {
@@ -275,6 +298,57 @@ describe("DclCertificateService revocation outside the DCL", () => {
                 ImplementationError,
                 "entry 0 is not an object",
             );
+        });
+
+        it("refuses an entry whose key identifier is not hex, which would match nothing", () => {
+            expect(() =>
+                DclCertificateService.parseRevocationSet(
+                    '[{"issuer_subject_key_id":"not hex","revoked_serial_numbers":["AB"]}]',
+                ),
+            ).throws(ImplementationError, "issuer_subject_key_id");
+        });
+
+        it("refuses a serial that is not hex, which would match nothing", () => {
+            expect(() =>
+                DclCertificateService.parseRevocationSet(
+                    `[{"issuer_subject_key_id":"${PAI_AKID}","revoked_serial_numbers":["zz"]}]`,
+                ),
+            ).throws(ImplementationError, "revoked_serial_numbers[0]");
+        });
+
+        it("refuses hex that does not divide into bytes", () => {
+            expect(() =>
+                DclCertificateService.parseRevocationSet(
+                    `[{"issuer_subject_key_id":"${PAI_AKID}","revoked_serial_numbers":["ABC"]}]`,
+                ),
+            ).throws(ImplementationError, "even number of hex digits");
+        });
+
+        it("refuses an issuer name that is not base64", () => {
+            expect(() =>
+                DclCertificateService.parseRevocationSet(
+                    `[{"issuer_subject_key_id":"${PAI_AKID}","issuer_name":"not base64!","revoked_serial_numbers":["AB"]}]`,
+                ),
+            ).throws(ImplementationError, "issuer_name");
+        });
+
+        it("refuses an entry stating a type other than a revocation set", () => {
+            expect(() =>
+                DclCertificateService.parseRevocationSet(
+                    `[{"type":"certificate","issuer_subject_key_id":"${PAI_AKID}","revoked_serial_numbers":["AB"]}]`,
+                ),
+            ).throws(ImplementationError, "revocation_set");
+        });
+
+        it("refuses a list where an entry should be", () => {
+            expect(() => DclCertificateService.parseRevocationSet('[["not","an","entry"]]')).throws(
+                ImplementationError,
+                "entry 0 is not an object",
+            );
+        });
+
+        it("reads a set that revokes nothing", () => {
+            expect(DclCertificateService.parseRevocationSet("[]")).deep.equal([]);
         });
 
         it("refuses an entry whose serial numbers are not a list", () => {
