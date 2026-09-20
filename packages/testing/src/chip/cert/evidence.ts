@@ -50,7 +50,9 @@ export interface RunDeviceRecord {
     appVariant?: string;
     flavor: DeviceFlavor;
     /**
-     * Arguments this role's app was started with, absent where the declaration named none.
+     * Arguments this role's app was started with, absent where it took none.
+     *
+     * What the case declared plus whatever the harness had to add for the app to start at all.
      *
      * A chip app takes behaviour a case depends on from its command line, and a matter.js subject
      * ignores an argument it does not implement — so a bundle recording the arguments is what lets a

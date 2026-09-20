@@ -334,31 +334,44 @@ const PLAN_DELAYED_ACTION_TIME = 180;
 const SHORT_DELAYED_ACTION_TIME = 1;
 
 /**
- * The check a step records for the `DelayedActionTime` the DUT named.
+ * Whether the DUT echoed the `DelayedActionTime` the case scripted.
  *
- * The plan's expected outcome is that the DUT sends three minutes, and only a run that scripted three
- * minutes tests that. A shortened run scripts one second, so the same comparison would be the step
- * agreeing with itself: it records the value the DUT sent and says the plan's claim went untested.
+ * Always a pass or a fail, whatever the run shortened: a dropped or altered field is a defect of the
+ * DUT on any run. What changes with the shortening is *which* value was scripted, and that is
+ * {@link planDelayCoverageCheck}'s claim rather than this one's.
  */
 export function delayedActionTimeCheck(sent: number | undefined): CheckRecord {
     const asked = delayedActionTime();
+    return {
+        type: "response",
+        verdict: sent === asked ? "pass" : "fail",
+        detail: `the DUT answered DelayedActionTime ${sent}s, against the ${asked}s the case scripted`,
+    };
+}
 
-    if (otaDelaysShortened()) {
+/**
+ * Whether the value the case scripted was the one the plan names.
+ *
+ * The plans' expected outcome is that the DUT sends three minutes. A shortened run scripts one second
+ * so the TH's wait is short, which leaves that outcome untested — stated here rather than folded into
+ * the check above, where a verdict that changed with an environment variable could not fail at all.
+ */
+export function planDelayCoverageCheck(): CheckRecord {
+    if (!otaDelaysShortened()) {
         return {
             type: "response",
-            verdict: "unverified",
-            detail: `the DUT answered DelayedActionTime ${sent}s, which this run scripted`,
-            accepted:
-                `this run shortened the TH's retry intervals and scripted ${asked}s rather than the plan's ` +
-                `${PLAN_DELAYED_ACTION_TIME}s, so the plan's own value is not what the DUT sent here; the run ` +
-                "that sets MATTER_CERT_LONG_RUNNING scripts it and tests it",
+            verdict: "pass",
+            detail: `the case scripted the plan's ${PLAN_DELAYED_ACTION_TIME}s`,
         };
     }
 
     return {
         type: "response",
-        verdict: sent === asked ? "pass" : "fail",
-        detail: `the DUT answered DelayedActionTime ${sent}s, against the plan's ${PLAN_DELAYED_ACTION_TIME}s`,
+        verdict: "unverified",
+        accepted:
+            `this run shortened the TH's retry intervals and scripted ${SHORT_DELAYED_ACTION_TIME}s rather than ` +
+            `the plan's ${PLAN_DELAYED_ACTION_TIME}s, so the plan's own value is not what the DUT was asked for ` +
+            "here; the run that sets MATTER_CERT_LONG_RUNNING scripts it and tests it",
     };
 }
 

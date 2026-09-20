@@ -16,6 +16,7 @@ import {
     queryStatusName,
     delayedActionTime,
     delayedActionTimeCheck,
+    planDelayCoverageCheck,
     longRunningReason,
     singleQueryImage,
     unsupportedByDut,
@@ -152,8 +153,12 @@ async function recordBusyThenAvailable(cx: CertStepContext) {
             }),
         },
         {
-            what: "that answer named the DelayedActionTime the step asked for",
+            what: "that answer named the DelayedActionTime the case scripted",
             check: () => delayedActionTimeCheck(queries[0]?.response.delayedActionTime),
+        },
+        {
+            what: "the value scripted is the one the plan names",
+            check: () => planDelayCoverageCheck(),
         },
         {
             what: "the DUT answered the TH's next QueryImage UpdateAvailable",

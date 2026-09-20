@@ -59,6 +59,15 @@ export interface CertDevice extends Subject {
 
     /** The app variant this device actually runs, absent for a device whose flavor has no binary to vary. */
     readonly appVariant?: string;
+
+    /**
+     * The arguments this device was actually started with, absent for a device that takes none.
+     *
+     * What the case declared plus whatever the harness had to add for the app to start at all, which
+     * is what a reader of a bundle needs: an argument that changed the app's behaviour is no less
+     * relevant for having come from the harness.
+     */
+    readonly appArgs?: string[];
 }
 
 /**

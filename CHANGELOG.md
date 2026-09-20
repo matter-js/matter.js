@@ -14,6 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 - @matter/node
+    - Fix: Decommissioning a peer whose structure read never finished no longer reports an unhandled `uninitialized-dependency` error: the observer watching for that read now detaches when the node goes away, instead of reading state from a node that is closing
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
 - @matter/testing
     - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own

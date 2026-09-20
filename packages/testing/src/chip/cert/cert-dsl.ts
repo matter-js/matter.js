@@ -584,8 +584,9 @@ async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | u
 /**
  * Provenance for every device in a run: which binary each role ran and the revision it came from.
  *
- * `appVariant` comes from the started device, not the definition: a flavor that cannot run a variant
- * ignores the request, and a bundle claiming a variant that never started would be a lie.
+ * `appVariant` and `appArgs` come from the started device, not the definition: a flavor that cannot
+ * run a variant ignores the request, the harness adds arguments an app cannot start without, and a
+ * bundle claiming what never reached the app would be a lie.
  *
  * `chipRef` is resolved once per distinct app, but only `chip-docker` actually varies with it: a
  * `chip-local` revision names the extraction directory the binaries all came from, so every device of
@@ -594,7 +595,7 @@ async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | u
 export async function deviceRecordsFor(
     flavor: DeviceFlavor,
     deviceRoles: Record<string, string>,
-    devices: Record<string, Pick<CertDevice, "appVariant">>,
+    devices: Record<string, Pick<CertDevice, "appVariant" | "appArgs">>,
     appArgs?: Record<string, string[]>,
 ): Promise<RunDeviceRecord[]> {
     const refs = new Map<string, Promise<string | undefined>>();
@@ -613,7 +614,11 @@ export async function deviceRecordsFor(
                 app,
                 appVariant: device.appVariant,
                 flavor,
-                appArgs: appArgs?.[role],
+
+                // What the device reports having started with, as `appVariant` is: the harness adds
+                // what an app cannot start without, and a bundle naming only the declaration would
+                // omit an argument that changed the app's behaviour.
+                appArgs: device.appArgs ?? appArgs?.[role],
                 chipRef: await ref,
             };
         }),

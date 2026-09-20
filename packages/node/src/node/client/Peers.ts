@@ -683,12 +683,12 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         this.#evaluateSeeded(node);
         if (!node.lifecycle.isSeeded) {
-            // Self-disposing: removes itself once seeding latches so no dead listener persists for the node's
-            // remaining lifetime.  Safe to call off() from within this callback because Observable#emit iterates a
-            // snapshot of its observers.
+            // Self-disposing: removes itself once seeding latches, or once the node goes away without ever
+            // seeding, so no dead listener persists for the node's remaining lifetime.  Safe to call off() from
+            // within this callback because Observable#emit iterates a snapshot of its observers.
             const onChanged = () => {
                 this.#evaluateSeeded(node);
-                if (node.lifecycle.isSeeded) {
+                if (node.lifecycle.isSeeded || !isReadable(node)) {
                     node.lifecycle.changed.off(onChanged);
                 }
             };
@@ -701,7 +701,7 @@ export class Peers extends EndpointContainer<ClientNode> {
      * endpoint beyond the root is present.  Re-evaluated on BasicInformation install and on any endpoint tree change.
      */
     #evaluateSeeded(node: ClientNode) {
-        if (node.lifecycle.isSeeded) {
+        if (node.lifecycle.isSeeded || !isReadable(node)) {
             return;
         }
         if (node.maybeStateOf(BasicInformationClient) === undefined || node.endpoints.size <= 1) {
@@ -897,6 +897,16 @@ class Factory extends ClientNodeFactory {
     get nodes() {
         return this.#owner;
     }
+}
+
+/**
+ * Whether `node`'s behaviors can still be read.
+ *
+ * `close()` emits `lifecycle.changed` on its way out, after the behaviors are gone, so an observer that
+ * outlives the node reaches state that throws `uninitialized-dependency` rather than answering.
+ */
+function isReadable(node: ClientNode) {
+    return node.construction.status === Lifecycle.Status.Active;
 }
 
 function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration | number }>(

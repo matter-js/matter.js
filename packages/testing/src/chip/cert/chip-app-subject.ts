@@ -347,6 +347,13 @@ class ChipLocalDevice implements CertDevice {
     readonly log: LogFollower;
 
     #appArgs: string[];
+
+    /** What the app was last spawned with, which is what the evidence bundle reports. */
+    #effectiveAppArgs?: string[];
+
+    get appArgs(): string[] | undefined {
+        return this.#effectiveAppArgs;
+    }
     #hub = new LineQueue();
     #storageDir?: string;
     #stdin = new StdinPacer();
@@ -415,6 +422,7 @@ class ChipLocalDevice implements CertDevice {
         if (required.length) {
             await writeFile(imagePath, "");
         }
+        this.#effectiveAppArgs = [...required, ...this.#appArgs];
 
         const args = [
             "--discriminator",
@@ -835,6 +843,13 @@ export class ChipDockerDevice implements CertDevice {
     readonly log: LogFollower;
 
     #appArgs: string[];
+
+    /** What the app was last spawned with, which is what the evidence bundle reports. */
+    #effectiveAppArgs?: string[];
+
+    get appArgs(): string[] | undefined {
+        return this.#effectiveAppArgs;
+    }
     #hub = new LineQueue();
     #docker: DockerHandle;
     #stdin = new StdinPacer();
@@ -941,6 +956,7 @@ export class ChipDockerDevice implements CertDevice {
             this.#storageDir ??= await mkdtemp(join(tmpdir(), "matter-cert-docker-"));
             await writeFile(join(this.#storageDir, OTA_PLACEHOLDER_IMAGE), "");
         }
+        this.#effectiveAppArgs = [...required, ...this.#appArgs];
 
         // Installed before the container is added: a failing add() otherwise leaves the composition
         // (and its network) behind with nothing holding a reference to close it.

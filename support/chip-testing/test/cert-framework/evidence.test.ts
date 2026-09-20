@@ -82,6 +82,20 @@ describe("deviceRecordsFor", () => {
         expect(records.map(record => record.appArgs)).deep.equal([["--autoApplyImage"], undefined]);
     });
 
+    // The harness adds what an app cannot start without — a chip ota-provider dies with no image
+    // argument — so a bundle naming only the declaration would omit an argument that changed the
+    // app's behaviour
+    it("prefers what the device reports over what the case declared", async () => {
+        const records = await deviceRecordsFor(
+            "chip-local",
+            { th: "ota-provider" },
+            { th: { appArgs: ["-f", "/tmp/cert-app/ota-placeholder.bin"] } },
+            {},
+        );
+
+        expect(records[0].appArgs).deep.equal(["-f", "/tmp/cert-app/ota-placeholder.bin"]);
+    });
+
     // A flavor that cannot run a variant ignores the request, so a bundle claiming one that never
     // started would be a lie. Roles running the same app can still differ here, which is why the
     // variant is read per device rather than once per app alongside the chip ref.

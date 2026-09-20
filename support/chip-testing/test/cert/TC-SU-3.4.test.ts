@@ -13,6 +13,7 @@ import {
     applyActionName,
     delayedActionTime,
     delayedActionTimeCheck,
+    planDelayCoverageCheck,
     longRunningReason,
     OtaApplyAction,
     OtaQueryStatus,
@@ -120,8 +121,12 @@ async function recordDeferredApply(cx: CertStepContext) {
             }),
         },
         {
-            what: "that answer named the DelayedActionTime the step asked for",
+            what: "that answer named the DelayedActionTime the case scripted",
             check: () => delayedActionTimeCheck(applies[0]?.response.delayedActionTime),
+        },
+        {
+            what: "the value scripted is the one the plan names",
+            check: () => planDelayCoverageCheck(),
         },
         {
             // The plan's own point: the deferral is not the end of the exchange. A DUT that answered

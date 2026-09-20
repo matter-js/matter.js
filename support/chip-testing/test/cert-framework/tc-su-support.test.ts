@@ -12,6 +12,7 @@ import {
     blockSizeConforms,
     delayedActionTime,
     delayedActionTimeCheck,
+    planDelayCoverageCheck,
     longRunningReason,
     hexByteLength,
     queryImageResponseLines,
@@ -289,6 +290,7 @@ describe("delayedActionTime", () => {
 
             expect(delayedActionTimeCheck(180).verdict).equal("pass");
             expect(delayedActionTimeCheck(1).verdict).equal("fail");
+            expect(planDelayCoverageCheck().verdict).equal("pass");
         });
     });
 
@@ -300,14 +302,24 @@ describe("delayedActionTime", () => {
         });
     });
 
-    // The plan's expected outcome is that the DUT sends three minutes. A run that scripted one second
-    // and then compared against one second would be the step agreeing with itself
-    it("states that a shortened run did not test the plan's own value", () => {
+    // The plan's expected outcome is that the DUT sends three minutes, and a shortened run does not
+    // ask for that — a claim about coverage, kept apart from the verdict below so neither can hide
+    // the other
+    it("states that a shortened run did not script the plan's own value", () => {
         withFastRetry(true, () => {
-            const check = delayedActionTimeCheck(1);
+            const check = planDelayCoverageCheck();
             expect(check.verdict).equal("unverified");
             expect(check.accepted).contains("the plan's 180s");
-            expect(check.detail).contains("1s");
+        });
+    });
+
+    // A dropped or altered field is a defect of the DUT on any run, so this verdict never depends on
+    // what the run shortened
+    it("fails a value the DUT did not echo, shortened or not", () => {
+        withFastRetry(true, () => {
+            expect(delayedActionTimeCheck(1).verdict).equal("pass");
+            expect(delayedActionTimeCheck(180).verdict).equal("fail");
+            expect(delayedActionTimeCheck(undefined).verdict).equal("fail");
         });
     });
 });
