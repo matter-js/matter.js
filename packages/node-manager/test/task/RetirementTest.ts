@@ -26,7 +26,7 @@ import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import { PeerAddress } from "@matter/protocol";
 import { testAddress } from "./helpers.js";
-import { kindOf, FakePeer, pumpUntil, SyntheticTask } from "./helpers.js";
+import { kindOf, FakePeer, isTerminalState, pumpUntil, SyntheticTask } from "./helpers.js";
 
 class TestTaskManager extends TaskManagerBehavior {
     static override readonly schema = TaskManagerBehavior.schema;
@@ -703,6 +703,54 @@ describe("run records after a retirement", () => {
         expect(await node.act(a => a.get(TestTaskManager).get(kept))).not.equals(undefined);
         // The high-water mark outlived the records, so the answer is still "forgotten", not "never existed".
         expect(await attempt(node, m => m.cancel(evicted))).instanceOf(TaskNoLongerTrackedError);
+    });
+
+    it("refuses to resume work whose parameters and record name different runs to undo", async () => {
+        const environment = new Environment("disagreeing-undo");
+        // A type of its own, so registering it on the next start is what triggers the resume — and so the
+        // check is reached with the record intact rather than after some other refusal.
+        const Undoer: TaskDefinition<{ originalRunId: RunId }> = {
+            type: "undoer",
+            slotKeyFor: () => "undoer:1",
+            undoes: params => params.originalRunId,
+            phases: () => [{ name: "noop", run: async () => {} }],
+        };
+
+        {
+            await using seed = await makeNode(environment, "disagree");
+            await seed.act(a => {
+                const manager = a.get(TestTaskManager);
+                manager.state.runs = {
+                    "7": {
+                        runId: RunId(7),
+                        slotKey: "undoer:1",
+                        type: "undoer",
+                        // The record says it undoes run 1; its parameters replay run 9999's. Nothing this
+                        // layer writes can produce that — the link and the parameters are written together.
+                        params: { originalRunId: RunId(9999) },
+                        phaseIndex: 0,
+                        state: "running",
+                        wrote: false,
+                        changeSet: [],
+                        rollbackOf: RunId(1),
+                    },
+                };
+            });
+        }
+
+        await using node = await makeNode(environment, "disagree");
+        await node.act(a => a.get(TestTaskManager).register(Undoer));
+        await pumpUntil("the record is given up on", async () =>
+            node.act(a => {
+                const state = a.get(TestTaskManager).get(RunId(7))?.status.state;
+                return state !== undefined && isTerminalState(state);
+            }),
+        );
+
+        const status = await node.act(a => a.get(TestTaskManager).get(RunId(7))?.status);
+        expect(status?.state).equals("failed");
+        expect(status?.error).contains("its parameters undo 9999");
+        expect(status?.error).contains("record says it undoes 1");
     });
 
     it("builds a first rollback from the priors of a run whose rollback was refused", async () => {

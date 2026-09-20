@@ -448,6 +448,18 @@ export class TaskManagerBehavior extends Behavior {
                 );
                 continue;
             }
+            // The same question for the other thing a record says about itself. The link is what the layer
+            // reads to find a run's undo; the parameters are what the undo replays. A record whose halves name
+            // different runs would restore one run's values and discharge another run's priors.
+            if (bound.undoes !== record.rollbackOf) {
+                this.#failUnresumable(
+                    record,
+                    new TaskParamsRejectedError(
+                        `Cannot resume ${runLabel(record.runId)}: its parameters undo ${bound.undoes ?? "nothing"}, but the record says it undoes ${record.rollbackOf ?? "nothing"}`,
+                    ),
+                );
+                continue;
+            }
             this.#redrive(record, bound);
         }
     }

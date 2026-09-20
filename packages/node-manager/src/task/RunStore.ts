@@ -228,6 +228,7 @@ export class RunStore {
                 this.#slots.set(record.slotKey, record.runId);
             }
         }
+        this.#requireAgreeingRollbackLinks();
         // The persisted counter is a high-water mark, so it is authoritative; seeding above the highest
         // surviving id keeps allocation monotonic if a write of the counter was refused.
         this.#nextRunId = Math.max(snapshot?.nextRunId ?? 1, highest + 1);
@@ -325,6 +326,59 @@ export class RunStore {
             const record = this.#records.get(runId);
             return record === undefined ? [] : [record];
         });
+    }
+
+    /**
+     * Hold the two halves of the rollback relation to each other, across the whole table.
+     *
+     * A rollback links to its original at admission and the original's link lands with a later write, so one
+     * half alone is an ordinary moment. Halves that *disagree* are not: `rollbackFor` reads the recorded link
+     * while `Execution` replays the entries the rollback carries, so a rollback pointing at one run while a
+     * different run claims it replays one run's values and discharges another's priors. Nothing this layer
+     * writes can produce that, which is why it is refused rather than repaired.
+     *
+     * A referenced record that is simply absent is not a disagreement: history forgets an original once its
+     * undo has concluded, and the terminal rollback keeps the link.
+     */
+    #requireAgreeingRollbackLinks(): void {
+        const liveUndoOf = new Map<RunId, RunId>();
+        for (const record of this.#records.values()) {
+            const { runId, rollbackOf, rollbackRunId } = record;
+            if (rollbackOf === runId || rollbackRunId === runId) {
+                throw new InternalError(`Stored task record ${runId} is its own rollback`);
+            }
+            if (rollbackOf !== undefined) {
+                const original = this.#records.get(rollbackOf);
+                if (
+                    original !== undefined &&
+                    original.rollbackRunId !== undefined &&
+                    original.rollbackRunId !== runId
+                ) {
+                    throw new InternalError(
+                        `Stored task record ${runId} undoes ${rollbackOf}, which names ${original.rollbackRunId} as its rollback`,
+                    );
+                }
+                if (!isTerminal(record.state)) {
+                    // Two live undos of one run would rewrite the same intents from two drivers, and admission
+                    // reads only the first it finds.
+                    const other = liveUndoOf.get(rollbackOf);
+                    if (other !== undefined) {
+                        throw new InternalError(
+                            `Stored task records ${other} and ${runId} are both unfinished rollbacks of ${rollbackOf}`,
+                        );
+                    }
+                    liveUndoOf.set(rollbackOf, runId);
+                }
+            }
+            if (rollbackRunId !== undefined) {
+                const undo = this.#records.get(rollbackRunId);
+                if (undo !== undefined && undo.rollbackOf !== runId) {
+                    throw new InternalError(
+                        `Stored task record ${runId} names ${rollbackRunId} as its rollback, which undoes ${undo.rollbackOf ?? "nothing"}`,
+                    );
+                }
+            }
+        }
     }
 
     /** Every run this process still holds a record for, driven or not. */
