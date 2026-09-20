@@ -134,7 +134,7 @@ function requireSingleKeySteadyState(ctx: TaskContext, p: RotateGroupKeyParams):
  * still when the old key is dropped.
  *
  * Asked before each of those phases writes and again after, because provisioning a group takes no lock on its
- * key set. A member that joins between the checks holds the old key alone: after activate it cannot decrypt
+ * key set. A member that joins between the checks holds the old key alone: after the switch it cannot decrypt
  * traffic from members that already flipped, and after cleanup — which writes only the members it captured on
  * entry — it would be left holding a key every other member has dropped.
  */
@@ -215,15 +215,15 @@ function currentIntent(ctx: TaskContext, peer: ClientNode, p: RotateGroupKeyPara
 // A single-key steady state is the required starting point; a member already carrying THIS rotation's new key in
 // slot 1 is our own distribute output on a park/resume re-drive, not a foreign multi-epoch keyset, so accept it.
 function isRotatable(current: GroupKeyGrant, p: RotateGroupKeyParams): boolean {
-    // Slot 1 carrying this rotation's own key is enough, whatever slot 2 holds: a rotation stopped inside
-    // activate leaves its own randomised key there, and re-running the same rotation is the remedy the failure
+    // Slot 1 carrying this rotation's own key is enough, whatever slot 2 holds: a rotation stopped inside the
+    // switch leaves its own randomised key there, and re-running the same rotation is the remedy the failure
     // prescribes, so a shape this rotation itself produced can never be the reason to refuse it.
     return isSingleKeySteadyState(current) || holdsNewKey(current, p, "distribute");
 }
 
 /**
- * Whether the member carries this rotation's new key: in slot 1, which distribute and activate write, or — for
- * cleanup's own ask alone — in slot 0, the form cleanup leaves behind.
+ * Whether the member carries this rotation's new key: in slot 1, which distribute, mark and switch write, or —
+ * for cleanup's own ask alone — in slot 0, the form cleanup leaves behind.
  */
 function holdsNewKey(current: GroupKeyGrant, p: RotateGroupKeyParams, phase: RotationPhase): boolean {
     const slot1 = current.epochKey1;

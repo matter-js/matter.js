@@ -91,8 +91,8 @@ describe("built-in task parameter validation", () => {
     });
 
     it("refuses a change entry whose prior is not a restorable value", () => {
-        // A prior read back from storage is driven straight into desired state, so `null` here used to pass
-        // validation and throw while the rollback replayed it.
+        // A prior read back from storage is driven straight into desired state, so a malformed one refused
+        // here is the difference between a coded refusal and a throw from inside the rollback's replay.
         for (const prior of [null, 42, { intent: {}, mode: "sometimes" }, { mode: "maintain" }]) {
             expect(
                 () => Rollback.validate?.({ ...ROLLBACK, entries: [{ ...ROLLBACK.entries[0], prior }] } as never),

@@ -141,13 +141,12 @@ function refuseWhileKeysSwitch(ctx: TaskContext, p: AddNodeToGroupParams): void 
     }
 }
 
-/** The key the members of this key set are using, if any member holds one. */
 /**
  * A member whose operational key is not the one these parameters carry, if there is one.
  *
- * Every member, not the first one found: the peer being added holds an intent of its own by the time this is
- * asked again after the write, and if that one is reached first a stale key would answer for itself while the
- * members that matter hold another.
+ * Every member is asked, not only the first one holding the key set: the peer being added holds an intent of
+ * its own by the time this is asked again after the write, and answering from that one would let a stale key
+ * pass while the members that matter hold another.
  */
 function memberWithAnotherKey(ctx: TaskContext, p: AddNodeToGroupParams): ClientNode | undefined {
     const key = String(p.groupKeySetId);

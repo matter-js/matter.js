@@ -63,8 +63,8 @@ export const Require = {
     /**
      * A Unix time in microseconds the wire format can carry.
      *
-     * `TlvEpochUs` subtracts the Matter epoch and refuses the result if it goes negative, so a value below
-     * 2000-01-01 reaches the device path as an uncoded encode failure rather than as a refusal here.
+     * Refused below 2000-01-01: `TlvEpochUs` subtracts the Matter epoch and refuses a negative result, so
+     * without this check the value would reach the device path as an uncoded encode failure.
      */
     epoch(field: string, value: unknown): void {
         if (typeof value !== "bigint") {

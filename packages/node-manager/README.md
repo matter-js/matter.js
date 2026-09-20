@@ -64,6 +64,9 @@ const MyTask: TaskDefinition<{ peer: PeerAddress; groupId: number }> = {
         Require.id("groupId", params.groupId, 0xffff);
     },
     slotKeyFor: params => `myTask:${addressLabel(params.peer)}:${params.groupId}`,
+    // Everything this task does is on that one peer. Say so, or a departure ends the run: the default is that
+    // work cannot continue without a peer it names.
+    survivesWithout: () => false,
     phases: params => [
         {
             name: "write",
@@ -93,14 +96,18 @@ pass; a group has one too, with its group id in the node id.
 
 A task names the _target_ it changes — one peer's group membership, one fabric's key set — and one target has
 one task at a time. A second request for a busy target is refused, unless it repeats the `externalId` of the
-run that holds it, in which case it joins that run instead of starting a second one:
+run that holds it, in which case it joins that run instead of starting a second one. A run that is draining,
+settling or waiting for its type to be registered is refused before the `externalId` is even compared, because
+there is no live run to join:
 
 ```ts
 const handle = manager.run(AddNodeToGroup, params, { externalId: "provision-kitchen" });
 ```
 
-Refusals are `TaskRefusedError`s carrying a `TaskFindingCode`, so an interface can render the cause rather
-than the message. To ask before committing to the call:
+Refusals the layer can code are `TaskRefusedError`s carrying a `TaskFindingCode`, so an interface can render
+the cause rather than the message. A caller that misuses the API — a definition that was never registered, or one
+only `cancel()` may start — gets an `ImplementationError` instead, because that is a defect in the calling code
+rather than a state an operator can act on. To ask before committing to the call:
 
 ```ts
 const feasibility = manager.assess(AddNodeToGroup, params, { externalId: "provision-kitchen" });

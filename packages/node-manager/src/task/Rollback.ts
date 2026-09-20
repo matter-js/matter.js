@@ -22,6 +22,11 @@ export interface RollbackParams {
  * order: a recorded prior intent is re-applied, an absent prior is removed (unless the entry is still
  * referenced by another group). Runs as an ordinary task, so it parks on offline peers and resumes after
  * restart. Spawned by the manager on a hard forward failure or on cancel.
+ *
+ * The undo of a group provisioning is the inverse of what provisioned it, so what it writes is governed by the
+ * same sections as the forward work.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.2.7, § 11.2.6.1
  */
 export const Rollback: TaskDefinition<RollbackParams> = {
     type: ROLLBACK_TYPE,
