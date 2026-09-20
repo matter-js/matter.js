@@ -99,6 +99,69 @@ describe("an outcome and its place in the retirement order", () => {
     });
 });
 
+describe("the two halves of a rollback link", () => {
+    const undo = (runId: number, rollbackOf: number, state: TaskState = "running"): TaskPersistence => ({
+        ...persisted(runId, state),
+        slotKey: `rollback:${rollbackOf}`,
+        type: "rollback",
+        rollbackOf: RunId(rollbackOf),
+        ...(state === "running" ? {} : { retireSeq: RetireSeq(runId) }),
+    });
+
+    it("refuses an original and an undo that name different runs", () => {
+        const store = new RunStore();
+        expect(() =>
+            store.load({
+                runs: {
+                    "1": { ...persisted(1, "cancelled"), retireSeq: RetireSeq(1), rollbackRunId: RunId(9) },
+                    "2": undo(2, 1),
+                },
+                nextRunId: 10,
+            }),
+        ).throws(InternalError, /undoes 1, which names 9 as its rollback/);
+    });
+
+    it("refuses a record that undoes itself", () => {
+        const store = new RunStore();
+        expect(() => store.load({ runs: { "1": undo(1, 1) }, nextRunId: 10 })).throws(
+            InternalError,
+            /is its own rollback/,
+        );
+    });
+
+    it("refuses two unfinished undos of one run", () => {
+        const store = new RunStore();
+        expect(() =>
+            store.load({
+                runs: {
+                    "1": { ...persisted(1, "cancelled"), retireSeq: RetireSeq(1) },
+                    "2": undo(2, 1),
+                    "3": { ...undo(3, 1), slotKey: "rollback:1b" },
+                },
+                nextRunId: 10,
+            }),
+        ).throws(InternalError, /both unfinished rollbacks of 1/);
+    });
+
+    it("accepts an undo whose original history has already forgotten", () => {
+        // An original is evicted once its undo concluded, and the undo keeps the link. That is the layer's
+        // own doing, not a disagreement.
+        const store = new RunStore();
+        store.load({ runs: { "2": undo(2, 1, "completed") }, nextRunId: 10 });
+        expect(store.get(RunId(2))?.rollbackOf).equals(1);
+    });
+
+    it("accepts a link only one half has written yet", () => {
+        // A rollback links to its original at admission; the original's link lands with a later write.
+        const store = new RunStore();
+        store.load({
+            runs: { "1": { ...persisted(1, "cancelled"), retireSeq: RetireSeq(1) }, "2": undo(2, 1) },
+            nextRunId: 10,
+        });
+        expect(store.get(RunId(2))?.rollbackOf).equals(1);
+    });
+});
+
 describe("run table schema version", () => {
     it("loads a table written before the version existed", () => {
         const store = new RunStore();
