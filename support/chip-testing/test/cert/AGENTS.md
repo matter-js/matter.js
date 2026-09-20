@@ -1817,9 +1817,9 @@ in `cert-dsl.ts`. This used to throw.
 **Roles may name different apps** — an OTA requestor as `th` and an OTA provider as `th2` in one run.
 One of them must name the test's own `app` option, which is the device the harness activates itself;
 the rest are started by `WiredCertTest` in declaration order. The evidence bundle carries
-`run.devices`, one `RunDeviceRecord` per role naming the role, the binary, its variant, the flavor and
-the chip revision that binary came from, so a reader of a finished bundle can say what every device in
-the run actually was. Nothing in the bundle states a single app any more; a consumer that read
+`run.devices`, one `RunDeviceRecord` per role naming the role, the binary, its variant, the flavor, the
+arguments it was started with and the chip revision that binary came from, so a reader of a finished
+bundle can say what every device in the run actually was. Nothing in the bundle states a single app any more; a consumer that read
 `run.device` or `run.chipRef` reads the array instead.
 
 **A device crash names its role.** `deviceExit` in the record, the `deviceExited(role, info)` recorder
@@ -2845,3 +2845,76 @@ hand:
 MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 MATTER_MDNS_NETWORKINTERFACE=en0 \
     npx matter-test esm -p support/chip-testing --spec "./test/cert/TC-BDX-*.test.ts"
 ```
+
+## The SU block, where the DUT is the OTA provider (`TC-SU-3.1`–`TC-SU-3.4`)
+
+The Software Update plans give their 3.x cases a provider DUT, which here is the controller — the
+same topology TC-BDX-1.4 and TC-BDX-2.1 use, and the same `serveOtaTransfer` precondition drives it.
+What the SU cases need beyond the BDX ones is the **provider's own account of what it answered**.
+
+**A provider's answer is not observable from outside it.** The requestor's log states what it
+received, and neither requestor this suite runs as the TH renders the update token's length or the
+image URI's exact text. `CertNodeApi.serveOtaUpdate()` therefore reports `exchanges`: every
+`QueryImage`, `ApplyUpdateRequest` and `NotifyUpdateApplied` the controller's provider answered
+during that update, with the fields of both sides. The requestor's log is what corroborates that the
+answer reached it — chip's `DefaultOTARequestor` prints the whole response field by field under
+`[SWU]`, matter.js's requestor prints none of it and its own account is the download it then ran.
+
+The record comes from `CertOtaProviderServer` (`InProcessControllerAdapter.ts`), a subclass whose
+overrides call `super` and record: every answer is the provider matter.js ships, not one shaped for
+a case. The record is cleared before each announcement rather than filtered afterwards, so a case
+serving two updates reads each one's own.
+
+**`announceOtaProvider()` is how a case reaches a provider with nothing to offer.** It stages no
+image, announces the controller to the node and resolves once the node's `QueryImage` has been
+answered. TC-SU-3.2 step 2 needs exactly that — "there should not be any new software update
+available" — and it runs **before** the staging precondition, because a staged image cannot be
+un-staged. It announces `UpdateAvailable` rather than `SimpleAnnouncement`, which is what makes matter.js's
+requestor query at once (`OtaSoftwareUpdateRequestorServer` schedules on any reason but
+`SimpleAnnouncement`). chip's `DefaultOTARequestorDriver` treats the two alike and queries immediately
+either way, because its Linux app leaves `mOtaStartDelaySec` at zero.
+
+**A case may pass its app arguments, per role.** `certTest`'s `appArgs` is a role → arguments map
+threaded to the chip binary's command line and to a matter.js subject's `TestInstanceConfig.appArgs`.
+TC-SU-3.4 needs it: chip's `ota-requestor-app` ends the update at the download unless started with
+`--autoApplyImage`, so the `ApplyUpdateRequest` that case is about would never be sent. `serveOtaTransfer`
+takes an `expectApply` override for the same reason — its flavor default assumes the flag is absent.
+The evidence bundle records each role's arguments (`run.devices[].appArgs`), which is what lets a
+reader tell a flag that took effect from one that meant nothing on the flavor that ran.
+
+**What the provider cannot be made to answer is declared, not worked around.** Its
+`QueryImageResponse` carries a `DelayedActionTime` only while consent is being obtained and a
+`UserConsentNeeded` only for an update staged as needing consent; the controller stages its own
+images with consent already granted, so `OTAP.S.M.DelayedActionTime` and `OTAP.S.M.UserConsentNeeded`
+are declared `0` and the steps gated on them skip. `MCORE.OTA.HTTPS` is `0` for the same kind of
+reason: `SoftwareUpdateManager` serves from its own catalog over BDX and answers no https URI.
+Steps the *harness* cannot stage — failing a transfer part way, resuming one — carry `notApplicable`
+instead, because the capability is the harness's to lack rather than the DUT's.
+
+**The image URI is checked against the controller's own node id**, which `OtaBdxTransfer.providerNodeId`
+reports in the form `commission()` answers with. Reading the id out of the URI and then checking the
+URI against it would be checking the URI against itself. A node id appears in three renderings across
+this block — decimal on the API, sixteen uppercase hex in a BDX URI and in chip's log, decimal again
+in matter.js's — and the API carries one of them; `bdxImageUriFindings` and `announcementLines` render
+the others where they are needed.
+
+**`OtaExchangeRecording` owns the record's lifetime, and that is the load-bearing decision.** The
+provider's record is behavior state that keeps growing, so a call handing it back directly would give
+a case an array the requestor is still appending to: a `NotifyUpdateApplied` or a periodic
+`QueryImage` arriving after the call turns "the provider answered one QueryImage" into an
+intermittent failure. Opening a recording clears the record and attaches its observer inside one
+`act`, so no answer falls between the two, and reading it copies. Nothing else clears the record or
+reads it live.
+
+**Two reasons keep a step from running, and each has exactly one spelling.** A capability the *DUT*
+lacks is a `pics` gate, whose body is `unsupportedByDut(...)` — a PICS-gated step still needs a body,
+because a run whose PICS answer `1` must fail loudly rather than report a pass having checked nothing
+(`cert-test.ts` passes any step that runs without throwing, so an empty body is the worst of the
+three). A scenario the *harness* cannot stage is `notApplicable`. An empty body is neither.
+
+**A check written against a value the harness itself produced proves nothing.** TC-SU-1.1's endpoint
+check reads the OTA-P/TH2's own published device types rather than asking whether the announced
+endpoint is a number, and its VendorID claim rests on the requestor's log line rather than on a check
+of a field the controller filled in moments earlier. Where no independent account exists — matter.js's
+requestor logs nothing for a `QueryImageResponse` — the check says so with `accepted` instead of
+matching a line the precondition already guaranteed.

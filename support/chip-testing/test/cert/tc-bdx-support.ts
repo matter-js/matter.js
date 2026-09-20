@@ -72,6 +72,15 @@ export interface OtaTransferRoles {
 
     /** Device role that receives it, as a BDX initiator and receiver. */
     receiver: string;
+
+    /**
+     * Whether the receiver is expected to ask to apply what it downloaded.
+     *
+     * Absent, this follows the flavor: chip's `ota-requestor-app` ends the update at the download
+     * unless started with `--autoApplyImage`. A case that passes that flag through `appArgs` says so
+     * here, or the precondition stops waiting before the apply the case is about.
+     */
+    expectApply?: boolean;
 }
 
 /**
@@ -88,7 +97,7 @@ export interface OtaTransferRoles {
 export async function serveOtaTransfer(
     cx: CertStepContext,
     ref: CertNodeRef,
-    { sender, receiver }: OtaTransferRoles,
+    { sender, receiver, expectApply: expectApplyOverride }: OtaTransferRoles,
 ): Promise<BdxTransferEvidence> {
     const device = cx.devices[receiver];
     const from = await device.log.markSettled();
@@ -97,9 +106,9 @@ export async function serveOtaTransfer(
 
     // chip's ota-requestor-app treats the download as the end of the update unless it is started with
     // --autoApplyImage, and chip's own certification material starts it without that flag for the
-    // download cases (Test_TC_SU_3_3; Test_TC_SU_3_4, which is about applying, passes it). So only a
-    // matter.js receiver is expected to ask, and waiting on a chip one would only delay the step.
-    const expectApply = device.flavor === "matterjs";
+    // download cases (Test_TC_SU_3_3; Test_TC_SU_3_4, which is about applying, passes it). So a chip
+    // receiver is expected to ask only where the case started it with that flag and said so.
+    const expectApply = expectApplyOverride ?? device.flavor === "matterjs";
 
     let transfer: OtaBdxTransfer;
     try {

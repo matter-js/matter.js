@@ -13,6 +13,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/testing
     - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
+    - Enhancement: `CertNodeApi.serveOtaUpdate()` also reports the OTA commands the controller's own provider answered, and the new `CertNodeApi.announceOtaProvider()` announces a provider to a node without staging anything. Every `CertNodeApi` implementation must provide the new method
+    - Enhancement: A certification test can give each of its devices its own app arguments, via `certTest`'s `appArgs`, and the evidence bundle records what each role was started with
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
     - Enhancement: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
     - Enhancement: A certification step's read may require a session that permits large payloads via `ReadAttributeOptions.largeMessage`

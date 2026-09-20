@@ -243,4 +243,6 @@ export interface CertTestDefinition {
      * here; every other test keeps the transport its evidence and timing were written against.
      */
     transport?: ControllerTransport;
+    /** Role name → arguments that role's app starts with (see `cert-dsl.ts`'s `CertTestOptions`). */
+    appArgs?: Record<string, string[]>;
 }

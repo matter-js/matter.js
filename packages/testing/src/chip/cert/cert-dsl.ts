@@ -93,6 +93,19 @@ export interface CertTestOptions {
     devices?: Record<string, string>;
 
     /**
+     * Role name → arguments for that role's app, for a role {@link CertTestOptions.devices} declares
+     * (or `th`, the default role).
+     *
+     * A chip example app takes behaviour a cert case depends on from its command line:
+     * `chip-ota-requestor-app` ends an update at the download unless started with `--autoApplyImage`,
+     * and chip's own certification material passes that flag for the apply cases alone. A matter.js
+     * subject reaches its own equivalent through `TestInstanceConfig.appArgs`, and ignores an argument
+     * it does not implement — the evidence bundle records what each role was started with, so a flag
+     * that meant nothing on the running flavor is visible rather than assumed.
+     */
+    appArgs?: Record<string, string[]>;
+
+    /**
      * How this test's controllers reach their peers. `"tcp"` asks for a TCP-backed session, which the
      * TCP test cases are about and which a large-payload interaction requires. Omitted, a controller
      * keeps the transport every other test's evidence and timing were written against.
@@ -145,6 +158,27 @@ function assertUsableRoleName(tc: string, role: string) {
             `certTest "${tc}" declares a device role "${role}"; a role name becomes part of the subject's id, so ` +
                 "it must start with a letter and carry only letters, digits and underscores",
         );
+    }
+}
+
+/**
+ * Holds {@link CertTestOptions.appArgs} to the roles the same declaration names.
+ *
+ * A role that does not exist takes no arguments and reports nothing, so the case would run against a
+ * device started the default way while its declaration says otherwise — which is the whole failure
+ * the option exists to prevent.
+ */
+function assertAppArgsRoles(tc: string, deviceRoles: Record<string, string>, appArgs?: Record<string, string[]>) {
+    if (appArgs === undefined) {
+        return;
+    }
+    for (const role of Object.keys(appArgs)) {
+        if (!Object.hasOwn(deviceRoles, role)) {
+            throw new Error(
+                `certTest "${tc}" declares appArgs for the role "${role}", which none of its devices use ` +
+                    `(declared: ${Object.keys(deviceRoles).join(", ")})`,
+            );
+        }
     }
 }
 
@@ -221,6 +255,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         assertUsableRoleName(tc, role);
     });
     primaryDeviceRole(deviceRoles, options.app);
+    assertAppArgsRoles(tc, deviceRoles, options.appArgs);
 
     const definition: CertTestDefinition = {
         tc,
@@ -232,6 +267,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         flavors: options.flavors,
         chipBinsSources: options.chipBinsSources,
         transport: options.transport,
+        appArgs: options.appArgs,
         steps: new Array<CertStepDefinition>(),
     };
 
@@ -453,7 +489,7 @@ function defineCertTest(
                 this.skip();
             }
 
-            await State.activateSubject(factory, false, test);
+            await State.activateSubject(factory, false, test, undefined, definition.appArgs?.[primaryRole]);
         });
 
         mochaTest.descriptor = test.descriptor;
@@ -540,6 +576,7 @@ export async function deviceRecordsFor(
     flavor: DeviceFlavor,
     deviceRoles: Record<string, string>,
     devices: Record<string, Pick<CertDevice, "appVariant">>,
+    appArgs?: Record<string, string[]>,
 ): Promise<RunDeviceRecord[]> {
     const refs = new Map<string, Promise<string | undefined>>();
 
@@ -552,7 +589,14 @@ export async function deviceRecordsFor(
                 refs.set(app, ref);
             }
 
-            return { role, app, appVariant: device.appVariant, flavor, chipRef: await ref };
+            return {
+                role,
+                app,
+                appVariant: device.appVariant,
+                flavor,
+                appArgs: appArgs?.[role],
+                chipRef: await ref,
+            };
         }),
     );
 }
@@ -723,6 +767,7 @@ class WiredCertTest extends CertTest {
                 // an endpoint id.
                 const device = factory(`${this.descriptor.kind ?? "cert"}-${role}`, {
                     identity: identityFor(++identityIndex),
+                    appArgs: this.definition.appArgs?.[role],
                 });
                 extra.push(device);
                 await device.initialize();
@@ -744,7 +789,7 @@ class WiredCertTest extends CertTest {
 
             const [matterJsRef, deviceRecords, chipToolRef] = await Promise.all([
                 matterJsCommit(),
-                deviceRecordsFor(this.#flavor, this.#deviceRoles, devices),
+                deviceRecordsFor(this.#flavor, this.#deviceRoles, devices, this.definition.appArgs),
                 chipToolRefFor(controllerImplementation),
             ]);
 

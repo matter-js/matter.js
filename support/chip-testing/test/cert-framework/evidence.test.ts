@@ -49,9 +49,37 @@ describe("deviceRecordsFor", () => {
         );
 
         expect(records).deep.equal([
-            { role: "th", app: "ota-requestor", appVariant: undefined, flavor: "matterjs", chipRef: undefined },
-            { role: "th2", app: "ota-provider", appVariant: undefined, flavor: "matterjs", chipRef: undefined },
+            {
+                role: "th",
+                app: "ota-requestor",
+                appVariant: undefined,
+                flavor: "matterjs",
+                appArgs: undefined,
+                chipRef: undefined,
+            },
+            {
+                role: "th2",
+                app: "ota-provider",
+                appVariant: undefined,
+                flavor: "matterjs",
+                appArgs: undefined,
+                chipRef: undefined,
+            },
         ]);
+    });
+
+    // A chip app takes behaviour a case depends on from its command line, and a matter.js subject
+    // ignores an argument it does not implement, so the bundle is where a reader sees which flags the
+    // run actually started each role with
+    it("names the arguments each role was started with", async () => {
+        const records = await deviceRecordsFor(
+            "matterjs",
+            { th: "ota-requestor", th2: "ota-provider" },
+            { th: {}, th2: {} },
+            { th: ["--autoApplyImage"] },
+        );
+
+        expect(records.map(record => record.appArgs)).deep.equal([["--autoApplyImage"], undefined]);
     });
 
     // A flavor that cannot run a variant ignores the request, so a bundle claiming one that never
@@ -84,6 +112,7 @@ describe("deviceRecordsFor", () => {
                 app: "/opt/th/chip-th-server",
                 appVariant: undefined,
                 flavor: "python-wrapped",
+                appArgs: undefined,
                 chipRef: undefined,
             },
         ]);

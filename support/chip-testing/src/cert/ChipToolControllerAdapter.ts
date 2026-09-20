@@ -921,6 +921,15 @@ class ChipToolCertNodeApi implements CertNodeApi {
         );
     }
 
+    async announceOtaProvider(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "announceOtaProvider",
+            CONTROLLER,
+            "chip-tool is a commissioner, not an OTA provider: it hosts no OtaSoftwareUpdateProvider cluster to " +
+                "announce, so a node it announced would query an endpoint that does not exist",
+        );
+    }
+
     async invokeBatch(commands: BatchCommandSpec[]): Promise<BatchCommandResult[]> {
         throw new UnsupportedByControllerError(
             "invokeBatch",

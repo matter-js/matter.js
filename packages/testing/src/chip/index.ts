@@ -59,6 +59,7 @@ export { resetControllerAdapterFactoryForTesting } from "./cert/controller-adapt
 /** @internal Test seam — not API. */
 export { StdinPacer } from "./cert/chip-app-subject.js";
 export type {
+    AnnounceOtaProviderOptions,
     AttributePathSpec,
     AttributeReadEntry,
     AttributeWriteEntry,
@@ -83,7 +84,15 @@ export type {
     EventReadEntry,
     ManualPairingCodeFields,
     OnboardingPayloadFields,
+    OtaAnnouncement,
+    OtaAnnouncementRecord,
+    OtaApplyUpdateExchange,
     OtaBdxTransfer,
+    OtaNotifyUpdateAppliedRecord,
+    OtaProviderExchanges,
+    OtaQueryImageExchange,
+    OtaQueryImageRequestRecord,
+    OtaQueryImageResponseRecord,
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,

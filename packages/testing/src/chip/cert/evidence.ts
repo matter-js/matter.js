@@ -50,6 +50,14 @@ export interface RunDeviceRecord {
     appVariant?: string;
     flavor: DeviceFlavor;
     /**
+     * Arguments this role's app was started with, absent where the declaration named none.
+     *
+     * A chip app takes behaviour a case depends on from its command line, and a matter.js subject
+     * ignores an argument it does not implement — so a bundle recording the arguments is what lets a
+     * reader tell a flag that took effect from one that meant nothing on the flavor that ran.
+     */
+    appArgs?: string[];
+    /**
      * Revision of the image or extraction this device's binary came from, absent where none is
      * available.
      *
@@ -135,10 +143,14 @@ function errorText(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
 }
 
-/** One device's line in the run header: the role, the binary it ran, and where that binary came from. */
-function describeDevice({ role, app, appVariant, flavor, chipRef }: RunDeviceRecord): string {
+/**
+ * One device's line in the run header: the role, the binary it ran, the arguments it was started
+ * with, and where that binary came from.
+ */
+function describeDevice({ role, app, appVariant, flavor, appArgs, chipRef }: RunDeviceRecord): string {
     const binary = appVariant === undefined ? app : `${app}-${appVariant}`;
-    return `${role} = ${flavor}:${binary} (chip ref ${chipRef ?? "(unknown)"})`;
+    const args = appArgs?.length ? ` ${appArgs.join(" ")}` : "";
+    return `${role} = ${flavor}:${binary}${args} (chip ref ${chipRef ?? "(unknown)"})`;
 }
 
 /**
