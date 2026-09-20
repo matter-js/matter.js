@@ -14,6 +14,12 @@ import { Identity } from "@matter/general";
  * A Video Doorbell device is a composite device which combines a camera and a switch to provide a doorbell with Video
  * and Audio streaming.
  *
+ * ### Device Type Requirements
+ *
+ * This device type is composed of other device types listed in this table subject to the conformance column of the
+ * table. All devices used in compositions shall adhere to the disambiguation and superset requirements of the System
+ * Model. Additional device types not listed in this table may also be included in device compositions.
+ *
  * @see {@link MatterSpecification.v16.Device} § 16.3
  */
 export interface VideoDoorbellDevice extends Identity<typeof VideoDoorbellDeviceDefinition> {}

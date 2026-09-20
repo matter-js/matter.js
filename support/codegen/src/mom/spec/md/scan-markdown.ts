@@ -21,8 +21,7 @@ export function* scanMarkdownDocument(docRef: SpecReference, content: string): G
     let i = 0;
 
     while (i < lines.length) {
-        const line = lines[i];
-        const trimmed = line.trim();
+        const trimmed = lines[i].trim();
 
         // Heading line
         if (trimmed.startsWith("#")) {
@@ -64,8 +63,8 @@ export function* scanMarkdownDocument(docRef: SpecReference, content: string): G
             continue;
         }
 
-        // Bold table title like **Table N. ...** — skip
-        if (/^\*\*Table\s+\d+\./.test(trimmed)) {
+        // Table or figure caption like **Table N. ...** — skip
+        if (isCaption(trimmed)) {
             i++;
             continue;
         }
@@ -126,10 +125,13 @@ export function* scanMarkdownDocument(docRef: SpecReference, content: string): G
                 quoteLines.push(lines[i].trim().replace(/^>\s?/, ""));
                 i++;
             }
-            const text = quoteLines.join(" ").trim();
+            const text = quoteLines
+                .filter(quoted => quoted && !isCaption(quoted))
+                .join(" ")
+                .trim();
             if (text) {
                 const admonition = detectAdmonition(text);
-                const cleanText = stripMarkdown(text);
+                const cleanText = stripMarkdown(text).trim();
                 addProse(currentRef, `> [!${admonition}]\n> ${cleanText}`);
             }
             continue;
@@ -142,7 +144,10 @@ export function* scanMarkdownDocument(docRef: SpecReference, content: string): G
         }
 
         // Regular prose (paragraphs, list items, nested lists)
-        addProse(currentRef, stripMarkdown(trimmed));
+        const text = stripMarkdown(trimmed).trim();
+        if (text) {
+            addProse(currentRef, text);
+        }
         i++;
     }
 
@@ -155,6 +160,14 @@ export function* scanMarkdownDocument(docRef: SpecReference, content: string): G
             currentRef = undefined;
         }
     }
+}
+
+/**
+ * A table or figure caption names the artifact rather than describing the subject, and the artifact itself does not
+ * survive into documentation.
+ */
+function isCaption(line: string): boolean {
+    return /^\*\*(?:Table|Figure)\s+\d+\./.test(line);
 }
 
 function isPipeTableLine(line: string): boolean {

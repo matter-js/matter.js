@@ -16,6 +16,13 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Window Covering device type.
  *
+ * ### Cluster Requirements
+ *
+ * Furthermore, in revision at or before revision 5 for this device type, either or both of the Closure Control cluster
+ * and the Closure Dimension cluster shall NOT appear on the same endpoint. This is to avoid potential future usage of
+ * the closely related Closure Control cluster in this device type from interfering with non-standard usage of that
+ * cluster until proper data dependency language can be introduced, if any.
+ *
  * WindowCoveringDevice requires WindowCovering cluster but WindowCovering is not added by default because you must
  * select the features your device supports. You can add manually using WindowCoveringDevice.with().
  *

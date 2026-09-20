@@ -27,6 +27,32 @@ import { Identity } from "@matter/general";
 /**
  * A Laundry Dryer represents a device that is capable of drying laundry items.
  *
+ * ### Cluster Restrictions
+ *
+ * #### Temperature Control Cluster (Server) Clarifications
+ *
+ * Given that different markets have different customary methods of providing temperature settings (e.g. North America
+ * often prefers levels, whereas many other markets provide temperatures in °C), it is recommended that when the
+ * Temperature Control cluster is present, the TemperatureLevel or TemperatureNumber feature of that cluster is chosen
+ * to follow the most widely applied convention for the market where the product is sold.
+ *
+ * #### On/Off Cluster (Server) Clarifications
+ *
+ * The actions carried out by a Laundry Dryer device on receipt of specific commands are shown below. As indicated in
+ * the Element Requirements section below, the DF (Dead Front) feature is required for the On/Off cluster in this device
+ * type. See the "DeadFrontBehavior feature" section in the On/Off cluster description for detailed requirements. The
+ * "dead front" state is linked to the OnOff attribute in the On/Off cluster having the value False. Thus, the Off
+ * command of the On/Off cluster shall move the device into the "dead front" state, the On command of the On/Off cluster
+ * shall bring the device out of the "dead front" state, and the device shall adhere with the associated requirements on
+ * subscription handling and event reporting.
+ *
+ * #### Best Effort Attribute Values in "Dead Front" State
+ *
+ * When in "dead front", should the operational values of the cluster attributes not be available or accessible, the
+ * following are the recommended best effort values for per cluster attributes when responding to a new subscription
+ * request or a read request. Note that some of these attributes may be missing for the clusters not implemented on the
+ * endpoint due to optionality.
+ *
  * @see {@link MatterSpecification.v16.Device} § 13.6
  */
 export interface LaundryDryerDevice extends Identity<typeof LaundryDryerDeviceDefinition> {}

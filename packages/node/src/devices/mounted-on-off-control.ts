@@ -35,6 +35,22 @@ import { Identity } from "@matter/general";
  *   backward compatibility with existing clients. See On/Off Plug-in Unit client guidance for additional information,
  *   regarding the inclusion of these two device types.
  *
+ * ### Cluster Requirements
+ *
+ * The inclusion of the Level Control cluster on this device is recommended to provide a consistent user experience when
+ * the device is grouped with additional dimmable lights and the “with on/off” commands are used. For this device, since
+ * its only states are on or off, if the Level Control cluster is implemented, it shall NOT have any effect on the
+ * actual light level except for those commands that cause an on/off state change, that is, the “with on/off” commands.
+ * In addition, if the Level Control cluster is implemented, the device shall accept and process Level Control cluster
+ * commands, adjusting the value of the CurrentLevel attribute accordingly and, where necessary, adjusting the On/Off
+ * cluster OnOff attribute.
+ *
+ * ### Element Requirements
+ *
+ * As the TriggerEffect command of the Identify cluster and the OffWithEffect command of the On/Off cluster specify
+ * light effects that require dimming of the light output, and such is not possible on this device type, the specified
+ * light effects may be replaced by pure on/off light effects.
+ *
  * @see {@link MatterSpecification.v16.Device} § 5.3
  */
 export interface MountedOnOffControlDevice extends Identity<typeof MountedOnOffControlDeviceDefinition> {}

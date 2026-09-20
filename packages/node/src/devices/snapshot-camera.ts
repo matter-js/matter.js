@@ -25,6 +25,21 @@ import { Identity } from "@matter/general";
  * A Snapshot Camera device is a camera which can only support retrieving still images on-demand via the Capture
  * Snapshot command in the Camera AV Stream Management cluster.
  *
+ * ### Device Type Requirements
+ *
+ * A Snapshot Camera may expose elements of its functionality through one or more additional device types on different
+ * endpoints. All devices used in compositions shall adhere to the disambiguation requirements of the System Model.
+ * Other device types, not explicitly listed in the table, may also be included in device compositions but are not
+ * considered part of the core functionality of the device.
+ *
+ * Snapshot Cameras which implement occupancy detection based on the signals from the optical sensor, may expose this
+ * functionality using an Occupancy Sensing cluster on the primary camera endpoint along with the other camera
+ * functionality. The device type Occupancy Sensor shall NOT be added to the DeviceTypeList of this endpoint.
+ *
+ * Snapshot Cameras may have an Occupancy Sensor of a different type for occupancy detection independent of the optical
+ * sensor. If this sensor is exposed, it shall be placed on a child endpoint of the primary camera endpoint, with the
+ * corresponding device type Occupancy Sensor, as indicated in the following table:
+ *
  * @see {@link MatterSpecification.v16.Device} § 16.6
  */
 export interface SnapshotCameraDevice extends Identity<typeof SnapshotCameraDeviceDefinition> {}

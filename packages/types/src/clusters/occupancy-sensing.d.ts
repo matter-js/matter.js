@@ -85,8 +85,6 @@ export declare namespace OccupancySensing {
          * Occupancy attribute will be set to 1 from the start of the first period where the PIR signal exceeds the
          * threshold until HoldTime after the last moment where the PIR exceeded the threshold.
          *
-         * !HoldTime
-         *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.3
          */
         holdTime?: number;
@@ -232,8 +230,6 @@ export declare namespace OccupancySensing {
          * expired; this results in a single period of the bit in the Occupancy attribute being 1. The bit in the
          * Occupancy attribute will be set to 1 from the start of the first period where the PIR signal exceeds the
          * threshold until HoldTime after the last moment where the PIR exceeded the threshold.
-         *
-         * !HoldTime
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.7.6.3
          */
