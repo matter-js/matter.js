@@ -121,6 +121,7 @@ import type {
     OtaAnnouncement,
     OtaAnnouncementRecord,
     OtaProviderExchanges,
+    OtaProviderScript,
     OtaQueryImageExchange,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -249,14 +250,12 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     // The controller is not an OTA requestor, so it never tells a provider that an update was applied.
     "OTAR.C.M.NotifyUpdateApplied": 0,
 
-    // The provider's own optional response fields, neither of which this controller ever sends. Its
-    // `QueryImageResponse` carries a DelayedActionTime on the Busy answers alone — an update already
-    // in progress for the peer, a BDX registration it could not make, consent still being obtained —
-    // and a cert run serves one update at a time to a peer whose consent is granted before the image
-    // is staged, so no Busy answer arises. UserConsentNeeded is sent only for an update staged as
-    // requiring consent, and these are not.
-    "OTAP.S.M.DelayedActionTime": 0,
-    "OTAP.S.M.UserConsentNeeded": 0,
+    // The provider's own optional response fields. Its own answers carry a DelayedActionTime on the
+    // Busy paths and a UserConsentNeeded for an update staged as needing consent; a cert case reaches
+    // both through `CertNodeApi.scriptOtaProvider`, which has the provider state them without putting
+    // it in a state the harness cannot arrange.
+    "OTAP.S.M.DelayedActionTime": 1,
+    "OTAP.S.M.UserConsentNeeded": 1,
 
     // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
     // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
@@ -423,12 +422,29 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
     static override Internal = class extends OtaSoftwareUpdateProviderServer.Internal {
         exchanges: OtaProviderExchanges = emptyOtaExchanges();
 
+        /** Answers still to give in place of this provider's own, oldest first. */
+        script: Required<OtaProviderScript> = { queryImage: [], applyUpdate: [] };
+
         /** Emits once this provider has recorded another answer, so a caller can wait for one. */
         recorded = Observable<[]>();
     };
 
     override async queryImage(request: OtaSoftwareUpdateProvider.QueryImageRequest) {
-        const response = await super.queryImage(request);
+        const scripted = this.internal.script.queryImage.shift();
+
+        // A scripted status is answered without asking `super` at all. Its answer is a side effect as
+        // much as a value — it stages an in-progress entry and registers the peer for BDX — and a
+        // status written over the top afterwards would leave the provider expecting a transfer the
+        // requestor was just told not to start.
+        const response: OtaSoftwareUpdateProvider.QueryImageResponse =
+            scripted?.status === undefined
+                ? withUserConsent(await super.queryImage(request), scripted?.userConsentNeeded)
+                : {
+                      status: scripted.status,
+                      delayedActionTime: scripted.delayedActionTime,
+                      userConsentNeeded: scripted.userConsentNeeded,
+                  };
+
         this.internal.exchanges.queryImage.push({
             request: {
                 vendorId: request.vendorId,
@@ -456,7 +472,16 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
     }
 
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
-        const response = await super.applyUpdateRequest(request);
+        const scripted = this.internal.script.applyUpdate.shift();
+
+        // As in `queryImage`, and for the same reason: `super` closes the BDX registration on its way
+        // to answering, which a deferred apply needs to keep so the requestor's next attempt can use
+        // what it already downloaded.
+        const response =
+            scripted?.action === undefined
+                ? await super.applyUpdateRequest(request)
+                : { action: scripted.action, delayedActionTime: scripted.delayedActionTime ?? 0 };
+
         this.internal.exchanges.applyUpdate.push({
             request: { updateToken: Bytes.toHex(request.updateToken), newVersion: request.newVersion },
             response: { action: response.action, delayedActionTime: response.delayedActionTime },
@@ -552,6 +577,14 @@ class OtaExchangeRecording {
     close() {
         this.#observers.close();
     }
+}
+
+/** `response` with `UserConsentNeeded` set, where a script asked for it. */
+function withUserConsent(
+    response: OtaSoftwareUpdateProvider.QueryImageResponse,
+    userConsentNeeded: boolean | undefined,
+): OtaSoftwareUpdateProvider.QueryImageResponse {
+    return userConsentNeeded === undefined ? response : { ...response, userConsentNeeded };
 }
 
 function emptyOtaExchanges(): OtaProviderExchanges {
@@ -1280,6 +1313,18 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    scriptOtaProvider(script: OtaProviderScript): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            const provider = await this.#otaProvider();
+            await provider.act(agent => {
+                agent.get(RecordingOtaProviderServer).internal.script = {
+                    queryImage: [...(script.queryImage ?? [])],
+                    applyUpdate: [...(script.applyUpdate ?? [])],
+                };
+            });
+        });
+    }
+
     announceOtaProvider(options?: AnnounceOtaProviderOptions): Promise<OtaAnnouncement> {
         return runTagged(this.#adapterId, async () => {
             const announced = options?.provider;
@@ -1395,7 +1440,13 @@ class InProcessCertNodeApi implements CertNodeApi {
             // Armed before the transfer starts, not after it ends: the peer asks to apply as soon as the
             // last block lands, and an observer attached afterwards can miss its own event.
             const applied =
-                options?.expectApply === false ? undefined : await this.#applyAllowed(provider, peerAddress);
+                options?.expectApply === false
+                    ? undefined
+                    : await this.#applyAllowed(
+                          provider,
+                          peerAddress,
+                          options?.applyTimeoutMs === undefined ? OTA_APPLY_TIMEOUT : Millis(options.applyTimeoutMs),
+                      );
 
             try {
                 return await this.#serveStagedImage(
@@ -1533,7 +1584,7 @@ class InProcessCertNodeApi implements CertNodeApi {
      * Resolves rather than rejecting when the peer never asks: the image was still served, which is
      * what the BDX cases are about, and `applyAcknowledged` reports what happened instead.
      */
-    async #applyAllowed(provider: Endpoint, peerAddress: PeerAddress) {
+    async #applyAllowed(provider: Endpoint, peerAddress: PeerAddress, timeout: Duration) {
         const observers = new ObserverGroup();
         const { promise, resolver } = createPromise<boolean>();
 
@@ -1555,7 +1606,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         // it, and a single awaited promise would collapse both into one wait on the wrong side of it.
         return {
             settled: async () => {
-                const expiry = Time.sleep("cert OTA apply", OTA_APPLY_TIMEOUT);
+                const expiry = Time.sleep("cert OTA apply", timeout);
                 try {
                     return await Promise.race([promise, expiry.then(() => false)]);
                 } finally {

@@ -32,6 +32,7 @@ export function fakeCertNode(overrides: Partial<CertNodeApi> = {}): CertNodeApi 
         severTransportConnection: unused,
         serveOtaUpdate: unused,
         announceOtaProvider: unused,
+        scriptOtaProvider: unused,
         openCommissioningWindow: unused,
         operationalMdnsInstanceName: unused,
         decommission: unused,

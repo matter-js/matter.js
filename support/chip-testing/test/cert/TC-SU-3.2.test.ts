@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Seconds } from "@matter/main";
 import type { CertStepContext, OtaProviderExchanges } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { BdxTransferEvidence } from "./tc-bdx-support.js";
@@ -13,6 +14,9 @@ import {
     hexByteLength,
     OtaQueryStatus,
     queryStatusName,
+    delayedActionTime,
+    delayedActionTimeProvenance,
+    longRunningReason,
     singleQueryImage,
     unsupportedByDut,
 } from "./tc-su-support.js";
@@ -112,6 +116,77 @@ async function recordUpdateAvailableFields(cx: CertStepContext) {
                     response.metadataForRequestor === undefined
                         ? "the DUT sent no MetadataForRequestor, which the cluster makes optional"
                         : `the DUT sent MetadataForRequestor ${response.metadataForRequestor}`,
+            }),
+        },
+    ]);
+}
+
+async function recordBusyThenAvailable(cx: CertStepContext) {
+    const dut = cx.controllers.dut;
+    const ref = commissioned.get("dut");
+    if (ref === undefined) {
+        throw new CertCheckFailedError("the TH was not commissioned by the precondition step");
+    }
+    const delay = delayedActionTime();
+
+    await dut.node(ref).scriptOtaProvider({
+        queryImage: [{ status: OtaQueryStatus.Busy, delayedActionTime: delay }],
+    });
+
+    // The TH answers Busy by waiting and querying again, so the budget covers the delay the DUT named
+    // and the whole update that follows the second answer.
+    const busy = await serveOtaTransfer(cx, ref, {
+        sender: "dut",
+        receiver: "th",
+        timeoutMs: Seconds(delay + 90),
+    });
+    const queries = busy.transfer.exchanges.queryImage;
+
+    await recordAll(cx, [
+        {
+            what: "the DUT answered the first QueryImage Busy",
+            check: () => ({
+                type: "response",
+                verdict: queries[0]?.response.status === OtaQueryStatus.Busy ? "pass" : "fail",
+                detail: `the DUT answered ${queryStatusName(queries[0]?.response.status ?? -1)}`,
+            }),
+        },
+        {
+            what: "that answer named the DelayedActionTime the step asked for",
+            check: () => ({
+                type: "response",
+                verdict: queries[0]?.response.delayedActionTime === delay ? "pass" : "fail",
+                detail:
+                    `the DUT answered DelayedActionTime ${queries[0]?.response.delayedActionTime}s, against ` +
+                    delayedActionTimeProvenance(),
+            }),
+        },
+        {
+            what: "the DUT answered the TH's next QueryImage UpdateAvailable",
+            check: () => ({
+                type: "response",
+                verdict:
+                    queries.length === 2 && queries[1].response.status === OtaQueryStatus.UpdateAvailable
+                        ? "pass"
+                        : "fail",
+                detail:
+                    `the TH sent ${queries.length} QueryImage command(s), the last answered ` +
+                    queryStatusName(queries[queries.length - 1]?.response.status ?? -1),
+            }),
+        },
+        {
+            // The plan's own second claim: the download follows the UpdateAvailable answer, and a DUT
+            // that answered it without being able to serve would satisfy the checks above.
+            what: "the TH downloaded the image after the second answer",
+            check: () => ({
+                type: "response",
+                verdict:
+                    busy.transfer.transferredBytes === busy.transfer.fileSize && busy.transfer.fileSize > 0
+                        ? "pass"
+                        : "fail",
+                detail:
+                    `the TH took ${busy.transfer.transferredBytes} of the ${busy.transfer.fileSize} bytes the DUT ` +
+                    `staged for software version ${busy.transfer.softwareVersion}`,
             }),
         },
     ]);
@@ -256,9 +331,10 @@ certTest("TC-SU-3.2", {
         5,
         "OTA-R/TH sends a QueryImage Command to the DUT. DUT responds with QueryStatus Busy and DelayedActionTime " +
             "3 minutes, then UpdateAvailable on the subsequent QueryImage. (11.19.6.8)",
-        unsupportedByDut("a QueryImageResponse carrying a DelayedActionTime"),
+        recordBusyThenAvailable,
         {
             pics: "OTAP.S.M.DelayedActionTime",
+            longRunning: longRunningReason("the TH waits out the DelayedActionTime the DUT named"),
             expected:
                 "Verify that the DUT sends a QueryImageResponse with Status Busy and DelayedActionTime 3 minutes, " +
                 "that the OTA-R/TH starts the download after the second QueryImageResponse with UpdateAvailable, " +

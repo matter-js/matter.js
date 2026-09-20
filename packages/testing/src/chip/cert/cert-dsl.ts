@@ -128,6 +128,17 @@ export interface CertStepOptions {
      * this text as the reason, so the evidence bundle carries why rather than an unexplained gap.
      */
     notApplicable?: string;
+
+    /**
+     * Marks a step whose stimulus costs minutes of real time, and why.
+     *
+     * A plan step may have the TH wait out a delay the DUT named — minutes, by the plan's own numbers
+     * — and nothing about that wait is the DUT's behaviour under test. Such a step runs only where the
+     * run asked for it (`MATTER_CERT_LONG_RUNNING=1`), which is how a scheduled run covers it without
+     * every push paying for it. A case that can shorten the wait on the running flavor declares
+     * nothing here, so the step runs as usual.
+     */
+    longRunning?: string;
 }
 
 export interface CertTestBuilder {
@@ -293,6 +304,13 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 );
             }
 
+            if (opts?.longRunning !== undefined && opts.longRunning.trim() === "") {
+                throw new Error(
+                    `certTest "${tc}" step ${number} declares a long-running step with no reason, which would skip ` +
+                        "it with nothing recorded to explain why — give the reason, or omit the option",
+                );
+            }
+
             if (opts?.notApplicable !== undefined && opts.notApplicable.trim() === "") {
                 throw new Error(
                     `certTest "${tc}" step ${number} declares an empty "notApplicable" reason, which would skip it ` +
@@ -315,6 +333,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 expected: opts?.expected,
                 flavors: opts?.flavors,
                 notApplicable: opts?.notApplicable,
+                longRunning: opts?.longRunning,
             });
             return builder;
         },

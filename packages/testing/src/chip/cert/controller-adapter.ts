@@ -467,6 +467,46 @@ export interface OtaBdxTransfer {
     exchanges: OtaProviderExchanges;
 }
 
+/**
+ * An answer the controller's OTA provider gives in place of the one it would compute.
+ *
+ * A plan step may be about a status the provider reaches only in a state the harness cannot arrange —
+ * `Busy` while consent is outstanding, an `ApplyUpdateResponse` deferring the apply. The provider is
+ * the DUT here, and a vendor's provider is likewise free to answer these; what the case proves is that
+ * the cluster server states them the way the specification requires, and that the requestor acts on
+ * them. An absent field leaves the provider's own answer standing.
+ */
+export interface OtaScriptedQueryAnswer {
+    /** `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.6). */
+    status?: number;
+
+    /** `DelayedActionTime` in seconds, which a `Busy` answer carries. */
+    delayedActionTime?: number;
+
+    /** `UserConsentNeeded` to set on the answer the provider computed. */
+    userConsentNeeded?: boolean;
+}
+
+/** An `ApplyUpdateResponse` the provider gives in place of its own (§ 11.20.6.10). */
+export interface OtaScriptedApplyAnswer {
+    /** `Action`: 0 Proceed, 1 AwaitNextAction, 2 Discontinue. */
+    action?: number;
+
+    /** `DelayedActionTime` in seconds. */
+    delayedActionTime?: number;
+}
+
+/**
+ * Answers the controller's provider gives to the next commands it receives, in order.
+ *
+ * One entry per command; once a list is spent the provider answers for itself again, which is how a
+ * case scripts the first answer and lets the real one follow.
+ */
+export interface OtaProviderScript {
+    queryImage?: OtaScriptedQueryAnswer[];
+    applyUpdate?: OtaScriptedApplyAnswer[];
+}
+
 /** Options for {@link CertNodeApi.announceOtaProvider}. */
 export interface AnnounceOtaProviderOptions {
     /** How long to wait for the node's own `QueryImage` once it has been announced to. */
@@ -545,6 +585,15 @@ export interface ServeOtaUpdateOptions {
      * Absent, the node is expected to ask.
      */
     expectApply?: boolean;
+
+    /**
+     * How long to wait for the node's `ApplyUpdateRequest` once the transfer is complete.
+     *
+     * The request follows the last block immediately, so the default covers the two rather than a
+     * node that decided against applying. A case whose provider defers the apply names the delay it
+     * asked for plus room for the exchange that follows.
+     */
+    applyTimeoutMs?: number;
 }
 
 /**
@@ -763,6 +812,15 @@ export interface CertNodeApi {
      * of its own catalog rather than out of a state the case arranged.
      */
     announceOtaProvider(options?: AnnounceOtaProviderOptions): Promise<OtaAnnouncement>;
+
+    /**
+     * Has the controller's own OTA provider answer the next commands as `script` says.
+     *
+     * Replaces whatever a previous call installed, and an empty script clears it. The answers the
+     * provider then gave are reported the same way its own are, so a step asserts on what went on the
+     * wire rather than on what it asked for.
+     */
+    scriptOtaProvider(script: OtaProviderScript): Promise<void>;
 
     openCommissioningWindow(opts: {
         timeout: number;

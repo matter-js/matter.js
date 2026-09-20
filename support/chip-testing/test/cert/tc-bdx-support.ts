@@ -81,6 +81,16 @@ export interface OtaTransferRoles {
      * here, or the precondition stops waiting before the apply the case is about.
      */
     expectApply?: boolean;
+
+    /** How long to wait for the receiver's `ApplyUpdateRequest`, for a case whose provider defers it. */
+    applyTimeoutMs?: number;
+
+    /**
+     * How long the whole exchange may take, for a case whose provider defers the query.
+     *
+     * Absent, {@link OTA_TRANSFER_TIMEOUT}, which covers an announcement the receiver acts on at once.
+     */
+    timeoutMs?: number;
 }
 
 /**
@@ -97,7 +107,7 @@ export interface OtaTransferRoles {
 export async function serveOtaTransfer(
     cx: CertStepContext,
     ref: CertNodeRef,
-    { sender, receiver, expectApply: expectApplyOverride }: OtaTransferRoles,
+    { sender, receiver, expectApply: expectApplyOverride, applyTimeoutMs, timeoutMs }: OtaTransferRoles,
 ): Promise<BdxTransferEvidence> {
     const device = cx.devices[receiver];
     const from = await device.log.markSettled();
@@ -114,7 +124,7 @@ export async function serveOtaTransfer(
     try {
         transfer = await cx.controllers[sender]
             .node(ref)
-            .serveOtaUpdate({ timeoutMs: OTA_TRANSFER_TIMEOUT, expectApply });
+            .serveOtaUpdate({ timeoutMs: timeoutMs ?? OTA_TRANSFER_TIMEOUT, expectApply, applyTimeoutMs });
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
         // recorded nothing, so recording first would fail the run on a controller that cannot serve at all.

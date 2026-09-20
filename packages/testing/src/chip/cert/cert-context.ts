@@ -150,6 +150,12 @@ export interface StepRecorder {
      */
     recordPicsSkips?(count: number): void;
     /**
+     * Records how many steps were skipped for costing minutes of real time on the running flavor. A
+     * run that does not ask for them covers the plan minus what this names, and without the count a
+     * bundle would read as covering the whole plan.
+     */
+    recordLongRunningSkips?(count: number): void;
+    /**
      * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
      * evaluated at all. Counts the checks that declared their gap ({@link CheckRecord.accepted})
      * alongside those that did not, so this says how much the run left unobserved whatever the
@@ -209,6 +215,8 @@ export interface CertStepDefinition {
     flavors?: SelectableDeviceFlavor[];
     /** Reason this step can never execute; present makes the engine skip it (see `cert-dsl.ts`'s `CertStepOptions`). */
     notApplicable?: string;
+    /** Why this step costs minutes of real time (see `cert-dsl.ts`'s `CertStepOptions`). */
+    longRunning?: string;
     run: (cx: CertStepContext) => Promise<void>;
 }
 

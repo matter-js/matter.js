@@ -10,6 +10,9 @@ import {
     announcementLines,
     bdxImageUriFindings,
     blockSizeConforms,
+    delayedActionTime,
+    delayedActionTimeProvenance,
+    longRunningReason,
     hexByteLength,
     queryImageResponseLines,
     queryStatusName,
@@ -248,6 +251,52 @@ describe("singleApplyUpdate", () => {
     it("answers the one exchange, and names the command it could not settle", () => {
         expect(singleApplyUpdate(withApplies(1)).request.newVersion).equal(2);
         expect(() => singleApplyUpdate(withApplies(0))).to.throw(CertCheckFailedError, "answered 0 ApplyUpdateRequest");
+    });
+});
+
+describe("delayedActionTime", () => {
+    function withFastRetry<T>(enabled: boolean, body: () => T): T {
+        const previous = process.env.MATTER_CERT_OTA_FAST_RETRY;
+        const previousDevice = process.env.MATTER_CERT_DEVICE;
+        if (enabled) {
+            process.env.MATTER_CERT_OTA_FAST_RETRY = "1";
+            process.env.MATTER_CERT_DEVICE = "matterjs";
+        } else {
+            delete process.env.MATTER_CERT_OTA_FAST_RETRY;
+        }
+        try {
+            return body();
+        } finally {
+            // Captured and put back rather than deleted: either may have been set before this ran
+            restore("MATTER_CERT_OTA_FAST_RETRY", previous);
+            restore("MATTER_CERT_DEVICE", previousDevice);
+        }
+    }
+
+    function restore(name: string, value: string | undefined) {
+        if (value === undefined) {
+            delete process.env[name];
+        } else {
+            process.env[name] = value;
+        }
+    }
+
+    // The plan's own number, which the daily run sends so its evidence is what the plan asks for
+    it("names the plan's three minutes where the wait cannot be shortened", () => {
+        withFastRetry(false, () => {
+            expect(delayedActionTime()).equal(180);
+            expect(delayedActionTimeProvenance()).contains("the plan's 180s");
+            expect(longRunningReason("the wait")).contains("180s of real time");
+        });
+    });
+
+    // Above zero, so the answer still carries the field the step is about
+    it("names a short stand-in where it can, and says the run shortened it", () => {
+        withFastRetry(true, () => {
+            expect(delayedActionTime()).equal(1);
+            expect(delayedActionTimeProvenance()).contains("in place of the plan's 180s");
+            expect(longRunningReason("the wait")).equal(undefined);
+        });
     });
 });
 

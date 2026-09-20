@@ -12,6 +12,8 @@ import type {
     OtaQueryImageExchange,
     OtaQueryImageResponseRecord,
 } from "@matter/testing";
+import { resolveDeviceFlavor } from "@matter/testing";
+import { otaFastRetryEnabled } from "../../src/OtaRequestorTestInstance.js";
 import { CertCheckFailedError } from "./tc-support.js";
 
 /** `QueryStatus` of a `QueryImageResponse`, which the SU plans name by word (Matter Core § 11.20.6.6). */
@@ -300,4 +302,47 @@ export function unsupportedByDut(capability: string) {
                 "answered otherwise, so either the declaration or the DUT has changed",
         );
     };
+}
+
+/**
+ * Whether the TH's own retry intervals are shortened for this run.
+ *
+ * The plan steps about a delayed provider answer assert on the *provider's* fields; the wait that
+ * follows is the TH's, and nothing about it is the DUT's behaviour. `OtaRequestorTestInstance` can
+ * lower its two-minute floors, so where it is the TH and the run asked for it, such a step costs no
+ * real time. chip's requestor floors the wait at compile time, so there it costs what the plan costs.
+ */
+export function otaDelaysShortened() {
+    return otaFastRetryEnabled() && resolveDeviceFlavor() === "matterjs";
+}
+
+/** The plan's own `DelayedActionTime`, in seconds, or the short stand-in a shortened run uses. */
+export function delayedActionTime() {
+    return otaDelaysShortened() ? SHORT_DELAYED_ACTION_TIME : PLAN_DELAYED_ACTION_TIME;
+}
+
+/** What the plans name wherever they ask a provider to defer: three minutes. */
+const PLAN_DELAYED_ACTION_TIME = 180;
+
+/**
+ * What a shortened run names instead.
+ *
+ * Above zero, so the answer still carries the field the step is about, and below the TH's own lowered
+ * floor, so the wait is the floor rather than this.
+ */
+const SHORT_DELAYED_ACTION_TIME = 1;
+
+/** Says in a check's own detail which of the two {@link delayedActionTime} returned. */
+export function delayedActionTimeProvenance() {
+    return otaDelaysShortened()
+        ? `${delayedActionTime()}s in place of the plan's ${PLAN_DELAYED_ACTION_TIME}s, this run having shortened ` +
+              "the TH's retry intervals"
+        : `the plan's ${PLAN_DELAYED_ACTION_TIME}s`;
+}
+
+/** The reason a step carries when this run cannot shorten the wait it costs. */
+export function longRunningReason(what: string) {
+    return otaDelaysShortened()
+        ? undefined
+        : `${what} costs the plan's ${PLAN_DELAYED_ACTION_TIME}s of real time on this flavor`;
 }

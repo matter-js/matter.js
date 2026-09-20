@@ -2904,14 +2904,39 @@ takes an `expectApply` override for the same reason — its flavor default assum
 The evidence bundle records each role's arguments (`run.devices[].appArgs`), which is what lets a
 reader tell a flag that took effect from one that meant nothing on the flavor that ran.
 
-**What the provider cannot be made to answer is declared, not worked around.** Its
-`QueryImageResponse` carries a `DelayedActionTime` only while consent is being obtained and a
-`UserConsentNeeded` only for an update staged as needing consent; the controller stages its own
-images with consent already granted, so `OTAP.S.M.DelayedActionTime` and `OTAP.S.M.UserConsentNeeded`
-are declared `0` and the steps gated on them skip. `MCORE.OTA.HTTPS` is `0` for the same kind of
-reason: `SoftwareUpdateManager` serves from its own catalog over BDX and answers no https URI.
-Steps the *harness* cannot stage — failing a transfer part way, resuming one — carry `notApplicable`
-instead, because the capability is the harness's to lack rather than the DUT's.
+**A plan step about an answer the provider reaches only in a state the harness cannot arrange is
+driven, not skipped.** `CertNodeApi.scriptOtaProvider({ queryImage, applyUpdate })` queues answers the
+provider gives in place of its own, one per command, falling back to its real answer once a queue is
+spent. That is how TC-SU-3.2 step 5 gets a `Busy` with a `DelayedActionTime`, TC-SU-3.4 steps 2 and 3
+an `AwaitNextAction` and a `Discontinue`, and TC-SU-3.3 steps 2 and 3 a `UserConsentNeeded`. A
+scripted *status* or *action* is answered without asking `super` at all: its answer is a side effect
+as much as a value — it stages an in-progress entry, registers the peer for BDX, closes that
+registration on the way to an apply — and writing a status over the top afterwards would leave the
+provider expecting a transfer the requestor was just told not to start. A scripted `UserConsentNeeded`
+does overlay the real answer, because the step is about the field, not about the answer.
+
+**The delay is the TH's to wait out, not the DUT's to be judged on.** In every one of those steps the
+DUT is the provider and the claim is about the fields it sent; the minutes that follow are the
+requestor's own. So the wait is shortened where it can be: `OtaRequestorTestInstance` lowers
+`minimumQueryInterval` and `minimumApplyDelay` — the requestor's two-minute floors, overridable in the
+library for exactly this and never lowered by a product — when `MATTER_CERT_OTA_FAST_RETRY` is set,
+and the case then scripts a one-second `DelayedActionTime` and says so in the check's own detail.
+chip's requestor floors the same waits at compile time, so there the step costs the plan's three
+minutes and carries `longRunning`, which skips it unless `MATTER_CERT_LONG_RUNNING` is set. The daily
+schedule sets it; a push does not. `RunRecord.longRunningSkips` counts what a run left out, so a
+bundle without it covers the plan and one with it covers the plan minus what its reasons name.
+
+**A subject driven more than once has to leave nothing behind.** `CertOtaRequestorServer.applyUpdate`
+deletes the file it verified. A real device reboots into the new image; this one does not, and a
+downloaded file that outlives its update short-circuits every later query — the requestor applies what
+it already holds instead of asking the provider — so without the delete a case could drive exactly one
+update. The same subject declares `canConsent`, since it implements `requestUserConsent`; without the
+declaration it sends no `RequestorCanConsent` and refuses any update whose provider asks for consent.
+
+**What the DUT genuinely cannot do is still declared.** `MCORE.OTA.HTTPS` is `0`:
+`SoftwareUpdateManager` serves from its own catalog over BDX and answers no https URI. Steps the
+*harness* cannot stage — failing a transfer part way, resuming one — carry `notApplicable`, because
+the capability is the harness's to lack rather than the DUT's.
 
 **The image URI is checked against the controller's own node id**, which `OtaBdxTransfer.providerNodeId`
 reports in the form `commission()` answers with. Reading the id out of the URI and then checking the

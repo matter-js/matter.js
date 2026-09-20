@@ -124,6 +124,13 @@ export interface RunRecord {
      */
     picsSkips?: number;
     /**
+     * How many steps were skipped for costing minutes of real time on this flavor, absent if none.
+     *
+     * Such a step is covered by a run that asks for it (`MATTER_CERT_LONG_RUNNING`), so a bundle
+     * without this count covers the plan and one with it covers the plan minus what it names.
+     */
+    longRunningSkips?: number;
+    /**
      * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
      * disproves what its step claims, so this is what tells a reader of this record alone how much of
      * the run's claims rest on nothing observed. A step carrying one ends `"unverified"` unless the
@@ -176,6 +183,7 @@ export class EvidenceRecorder implements StepRecorder {
     #unproven = false;
     #controllerUnsupportedSkips?: number;
     #picsSkips?: number;
+    #longRunningSkips?: number;
     #unverifiedChecks?: number;
     #concluded = false;
 
@@ -253,6 +261,15 @@ export class EvidenceRecorder implements StepRecorder {
      */
     recordPicsSkips(count: number): void {
         this.#picsSkips = count;
+    }
+
+    /**
+     * Records how many steps were skipped for their cost in real time (see
+     * {@link RunRecord.longRunningSkips}). Like a PICS skip this never changes the verdict: the run
+     * did not ask for those steps.
+     */
+    recordLongRunningSkips(count: number): void {
+        this.#longRunningSkips = count;
     }
 
     /**
@@ -371,6 +388,7 @@ export class EvidenceRecorder implements StepRecorder {
             runError: this.#runError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
             picsSkips: this.#picsSkips,
+            longRunningSkips: this.#longRunningSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
 

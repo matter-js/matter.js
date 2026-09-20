@@ -8,8 +8,8 @@ import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { BdxTransferEvidence } from "./tc-bdx-support.js";
 import { blocksReceived, overMessages, serveOtaTransfer, transferOrFail } from "./tc-bdx-support.js";
-import { blockSizeConforms, MIN_NON_TCP_BLOCK_SIZE, unsupportedByDut } from "./tc-su-support.js";
-import { CommissionedRefs, recordAll } from "./tc-support.js";
+import { blockSizeConforms, MIN_NON_TCP_BLOCK_SIZE, singleQueryImage } from "./tc-su-support.js";
+import { CertCheckFailedError, CommissionedRefs, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
@@ -100,6 +100,65 @@ async function recordTransferConduct(cx: CertStepContext) {
     ]);
 }
 
+/**
+ * Drives one update whose `QueryImageResponse` carries `UserConsentNeeded` set to `needed`, and records
+ * what the DUT sent and what followed.
+ *
+ * The plan's two steps differ only in that field and in what each expects of the *consent*, which for
+ * this DUT is neither obtained nor obtainable: a controller has no user interface. What is checkable is
+ * that the DUT stated the field the requestor is meant to act on, and that the requestor — which can
+ * consent — went on to download either way.
+ */
+async function recordUserConsentNeeded(cx: CertStepContext, needed: boolean) {
+    const dut = cx.controllers.dut;
+    const ref = commissioned.get("dut");
+    if (ref === undefined) {
+        throw new CertCheckFailedError("the TH was not commissioned by the precondition step");
+    }
+
+    await dut.node(ref).scriptOtaProvider({ queryImage: [{ userConsentNeeded: needed }] });
+    const consented = await serveOtaTransfer(cx, ref, { sender: "dut", receiver: "th" });
+    const { response } = singleQueryImage(consented.transfer.exchanges);
+
+    await recordAll(cx, [
+        {
+            what: `the DUT answered with UserConsentNeeded ${needed}`,
+            check: () => ({
+                type: "response",
+                verdict: response.userConsentNeeded === needed ? "pass" : "fail",
+                detail: `the DUT sent UserConsentNeeded ${response.userConsentNeeded}`,
+            }),
+        },
+        {
+            // The plan splits on whether the DUT asks its own user. This DUT is a controller with no
+            // user to ask, and the requestor it serves declares it can consent for itself, so the
+            // checkable outcome is the same on both steps: the update proceeded.
+            what: "the TH downloaded the image the DUT offered",
+            check: () => ({
+                type: "response",
+                verdict:
+                    consented.transfer.transferredBytes === consented.transfer.fileSize &&
+                    consented.transfer.fileSize > 0
+                        ? "pass"
+                        : "fail",
+                detail:
+                    `the TH took ${consented.transfer.transferredBytes} of the ` +
+                    `${consented.transfer.fileSize} bytes the DUT staged`,
+            }),
+        },
+        {
+            what: "the DUT asked its own user for consent",
+            check: () => ({
+                type: "response",
+                verdict: "unverified",
+                accepted:
+                    "the plan makes this vendor specific, and this DUT is a controller with no user interface: " +
+                    "it states UserConsentNeeded and leaves the decision to the requestor",
+            }),
+        },
+    ]);
+}
+
 certTest("TC-SU-3.3", {
     plan: "softwareupdate.adoc",
     pics: ["MCORE.OTA.Provider"],
@@ -144,7 +203,7 @@ certTest("TC-SU-3.3", {
         2,
         "TH sends a QueryImage command to the DUT. RequestorCanConsent is set to True by TH. DUT responds with a " +
             "QueryImageResponse with UserConsentNeeded set to True. (11.19.6.6)",
-        unsupportedByDut("a QueryImageResponse carrying UserConsentNeeded"),
+        cx => recordUserConsentNeeded(cx, true),
         {
             pics: "OTAP.S.M.UserConsentNeeded",
             expected:
@@ -156,7 +215,7 @@ certTest("TC-SU-3.3", {
         3,
         "TH sends a QueryImage command to the DUT. RequestorCanConsent is set to True by TH. DUT responds with a " +
             "QueryImageResponse with UserConsentNeeded set to False. (11.19.6.6)",
-        unsupportedByDut("a QueryImageResponse carrying UserConsentNeeded"),
+        cx => recordUserConsentNeeded(cx, false),
         {
             pics: "OTAP.S.M.UserConsentNeeded",
             expected:

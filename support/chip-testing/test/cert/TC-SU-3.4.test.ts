@@ -4,12 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Seconds } from "@matter/main";
 import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { BdxTransferEvidence } from "./tc-bdx-support.js";
 import { serveOtaTransfer, transferOrFail } from "./tc-bdx-support.js";
-import { applyActionName, OtaApplyAction, singleApplyUpdate, singleQueryImage } from "./tc-su-support.js";
-import { CommissionedRefs, recordAll } from "./tc-support.js";
+import {
+    applyActionName,
+    delayedActionTime,
+    delayedActionTimeProvenance,
+    longRunningReason,
+    OtaApplyAction,
+    OtaQueryStatus,
+    queryStatusName,
+    singleApplyUpdate,
+    singleQueryImage,
+} from "./tc-su-support.js";
+import { CertCheckFailedError, CommissionedRefs, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
@@ -62,6 +73,142 @@ async function recordApplyUpdateResponse(cx: CertStepContext) {
     ]);
 }
 
+/**
+ * How long step 3 waits for the apply it knows will be refused.
+ *
+ * Short, because the request follows the last block: this covers the request and the DUT's answer, not
+ * a TH that decided against asking.
+ */
+const REFUSED_APPLY_BUDGET = Seconds(5);
+
+/** The node this case's later steps drive, or a step failure naming what the precondition did not do. */
+function commissionedOrFail() {
+    const ref = commissioned.get("dut");
+    if (ref === undefined) {
+        throw new CertCheckFailedError("the TH was not commissioned by the precondition step");
+    }
+    return ref;
+}
+
+async function recordDeferredApply(cx: CertStepContext) {
+    const dut = cx.controllers.dut;
+    const ref = commissionedOrFail();
+    const delay = delayedActionTime();
+
+    await dut.node(ref).scriptOtaProvider({
+        applyUpdate: [{ action: OtaApplyAction.AwaitNextAction, delayedActionTime: delay }],
+    });
+
+    // The TH answers the deferral by waiting and asking again, so the budget has to outlast the delay
+    // the DUT named plus the second exchange.
+    const deferred = await serveOtaTransfer(cx, ref, {
+        sender: "dut",
+        receiver: "th",
+        expectApply: true,
+        applyTimeoutMs: Seconds(delay + 30),
+    });
+
+    const applies = deferred.transfer.exchanges.applyUpdate;
+
+    await recordAll(cx, [
+        {
+            what: "the DUT answered the first ApplyUpdateRequest with AwaitNextAction",
+            check: () => ({
+                type: "response",
+                verdict: applies[0]?.response.action === OtaApplyAction.AwaitNextAction ? "pass" : "fail",
+                detail: `the DUT answered ${applyActionName(applies[0]?.response.action ?? -1)}`,
+            }),
+        },
+        {
+            what: "that answer named the DelayedActionTime the step asked for",
+            check: () => ({
+                type: "response",
+                verdict: applies[0]?.response.delayedActionTime === delay ? "pass" : "fail",
+                detail:
+                    `the DUT answered DelayedActionTime ${applies[0]?.response.delayedActionTime}s, against ` +
+                    delayedActionTimeProvenance(),
+            }),
+        },
+        {
+            // The plan's own point: the deferral is not the end of the exchange. A DUT that answered
+            // AwaitNextAction and then never allowed the apply would satisfy both checks above.
+            what: "the DUT allowed the apply on the TH's second request",
+            check: () => ({
+                type: "response",
+                verdict:
+                    applies.length === 2 && applies[1].response.action === OtaApplyAction.Proceed ? "pass" : "fail",
+                detail:
+                    `the TH sent ${applies.length} ApplyUpdateRequest(s), the last answered ` +
+                    applyActionName(applies[applies.length - 1]?.response.action ?? -1),
+            }),
+        },
+    ]);
+}
+
+async function recordDiscontinuedApply(cx: CertStepContext) {
+    const dut = cx.controllers.dut;
+    const ref = commissionedOrFail();
+
+    await dut.node(ref).scriptOtaProvider({ applyUpdate: [{ action: OtaApplyAction.Discontinue }] });
+
+    // The apply is still waited for, though it will not be allowed: the request is what this step is
+    // about, and it follows the last block. Waiting only for the transfer would read the record before
+    // the TH had asked.
+    const refused = await serveOtaTransfer(cx, ref, {
+        sender: "dut",
+        receiver: "th",
+        applyTimeoutMs: REFUSED_APPLY_BUDGET,
+    });
+    const refusedApplies = refused.transfer.exchanges.applyUpdate;
+
+    // Whatever the DUT held for the refused update must not decide the next one, which is the plan's
+    // "the entire OTA process is restarted".
+    const restarted = await serveOtaTransfer(cx, ref, { sender: "dut", receiver: "th" });
+
+    await recordAll(cx, [
+        {
+            what: "the DUT answered the ApplyUpdateRequest with Discontinue",
+            check: () => ({
+                type: "response",
+                verdict: refusedApplies[0]?.response.action === OtaApplyAction.Discontinue ? "pass" : "fail",
+                detail: `the DUT answered ${applyActionName(refusedApplies[0]?.response.action ?? -1)}`,
+            }),
+        },
+        {
+            what: "a later QueryImage starts the whole update again",
+            check: () => {
+                const { response } = singleQueryImage(restarted.transfer.exchanges);
+                return {
+                    type: "response",
+                    verdict:
+                        response.status === OtaQueryStatus.UpdateAvailable &&
+                        restarted.transfer.transferredBytes === restarted.transfer.fileSize
+                            ? "pass"
+                            : "fail",
+                    detail:
+                        `after the Discontinue the DUT answered the next QueryImage ` +
+                        `${queryStatusName(response.status)} and served ${restarted.transfer.transferredBytes} of ` +
+                        `${restarted.transfer.fileSize} bytes again`,
+                };
+            },
+        },
+        {
+            what: "the restarted update ran from the beginning",
+            check: () => ({
+                type: "response",
+                verdict:
+                    restarted.transfer.proposal.startOffset === undefined ||
+                    restarted.transfer.proposal.startOffset === 0
+                        ? "pass"
+                        : "fail",
+                detail:
+                    "the TH opened the second transfer at start offset " +
+                    `${restarted.transfer.proposal.startOffset ?? 0}`,
+            }),
+        },
+    ]);
+}
+
 certTest("TC-SU-3.4", {
     plan: "softwareupdate.adoc",
     pics: ["MCORE.OTA.Provider"],
@@ -70,6 +217,10 @@ certTest("TC-SU-3.4", {
     // chip's ota-requestor-app ends the update at the download without this, so the ApplyUpdateRequest
     // this case is about would never be sent. chip's own Test_TC_SU_3_4 passes the same flag.
     appArgs: { th: ["--autoApplyImage"] },
+
+    // …and having applied, that app exits, which this harness reads as the TH dying mid-run. Every
+    // step here is about the apply, so there is no subset that survives it.
+    flavors: ["matterjs"],
 })
     .step(
         "0",
@@ -107,12 +258,9 @@ certTest("TC-SU-3.4", {
         2,
         "OTA-R/TH sends an ApplyUpdateRequest. DUT responds with ApplyUpdateResponse with Action AwaitNextAction " +
             "and DelayedActionTime 3 minutes, then Proceed on the subsequent request. (11.19.6.11)",
-        async () => {},
+        recordDeferredApply,
         {
-            notApplicable:
-                "this DUT's provider answers an ApplyUpdateRequest Proceed where it holds consent for the update " +
-                "and Discontinue where it does not; it has no state in which it defers, so the answer the step " +
-                "asks for cannot be produced",
+            longRunning: longRunningReason("the TH waits out the DelayedActionTime the DUT named"),
             expected:
                 "Verify that the DUT sends an ApplyUpdateResponse with Action AwaitNextAction and DelayedActionTime " +
                 "3 minutes.",
@@ -122,12 +270,8 @@ certTest("TC-SU-3.4", {
         3,
         "OTA-R/TH sends an ApplyUpdateRequest. DUT responds with ApplyUpdateResponse with Action Discontinue. " +
             "Initiate another QueryImage Command from OTA-R/TH to the DUT. (11.19.6.11)",
-        async () => {},
+        recordDiscontinuedApply,
         {
-            notApplicable:
-                "the DUT answers Discontinue only for an update it holds no consent for, and the consent is what " +
-                "makes it serve the image in the first place: there is no order of steps in which the TH downloads " +
-                "an image and is then refused the apply",
             expected:
                 'Verify that the DUT sends an ApplyUpdateResponse with "Discontinue" in the action field. Verify ' +
                 "that the entire OTA process is restarted on DUT when OTA-R/TH sends another QueryImage Request.",
