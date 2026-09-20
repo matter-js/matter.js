@@ -81,6 +81,14 @@ function errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+/** What the vectors leave behind for the case to judge once the script has reached its own verdict. */
+interface CaseState {
+    attempts: number;
+
+    /** Vectors that went the way the script wanted, for a reason that proves nothing. */
+    unproven: string[];
+}
+
 /**
  * Answers every commissioning prompt the script makes, one per vector.
  *
@@ -89,7 +97,7 @@ function errorMessage(error: unknown): string {
  * DCL. This PKI is not published there, in either the production ledger or the test one, so the
  * information comes from the file the prompt names.
  */
-function commissioningHandler(state: { attempts: number }, linesSoFar: () => readonly string[]): PromptHandler {
+function commissioningHandler(state: CaseState, linesSoFar: () => readonly string[]): PromptHandler {
     return {
         pattern: /press enter to confirm/,
 
@@ -187,16 +195,12 @@ function commissioningHandler(state: { attempts: number }, linesSoFar: () => rea
 
             cx.recorder.endStep(stepDef, verdict);
 
-            // A vector answered the wrong way fails in the script, which asserts on the answer. A
-            // vector answered the right way for the wrong reason does not, so it fails here: a
-            // timeout, or a refusal that was not about revocation, both answer "N", which is what
-            // the script wanted to hear for six of the seven
-            // A vector answered the wrong way fails in the script, which asserts on the answer. One
-            // answered the right way for the wrong reason does not: a timeout and a refusal that was
-            // not about revocation both answer "N", which is what the script wants to hear for six of
-            // the seven. So this settles those here.
-            if (verdict === "fail" && answer === "N\n") {
-                throw new CertCheckFailedError(`Vector ${number} proves nothing: ${detail}`);
+            // The script asserts on the answer, so it catches a vector answered the wrong way and
+            // nothing else. A timeout, a refusal that was not about revocation, and a device the DUT
+            // could not drop again all answer what the script wanted to hear, so the case settles
+            // those itself once the script has reached its own verdict.
+            if (verdict === "fail") {
+                state.unproven.push(`vector ${number} (${vector}): ${detail}`);
             }
 
             return answer;
@@ -254,7 +258,7 @@ describe("TC-DA-1.9", () => {
         // Above the script's own budget, so its verdict is what this reports
         this.timeout(15 * 60_000);
 
-        const state = { attempts: 0 };
+        const state: CaseState = { attempts: 0, unproven: new Array<string>() };
         let bodyFailure: unknown;
         let flushFailure: unknown;
         let closeFailure: unknown;
@@ -305,6 +309,13 @@ describe("TC-DA-1.9", () => {
                 throw new CertCheckFailedError(
                     `TC_DA_1_9.py reported success after only ${state.attempts} of ${VECTORS.length} commissioning ` +
                         "prompts, so certificates it presented were never judged by the DUT",
+                );
+            }
+
+            if (state.unproven.length) {
+                throw new CertCheckFailedError(
+                    `TC_DA_1_9.py reported success, but ${state.unproven.length} of its ${VECTORS.length} vectors ` +
+                        `proved nothing — ${state.unproven.join("; ")}`,
                 );
             }
         } catch (e) {

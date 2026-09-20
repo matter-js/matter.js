@@ -338,6 +338,10 @@ export class DclCertificateService {
         isProduction: boolean,
         options?: DclCertificateService.GetCertificateOptions,
     ): Promise<Bytes | undefined> {
+        if (this.#options.offline) {
+            return undefined;
+        }
+
         if (this.#fetchPromise !== undefined) {
             await this.#fetchPromise;
         }
@@ -686,6 +690,10 @@ export class DclCertificateService {
             const derBytes = await this.#getCertificateDer(normalizedSkid);
             const cert = Certificate.parseAsn1Certificate(derBytes, Certificate.REQUIRED_EXTENSIONS);
             return { publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
+        }
+
+        if (this.#options.offline) {
+            return undefined;
         }
 
         // DCL fallback
@@ -1692,8 +1700,10 @@ export namespace DclCertificateService {
         revocations?: RevocationSetEntry[];
 
         /**
-         * Reaches no network: the trust store is whatever `seed` carried and revocation is whatever
-         * {@link DclCertificateService.installRevocations} was given.
+         * Reaches no network at all: no update, no CRL, no certificate fetched on demand and no
+         * re-fetch of one that would not parse. The trust store is whatever `seed` carried, revocation
+         * is whatever {@link DclCertificateService.installRevocations} was given, and a certificate
+         * neither of those holds reads as absent.
          *
          * For a deployment with no route to the ledger, and for a test that must judge attestation
          * against a stated PKI rather than against whatever the ledger holds today.
