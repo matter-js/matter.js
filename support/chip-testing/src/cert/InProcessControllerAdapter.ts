@@ -1071,7 +1071,8 @@ class InProcessCertNodeApi implements CertNodeApi {
 
             // Armed before the transfer starts, not after it ends: the peer asks to apply as soon as the
             // last block lands, and an observer attached afterwards can miss its own event.
-            const applied = await this.#applyAllowed(provider, peerAddress);
+            const applied =
+                options?.expectApply === false ? undefined : await this.#applyAllowed(provider, peerAddress);
 
             try {
                 return await this.#serveStagedImage(
@@ -1086,7 +1087,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             } finally {
                 // The transfer rejecting is the path that leaves these attached: a node that never opened
                 // one never reaches the settled() that would otherwise close them.
-                applied.close();
+                applied?.close();
             }
         });
     }
@@ -1097,7 +1098,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         identity: PeerOtaIdentity,
         softwareVersion: number,
         fileSize: number,
-        applied: { settled: () => Promise<boolean>; close: () => void },
+        applied: { settled: () => Promise<boolean>; close: () => void } | undefined,
         options?: ServeOtaUpdateOptions,
     ): Promise<OtaBdxTransfer> {
         const session = await this.#runOtaTransfer(
@@ -1120,7 +1121,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         // ApplyUpdateRequest, and a provider that goes away before answering leaves the peer waiting
         // out its own unreachable-peer budget. The caller tears this controller down when the case
         // ends, so the exchange has to be over before this resolves.
-        const applyAcknowledged = await applied.settled();
+        const applyAcknowledged = applied === undefined ? false : await applied.settled();
 
         const initMessage = session.initMessage;
         const parameters = session.transferParameters;

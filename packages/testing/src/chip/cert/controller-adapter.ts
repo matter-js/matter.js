@@ -378,6 +378,17 @@ export interface ServeOtaUpdateOptions {
      * not happen is the failure a BDX case exists to catch.
      */
     timeoutMs?: number;
+
+    /**
+     * Whether the node is expected to ask to apply what it downloaded, which is the last thing it
+     * needs from the provider.
+     *
+     * Where it will not ask, waiting for it only delays the caller: chip's `ota-requestor-app` treats
+     * the download as the end of the update unless started with `--autoApplyImage`, and chip's own
+     * certification material starts it without that flag for the download cases (`Test_TC_SU_3_3`).
+     * Absent, the node is expected to ask.
+     */
+    expectApply?: boolean;
 }
 
 /**

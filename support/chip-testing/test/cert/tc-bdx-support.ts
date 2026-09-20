@@ -95,9 +95,17 @@ export async function serveOtaTransfer(
     const senderName = sender.toUpperCase();
     const receiverName = receiver.toUpperCase();
 
+    // chip's ota-requestor-app treats the download as the end of the update unless it is started with
+    // --autoApplyImage, and chip's own certification material starts it without that flag for the
+    // download cases (Test_TC_SU_3_3; Test_TC_SU_3_4, which is about applying, passes it). So only a
+    // matter.js receiver is expected to ask, and waiting on a chip one would only delay the step.
+    const expectApply = device.flavor === "matterjs";
+
     let transfer: OtaBdxTransfer;
     try {
-        transfer = await cx.controllers[sender].node(ref).serveOtaUpdate({ timeoutMs: OTA_TRANSFER_TIMEOUT });
+        transfer = await cx.controllers[sender]
+            .node(ref)
+            .serveOtaUpdate({ timeoutMs: OTA_TRANSFER_TIMEOUT, expectApply });
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
         // recorded nothing, so recording first would fail the run on a controller that cannot serve at all.
@@ -141,20 +149,25 @@ export async function serveOtaTransfer(
             // cases themselves are about is the transfer, which is complete either way, and failing
             // here would take every later step's evidence with it.
             what: `the ${receiverName} finished the OTA exchange the transfer belongs to`,
-            check: () =>
-                transfer.applyAcknowledged
-                    ? {
-                          type: "response",
-                          verdict: "pass",
-                          detail: `the ${receiverName} asked to apply the image and the ${senderName} allowed it`,
-                      }
-                    : {
-                          type: "response",
-                          verdict: "unverified",
-                          accepted:
-                              `the ${receiverName} had not asked to apply the image when the ${senderName} ` +
-                              "stopped waiting; the transfer this case reads was complete before that",
-                      },
+            check: () => {
+                if (transfer.applyAcknowledged) {
+                    return {
+                        type: "response",
+                        verdict: "pass",
+                        detail: `the ${receiverName} asked to apply the image and the ${senderName} allowed it`,
+                    };
+                }
+                return {
+                    type: "response",
+                    verdict: "unverified",
+                    accepted: expectApply
+                        ? `the ${receiverName} had not asked to apply the image when the ${senderName} ` +
+                          "stopped waiting; the transfer this case reads was complete before that"
+                        : "chip's ota-requestor-app ends the update at the download unless started with " +
+                          "--autoApplyImage, which chip's own Test_TC_SU_3_3 does not pass either, so no " +
+                          "ApplyUpdateRequest follows the transfer this case reads",
+                };
+            },
         },
     ]);
 
@@ -191,6 +204,21 @@ interface BdxMessageKind {
 
     /** The name chip's `LogMessage` prints, and whether the fields under it include a data length. */
     chip?: { name: string; hasLength: boolean };
+
+    /**
+     * How the message appears in chip's own message dump, which carries every BDX message rather than
+     * only those `LogMessage` names.
+     */
+    chipDmg?: {
+        /** BDX protocol opcode, which the dump's header line names (§ 11.22.5). */
+        opcode: number;
+
+        /** Whether the log's own node received the message rather than sent it. */
+        inbound: boolean;
+
+        /** Whether the message carries a data block, whose size follows from the payload's. */
+        carriesData: boolean;
+    };
 }
 
 // matter.js names a BDX message's own fields on the line the exchange writes for it rather than logging its own,
@@ -198,24 +226,38 @@ interface BdxMessageKind {
 // sends next: its query for the following block, or the ack that ends the transfer.
 const BLOCK_RECEIVED: BdxMessageKind = {
     matterjs: /for: BDX\/BlockQuery .*\brcvdCnt: (\d+) rcvdLen: (\d+)/,
+    chipDmg: { opcode: 0x11, inbound: true, carriesData: true },
 };
 
 const BLOCK_EOF_RECEIVED: BdxMessageKind = {
     matterjs: /for: BDX\/BlockAckEof cnt: (\d+) ackLen: (\d+)/,
     chip: { name: "BlockEOF", hasLength: true },
+    chipDmg: { opcode: 0x12, inbound: true, carriesData: true },
 };
 
 const BLOCK_QUERY_SENT: BdxMessageKind = {
     matterjs: /for: BDX\/BlockQuery cnt: (\d+)/,
+    chipDmg: { opcode: 0x10, inbound: false, carriesData: false },
 };
 
 const BLOCK_ACK_EOF_SENT: BdxMessageKind = {
     matterjs: /for: BDX\/BlockAckEof cnt: (\d+)/,
     chip: { name: "BlockAckEOF", hasLength: false },
+    chipDmg: { opcode: 0x14, inbound: false, carriesData: false },
 };
 
 const CHIP_BLOCK_COUNTER = /\[ATM\]\s+Block Counter: (\d+)\s*$/;
 const CHIP_DATA_LENGTH = /\[ATM\]\s+Data Length: (\d+)\s*$/;
+
+/** Fields of one message in chip's own dump: the counter it carries, and the payload it arrived in. */
+const CHIP_DMG_BLOCK_COUNTER = /\[DMG\]\s+BlockCounter = (\d+)\s*$/;
+const CHIP_DMG_PAYLOAD_SIZE = /\[DMG\] Decrypted Payload \((\d+) bytes\)/;
+
+/** Bytes of a BDX payload the block counter itself occupies, ahead of any data (§ 11.22.5.6). */
+const CHIP_BDX_COUNTER_BYTES = 4;
+
+/** Lines the dump writes between a message's header and its fields, before the next message begins. */
+const CHIP_DMG_FIELD_WINDOW = 32;
 
 /** The lines chip's `LogMessage` writes for one message kind, in the order it writes them. */
 interface ChipMessageLines {
@@ -283,34 +325,54 @@ function messagesIn(
         return records;
     }
 
-    const patterns = chipLines(kind);
-    if (!flavor.startsWith("chip") || patterns === undefined) {
+    // chip's own message dump, not the `LogMessage` lines: the dump carries every BDX message, where
+    // LogMessage names only some of them — `TransferSession::HandleBlock` records a received Block and
+    // returns, and `PrepareBlockQuery` likewise, so a receiver's whole account lives here.
+    const dmg = kind.chipDmg;
+    if (!flavor.startsWith("chip") || dmg === undefined) {
         return undefined;
     }
 
-    // chip's fields follow the name line in a fixed order and nothing logs between them, so a field
-    // that is not where LogMessage puts it belongs to a different message
+    const header = new RegExp(
+        `\\[DMG\\] ${dmg.inbound ? "<< from" : ">> to"} UDP.*\\[Bulk Data Exchange[^\\]]*\\(0x${dmg.opcode
+            .toString(16)
+            .padStart(2, "0")}\\)`,
+    );
+
     const records = new Array<BdxMessageRecord>();
     for (let i = 0; i < lines.length; i++) {
-        if (!patterns.name.test(lines[i].text)) {
+        if (!header.test(lines[i].text)) {
             continue;
         }
-        const counter = patterns.counter.exec(lines[i + 1]?.text ?? "");
-        if (counter === null) {
+
+        let counter: number | undefined;
+        let payloadSize: number | undefined;
+        for (let field = i + 1; field < Math.min(lines.length, i + CHIP_DMG_FIELD_WINDOW); field++) {
+            if (header.test(lines[field].text)) {
+                break;
+            }
+            payloadSize ??= numberFrom(CHIP_DMG_PAYLOAD_SIZE, lines[field].text);
+            counter ??= numberFrom(CHIP_DMG_BLOCK_COUNTER, lines[field].text);
+        }
+
+        if (counter === undefined) {
             continue;
         }
-        const length = patterns.length === undefined ? undefined : patterns.length.exec(lines[i + 2]?.text ?? "");
-        if (length === null) {
-            continue;
-        }
+
         records.push({
-            counter: Number(counter[1]),
-            length: length === undefined || length === null ? undefined : Number(length[1]),
+            counter,
+            length: dmg.carriesData && payloadSize !== undefined ? payloadSize - CHIP_BDX_COUNTER_BYTES : undefined,
             line: lines[i].text,
             index: lines[i].index,
         });
     }
     return records;
+}
+
+/** The first capture of `pattern` in `text` as a number, or `undefined` where it does not match. */
+function numberFrom(pattern: RegExp, text: string) {
+    const match = pattern.exec(text);
+    return match === null ? undefined : Number(match[1]);
 }
 
 /**
