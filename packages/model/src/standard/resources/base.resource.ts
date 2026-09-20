@@ -11,6 +11,27 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "deviceType", name: "Base", xref: "device§1.1",
 
+    details: "### Overview" +
+        "\n" +
+        "This defines common conformance for all device types depending on, but not limited to:" +
+        "\n" +
+        "  - Underlying protocol stack (e.g. 802.15.4, Wi-Fi, Thread, Zigbee PRO, IPv6, TCP/IP)" +
+        "\n" +
+        "  - Regional regulations" +
+        "\n" +
+        "  - Interfaces (UI, cloud, etc.)" +
+        "\n" +
+        "  - Scale (e.g. residential vs commercial)" +
+        "\n" +
+        "  - Other common limitations or capabilities (e.g. battery powered or sleepy nodes)." +
+        "\n" +
+        "  - etc." +
+        "\n" +
+        "### Cluster Requirements" +
+        "\n" +
+        "This conformance table shall assume the Matter conformance condition is TRUE (in Conformance " +
+        "column).",
+
     children: [
         {
             tag: "condition", name: "Ethernet", description: "The node supports an Ethernet LAN interface",
@@ -98,17 +119,26 @@ Resource.add({
             tag: "condition", name: "Server",
             description: "there exists a server application cluster on the endpoint", xref: "device§1.1.6"
         },
+
         {
             tag: "condition", name: "Duplicate",
             description: "the endpoint and at least one of its siblings have overlap in application device type(s)",
-            xref: "device§1.1.6"
+            xref: "device§1.1.6.1",
+            details: "The endpoint and at least one of its sibling endpoints have an overlap in application device " +
+                "type(s), as defined in the \"Disambiguation\" section in the System Model specification. This " +
+                "condition triggers requirements for providing additional information about the endpoints in order to " +
+                "disambiguate between the endpoints (see \"Disambiguation\" section in the System Model specification)."
         },
+
         {
             tag: "condition", name: "BridgedPowerSourceInfo",
             description: "the endpoint represents a Bridged Device, for which information about the state of its power source is available to the Bridge",
             xref: "device§1.1.6"
         },
-        { tag: "requirement", name: "Descriptor", xref: "device§1.1.7" },
+        {
+            tag: "requirement", name: "Descriptor", xref: "device§1.1.7",
+            children: [{ tag: "requirement", name: "TAGLIST", xref: "device§1.1.8" }]
+        },
         { tag: "requirement", name: "Binding", xref: "device§1.1.7" },
         { tag: "requirement", name: "FixedLabel", xref: "device§1.1.7" },
         { tag: "requirement", name: "UserLabel", xref: "device§1.1.7" }

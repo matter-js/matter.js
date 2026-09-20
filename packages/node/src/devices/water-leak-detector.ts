@@ -18,6 +18,23 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Water Leak Detector device type.
  *
+ * ### Cluster Requirements
+ *
+ * #### Identify Cluster
+ *
+ * This is used to identify the endpoint.
+ *
+ * #### Boolean State Cluster
+ *
+ * This is used to indicate the state of the sensor/detector.
+ *
+ * The state of the Boolean State cluster shall reflect the sensor detection using this scheme of:
+ *
+ * #### Boolean State Configuration Cluster
+ *
+ * This is used to configure the sensor/detector and is for this device type linked to the configuration of the Boolean
+ * State cluster.
+ *
  * @see {@link MatterSpecification.v16.Device} § 7.12
  */
 export interface WaterLeakDetectorDevice extends Identity<typeof WaterLeakDetectorDeviceDefinition> {}

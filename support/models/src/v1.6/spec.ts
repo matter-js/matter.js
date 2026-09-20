@@ -4231,8 +4231,9 @@ export const SpecMatter = Matter(
                     "\n" +
                     "OR" +
                     "\n" +
-                    "  - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative " +
-                    "text from the remainder of this section describes these constraints." +
+                    "  - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag)" +
+                    "\n" +
+                    "The normative text from the remainder of this section describes these constraints." +
                     "\n" +
                     "If the LocationInfo field is null, the LandmarkInfo field shall NOT be null." +
                     "\n" +
@@ -5042,9 +5043,7 @@ export const SpecMatter = Matter(
                 "the first trigger has expired; this results in a single period of the bit in the Occupancy attribute " +
                 "being 1. The bit in the Occupancy attribute will be set to 1 from the start of the first period " +
                 "where the PIR signal exceeds the threshold until HoldTime after the last moment where the PIR " +
-                "exceeded the threshold." +
-                "\n" +
-                "!HoldTime"
+                "exceeded the threshold."
         }),
 
         Attribute({
@@ -8074,9 +8073,7 @@ export const SpecMatter = Matter(
                     "> [!NOTE]" +
                     "\n" +
                     "> NOTE: The constraints related to the field values in the table above shall have the relationship " +
-                    "as represented by the illustration below:" +
-                    "\n" +
-                    "!TemperatureAlarm Thresholds"
+                    "as represented by the illustration below:"
             },
 
             Field({
@@ -9350,9 +9347,7 @@ export const SpecMatter = Matter(
             xref: "cluster§4.2",
             details: "The Pump Configuration and Control cluster provides an interface for the setup and control of pump " +
                 "devices, and the automatic reporting of pump status information. Note that control of pump speed is " +
-                "not included – speed is controlled by the On/Off and Level Control clusters." +
-                "\n" +
-                "!pump devices"
+                "not included – speed is controlled by the On/Off and Level Control clusters."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
@@ -9637,8 +9632,6 @@ export const SpecMatter = Matter(
                 "ControlMode and the optional connection of a remote sensor. The operation and control is prioritized " +
                 "as shown in the scheme below:" +
                 "\n" +
-                "!Priority Scheme of Pump Operation and Control.jpg" +
-                "\n" +
                 "If this attribute is Maximum, Minimum or Local, the OperationMode attribute decides how the pump is " +
                 "operated." +
                 "\n" +
@@ -9851,11 +9844,8 @@ export const SpecMatter = Matter(
     Cluster(
         {
             name: "Thermostat", id: 0x201, classification: "application", pics: "TSTAT", xref: "cluster§4.3",
-            details: "This cluster provides an interface to the functionality of a thermostat." +
-                "\n" +
-                "!thermostat devices"
+            details: "This cluster provides an interface to the functionality of a thermostat."
         },
-
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 11 }),
 
         Attribute(
@@ -12492,9 +12482,7 @@ export const SpecMatter = Matter(
             name: "DoorLock", id: 0x101, classification: "application", pics: "DRLK", xref: "cluster§5.2",
             details: "The door lock cluster provides an interface to a generic way to secure a door. The physical object " +
                 "that provides the locking functionality is abstracted from the cluster. The cluster has a small list " +
-                "of mandatory attributes and functions and a list of optional features." +
-                "\n" +
-                "!image2"
+                "of mandatory attributes and functions and a list of optional features."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 10 }),
@@ -12627,15 +12615,15 @@ export const SpecMatter = Matter(
             Field({
                 name: "ALIRO", conformance: "O", constraint: "13", title: "AliroProvisioning",
                 xref: "cluster§5.2.4.12",
-                details: "Locks that support this feature implement the Aliro specification as defined in " +
-                    "[[Aliro]](#ref_Aliro) and support Matter as a method for provisioning Aliro credentials."
+                details: "Locks that support this feature implement the Aliro specification as defined in Aliro and support " +
+                    "Matter as a method for provisioning Aliro credentials."
             }),
 
             Field({
                 name: "ALBU", conformance: "[ALIRO]", constraint: "14", title: "AliroBleuwb",
                 xref: "cluster§5.2.4.13",
                 details: "Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in " +
-                    "[[Aliro]](#ref_Aliro)."
+                    "Aliro."
             })
         ),
 
@@ -12952,10 +12940,8 @@ export const SpecMatter = Matter(
         Attribute({
             name: "AliroReaderVerificationKey", id: 0x80, type: "octstr", access: "R A", conformance: "ALIRO",
             constraint: "65", quality: "X", xref: "cluster§5.2.9.37",
-
-            details: "Indicates the verification key component of the Reader's key pair as defined in " +
-                "[[Aliro]](#ref_Aliro). The value, if not null, shall be an uncompressed elliptic curve public key as " +
-                "defined in section 2.3.3 of SEC 1." +
+            details: "Indicates the verification key component of the Reader's key pair as defined in Aliro. The value, if " +
+                "not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1." +
                 "\n" +
                 "Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, " +
                 "\"SetAliroReaderConfig Command\"."
@@ -12964,7 +12950,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "AliroReaderGroupIdentifier", id: 0x81, type: "octstr", access: "R A", conformance: "ALIRO",
             constraint: "16", quality: "X", xref: "cluster§5.2.9.38",
-            details: "Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro)." +
+            details: "Indicates the reader_group_identifier as defined in Aliro." +
                 "\n" +
                 "Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26, " +
                 "\"SetAliroReaderConfig Command\"."
@@ -12973,24 +12959,22 @@ export const SpecMatter = Matter(
         Attribute({
             name: "AliroReaderGroupSubIdentifier", id: 0x82, type: "octstr", access: "R A",
             conformance: "ALIRO", constraint: "16", quality: "F", xref: "cluster§5.2.9.39",
-            details: "Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro)."
+            details: "Indicates the reader_group_sub_identifier as defined in Aliro."
         }),
 
         Attribute(
             {
                 name: "AliroExpeditedTransactionSupportedProtocolVersions", id: 0x83, type: "list", access: "R A",
                 conformance: "ALIRO", constraint: "max 16[2]", quality: "F", xref: "cluster§5.2.9.40",
-                details: "Indicates the list of protocol versions supported for expedited transactions as defined in " +
-                    "[[Aliro]](#ref_Aliro)."
+                details: "Indicates the list of protocol versions supported for expedited transactions as defined in Aliro."
             },
-
             Field({ name: "entry", type: "octstr" })
         ),
 
         Attribute({
             name: "AliroGroupResolvingKey", id: 0x84, type: "octstr", access: "R A", conformance: "ALBU",
             constraint: "16", quality: "X", xref: "cluster§5.2.9.41",
-            details: "Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro)." +
+            details: "Indicates the Group Resolving Key as defined in Aliro." +
                 "\n" +
                 "Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, " +
                 "\"SetAliroReaderConfig Command\"."
@@ -13001,7 +12985,7 @@ export const SpecMatter = Matter(
                 name: "AliroSupportedBleuwbProtocolVersions", id: 0x85, type: "list", access: "R A",
                 conformance: "ALBU", constraint: "max 16[2]", quality: "F", xref: "cluster§5.2.9.42",
                 details: "Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as " +
-                    "defined in [[Aliro]](#ref_Aliro)."
+                    "defined in Aliro."
             },
 
             Field({ name: "entry", type: "octstr" })
@@ -13010,7 +12994,7 @@ export const SpecMatter = Matter(
         Attribute({
             name: "AliroBleAdvertisingVersion", id: 0x86, type: "uint8", access: "R A", conformance: "ALBU",
             quality: "F", xref: "cluster§5.2.9.43",
-            details: "Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro)."
+            details: "Indicates the version of the Bluetooth LE advertisement as defined in Aliro."
         }),
         Attribute({
             name: "NumberOfAliroCredentialIssuerKeysSupported", id: 0x87, type: "uint16", access: "R V",
@@ -14247,10 +14231,8 @@ export const SpecMatter = Matter(
             {
                 name: "SetAliroReaderConfig", id: 0x28, access: "A T", conformance: "ALIRO", direction: "request",
                 response: "status", xref: "cluster§5.2.10.26",
-                details: "This command allows communicating an Aliro Reader configuration, as defined in " +
-                    "[[Aliro]](#ref_Aliro), to the lock."
+                details: "This command allows communicating an Aliro Reader configuration, as defined in Aliro, to the lock."
             },
-
             Field({
                 name: "SigningKey", id: 0x0, type: "octstr", conformance: "M", constraint: "32",
                 xref: "cluster§5.2.10.26.1",
@@ -14559,8 +14541,8 @@ export const SpecMatter = Matter(
                     "section 2.3.3 of SEC 1." +
                     "\n" +
                     "Credentials of this type shall NOT be used to allow operating the lock. They shall be used, as " +
-                    "defined in [[Aliro]](#ref_Aliro), to create new credentials of type AliroEvictableEndpointKey via a " +
-                    "step-up transaction." +
+                    "defined in Aliro, to create new credentials of type AliroEvictableEndpointKey via a step-up " +
+                    "transaction." +
                     "\n" +
                     "When performing the step-up transaction, the lock shall request the data element with identifier " +
                     "\"matter1\", and shall attempt to create a new credential of type AliroEvictableEndpointKey if and " +
@@ -16614,7 +16596,7 @@ export const SpecMatter = Matter(
         Datatype(
             {
                 name: "TranslationDirectionEnum", type: "enum8", xref: "cluster§5.5.6.1",
-                details: "Legend: !legendOpen Open !legendClosed Closed"
+                details: "### Legend: Open Closed"
             },
             Field({ name: "Downward", id: 0x0, conformance: "M", description: "Downward translation" }),
             Field({ name: "Upward", id: 0x1, conformance: "M", description: "Upward translation" }),
@@ -16631,10 +16613,7 @@ export const SpecMatter = Matter(
         ),
 
         Datatype(
-            {
-                name: "RotationAxisEnum", type: "enum8", xref: "cluster§5.5.6.2",
-                details: "Legend: !legendOpen Open !legendClosed Closed"
-            },
+            { name: "RotationAxisEnum", type: "enum8", xref: "cluster§5.5.6.2", details: "### Legend: Open Closed" },
             Field({
                 name: "Left", id: 0x0, conformance: "M",
                 description: "The panel rotates around a vertical axis located on the left side of the panel"
@@ -16874,14 +16853,14 @@ export const SpecMatter = Matter(
                     "\n" +
                     "The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of " +
                     "the client's commissionable node advertisement (see Rotating Device Identifier section in " +
-                    "[[MatterCore]](#ref_MatterCore)) encoded as an octet string where the octets of the Rotating Device " +
-                    "Identifier are encoded as 2-character sequences by representing each octet’s value as a 2-digit " +
-                    "hexadecimal number, using uppercase letters." +
+                    "MatterCore) encoded as an octet string where the octets of the Rotating Device Identifier are " +
+                    "encoded as 2-character sequences by representing each octet’s value as a 2-digit hexadecimal number, " +
+                    "using uppercase letters." +
                     "\n" +
                     "The Setup PIN is a character string so that it can accommodate different future formats, including " +
                     "alpha-numeric encodings. For a Commissionee it shall be populated with the Manual Pairing Code (see " +
-                    "Manual Pairing Code section in [[MatterCore]](#ref_MatterCore)) encoded as a string (11 characters) " +
-                    "or the Passcode portion of the Manual Pairing Code (when less than 11 characters)." +
+                    "Manual Pairing Code section in MatterCore) encoded as a string (11 characters) or the Passcode " +
+                    "portion of the Manual Pairing Code (when less than 11 characters)." +
                     "\n" +
                     "The server shall implement rate limiting to prevent brute force attacks. No more than 10 unique " +
                     "requests in a 10 minute period shall be allowed; a command response status of FAILURE should sent " +
@@ -17111,8 +17090,8 @@ export const SpecMatter = Matter(
                     "DIAL registry shall use value 0x0000." +
                     "\n" +
                     "It is assumed that Content App Platform providers (see Video Player Architecture section in " +
-                    "[[MatterDevLib]](#ref_MatterDevLib)) will have their own catalog vendor ID (set to their own Vendor " +
-                    "ID) and will assign an ApplicationID to each Content App."
+                    "MatterDevLib) will have their own catalog vendor ID (set to their own Vendor ID) and will assign an " +
+                    "ApplicationID to each Content App."
             }),
 
             Field({
@@ -17449,10 +17428,9 @@ export const SpecMatter = Matter(
                 "This cluster server would be supported on Video Player devices or endpoints that allow Channel " +
                 "control such as a Content App. This cluster provides a list of available channels and provides " +
                 "commands for absolute and relative channel changes. Some of these commands and/or their responses " +
-                "may be large (see Large Message Quality under Data Model section in " +
-                "[[MatterCore]](#ref_MatterCore)), but they do not have the Large quality indicator (L) because they " +
-                "can also be transferred over MRP (see Message Reliability Protocol in " +
-                "[[MatterCore]](#ref_MatterCore)) in pages that fit within the MRP MTU limit. However, an " +
+                "may be large (see Large Message Quality under Data Model section in MatterCore), but they do not " +
+                "have the Large quality indicator (L) because they can also be transferred over MRP (see Message " +
+                "Reliability Protocol in MatterCore) in pages that fit within the MRP MTU limit. However, an " +
                 "implementation may leverage a transport like TCP that allows large payloads, if available, to " +
                 "minimize the number of messages required to transfer the corresponding payload." +
                 "\n" +
@@ -22032,8 +22010,6 @@ export const SpecMatter = Matter(
                 "In most deployments the EMS will be the client, and the ESA will host the Device Energy Management " +
                 "Cluster server." +
                 "\n" +
-                "!ESA EMS Cluster" +
-                "\n" +
                 "This cluster is intended to be generic in nature and could apply to any electrical load or generator " +
                 "(e.g. a Battery Electric Storage System - BESS, solar PV inverter, EVSE, HVAC, heat pump, hot water " +
                 "heater, white goods appliances etc)." +
@@ -22061,8 +22037,6 @@ export const SpecMatter = Matter(
                 "It is likely that the ESA may also use the Pricing Cluster to obtain incentive signals such as 'grid " +
                 "carbon intensity', 'time of use' or 'type of use' tariffs to schedule its operation to run at the " +
                 "cheapest and greenest times." +
-                "\n" +
-                "!HVAC ESA Example with EMS" +
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
@@ -26412,7 +26386,7 @@ export const SpecMatter = Matter(
                     "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit." +
                     "\n" +
                     "This matches the formats defined for WPA networks by the Credentials field in the Network " +
-                    "Commissioning cluster (see [[MatterCore]](#ref_MatterCore))." +
+                    "Commissioning cluster (see MatterCore)." +
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
@@ -26567,8 +26541,7 @@ export const SpecMatter = Matter(
 
             Field({
                 name: "Breadcrumb", id: 0x1, type: "uint64", conformance: "O", xref: "cluster§10.3.6.4.2",
-                details: "See Breadcrumb Attribute section of General Commissioning Cluster in [[MatterCore]](#ref_MatterCore) " +
-                    "for usage."
+                details: "See Breadcrumb Attribute section of General Commissioning Cluster in MatterCore for usage."
             })
         ),
 
@@ -28690,10 +28663,10 @@ export const SpecMatter = Matter(
                 name: "Caid", id: 0x3, type: "TlsCertificateManagement.TLSCAID", conformance: "O",
                 constraint: "0 to 65534", xref: "cluster§11.4.5.3.4",
                 details: "This field represents the TLSRCAC via its assigned TLSCAID (see Chapter 14, Certificate Authority ID " +
-                    "(CAID) Mapping and TLS Certificate Management Commands sections in [[MatterCore]](#ref_MatterCore)) " +
-                    "that will validate the certificate chain presented by the entries in the urls field. It shall be set " +
-                    "to a valid value if a turns: or stuns: url is present in the urls field and shall be used to " +
-                    "validate those servers' presented TLS root certificates."
+                    "(CAID) Mapping and TLS Certificate Management Commands sections in MatterCore) that will validate " +
+                    "the certificate chain presented by the entries in the urls field. It shall be set to a valid value " +
+                    "if a turns: or stuns: url is present in the urls field and shall be used to validate those servers' " +
+                    "presented TLS root certificates."
             })
         ),
 
@@ -29294,8 +29267,8 @@ export const SpecMatter = Matter(
                     "This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match " +
                     "an entry in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not " +
                     "match the accessing fabric and the Peer Node ID entry stored in the Secure Session Context (see " +
-                    "Chapter 4 Secure Channel, Secure Session Context section, in [[MatterCore]](#ref_MatterCore)) of the " +
-                    "session this command was received on."
+                    "Chapter 4 Secure Channel, Secure Session Context section, in MatterCore) of the session this command " +
+                    "was received on."
             },
 
             Field({
@@ -29436,8 +29409,8 @@ export const SpecMatter = Matter(
                 "All push transport ingest methods shall use TLS as specified by the core specification. TLS Client " +
                 "Certificates shall be used for Authorization and Identification of a Node on the underlying TLS " +
                 "connection (see Chapter 14, TLS Certificate Management and TLS Client Management sections in " +
-                "[[MatterCore]](#ref_MatterCore)). Nodes supporting this cluster shall also support the TLS Client " +
-                "Management Cluster and its dependencies."
+                "MatterCore). Nodes supporting this cluster shall also support the TLS Client Management Cluster and " +
+                "its dependencies."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
@@ -29478,11 +29451,11 @@ export const SpecMatter = Matter(
 
                 details: "This attribute shall be a list of TransportConfigurationStruct which represents all the allocated " +
                     "connections added via AllocatePushTransport. When this attribute is read over a non Large Message " +
-                    "(See Large Message Quality in the Data Model section of [[MatterCore]](#ref_MatterCore)) capable " +
-                    "transport, the TransportOptions field shall NOT be included. To get the full details of the " +
-                    "connections use the FindTransport command. The maximum size of this list is run-time dependent upon " +
-                    "the resource constraints of the system as described in Resource Management and Stream Priorities and " +
-                    "the currently used bandwidth of the total available specified by MaxNetworkBandwidth."
+                    "(See Large Message Quality in the Data Model section of MatterCore) capable transport, the " +
+                    "TransportOptions field shall NOT be included. To get the full details of the connections use the " +
+                    "FindTransport command. The maximum size of this list is run-time dependent upon the resource " +
+                    "constraints of the system as described in Resource Management and Stream Priorities and the " +
+                    "currently used bandwidth of the total available specified by MaxNetworkBandwidth."
             },
 
             Field({ name: "entry", type: "TransportConfigurationStruct" })
@@ -30191,8 +30164,7 @@ export const SpecMatter = Matter(
                 constraint: "0 to 65534", xref: "cluster§11.7.7.15.4",
                 details: "This field shall be a TLSEndpointID representing a provisioned TLS Endpoint, which shall have valid " +
                     "TLSCAID and TLSCCDID values (see Chapter 14, Certificate Authority ID (CAID) Mapping and the " +
-                    "ProvisionEndpoint command in the TLS Client Management Cluster sections in " +
-                    "[[MatterCore]](#ref_MatterCore))."
+                    "ProvisionEndpoint command in the TLS Client Management Cluster sections in MatterCore)."
             }),
 
             Field({
@@ -31288,8 +31260,7 @@ export const SpecMatter = Matter(
             name: "NamespaceId", id: 0x1, type: "namespace", conformance: "M", xref: "core§7.19.2.46.2",
             details: "The NamespaceID field shall identify a namespace." +
                 "\n" +
-                "The common and device-specific semantic tag namespaces are listed in " +
-                "[[StandardNamespaces]](#ref_StandardNamespaces)."
+                "The common and device-specific semantic tag namespaces are listed in StandardNamespaces."
         }),
 
         Field({
@@ -32407,8 +32378,6 @@ export const SpecMatter = Matter(
                     "When a Node is granted a particular privilege, it is also implicitly granted all logically lower " +
                     "privilege levels as well. The following diagram illustrates how the higher privilege levels subsume " +
                     "the lower privilege levels:" +
-                    "\n" +
-                    "!Diagram" +
                     "\n" +
                     "Individual clusters shall define whether attributes are readable, writable, or both readable and " +
                     "writable. Clusters also shall define which privilege is minimally required to be able to perform a " +
@@ -34693,9 +34662,8 @@ export const SpecMatter = Matter(
                     "\n" +
                     "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
                     "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
-                    "The content of this attribute reflects data managed via the Groups cluster (see " +
-                    "[[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group " +
-                    "Table'." +
+                    "The content of this attribute reflects data managed via the Groups cluster (see AppClusters), and is " +
+                    "in general terms referred to as the 'node-wide Group Table'." +
                     "\n" +
                     "The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If " +
                     "a RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped " +
@@ -36429,8 +36397,10 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  - 8..63 bytes: WPA/WPA2/WPA3 passphrase" +
                     "\n" +
-                    "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK These lengths shall be contextually interpreted based on the " +
-                    "security type of the BSSID where connection will occur." +
+                    "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK" +
+                    "\n" +
+                    "These lengths shall be contextually interpreted based on the security type of the BSSID where " +
+                    "connection will occur." +
                     "\n" +
                     "When the length of Credentials and available set of BSSID admits more than one option, such as the " +
                     "presence of both WPA2 and WPA security type within the result set, WPA2 shall be considered more " +
@@ -43960,9 +43930,7 @@ export const SpecMatter = Matter(
                 "case is ecosystem to ecosystem Fabric Synchronization setup." +
                 "\n" +
                 "The generalized flow supported by the Commissioner Control Cluster can be seen in the following " +
-                "diagram." +
-                "\n" +
-                "!commissioner control cluster general flow"
+                "diagram."
         },
 
         Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
@@ -45333,7 +45301,31 @@ export const SpecMatter = Matter(
     ),
 
     DeviceType(
-        { name: "Base", classification: "base", xref: "device§1.1" },
+        {
+            name: "Base", classification: "base", xref: "device§1.1",
+
+            details: "### Overview" +
+                "\n" +
+                "This defines common conformance for all device types depending on, but not limited to:" +
+                "\n" +
+                "  - Underlying protocol stack (e.g. 802.15.4, Wi-Fi, Thread, Zigbee PRO, IPv6, TCP/IP)" +
+                "\n" +
+                "  - Regional regulations" +
+                "\n" +
+                "  - Interfaces (UI, cloud, etc.)" +
+                "\n" +
+                "  - Scale (e.g. residential vs commercial)" +
+                "\n" +
+                "  - Other common limitations or capabilities (e.g. battery powered or sleepy nodes)." +
+                "\n" +
+                "  - etc." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "This conformance table shall assume the Matter conformance condition is TRUE (in Conformance " +
+                "column)."
+        },
+
         Condition({ name: "Ethernet", description: "The node supports an Ethernet LAN interface", xref: "device§1.1.3.1" }),
         Condition({ name: "WiFi", description: "The node supports a Wi-Fi interface", xref: "device§1.1.3.1" }),
         Condition({ name: "Thread", description: "The node supports a Thread interface", xref: "device§1.1.3.1" }),
@@ -45398,11 +45390,17 @@ export const SpecMatter = Matter(
             name: "Server", description: "there exists a server application cluster on the endpoint",
             xref: "device§1.1.6"
         }),
+
         Condition({
             name: "Duplicate",
             description: "the endpoint and at least one of its siblings have overlap in application device type(s)",
-            xref: "device§1.1.6"
+            xref: "device§1.1.6.1",
+            details: "The endpoint and at least one of its sibling endpoints have an overlap in application device " +
+                "type(s), as defined in the \"Disambiguation\" section in the System Model specification. This " +
+                "condition triggers requirements for providing additional information about the endpoints in order to " +
+                "disambiguate between the endpoints (see \"Disambiguation\" section in the System Model specification)."
         }),
+
         Condition({
             name: "BridgedPowerSourceInfo",
             description: "the endpoint represents a Bridged Device, for which information about the state of its power source is available to the Bridge",
@@ -45410,7 +45408,7 @@ export const SpecMatter = Matter(
         }),
         Requirement(
             { name: "Descriptor", id: 0x1d, conformance: "M", element: "serverCluster", xref: "device§1.1.7" },
-            Requirement({ name: "TAGLIST", conformance: "Duplicate", element: "feature" })
+            Requirement({ name: "TAGLIST", conformance: "Duplicate", element: "feature", xref: "device§1.1.8" })
         ),
         Requirement({ name: "Binding", id: 0x1e, conformance: "Simple & Client", element: "serverCluster", xref: "device§1.1.7" }),
         Requirement({ name: "FixedLabel", id: 0x40, conformance: "O", element: "serverCluster", xref: "device§1.1.7" }),
@@ -45431,7 +45429,28 @@ export const SpecMatter = Matter(
                 "  - Clusters with an Application role shall NOT be supported on the same endpoint as this device " +
                 "type." +
                 "\n" +
-                "  - Other device types with Node scope may be supported on the same endpoint as this device type."
+                "  - Other device types with Node scope may be supported on the same endpoint as this device type." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: The Network Diagnostics clusters present on the Root Node shall serve the primary network " +
+                "interface as specified in the Network Commissioning cluster if it exists, or the " +
+                "out-of-band-configured networking interfaces." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "#### Access Control MNGD Conformance" +
+                "\n" +
+                "The MNGD (Managed Device) feature of the Access Control Cluster on the device's Root Node endpoint " +
+                "is restricted to devices that contain an Application Endpoint type that explicitly permits its use, " +
+                "such as the Network Infrastructure Manager device type (Device Type ID 0x0090)." +
+                "\n" +
+                "### Endpoint Composition" +
+                "\n" +
+                "A Root Node endpoint's Descriptor cluster PartsList attribute shall contain a list of all other " +
+                "endpoints on the node, i.e. the full-family pattern defined in the System Model specification."
         },
 
         Requirement(
@@ -45494,10 +45513,11 @@ export const SpecMatter = Matter(
                 name: "AccessControl", id: 0x1f, conformance: "M", element: "serverCluster", quality: "I",
                 xref: "device§2.1.5"
             },
-            Requirement(
-                { name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" }
-            ),
-            Requirement({ name: "Extension", conformance: "ACLExtensionCond", element: "attribute" })
+            Requirement({
+                name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature",
+                xref: "device§2.1.6"
+            }),
+            Requirement({ name: "Extension", conformance: "ACLExtensionCond", element: "attribute", xref: "device§2.1.6" })
         ),
 
         Requirement({
@@ -45562,13 +45582,15 @@ export const SpecMatter = Matter(
             Requirement({
                 name: "TIMESYNCCLIENT",
                 conformance: "TimeSyncWithClientCond, [TLSCertificatesCond | TLSClientCond].a+, O",
-                element: "feature"
+                element: "feature", xref: "device§2.1.6"
             }),
             Requirement({
                 name: "NTPCLIENT", conformance: "TimeSyncWithNTPCCond, [TLSCertificatesCond | TLSClientCond].a+, O",
-                element: "feature"
+                element: "feature", xref: "device§2.1.6"
             }),
-            Requirement({ name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature" })
+            Requirement(
+                { name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature", xref: "device§2.1.6" }
+            )
         ),
 
         Requirement(
@@ -45579,13 +45601,15 @@ export const SpecMatter = Matter(
             Requirement({
                 name: "TIMESYNCCLIENT",
                 conformance: "TimeSyncWithClientCond, [TLSCertificatesCond | TLSClientCond].a+, O",
-                element: "feature"
+                element: "feature", xref: "device§2.1.6"
             }),
             Requirement({
                 name: "NTPCLIENT", conformance: "TimeSyncWithNTPCCond, [TLSCertificatesCond | TLSClientCond].a+, O",
-                element: "feature"
+                element: "feature", xref: "device§2.1.6"
             }),
-            Requirement({ name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature" })
+            Requirement(
+                { name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature", xref: "device§2.1.6" }
+            )
         ),
 
         Requirement({
@@ -45606,7 +45630,7 @@ export const SpecMatter = Matter(
                 name: "IcdManagement", id: 0x46, conformance: "SIT | LIT", element: "serverCluster", quality: "I",
                 xref: "device§2.1.5"
             },
-            Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature" })
+            Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement({
@@ -45626,8 +45650,13 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "PowerSource", id: 0x11, classification: "utility", xref: "device§2.2",
-            details: "A Power Source device type provides information about the source of power."
+            details: "A Power Source device type provides information about the source of power." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "This device shall support the clusters listed in the following table."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 17, revision: 1 } ], element: "attribute" })
@@ -45657,9 +45686,15 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "OtaProvider", id: 0x14, classification: "utility", xref: "device§2.4",
+
             details: "An OTA Provider is a node that is capable of providing an OTA software update to other nodes on the " +
-                "same fabric."
+                "same fabric." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "A node shall only ever have, at most, one instance of the OTA Provider's required clusters."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 20, revision: 1 } ], element: "attribute" })
@@ -45677,17 +45712,78 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "BridgedNode", id: 0x13, classification: "utility", xref: "device§2.5",
+
             details: "This defines conformance for a Bridged Node root endpoint. This endpoint is akin to a \"read me " +
                 "first\" endpoint that describes itself and any other endpoints that make up the Bridged Node. A " +
                 "Bridged Node endpoint represents a device on a foreign network, but is not the root endpoint of the " +
-                "bridge itself."
+                "bridge itself." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "This device type shall only be indicated on endpoints which are listed in the Descriptor cluster " +
+                "PartsList of another endpoint with an Aggregator device type." +
+                "\n" +
+                "### Endpoint Composition" +
+                "\n" +
+                "A Bridged Node endpoint shall support one of the following composition patterns:" +
+                "\n" +
+                "  - Separate Endpoints: All application device types are supported on separate descendant endpoints, " +
+                "and shall NOT be hosted on the Bridged Node endpoint. The Bridged Node endpoint's Descriptor " +
+                "cluster PartsList attribute shall indicate a list of all endpoints representing the " +
+                "functionality of the bridged device, including the endpoints supporting the application device " +
+                "types, i.e. the full-family pattern defined in the System Model specification. This is used for " +
+                "the following cases:" +
+                "\n" +
+                "  - Exposing a compound device - the child endpoints each have a part of the functionality of the " +
+                "bridged device. See endpoints 31-34 in the example below; the bridged device is a PIR sensor " +
+                "which also has temperature and illuminance measurement. Endpoints 32-34 host the associated " +
+                "application device types and clusters. Endpoint 31 (the endpoint with the Bridged Node device " +
+                "type) functions as parent for these endpoints and has no application device types." +
+                "\n" +
+                "  - Exposing a composed device type - a child endpoint of the endpoint with the Bridged Node device " +
+                "type has the composed device type; this endpoint with the composed device type has child " +
+                "endpoints for the device type(s) that are mandatory or optional for the composed device type. " +
+                "See endpoints 41-43 in the example below; this is a refrigerator, which is a composed device " +
+                "type, hosted on endpoint 42, with the associated temperature controlled cabinet device type on " +
+                "child endpoint 43. Endpoint 41 (the endpoint with the Bridged Node device type) functions as " +
+                "parent for the endpoint hosting the composed device type and has no application clusters." +
+                "\n" +
+                "  - Combinations of the above." +
+                "\n" +
+                "  - One Endpoint: Both the Bridged Node and one or more application device types are supported on " +
+                "the same endpoint (following application device type rules). The PartsList attribute in the " +
+                "Descriptor cluster shall be empty. Since compound devices and composed device types each need " +
+                "more than one endpoint to expose their functionality, they cannot use the \"One Endpoint\" pattern " +
+                "and need to use the \"Separate Endpoints\" model described above." +
+                "\n" +
+                "  - Example in the figure below: endpoint 21 hosts the Bridged Node utility device type, plus the " +
+                "application device type for a dimmable light on same endpoint. Since the dimmable light device " +
+                "type is a superset of on/off light, that subset device type may be added here as well." +
+                "\n" +
+                "In all these composition patterns, endpoint composition shall conform to the application device " +
+                "type(s) definition."
         },
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 19, revision: 3 } ], element: "attribute" })
         ),
-        Condition({ name: "FabricSynchronizedNode", description: "See description below.", xref: "device§2.5.3" }),
+
+        Condition({
+            name: "FabricSynchronizedNode", description: "See description below.", xref: "device§2.5.3.1",
+
+            details: "The FabricSynchronizedNode condition applies to a Bridged Node endpoint when all of the following " +
+                "are true:" +
+                "\n" +
+                "  - There is a Commissioner Control Cluster on an Aggregator which has this endpoint as a " +
+                "descendant." +
+                "\n" +
+                "  - The Commissioner Control Cluster has a SupportedDeviceCategories attribute with the " +
+                "FabricSynchronization bit set." +
+                "\n" +
+                "  - The bridged node is a Matter Node."
+        }),
+
         Requirement({
             name: "PowerSourceConfiguration", id: 0x2e, conformance: "BridgedPowerSourceInfo, D",
             element: "serverCluster", xref: "device§2.5.5"
@@ -45714,9 +45810,19 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "ElectricalSensor", id: 0x510, classification: "utility", xref: "device§2.6",
+
             details: "An Electrical Sensor device measures the electrical power and/or energy being imported and/or " +
-                "exported."
+                "exported." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: Electrical measurements made by either the Electrical Power Measurement cluster, the " +
+                "Electrical Energy Measurement cluster, or both shall apply to the endpoints indicated by the Power " +
+                "Topology cluster."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1296, revision: 1 } ], element: "attribute" })
@@ -45753,11 +45859,22 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x98, conformance: "M", element: "serverCluster",
                 xref: "device§2.7.4"
             },
-            Requirement({ name: "POWERADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature" }),
-            Requirement({ name: "STARTTIMEADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature" }),
-            Requirement({ name: "PAUSABLE", conformance: "[ControllableESA].a+", element: "feature" }),
-            Requirement({ name: "FORECASTADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature" }),
-            Requirement({ name: "CONSTRAINTBASEDADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature" })
+            Requirement({ name: "POWERADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({
+                name: "STARTTIMEADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
+                xref: "device§2.7.5"
+            }),
+            Requirement(
+                { name: "PAUSABLE", conformance: "[ControllableESA].a+", element: "feature", xref: "device§2.7.5" }
+            ),
+            Requirement({
+                name: "FORECASTADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
+                xref: "device§2.7.5"
+            }),
+            Requirement({
+                name: "CONSTRAINTBASEDADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
+                xref: "device§2.7.5"
+            })
         ),
 
         Requirement({
@@ -45780,7 +45897,14 @@ export const SpecMatter = Matter(
                 "A Node supporting multiple network interfaces shall include the primary interface on the Root Node " +
                 "endpoint, along with secondary interfaces on other endpoints. The priorities of these network " +
                 "interfaces are determined by the order of their endpoints, where interfaces with smaller endpoint " +
-                "numbers are higher priority."
+                "numbers are higher priority." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: The Network Diagnostics cluster present in this device type shall serve the secondary " +
+                "network interface as specified in the Network Commissioning cluster."
         },
 
         Requirement(
@@ -45812,7 +45936,12 @@ export const SpecMatter = Matter(
                 "A client wanting to access the capabilities of the Joint Fabric Administrator may use the Joint " +
                 "Commissioning Method (as specified in the Matter core specification) to be commissioned onto the " +
                 "Joint Fabric. Once commissioned, a client may access the capabilities of the Joint Fabric " +
-                "Administrator."
+                "Administrator." +
+                "\n" +
+                "### Joint Fabric Architecture" +
+                "\n" +
+                "See the Joint Fabric section of the Multiple Fabrics chapter in the Matter core specification for " +
+                "more information on the Joint Fabric architecture."
         },
 
         Requirement(
@@ -45829,9 +45958,27 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "OnOffLight", id: 0x100, classification: "simple", xref: "device§4.1",
+
             details: "The On/Off Light is a lighting device that is capable of being switched on or off by means of a " +
                 "bound controller device such as an On/Off Light Switch or a Dimmer Switch. In addition, an on/off " +
-                "light is also capable of being switched by means of a bound occupancy sensor."
+                "light is also capable of being switched by means of a bound occupancy sensor." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "The inclusion of the Level Control cluster on this device is recommended to provide a consistent " +
+                "user experience when the device is grouped with additional dimmable lights and the “with on/off” " +
+                "commands are used. For this device, since its only states are on or off, if the Level Control " +
+                "cluster is implemented, it shall NOT have any effect on the actual light level except for those " +
+                "commands that cause an on/off state change, that is, the “with on/off” commands. In addition, if the " +
+                "Level Control cluster is implemented, the device shall accept and process Level Control cluster " +
+                "commands, adjusting the value of the CurrentLevel attribute accordingly and, where necessary, " +
+                "adjusting the On/Off cluster OnOff attribute." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "As the TriggerEffect command of the Identify cluster and the OffWithEffect command of the On/Off " +
+                "cluster specify light effects that require dimming of the light output, and such is not possible on " +
+                "this device type, the specified light effects may be replaced by pure on/off light effects."
         },
 
         Requirement(
@@ -45840,26 +45987,26 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.1.4" },
-            Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
+            Requirement({ name: "TriggerEffect", conformance: "M", element: "command", xref: "device§4.1.5" })
         ),
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.1.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.1.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.1.5" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§4.1.4" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
-            Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
-            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.1.5" }),
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.1.5" }),
+            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.1.5" }),
+            Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.1.5" }),
+            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.1.5" })
         ),
 
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.1.4" },
-            Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+            Requirement({ name: "CopyScene", conformance: "M", element: "command", xref: "device§4.1.5" })
         ),
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.1.4" }
@@ -45881,26 +46028,26 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.2.4" },
-            Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
+            Requirement({ name: "TriggerEffect", conformance: "M", element: "command", xref: "device§4.2.5" })
         ),
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.2.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.2.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.2.5" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.2.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
-            Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
-            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.2.5" }),
+            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.2.5" }),
+            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.2.5" }),
+            Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.2.5" }),
+            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.2.5" })
         ),
 
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.2.4" },
-            Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+            Requirement({ name: "CopyScene", conformance: "M", element: "command", xref: "device§4.2.5" })
         ),
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.2.4" }
@@ -45922,31 +46069,31 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
-            Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
+            Requirement({ name: "TriggerEffect", conformance: "M", element: "command", xref: "device§4.3.5" })
         ),
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.3.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.3.5" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
-            Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
-            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.3.5" }),
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.3.5" }),
+            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.3.5" }),
+            Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.3.5" }),
+            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.3.5" })
         ),
 
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
-            Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+            Requirement({ name: "CopyScene", conformance: "M", element: "command", xref: "device§4.3.5" })
         ),
         Requirement(
             { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.3.4" },
-            Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature" }),
-            Requirement({ name: "RemainingTime", conformance: "M", element: "attribute" })
+            Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature", xref: "device§4.3.5" }),
+            Requirement({ name: "RemainingTime", conformance: "M", element: "attribute", xref: "device§4.3.5" })
         ),
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§4.3.4" }
@@ -45970,36 +46117,36 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
-            Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
+            Requirement({ name: "TriggerEffect", conformance: "M", element: "command", xref: "device§4.4.5" })
         ),
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.4.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.4.5" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
-            Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
-            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.4.5" }),
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.4.5" }),
+            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.4.5" }),
+            Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.4.5" }),
+            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.4.5" })
         ),
 
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
-            Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+            Requirement({ name: "CopyScene", conformance: "M", element: "command", xref: "device§4.4.5" })
         ),
 
         Requirement(
             { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.4.4" },
-            Requirement({ name: "HUESATURATION", conformance: "O", element: "feature" }),
-            Requirement({ name: "ENHANCEDHUE", conformance: "O", element: "feature" }),
-            Requirement({ name: "COLORLOOP", conformance: "O", element: "feature" }),
-            Requirement({ name: "XY", conformance: "M", element: "feature" }),
-            Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature" }),
-            Requirement({ name: "RemainingTime", conformance: "M", element: "attribute" })
+            Requirement({ name: "HUESATURATION", conformance: "O", element: "feature", xref: "device§4.4.5" }),
+            Requirement({ name: "ENHANCEDHUE", conformance: "O", element: "feature", xref: "device§4.4.5" }),
+            Requirement({ name: "COLORLOOP", conformance: "O", element: "feature", xref: "device§4.4.5" }),
+            Requirement({ name: "XY", conformance: "M", element: "feature", xref: "device§4.4.5" }),
+            Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature", xref: "device§4.4.5" }),
+            Requirement({ name: "RemainingTime", conformance: "M", element: "attribute", xref: "device§4.4.5" })
         ),
 
         Requirement(
@@ -46024,7 +46171,24 @@ export const SpecMatter = Matter(
                 "Before Matter 1.4, mounted units typically used the On/Off Plug-In Unit device type. Clients can " +
                 "encounter devices which were made before or after these specification updates. Therefore, clients " +
                 "SHOULD use the following heuristic to distinguish the type of physical device based on the device " +
-                "type revision found on an endpoint (\"--\" means the device type is not listed)."
+                "type revision found on an endpoint (\"--\" means the device type is not listed)." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "The inclusion of the Level Control cluster on this device is recommended to provide a consistent " +
+                "user experience when the device is grouped with additional dimmable lights and the “with on/off” " +
+                "commands are used. For this device, since its only states are on or off, if the Level Control " +
+                "cluster is implemented, it shall NOT have any effect on the actual light level except for those " +
+                "commands that cause an on/off state change, that is, the “with on/off” commands. In addition, if the " +
+                "Level Control cluster is implemented, the device shall accept and process Level Control cluster " +
+                "commands, adjusting the value of the CurrentLevel attribute accordingly and, where necessary, " +
+                "adjusting the On/Off cluster OnOff attribute." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "As the TriggerEffect command of the Identify cluster and the OffWithEffect command of the On/Off " +
+                "cluster specify light effects that require dimming of the light output, and such is not possible on " +
+                "this device type, the specified light effects may be replaced by pure on/off light effects."
         },
 
         Requirement(
@@ -46033,26 +46197,26 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.1.4" },
-            Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
+            Requirement({ name: "TriggerEffect", conformance: "M", element: "command", xref: "device§5.1.5" })
         ),
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.1.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.1.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.1.5" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.1.4" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
-            Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
-            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.1.5" }),
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.1.5" }),
+            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.1.5" }),
+            Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.1.5" }),
+            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.1.5" })
         ),
 
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.1.4" },
-            Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+            Requirement({ name: "CopyScene", conformance: "M", element: "command", xref: "device§5.1.5" })
         ),
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.1.4" }
@@ -46088,26 +46252,26 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.2.4" },
-            Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
+            Requirement({ name: "TriggerEffect", conformance: "M", element: "command", xref: "device§5.2.5" })
         ),
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.2.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.2.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.2.5" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.2.4" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
-            Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
-            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.2.5" }),
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.2.5" }),
+            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.2.5" }),
+            Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.2.5" }),
+            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.2.5" })
         ),
 
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.2.4" },
-            Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+            Requirement({ name: "CopyScene", conformance: "M", element: "command", xref: "device§5.2.5" })
         ),
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.2.4" }
@@ -46132,7 +46296,24 @@ export const SpecMatter = Matter(
                 "recommended to add the subset device type On/Off Plug-in Unit to the DeviceTypeList of the " +
                 "Descriptor cluster on the same endpoint for backward compatibility with existing clients. See " +
                 "On/Off Plug-in Unit client guidance for additional information, regarding the inclusion of these " +
-                "two device types."
+                "two device types." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "The inclusion of the Level Control cluster on this device is recommended to provide a consistent " +
+                "user experience when the device is grouped with additional dimmable lights and the “with on/off” " +
+                "commands are used. For this device, since its only states are on or off, if the Level Control " +
+                "cluster is implemented, it shall NOT have any effect on the actual light level except for those " +
+                "commands that cause an on/off state change, that is, the “with on/off” commands. In addition, if the " +
+                "Level Control cluster is implemented, the device shall accept and process Level Control cluster " +
+                "commands, adjusting the value of the CurrentLevel attribute accordingly and, where necessary, " +
+                "adjusting the On/Off cluster OnOff attribute." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "As the TriggerEffect command of the Identify cluster and the OffWithEffect command of the On/Off " +
+                "cluster specify light effects that require dimming of the light output, and such is not possible on " +
+                "this device type, the specified light effects may be replaced by pure on/off light effects."
         },
 
         Requirement(
@@ -46141,26 +46322,26 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.3.4" },
-            Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
+            Requirement({ name: "TriggerEffect", conformance: "M", element: "command", xref: "device§5.3.5" })
         ),
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.3.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.3.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.3.5" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.3.4" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
-            Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
-            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.3.5" }),
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.3.5" }),
+            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.3.5" }),
+            Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.3.5" }),
+            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.3.5" })
         ),
 
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.3.4" },
-            Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+            Requirement({ name: "CopyScene", conformance: "M", element: "command", xref: "device§5.3.5" })
         ),
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.3.4" }
@@ -46196,26 +46377,26 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§5.4.4" },
-            Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
+            Requirement({ name: "TriggerEffect", conformance: "M", element: "command", xref: "device§5.4.5" })
         ),
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.4.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.4.4" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.4.5" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.4.4" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
-            Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
-            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.4.5" }),
+            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.4.5" }),
+            Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.4.5" }),
+            Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.4.5" }),
+            Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.4.5" })
         ),
 
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster", xref: "device§5.4.4" },
-            Requirement({ name: "CopyScene", conformance: "M", element: "command" })
+            Requirement({ name: "CopyScene", conformance: "M", element: "command", xref: "device§5.4.5" })
         ),
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster", xref: "device§5.4.4" }
@@ -46225,9 +46406,24 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "Pump", id: 0x303, classification: "simple", xref: "device§5.5",
+
             details: "A Pump device is a pump that may have variable speed. It may have optional built-in sensors and a " +
-                "regulation mechanism. It is typically used for pumping fluids like water."
+                "regulation mechanism. It is typically used for pumping fluids like water." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "The actions carried out by a Pump device on receipt of commands are shown in the following." +
+                "\n" +
+                "#### Level Control Cluster (Server) Clarifications" +
+                "\n" +
+                "The Level Control cluster shall allow controlling the pump setpoints. However, the transition time " +
+                "is always ignored." +
+                "\n" +
+                "The setpoint of the pump is a percentage related to the level according to the following table."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 771, revision: 3 } ], element: "attribute" })
@@ -46261,8 +46457,42 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "WaterValve", id: 0x42, classification: "simple", xref: "device§5.6",
-            details: "This defines conformance to the Water Valve device type."
+
+            details: "This defines conformance to the Water Valve device type." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Identify Cluster" +
+                "\n" +
+                "This cluster is used to identify the device." +
+                "\n" +
+                "#### Valve Configuration and Control Cluster" +
+                "\n" +
+                "This cluster is used to configure and control (Open/Close) the valve." +
+                "\n" +
+                "#### Flow Measurement Cluster" +
+                "\n" +
+                "The cluster server, if present, shall be used to report the measured flow through the valve." +
+                "\n" +
+                "The cluster client, if present, may be used via binding to close a control loop of flow through the " +
+                "valve." +
+                "\n" +
+                "### Device implementation recommendations" +
+                "\n" +
+                "#### Start Up Behavior" +
+                "\n" +
+                "The start up behavior of a device with this device type, is currently not specified and is " +
+                "considered manufacturer specific. This means that the start up behavior and what is considered the " +
+                "\"safe state\", most suitable for the specific device, is defined by the manufacturer." +
+                "\n" +
+                "#### Firmware Update" +
+                "\n" +
+                "When a device with this device type needs to update its firmware (or restart for another reason), it " +
+                "is strongly recommended to only perform the update/restart when the valve is in its closed state, as " +
+                "well as ignoring any open request during this update/restart, given the chance a valve can " +
+                "unintentionally be left in the open state, for longer periods of time."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 66, revision: 1 } ], element: "attribute" })
@@ -46289,7 +46519,54 @@ export const SpecMatter = Matter(
                 "referred to as \"Sprinkler Controllers\" since they are often used in residential and commercial " +
                 "settings to control and schedule in-ground sprinkler systems for lawns. A physical irrigation system " +
                 "typically has a set of electrical terminals to which in-ground water valves are connected so that " +
-                "the system can actuate them."
+                "the system can actuate them." +
+                "\n" +
+                "### Irrigation System Architecture" +
+                "\n" +
+                "An irrigation system is always defined via endpoint composition. Irrigation system manufacturers " +
+                "determine how many watering \"zone\" terminals are present on the physical device. Each zone is " +
+                "represented by a disambiguated Water Valve endpoint:" +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "An irrigation system shall be composed of at least one endpoint with the Water Valve device type. " +
+                "Any instance of the Valve Configuration and Control Cluster on an endpoint is scoped to the valve on " +
+                "that endpoint and not the whole node." +
+                "\n" +
+                "If more than one instance of the Water Valve device type is present, each instance shall include " +
+                "semantic tags from the common namespaces in the TagList attribute of the Descriptor cluster to " +
+                "disambiguate which watering zone on the device each valve endpoint represents." +
+                "\n" +
+                "Some irrigation systems include a master valve installed at the main water supply line. When a " +
+                "master valve is present, the physical system is responsible for opening it first when receiving a " +
+                "command to open a downstream watering valve. In addition, the physical system is responsible for " +
+                "closing the master valve when the last open watering valve is closed. Since the master valve is " +
+                "orchestrated by the device, it is not represented as a Water Valve endpoint." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Identify Cluster" +
+                "\n" +
+                "This cluster is used to identify the entire irrigation system device." +
+                "\n" +
+                "#### Operational State Cluster" +
+                "\n" +
+                "This cluster, if present, is used to denote the current state of the irrigation system. An " +
+                "irrigation system may report the general operational states \"Running\" when at least one of the " +
+                "composed water valves is open for any reason, and \"Stopped\" when all water valves are closed. In " +
+                "addition, the system may support operational state commands \"Pause\" and \"Resume\" as well as the " +
+                "operational state \"Paused\" if it supports temporarily pausing a water valve that is currently open " +
+                "for a known duration. In this case, it SHOULD report the CountdownTime attribute to denote the " +
+                "remaining open duration of a currently open valve." +
+                "\n" +
+                "#### Flow Measurement Cluster" +
+                "\n" +
+                "This cluster, if present, is used to measure the net flow through the irrigation system. When " +
+                "present, the cluster shall report the total flow through the irrigation system and not any " +
+                "individual valve." +
+                "\n" +
+                "If present, the flow measurement client cluster is used via binding to measure flow from external " +
+                "flow sensors."
         },
 
         Requirement(
@@ -46436,8 +46713,156 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "GenericSwitch", id: 0xf, classification: "simple", xref: "device§6.6",
-            details: "This defines conformance for the Generic Switch device type."
+
+            details: "This defines conformance for the Generic Switch device type." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Instantaneous reporting" +
+                "\n" +
+                "The generic mechanism for subscriptions and events might not ensure that detected interactions with " +
+                "the switch will be delivered \"instantaneously\" to the Switch client cluster in the interested party " +
+                "(they might be sent only after some time, e.g. due to batching of events and the Min Interval " +
+                "behavior for subscriptions). In order to achieve a good user experience, a device of this device " +
+                "type shall send updates of attributes and events defined in the Switch cluster without delay to " +
+                "subscribed parties." +
+                "\n" +
+                "#### Labeling for multi-switch devices" +
+                "\n" +
+                "A Node which contains multiple switches will need to expose multiple endpoints each hosting an " +
+                "instance of this device type and the associated Switch cluster. This means the Duplicate condition " +
+                "in Matter base device requirements applies, so a TagList shall be included in the Descriptor cluster " +
+                "on each such endpoint. The tag(s) in this TagList are used to indicate orientation (e.g. left and " +
+                "right for a two-button switch) or labeling (e.g. \"dim up\" and \"dim down\" icons printed on the " +
+                "buttons) relevant to the user. A client SHOULD use these tags to convey such information to the user " +
+                "(e.g. showing it in a user interface), to help the user identify which endpoint maps to a certain " +
+                "orientation or labeling." +
+                "\n" +
+                "For the case where a server indicates tags from the Common Number Namespace, and the client presents " +
+                "entities related to the endpoints (e.g. icons for the various switches), it SHOULD present them in " +
+                "numerical order as indicated by the tags from the Common Number Namespace." +
+                "\n" +
+                "For a Node which has only one endpoint hosting an instance of this device type and the associated " +
+                "Switch cluster, a TagList may be used. This can be beneficial in cases where the switch has some " +
+                "user-recognizable labeling." +
+                "\n" +
+                "The TagList can contain a combination of tags from the namespaces defined in the Matter Semantic Tag " +
+                "Namespaces, including the namespace for switches as well as tags from a manufacturer-specific " +
+                "namespace." +
+                "\n" +
+                "In case the buttons have an intended function (e.g. engraved icon), the semantic tags from the " +
+                "Switches Namespace shall be used where applicable. If there is no corresponding tag, a " +
+                "manufacturer-specific tag with a string Label SHOULD be used (see Example 2 below)." +
+                "\n" +
+                "To identify the location of a button on the device (e.g. top button of a two-button device), the " +
+                "semantic tags from the Common Position Namespace shall be used where applicable." +
+                "\n" +
+                "For devices where these are not applicable or not sufficient (e.g. a switch device with four buttons " +
+                "in a row), the semantic tags from the Common Number Namespace shall be used to enumerate the " +
+                "position of the buttons on the device, in left to right, top to bottom order, starting with " +
+                "Number.One for the first button." +
+                "\n" +
+                "For devices to control a Closure (e.g. Window Covering), the semantic tags from the Switches " +
+                "Namespace shall be used where applicable." +
+                "\n" +
+                "Example 1: a device with two rocker switches (mounted side by side), which has two endpoints (11,12) " +
+                "for the switch-related functionality" +
+                "\n" +
+                "  - endpoint 11 has device type Generic Switch and contains" +
+                "\n" +
+                "  - cluster Switch (feature flags: LS) exposing the state and events of the left button" +
+                "\n" +
+                "  - cluster Descriptor with its TagList containing two tags: Position.Left and Number.One" +
+                "\n" +
+                "  - endpoint 12 has device type Generic Switch and contains" +
+                "\n" +
+                "  - cluster Switch (feature flags: LS) exposing the state and events of the right button" +
+                "\n" +
+                "  - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two" +
+                "\n" +
+                "If this device were to have labeling on the buttons like an \"up\" and \"down\" icon, the TagList would " +
+                "have a third tag (from the Switches Namespace) with values Switches.Up and Switches.Down " +
+                "respectively." +
+                "\n" +
+                "Example 2: a device with four push buttons (mounted in a square), each labeled with an icon for a " +
+                "certain scene setting, which has four endpoints (21,22,23,24) for the switch-related functionality" +
+                "\n" +
+                "  - endpoint 21 has device type Generic Switch and contains" +
+                "\n" +
+                "  - cluster Switch (feature flags: MS) exposing the events of the top-left button" +
+                "\n" +
+                "  - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Left, " +
+                "Number.One and (Tag=Switches.Custom, Label=\"watch tv\")" +
+                "\n" +
+                "  - This last tag is a Switches.Custom tag accompanied with a label (the other three tags do not " +
+                "need a Label field)." +
+                "\n" +
+                "  - endpoint 22 has device type Generic Switch and contains" +
+                "\n" +
+                "  - cluster Switch (feature flags: MS) exposing the events of the top-right button" +
+                "\n" +
+                "  - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Right, " +
+                "Number.Two and (Tag=Switches.Custom, Label=\"dinner\")" +
+                "\n" +
+                "  - endpoint 23 has device type Generic Switch and contains" +
+                "\n" +
+                "  - cluster Switch (feature flags: MS) exposing the events of the bottom-left button" +
+                "\n" +
+                "  - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Left, " +
+                "Number.Three and (Tag=Switches.Custom, Label=\"reading\")" +
+                "\n" +
+                "  - endpoint 24 has device type Generic Switch and contains" +
+                "\n" +
+                "  - cluster Switch (feature flags: MS) exposing the events of the bottom-right button" +
+                "\n" +
+                "  - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Right, " +
+                "Number.Four and (Tag=Switches.Custom, Label=\"nightlight\")" +
+                "\n" +
+                "### Relation with other Switch device types (informative)" +
+                "\n" +
+                "The Generic Switch device type and the On/Off Light Switch device type both convey information about " +
+                "interactions with a switch to another device." +
+                "\n" +
+                "  - The On/Off Light Switch will send On/Off/Toggle commands from its On/Off (client) cluster to a " +
+                "device implementing the On/Off (server) cluster to control the on/off functionality of that " +
+                "    device. An On/Off Light Switch device can also implement Groups and Scenes Management clusters " +
+                "and thus send group and scene commands. Basically, it is targeted at directly sending control " +
+                "commands to other devices. The binding table is used to tell the device where to send the " +
+                "commands." +
+                "\n" +
+                "  - The Generic Switch device type will send updates of attributes (for Latching Switch only) and " +
+                "events to subscribed parties which implement the Switch client cluster, as indications of " +
+                "interaction with the switch - leaving the interpretation (e.g. which device should be actuated " +
+                "because of the interaction) to the subscribed party. So it can be compared to a sensor-type " +
+                "    device. This allows a more comprehensive controller to combine the information from the switch " +
+                "with other inputs or information sources (e.g. time of day, user presence) to determine which " +
+                "control commands (e.g. on/off, scene recall, attribute change) are sent to other devices in the " +
+                "network." +
+                "\n" +
+                "A device manufacturer may implement both device types on the same switch device, to allow it to be " +
+                "used for both types of control, as in this example for a rocker switch which implements:" +
+                "\n" +
+                "  - endpoint 31 with device type On/Off Light Switch which contains" +
+                "\n" +
+                "  - (client) cluster On/Off exposing the On/Off/Toggle commands" +
+                "\n" +
+                "  - endpoint 32 with device type Generic Switch which contains" +
+                "\n" +
+                "  - (server) cluster Switch (feature flags: LS) exposing the state and events of the switch" +
+                "\n" +
+                "When this device is used in a particular setup, binding tables and subscriptions can be used to " +
+                "determine how it is used:" +
+                "\n" +
+                "  - used as an On/Off Light Switch (no subscriptions to endpoint 32)" +
+                "\n" +
+                "  - used as a Generic Switch (no bindings on endpoint 31)" +
+                "\n" +
+                "  - used as both at the same time. In this case, an interaction with the switch would result in an " +
+                "On/Off/Toggle command being sent to devices listed in the binding table of endpoint 31, as well " +
+                "as attribute update and events being sent towards devices having a subscription with endpoint " +
+                "32."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 15, revision: 3 } ], element: "attribute" })
@@ -46449,8 +46874,27 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "ContactSensor", id: 0x15, classification: "simple", xref: "device§7.1",
-            details: "This defines conformance to the Contact Sensor device type."
+
+            details: "This defines conformance to the Contact Sensor device type." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Identify Cluster" +
+                "\n" +
+                "This is used to identify the endpoint." +
+                "\n" +
+                "#### Boolean State Cluster" +
+                "\n" +
+                "This is used to indicate the state of the sensor/detector." +
+                "\n" +
+                "The state of the Boolean State cluster shall reflect the sensor detection using this scheme:" +
+                "\n" +
+                "#### Boolean State Configuration Cluster" +
+                "\n" +
+                "This is used to configure the sensor/detector and is for this device type linked to the " +
+                "configuration of the Boolean State cluster."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 21, revision: 2 } ], element: "attribute" })
@@ -46480,9 +46924,56 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "OccupancySensor", id: 0x107, classification: "simple", xref: "device§7.3",
+
             details: "An Occupancy Sensor is a measurement and sensing device that is capable of measuring and reporting " +
-                "the occupancy state in a designated area."
+                "the occupancy state in a designated area." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Identify Cluster" +
+                "\n" +
+                "This is used to identify the endpoint." +
+                "\n" +
+                "#### Boolean State Configuration Cluster" +
+                "\n" +
+                "This is used to configure the sensor/detector (e.g. sensitivity) and is for this device type linked " +
+                "to the configuration of the Occupancy Sensing cluster on the same endpoint." +
+                "\n" +
+                "#### Occupancy Sensing Cluster" +
+                "\n" +
+                "This is used to indicate occupancy as well as the type of occupancy sensor used for detection and " +
+                "configuring the delays related to the occupied and unoccupied transitions." +
+                "\n" +
+                "### Multi-modality sensors" +
+                "\n" +
+                "The Occupancy Sensing cluster defines multiple modalities that can be employed to sense occupancy. A " +
+                "device implementing multiple such modalities (exposed in the feature flags) can be implemented in " +
+                "two ways:" +
+                "\n" +
+                "  - A single endpoint with an Occupancy Sensing cluster which has two or more of these feature bits " +
+                "set to 1." +
+                "\n" +
+                "  - This requires reporting the combination the sensing results as a single bit in the Occupancy " +
+                "attribute (and the OccupancyChanged event, when supported), with a single set of timing " +
+                "parameters applied." +
+                "\n" +
+                "  - Sensitivity setting (via a Boolean State Configuration cluster on the same endpoint) applies to " +
+                "all the sensing modalities together via a manufacturer-specific mapping." +
+                "\n" +
+                "  - Multiple endpoints each hosting an Occupancy Sensing cluster (each with one feature bit set):" +
+                "\n" +
+                "  - The sensing result of each modality is reported separately in the Occupancy attribute (and the " +
+                "OccupancyChanged event, when supported) of each endpoint, governed by the set of timing " +
+                "parameters provided in the cluster on that endpoint." +
+                "\n" +
+                "  - This implies some of these attributes can have a different values than their counterparts on " +
+                "other endpoints and that a client may have to combine these values if it wants to derive a " +
+                "single value." +
+                "\n" +
+                "  - Each modality can be provided with an independent sensitivity setting via a Boolean State " +
+                "Configuration cluster located on one or more of the endpoints."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 263, revision: 4 } ], element: "attribute" })
@@ -46500,8 +46991,17 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "TemperatureSensor", id: 0x302, classification: "simple", xref: "device§7.4",
-            details: "A Temperature Sensor device reports measurements of temperature."
+
+            details: "A Temperature Sensor device reports measurements of temperature." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Thermostat User Interface Configuration Cluster" +
+                "\n" +
+                "This cluster provides an interface to allow configuration of the user interface for a temperature " +
+                "sensor that supports keypad or screen."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 770, revision: 3 } ], element: "attribute" })
@@ -46514,7 +47014,7 @@ export const SpecMatter = Matter(
                 name: "ThermostatUserInterfaceConfiguration", id: 0x204, conformance: "O", element: "serverCluster",
                 xref: "device§7.4.4"
             },
-            Requirement({ name: "KeypadLockout", conformance: "O", element: "attribute" })
+            Requirement({ name: "KeypadLockout", conformance: "O", element: "attribute", xref: "device§7.4.5" })
         )
     ),
 
@@ -46597,7 +47097,12 @@ export const SpecMatter = Matter(
                 "safety alarm indications." +
                 "\n" +
                 "Some smoke alarms may be capable of adjusting sensitivity. Smoke CO Alarm may have the ability to " +
-                "detect and report humidity levels, temperature levels, and contamination levels."
+                "detect and report humidity levels, temperature levels, and contamination levels." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Smoke CO Alarm device type shall support an instance of a Power Source device type on some " +
+                "endpoint. See the Power Source cluster for more information."
         },
 
         Requirement(
@@ -46690,8 +47195,32 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "WaterFreezeDetector", id: 0x41, classification: "simple", xref: "device§7.11",
-            details: "This defines conformance to the Water Freeze Detector device type."
+
+            details: "This defines conformance to the Water Freeze Detector device type." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Identify Cluster" +
+                "\n" +
+                "This is used to identify the endpoint." +
+                "\n" +
+                "#### Boolean State Cluster" +
+                "\n" +
+                "This is used to indicate the state of the sensor/detector." +
+                "\n" +
+                "The state of the Boolean State cluster shall reflect the sensor detection using this scheme of:" +
+                "\n" +
+                "Due to the difficulty in quantifying the risk of freezing based on the dependency on external " +
+                "factors such as temperature, humidity, pressure, etc, the actual triggering of a detector of this " +
+                "type depends on the physical construction and characteristics of the device and is therefore " +
+                "considered manufacturer specific." +
+                "\n" +
+                "#### Boolean State Configuration Cluster" +
+                "\n" +
+                "This is used to configure the sensor/detector and is for this device type linked to the " +
+                "configuration of the Boolean State cluster."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 65, revision: 2 } ], element: "attribute" })
@@ -46699,8 +47228,8 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§7.11.4" }),
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.11.4" },
-            Requirement({ name: "StateChange", conformance: "M", element: "event" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature" })
+            Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.11.5" }),
+            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.11.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -46711,8 +47240,27 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "WaterLeakDetector", id: 0x43, classification: "simple", xref: "device§7.12",
-            details: "This defines conformance to the Water Leak Detector device type."
+
+            details: "This defines conformance to the Water Leak Detector device type." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Identify Cluster" +
+                "\n" +
+                "This is used to identify the endpoint." +
+                "\n" +
+                "#### Boolean State Cluster" +
+                "\n" +
+                "This is used to indicate the state of the sensor/detector." +
+                "\n" +
+                "The state of the Boolean State cluster shall reflect the sensor detection using this scheme of:" +
+                "\n" +
+                "#### Boolean State Configuration Cluster" +
+                "\n" +
+                "This is used to configure the sensor/detector and is for this device type linked to the " +
+                "configuration of the Boolean State cluster."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 67, revision: 2 } ], element: "attribute" })
@@ -46720,8 +47268,8 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§7.12.4" }),
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.12.4" },
-            Requirement({ name: "StateChange", conformance: "M", element: "event" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature" })
+            Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.12.5" }),
+            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.12.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -46732,8 +47280,27 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "RainSensor", id: 0x44, classification: "simple", xref: "device§7.13",
-            details: "This defines conformance to the Rain Sensor device type."
+
+            details: "This defines conformance to the Rain Sensor device type." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Identify Cluster" +
+                "\n" +
+                "This is used to identify the endpoint." +
+                "\n" +
+                "#### Boolean State Cluster" +
+                "\n" +
+                "This is used to indicate the state of the sensor/detector." +
+                "\n" +
+                "The state of the Boolean State cluster shall reflect the sensor detection using this scheme of:" +
+                "\n" +
+                "#### Boolean State Configuration Cluster" +
+                "\n" +
+                "This is used to configure the sensor/detector and is for this device type linked to the " +
+                "configuration of the Boolean State cluster."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 68, revision: 2 } ], element: "attribute" })
@@ -46741,8 +47308,8 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§7.13.4" }),
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.13.4" },
-            Requirement({ name: "StateChange", conformance: "M", element: "event" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature" })
+            Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.13.5" }),
+            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.13.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -46753,9 +47320,26 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "SoilSensor", id: 0x45, classification: "simple", xref: "device§7.14",
+
             details: "A Soil Sensor device reports measurements of soil values, such as moisture and (optionally) " +
-                "temperature."
+                "temperature." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Identify Cluster" +
+                "\n" +
+                "This is used to identify the endpoint." +
+                "\n" +
+                "#### Temperature Measurement Cluster" +
+                "\n" +
+                "This is used to provide the temperature of the soil. Measurements SHOULD be done either in the soil " +
+                "or very close to the soil, in order to NOT provide ambient temperature measurements." +
+                "\n" +
+                "#### Soil Measurement Cluster" +
+                "\n" +
+                "This is used to provide the humidity of the soil."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 69, revision: 1 } ], element: "attribute" })
@@ -46823,8 +47407,18 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "WindowCovering", id: 0x202, classification: "simple", xref: "device§8.3",
-            details: "This defines conformance to the Window Covering device type."
+
+            details: "This defines conformance to the Window Covering device type." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "Furthermore, in revision at or before revision 5 for this device type, either or both of the Closure " +
+                "Control cluster and the Closure Dimension cluster shall NOT appear on the same endpoint. This is to " +
+                "avoid potential future usage of the closely related Closure Control cluster in this device type from " +
+                "interfering with non-standard usage of that cluster until proper data dependency language can be " +
+                "introduced, if any."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 514, revision: 6 } ], element: "attribute" })
@@ -46869,13 +47463,73 @@ export const SpecMatter = Matter(
                 "of some change in state, primarily through a movement." +
                 "\n" +
                 "All the common characteristics of a Closure are gathered within Closure Control Cluster. Moving " +
-                "parts or other physical aspects of the device are exposed using Closure Dimension Cluster."
+                "parts or other physical aspects of the device are exposed using Closure Dimension Cluster." +
+                "\n" +
+                "### Closure Architecture" +
+                "\n" +
+                "A Closure is a composed device type that may include additional device types on separate child " +
+                "endpoints. See the Device Type Requirements section below for details." +
+                "\n" +
+                "A Closure shall use exactly one semantic tag from the Closure namespace in the TagList attribute of " +
+                "the Descriptor cluster to describe the primary function of the device, e.g., \"Window\", \"Covering\", " +
+                "or \"Cabinet\". Semantic tags from the Closure Window, Closure Covering and Closure Cabinet " +
+                "namespaces, in addition to the Common namespaces, may be used to convey additional configuration " +
+                "information." +
+                "\n" +
+                "An example of a Closure device with multiple Closure Panel devices on separate child endpoints is " +
+                "illustrated below." +
+                "\n" +
+                "An example of a Closure with a single panel on a separate child endpoint is illustrated below." +
+                "\n" +
+                "An example of a Closure as a standalone device type is illustrated below." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Closure device may be composed of other device types listed in the table below subject to the " +
+                "conformance column of the table. All devices used in compositions shall adhere to the disambiguation " +
+                "and superset requirements of the System Model." +
+                "\n" +
+                "Note that the On/Off Light listed in the table below is part of a Superset Device Type relationship " +
+                "as defined by the System Model (see Superset Device Types in MatterCore), and so the rules defined " +
+                "in that section apply to the use of an On/Off Light or its Superset device types when included on " +
+                "separate child endpoints." +
+                "\n" +
+                "The use of semantic tags in the Descriptor cluster TagList shall adhere to the disambiguation and " +
+                "superset requirements of the System Model. Other semantic tags from other namespaces may be used to " +
+                "convey additional configuration information." +
+                "\n" +
+                "All instances of Closure Panel devices included in a composition shall reflect the current state of " +
+                "the associated panels, and operate in relation to the ClosureControl cluster at the top of the " +
+                "hierarchy. In other words, successfully opening/closing the closure via the ClosureControl cluster " +
+                "shall be followed by appropriate attribute updates in the ClosureDimension cluster that reflect the " +
+                "panels being in the state requested. Similarly, operating the ClosureDimension cluster instances " +
+                "shall cause the attributes of the ClosureControl instance at the top of the hierarchy to reflect the " +
+                "correct state of opening and closing at the same time." +
+                "\n" +
+                "Additional device types not listed in this table may also be included in device compositions." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "The Window Covering cluster shall NOT be present on the same endpoint for this device type. This " +
+                "restriction prevents conflicts between future standardized uses of the Window Covering cluster and " +
+                "any current non-standard implementations, until appropriate data dependency language is defined." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "The TagList in the Descriptor cluster of an endpoint with this device type shall meet the following " +
+                "constraints:" +
+                "\n" +
+                "  - There shall be exactly one tag from the Closure namespace (namespace 0x44) to identify the type " +
+                "of closure device." +
+                "\n" +
+                "  - There shall NOT be any tag from the ClosurePanel namespace (namespace 0x45), among all the other " +
+                "tags."
         },
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 560, revision: 1 } ], element: "attribute" }),
-            Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+            Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§8.5.6" })
         ),
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§8.5.5" }),
         Requirement(
@@ -46909,13 +47563,29 @@ export const SpecMatter = Matter(
                 "\n" +
                 "A Closure Panel shall use exactly one semantic tag from the ClosurePanel namespace (0x45) in the " +
                 "TagList attribute of the Descriptor cluster to describe the spatial aspect of the dimension, e.g., " +
-                "\"Lift\", \"Tilt\", etc."
+                "\"Lift\", \"Tilt\", etc." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "The Window Covering cluster shall NOT be present on the same endpoint for this device type. This " +
+                "restriction prevents conflicts between potential future standardized use of the Window Covering " +
+                "cluster and any existing non-standard implementations, until appropriate data dependency language is " +
+                "defined." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "The TagList in the Descriptor cluster of an endpoint with this device type shall meet the following " +
+                "constraints:" +
+                "\n" +
+                "  - There shall be exactly one tag from the ClosurePanel namespace (namespace 0x45)." +
+                "\n" +
+                "  - There shall NOT be any tag from the Closure namespace (namespace 0x44)."
         },
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 561, revision: 1 } ], element: "attribute" }),
-            Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+            Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§8.6.4" })
         ),
         Requirement(
             { name: "WindowCovering", id: 0x102, conformance: "X", element: "serverCluster", xref: "device§8.6.3" }
@@ -46931,8 +47601,26 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "ClosureController", id: 0x23e, classification: "simple", xref: "device§8.7",
-            details: "A Closure Controller is capable of controlling a Closure."
+
+            details: "A Closure Controller is capable of controlling a Closure." +
+                "\n" +
+                "### Introduction" +
+                "\n" +
+                "Two levels of control are available:" +
+                "\n" +
+                "  - Basic Level (Closure Control Cluster):" +
+                "\n" +
+                "  - Used for simple controller with buttons like wall switches." +
+                "\n" +
+                "  - Also all the general status and information remain at this level." +
+                "\n" +
+                "  - Advanced Level (Closure Dimension Cluster):" +
+                "\n" +
+                "  - Provides advanced information, controls and settings." +
+                "\n" +
+                "  - Used for advanced controller."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 574, revision: 1 } ], element: "attribute" })
@@ -46949,11 +47637,35 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "Thermostat", id: 0x301, classification: "simple", xref: "device§9.1",
+
             details: "A Thermostat device is capable of having either built-in or separate sensors for temperature, " +
                 "humidity or occupancy. It allows the desired temperature to be set either remotely or locally. The " +
                 "thermostat is capable of sending heating and/or cooling requirement notifications to a " +
                 "heating/cooling unit (for example, an indoor air handler) or is capable of including a mechanism to " +
-                "control a heating or cooling unit directly."
+                "control a heating or cooling unit directly." +
+                "\n" +
+                "### Thermostat Suggestion and Predicted Activity Considerations" +
+                "\n" +
+                "The thermostat cluster contains the Thermostat Suggestion feature, which allows clients to provide " +
+                "suggestions based on external contexts. The thermostat might also support the Ambient Context " +
+                "Sensing client and take action based on the context provided by the Predicted Activity feature. " +
+                "Thermostats may support either of these features. If both functionalities are supported, the " +
+                "following recommendations are provided to Thermostat devices:" +
+                "\n" +
+                "  - Changes which the thermostat wants to apply as a result of the data provided by the Ambient " +
+                "Context Sensing server, SHOULD be translated into a Thermostat Suggestion and SHOULD NOT be " +
+                "directly applied, in order to let the thermostat evaluate the change in state with any other " +
+                "suggestion provided by other clients." +
+                "\n" +
+                "  - If the resulting action from the context provided by the Ambient Context Sensing client can not " +
+                "be translated into a supported Thermostat Suggestion, the Thermostat may apply the change " +
+                "directly, but should be aware that it might impact the evaluation of any current suggestions and " +
+                "the behavior related to conflict resolution between the current suggestions and the input from " +
+                "the Ambient Context Sensing client is manufacturer specific." +
+                "\n" +
+                "  - The thermostat may prioritize the data provided by the Ambient Context Sensing server, in case " +
+                "there are multiple suggestions present, and use this as input when deciding which suggestion to " +
+                "apply."
         },
 
         Requirement(
@@ -46988,9 +47700,36 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "Fan", id: 0x2b, classification: "simple", xref: "device§9.2",
+
             details: "A Fan device is typically standalone or mounted on a ceiling or wall and is used to circulate air in " +
-                "a room."
+                "a room." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A fan may expose elements of its functionality through one or more additional device types on " +
+                "different endpoints. All devices used in compositions shall adhere to the disambiguation " +
+                "requirements of the System Model. Other device types, not explicitly listed in the table, may also " +
+                "be included in device compositions but are not considered part of the core functionality of the " +
+                "device." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "The On/Off cluster is independent from the Fan Control Cluster's FanMode attribute, which also " +
+                "includes an Off setting." +
+                "\n" +
+                "If the FanMode attribute of the Fan Control cluster is set to a value other than Off when the OnOff " +
+                "attribute of the On/Off cluster transitions from TRUE to FALSE, it may be desirable to restore the " +
+                "FanMode, SpeedSetting and PercentSetting attribute values of the Fan Control cluster when the OnOff " +
+                "attribute of the On/Off cluster later transitions from FALSE to TRUE. If the FanMode is set to Off " +
+                "when the device is turned off, this information is lost, as the SpeedSetting and PercentSetting will " +
+                "be set to zero. Using the On/Off cluster alongside the Fan Control cluster allows the FanMode, " +
+                "SpeedSetting and PercentSetting to remain unchanged when the device is turned off. In this case, the " +
+                "On/Off cluster would be set to Off, and the SpeedCurrent and PercentCurrent set to zero, without " +
+                "changing FanMode, SpeedSetting and PercentSetting."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 43, revision: 4 } ], element: "attribute" })
@@ -47005,10 +47744,36 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "AirPurifier", id: 0x2d, classification: "simple", xref: "device§9.3",
+
             details: "An Air Purifier is a standalone device that is designed to clean the air in a room." +
                 "\n" +
                 "It is a device that has a fan to control the air speed while it is operating. Optionally, it can " +
-                "report on the condition of its filters."
+                "report on the condition of its filters." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "An Air Purifier may expose elements of its functionality through one or more additional device types " +
+                "on different endpoints. All devices used in compositions shall adhere to the disambiguation " +
+                "requirements of the System Model. Other device types, not explicitly listed in the table, may also " +
+                "be included in device compositions but are not considered part of the core functionality of the " +
+                "device." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "The On/Off cluster is independent from the Fan Control Cluster's FanMode attribute, which also " +
+                "includes an Off setting." +
+                "\n" +
+                "If the FanMode attribute of the Fan Control cluster is set to a value other than Off when the OnOff " +
+                "attribute of the On/Off cluster transitions from TRUE to FALSE, it may be desirable to restore the " +
+                "FanMode, SpeedSetting and PercentSetting attribute values of the Fan Control cluster when the OnOff " +
+                "attribute of the On/Off cluster later transitions from FALSE to TRUE. If the FanMode is set to Off " +
+                "when the device is turned off, this information is lost, as the SpeedSetting and PercentSetting will " +
+                "be set to zero. Using the On/Off cluster alongside the Fan Control cluster allows the FanMode, " +
+                "SpeedSetting and PercentSetting to remain unchanged when the device is turned off. In this case, the " +
+                "On/Off cluster would be set to Off, and the SpeedCurrent and PercentCurrent set to zero, without " +
+                "changing FanMode, SpeedSetting and PercentSetting."
         },
 
         Requirement(
@@ -47158,7 +47923,7 @@ export const SpecMatter = Matter(
                 name: "ApplicationLauncher", id: 0x50c, conformance: "ContentAppPlatform", element: "serverCluster",
                 xref: "device§10.3.4"
             },
-            Requirement({ name: "APPLICATIONPLATFORM", conformance: "M", element: "feature" })
+            Requirement({ name: "APPLICATIONPLATFORM", conformance: "M", element: "feature", xref: "device§10.3.5" })
         ),
 
         Requirement({ name: "AccountLogin", id: 0x50e, conformance: "O", element: "serverCluster", xref: "device§10.3.4" }),
@@ -47198,10 +47963,22 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "ContentApp", id: 0x24, classification: "simple", xref: "device§10.5",
+
             details: "This defines conformance to the Content App device type." +
                 "\n" +
                 "A Content App is usually an application built by a Content Provider. A Casting Video Player with a " +
-                "Content App Platform is able to launch Content Apps and represent these apps as separate endpoints."
+                "Content App Platform is able to launch Content Apps and represent these apps as separate endpoints." +
+                "\n" +
+                "### Endpoint Composition" +
+                "\n" +
+                "Endpoints with this device type shall support Dynamic Endpoint Allocation as specified in the System " +
+                "Model specification." +
+                "\n" +
+                "### Disambiguation" +
+                "\n" +
+                "When there is more than one sibling endpoint with this device type in a PartsList, disambiguation " +
+                "information shall be provided by having a unique value in the ApplicationName attribute of the " +
+                "Application Basic cluster on each of these endpoints."
         },
 
         Requirement(
@@ -47226,7 +48003,7 @@ export const SpecMatter = Matter(
                 name: "ApplicationLauncher", id: 0x50c, conformance: "M", element: "serverCluster",
                 xref: "device§10.5.4"
             },
-            Requirement({ name: "APPLICATIONPLATFORM", conformance: "X", element: "feature" })
+            Requirement({ name: "APPLICATIONPLATFORM", conformance: "X", element: "feature", xref: "device§10.5.5" })
         ),
 
         Requirement(
@@ -47242,10 +48019,15 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "CastingVideoClient", id: 0x29, classification: "simple", xref: "device§10.6",
+
             details: "This defines conformance to the Casting Video Client device type." +
                 "\n" +
                 "A Casting Video Client is a client that can launch content on a Casting Video Player, for example, a " +
-                "Smart Speaker or a Content Provider phone app."
+                "Smart Speaker or a Content Provider phone app." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "See Section 1.1.7, \"Cluster Requirements\" for additional clusters including the Binding cluster."
         },
 
         Requirement(
@@ -47342,14 +48124,77 @@ export const SpecMatter = Matter(
                 "definition of the collection or functionality is not defined here." +
                 "\n" +
                 "When using this device type as a collection of bridged nodes, please see the \"Bridge\" section in the " +
-                "System Model specification."
+                "System Model specification." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "The Identify cluster SHOULD be used in case this device type is used to represent a Bridge which has " +
+                "a mechanism to identify itself to the user (e.g. blinking LED on the bridge itself)." +
+                "\n" +
+                "For the Identify-functionality of the individual bridged devices, see the Identify cluster on the " +
+                "endpoint for a bridged device." +
+                "\n" +
+                "### Endpoint Composition" +
+                "\n" +
+                "An Aggregator endpoint's Descriptor cluster PartsList attribute shall list the collection of all " +
+                "endpoints aggregated by the Aggregator device type, i.e. the full-family pattern defined in the " +
+                "System Model specification." +
+                "\n" +
+                "#### Multiple aggregators" +
+                "\n" +
+                "When a Node has multiple instances of the Aggregator device type, the composition shall comply with " +
+                "one of the following two patterns for any given pair (A,B) of endpoints with the Aggregator device " +
+                "type:" +
+                "\n" +
+                "  - No overlap: The endpoints in the PartsList attribute of Aggregator A do not appear in the " +
+                "PartsList attribute of Aggregator B, and vice versa." +
+                "\n" +
+                "  - Example: A Node which bridges to two non-Matter independent technologies (e.g. Zigbee and " +
+                "Z-Wave), see the aggregators on endpoints 11 and 31 in the figure below - their lists of " +
+                "endpoints (12-14, 21-23 versus 32-33) do not overlap." +
+                "\n" +
+                "  - Strict subset: The endpoint where aggregator B is exposed and all endpoints in its PartsList " +
+                "attribute (the subset) are included in the PartsList attribute of Aggregator A (the superset)." +
+                "\n" +
+                "  - This maintains the rule that there shall be a single path from the Root Node to each endpoint " +
+                "(see System Model)." +
+                "\n" +
+                "  - Example: A Node which implements a bridge to Zigbee, and one of those Zigbee devices is " +
+                "connected to a string of DALI lights, which can be addressed individually and thus this " +
+                "Zigbee/DALI device functions as a bridge from Zigbee to DALI; in the figure below one can see " +
+                "that the endpoints for the Zigbee/DALI bridge listed in the PartsList of the aggregator on " +
+                "endpoint 14 (21-23) form a strict subset of the endpoints for the Zigbee bridge in the PartsList " +
+                "of the aggregator on endpoint 11 (12-14, 21-23), and the endpoint 14 of the \"subset\" aggregator " +
+                "is included in the PartsList of the \"superset\" aggregator on endpoint 11." +
+                "\n" +
+                "### Disambiguation" +
+                "\n" +
+                "If the Duplicate condition applies to child endpoints of an Aggregator endpoint that represent " +
+                "multiple independent bridged devices, the endpoints SHOULD make available metadata to allow a client " +
+                "to disambiguate distinct bridged devices with an overlap in application device types." +
+                "\n" +
+                "Typically this is done using the NodeLabel attribute of the Bridged Device Basic Information cluster " +
+                "- thus reusing the naming information which the bridge already has to allow disambiguation to the " +
+                "user when using a direct user interface to the bridge." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> Example: the Aggregator in this figure (copied from the \"Bridge for non-Matter devices\" section in " +
+                "the Core Specification) exposes several Color Temperature Lights (endpoints 13 and 22) which are " +
+                "disambiguated with their NodeLabel. Note that the compound device at endpoints 24, 25 and 26 also " +
+                "uses a TagList (for information rather than disambiguation) since, for this case, the bridge knows " +
+                "the lighting direction of both elements of the compound device."
         },
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 14, revision: 2 } ], element: "attribute" })
         ),
-        Condition({ name: "FabricSynchronization", description: "See description below.", xref: "device§11.2.3" }),
+        Condition({
+            name: "FabricSynchronization", description: "See description below.", xref: "device§11.2.3.1",
+            details: "The FabricSynchronization condition applies when there is a Commissioner Control Cluster on this " +
+                "endpoint with a SupportedDeviceCategories attribute with the FabricSynchronization bit set."
+        }),
         Requirement({ name: "Actions", id: 0x25, conformance: "O", element: "serverCluster", xref: "device§11.2.4" }),
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§11.2.4" }),
         Requirement({
@@ -47361,8 +48206,124 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "RoboticVacuumCleaner", id: 0x74, classification: "simple", xref: "device§12.1",
-            details: "This defines conformance for the Robotic Vacuum Cleaner device type."
+
+            details: "This defines conformance for the Robotic Vacuum Cleaner device type." +
+                "\n" +
+                "### Cluster Usage" +
+                "\n" +
+                "This section describes how to control and monitor the operation of a Robotic Vacuum Cleaner device. " +
+                "This information is meant to clarify how the data dependencies within the device type's cluster " +
+                "composition are to be used." +
+                "\n" +
+                "Note that the device operations may also be the result of, or affected by, out-of-band actions such " +
+                "as robot physical button presses, internally scheduled events, vendor application requests, commands " +
+                "sent from other fabrics, internal device timeouts, etc. For example, a user may pause the robot " +
+                "during cleaning by using a Matter client and then resume cleaning by using a physical button of the " +
+                "device, or a robot may stop cleaning after an internal timeout occurs, and so forth." +
+                "\n" +
+                "The RVC Operational State cluster's OperationalState attribute shall be updated according to the " +
+                "state of the device, and therefore it SHOULD be used for monitoring purposes. Note that while the " +
+                "robot is in a cleaning cycle it may automatically seek the charger, recharge, and then resume " +
+                "cleaning." +
+                "\n" +
+                "The sections below describe various operational flows with preconditions and actions. The behavior " +
+                "in case the preconditions are not met is described in the corresponding cluster descriptions." +
+                "\n" +
+                "#### Starting Cleaning" +
+                "\n" +
+                "##### Preconditions" +
+                "\n" +
+                "If the DirectModeChange feature is not present, cleaning can only be started when the RVC Run Mode " +
+                "cluster's CurrentMode attribute is set to a mode that has the Idle mode tag associated with it, and " +
+                "the RVC Operational State cluster's OperationalState attribute is set to the Stopped, Paused, Docked " +
+                "or Charging state." +
+                "\n" +
+                "Note that if the RVC Clean Mode cluster is implemented, it determines the type of cleaning." +
+                "\n" +
+                "##### Actions" +
+                "\n" +
+                "To attempt starting a cleaning operation, the RVC Run Mode cluster can be sent a ChangeToMode " +
+                "command with the NewMode field set to a mode that has the Cleaning mode tag associated with it." +
+                "\n" +
+                "#### Pausing Cleaning" +
+                "\n" +
+                "##### Preconditions" +
+                "\n" +
+                "Cleaning can only be paused when the RVC Operational State cluster's OperationalState attribute is " +
+                "set to a Pause-compatible state. See the Pause Compatibility table and the RVC Pause Compatibility " +
+                "Table." +
+                "\n" +
+                "Note that even if the Pause command is not implemented, the RVC Operational State cluster's " +
+                "OperationalState attribute may report that the device is in the Paused state due to an out-of-band " +
+                "action, such as the user pressing a physical button on the device." +
+                "\n" +
+                "##### Actions" +
+                "\n" +
+                "To attempt pausing a cleaning operation, the RVC Operational State cluster can be sent a Pause " +
+                "command." +
+                "\n" +
+                "#### Resuming Cleaning" +
+                "\n" +
+                "##### Preconditions" +
+                "\n" +
+                "Cleaning can only be resumed if the RVC Operational State cluster's OperationalState attribute is " +
+                "set to a Resume-compatible state (see Resume Compatibility table and the RVC Resume Compatibility " +
+                "table), and the RVC Run Mode cluster's CurrentMode is set to a mode with the Cleaning mode tag." +
+                "\n" +
+                "Note that even if the Resume command is not implemented, the RVC Operational State cluster's " +
+                "OperationalState attribute may indicate that the device transitioned from the Paused state to the " +
+                "Running state due to an out-of-band action, such as the user pressing a physical button on the " +
+                "device." +
+                "\n" +
+                "##### Actions" +
+                "\n" +
+                "To attempt resuming a cleaning operation, the RVC Operational State cluster can be sent a Resume " +
+                "command." +
+                "\n" +
+                "#### Stopping Cleaning" +
+                "\n" +
+                "##### Preconditions" +
+                "\n" +
+                "Stopping cleaning can only happen if the RVC Run Mode cluster's CurrentMode attribute is set to a " +
+                "mode that has the Cleaning mode tag associated with it." +
+                "\n" +
+                "##### Actions" +
+                "\n" +
+                "To attempt stopping a cleaning operation, the RVC Run Mode cluster can be sent a ChangeToMode " +
+                "command with the NewMode field set to a mode that has the Idle mode tag associated with it." +
+                "\n" +
+                "##### Side Effects" +
+                "\n" +
+                "Note that the device may seek the charger after successfully switching the RVC Run Mode cluster to " +
+                "an Idle mode. The OperationalState attribute indicates whether the device is seeking the charger, " +
+                "stopped, charging, docked etc." +
+                "\n" +
+                "#### Other Device Operations" +
+                "\n" +
+                "The RVC Run Mode cluster's SupportedModes attribute list may include modes that have neither the " +
+                "Idle nor the Cleaning mode tags, for example the Mapping mode tag." +
+                "\n" +
+                "Starting, pausing, resuming and stopping these other operations have similar preconditions, actions " +
+                "and side effects as those described above for the cleaning operations." +
+                "\n" +
+                "#### Device Error Handling" +
+                "\n" +
+                "When in an error condition, as indicated by the RVC Operational State cluster's OperationalState " +
+                "attribute, out-of-band action will be required to clear that condition." +
+                "\n" +
+                "If an error occurs while the device operates, such as while cleaning or while mapping, the device " +
+                "may pause and set the RVC Operational State cluster's OperationalState attribute to Error. If the " +
+                "operation can be resumed after the error is cleared, the device shall set the RVC Operational State " +
+                "cluster's OperationalState attribute to Paused and may be resumed either via a Resume command, if " +
+                "implemented, or by out-of-band actions, such as by pressing the robot's physical buttons." +
+                "\n" +
+                "Note that certain errors may not pause or disable the device. For example, a dual-function device, " +
+                "that can both vacuum and mop, may report a WaterTankEmpty error but may still be able to be used if " +
+                "it has a vacuum only cleaning mode. Certain modes of the RVC Run Mode and the RVC Cleaning Mode " +
+                "clusters may become unavailable and the ChangeToModeResponse commands' StatusCode shall be set to " +
+                "InvalidInMode, when attempting to switch to those modes."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 116, revision: 4 } ], element: "attribute" })
@@ -47376,7 +48337,7 @@ export const SpecMatter = Matter(
                 name: "RvcOperationalState", id: 0x61, conformance: "M", element: "serverCluster",
                 xref: "device§12.1.4"
             },
-            Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
+            Requirement({ name: "OperationCompletion", conformance: "M", element: "event", xref: "device§12.1.5" })
         ),
 
         Requirement({ name: "ServiceArea", id: 0x150, conformance: "O", element: "serverCluster", xref: "device§12.1.4" })
@@ -47385,10 +48346,38 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "LaundryWasher", id: 0x73, classification: "simple", xref: "device§13.1",
+
             details: "A Laundry Washer represents a device that is capable of laundering consumer items. Any laundry " +
                 "washer product may utilize this device type." +
                 "\n" +
-                "A Laundry Washer shall be composed of at least one endpoint with the Laundry Washer device type."
+                "A Laundry Washer shall be composed of at least one endpoint with the Laundry Washer device type." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### Temperature Control Cluster (Server) Clarifications" +
+                "\n" +
+                "Given that different markets have different customary methods of providing temperature settings " +
+                "(e.g. North America often prefers levels, whereas many other markets provide temperatures in °C), it " +
+                "is recommended that when the Temperature Control cluster is present, the TemperatureLevel or " +
+                "TemperatureNumber feature of that cluster is chosen to follow the most widely applied convention for " +
+                "the market where the product is sold." +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "As indicated in the Element Requirements section below, the DF (Dead Front) feature is required for " +
+                "the On/Off cluster in this device type. See the \"DeadFrontBehavior feature\" section in the On/Off " +
+                "cluster description for detailed requirements. The \"dead front\" state is linked to the OnOff " +
+                "attribute in the On/Off cluster having the value False. Thus, the Off command of the On/Off cluster " +
+                "shall move the device into the \"dead front\" state, the On command of the On/Off cluster shall bring " +
+                "the device out of the \"dead front\" state, and the device shall adhere with the associated " +
+                "requirements on subscription handling and event reporting." +
+                "\n" +
+                "#### Best Effort Attribute Values in \"Dead Front\" State" +
+                "\n" +
+                "When in \"dead front\", should the operational values of the cluster attributes not be available or " +
+                "accessible, the following are the recommended best effort values for per cluster attributes when " +
+                "responding to a new subscription request or a read request. Attributes not listed have no change in " +
+                "their defined or expected values."
         },
 
         Requirement(
@@ -47398,12 +48387,12 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.1.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.1.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
+            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.1.6" })
         ),
         Requirement(
             { name: "LaundryWasherMode", id: 0x51, conformance: "O", element: "serverCluster", xref: "device§13.1.4" },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature" }),
-            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.1.6" }),
+            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.1.6" })
         ),
         Requirement({ name: "LaundryWasherControls", id: 0x53, conformance: "O", element: "serverCluster", xref: "device§13.1.4" }),
         Requirement(
@@ -47411,16 +48400,44 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "OperationalState", id: 0x60, conformance: "M", element: "serverCluster", xref: "device§13.1.4" },
-            Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
+            Requirement({ name: "OperationCompletion", conformance: "M", element: "event", xref: "device§13.1.6" })
         )
     ),
 
     DeviceType(
         {
             name: "Refrigerator", id: 0x70, classification: "simple", xref: "device§13.2",
+
             details: "A refrigerator represents a device that contains one or more cabinets that are capable of chilling " +
                 "or freezing food. Examples of consumer products that may make use of this device type include " +
-                "refrigerators, freezers, and wine coolers."
+                "refrigerators, freezers, and wine coolers." +
+                "\n" +
+                "### Refrigerator Architecture" +
+                "\n" +
+                "A Refrigerator is always defined via endpoint composition. See Section 13.2.6, \"Device Type " +
+                "Requirements\" for more details." +
+                "\n" +
+                "A Refrigerator may include a semantic tag in the TagList attribute of the Descriptor cluster to " +
+                "describe the primary function of the device, e.g., \"Refrigerator\" or \"Freezer\"." +
+                "\n" +
+                "An example of a Refrigerator with multiple cabinets is illustrated below." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Refrigerator shall be composed of at least one endpoint with the Temperature Controlled Cabinet " +
+                "device type as defined by the conformance below. There may be more endpoints with other device types " +
+                "existing in the Refrigerator." +
+                "\n" +
+                "If the Refrigerator contains more than one instance of a Temperature Controlled Cabinet, those " +
+                "instances shall include a semantic tag in the TagList attribute of the Descriptor cluster to " +
+                "disambiguate the cabinet, e.g., \"freezer\" or \"refrigerator\". Such a semantic tag shall be from " +
+                "either the defined Common or Refrigerator namespaces." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "#### Activated Carbon Filter Monitoring Cluster" +
+                "\n" +
+                "This cluster is used to represent the status of a water filter, if present on the device."
         },
 
         Requirement(
@@ -47438,8 +48455,8 @@ export const SpecMatter = Matter(
                 name: "RefrigeratorAndTemperatureControlledCabinetMode", id: 0x52, conformance: "O",
                 element: "serverCluster", xref: "device§13.2.7"
             },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature" }),
-            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.2.8" }),
+            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.2.8" })
         ),
 
         Requirement(
@@ -47458,10 +48475,50 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "RoomAirConditioner", id: 0x72, classification: "simple", xref: "device§13.3",
+
             details: "This defines conformance to the Room Air Conditioner device type." +
                 "\n" +
                 "A Room Air Conditioner is a device with the primary function of controlling the air temperature in a " +
-                "single room."
+                "single room." +
+                "\n" +
+                "### Room Air Conditioner Architecture" +
+                "\n" +
+                "A Room Air Conditioner is a device which at a minimum is capable of being turned on and off and of " +
+                "controlling the temperature in the living space." +
+                "\n" +
+                "A Room Air Conditioner may also support additional capabilities via endpoint composition. See " +
+                "Section 13.3.5, \"Device Type Requirements\" for typical device types." +
+                "\n" +
+                "The following diagram shows an example Room Air Conditioner consisting of a parent endpoint that is " +
+                "the Room Air Conditioner device type and several child endpoints providing additional capabilities. " +
+                "Note that two of the child endpoints are of the same device type, Temperature Sensor, which are " +
+                "being disambiguated via the requirements of endpoint composition defined in the system model." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Room Air Conditioner may have zero or more of each device type listed in this table subject to the " +
+                "conformance column of the table. All devices used in compositions shall adhere to the disambiguation " +
+                "requirements of the System Model. Additional device types not listed in this table may also be " +
+                "included in device compositions." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "As indicated in the Element Requirements section below, the DF (Dead Front) feature is required for " +
+                "the On/Off cluster in this device type. See the \"DeadFrontBehavior feature\" section in the On/Off " +
+                "cluster description for detailed requirements. The \"dead front\" state is linked to the OnOff " +
+                "attribute in the On/Off cluster having the value False. Thus, the Off command of the On/Off cluster " +
+                "shall move the device into the \"dead front\" state, the On command of the On/Off cluster shall bring " +
+                "the device out of the \"dead front\" state, and the device shall adhere with the associated " +
+                "requirements on subscription handling and event reporting." +
+                "\n" +
+                "#### Best Effort Attribute Values in \"Dead Front\" State" +
+                "\n" +
+                "When in \"dead front\", should the operational values of the cluster attributes not be available or " +
+                "accessible, the following are the recommended best effort values for per cluster attributes when " +
+                "responding to a new subscription request or a read request. Attributes not listed have no change in " +
+                "their defined or expected values."
         },
 
         Requirement(
@@ -47472,7 +48529,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§13.3.6" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§13.3.6" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
+            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.3.8" })
         ),
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster", xref: "device§13.3.6" }
@@ -47490,7 +48547,7 @@ export const SpecMatter = Matter(
                 name: "ThermostatUserInterfaceConfiguration", id: 0x204, conformance: "O", element: "serverCluster",
                 xref: "device§13.3.6"
             },
-            Requirement({ name: "KeypadLockout", conformance: "O", element: "attribute" })
+            Requirement({ name: "KeypadLockout", conformance: "O", element: "attribute", xref: "device§13.3.8" })
         ),
 
         Requirement({
@@ -47510,11 +48567,20 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "TemperatureControlledCabinet", id: 0x71, classification: "simple", xref: "device§13.4",
+
             details: "A Temperature Controlled Cabinet only exists composed as part of another device type. It represents " +
                 "a single cabinet that is capable of having its temperature controlled. Such a cabinet may be " +
                 "chilling or freezing food, for example as part of a refrigerator, freezer, wine chiller, or other " +
                 "similar device. Equally, such a cabinet may be warming or heating food, for example as part of an " +
-                "oven, range, or similar device."
+                "oven, range, or similar device." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "Temperature Controlled cabinets only allow the Temperature Control cluster to use the " +
+                "TemperatureNumber feature (i.e. actual temperature in °C). This is because using qualitative " +
+                "temperature levels (e.g. Low/Medium/High) does not allow the behavior expected by the majority of " +
+                "clients. Clients would be trying to \"set the temperature\" of a cabinet using that cluster, such as " +
+                "an oven's cooking temperature, or a refrigerator's internal cabinet temperature setpoint."
         },
 
         Requirement(
@@ -47525,8 +48591,8 @@ export const SpecMatter = Matter(
         Condition({ name: "Heater", description: "The device has heating functionality.", xref: "device§13.4.3" }),
         Requirement(
             { name: "TemperatureControl", id: 0x56, conformance: "M", element: "serverCluster", xref: "device§13.4.4" },
-            Requirement({ name: "TEMPERATURENUMBER", conformance: "M", element: "feature" }),
-            Requirement({ name: "TEMPERATURELEVEL", conformance: "X", element: "feature" })
+            Requirement({ name: "TEMPERATURENUMBER", conformance: "M", element: "feature", xref: "device§13.4.5" }),
+            Requirement({ name: "TEMPERATURELEVEL", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
         Requirement({
             name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster",
@@ -47538,14 +48604,14 @@ export const SpecMatter = Matter(
                 name: "RefrigeratorAndTemperatureControlledCabinetMode", id: 0x52, conformance: "[Cooler]",
                 element: "serverCluster", xref: "device§13.4.4"
             },
-            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
+            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.4.5" }),
+            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
 
         Requirement(
             { name: "OvenMode", id: 0x49, conformance: "[Heater]", element: "serverCluster", xref: "device§13.4.4" },
-            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
+            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.4.5" }),
+            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
 
         Requirement(
@@ -47553,9 +48619,9 @@ export const SpecMatter = Matter(
                 name: "OvenCavityOperationalState", id: 0x48, conformance: "[Heater]", element: "serverCluster",
                 xref: "device§13.4.4"
             },
-            Requirement({ name: "Pause", conformance: "X", element: "command" }),
-            Requirement({ name: "Resume", conformance: "X", element: "command" }),
-            Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
+            Requirement({ name: "Pause", conformance: "X", element: "command", xref: "device§13.4.5" }),
+            Requirement({ name: "Resume", conformance: "X", element: "command", xref: "device§13.4.5" }),
+            Requirement({ name: "OperationCompletion", conformance: "M", element: "event", xref: "device§13.4.5" })
         ),
 
         Requirement({ name: "TemperatureAlarm", id: 0x64, conformance: "P, O", element: "serverCluster", xref: "device§13.4.4" })
@@ -47564,9 +48630,45 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "Dishwasher", id: 0x75, classification: "simple", xref: "device§13.5",
+
             details: "A dishwasher is a device that is generally installed in residential homes and is capable of washing " +
                 "dishes, cutlery, and other items associate with food preparation and consumption. The device can be " +
-                "permanently installed or portable and can have variety of filling and draining methods."
+                "permanently installed or portable and can have variety of filling and draining methods." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: A dishwasher cycle is a combination of a mode (if supported) and a temperature (if " +
+                "supported). The operational state cluster is then used to start the cycle once these selections " +
+                "have been made via the client." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### Temperature Control Cluster (Server) Clarifications" +
+                "\n" +
+                "Given that different markets have different customary methods of providing temperature settings " +
+                "(e.g. North America often prefers levels, whereas many other markets provide temperatures in °C), it " +
+                "is recommended that when the Temperature Control cluster is present, the TemperatureLevel or " +
+                "TemperatureNumber feature of that cluster is chosen to follow the most widely applied convention for " +
+                "the market where the product is sold." +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "As indicated in the Element Requirements section below, the DF (Dead Front) feature is required for " +
+                "the On/Off cluster in this device type. See the \"DeadFrontBehavior feature\" section in the On/Off " +
+                "cluster description for detailed requirements. The \"dead front\" state is linked to the OnOff " +
+                "attribute in the On/Off cluster having the value False. Thus, the Off command of the On/Off cluster " +
+                "shall move the device into the \"dead front\" state, the On command of the On/Off cluster shall bring " +
+                "the device out of the \"dead front\" state, and the device shall adhere with the associated " +
+                "requirements on subscription handling and event reporting." +
+                "\n" +
+                "#### Best Effort Attribute Values in \"Dead Front\" State" +
+                "\n" +
+                "When in \"dead front\", should the operational values of the cluster attributes not be available or " +
+                "accessible, the following are the recommended best effort values for per cluster attributes when " +
+                "responding to a new subscription request or a read request. Attributes not listed have no change in " +
+                "their defined or expected values."
         },
 
         Requirement(
@@ -47576,30 +48678,60 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.5.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
+            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.5.6" })
         ),
         Requirement(
             { name: "TemperatureControl", id: 0x56, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }
         ),
         Requirement(
             { name: "DishwasherMode", id: 0x59, conformance: "O", element: "serverCluster", xref: "device§13.5.4" },
-            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
+            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.5.6" }),
+            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.5.6" })
         ),
         Requirement(
             { name: "DishwasherAlarm", id: 0x5d, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }
         ),
         Requirement(
             { name: "OperationalState", id: 0x60, conformance: "M", element: "serverCluster", xref: "device§13.5.4" },
-            Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
+            Requirement({ name: "OperationCompletion", conformance: "M", element: "event", xref: "device§13.5.6" })
         )
     ),
 
     DeviceType(
         {
             name: "LaundryDryer", id: 0x7c, classification: "simple", xref: "device§13.6",
-            details: "A Laundry Dryer represents a device that is capable of drying laundry items."
+
+            details: "A Laundry Dryer represents a device that is capable of drying laundry items." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### Temperature Control Cluster (Server) Clarifications" +
+                "\n" +
+                "Given that different markets have different customary methods of providing temperature settings " +
+                "(e.g. North America often prefers levels, whereas many other markets provide temperatures in °C), it " +
+                "is recommended that when the Temperature Control cluster is present, the TemperatureLevel or " +
+                "TemperatureNumber feature of that cluster is chosen to follow the most widely applied convention for " +
+                "the market where the product is sold." +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "The actions carried out by a Laundry Dryer device on receipt of specific commands are shown below. " +
+                "As indicated in the Element Requirements section below, the DF (Dead Front) feature is required for " +
+                "the On/Off cluster in this device type. See the \"DeadFrontBehavior feature\" section in the On/Off " +
+                "cluster description for detailed requirements. The \"dead front\" state is linked to the OnOff " +
+                "attribute in the On/Off cluster having the value False. Thus, the Off command of the On/Off cluster " +
+                "shall move the device into the \"dead front\" state, the On command of the On/Off cluster shall bring " +
+                "the device out of the \"dead front\" state, and the device shall adhere with the associated " +
+                "requirements on subscription handling and event reporting." +
+                "\n" +
+                "#### Best Effort Attribute Values in \"Dead Front\" State" +
+                "\n" +
+                "When in \"dead front\", should the operational values of the cluster attributes not be available or " +
+                "accessible, the following are the recommended best effort values for per cluster attributes when " +
+                "responding to a new subscription request or a read request. Note that some of these attributes may " +
+                "be missing for the clusters not implemented on the endpoint due to optionality."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 124, revision: 2 } ], element: "attribute" })
@@ -47607,12 +48739,12 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.6.4" }),
         Requirement(
             { name: "LaundryWasherMode", id: 0x51, conformance: "O", element: "serverCluster", xref: "device§13.6.4" },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature" }),
-            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" })
+            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.6.6" }),
+            Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.6.6" })
         ),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.6.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
+            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.6.6" })
         ),
         Requirement({ name: "LaundryDryerControls", id: 0x4a, conformance: "O", element: "serverCluster", xref: "device§13.6.4" }),
         Requirement(
@@ -47620,23 +48752,42 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "OperationalState", id: 0x60, conformance: "M", element: "serverCluster", xref: "device§13.6.4" },
-            Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
+            Requirement({ name: "OperationCompletion", conformance: "M", element: "event", xref: "device§13.6.6" })
         )
     ),
 
     DeviceType(
         {
             name: "CookSurface", id: 0x77, classification: "simple", xref: "device§13.7",
+
             details: "A Cook Surface device type represents a heating object on a cooktop or other similar device. It " +
-                "shall only be used when composed as part of another device type."
+                "shall only be used when composed as part of another device type." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "The OffOnly feature is required for the On/Off cluster in this device type due to safety " +
+                "requirements." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "Whenever the Temperature Control cluster is included on a Cook Surface, the Temperature Control " +
+                "cluster shall use the TemperatureLevel feature rather than the TemperatureNumber feature. This is " +
+                "because users are usually in the loop for controlling the temperature of the food being cooked " +
+                "within a heated cooking utensil. For example, while the surface temperature of a cooktop may be " +
+                "significantly above 100°C, an open pot of water will never exceed the boiling point of water as all " +
+                "excess energy transmitted is spent on the water's phase change to steam and the liquid within the " +
+                "pot reaches an equilibrium temperature."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 119, revision: 2 } ], element: "attribute" })
         ),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.7.4" },
-            Requirement({ name: "OFFONLY", conformance: "M", element: "feature" })
+            Requirement({ name: "OFFONLY", conformance: "M", element: "feature", xref: "device§13.7.6" })
         ),
 
         Requirement(
@@ -47644,8 +48795,8 @@ export const SpecMatter = Matter(
                 name: "TemperatureControl", id: 0x56, conformance: "O.a+", element: "serverCluster",
                 xref: "device§13.7.4"
             },
-            Requirement({ name: "TEMPERATURELEVEL", conformance: "M", element: "feature" }),
-            Requirement({ name: "TEMPERATURENUMBER", conformance: "X", element: "feature" })
+            Requirement({ name: "TEMPERATURELEVEL", conformance: "M", element: "feature", xref: "device§13.7.6" }),
+            Requirement({ name: "TEMPERATURENUMBER", conformance: "X", element: "feature", xref: "device§13.7.6" })
         ),
 
         Requirement({
@@ -47657,9 +48808,34 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "Cooktop", id: 0x78, classification: "simple", xref: "device§13.8",
+
             details: "A cooktop is a cooking surface that heats food either by transferring currents from an " +
                 "electromagnetic field located below the glass surface directly to the magnetic induction cookware " +
-                "placed above or through traditional gas or electric burners."
+                "placed above or through traditional gas or electric burners." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Cooktop shall be composed of zero or more endpoints with the Cook Surface device type as defined " +
+                "by the conformance below." +
+                "\n" +
+                "A cooktop falls under strict regulatory control in some regions. One of these restrictions for " +
+                "non-induction cooktops is that the only remote commands available are to turn off the entire device " +
+                "or read out the temperature setting. This one scenario for allowed remote operation is specifically " +
+                "to address the use case of a device that is left on after a user leaves the home. The individual " +
+                "cooking surfaces cannot be shut off. This leads to a model of a cooktop that has 0 controllable " +
+                "cooking surfaces. For example, the requirements that exist for a gas cooktop would result in zero " +
+                "Cook Surface instances being exposed." +
+                "\n" +
+                "If the Cooktop contains more than one instance of a Cook Surface, those instances shall include a " +
+                "semantic tag in the TagList attribute of the Descriptor cluster to disambiguate the cook surface, " +
+                "e.g., \"front\", \"left\", or \"back\". Such a semantic tag shall be from the Common namespaces." +
+                "\n" +
+                "### Cluster Restrictions" +
+                "\n" +
+                "#### On/Off Cluster (Server) Clarifications" +
+                "\n" +
+                "The OffOnly feature is required for the On/Off cluster in this device type due to safety " +
+                "requirements."
         },
 
         Requirement(
@@ -47669,7 +48845,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.8.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§13.8.5" },
-            Requirement({ name: "OFFONLY", conformance: "M", element: "feature" })
+            Requirement({ name: "OFFONLY", conformance: "M", element: "feature", xref: "device§13.8.7" })
         ),
         Requirement({
             name: "CookSurface", id: 0x77, conformance: "O", constraint: "min 1", element: "deviceType",
@@ -47680,9 +48856,35 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "Oven", id: 0x7b, classification: "simple", xref: "device§13.9",
+
             details: "An oven represents a device that contains one or more cabinets, and optionally a single cooktop, " +
                 "that are all capable of heating food. Examples of consumer products implementing this device type " +
-                "include ovens, wall ovens, convection ovens, etc."
+                "include ovens, wall ovens, convection ovens, etc." +
+                "\n" +
+                "### Oven Architecture" +
+                "\n" +
+                "An oven is always defined via endpoint composition. See Section 13.9.6, \"Device Type Requirements\" " +
+                "for more details." +
+                "\n" +
+                "An example of an oven with two cabinets (one above the other) and a cooktop (with two cook surfaces) " +
+                "is illustrated below." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "An Oven shall be composed of at least one endpoint with Temperature Controlled Cabinet device type. " +
+                "There may be more endpoints with other device types existing in the Oven. Note that any instance of " +
+                "the TemperatureControl cluster on an endpoint is scoped to the device type on that endpoint, and not " +
+                "the whole node." +
+                "\n" +
+                "If the Oven contains more than one instance of a Temperature Controlled Cabinet, those instances " +
+                "shall include a semantic tag in the TagList attribute of the Descriptor cluster to disambiguate the " +
+                "cabinet, e.g., \"Top\" or \"Bottom\". Such a semantic tag shall be from the defined Common Position " +
+                "namespaces." +
+                "\n" +
+                "Regional restrictions and safety regulations may dictate which aspects of a Temperature Controlled " +
+                "Cabinet may be remotely accessible. In such cases, clusters exposed by an instance of a Temperature " +
+                "Controlled Cabinet may have limitations on what commands are supported or what attributes are " +
+                "mutable."
         },
 
         Requirement(
@@ -47725,7 +48927,17 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  - Telescoping Hoods" +
                 "\n" +
-                "  - Telescoping Extractors"
+                "  - Telescoping Extractors" +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "An Extractor Hood is composed of other device types listed in this table subject to the conformance " +
+                "column of the table. All devices used in compositions shall adhere to the disambiguation and " +
+                "superset requirements of the System Model. Specifically, please note that the On/Off Light as listed " +
+                "is a Superset Device Type as defined by the System Model (see Superset Device Types in MatterCore), " +
+                "and so the rules defined in that section apply to the use of On/Off Light as a superset when " +
+                "composed in this device type. Additional device types not listed in this table may also be included " +
+                "in device compositions."
         },
 
         Requirement(
@@ -47741,9 +48953,9 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster", xref: "device§13.10.5" },
-            Requirement({ name: "ROCKING", conformance: "X", element: "feature" }),
-            Requirement({ name: "WIND", conformance: "X", element: "feature" }),
-            Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature" })
+            Requirement({ name: "ROCKING", conformance: "X", element: "feature", xref: "device§13.10.6" }),
+            Requirement({ name: "WIND", conformance: "X", element: "feature", xref: "device§13.10.6" }),
+            Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature", xref: "device§13.10.6" })
         ),
 
         Requirement({ name: "OnOffLight", id: 0x100, conformance: "O", element: "deviceType", xref: "device§13.10.4" })
@@ -47752,10 +48964,88 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "MicrowaveOven", id: 0x79, classification: "simple", xref: "device§13.11",
+
             details: "This defines conformance to the Microwave Oven device type." +
                 "\n" +
                 "A Microwave Oven is a device with the primary function of heating foods and beverages using a " +
-                "magnetron."
+                "magnetron." +
+                "\n" +
+                "### Microwave Oven Architecture" +
+                "\n" +
+                "A Microwave Oven is a device which at a minimum is capable of being started and stopped and of " +
+                "setting a power level." +
+                "\n" +
+                "A Microwave Oven may also support additional capabilities via endpoint composition. See Section " +
+                "13.11.5, \"Device Type Requirements\" for typical device types." +
+                "\n" +
+                "The following diagram shows an example Microwave Oven consisting of a parent endpoint that is the " +
+                "Microwave Oven device type and a child endpoint providing additional capabilities." +
+                "\n" +
+                "A microwave oven placed above a thermal oven or cooktop/hob may also include a light for " +
+                "illuminating the cooking surface of the thermal oven or cooktop/hob and an exhaust fan for removing " +
+                "cooking odors." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "When a light is included as part of a composed device type, it is intended to be used as surface " +
+                "light when the microwave oven is installed above a range in an \"over the range\" configuration rather " +
+                "than the internal light of the microwave oven cavity." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "When the Fan Control cluster is supported on an endpoint of this device type, it is intended to be " +
+                "used as a ventilation fan when the microwave oven is installed above a range in an \"over the range\" " +
+                "configuration rather than the internal fan of the microwave oven cavity." +
+                "\n" +
+                "### Cluster Usage" +
+                "\n" +
+                "This section describes how to control and monitor the operation of a Microwave Oven device. This " +
+                "information is meant to clarify how the data dependencies within the device type's cluster " +
+                "composition are to be used." +
+                "\n" +
+                "Note that the device operations may also be the result of, or affected by, out-of-band actions such " +
+                "as physical button presses on the device, internally scheduled events, vendor application requests, " +
+                "commands invoked via other fabrics, internal device timeouts, etc. For example, a user may pause the " +
+                "oven during operation by opening the door to check on the food." +
+                "\n" +
+                "#### Starting the Oven" +
+                "\n" +
+                "The oven operational attributes are set by sending the SetCookingParameters command of the Microwave " +
+                "Oven Control cluster with the values as intended by the user via a client. Oven operation can be " +
+                "started by sending the Start command via the Operational State cluster or one of its derivatives, if " +
+                "supported, or within the SetCookingParameters command via the StartAfterSetting attribute, if " +
+                "supported." +
+                "\n" +
+                "Upon setting the CookTime attribute via the SetCookingParameters command, the CountdownTime " +
+                "attribute of the Operational State cluster or one of its derivatives , if supported, is set to the " +
+                "same value as the CookTime attribute." +
+                "\n" +
+                "Once oven operation is started, the values previously sent by the SetCookingParameters command are " +
+                "used to control the oven operation and the CountdownTime attribute of the Operational State cluster " +
+                "or one of its derivatives begins counting down." +
+                "\n" +
+                "#### During Operation" +
+                "\n" +
+                "While the oven is in the Running state, the CountdownTime attribute of the Operational State cluster " +
+                "or one of its derivatives counts down and the CookTime attribute of the Microwave Oven Control " +
+                "cluster remains fixed." +
+                "\n" +
+                "#### Stopping the Oven" +
+                "\n" +
+                "Oven operation will end when either the Stop command of the Operational State cluster or one of its " +
+                "derivatives, if supported, is sent, the CountdownTime value reaches zero, or the oven is stopped via " +
+                "an out-of-band method." +
+                "\n" +
+                "It is recommended that when the oven enters the Stopped state of the Operational State cluster or " +
+                "one of its derived clusters, the attribute values of the Microwave Oven Control cluster be set to " +
+                "their default values by the server." +
+                "\n" +
+                "#### Adding More Time" +
+                "\n" +
+                "When time is added to the CookTime attribute using the AddMoreTime command of the Microwave Oven " +
+                "Control cluster, the same amount of time is also added to the CountdownTime attribute of the " +
+                "Operational State cluster or one of its derivatives. See the CookTime attribute constraints and " +
+                "AddMoreTime command for more details."
         },
 
         Requirement(
@@ -47765,13 +49055,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.11.6" }),
         Requirement(
             { name: "OperationalState", id: 0x60, conformance: "M", element: "serverCluster", xref: "device§13.11.6" },
-            Requirement({ name: "CountdownTime", conformance: "M", element: "attribute" }),
-            Requirement({ name: "OperationCompletion", conformance: "M", element: "event" })
+            Requirement({ name: "CountdownTime", conformance: "M", element: "attribute", xref: "device§13.11.7" }),
+            Requirement({ name: "OperationCompletion", conformance: "M", element: "event", xref: "device§13.11.7" })
         ),
         Requirement(
             { name: "FanControl", id: 0x202, conformance: "O", element: "serverCluster", xref: "device§13.11.6" },
-            Requirement({ name: "WIND", conformance: "X", element: "feature" }),
-            Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature" })
+            Requirement({ name: "WIND", conformance: "X", element: "feature", xref: "device§13.11.7" }),
+            Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature", xref: "device§13.11.7" })
         ),
         Requirement(
             { name: "MicrowaveOvenMode", id: 0x5e, conformance: "M", element: "serverCluster", xref: "device§13.11.6" }
@@ -47783,9 +49073,43 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "EnergyEvse", id: 0x50c, classification: "simple", xref: "device§14.1",
+
             details: "An EVSE (Electric Vehicle Supply Equipment) is a device that allows an EV (Electric Vehicle) to be " +
                 "connected to the mains electricity supply to allow it to be charged (or discharged in case of " +
-                "Vehicle to Grid / Vehicle to Home applications)."
+                "Vehicle to Grid / Vehicle to Home applications)." +
+                "\n" +
+                "### EVSE Architecture" +
+                "\n" +
+                "An EVSE is always defined via endpoint composition. See Section 14.1.6, \"Device Type Requirements\" " +
+                "for more details." +
+                "\n" +
+                "An example of an EVSE with single phase AC supply is illustrated below." +
+                "\n" +
+                "The EVSE may also indicate its internal temperature using the temperature measurement cluster (not " +
+                "shown)." +
+                "\n" +
+                "An example of an EVSE with a 3 phase AC supply is illustrated below." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "An EVSE shall be composed of at least one endpoint with device types as defined by the conformance " +
+                "below. There may be more endpoints with other device types existing in the EVSE." +
+                "\n" +
+                "#### Cluster Requirements on Component Device Types" +
+                "\n" +
+                "The Electrical Sensor device shall include both the Electrical Energy Measurement and Electrical " +
+                "Power Measurement clusters, measuring the total energy and power of the EVSE." +
+                "\n" +
+                "#### Element Requirements on Component Device Types" +
+                "\n" +
+                "If an EVSE supports three phase power then it shall include three additional endpoints including an " +
+                "Electrical Sensor Device Type as child elements. For each child endpoint it shall include a semantic " +
+                "tag from the Electrical Measurement Namespace in the TagList attribute of the Descriptor cluster to " +
+                "describe the endpoint for the relevant Electrical Power Measurement and Electrical Energy " +
+                "Measurement clusters indicating the relevant AC phase that is being measured." +
+                "\n" +
+                "If the EVSE supports the V2X feature then the Device Energy Management cluster included in the " +
+                "Device Energy Management device shall support the PowerAdjustment (PA) feature."
         },
 
         Requirement(
@@ -47811,10 +49135,13 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", constraint: "min 1",
                 element: "deviceType", xref: "device§14.1.6"
             },
+
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERFORECASTREPORTING", conformance: "M", element: "feature" }),
-                Requirement({ name: "POWERADJUSTMENT", conformance: "desc", element: "feature" })
+                Requirement(
+                    { name: "POWERFORECASTREPORTING", conformance: "M", element: "feature", xref: "device§14.1.6.2" }
+                ),
+                Requirement({ name: "POWERADJUSTMENT", conformance: "desc", element: "feature", xref: "device§14.1.6.2" })
             )
         ),
 
@@ -47831,9 +49158,67 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "WaterHeater", id: 0x50f, classification: "simple", xref: "device§14.2",
+
             details: "A water heater is a device that is generally installed in properties to heat water for showers, " +
-                "baths etc."
+                "baths etc." +
+                "\n" +
+                "### Water Heater Architecture" +
+                "\n" +
+                "A Water Heater is always defined via endpoint composition." +
+                "\n" +
+                "If a Water Heater supports multiple temperature measurement sensors as child elements, it shall " +
+                "include a separate endpoint for each sensor. Each endpoint shall include a semantic tag in the " +
+                "TagList attribute of the Descriptor cluster to describe the relevant position of the sensor. Such a " +
+                "semantic tag shall be from the defined Common Position namespace (i.e. Top, Middle, Bottom etc)." +
+                "\n" +
+                "For basic control features the Water Heater re-uses the Thermostat cluster with the HEAT and SCH " +
+                "features. This allows it to have daily schedules set as to when the hot water heating is enabled, as " +
+                "well as setting the desired setpoint of the hot water." +
+                "\n" +
+                "Additional features of the Water Heater (such as reporting estimated hot water content, and smart " +
+                "reheating functions) are provided by the Water Heater application cluster." +
+                "\n" +
+                "In order to add energy management capability, the Device Energy Management cluster may be optionally " +
+                "supported, and if so, the Electrical Power Measurement and Electrical Energy Measurement clusters " +
+                "are supported via the Electrical Sensor device type." +
+                "\n" +
+                "An example of a Water Heater device is illustrated below." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "The Energy Management feature of the Water Heater cluster shall be supported if the Device Energy " +
+                "Management device type is included." +
+                "\n" +
+                "If Off is a supported SystemMode in the Thermostat cluster, setting the SystemMode of the Thermostat " +
+                "cluster to Off shall set the CurrentMode attribute of the Water Heater Mode cluster to a mode having " +
+                "the Off mode tag value and vice versa." +
+                "\n" +
+                "At least one entry in the SupportedModes attribute of the Water Heater Mode cluster shall include " +
+                "the Timed mode tag in the ModeTags field list." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Water Heater shall be composed of at least one endpoint with device types as defined by the " +
+                "conformance below. There may be more endpoints with other device types existing in the Water Heater." +
+                "\n" +
+                "#### Electrical Sensor Device Type" +
+                "\n" +
+                "If a Device Energy Management device type is included as part of a composition, the Electrical " +
+                "Sensor device type shall also be included." +
+                "\n" +
+                "#### Cluster Requirements on Component Device Types" +
+                "\n" +
+                "If an Electrical Sensor device is included as part of a composition, it shall include both the " +
+                "Electrical Energy Measurement and Electrical Power Measurement clusters, measuring the total energy " +
+                "and power of the Water Heater." +
+                "\n" +
+                "#### Element Requirements on Component Device Types" +
+                "\n" +
+                "If a Device Energy Management device type is included on a separate endpoint as part of a " +
+                "composition and the Device Energy Management cluster is supported on the same endpoint, the " +
+                "PowerForecastReporting feature of the Device Energy Management cluster shall also be supported."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1295, revision: 1 } ], element: "attribute" })
@@ -47845,7 +49230,7 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster", xref: "device§14.2.5" },
-            Requirement({ name: "HEATING", conformance: "M", element: "feature" })
+            Requirement({ name: "HEATING", conformance: "M", element: "feature", xref: "device§14.2.6" })
         ),
         Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType", xref: "device§14.2.7" }),
         Requirement(
@@ -47857,9 +49242,12 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x50d, conformance: "O", element: "deviceType",
                 xref: "device§14.2.7"
             },
+
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERFORECASTREPORTING", conformance: "M", element: "feature" })
+                Requirement(
+                    { name: "POWERFORECASTREPORTING", conformance: "M", element: "feature", xref: "device§14.2.7.3" }
+                )
             )
         ),
 
@@ -47873,9 +49261,86 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "SolarPower", id: 0x17, classification: "simple", xref: "device§14.3",
+
             details: "A Solar Power device is a device that allows a solar panel array, which can optionally be comprised " +
                 "of a set parallel strings of solar panels, and its associated controller and, if appropriate, " +
-                "inverter, to be monitored and controlled by an Energy Management System."
+                "inverter, to be monitored and controlled by an Energy Management System." +
+                "\n" +
+                "### Solar Power Architecture" +
+                "\n" +
+                "A Solar Power device is always defined via endpoint composition. See Section 14.3.6, \"Device Type " +
+                "Requirements\" for more details." +
+                "\n" +
+                "An example of a Solar Power device with single phase AC output is illustrated below." +
+                "\n" +
+                "An example of a Solar Power device with single phase AC output, but with the ability to measure the " +
+                "output from 4 sets of solar panels supplying the overall device is illustrated below." +
+                "\n" +
+                "An example of a Solar Power device with single phase AC output, but with the ability to measure the " +
+                "output from 4 individual solar panels, arranged as 2 strings or 2 panels each is illustrated below." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Solar Power device shall be composed of at least one endpoint with device types as defined by the " +
+                "conformance below. There may be more endpoints with additional instances of these device types or " +
+                "additional device types existing in the Solar Power device." +
+                "\n" +
+                "#### Device Energy Management Device Type" +
+                "\n" +
+                "If the Solar Power device output power can be controlled, then the Device Energy Management device " +
+                "shall be included." +
+                "\n" +
+                "#### Cluster Requirements on Component Device Types" +
+                "\n" +
+                "If a Solar Power device supports measurement of the output of individual solar panels or strings of " +
+                "solar panels then it may include additional endpoints for each such measurement, including an " +
+                "Electrical Sensor Device Type as child elements. For each such child endpoint:" +
+                "\n" +
+                "  - It shall include a User Label cluster to allow an installer to add identifying information for " +
+                "the panel or string of panels." +
+                "\n" +
+                "#### Element Requirements on Component Device Types" +
+                "\n" +
+                "The Electrical Sensor device shall also conform to the following:" +
+                "\n" +
+                "  - An Electrical Sensor device shall measure the energy and power flows of the Solar Power device " +
+                "at the AC grid or DC connection point." +
+                "\n" +
+                "  - If the Solar Power device is connected to AC wiring, this Electrical Power Measurement cluster " +
+                "shall support the AlternatingCurrent feature, and shall support the PolyPhasePower feature if " +
+                "the Solar Power device is connected via polyphase wiring." +
+                "\n" +
+                "  - If the Solar Power device is connected to DC wiring, this Electrical Power Measurement cluster " +
+                "shall support the DirectCurrent feature." +
+                "\n" +
+                "  - This Electrical Power Measurement cluster SHOULD support the ReactivePower attribute if " +
+                "connected to AC wiring." +
+                "\n" +
+                "  - This Electrical Energy Measurement cluster SHOULD support the CumulativeEnergy feature." +
+                "\n" +
+                "#### Semantic Tag Requirements on Component Device Types" +
+                "\n" +
+                "The Descriptor cluster for the endpoint including the Power Source device shall include the Grid tag " +
+                "if it is connected to the premises wiring." +
+                "\n" +
+                "If a Solar Power device supports two or three phase power output then it may include two or three " +
+                "additional endpoints, each including an Electrical Sensor Device Type as child elements. For each " +
+                "such child endpoint it shall include a semantic tag from the Electrical Measurement Namespace in the " +
+                "TagList attribute of the Descriptor cluster to describe the endpoint for the relevant Electrical " +
+                "Power Measurement and Electrical Energy Measurement clusters indicating the relevant AC phase that " +
+                "is being measured." +
+                "\n" +
+                "If a Solar Power device supports measurement of the output of individual solar panels or strings of " +
+                "solar panels then it may include additional endpoints for each such measurement, including an " +
+                "Electrical Sensor Device Type as child elements. For each such child endpoint:" +
+                "\n" +
+                "  - It shall include a semantic tag from a Common Namespace, or a Manufacturer defined Tag and " +
+                "Label, in the TagList attribute of the Descriptor cluster to describe the endpoint for the " +
+                "relevant Electrical Power Measurement and Electrical Energy Measurement clusters, indicating the " +
+                "relevant device port, panel, or string of panels that is being measured." +
+                "\n" +
+                "Any Temperature Sensors included shall include Tag(s), and for non-standard Namespaces, Label(s) in " +
+                "the Descriptor clusters of their endpoints to identify the temperature being measured."
         },
 
         Requirement(
@@ -47891,11 +49356,11 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "PowerSource", id: 0x2f, element: "serverCluster" },
-                Requirement({ name: "WIRED", conformance: "M", element: "feature" })
+                Requirement({ name: "WIRED", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             ),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             )
         ),
 
@@ -47903,7 +49368,7 @@ export const SpecMatter = Matter(
             { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.3.6" },
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             )
         ),
 
@@ -47914,7 +49379,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature" })
+                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             )
         ),
 
@@ -47926,12 +49391,12 @@ export const SpecMatter = Matter(
             Requirement({ name: "UserLabel", id: 0x41, conformance: "desc", element: "serverCluster" }),
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
-                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
+                Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.3.6.3" }),
+                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.3.6.3" })
             ),
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature" })
+                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             )
         )
     ),
@@ -47939,11 +49404,78 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "BatteryStorage", id: 0x18, classification: "simple", xref: "device§14.4",
+
             details: "A Battery Storage device is a device that allows a DC battery, which can optionally be comprised of " +
                 "a set parallel strings of battery packs and associated controller, and an AC inverter, to be " +
                 "monitored and controlled by an Energy Management System in order to manage the peaks and troughs of " +
                 "supply and demand, and/or to optimize cost of the energy consumed in premises. It is not intended to " +
-                "be used for a UPS directly supplying a set of appliances, nor for portable battery storage devices."
+                "be used for a UPS directly supplying a set of appliances, nor for portable battery storage devices." +
+                "\n" +
+                "### Battery Storage Architecture" +
+                "\n" +
+                "A Battery Storage device is always defined via endpoint composition. See Section 14.4.6, \"Device " +
+                "Type Requirements\" for more details." +
+                "\n" +
+                "An example of a Battery Storage device with single phase AC output is illustrated below." +
+                "\n" +
+                "An example of a Battery Storage device which also includes a directly connected Solar Power device " +
+                "supplying DC power to the battery and using a single common inverter to the single phase AC input " +
+                "and output is illustrated below." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Battery Storage device shall be composed of at least two endpoints with device types as defined by " +
+                "the conformance below. There may be more endpoints with additional instances of these device types " +
+                "or additional device types existing in the Battery Storage device." +
+                "\n" +
+                "The Solar Power devices, if included, shall have separate endpoints, and include their own Power " +
+                "Source, Electrical Sensor, and Device Energy Management devices, as defined by the Solar Power " +
+                "device." +
+                "\n" +
+                "#### Cluster Requirements on Component Device Types" +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: The use of 1st and 2nd to annotate the device types is purely to distinguish the two from " +
+                "each other. It does NOT specify any order or structure of the composition." +
+                "\n" +
+                "#### Element Requirements on Component Device Types" +
+                "\n" +
+                "The Power Source cluster in the Power Source device shall support the RECHG feature if it can be " +
+                "charged as well as discharged through the connection to the premises wiring." +
+                "\n" +
+                "The Electrical Sensor device shall also conform to the following:" +
+                "\n" +
+                "  - An Electrical Sensor device shall measure the energy and power flows of the Battery Storage " +
+                "device at the AC grid connection point." +
+                "\n" +
+                "  - The Electrical Power Measurement cluster of this Electrical Sensor device shall support the " +
+                "PolyphasePower feature if the Battery Storage device is connected via polyphase wiring, and " +
+                "SHOULD support the ReactivePower attribute." +
+                "\n" +
+                "  - The Electrical Energy Measurement cluster of this Electrical Sensor device shall support the " +
+                "ImportedEnergy feature if it can be charged as well as discharged through the connection to the " +
+                "premises wiring, and SHOULD support the CumulativeEnergy feature." +
+                "\n" +
+                "If a Battery Storage device supports two or three phase power output then it may include two or " +
+                "three additional endpoints, each including an Electrical Sensor Device Type as child elements. For " +
+                "each such child endpoint it shall include a semantic tag from the Electrical Measurement Namespace " +
+                "in the TagList attribute of the Descriptor cluster to describe the endpoint for the relevant " +
+                "Electrical Power Measurement and Electrical Energy Measurement clusters indicating the relevant AC " +
+                "phase that is being measured." +
+                "\n" +
+                "If a Battery Storage device supports measurement of the input and output of individual batteries or " +
+                "sets of batteries then it may include additional endpoints for each such measurement, including an " +
+                "Electrical Sensor Device Type as child elements. For each such child endpoint: it shall include a " +
+                "semantic tag from the Common Number Namespace, or a Manufacturer defined Tag and Label, in the " +
+                "TagList attribute of the Descriptor cluster to describe the endpoint for the relevant Electrical " +
+                "Power Measurement and Electrical Energy Measurement clusters indicating the relevant device port, " +
+                "battery, or set of batteries that is being measured. it SHOULD also include a User Label cluster to " +
+                "allow an installer to add identifying information if the device permits flexible connection of the " +
+                "actual batteries at installation time." +
+                "\n" +
+                "Any Temperature Sensors included shall include Tag(s), and for non-standard Namespaces, Label(s) in " +
+                "the Descriptor clusters of their endpoints to identify the temperature being measured."
         },
 
         Requirement(
@@ -47960,18 +49492,18 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature" }),
-                Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
-                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
+                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
+                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.4.6.2" })
             ),
 
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature" })
+                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             ),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             )
         ),
 
@@ -47983,18 +49515,18 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "DIRECTCURRENT", conformance: "M", element: "feature" }),
-                Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
-                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
+                Requirement({ name: "DIRECTCURRENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
+                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.4.6.2" })
             ),
 
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature" })
+                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             ),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             )
         ),
 
@@ -48005,11 +49537,11 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             ),
             Requirement(
                 { name: "PowerSource", id: 0x2f, element: "serverCluster" },
-                Requirement({ name: "WIRED", conformance: "M", element: "feature" })
+                Requirement({ name: "WIRED", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             )
         ),
 
@@ -48020,20 +49552,28 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             ),
 
             Requirement(
                 { name: "PowerSource", id: 0x2f, element: "serverCluster" },
-                Requirement({ name: "BATTERY", conformance: "M", element: "feature" }),
-                Requirement({ name: "BatVoltage", conformance: "M", element: "attribute" }),
-                Requirement({ name: "BatPercentRemaining", conformance: "M", element: "attribute" }),
-                Requirement({ name: "BatTimeRemaining", conformance: "M", element: "attribute" }),
-                Requirement({ name: "ActiveBatFaults", conformance: "M", element: "attribute" }),
-                Requirement({ name: "BatCapacity", conformance: "M", element: "attribute" }),
-                Requirement({ name: "BatTimeToFullCharge", conformance: "M", element: "attribute" }),
-                Requirement({ name: "BatChargingCurrent", conformance: "M", element: "attribute" }),
-                Requirement({ name: "ActiveBatChargeFaults", conformance: "M", element: "attribute" })
+                Requirement({ name: "BATTERY", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "BatVoltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
+                Requirement(
+                    { name: "BatPercentRemaining", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }
+                ),
+                Requirement({ name: "BatTimeRemaining", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
+                Requirement({ name: "ActiveBatFaults", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
+                Requirement({ name: "BatCapacity", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
+                Requirement(
+                    { name: "BatTimeToFullCharge", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }
+                ),
+                Requirement(
+                    { name: "BatChargingCurrent", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }
+                ),
+                Requirement(
+                    { name: "ActiveBatChargeFaults", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }
+                )
             )
         ),
 
@@ -48043,7 +49583,7 @@ export const SpecMatter = Matter(
             { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.4.6" },
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             )
         ),
 
@@ -48054,7 +49594,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature" })
+                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             )
         )
     ),
@@ -48069,7 +49609,60 @@ export const SpecMatter = Matter(
                 "and store the heat in a hot water tank." +
                 "\n" +
                 "Note that the Water Heater device type can also be heated by a heat pump and has similar " +
-                "requirements, but that cannot be used for space heating."
+                "requirements, but that cannot be used for space heating." +
+                "\n" +
+                "### Heat Pump Architecture" +
+                "\n" +
+                "A Heat Pump device is always defined via endpoint composition. See Section 14.5.6, \"Device Type " +
+                "Requirements\" for more details." +
+                "\n" +
+                "The Heat Pump device may contain Temperature Sensors for example to measure the flow and return " +
+                "temperatures of the water it is providing to the premises heating system." +
+                "\n" +
+                "The Heat Pump device may also include Thermostats located in the rooms that are being heated by it, " +
+                "which in turn may also include Temperature Sensor clusters which can report the temperatures in " +
+                "those rooms. These Thermostats may be included as servers within Thermostat devices within the Heat " +
+                "Pump device itself, or may be separate third-party Thermostat devices for which the Heat Pump has a " +
+                "client to use them." +
+                "\n" +
+                "An example of a Heat Pump device is illustrated below." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Heat Pump device shall be composed of at least one endpoint with device types as defined by the " +
+                "conformance below. There may be more endpoints with additional instances of these device types or " +
+                "additional device types existing in the Heat Pump device." +
+                "\n" +
+                "The Heat Pump device shall include either one or more Thermostat devices, or include a Thermostat " +
+                "client." +
+                "\n" +
+                "#### Element Requirements on Component Device Types" +
+                "\n" +
+                "If a Heat Pump device supports two or three phase power input then it may include two or three " +
+                "additional endpoints, each including an Electrical Sensor Device Type as child elements. For each " +
+                "such child endpoint it shall include a semantic tag from the Electrical Measurement Namespace in the " +
+                "TagList attribute of the Descriptor cluster to describe the endpoint for the relevant Electrical " +
+                "Power Measurement and Electrical Energy Measurement clusters indicating the relevant AC phase that " +
+                "is being measured." +
+                "\n" +
+                "The Electrical Energy Measurement and Electrical Power Measurement clusters of the mandatory " +
+                "Electrical Sensor device shall measure the energy and power of the Heat Pump device at the AC grid " +
+                "connection point." +
+                "\n" +
+                "The Electrical Power Measurement clusters of the mandatory Electrical Sensor device shall support " +
+                "the PolyPhasePower feature if the Heat Pump device is connected via polyphase wiring." +
+                "\n" +
+                "The Electrical Energy Measurement cluster of the mandatory Electrical Sensor device SHOULD support " +
+                "the ImportedEnergy and CumulativeEnergy features." +
+                "\n" +
+                "Any Temperature Sensors using non-standard Namespaces for their Tags shall include Label(s) in the " +
+                "Descriptor clusters of their endpoints to identify the temperature being measured." +
+                "\n" +
+                "Any Thermostat shall include a semantic tag from a Common Namespace, or a Manufacturer defined Tag " +
+                "and Label, in the TagList attribute of the Descriptor cluster to describe the endpoint for the " +
+                "relevant Thermostat clusters, indicating the relevant device (or its connected port) that is being " +
+                "measured. It shall also include a User Label cluster to allow an installer to add identifying " +
+                "information for the rooms or spaces where the Thermostat measurement point is located."
         },
 
         Requirement(
@@ -48083,11 +49676,11 @@ export const SpecMatter = Matter(
             { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", xref: "device§14.5.6" },
             Requirement(
                 { name: "PowerSource", id: 0x2f, element: "serverCluster" },
-                Requirement({ name: "WIRED", conformance: "M", element: "feature" })
+                Requirement({ name: "WIRED", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
             ),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
             )
         ),
 
@@ -48096,7 +49689,7 @@ export const SpecMatter = Matter(
             Requirement({ name: "UserLabel", id: 0x41, conformance: "M", element: "serverCluster" }),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
             )
         ),
 
@@ -48104,7 +49697,7 @@ export const SpecMatter = Matter(
             { name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType", xref: "device§14.5.6" },
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-                Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+                Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
             )
         ),
 
@@ -48115,7 +49708,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature" })
+                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
             )
         ),
 
@@ -48129,9 +49722,9 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature" }),
-                Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
-                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
+                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature", xref: "device§14.5.6.2" }),
+                Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.5.6.2" }),
+                Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.5.6.2" })
             ),
 
             Requirement({ name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" })
@@ -48141,13 +49734,64 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "MeterReferencePoint", id: 0x512, classification: "simple", xref: "device§14.6",
-            details: "A Meter Reference Point device provides details about tariffs and metering."
+
+            details: "A Meter Reference Point device provides details about tariffs and metering." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Meter Reference Point is composed of other endpoints with device types listed in this table, " +
+                "subject to the conformance column of the table. Additional device types not listed in this table may " +
+                "also be included in device compositions." +
+                "\n" +
+                "### Meter Reference Point Topology" +
+                "\n" +
+                "#### Basic Electrical Meter Reference Point" +
+                "\n" +
+                "A basic electrical Meter Reference Point device type has a simple import tariff endpoint for grid " +
+                "power, tagged as Grid, Import, AC, and Current." +
+                "\n" +
+                "Optionally, this endpoint may have a child endpoint representing an upcoming tariff, if available, " +
+                "tagged as Grid, Import, AC, and Upcoming." +
+                "\n" +
+                "Optionally, the tariff endpoint may have child endpoints representing tariffs for individual phases " +
+                "of a polyphase power supply." +
+                "\n" +
+                "#### Separate EV Rate" +
+                "\n" +
+                "Building on the basic topology, a Meter Reference Point device type which has a separate rate for EV " +
+                "charging would add a second endpoint, tagged as EV, Import, AC, and Current." +
+                "\n" +
+                "Optionally, this endpoint may have a child endpoint representing an upcoming EV tariff, if " +
+                "available, tagged as EV, Import, AC, and Upcoming." +
+                "\n" +
+                "#### Export Rate" +
+                "\n" +
+                "Similarly, a Meter Reference Point device type which has a separate rate for exported electrical " +
+                "energy would add a second endpoint, tagged as Grid, Export, AC, and Current." +
+                "\n" +
+                "Optionally, this endpoint may have a child endpoint representing an upcoming export tariff, if " +
+                "available, tagged as Grid, Export, AC, and Upcoming." +
+                "\n" +
+                "#### Combination of EV and Export" +
+                "\n" +
+                "The above topologies can be composed to represent various combinations of tariffs. In this example, " +
+                "a tariff has separate rates for an EV and for exporting energy to the grid." +
+                "\n" +
+                "#### Inclusion of Metering Data" +
+                "\n" +
+                "Instead of Electrical Energy Tariff endpoints, a Meter Reference Point may use endpoints with the " +
+                "Electrical Meter device type to represent tariffs with associated metering data."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1298, revision: 1 } ], element: "attribute" })
         ),
-        Condition({ name: "ElectricalEnergy", description: "See description below.", xref: "device§14.6.3" }),
+        Condition({
+            name: "ElectricalEnergy", description: "See description below.", xref: "device§14.6.3.1",
+            details: "The ElectricalEnergy condition applies to a Meter Reference Point representing a tariff for " +
+                "electrical energy."
+        }),
         Requirement({
             name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "M", element: "condition",
             xref: "device§14.6.4"
@@ -48159,9 +49803,13 @@ export const SpecMatter = Matter(
                 name: "ElectricalEnergyTariff", id: 0x513, conformance: "[ElectricalEnergy].a+",
                 constraint: "min 1", element: "deviceType", xref: "device§14.6.6"
             },
+
             Requirement(
                 { name: "CommodityTariff", id: 0x700, element: "serverCluster" },
-                Requirement({ name: "TariffUnit", conformance: "M", constraint: "kWh | kVAh", element: "attribute" })
+                Requirement({
+                    name: "TariffUnit", conformance: "M", constraint: "kWh | kVAh", element: "attribute",
+                    xref: "device§14.6.6.1"
+                })
             )
         ),
 
@@ -48180,7 +49828,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1299, revision: 1 } ], element: "attribute" }),
-            Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
+            Requirement({ name: "TAGLIST", conformance: "M", element: "feature", xref: "device§14.7.5" })
         ),
         Condition({
             name: "ActiveTariff", description: "The tariff represents the currently active tariff",
@@ -48201,8 +49849,14 @@ export const SpecMatter = Matter(
         {
             name: "ElectricalMeter", id: 0x514, type: "ElectricalEnergyTariff", classification: "simple",
             xref: "device§14.8",
+
             details: "An Electrical Meter device meters the electrical energy being imported and/or exported for billing " +
-                "purposes."
+                "purposes." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "An Electrical Meter shall be composed of at least one endpoint with device types as defined by the " +
+                "conformance below."
         },
 
         Requirement(
@@ -48228,8 +49882,43 @@ export const SpecMatter = Matter(
         {
             name: "ElectricalUtilityMeter", id: 0x511, type: "MeterReferencePoint", classification: "simple",
             xref: "device§14.9",
+
             details: "An Electrical Utility Meter device provides utility account information, as well as optional details " +
-                "about tariffs and metering."
+                "about tariffs and metering." +
+                "\n" +
+                "### Electrical Utility Meter Topology" +
+                "\n" +
+                "#### Basic Utility Meter" +
+                "\n" +
+                "A basic Electrical Utility Meter device type has a simple import tariff endpoint for grid power, " +
+                "tagged as Grid, Import, AC, and Current." +
+                "\n" +
+                "Optionally, this endpoint may have a child endpoint representing an upcoming tariff, if available, " +
+                "tagged as Grid, Import, AC, and Upcoming." +
+                "\n" +
+                "Optionally, this endpoint may have child endpoints representing measurements of individual phases of " +
+                "a polyphase power supply." +
+                "\n" +
+                "#### Separate EV Rate" +
+                "\n" +
+                "Building on the basic topology, an Electrical Utility Meter device type which has a separate rate " +
+                "for EV charging would add a second endpoint, tagged as EV, Import, AC, and Current." +
+                "\n" +
+                "Optionally, this endpoint may have a child endpoint representing an upcoming EV tariff, if " +
+                "available, tagged as EV, Import, AC, and Upcoming." +
+                "\n" +
+                "#### Export Rate" +
+                "\n" +
+                "Similarly, an Electrical Utility Meter device type which has a separate rate for exported electrical " +
+                "energy would add a second endpoint, tagged as Grid, Export, AC, and Current." +
+                "\n" +
+                "Optionally, this endpoint may have a child endpoint representing an upcoming export tariff, if " +
+                "available, tagged as Grid, Export, AC, and Upcoming." +
+                "\n" +
+                "#### Combination of EV and Export" +
+                "\n" +
+                "The above topologies can be composed to represent various combinations of tariffs. In this example, " +
+                "a tariff has separate rates for an EV and for exporting energy to the grid."
         },
 
         Requirement(
@@ -48249,7 +49938,7 @@ export const SpecMatter = Matter(
 
             details: "A Network Infrastructure Manager provides interfaces that allow for the management of the Wi-Fi, " +
                 "Thread, and Ethernet networks underlying a Matter deployment, realizing the Star Network Topology " +
-                "described in [[MatterCore]](#ref_MatterCore)." +
+                "described in MatterCore." +
                 "\n" +
                 "Examples of physical devices that implement the Matter Network Infrastructure Manager device type " +
                 "include Wi-Fi gateway routers." +
@@ -48261,7 +49950,119 @@ export const SpecMatter = Matter(
                 "vendor, for example, an Internet Service Provider. Sometimes this managing service will have " +
                 "policies that require the use of the Managed Device feature of the Access Control Cluster (see " +
                 "Section 15.3.4.1, \"ManagedAclAllowed Condition\"). Consequently, Commissioners of this device type " +
-                "should be aware of this feature and its use."
+                "should be aware of this feature and its use." +
+                "\n" +
+                "### Other Requirements" +
+                "\n" +
+                "The Network Infrastructure Manager shall implement a bridged Wi-Fi / Ethernet hub network, enabling " +
+                "IPv6 connectivity between Matter Nodes across transports." +
+                "\n" +
+                "The Network Infrastructure Manager shall support IP communication with at least 300 Matter devices " +
+                "on this network. If the Network Infrastructure Manager operates a DHCPv4 server, then it SHOULD be " +
+                "configured by default with a subnet mask and DHCP pool size that allow for at least 300 devices." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: This recommendation is meant to avoid IPv4 address exhaustion if a large number of devices " +
+                "request IPv4 addresses e.g. for non-Matter traffic." +
+                "\n" +
+                "#### Ethernet Requirements" +
+                "\n" +
+                "The device shall provide an Ethernet LAN interface that is part of the bridged hub network." +
+                "\n" +
+                "The Root Node endpoint of the device may include a Network Commissioning cluster associated with " +
+                "this Ethernet interface." +
+                "\n" +
+                "#### Wi-Fi Requirements" +
+                "\n" +
+                "The device shall support the operation of an IEEE 802.11 Wi-Fi network (ESS) and provide access to " +
+                "the SSID and credentials of this network via the Wi-Fi Network Management cluster. The mechanisms by " +
+                "which this network is configured are outside the scope of this specification. The device shall " +
+                "support concurrently operating BSSs for this ESS in the 2.4 GHz and 5 GHz frequency bands; it may " +
+                "support operating additional BSSs for this ESS in other frequency bands such as 6 GHz or sub-1 GHz. " +
+                "All BSSs in this ESS shall be part of the bridged hub network, i.e. bridged to each other and to the " +
+                "Ethernet interface." +
+                "\n" +
+                "The device may support operating additional Wi-Fi networks (e.g. a \"guest network\"); the " +
+                "requirements above do not apply to any such additional networks." +
+                "\n" +
+                "The device SHOULD NOT include any Network Commissioning cluster instances associated with the Wi-Fi " +
+                "Access Point interface." +
+                "\n" +
+                "The device shall be certified by the Wi-Fi Alliance in the Access Point role for Wi-Fi 6 or above. " +
+                "It shall additionally be certified in the Access Point role for Wi-Fi 6E if it supports operating in " +
+                "the 6 GHz band, and for Wi-Fi HaLow if it supports operating in the sub-1 GHz band." +
+                "\n" +
+                "To support the efficient operation of the network generally, and for low-power stations in " +
+                "particular, the Network Infrastructure Manager shall support, and upon (or before) Matter " +
+                "commissioning shall enable, the following Wi-Fi features:" +
+                "\n" +
+                "  - Extended Sleep Time with a sleep time support up to at least 60 minutes, which includes the " +
+                "following IEEE 802.11 features:" +
+                "\n" +
+                "  - Basic Service Set (BSS) Max Idle Period" +
+                "\n" +
+                "  - dot11BSSMaxIdlePeriodIndicationByNonAPSTA" +
+                "\n" +
+                "  - IPv6 Proxy Neighbor Discovery Protocol (NDP) including IPv6 duplicate address detection" +
+                "\n" +
+                "  - IPv4 Proxy Address Resolution Protocol (ARP)" +
+                "\n" +
+                "  - 802.11 WNM Sleep Mode with GTK/IGTK/BIGTK update support" +
+                "\n" +
+                "The device shall support at least 100 simultaneous Wi-Fi associations - irrespective of the " +
+                "distribution of the Matter Wi-Fi devices over the supported bands; all Matter Wi-Fi devices could be " +
+                "on the same band. This includes associations of low-power Matter Wi-Fi devices that are asleep for a " +
+                "long time." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: For the case of in-field upgrades of pre-Matter Wi-Fi access points, an exemption " +
+                "(simultaneous association requirement reduced to 64) can be requested when applying for Matter " +
+                "certification, e.g. in case of Wi-Fi chipset limitations (see the Alliance Certification Policy)." +
+                "\n" +
+                "#### Thread Requirements" +
+                "\n" +
+                "The Network Infrastructure Manager device shall be certified by the Thread Group as Built on Thread: " +
+                "Border Router based on Thread 1.4.0 or above." +
+                "\n" +
+                "The device shall implement a Thread Border Router as described by the Thread specification, and " +
+                "provide connectivity between the Thread network and the Wi-Fi / Ethernet hub network. The Thread " +
+                "Interface associated with the Border Router shall be exposed via the Thread Border Router Management " +
+                "cluster." +
+                "\n" +
+                "The Thread Network Diagnostics cluster included on the endpoint shall be the instance corresponding " +
+                "to the Thread Interface associated with the Border Router functionality." +
+                "\n" +
+                "The device SHOULD NOT include any Network Commissioning cluster instances associated with the Thread " +
+                "Border Router." +
+                "\n" +
+                "The Network Infrastructure Manager device shall support working as a Thread Parent for a minimum of " +
+                "64 Thread Children simultaneously in any combination of Children End Device types. The Network " +
+                "Infrastructure Manager device shall support operating as a Thread Border Router in any Thread " +
+                "Network with up to 150 Thread nodes." +
+                "\n" +
+                "#### Discovery and Commissioning" +
+                "\n" +
+                "A Network Infrastructure Manager device SHOULD implement Extended Discovery in order to be " +
+                "discoverable by entities on the local IP network, even when not in Commissioning Mode, and SHOULD " +
+                "populate the optional device type subtype (e.g., _T144) to allow for filtering of discovery results " +
+                "to find only Nodes that match the Network Infrastructure Manager device type (see Commissioning " +
+                "Subtypes)." +
+                "\n" +
+                "A Network Infrastructure Manager SHOULD populate the following DNS-SD TXT record key/value pairs in " +
+                "the Commissionable Node Discovery response: Commissioning Pairing Hint, and Commissioning Pairing " +
+                "Instruction so that the Commissioner can guide the user through the steps needed to put the " +
+                "Commissionee into Commissioning Mode. If the Network Infrastructure Manager provides its own app or " +
+                "website which includes a UX for putting the device into Commissioning Mode, then the device SHOULD " +
+                "populate the Commissioning VID/PID key/value pair and SHOULD set bit 1 of the Pairing Hint (Device " +
+                "Manufacturer URL), so that the Commissioner can utilize the URL specified in the " +
+                "CommissioningCustomFlowUrl of the DeviceModel schema entry indexed by the Vendor ID and Product ID " +
+                "in the Distributed Compliance Ledger and utilize flows described in Custom Commissioning Flow to " +
+                "redirect the user to a custom app or website specified by the device vendor, and receive the user " +
+                "back following the callback flow which contains the onboarding payload. This flow is described in " +
+                "detail in the Initiating Commissioning section of the Matter Core specification, under the User " +
+                "Journey titled User-Initiated Beacon Detection, Already Commissioned Device."
         },
 
         Requirement(
@@ -48324,7 +50125,113 @@ export const SpecMatter = Matter(
                 "Router functionality." +
                 "\n" +
                 "The necessary hardware and software prerequisites are detailed within the clusters that are mandated " +
-                "by this device type."
+                "by this device type." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "If a Thread Border Router endpoint supports the Secondary Network Interface device type, then" +
+                "\n" +
+                "  - The Thread Border Router Management cluster and the Network Commissioning Cluster shall reflect " +
+                "the same underlying network configuration, i.e. changes made via either cluster shall also be " +
+                "reflected in the other." +
+                "\n" +
+                "  - The MaxNetworks attribute in the Network Commissioning Cluster shall have a value of 1." +
+                "\n" +
+                "### Other Requirements" +
+                "\n" +
+                "The device shall implement a Thread Border Router as described by the Thread specification, and " +
+                "provide connectivity between the Thread network and a hub network when connected via a functioning " +
+                "adjacent infrastructure link." +
+                "\n" +
+                "The Thread Interface associated with the Border Router shall be exposed via the Thread Border Router " +
+                "Management cluster." +
+                "\n" +
+                "The device may include a Network Commissioning cluster instance associated with the Wi-Fi or " +
+                "Ethernet adjacent infrastructure link interface on its Root Node. It SHOULD NOT include a Network " +
+                "Commissioning cluster instance associated with the Thread interface of the Border Router on its Root " +
+                "Node." +
+                "\n" +
+                "#### Thread Requirements" +
+                "\n" +
+                "A device exposing the Thread Border Router device type shall be certified by the Thread Group as " +
+                "Built on Thread: Border Router based on Thread 1.4.0 or above." +
+                "\n" +
+                "The device shall implement a Thread Border Router as described by the Thread specification, and " +
+                "provide connectivity between the Thread network and the Wi-Fi / Ethernet hub network. The Thread " +
+                "Interface associated with the Border Router shall be exposed via the Thread Border Router Management " +
+                "cluster." +
+                "\n" +
+                "The Thread Border Router device shall support working as a Thread Parent for a minimum of 64 Thread " +
+                "Children simultaneously in any combination of Children End Device types. The Thread Border Router " +
+                "device shall support operating as a Thread Border Router in any Thread Network with up to 150 Thread " +
+                "nodes." +
+                "\n" +
+                "### Cluster Usage" +
+                "\n" +
+                "This section describes how to control and monitor the operation of a Thread Border Router." +
+                "\n" +
+                "The Thread Border Router Device Type provides the Thread Border Router Management Cluster with the " +
+                "goal of ensuring a seamless user experience when adding a new Border Router to form a new Thread " +
+                "network or join an existing one. This section presents informative configuration sequences that a " +
+                "Fabric Admin can set up to improve coverage and Internet access redundancy for Thread networks using " +
+                "the Thread Border Router device type. Four use cases are covered:" +
+                "\n" +
+                "  - Initial configuration of a Thread Border Router when no PAN exists" +
+                "\n" +
+                "  - Joining an existing PAN" +
+                "\n" +
+                "  - Sharing an existing PAN" +
+                "\n" +
+                "  - Moving to a new PAN" +
+                "\n" +
+                "#### Initial configuration of Thread Border Router" +
+                "\n" +
+                "In this use case, there is initially no PAN at the user's home. The user installs a Matter certified " +
+                "Thread Border Router to use Thread connectivity for their Matter devices." +
+                "\n" +
+                "After installation, the PAN configured by Admin A on the Thread Border Router is used to install the " +
+                "Thread Matter device on Fabric A." +
+                "\n" +
+                "#### Joining an existing PAN" +
+                "\n" +
+                "In this use case, there is already a PAN in the user's home that is managed by a Fabric A with TBR1 " +
+                "(e.g. as a result of the above sequence diagram applied previously between Admin 1 and TBR1). The " +
+                "user installs a Matter-certified Thread Border Router (TBR2) to extend the Thread coverage and " +
+                "Internet access redundancy of Thread networks for their Matter devices." +
+                "\n" +
+                "After installation, a single Thread PAN is shared by all Border Routers." +
+                "\n" +
+                "#### Share an existing PAN" +
+                "\n" +
+                "In this use case, there is already a PAN in the user's home that is managed by Fabric A with TBR1 " +
+                "(e.g. as a result of the above sequence diagram applied previously between Admin 1 and TBR1). The " +
+                "user wants to use the Thread connectivity provided by the Matter-certified Thread Border Router " +
+                "managed by Fabric A with Fabric B to share its connectivity." +
+                "\n" +
+                "After the installation, the Thread PAN is shared by Fabric A and B." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> NOTE: The user must use the Multiple Fabrics feature process between Fabrics A and B to commission " +
+                "the Thread Border Router from Fabric A to Fabric B." +
+                "\n" +
+                "#### Merging to a new PAN" +
+                "\n" +
+                "This use case is a specific configuration where the user already has 2 PANs. One is managed by a " +
+                "Fabric A through a Matter Thread Border Router (TBR1) and the other is managed by a Fabric B through " +
+                "another Matter Thread Border Router (TBR2)." +
+                "\n" +
+                "The user wishes to merge the existing Thread connectivity provided by the two Matter certified " +
+                "Thread Border Routers to share their connectivity to extend the Thread coverage and Internet access " +
+                "redundancy of the Thread networks for their Matter devices." +
+                "\n" +
+                "After installation, the Thread PAN is shared between Fabrics A and B." +
+                "\n" +
+                "Note 1 : Activation of the pending dataset is Thread stack dependent and propagation of the new " +
+                "dataset to all Matter devices may fail, for example if devices are disconnected during the process." +
+                "\n" +
+                "Note 2 : This configuration should remain very rare if the previous installations followed the " +
+                "previous use cases."
         },
 
         Requirement(
@@ -48349,9 +50256,29 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "Camera", id: 0x142, classification: "simple", xref: "device§16.1",
+
             details: "A Camera device is a camera that provides interfaces for controlling and transporting captured " +
-                "media, such as Audio, Video or Snapshots."
+                "media, such as Audio, Video or Snapshots." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Camera may expose elements of its functionality through one or more additional device types on " +
+                "different endpoints. All devices used in compositions shall adhere to the disambiguation " +
+                "requirements of the System Model. Other device types, not explicitly listed in the table, may also " +
+                "be included in device compositions but are not considered part of the core functionality of the " +
+                "device." +
+                "\n" +
+                "Cameras which implement occupancy detection based on the signals from the optical sensor, may expose " +
+                "this functionality using an Occupancy Sensing cluster on the primary camera endpoint along with the " +
+                "other camera functionality. The device type Occupancy Sensor shall NOT be added to the " +
+                "DeviceTypeList of this endpoint." +
+                "\n" +
+                "Cameras may have an Occupancy Sensor of a different type for occupancy detection independent of the " +
+                "optical sensor. If this sensor is exposed, it shall be placed on a child endpoint of the primary " +
+                "camera endpoint, with the corresponding device type Occupancy Sensor, as indicated in the following " +
+                "table:"
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 322, revision: 1 } ], element: "attribute" })
@@ -48386,9 +50313,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.1.6"
             },
-            Requirement({ name: "VIDEO", conformance: "M", element: "feature" }),
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature" }),
-            Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature" })
+            Requirement({ name: "VIDEO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
+            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
+            Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature", xref: "device§16.1.7" })
         ),
 
         Requirement({
@@ -48412,10 +50339,14 @@ export const SpecMatter = Matter(
             name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster",
             xref: "device§16.1.6"
         }),
+
         Requirement(
             { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster", xref: "device§16.1.6" },
-            Requirement({ name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature" })
+            Requirement(
+                { name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature", xref: "device§16.1.7" }
+            )
         ),
+
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster", xref: "device§16.1.6" }
         ),
@@ -48426,9 +50357,21 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "FloodlightCamera", id: 0x144, classification: "simple", xref: "device§16.2",
+
             details: "A Floodlight Camera device is a composite device which combines a camera and a light, primarily used " +
-                "in security use cases."
+                "in security use cases." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Floodlight Camera is composed of other device types listed in this table subject to the " +
+                "conformance column of the table. All devices used in compositions shall adhere to the disambiguation " +
+                "and superset requirements of the System Model. Specifically, please note that the On/Off Light, as " +
+                "listed, is a Superset Device Type as defined by the System Model (see Superset Device Types in " +
+                "MatterCore), and so the rules defined in that section apply to the use of On/Off Light as a superset " +
+                "when composed in this device type. Additional device types not listed in this table may also be " +
+                "included in device compositions."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 324, revision: 1 } ], element: "attribute" })
@@ -48443,9 +50386,18 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "VideoDoorbell", id: 0x143, classification: "simple", xref: "device§16.3",
+
             details: "A Video Doorbell device is a composite device which combines a camera and a switch to provide a " +
-                "doorbell with Video and Audio streaming."
+                "doorbell with Video and Audio streaming." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "This device type is composed of other device types listed in this table subject to the conformance " +
+                "column of the table. All devices used in compositions shall adhere to the disambiguation and " +
+                "superset requirements of the System Model. Additional device types not listed in this table may also " +
+                "be included in device compositions."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 323, revision: 1 } ], element: "attribute" })
@@ -48467,7 +50419,28 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  - Room to room systems in a house" +
                 "\n" +
-                "  - Entry door to individual units in a multi-tenant building"
+                "  - Entry door to individual units in a multi-tenant building" +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "An Intercom shall be composed of at least one endpoint with the Generic Switch device type as " +
+                "defined by the conformance below. There may be more endpoints with other device types existing in " +
+                "the Intercom. The Generic Switch shall model the mechanism used by the Intercom to trigger an alert " +
+                "of the desired connected party." +
+                "\n" +
+                "All devices used in compositions shall adhere to the disambiguation and superset requirements of the " +
+                "System Model." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "An Audio connection may be established with an instance of an Intercom in one of two ways:" +
+                "\n" +
+                "  - via WebRTC, with the Intercom acting as a WebRTC Transport Requestor Client." +
+                "\n" +
+                "  - via WebRTC, with a Controller acting as the WebRTC Transport Requestor and the Intercom, in this " +
+                "instance, acting as a WebRTC Transport Provider Server. In this case, the Controller may trigger " +
+                "the establishment of Audio through knowledge that there is user intent via subscriptions to the " +
+                "attributes of the Generic Switch, or other means."
         },
 
         Requirement(
@@ -48501,9 +50474,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.4.6"
             },
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature" }),
-            Requirement({ name: "VIDEO", conformance: "O", element: "feature" }),
-            Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature" })
+            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.4.7" }),
+            Requirement({ name: "VIDEO", conformance: "O", element: "feature", xref: "device§16.4.7" }),
+            Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature", xref: "device§16.4.7" })
         ),
 
         Requirement({
@@ -48535,7 +50508,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "Switch", id: 0x3b, element: "serverCluster" },
-                Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature" })
+                Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature", xref: "device§16.4.8" })
             )
         )
     ),
@@ -48574,9 +50547,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.5.4"
             },
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature" }),
-            Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature" }),
-            Requirement({ name: "VIDEO", conformance: "X", element: "feature" })
+            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.5.5" }),
+            Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature", xref: "device§16.5.5" }),
+            Requirement({ name: "VIDEO", conformance: "X", element: "feature", xref: "device§16.5.5" })
         ),
 
         Requirement({
@@ -48602,9 +50575,29 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "SnapshotCamera", id: 0x145, classification: "simple", xref: "device§16.6",
+
             details: "A Snapshot Camera device is a camera which can only support retrieving still images on-demand via " +
-                "the Capture Snapshot command in the Camera AV Stream Management cluster."
+                "the Capture Snapshot command in the Camera AV Stream Management cluster." +
+                "\n" +
+                "### Device Type Requirements" +
+                "\n" +
+                "A Snapshot Camera may expose elements of its functionality through one or more additional device " +
+                "types on different endpoints. All devices used in compositions shall adhere to the disambiguation " +
+                "requirements of the System Model. Other device types, not explicitly listed in the table, may also " +
+                "be included in device compositions but are not considered part of the core functionality of the " +
+                "device." +
+                "\n" +
+                "Snapshot Cameras which implement occupancy detection based on the signals from the optical sensor, " +
+                "may expose this functionality using an Occupancy Sensing cluster on the primary camera endpoint " +
+                "along with the other camera functionality. The device type Occupancy Sensor shall NOT be added to " +
+                "the DeviceTypeList of this endpoint." +
+                "\n" +
+                "Snapshot Cameras may have an Occupancy Sensor of a different type for occupancy detection " +
+                "independent of the optical sensor. If this sensor is exposed, it shall be placed on a child endpoint " +
+                "of the primary camera endpoint, with the corresponding device type Occupancy Sensor, as indicated in " +
+                "the following table:"
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 325, revision: 1 } ], element: "attribute" })
@@ -48621,9 +50614,12 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster", xref: "device§16.6.6" }
         ),
+
         Requirement(
             { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster", xref: "device§16.6.6" },
-            Requirement({ name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature" })
+            Requirement(
+                { name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature", xref: "device§16.6.7" }
+            )
         ),
 
         Requirement(
@@ -48631,9 +50627,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.6.6"
             },
-            Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature" }),
-            Requirement({ name: "VIDEO", conformance: "X", element: "feature" }),
-            Requirement({ name: "AUDIO", conformance: "X", element: "feature" })
+            Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature", xref: "device§16.6.7" }),
+            Requirement({ name: "VIDEO", conformance: "X", element: "feature", xref: "device§16.6.7" }),
+            Requirement({ name: "AUDIO", conformance: "X", element: "feature", xref: "device§16.6.7" })
         ),
 
         Requirement({
@@ -48646,9 +50642,15 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "Chime", id: 0x146, classification: "simple", xref: "device§16.7",
+
             details: "A Chime device is a device which can play from a range of pre installed sounds and is typically used " +
-                "with a Doorbell, Audio Doorbell, or Video Doorbell."
+                "with a Doorbell, Audio Doorbell, or Video Doorbell." +
+                "\n" +
+                "### Element Requirements" +
+                "\n" +
+                "There are no cluster element overrides."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 326, revision: 1 } ], element: "attribute" })
@@ -48660,9 +50662,15 @@ export const SpecMatter = Matter(
     DeviceType(
         {
             name: "CameraController", id: 0x147, classification: "simple", xref: "device§16.8",
+
             details: "A Camera controller device is a device that provides interfaces for controlling and managing camera " +
-                "devices."
+                "devices." +
+                "\n" +
+                "### Cluster Requirements" +
+                "\n" +
+                "A node shall only ever have, at most, one instance of the Camera Controller's required clusters."
         },
+
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 327, revision: 1 } ], element: "attribute" })
@@ -48711,7 +50719,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§16.9.2.1" }),
         Requirement(
             { name: "Switch", id: 0x3b, conformance: "M", element: "serverCluster", xref: "device§16.9.2.1" },
-            Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature" })
+            Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature", xref: "device§16.9.2.2" })
         ),
         Requirement({ name: "Chime", id: 0x556, conformance: "M", element: "clientCluster", xref: "device§16.9.2.1" })
     ),

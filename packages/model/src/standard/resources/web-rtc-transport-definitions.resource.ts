@@ -106,10 +106,10 @@ Resource.add({
                 {
                     tag: "field", name: "Caid", xref: "cluster§11.4.5.3.4",
                     details: "This field represents the TLSRCAC via its assigned TLSCAID (see Chapter 14, Certificate Authority ID " +
-                        "(CAID) Mapping and TLS Certificate Management Commands sections in [[MatterCore]](#ref_MatterCore)) " +
-                        "that will validate the certificate chain presented by the entries in the urls field. It shall be set " +
-                        "to a valid value if a turns: or stuns: url is present in the urls field and shall be used to " +
-                        "validate those servers' presented TLS root certificates."
+                        "(CAID) Mapping and TLS Certificate Management Commands sections in MatterCore) that will validate " +
+                        "the certificate chain presented by the entries in the urls field. It shall be set to a valid value " +
+                        "if a turns: or stuns: url is present in the urls field and shall be used to validate those servers' " +
+                        "presented TLS root certificates."
                 }
             ]
         },

@@ -19,6 +19,37 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Water Valve device type.
  *
+ * ### Cluster Requirements
+ *
+ * #### Identify Cluster
+ *
+ * This cluster is used to identify the device.
+ *
+ * #### Valve Configuration and Control Cluster
+ *
+ * This cluster is used to configure and control (Open/Close) the valve.
+ *
+ * #### Flow Measurement Cluster
+ *
+ * The cluster server, if present, shall be used to report the measured flow through the valve.
+ *
+ * The cluster client, if present, may be used via binding to close a control loop of flow through the valve.
+ *
+ * ### Device implementation recommendations
+ *
+ * #### Start Up Behavior
+ *
+ * The start up behavior of a device with this device type, is currently not specified and is considered manufacturer
+ * specific. This means that the start up behavior and what is considered the "safe state", most suitable for the
+ * specific device, is defined by the manufacturer.
+ *
+ * #### Firmware Update
+ *
+ * When a device with this device type needs to update its firmware (or restart for another reason), it is strongly
+ * recommended to only perform the update/restart when the valve is in its closed state, as well as ignoring any open
+ * request during this update/restart, given the chance a valve can unintentionally be left in the open state, for
+ * longer periods of time.
+ *
  * @see {@link MatterSpecification.v16.Device} § 5.6
  */
 export interface WaterValveDevice extends Identity<typeof WaterValveDeviceDefinition> {}

@@ -83,7 +83,7 @@ Resource.add({
                     "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit." +
                     "\n" +
                     "This matches the formats defined for WPA networks by the Credentials field in the Network " +
-                    "Commissioning cluster (see [[MatterCore]](#ref_MatterCore))." +
+                    "Commissioning cluster (see MatterCore)." +
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +

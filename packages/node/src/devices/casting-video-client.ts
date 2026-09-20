@@ -39,6 +39,10 @@ import { Identity } from "@matter/general";
  * A Casting Video Client is a client that can launch content on a Casting Video Player, for example, a Smart Speaker or
  * a Content Provider phone app.
  *
+ * ### Cluster Requirements
+ *
+ * See Section 1.1.7, "Cluster Requirements" for additional clusters including the Binding cluster.
+ *
  * @see {@link MatterSpecification.v16.Device} § 10.6
  */
 export interface CastingVideoClientDevice extends Identity<typeof CastingVideoClientDeviceDefinition> {}
