@@ -27,6 +27,15 @@ export interface DeviceTypeElement extends BaseElement {
      */
     composition?: `${EndpointComposition}`;
 
+    /**
+     * The revision this device type states for itself.
+     *
+     * A device type carries its revision in the Descriptor `DeviceTypeList` default, which is what it reports over
+     * the wire.  A device type with no id has no such entry and states its revision here instead.
+     * {@link DeviceTypeModel.revision} answers with whichever applies.
+     */
+    revision?: number;
+
     category?: string;
     children?: (RequirementElement | FieldElement | ConditionElement)[];
 }

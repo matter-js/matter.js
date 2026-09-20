@@ -45302,7 +45302,7 @@ export const SpecMatter = Matter(
 
     DeviceType(
         {
-            name: "Base", classification: "base", xref: "device§1.1",
+            name: "Base", classification: "base", revision: 3, xref: "device§1.1",
 
             details: "### Overview" +
                 "\n" +
