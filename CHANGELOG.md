@@ -60,6 +60,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
 
 - @matter/model
+    - Fix: The Base device type records the revision its specification section states, which is 3. It has no device type id, so no Descriptor `DeviceTypeList` entry carried one and `DeviceTypeModel.revision` answered 1
+    - Enhancement: `DeviceTypeModel.declaredRevision` states the revision a device type records for itself, or `undefined` where it records none, which `revision` cannot express because it answers 1 for both
     - Fix: A device type's documentation carries the prose its specification chapter states below a subsection heading. Sixty-two device types gain text, and the Base device type is documented at all for the first time. Each subsection appears under a heading of its own depth, so a chapter that repeats a subsection name states which operation each one belongs to
     - Fix: A condition carries the prose of the section that describes it, and an element requirement carries the section its table came from, so a section such as `device§8.5.6` has a cross reference
     - Fix: Scraping says which device library chapter it ignores and how many sections below it go with it, rather than dropping them without a word

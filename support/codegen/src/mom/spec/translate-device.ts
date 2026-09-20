@@ -59,9 +59,11 @@ function revisionOf(deviceRef: DeviceReference) {
 
 function createDevice(deviceRef: DeviceReference) {
     if (deviceRef.name === "Base") {
+        // Base has no device type id, so no Descriptor DeviceTypeList entry carries its revision
         return DeviceTypeElement({
             name: "Base",
             classification: DeviceClassification.Base,
+            revision: revisionOf(deviceRef),
             xref: deviceRef.xref,
         });
     }
