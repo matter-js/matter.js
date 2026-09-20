@@ -175,9 +175,23 @@ export class RunningTaskContext implements TaskContext {
         }
         const peers = [...new Set(items.map(i => i.peer))];
         await this.awaitGate(peers, () => {
-            this.#requireAwaited(items);
-            return items.every(i => this.#itemState(i.peer, i.kind.kind, i.key) === "committed");
+            const awaited = items.filter(i => this.#stillCommissioned(i.peer));
+            this.#requireAwaited(awaited);
+            return awaited.every(i => this.#itemState(i.peer, i.kind.kind, i.key) === "committed");
         });
+    }
+
+    /**
+     * Whether a peer this run is waiting on is still on the fabric.
+     *
+     * A peer that leaves takes its desired state with it and emits nothing further, so a gate that kept
+     * waiting on it would park for the life of the process. The run itself has already been asked whether it
+     * survives the departure — see {@link TaskDefinition.survivesWithout}; this is only about what is left to
+     * wait for.
+     */
+    #stillCommissioned(peer: ClientNode): boolean {
+        const address = addressOf(peer);
+        return address !== undefined && this.peerResolver(address) !== undefined;
     }
 
     /**
@@ -246,7 +260,9 @@ export class RunningTaskContext implements TaskContext {
         }
         const peers = [...new Set(items.map(i => i.peer))];
         await this.awaitGate(peers, () => {
-            for (const item of items) {
+            // A peer that left took the item with it, which is the removal this was waiting for.
+            const awaited = items.filter(i => this.#stillCommissioned(i.peer));
+            for (const item of awaited) {
                 const conclusion = this.#conclusions.get(itemMapKey(item.kind.kind, item.key));
                 if (conclusion?.outcome === "abandoned") {
                     throw new TaskFailedError(
@@ -255,7 +271,7 @@ export class RunningTaskContext implements TaskContext {
                     );
                 }
             }
-            return items.every(
+            return awaited.every(
                 item => this.#conclusions.get(itemMapKey(item.kind.kind, item.key))?.outcome === "removed",
             );
         });
@@ -362,6 +378,9 @@ export class RunningTaskContext implements TaskContext {
     }
 
     async #evaluate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<boolean> {
+        // A peer that left the fabric is not one to wait for: it will never be reachable again, and the run
+        // has already been asked whether it survives the departure.
+        nodes = nodes.filter(node => this.#stillCommissioned(node));
         // A gate resolves only on freshly verified state, never on trust-stored committed items.
         if (nodes.some(node => !this.#reachable(node))) {
             return false;
@@ -374,7 +393,8 @@ export class RunningTaskContext implements TaskContext {
     }
 
     #classify(nodes: ClientNode[]) {
-        this.setState(nodes.some(node => !this.#reachable(node)) ? "parked" : "running");
+        const waiting = nodes.filter(node => this.#stillCommissioned(node));
+        this.setState(waiting.some(node => !this.#reachable(node)) ? "parked" : "running");
     }
 
     itemAbsent(peer: ClientNode, kind: ItemKind, key: string): boolean {

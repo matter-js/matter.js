@@ -5,6 +5,7 @@
  */
 
 import { InternalError } from "@matter/general";
+import { PeerAddress } from "@matter/protocol";
 import { ChangeEntry, PlannedChange, RetireSeq, RunId, TaskPhase, TaskState, TaskStatus } from "./types.js";
 
 export interface TaskPersistence {
@@ -293,6 +294,23 @@ export interface TaskDefinition<P = unknown> {
 
     /** Operator-facing reason a cancel is declined while {@link rollbackable} is false. */
     readonly notRollbackableReason?: string;
+
+    /**
+     * Whether this work still makes sense once `peer` has left the fabric.
+     *
+     * A peer address names one device for as long as that device is commissioned, so a run that outlives a
+     * peer's registration holds a name that may later mean a different device. The layer therefore asks every
+     * run that names a departing peer, and only the work itself can answer: adding a group member is pointless
+     * once that member is gone, while rotating a key set across the rest of its members is not.
+     *
+     * Answer `false` and the run ends and rolls back what it changed. Answered by nothing, the layer assumes
+     * `false`: a definition that has not considered a departure should not go on driving a fleet that changed
+     * under it.
+     *
+     * Asked only of a run that names the peer — through its change set, or through
+     * {@link plannedChanges} — and asked again after a restart for a run whose peer did not come back.
+     */
+    survivesWithout?(peer: PeerAddress, params: P): boolean;
 }
 
 /**
@@ -336,6 +354,16 @@ export class BoundDefinition<P = unknown> {
 
     plannedChanges(): PlannedChange[] {
         return this.definition.plannedChanges?.(this.params) ?? new Array<PlannedChange>();
+    }
+
+    /** Whether this work still makes sense without `peer`; see {@link TaskDefinition.survivesWithout}. */
+    survivesWithout(peer: PeerAddress): boolean {
+        return this.definition.survivesWithout?.(peer, this.params) ?? false;
+    }
+
+    /** Whether this work says it will change something on `peer`. */
+    plansToChange(peer: PeerAddress): boolean {
+        return this.plannedChanges().some(change => PeerAddress.is(change.peer, peer));
     }
 
     rollbackable(run: RunView): boolean {

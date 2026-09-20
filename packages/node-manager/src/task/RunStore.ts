@@ -318,6 +318,11 @@ export class RunStore {
         });
     }
 
+    /** Every run this process still holds a record for, driven or not. */
+    get unfinished(): RunRecord[] {
+        return [...this.#records.values()].filter(record => !isTerminal(record.state));
+    }
+
     /** Records awaiting resume, in ascending runId — the only order defined for resume. */
     get resumable(): RunRecord[] {
         return [...this.#records.values()]

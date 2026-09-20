@@ -53,6 +53,12 @@ export const Rollback: TaskDefinition<RollbackParams> = {
         return `rollback:${params.originalRunId}`;
     },
 
+    // An intent is erased with the node that held it, so a departed peer's entries are already undone; the
+    // entries this undo holds for other peers still have to be replayed.
+    survivesWithout() {
+        return true;
+    },
+
     phases(params) {
         return [{ name: "rollback", run: ctx => rollback(ctx, params) }];
     },

@@ -8,12 +8,12 @@ import { GroupKey } from "#reconcile/kinds.js";
 import { findingOf, TaskFailedError, TaskFindingCode, TaskNotFoundError, TaskSlotOccupiedError } from "#task/errors.js";
 import { peerLabel } from "#task/peer.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
-import { RunRecord, TaskDefinition } from "#task/Task.js";
+import { BoundDefinition, RunRecord, TaskDefinition } from "#task/Task.js";
 import { TaskRegistry } from "#task/TaskRegistry.js";
 import { isRetireSeq, isRunId, RetireSeq, RunId, TaskPhase } from "#task/types.js";
 import { ImplementationError } from "@matter/general";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { FakePeer } from "./helpers.js";
+import { FakePeer, testAddress } from "./helpers.js";
 
 const Nothing: TaskDefinition = {
     type: "nothing",
@@ -99,5 +99,30 @@ describe("a refusal as data", () => {
         const plain = new TaskNotFoundError("gone");
         expect(findingOf(plain).owner).equals(undefined);
         expect(findingOf(plain).code).equals(TaskFindingCode.NotFound);
+    });
+});
+
+describe("what a task says about a peer that left", () => {
+    const address = testAddress("gone");
+
+    it("assumes work does not survive a departure it never considered", () => {
+        // Silence is not consent: a definition that has not thought about a peer leaving should not go on
+        // driving a fleet that changed under it.
+        expect(new BoundDefinition(Nothing, {}).survivesWithout(address)).equals(false);
+    });
+
+    it("takes the definition's word when it has one", () => {
+        const Fleetwide: TaskDefinition = { ...Nothing, survivesWithout: () => true };
+        expect(new BoundDefinition(Fleetwide, {}).survivesWithout(address)).equals(true);
+    });
+
+    it("counts a peer as named when the work plans to change it", () => {
+        const Planned: TaskDefinition = {
+            ...Nothing,
+            plannedChanges: () => [{ peer: address, kind: GroupKey, key: "7", intent: {} }],
+        };
+        const bound = new BoundDefinition(Planned, {});
+        expect(bound.plansToChange(address)).equals(true);
+        expect(bound.plansToChange(testAddress("other"))).equals(false);
     });
 });
