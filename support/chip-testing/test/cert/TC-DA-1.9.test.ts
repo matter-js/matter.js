@@ -55,6 +55,16 @@ const REVOKED = "CertificateRevoked";
 const COMMISSION_TIMEOUT = Seconds(60);
 
 /**
+ * What the script is given for its whole body, through its own `--timeout`.
+ *
+ * It declares no `default_timeout` of its own, so it would otherwise run under the ninety seconds
+ * `MatterBaseTest` allows — enough for the python controller its CI path drives, and not enough for
+ * seven commissioning attempts by a real one. Each refusal costs the discovery and the attestation
+ * exchange that precede it.
+ */
+const SCRIPT_TIMEOUT = Seconds(600);
+
+/**
  * The script starts the test app itself, so the harness only points it at a binary. It is the same
  * all-clusters build TC-SC-3.5 spawns as its TH_SERVER — this case injects no fault, and the
  * fault-injection build serves it just as well.
@@ -241,7 +251,8 @@ describe("TC-DA-1.9", () => {
             this.skip();
         }
 
-        this.timeout(10 * 60_000);
+        // Above the script's own budget, so its verdict is what this reports
+        this.timeout(15 * 60_000);
 
         const state = { attempts: 0 };
         let bodyFailure: unknown;
@@ -276,6 +287,8 @@ describe("TC-DA-1.9", () => {
                 stubSubject(),
                 () => {},
                 [
+                    "--timeout",
+                    `${Seconds.of(SCRIPT_TIMEOUT)}`,
                     "--string-arg",
                     `app_path:${appPath}`,
                     "--string-arg",
