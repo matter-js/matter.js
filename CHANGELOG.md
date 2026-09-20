@@ -20,6 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
     - Enhancement: `CertNodeApi.serveOtaUpdate()` also reports the OTA commands the controller's own provider answered, and the new `CertNodeApi.announceOtaProvider()` announces a provider to a node without staging anything. Every `CertNodeApi` implementation must provide the new method
     - Enhancement: A certification test can give each of its devices its own app arguments, via `certTest`'s `appArgs`, and the evidence bundle records what each role was started with
+    - Fix: A chip `ota-provider` certification device starts without a case naming an image: the app exits at startup unless given one, and the harness supplies a placeholder where the case named none
     - Enhancement: `CertNodeApi.scriptOtaProvider()` has the controller's own OTA provider answer a case's next commands, so a plan step about a `Busy`, a deferred apply or a `UserConsentNeeded` can be driven
     - Enhancement: A certification step costing minutes of real time declares `longRunning`, and runs only where the run asked for it (`MATTER_CERT_LONG_RUNNING`); `RunRecord.longRunningSkips` counts what a run left out
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces

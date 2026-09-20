@@ -12,7 +12,7 @@ import { serveOtaTransfer, transferOrFail } from "./tc-bdx-support.js";
 import {
     applyActionName,
     delayedActionTime,
-    delayedActionTimeProvenance,
+    delayedActionTimeCheck,
     longRunningReason,
     OtaApplyAction,
     OtaQueryStatus,
@@ -121,13 +121,7 @@ async function recordDeferredApply(cx: CertStepContext) {
         },
         {
             what: "that answer named the DelayedActionTime the step asked for",
-            check: () => ({
-                type: "response",
-                verdict: applies[0]?.response.delayedActionTime === delay ? "pass" : "fail",
-                detail:
-                    `the DUT answered DelayedActionTime ${applies[0]?.response.delayedActionTime}s, against ` +
-                    delayedActionTimeProvenance(),
-            }),
+            check: () => delayedActionTimeCheck(applies[0]?.response.delayedActionTime),
         },
         {
             // The plan's own point: the deferral is not the end of the exchange. A DUT that answered

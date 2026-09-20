@@ -35,10 +35,6 @@ certTest("TC-SU-1.1", {
     pics: ["MCORE.ACL.Administrator", "OTAR.C.M.AnnounceOTAProvider"],
     app: "ota-requestor",
     devices: { th: "ota-requestor", th2: "ota-provider" },
-
-    // chip's ota-provider-app exits at startup as this harness spawns it, which takes the run with it.
-    // The cause is not yet established, so the case states the gap rather than guessing at a fix.
-    flavors: ["matterjs"],
 })
     .step(
         "0",

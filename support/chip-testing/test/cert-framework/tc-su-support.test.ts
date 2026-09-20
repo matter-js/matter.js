@@ -11,7 +11,7 @@ import {
     bdxImageUriFindings,
     blockSizeConforms,
     delayedActionTime,
-    delayedActionTimeProvenance,
+    delayedActionTimeCheck,
     longRunningReason,
     hexByteLength,
     queryImageResponseLines,
@@ -285,17 +285,29 @@ describe("delayedActionTime", () => {
     it("names the plan's three minutes where the wait cannot be shortened", () => {
         withFastRetry(false, () => {
             expect(delayedActionTime()).equal(180);
-            expect(delayedActionTimeProvenance()).contains("the plan's 180s");
             expect(longRunningReason("the wait")).contains("180s of real time");
+
+            expect(delayedActionTimeCheck(180).verdict).equal("pass");
+            expect(delayedActionTimeCheck(1).verdict).equal("fail");
         });
     });
 
     // Above zero, so the answer still carries the field the step is about
-    it("names a short stand-in where it can, and says the run shortened it", () => {
+    it("names a short stand-in where it can", () => {
         withFastRetry(true, () => {
             expect(delayedActionTime()).equal(1);
-            expect(delayedActionTimeProvenance()).contains("in place of the plan's 180s");
             expect(longRunningReason("the wait")).equal(undefined);
+        });
+    });
+
+    // The plan's expected outcome is that the DUT sends three minutes. A run that scripted one second
+    // and then compared against one second would be the step agreeing with itself
+    it("states that a shortened run did not test the plan's own value", () => {
+        withFastRetry(true, () => {
+            const check = delayedActionTimeCheck(1);
+            expect(check.verdict).equal("unverified");
+            expect(check.accepted).contains("the plan's 180s");
+            expect(check.detail).contains("1s");
         });
     });
 });

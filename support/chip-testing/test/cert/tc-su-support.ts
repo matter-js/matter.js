@@ -6,6 +6,7 @@
 
 import type {
     CertNodeRef,
+    CheckRecord,
     OtaAnnouncementRecord,
     OtaApplyUpdateExchange,
     OtaProviderExchanges,
@@ -332,12 +333,33 @@ const PLAN_DELAYED_ACTION_TIME = 180;
  */
 const SHORT_DELAYED_ACTION_TIME = 1;
 
-/** Says in a check's own detail which of the two {@link delayedActionTime} returned. */
-export function delayedActionTimeProvenance() {
-    return otaDelaysShortened()
-        ? `${delayedActionTime()}s in place of the plan's ${PLAN_DELAYED_ACTION_TIME}s, this run having shortened ` +
-              "the TH's retry intervals"
-        : `the plan's ${PLAN_DELAYED_ACTION_TIME}s`;
+/**
+ * The check a step records for the `DelayedActionTime` the DUT named.
+ *
+ * The plan's expected outcome is that the DUT sends three minutes, and only a run that scripted three
+ * minutes tests that. A shortened run scripts one second, so the same comparison would be the step
+ * agreeing with itself: it records the value the DUT sent and says the plan's claim went untested.
+ */
+export function delayedActionTimeCheck(sent: number | undefined): CheckRecord {
+    const asked = delayedActionTime();
+
+    if (otaDelaysShortened()) {
+        return {
+            type: "response",
+            verdict: "unverified",
+            detail: `the DUT answered DelayedActionTime ${sent}s, which this run scripted`,
+            accepted:
+                `this run shortened the TH's retry intervals and scripted ${asked}s rather than the plan's ` +
+                `${PLAN_DELAYED_ACTION_TIME}s, so the plan's own value is not what the DUT sent here; the run ` +
+                "that sets MATTER_CERT_LONG_RUNNING scripts it and tests it",
+        };
+    }
+
+    return {
+        type: "response",
+        verdict: sent === asked ? "pass" : "fail",
+        detail: `the DUT answered DelayedActionTime ${sent}s, against the plan's ${PLAN_DELAYED_ACTION_TIME}s`,
+    };
 }
 
 /** The reason a step carries when this run cannot shorten the wait it costs. */

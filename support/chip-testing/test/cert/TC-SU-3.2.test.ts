@@ -15,7 +15,7 @@ import {
     OtaQueryStatus,
     queryStatusName,
     delayedActionTime,
-    delayedActionTimeProvenance,
+    delayedActionTimeCheck,
     longRunningReason,
     singleQueryImage,
     unsupportedByDut,
@@ -153,13 +153,7 @@ async function recordBusyThenAvailable(cx: CertStepContext) {
         },
         {
             what: "that answer named the DelayedActionTime the step asked for",
-            check: () => ({
-                type: "response",
-                verdict: queries[0]?.response.delayedActionTime === delay ? "pass" : "fail",
-                detail:
-                    `the DUT answered DelayedActionTime ${queries[0]?.response.delayedActionTime}s, against ` +
-                    delayedActionTimeProvenance(),
-            }),
+            check: () => delayedActionTimeCheck(queries[0]?.response.delayedActionTime),
         },
         {
             what: "the DUT answered the TH's next QueryImage UpdateAvailable",

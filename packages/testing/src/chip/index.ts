@@ -58,6 +58,8 @@ export { createControllerAdapter } from "./cert/controller-adapter.js";
 export { resetControllerAdapterFactoryForTesting } from "./cert/controller-adapter.js";
 /** @internal Test seam — not API. */
 export { StdinPacer } from "./cert/chip-app-subject.js";
+/** @internal Test seam — not API. */
+export { requiredAppArgs } from "./cert/chip-app-subject.js";
 export type {
     AnnounceOtaProviderOptions,
     AttributePathSpec,

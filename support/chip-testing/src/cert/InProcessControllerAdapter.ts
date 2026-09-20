@@ -53,6 +53,7 @@ import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
 import type { BdxInit, StorageScope } from "@matter/main/protocol";
 import { FileDesignator, PeerAddress } from "@matter/main/protocol";
 import {
+    assertRemoteActor,
     BdxProtocol,
     BdxSession,
     ClientRead,
@@ -420,17 +421,49 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
     declare readonly internal: RecordingOtaProviderServer.Internal;
 
     static override Internal = class extends OtaSoftwareUpdateProviderServer.Internal {
-        exchanges: OtaProviderExchanges = emptyOtaExchanges();
+        /**
+         * What this provider answered, and what it is to answer next, per peer.
+         *
+         * One provider endpoint serves every node the controller holds, while the API that reads and
+         * writes this is a single node's. Keying on the peer is what keeps one node's periodic query
+         * from consuming another's scripted answer, or from appearing in its evidence.
+         */
+        exchanges = new Map<string, OtaProviderExchanges>();
+        script = new Map<string, Required<OtaProviderScript>>();
 
-        /** Answers still to give in place of this provider's own, oldest first. */
-        script: Required<OtaProviderScript> = { queryImage: [], applyUpdate: [] };
-
-        /** Emits once this provider has recorded another answer, so a caller can wait for one. */
-        recorded = Observable<[]>();
+        /** Emits the peer whose answer this provider just recorded, so a caller can wait for its own. */
+        recorded = Observable<[peer: string]>();
     };
 
+    /** The peer a command arrived from, which decides whose record and whose script it belongs to. */
+    get #commandPeer(): string {
+        assertRemoteActor(this.context);
+        const session = this.context.session;
+        NodeSession.assert(session);
+        return session.peerAddress.toString();
+    }
+
+    #scriptFor(peer: string): Required<OtaProviderScript> {
+        let script = this.internal.script.get(peer);
+        if (script === undefined) {
+            script = { queryImage: [], applyUpdate: [] };
+            this.internal.script.set(peer, script);
+        }
+        return script;
+    }
+
+    #exchangesFor(peer: string): OtaProviderExchanges {
+        let exchanges = this.internal.exchanges.get(peer);
+        if (exchanges === undefined) {
+            exchanges = emptyOtaExchanges();
+            this.internal.exchanges.set(peer, exchanges);
+        }
+        return exchanges;
+    }
+
     override async queryImage(request: OtaSoftwareUpdateProvider.QueryImageRequest) {
-        const scripted = this.internal.script.queryImage.shift();
+        const peer = this.#commandPeer;
+        const scripted = this.#scriptFor(peer).queryImage.shift();
 
         // A scripted status is answered without asking `super` at all. Its answer is a side effect as
         // much as a value — it stages an in-progress entry and registers the peer for BDX — and a
@@ -445,7 +478,7 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                       userConsentNeeded: scripted.userConsentNeeded,
                   };
 
-        this.internal.exchanges.queryImage.push({
+        this.#exchangesFor(peer).queryImage.push({
             request: {
                 vendorId: request.vendorId,
                 productId: request.productId,
@@ -467,12 +500,13 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 metadataForRequestor: hexOrUndefined(response.metadataForRequestor),
             },
         });
-        this.internal.recorded.emit();
+        this.internal.recorded.emit(peer);
         return response;
     }
 
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
-        const scripted = this.internal.script.applyUpdate.shift();
+        const peer = this.#commandPeer;
+        const scripted = this.#scriptFor(peer).applyUpdate.shift();
 
         // As in `queryImage`, and for the same reason: `super` closes the BDX registration on its way
         // to answering, which a deferred apply needs to keep so the requestor's next attempt can use
@@ -482,21 +516,22 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 ? await super.applyUpdateRequest(request)
                 : { action: scripted.action, delayedActionTime: scripted.delayedActionTime ?? 0 };
 
-        this.internal.exchanges.applyUpdate.push({
+        this.#exchangesFor(peer).applyUpdate.push({
             request: { updateToken: Bytes.toHex(request.updateToken), newVersion: request.newVersion },
             response: { action: response.action, delayedActionTime: response.delayedActionTime },
         });
-        this.internal.recorded.emit();
+        this.internal.recorded.emit(peer);
         return response;
     }
 
     override notifyUpdateApplied(request: OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest) {
+        const peer = this.#commandPeer;
         return MaybePromise.then(super.notifyUpdateApplied(request), result => {
-            this.internal.exchanges.notifyUpdateApplied.push({
+            this.#exchangesFor(peer).notifyUpdateApplied.push({
                 updateToken: Bytes.toHex(request.updateToken),
                 softwareVersion: request.softwareVersion,
             });
-            this.internal.recorded.emit();
+            this.internal.recorded.emit(peer);
             return result;
         });
     }
@@ -517,12 +552,14 @@ namespace RecordingOtaProviderServer {
  */
 class OtaExchangeRecording {
     #provider: Endpoint;
+    #peer: string;
     #observers = new ObserverGroup();
     #queried: Promise<void>;
     #queryResolver: () => void;
 
-    private constructor(provider: Endpoint, queried: Promise<void>, queryResolver: () => void) {
+    private constructor(provider: Endpoint, peer: string, queried: Promise<void>, queryResolver: () => void) {
         this.#provider = provider;
+        this.#peer = peer;
         this.#queried = queried;
         this.#queryResolver = queryResolver;
 
@@ -530,15 +567,19 @@ class OtaExchangeRecording {
         queried.catch(() => {});
     }
 
-    static async open(provider: Endpoint): Promise<OtaExchangeRecording> {
+    static async open(provider: Endpoint, peer: PeerAddress): Promise<OtaExchangeRecording> {
         const { promise, resolver } = createPromise<void>();
-        const recording = new OtaExchangeRecording(provider, promise, resolver);
+        const key = peer.toString();
+        const recording = new OtaExchangeRecording(provider, key, promise, resolver);
 
         await provider.act(agent => {
             const behavior = agent.get(RecordingOtaProviderServer);
-            behavior.internal.exchanges = emptyOtaExchanges();
-            recording.#observers.on(behavior.internal.recorded, () => {
-                if (behavior.internal.exchanges.queryImage.length > 0) {
+            behavior.internal.exchanges.set(key, emptyOtaExchanges());
+
+            // Only this peer's answers: one provider endpoint serves every node the controller holds,
+            // so another requestor's periodic query would otherwise settle this wait.
+            recording.#observers.on(behavior.internal.recorded, recorded => {
+                if (recorded === key && (behavior.internal.exchanges.get(key)?.queryImage.length ?? 0) > 0) {
                     recording.#queryResolver();
                 }
             });
@@ -566,7 +607,12 @@ class OtaExchangeRecording {
 
     /** What the provider has answered so far, copied so later answers cannot reach the caller. */
     async read(): Promise<OtaProviderExchanges> {
-        const live = await this.#provider.act(agent => agent.get(RecordingOtaProviderServer).internal.exchanges);
+        const live = await this.#provider.act(agent =>
+            agent.get(RecordingOtaProviderServer).internal.exchanges.get(this.#peer),
+        );
+        if (live === undefined) {
+            return emptyOtaExchanges();
+        }
         return {
             queryImage: [...live.queryImage],
             applyUpdate: [...live.applyUpdate],
@@ -968,6 +1014,11 @@ class InProcessCertNodeApi implements CertNodeApi {
         return peer;
     }
 
+    /** This node's address on the controller's fabric, which keys everything the provider holds for it. */
+    get #peerAddress(): PeerAddress {
+        return this.#fabric.addressOf(this.#nodeId);
+    }
+
     /** The protocol-level peer behind {@link #peer}, which carries the negotiated session parameters. */
     get #protocolPeer(): ProtocolPeer | undefined {
         return this.#controller.env.get(PeerSet).get(this.#fabric.addressOf(this.#nodeId));
@@ -1316,11 +1367,12 @@ class InProcessCertNodeApi implements CertNodeApi {
     scriptOtaProvider(script: OtaProviderScript): Promise<void> {
         return runTagged(this.#adapterId, async () => {
             const provider = await this.#otaProvider();
+            const peer = this.#peerAddress.toString();
             await provider.act(agent => {
-                agent.get(RecordingOtaProviderServer).internal.script = {
+                agent.get(RecordingOtaProviderServer).internal.script.set(peer, {
                     queryImage: [...(script.queryImage ?? [])],
                     applyUpdate: [...(script.applyUpdate ?? [])],
-                };
+                });
             });
         });
     }
@@ -1347,7 +1399,9 @@ class InProcessCertNodeApi implements CertNodeApi {
             // Only where the controller is the provider: a node told about another node queries that
             // node, and nothing of that exchange passes through here.
             const recording =
-                announced === undefined ? await OtaExchangeRecording.open(await this.#otaProvider()) : undefined;
+                announced === undefined
+                    ? await OtaExchangeRecording.open(await this.#otaProvider(), this.#peerAddress)
+                    : undefined;
 
             try {
                 await this.invoke(
@@ -1435,7 +1489,7 @@ class InProcessCertNodeApi implements CertNodeApi {
 
             // Opened before the announcement rather than filtered afterwards: a case serving two
             // updates has to be able to say which exchanges belong to the second.
-            const recording = await OtaExchangeRecording.open(provider);
+            const recording = await OtaExchangeRecording.open(provider, peerAddress);
 
             // Armed before the transfer starts, not after it ends: the peer asks to apply as soon as the
             // last block lands, and an observer attached afterwards can miss its own event.

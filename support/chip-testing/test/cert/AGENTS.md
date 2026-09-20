@@ -2915,6 +2915,13 @@ registration on the way to an apply — and writing a status over the top afterw
 provider expecting a transfer the requestor was just told not to start. A scripted `UserConsentNeeded`
 does overlay the real answer, because the step is about the field, not about the answer.
 
+**The provider is one endpoint serving every node, so everything it holds is keyed by peer.** Its
+record of what it answered and its queue of scripted answers both live in a `Map` keyed on the
+`PeerAddress` the command arrived from, and `OtaExchangeRecording` waits only for its own peer's
+query. Without that, a second requestor's periodic query settles another node's wait, consumes the
+answer scripted for it, and lands in its evidence — and every SU case whose plan names more than one
+device is one step away from that.
+
 **The delay is the TH's to wait out, not the DUT's to be judged on.** In every one of those steps the
 DUT is the provider and the claim is about the fields it sent; the minutes that follow are the
 requestor's own. So the wait is shortened where it can be: `OtaRequestorTestInstance` lowers
@@ -2923,7 +2930,14 @@ library for exactly this and never lowered by a product — when `MATTER_CERT_OT
 and the case then scripts a one-second `DelayedActionTime` and says so in the check's own detail.
 chip's requestor floors the same waits at compile time, so there the step costs the plan's three
 minutes and carries `longRunning`, which skips it unless `MATTER_CERT_LONG_RUNNING` is set. The daily
-schedule sets it; a push does not. `RunRecord.longRunningSkips` counts what a run left out, so a
+schedule sets it; a push does not.
+
+What a shortened run gives up is stated rather than hidden. The plans' expected outcome is that the
+DUT *sends* three minutes, and only a run that scripted three minutes tests that — comparing a
+scripted one second against the same one second is the step agreeing with itself. So
+`delayedActionTimeCheck` records `unverified` with an `accepted` reason on a shortened run and a real
+pass/fail on a plan-literal one. Every other claim in those steps — the status answered, the second
+command, the download that followed — holds either way. `RunRecord.longRunningSkips` counts what a run left out, so a
 bundle without it covers the plan and one with it covers the plan minus what its reasons name.
 
 **A subject driven more than once has to leave nothing behind.** `CertOtaRequestorServer.applyUpdate`
