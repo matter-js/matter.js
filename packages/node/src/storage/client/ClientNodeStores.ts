@@ -70,7 +70,9 @@ export class ClientNodeStores {
      *
      * The ID is not an identity that outlives the peer.  The counter starts from the IDs already in storage, so once a
      * peer is removed and its data is gone, a peer commissioned later may receive the same ID.  Anything stored for
-     * longer than the peer itself must name it by `PeerAddress`, which is never reissued.
+     * longer than the peer itself must name it by `PeerAddress`, which names one device for as long as that device
+     * stays commissioned: matter.js never reissues an address it allocated, and an application that assigns node IDs
+     * itself should not reuse one whose peer has been removed while anything still refers to it.
      */
     allocateId() {
         this.#construction.assert();
