@@ -44,6 +44,7 @@ import {
     removeFabricSucceeded,
     requireId,
     runCleanups,
+    statedInPrompt,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
 import { fakeCertNode } from "./fake-cert-node.js";
@@ -1923,5 +1924,48 @@ describe("recordAll", () => {
         ]);
 
         expect(checks).length(1);
+    });
+});
+
+describe("statedInPrompt()", () => {
+    const prompt = [
+        ">>> Please commission the DUT with:",
+        "  Manual Pairing Code: '14970112338'",
+        "  Revocation Set: /credentials/test/revoked-attestation-certificates/revocation-sets/revocation-set.json",
+        "Input 'Y' if DUT successfully commissions without any warnings",
+        "Input 'N' if commissioner warns about commissioning the non-genuine device (press enter to confirm)",
+    ];
+
+    it("reads a value the prompt stated on an earlier line", () => {
+        expect(statedInPrompt(prompt, /Manual Pairing Code: '(\d+)'/, "a pairing code")).equal("14970112338");
+        expect(statedInPrompt(prompt, /Revocation Set: (\S+)/, "a revocation set")).equal(
+            "/credentials/test/revoked-attestation-certificates/revocation-sets/revocation-set.json",
+        );
+    });
+
+    it("reads the last statement, which is the one the current prompt made", () => {
+        expect(
+            statedInPrompt(
+                [...prompt, "  Manual Pairing Code: '20054912334'"],
+                /Manual Pairing Code: '(\d+)'/,
+                "a pairing code",
+            ),
+        ).equal("20054912334");
+    });
+
+    it("refuses a pattern that matches a line without stating a value", () => {
+        // A pattern with no capture group matches, and reading match[1] off it would hand the caller
+        // undefined where it asked for a string
+        expect(() => statedInPrompt(prompt, /press enter to confirm/, "a pairing code")).throws(
+            InternalError,
+            "a pairing code",
+        );
+    });
+
+    it("refuses to guess where no line stated the value", () => {
+        expect(() => statedInPrompt(prompt, /Discriminator: (\d+)/, "a discriminator")).throws(
+            InternalError,
+            "a discriminator",
+        );
     });
 });
