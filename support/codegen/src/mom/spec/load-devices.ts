@@ -128,6 +128,21 @@ function augmentDevice(device: DeviceReference, content: SpecReference) {
 export function* loadDevices(devices: SpecReference) {
     let category: string | undefined;
     let device: DeviceReference | undefined;
+    let skipped: { chapter: SpecReference; sections: number } | undefined;
+
+    // An architecture chapter describes a family of device types rather than one, so it has no element to document.
+    // Report what it costs, because the alternative is a specification revision moving normative text under such a
+    // heading and nothing saying so
+    function reportSkipped() {
+        if (skipped === undefined) {
+            return;
+        }
+        const { chapter, sections } = skipped;
+        logger.info(
+            `ignored ${chapter.name} and the ${sections} section${sections === 1 ? "" : "s"} below it (${chapter.xref.document} § ${chapter.xref.section})`,
+        );
+        skipped = undefined;
+    }
 
     function* emit() {
         if (device) {
@@ -146,8 +161,10 @@ export function* loadDevices(devices: SpecReference) {
 
             case 2:
                 yield* emit();
+                reportSkipped();
 
                 if (section.name.match(/\s+architecture$/i)) {
+                    skipped = { chapter: section, sections: 0 };
                     break;
                 }
 
@@ -161,6 +178,10 @@ export function* loadDevices(devices: SpecReference) {
                 break;
 
             default:
+                if (skipped) {
+                    skipped.sections++;
+                    break;
+                }
                 Logger.nest(() => {
                     if (device) {
                         augmentDevice(device, section);
@@ -172,4 +193,5 @@ export function* loadDevices(devices: SpecReference) {
 
     // Emit final device
     yield* emit();
+    reportSkipped();
 }
