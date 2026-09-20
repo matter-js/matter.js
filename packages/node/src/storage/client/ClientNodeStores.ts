@@ -71,10 +71,12 @@ export class ClientNodeStores {
      * The ID is not an identity that outlives the peer.  The counter starts from the IDs already in storage, so once a
      * peer is removed and its data is gone, a peer commissioned later may receive the same ID.  Anything stored for
      * longer than the peer itself must name it by `PeerAddress`, which names one device for as long as that device
-     * stays commissioned.  Past that, only the `"sequential"` assignment strategy promises not to reuse an address:
-     * it counts up from a stored value.  `"random"` draws a fresh node ID and only checks it against the peers that
-     * exist right now, and an application may supply a node ID of its own, so either can hand a new device the
-     * address a removed one had — and a lookup by that address then succeeds, naming the wrong device.
+     * stays commissioned.  Past that, an address the `"sequential"` counter issued is not issued again, because the
+     * counter is stored and only counts up.  Other addresses can come back: `"random"`, and a node ID an application
+     * supplies, are accepted as soon as nothing holds them at that moment — a commissioned peer, or a reservation for
+     * a commissioning under way — which a removed peer's address no longer does.  A supplied node ID also leaves the
+     * counter where it was, so sequential assignment reaches that value later and issues it once its peer is gone.
+     * A lookup by such an address then succeeds, naming the wrong device.
      */
     allocateId() {
         this.#construction.assert();

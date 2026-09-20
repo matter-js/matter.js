@@ -380,9 +380,13 @@ export class Peers extends EndpointContainer<ClientNode> {
      *
      * Look up by {@link PeerAddress} for anything held while a peer is commissioned: a local id may be reissued to a
      * different device once the peer it named is gone, so the same string can resolve to a peer that never saw the
-     * work it is being used for. An address is stable for as long as its peer stays commissioned. Afterwards only
-     * `nodeIdAssignment: "sequential"` promises not to reuse it; a random draw and a caller-supplied node ID are both
-     * checked against live peers alone. So a lookup that *succeeds* is not proof this is the peer the caller meant.
+     * work it is being used for. An address is stable for as long as its peer stays commissioned. Once the peer is
+     * removed, an address the `nodeIdAssignment: "sequential"` counter issued is not issued again, because that
+     * counter is stored and only counts up. Every other address may come back: a random draw, and a node ID the
+     * application supplies, are accepted as soon as nothing holds them *at that moment* — a commissioned peer, or a
+     * reservation for a commissioning under way. A supplied node ID also leaves the counter where it was, so
+     * sequential assignment reaches that value later and issues it once its peer is gone. A lookup that *succeeds*
+     * is therefore not proof this is the peer the caller meant.
      */
     override get(id: number | string | PeerAddress) {
         if (typeof id !== "string" && typeof id !== "number") {
