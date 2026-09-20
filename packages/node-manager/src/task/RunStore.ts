@@ -33,9 +33,10 @@ export const RUN_ID_RESERVATION = 64;
  *
  * Bumped whenever a build changes what a record means rather than merely what it contains, so a later build
  * can refuse a table it would misread. It cannot protect against a *downgrade* — an older build has no check —
- * so this buys detection from here on, not backward safety.
+ * so this buys detection from here on, not backward safety. An older table is read rather than refused: its
+ * records go through the same field checks, which refuse one that lacks what this build requires.
  */
-export const RUN_STORE_VERSION = 2;
+export const RUN_STORE_VERSION = 3;
 
 /**
  * One verb's exclusive hold on a run's outcome.
@@ -132,6 +133,7 @@ export class RunStore {
         let highest = 0;
 
         const version = snapshot?.runsVersion ?? 1;
+        const records = Object.entries(snapshot?.runs ?? {});
         if (version > RUN_STORE_VERSION) {
             // Not loading is not enough on its own: the records stay in storage, so admitting work would drive
             // targets they own. Every verb refuses while this is set, rather than answering "no such run" for
@@ -140,7 +142,7 @@ export class RunStore {
             return;
         }
 
-        for (const [key, stored] of Object.entries(snapshot?.runs ?? {})) {
+        for (const [key, stored] of records) {
             // `runs` is schema type `any`, so a corrupt table reaches here as arbitrary values. Refusing names
             // the cause; letting it through seeds the identity counter with `NaN`, after which every
             // allocation is `NaN` and no run is ever addressable again.
