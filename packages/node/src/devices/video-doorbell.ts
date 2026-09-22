@@ -24,18 +24,6 @@ import { Identity } from "@matter/general";
  */
 export interface VideoDoorbellDevice extends Identity<typeof VideoDoorbellDeviceDefinition> {}
 
-export namespace VideoDoorbellRequirements {
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = {
-        mandatory: {
-            Camera: { deviceType: 0x142, constraint: "1" },
-            Doorbell: { deviceType: 0x148, constraint: "min 1" }
-        }
-    };
-}
-
 export const VideoDoorbellDeviceDefinition = MutableEndpoint({
     name: "VideoDoorbell",
     deviceType: 0x143,

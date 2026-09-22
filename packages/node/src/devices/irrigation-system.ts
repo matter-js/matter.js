@@ -115,11 +115,6 @@ export namespace IrrigationSystemRequirements {
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = { optional: { FlowMeasurement: FlowMeasurementClient } };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = { mandatory: { WaterValve: { deviceType: 0x42, constraint: "min 1" } } };
 }
 
 export const IrrigationSystemDeviceDefinition = MutableEndpoint({

@@ -9,7 +9,7 @@ import { DeviceClassification, DeviceTypeModel } from "#model";
 import { clean } from "../util/file.js";
 import { describeList, serialize } from "../util/string.js";
 import { Block, TsFile } from "../util/TsFile.js";
-import { ComposedTypeGenerator } from "./ComposedTypeGenerator.js";
+import { assertAllKindsHandled } from "./requirement-coverage.js";
 import { RequirementGenerator } from "./RequirementGenerator.js";
 
 const logger = Logger.get("EndpointFile");
@@ -76,7 +76,7 @@ export class EndpointFile extends TsFile {
     private generate() {
         logger.info(`${this.model.name} → ${this.name}.ts`);
 
-        ComposedTypeGenerator.assertAllKindsHandled(this);
+        assertAllKindsHandled(this);
 
         const serverBehaviors = new RequirementGenerator(this, "server");
         const server = serverBehaviors.generate();
@@ -94,7 +94,12 @@ export class EndpointFile extends TsFile {
             );
         }
 
-        new ComposedTypeGenerator(this).generate();
+        // A device type whose only requirements were composed ones leaves nothing here, and an empty namespace is
+        // not worth emitting.  The namespace always holds the definitions section, so its own length never reaches
+        // zero — what matters is whether anything landed inside
+        if (server === undefined && client === undefined && !this.definitions.length) {
+            this.requirements.remove();
+        }
 
         if (this.model.id === undefined) {
             // For base endpoints (of which I believe there is only one, called

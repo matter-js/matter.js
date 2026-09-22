@@ -130,16 +130,6 @@ export namespace AudioDoorbellRequirements {
         mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorClient, Chime: ChimeClient },
         optional: { WebRtcTransportProvider: WebRtcTransportProviderClient }
     };
-
-    /**
-     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
-     *
-     * specification.
-     */
-    export const conditions = {
-        mandatory: { TlsCertificatesCond: { declaredBy: "RootNode" }, PowerSourceCond: { declaredBy: "RootNode" } },
-        optional: { TimeSyncWithNtpcCond: { declaredBy: "RootNode" }, TlsClientCond: { declaredBy: "RootNode" } }
-    };
 }
 
 export const AudioDoorbellDeviceDefinition = MutableEndpoint({

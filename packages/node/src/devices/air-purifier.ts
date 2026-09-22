@@ -110,18 +110,6 @@ export namespace AirPurifierRequirements {
             ActivatedCarbonFilterMonitoring: ActivatedCarbonFilterMonitoringServer
         }
     };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = {
-        optional: {
-            AirQualitySensor: { deviceType: 0x2c },
-            Thermostat: { deviceType: 0x301 },
-            TemperatureSensor: { deviceType: 0x302 },
-            HumiditySensor: { deviceType: 0x307 }
-        }
-    };
 }
 
 export const AirPurifierDeviceDefinition = MutableEndpoint({

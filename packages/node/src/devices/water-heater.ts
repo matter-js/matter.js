@@ -120,36 +120,6 @@ export namespace WaterHeaterRequirements {
         },
         optional: { Identify: IdentifyServer }
     };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = {
-        optional: {
-            PowerSource: { deviceType: 0x11 },
-            TemperatureSensor: { deviceType: 0x302 },
-
-            DeviceEnergyManagement: {
-                deviceType: 0x50d,
-
-                requires: [{
-                    element: "serverCluster",
-                    name: "DeviceEnergyManagement",
-                    id: 0x98,
-                    requires: [{ element: "feature", name: "POWERFORECASTREPORTING" }]
-                }]
-            },
-
-            ElectricalSensor: {
-                deviceType: 0x510,
-                conformance: "desc",
-                requires: [
-                    { element: "serverCluster", name: "ElectricalPowerMeasurement", id: 0x90 },
-                    { element: "serverCluster", name: "ElectricalEnergyMeasurement", id: 0x91 }
-                ]
-            }
-        }
-    };
 }
 
 export const WaterHeaterDeviceDefinition = MutableEndpoint({

@@ -75,35 +75,6 @@ export namespace MeterReferencePointRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = { mandatory: { Identify: IdentifyServer } };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = {
-        optional: {
-            ElectricalEnergyTariff: {
-                deviceType: 0x513,
-                conformance: "[ElectricalEnergy].a+",
-                constraint: "min 1",
-
-                requires: [{
-                    element: "serverCluster",
-                    name: "CommodityTariff",
-                    id: 0x700,
-                    requires: [{ element: "attribute", name: "TariffUnit", constraint: "kWh | kVAh" }]
-                }]
-            },
-
-            ElectricalMeter: { deviceType: 0x514, conformance: "[ElectricalEnergy].a+", constraint: "min 1" }
-        }
-    };
-
-    /**
-     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
-     *
-     * specification.
-     */
-    export const conditions = { mandatory: { TimeSyncCond: { declaredBy: "RootNode" } } };
 }
 
 export const MeterReferencePointDeviceDefinition = MutableEndpoint({

@@ -157,27 +157,6 @@ export namespace CameraRequirements {
         mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorClient },
         optional: { WebRtcTransportProvider: WebRtcTransportProviderClient }
     };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = { optional: { OccupancySensor: { deviceType: 0x107 } } };
-
-    /**
-     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
-     *
-     * specification.
-     */
-    export const conditions = {
-        mandatory: {
-            TlsCertificatesCond: { declaredBy: "RootNode" },
-            PowerSourceCond: { declaredBy: "RootNode" },
-            TimeSyncWithNtpcCond: { declaredBy: "RootNode" },
-            TimeSyncWithClientCond: { declaredBy: "RootNode" },
-            TimeSyncWithTzCond: { declaredBy: "RootNode" },
-            TlsClientCond: { declaredBy: "RootNode" }
-        }
-    };
 }
 
 export const CameraDeviceDefinition = MutableEndpoint({

@@ -6,8 +6,8 @@
 
 import { InternalError, Logger } from "#general";
 import { ClusterModel, ElementTag, FieldValue, RequirementElement, RequirementModel, ValueModel } from "#model";
-import { reportRequirementLost } from "./ComposedTypeGenerator.js";
 import { EndpointFile } from "./EndpointFile.js";
+import { reportRequirementLost } from "./requirement-coverage.js";
 import { dispositionOf, RequirementDisposition } from "./requirement-disposition.js";
 
 const logger = Logger.get("ClusterRequirements");

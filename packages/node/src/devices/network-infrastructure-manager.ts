@@ -185,24 +185,6 @@ export namespace NetworkInfrastructureManagerRequirements {
             ThreadNetworkDirectory: ThreadNetworkDirectoryServer
         }
     };
-
-    /**
-     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
-     *
-     * specification.
-     */
-    export const conditions = {
-        mandatory: {
-            Ip: { declaredBy: "Base" },
-            IPv4: { declaredBy: "Base" },
-            IPv6: { declaredBy: "Base" },
-            Ethernet: { declaredBy: "Base" },
-            WiFi: { declaredBy: "Base" },
-            Thread: { declaredBy: "Base" }
-        },
-
-        optional: { ManagedAclAllowed: { declaredBy: "RootNode" } }
-    };
 }
 
 export const NetworkInfrastructureManagerDeviceDefinition = MutableEndpoint({

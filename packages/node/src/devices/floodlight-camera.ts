@@ -27,18 +27,6 @@ import { Identity } from "@matter/general";
  */
 export interface FloodlightCameraDevice extends Identity<typeof FloodlightCameraDeviceDefinition> {}
 
-export namespace FloodlightCameraRequirements {
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = {
-        mandatory: {
-            OnOffLight: { deviceType: 0x100, constraint: "min 1" },
-            Camera: { deviceType: 0x142, constraint: "1" }
-        }
-    };
-}
-
 export const FloodlightCameraDeviceDefinition = MutableEndpoint({
     name: "FloodlightCamera",
     deviceType: 0x144,
