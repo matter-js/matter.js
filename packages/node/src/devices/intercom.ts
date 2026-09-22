@@ -145,40 +145,6 @@ export namespace IntercomRequirements {
         },
         optional: { Chime: ChimeClient }
     };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = {
-        mandatory: {
-            GenericSwitch: {
-                deviceType: 0xf,
-                constraint: "min 1",
-
-                requires: [{
-                    element: "serverCluster",
-                    name: "Switch",
-                    id: 0x3b,
-                    requires: [{ element: "feature", name: "MOMENTARYSWITCH" }]
-                }]
-            }
-        }
-    };
-
-    /**
-     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
-     *
-     * specification.
-     */
-    export const conditions = {
-        mandatory: {
-            TlsCertificatesCond: { declaredBy: "RootNode" },
-            PowerSourceCond: { declaredBy: "RootNode" },
-            TimeSyncWithNtpcCond: { declaredBy: "RootNode" },
-            TimeSyncWithClientCond: { declaredBy: "RootNode" },
-            TimeSyncWithTzCond: { declaredBy: "RootNode" }
-        }
-    };
 }
 
 export const IntercomDeviceDefinition = MutableEndpoint({

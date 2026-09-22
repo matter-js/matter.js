@@ -89,7 +89,6 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
-    - Enhancement: A device type's generated requirements name the device types it requires of its child endpoints, through `deviceTypes` and `conditions` on the requirements namespace. Eighty-seven such requirements reached the model and no further
     - Enhancement: A device type that relaxes a cluster's mandatory element to optional is honoured. Temperature Sensor and Room Air Conditioner required `KeypadLockout`, which the specification makes optional for them
     - Enhancement: A device type feature gated on `Rev >= vN` is enabled when the device type's revision satisfies it, which enables `ChangeEvent` on Water Freeze Detector, Water Leak Detector and Rain Sensor
     - Enhancement: A generated requirement's documentation says when the specification states a cluster is provisional, rather than reporting it as plainly optional

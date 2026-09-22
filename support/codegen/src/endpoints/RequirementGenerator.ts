@@ -15,8 +15,8 @@ import {
 } from "#model";
 import { Block } from "../util/TsFile.js";
 import { ClusterRequirements } from "./ClusterRequirements.js";
-import { reportRequirementLost } from "./ComposedTypeGenerator.js";
 import { EndpointFile } from "./EndpointFile.js";
+import { reportRequirementLost } from "./requirement-coverage.js";
 
 const MANDATORY_PART_ENDPOINTS = ["RootEndpoint", "AggregatorEndpoint", "BridgedNodeEndpoint"];
 

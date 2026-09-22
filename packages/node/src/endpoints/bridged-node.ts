@@ -129,11 +129,6 @@ export namespace BridgedNodeRequirements {
             EcosystemInformation: EcosystemInformationServer
         }
     };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = { optional: { PowerSource: { deviceType: 0x11 } } };
 }
 
 export const BridgedNodeEndpointDefinition = MutableEndpoint({

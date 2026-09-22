@@ -67,11 +67,6 @@ export namespace ElectricalMeterRequirements {
         },
         optional: { CommodityMetering: CommodityMeteringServer }
     };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = { mandatory: { ElectricalSensor: { deviceType: 0x510, constraint: "min 1" } } };
 }
 
 export const ElectricalMeterDeviceDefinition = MutableEndpoint({

@@ -300,11 +300,6 @@ export namespace RootRequirements {
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = { optional: { TimeSynchronization: TimeSynchronizationClient } };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = { optional: { PowerSource: { deviceType: 0x11, conformance: "PowerSourceCond, O" } } };
 }
 
 export const RootEndpointDefinition = MutableEndpoint({
