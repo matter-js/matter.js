@@ -135,6 +135,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
 
 - @matter/types
+    - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there
     - Breaking: A property whose name contains a pluralised acronym is now camelised the way the singular already was, so `tariffComponentIDs` is `tariffComponentIds`. Eight properties are renamed: `tariffComponentIDs`, `dayEntryIDs`, `dayPatternIDs`, `uniqueLocationIDs`, `uniqueLocationIDsLastEdit`, `groupKeySetIDs`, `messageIDs` and `activeMessageIDs`
     - Fix: A `status` field in a cluster that defines its own status codes is now `Status | <Cluster>.StatusCode`, so producing a cluster-specific code needs no cast and consuming one needs narrowing. This affects `DoorLock.SetCredentialResponse` and the DoorLock schedule responses
 

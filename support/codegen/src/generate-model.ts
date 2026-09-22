@@ -27,6 +27,7 @@ import { hideBin } from "yargs/helpers";
 import { AcknowledgedRemovals } from "./acknowledged-removals.js";
 import { generateElement } from "./mom/common/generate-element.js";
 import { DEFAULT_MATTER_VERSION } from "./mom/spec/md/load-markdown-files.js";
+import { checkNumberTlvMapping } from "./util/check-number-tlv-mapping.js";
 import { clean, OutputSession } from "./util/file.js";
 import { finalizeModel } from "./util/finalize-model.js";
 import { digestOf, findLosses, ModelDigest } from "./util/model-digest.js";
@@ -188,6 +189,8 @@ const validationResult = finalizeModel(matter);
 if (!matter.get(DatatypeModel, "bool") || !matter.get(AttributeModel, "FeatureMap")) {
     throw new InternalError("Model is missing key elements that would break codebase, aborting");
 }
+
+checkNumberTlvMapping(matter);
 
 {
     const nameMap = new Map<string, Model[]>();

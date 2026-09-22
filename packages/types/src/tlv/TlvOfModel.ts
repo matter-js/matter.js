@@ -289,13 +289,17 @@ function generateBitmap(model: ValueModel) {
         throw new ImplementationError(`Bit field ${field.path} is not properly constrained`);
     });
 
-    const metabaseName = model.metabase?.name;
-    const num = metabaseName ? NumberMapping[metabaseName] : undefined;
+    const num = findBitmapMapping(model);
     if (!num) {
         throw new ImplementationError(`Could not determine numeric type for bitmap ${model.path} type "${model.type}"`);
     }
 
     return TlvBitmap(num as TlvNumberSchema, Object.fromEntries(entries));
+}
+
+function findBitmapMapping(model: ValueModel): TlvSchema<unknown> | undefined {
+    const metabaseName = model.metabase?.name;
+    return metabaseName ? NumberMapping[metabaseName] : undefined;
 }
 
 function generateList(model: ValueModel) {
@@ -319,17 +323,7 @@ function generateString(base: typeof TlvByteString | typeof TlvString, model: Va
 }
 
 function generateInteger(model: ValueModel): TlvSchema<unknown> {
-    // Walk the type chain checking each ancestor against NumberMapping.
-    // This finds specialized types like epoch-us before reaching the
-    // root primitive (uint64).  Mirrors the codegen approach in
-    // specializedNumberTypeFor() (NumberConstants.ts).
-    let tlv: TlvSchema<unknown> | undefined;
-    for (let base: ValueModel | undefined = model; base; base = base.base as ValueModel | undefined) {
-        tlv = NumberMapping[base.name];
-        if (tlv !== undefined) {
-            break;
-        }
-    }
+    const tlv = findIntegerMapping(model);
 
     if (tlv === undefined) {
         throw new InternalError(`No numeric TLV mapping for model ${model.path} type ${model.type}`);
@@ -343,4 +337,34 @@ function generateInteger(model: ValueModel): TlvSchema<unknown> {
     }
 
     return tlv;
+}
+
+function findIntegerMapping(model: ValueModel): TlvSchema<unknown> | undefined {
+    // Walk the type chain checking each ancestor against NumberMapping. This finds specialized
+    // types like epoch-us before reaching the root primitive (uint64).
+    for (let base: ValueModel | undefined = model; base; base = base.base as ValueModel | undefined) {
+        const tlv = NumberMapping[base.name];
+        if (tlv !== undefined) {
+            return tlv;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Whether {@link model}'s integer or bitmap width has a TLV codec below, per {@link NumberMapping}.
+ *
+ * `support/codegen` calls this while generating the model so a width the specification adds without
+ * a codec here fails generation instead of surfacing later as the {@link InternalError} that
+ * {@link generateInteger} and {@link generateBitmap} throw per invoke or write.
+ */
+export function hasNumberTlvMapping(model: ValueModel): boolean {
+    switch (model.effectiveMetatype) {
+        case Metatype.integer:
+            return findIntegerMapping(model) !== undefined;
+        case Metatype.bitmap:
+            return findBitmapMapping(model) !== undefined;
+        default:
+            return true;
+    }
 }
