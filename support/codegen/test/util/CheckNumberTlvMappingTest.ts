@@ -33,6 +33,10 @@ describe("checkNumberTlvMapping", () => {
         expect(() => checkNumberTlvMapping(matter)).throws(/thing.*int24/i);
     });
 
+    it("accepts the root datatype declarations themselves, which are not uses", () => {
+        expect(() => checkNumberTlvMapping(MatterModel.standard)).does.not.throw();
+    });
+
     it("rejects an attribute whose type is a bitmap width with no TLV codec", () => {
         const matter = model({
             name: "Test",

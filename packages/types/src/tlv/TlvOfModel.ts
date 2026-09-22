@@ -299,7 +299,10 @@ function generateBitmap(model: ValueModel) {
 
 function findBitmapMapping(model: ValueModel): TlvSchema<unknown> | undefined {
     const metabaseName = model.metabase?.name;
-    return metabaseName ? NumberMapping[metabaseName] : undefined;
+    if (metabaseName === undefined || !Object.hasOwn(NumberMapping, metabaseName)) {
+        return undefined;
+    }
+    return NumberMapping[metabaseName];
 }
 
 function generateList(model: ValueModel) {
@@ -343,9 +346,10 @@ function findIntegerMapping(model: ValueModel): TlvSchema<unknown> | undefined {
     // Walk the type chain checking each ancestor against NumberMapping. This finds specialized
     // types like epoch-us before reaching the root primitive (uint64).
     for (let base: ValueModel | undefined = model; base; base = base.base as ValueModel | undefined) {
-        const tlv = NumberMapping[base.name];
-        if (tlv !== undefined) {
-            return tlv;
+        // An own-key test, because a model named for something on Object's prototype would otherwise take that as
+        // its codec
+        if (Object.hasOwn(NumberMapping, base.name)) {
+            return NumberMapping[base.name];
         }
     }
     return undefined;

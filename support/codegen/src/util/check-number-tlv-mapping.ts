@@ -19,10 +19,10 @@ export function checkNumberTlvMapping(matter: MatterModel) {
     const unmapped = new Array<string>();
 
     matter.visit(model => {
-        // Root datatypes such as int24 declare their metatype directly and have no `type` of their
-        // own; only a reference to one (a field, attribute, or derived datatype naming it) is a use
-        // that needs a codec.
-        if (model instanceof ValueModel && model.type !== undefined && !hasNumberTlvMapping(model)) {
+        // A root datatype such as int24 is a declaration, not a use, and needs no codec of its own. Everything that
+        // resolves through one is a use, including a field that states no type and inherits it — checking only an
+        // explicit `type` would miss those.
+        if (model instanceof ValueModel && model.metabase !== model && !hasNumberTlvMapping(model)) {
             unmapped.push(`${model.path} (type ${model.type})`);
         }
     });
