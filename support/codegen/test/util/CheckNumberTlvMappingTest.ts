@@ -33,6 +33,20 @@ describe("checkNumberTlvMapping", () => {
         expect(() => checkNumberTlvMapping(matter)).throws(/thing.*int24/i);
     });
 
+    it("names the width rather than the alias the element declares", () => {
+        const matter = model({
+            name: "Test",
+            id: 0x101,
+
+            children: [
+                { tag: "datatype", name: "WideCount", type: "int24" },
+                { tag: "attribute", name: "Thing", id: 0x1, type: "WideCount" },
+            ],
+        } as ConstructorParameters<typeof ClusterModel>[0]);
+
+        expect(() => checkNumberTlvMapping(matter)).throws(/thing.*int24/i);
+    });
+
     it("accepts the root datatype declarations themselves, which are not uses", () => {
         expect(() => checkNumberTlvMapping(MatterModel.standard)).does.not.throw();
     });

@@ -23,7 +23,9 @@ export function checkNumberTlvMapping(matter: MatterModel) {
         // resolves through one is a use, including a field that states no type and inherits it — checking only an
         // explicit `type` would miss those.
         if (model instanceof ValueModel && model.metabase !== model && !hasNumberTlvMapping(model)) {
-            unmapped.push(`${model.path} (type ${model.type})`);
+            // The resolved width, not the declaration: an alias states the alias name and an element that inherits
+            // its type states nothing, and neither says which codec is missing
+            unmapped.push(`${model.path} (${model.metabase?.name ?? "unresolved type"})`);
         }
     });
 
