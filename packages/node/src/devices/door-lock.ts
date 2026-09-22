@@ -39,16 +39,6 @@ export namespace DoorLockRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = { mandatory: { Identify: IdentifyServer, DoorLock: DoorLockServer } };
-
-    /**
-     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
-     *
-     * specification.
-     */
-    export const conditions = {
-        mandatory: { AclExtensionCond: { declaredBy: "RootNode" } },
-        optional: { TimeSyncCond: { declaredBy: "RootNode" }, TimeSyncWithClientCond: { declaredBy: "RootNode" } }
-    };
 }
 
 export const DoorLockDeviceDefinition = MutableEndpoint({

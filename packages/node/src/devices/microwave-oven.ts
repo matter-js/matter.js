@@ -150,11 +150,6 @@ export namespace MicrowaveOvenRequirements {
         },
         optional: { Identify: IdentifyServer, FanControl: FanControlServer }
     };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = { optional: { OnOffLight: { deviceType: 0x100 } } };
 }
 
 export const MicrowaveOvenDeviceDefinition = MutableEndpoint({

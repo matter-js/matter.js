@@ -103,11 +103,6 @@ export namespace SmokeCoAlarmRequirements {
             CarbonMonoxideConcentrationMeasurement: CarbonMonoxideConcentrationMeasurementServer
         }
     };
-
-    /**
-     * The device types this device type requires of its child endpoints per the Matter specification.
-     */
-    export const deviceTypes = { mandatory: { PowerSource: { deviceType: 0x11, constraint: "min 1" } } };
 }
 
 export const SmokeCoAlarmDeviceDefinition = MutableEndpoint({

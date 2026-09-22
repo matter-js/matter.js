@@ -67,13 +67,6 @@ export namespace ElectricalUtilityMeterRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = { mandatory: { MeterIdentification: MeterIdentificationServer } };
-
-    /**
-     * Conditions this device type's requirements are stated against, keyed by condition name, per the Matter
-     *
-     * specification.
-     */
-    export const conditions = { mandatory: { TimeSyncCond: { declaredBy: "RootNode" } } };
 }
 
 export const ElectricalUtilityMeterDeviceDefinition = MutableEndpoint({
