@@ -96,6 +96,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A constraint bounding a value with neither a magnitude nor a length reports `UNBOUNDABLE_TYPE`
     - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNENFORCEABLE_ENTRY_BOUND`, as nothing enforces such a bound
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
+    - Enhancement: A condition requirement records where it asserts its condition via `RequirementModel.location` (`Root`, `Self` or `Descendant`), and carries the constraint the specification states for it
+    - Enhancement: `RequirementModel.componentCountRange` states the endpoint count a component device type requirement's constraint states
+    - Enhancement: New `RequirementResolver` resolves the condition and feature names a device type requirement's conformance references, the cluster a requirement names, and the feature a feature requirement names by code or title; new `requirementApplicability()` evaluates a requirement's conformance against the names true for an endpoint
+    - Fix: A condition reference in a device type requirement's conformance is spelled as the specification declares the condition, such as `Sit | Lit`, rather than the all-caps abbreviation the conformance table uses
+    - Fix: `Conformance.validateReferences` checks a name inside optional conformance or a choice, such as `[X]` or `[X].a+`, which it previously skipped
+    - Enhancement: Model validation reports a device type requirement whose conformance names a condition or feature that does not resolve (`UNRESOLVED_CONFORMANCE_NAME`), or which requires an element its cluster does not define (`UNSATISFIABLE_REQUIREMENT`)
 
 - @matter/node
     - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
