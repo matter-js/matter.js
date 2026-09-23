@@ -63,6 +63,39 @@ describe("RequirementResolver", () => {
             expect(conditions.get("local.sit")).equals(own);
         });
 
+        it("includes conditions a base of the device type declares", () => {
+            const conditions = RequirementResolver.conditionsOf(deviceType("ElectricalMeter"));
+            expect(conditions.get("activetariff")?.parent?.name).equals("ElectricalEnergyTariff");
+        });
+
+        it("prefers the device type's own condition over its base's, and its base's over a universal one", () => {
+            const universal = new ConditionModel({ name: "Sit" });
+            const inherited = new ConditionModel({ name: "Sit" });
+            const inheritedOnly = new ConditionModel({ name: "Lit" });
+            const universalLit = new ConditionModel({ name: "Lit" });
+            const own = new ConditionModel({ name: "Sit" });
+            const parent = new DeviceTypeModel(
+                { name: "Parent", id: 0xff05, classification: "simple" },
+                inherited,
+                inheritedOnly,
+            );
+            const child = new DeviceTypeModel(
+                { name: "Child", id: 0xff06, classification: "simple", type: "Parent" },
+                own,
+            );
+            new MatterModel(
+                {},
+                new DeviceTypeModel({ name: "Base", classification: "base" }, universal, universalLit),
+                parent,
+                child,
+            );
+
+            const conditions = RequirementResolver.conditionsOf(child);
+            expect(conditions.get("sit")).equals(own);
+            expect(conditions.get("lit")).equals(inheritedOnly);
+            expect(RequirementResolver.conditionsOf(parent).get("sit")).equals(inherited);
+        });
+
         it("does not key a foreign condition unqualified", () => {
             const conditions = RequirementResolver.conditionsOf(deviceType("Refrigerator"));
             expect(conditions.has("cooler")).false;
@@ -77,8 +110,36 @@ describe("RequirementResolver", () => {
             expect(feature).ok;
             expect(RequirementResolver.conditionsOf(deviceType("ElectricalSensor")).get("node")?.name).equals("Node");
 
-            const resolved = RequirementResolver.resolve(requirement("ElectricalSensor", "PowerTopology"), "NODE");
-            expect(resolved).equals(feature);
+            // Power Topology's NODE feature against the universal Node condition, on a requirement nested in the
+            // cluster requirement
+            const nested = new RequirementModel({ name: "AvailableEndpoints", element: "attribute" });
+            new MatterModel(
+                {},
+                new DeviceTypeModel({ name: "Base", classification: "base" }, new ConditionModel({ name: "Node" })),
+                new ClusterModel(
+                    { name: "Topology", id: 0xfff3 },
+                    new AttributeModel(
+                        { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
+                        new FieldModel({ name: "NODE", constraint: "0", title: "NodeTopology" }),
+                    ),
+                ),
+                new DeviceTypeModel(
+                    { name: "Sensing", id: 0xff07, classification: "simple" },
+                    new RequirementModel({ name: "Topology", id: 0xfff3, element: "serverCluster" }, nested),
+                ),
+            );
+
+            expect(RequirementResolver.resolve(nested, "NODE")?.tag).equals("field");
+            expect(RequirementResolver.resolve(nested, "NODE")?.name).equals("NODE");
+            expect(RequirementResolver.resolve(nested, "Node")?.tag).equals("condition");
+        });
+
+        it("does not resolve a cluster requirement's own conformance against the cluster's features", () => {
+            const icd = requirement("RootNode", "IcdManagement");
+            expect(RequirementResolver.resolve(icd, "LITS")).undefined;
+            expect(RequirementResolver.resolve(requirement("ElectricalSensor", "PowerTopology"), "NODE")?.tag).equals(
+                "condition",
+            );
         });
 
         it("resolves a condition named by a cluster requirement", () => {
@@ -109,6 +170,195 @@ describe("RequirementResolver", () => {
             // Keying conditions case-insensitively is what lets conformance spell a condition as the specification's
             // tables do, and it means a name shaped like a feature still lands on a condition of that name
             expect(RequirementResolver.resolve(requirement("RootNode", "IcdManagement"), "NODE")?.name).equals("Node");
+        });
+    });
+
+    describe("endpointScopeOf", () => {
+        // Identity, not deep equality: two device types or clusters compare deeply equal regardless of name
+        function expectScope(
+            requirement: RequirementModel,
+            deviceType: DeviceTypeModel | undefined,
+            cluster: ClusterModel | undefined,
+        ) {
+            const scope = RequirementResolver.endpointScopeOf(requirement);
+            expect(scope.deviceType).equals(deviceType);
+            expect(scope.cluster).equals(cluster);
+        }
+
+        /**
+         * An outer device type requiring a component, each declaring a condition of its own, and a cluster whose
+         * feature the requirements may name.
+         */
+        function composite(componentId = 0xff11) {
+            const model = {
+                clientNested: new RequirementModel({ name: "OnTime", element: "attribute" }),
+                serverNested: new RequirementModel({ name: "OnTime", element: "attribute" }),
+                componentNested: new RequirementModel({ name: "OnTime", element: "attribute" }),
+                unknownClusterNested: new RequirementModel({ name: "OnTime", element: "attribute" }),
+            };
+            const clientCluster = new RequirementModel(
+                { name: "Scoped", id: 0xfff4, element: "clientCluster" },
+                model.clientNested,
+            );
+            const serverCluster = new RequirementModel(
+                { name: "Scoped", id: 0xfff4, element: "serverCluster" },
+                model.serverNested,
+            );
+            const componentCluster = new RequirementModel(
+                { name: "Scoped", id: 0xfff4, element: "serverCluster" },
+                model.componentNested,
+            );
+            const unknownCluster = new RequirementModel(
+                { name: "NoSuchCluster", id: 0xfff9, element: "serverCluster" },
+                model.unknownClusterNested,
+            );
+            const component = new RequirementModel(
+                { name: "Component", id: componentId, element: "deviceType" },
+                componentCluster,
+            );
+            const cluster = new ClusterModel(
+                { name: "Scoped", id: 0xfff4 },
+                new AttributeModel(
+                    { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
+                    new FieldModel({ name: "LT", constraint: "0", title: "Lighting" }),
+                ),
+                new AttributeModel({ name: "OnTime", id: 0x4001, type: "uint16" }),
+            );
+            const componentType = new DeviceTypeModel(
+                { name: "Component", id: 0xff11, classification: "simple" },
+                new ConditionModel({ name: "ComponentCond" }),
+            );
+            const outer = new DeviceTypeModel(
+                { name: "Outer", id: 0xff12, classification: "simple" },
+                new ConditionModel({ name: "OuterCond" }),
+                clientCluster,
+                serverCluster,
+                unknownCluster,
+                component,
+            );
+            new MatterModel(
+                {},
+                new DeviceTypeModel({ name: "Base", classification: "base" }, new ConditionModel({ name: "Sit" })),
+                cluster,
+                componentType,
+                outer,
+            );
+
+            return {
+                ...model,
+                clientCluster,
+                serverCluster,
+                componentCluster,
+                unknownCluster,
+                component,
+                cluster,
+                componentType,
+                outer,
+            };
+        }
+
+        it("answers the owning device type and no cluster for a cluster requirement", () => {
+            const { serverCluster, outer } = composite();
+            expectScope(serverCluster, outer, undefined);
+        });
+
+        it("answers the enclosing server cluster for a nested requirement", () => {
+            const { serverNested, outer, cluster } = composite();
+            expectScope(serverNested, outer, cluster);
+        });
+
+        it("answers the enclosing client cluster for a nested requirement", () => {
+            const { clientNested, outer, cluster } = composite();
+            expectScope(clientNested, outer, cluster);
+        });
+
+        it("answers the component device type for a requirement nested in a component requirement", () => {
+            const { componentCluster, componentNested, componentType, cluster } = composite();
+            expectScope(componentCluster, componentType, undefined);
+            expectScope(componentNested, componentType, cluster);
+        });
+
+        it("answers the owning device type for a component requirement itself", () => {
+            const { component, outer } = composite();
+            expect(RequirementResolver.endpointScopeOf(component).deviceType).equals(outer);
+        });
+
+        it("answers no device type for a component the model does not define", () => {
+            const { componentCluster } = composite(0xfffe);
+            expect(RequirementResolver.endpointScopeOf(componentCluster).deviceType).undefined;
+        });
+
+        it("answers no cluster for a cluster the model does not define", () => {
+            const { unknownClusterNested, outer } = composite();
+            expectScope(unknownClusterNested, outer, undefined);
+        });
+
+        it("answers nothing for a requirement in no device type", () => {
+            expectScope(new RequirementModel({ name: "OnOff", element: "serverCluster" }), undefined, undefined);
+        });
+
+        it("answers the component device type of real data", () => {
+            const sensor = deviceType("BatteryStorage").requirements.find(child => child.name === "ElectricalSensor");
+            const measurement = sensor?.requirements.find(child => child.name === "ElectricalPowerMeasurement");
+            expect(measurement).instanceof(RequirementModel);
+            expect(RequirementResolver.endpointScopeOf(measurement!).deviceType).equals(deviceType("ElectricalSensor"));
+        });
+
+        describe("resolve", () => {
+            it("resolves a feature of the enclosing client cluster", () => {
+                const { clientNested, cluster } = composite();
+                expect(RequirementResolver.resolve(clientNested, "LT")).equals(cluster.features[0]);
+            });
+
+            it("resolves the component's conditions below a component requirement, not the outer device type's", () => {
+                const { componentCluster, componentType } = composite();
+                expect(RequirementResolver.resolve(componentCluster, "ComponentCond")?.parent).equals(componentType);
+                expect(RequirementResolver.resolve(componentCluster, "OuterCond")).undefined;
+                expect(RequirementResolver.resolve(componentCluster, "Sit")?.name).equals("Sit");
+            });
+
+            it("resolves the outer device type's conditions on a component requirement itself", () => {
+                const { component, outer } = composite();
+                expect(RequirementResolver.resolve(component, "OuterCond")?.parent).equals(outer);
+                expect(RequirementResolver.resolve(component, "ComponentCond")).undefined;
+            });
+
+            it("resolves only universal and qualified names below a component the model does not define", () => {
+                const { componentCluster } = composite(0xfffe);
+                expect(RequirementResolver.resolve(componentCluster, "Sit")?.name).equals("Sit");
+                expect(RequirementResolver.resolve(componentCluster, "OuterCond")).undefined;
+                expect(RequirementResolver.resolve(componentCluster, ["Outer", "OuterCond"])?.name).equals("OuterCond");
+            });
+
+            it("resolves a condition a base of the device type declares", () => {
+                const meter = deviceType("ElectricalMeter").requirements[0];
+                expect(RequirementResolver.resolve(meter, "ActiveTariff")?.parent?.name).equals(
+                    "ElectricalEnergyTariff",
+                );
+            });
+        });
+
+        describe("clusterOf", () => {
+            it("answers the cluster a cluster requirement names", () => {
+                const { serverCluster, cluster } = composite();
+                expect(RequirementResolver.clusterOf(serverCluster)).equals(cluster);
+            });
+
+            it("answers the cluster enclosing a nested requirement", () => {
+                const { clientNested, cluster } = composite();
+                expect(RequirementResolver.clusterOf(clientNested)).equals(cluster);
+            });
+
+            it("answers nothing for a cluster the model does not define", () => {
+                const { unknownCluster, unknownClusterNested } = composite();
+                expect(RequirementResolver.clusterOf(unknownClusterNested)).undefined;
+                expect(RequirementResolver.clusterOf(unknownCluster)).undefined;
+            });
+
+            it("answers nothing for a requirement outside a cluster requirement", () => {
+                const { component } = composite();
+                expect(RequirementResolver.clusterOf(component)).undefined;
+            });
         });
     });
 
@@ -153,7 +403,7 @@ describe("RequirementResolver", () => {
             expect(RequirementResolver.featureOf(featureRequirement("NOSUCHFEATURE"))).undefined;
         });
 
-        it("answers nothing for a requirement that is no feature requirement", () => {
+        it("answers nothing for a requirement that is not a feature requirement", () => {
             expect(RequirementResolver.featureOf(featureRequirement("LITS", "attribute"))).undefined;
         });
     });
@@ -180,7 +430,7 @@ describe("RequirementResolver", () => {
             expect(RequirementResolver.conditionNameOf(asserting.requirements[0])).equals("Sit");
         });
 
-        it("answers nothing for a requirement that is no condition", () => {
+        it("answers nothing for a requirement that is not a condition requirement", () => {
             expect(RequirementResolver.conditionNameOf(requirement("RootNode", "IcdManagement"))).undefined;
         });
 

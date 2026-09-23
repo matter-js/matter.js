@@ -15,89 +15,129 @@ import {
     Model,
     RequirementModel,
 } from "../models/index.js";
+import { ModelTraversal } from "./ModelTraversal.js";
 
 /**
  * Resolves the names a device type requirement's conformance references.
  *
  * A device type declares conditions its requirements may then name, and a requirement inside a cluster requirement may
- * also name a feature of that cluster.  The definition validator and runtime validation both resolve names here, so
- * the two cannot disagree on what a name means.
+ * also name a feature of that cluster. Every name resolves in the {@link EndpointScope} of the requirement, the scope
+ * of the endpoint the requirement describes.
+ *
+ * Names resolve regardless of case. That is what lets a caller find the declared spelling of a name the
+ * specification's conformance tables spell in another case; whether a name is spelled as declared is a separate
+ * question, which model validation answers.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
 export namespace RequirementResolver {
+    /**
+     * The scope of the endpoint a requirement describes, in which the names of its conformance resolve.
+     */
+    export interface EndpointScope {
+        /**
+         * The device type of the endpoint: the component device type for a requirement nested in a component
+         * requirement, otherwise the device type that owns the requirement. Undefined when the requirement belongs to
+         * no device type, or when the model does not define the component device type.
+         */
+        deviceType?: DeviceTypeModel;
+
+        /**
+         * The cluster whose features the conformance may name: the cluster of the cluster requirement a requirement
+         * is nested in. Undefined for a cluster requirement's own conformance, because the cluster's features cannot
+         * decide whether the cluster is required, and when the model does not define the cluster.
+         */
+        cluster?: ClusterModel;
+    }
+
+    /**
+     * The {@link EndpointScope} of a requirement.
+     *
+     * A requirement's own conformance decides whether the requirement applies to its enclosing endpoint, so the scope
+     * derives from the requirement's ancestors only.
+     */
+    export function endpointScopeOf(requirement: RequirementModel): EndpointScope {
+        const matter = requirement.owner(MatterModel);
+        const scope: EndpointScope = {};
+        let clusterFound = false;
+
+        for (let model = requirement.parent; model !== undefined; model = model.parent) {
+            if (model instanceof DeviceTypeModel) {
+                scope.deviceType = model;
+                break;
+            }
+
+            if (!(model instanceof RequirementModel)) {
+                break;
+            }
+
+            if (!clusterFound && isClusterRequirement(model)) {
+                clusterFound = true;
+                scope.cluster = clusterNamedBy(matter, model);
+                continue;
+            }
+
+            if (model.element === RequirementElement.ElementType.DeviceType) {
+                scope.deviceType = matter?.deviceTypes(model.id ?? model.name);
+                break;
+            }
+        }
+
+        return scope;
+    }
+
     /**
      * Every condition the requirements of {@link deviceType} may name, keyed by lowercased name.
      *
      * The model spells a condition as the specification declares it but references it as the specification's
      * conformance tables spell it, which is not always the same case, so names are keyed case-insensitively.
      *
-     * A condition is keyed unqualified when the device type itself declares it, or when it is universal (declared by
-     * the base device type).  Every condition is keyed as `declarer.name` as well, because a requirement asserting a
-     * foreign device type's condition names it that way.
+     * A condition is keyed unqualified when the device type or one of its bases declares it, or when it is universal
+     * (declared by the base device type). The device type's own conditions win over its bases', and those win over
+     * universal ones. Every condition is keyed as `declarer.name` as well, because a requirement asserting a foreign
+     * device type's condition names it that way.
      */
     export function conditionsOf(deviceType: DeviceTypeModel): Map<string, ConditionModel> {
-        const conditions = new Map<string, ConditionModel>();
-
-        for (const declarer of deviceType.owner(MatterModel)?.deviceTypes ?? []) {
-            for (const condition of declarer.all(ConditionModel)) {
-                conditions.set(qualifiedKey(declarer, condition), condition);
-                if (declarer.classification === DeviceClassification.Base) {
-                    conditions.set(condition.name.toLowerCase(), condition);
-                }
-            }
-        }
-
-        // Last, so a condition the device type declares itself wins over a universal one of the same name
-        for (const condition of deviceType.all(ConditionModel)) {
-            conditions.set(condition.name.toLowerCase(), condition);
-            conditions.set(qualifiedKey(deviceType, condition), condition);
-        }
-
-        return conditions;
+        return conditionsIn(deviceType.owner(MatterModel), deviceType);
     }
 
     /**
-     * Resolve one name a requirement's conformance references.  A qualified name arrives as its segments.
+     * Resolve one name a requirement's conformance references, in the requirement's {@link EndpointScope}. A
+     * qualified name arrives as its segments.
      */
     export function resolve(requirement: RequirementModel, name: string | string[]): Model | undefined {
         const segments = typeof name === "string" ? [name] : name;
+        const { deviceType, cluster } = endpointScopeOf(requirement);
 
         // A feature wins over a condition of the same name, because inside a cluster requirement a name that the
-        // cluster defines states what the cluster supports
+        // cluster defines states what the cluster supports. Features are named in upper case where conditions are
+        // not, so an exact match is what keeps a feature and a condition of the same spelling apart
         if (segments.length === 1) {
-            const feature = featureNamed(requirement, segments[0]);
+            const feature = cluster?.features.find(feature => feature.name === segments[0]);
             if (feature !== undefined) {
                 return feature;
             }
         }
 
-        const deviceType = requirement.owner(DeviceTypeModel);
-        if (deviceType === undefined) {
-            return undefined;
-        }
-
-        return conditionsOf(deviceType).get(segments.join(".").toLowerCase());
+        return conditionsIn(requirement.owner(MatterModel), deviceType).get(segments.join(".").toLowerCase());
     }
 
     /**
      * The cluster a requirement belongs to: the one a cluster requirement names, or the one enclosing a requirement
-     * nested in a cluster requirement.  Undefined for any other requirement or a cluster the model does not define.
+     * nested in a cluster requirement. Undefined for any other requirement or a cluster the model does not define.
      */
     export function clusterOf(requirement: RequirementModel): ClusterModel | undefined {
-        const clusterRequirement = clusterRequirementOf(requirement);
-        if (clusterRequirement === undefined) {
-            return undefined;
+        if (isClusterRequirement(requirement)) {
+            return clusterNamedBy(requirement.owner(MatterModel), requirement);
         }
-
-        return requirement.owner(MatterModel)?.clusters(clusterRequirement.id ?? clusterRequirement.name);
+        return endpointScopeOf(requirement).cluster;
     }
 
     /**
-     * The feature of its cluster that a feature requirement names, or undefined if it names none or is no feature
+     * The feature of its cluster that a feature requirement names, or undefined if it names none or is not a feature
      * requirement.
      *
-     * A requirement names a feature by its code or by its title in any case and spacing.  The title match holds only
+     * A requirement names a feature by its code or by its title in any case and spacing. The title match holds only
      * while requirement names are not canonicalized to feature codes.
      */
     export function featureOf(requirement: RequirementModel): FieldModel | undefined {
@@ -105,7 +145,7 @@ export namespace RequirementResolver {
             return undefined;
         }
 
-        const features = clusterOf(requirement)?.features;
+        const features = endpointScopeOf(requirement).cluster?.features;
         if (features === undefined) {
             return undefined;
         }
@@ -121,7 +161,8 @@ export namespace RequirementResolver {
     }
 
     /**
-     * The canonical name a condition requirement asserts, or undefined for a requirement that is no condition.
+     * The canonical name a condition requirement asserts, or undefined for a requirement that is not a condition
+     * requirement.
      *
      * The name of the condition it resolves to, so conformance referencing the condition in another case still matches.
      * A requirement that resolves to no condition answers its own name, which lets validation report the name the
@@ -138,31 +179,55 @@ export namespace RequirementResolver {
     }
 }
 
-function qualifiedKey(declarer: DeviceTypeModel, condition: ConditionModel) {
-    return `${declarer.name}.${condition.name}`.toLowerCase();
+function conditionsIn(matter: MatterModel | undefined, deviceType: DeviceTypeModel | undefined) {
+    const conditions = new Map<string, ConditionModel>();
+
+    for (const declarer of matter?.deviceTypes ?? []) {
+        for (const condition of declarer.all(ConditionModel)) {
+            conditions.set(qualifiedKey(declarer, condition), condition);
+            if (declarer.classification === DeviceClassification.Base) {
+                conditions.set(condition.name.toLowerCase(), condition);
+            }
+        }
+    }
+
+    if (deviceType === undefined) {
+        return conditions;
+    }
+
+    const lineage = new Array<DeviceTypeModel>();
+    new ModelTraversal().visitInheritance(deviceType, model => {
+        if (model instanceof DeviceTypeModel) {
+            lineage.push(model);
+        }
+    });
+
+    // Farthest base first, so a nearer declaration of the same name overwrites it
+    for (const declarer of lineage.reverse()) {
+        for (const condition of declarer.all(ConditionModel)) {
+            conditions.set(condition.name.toLowerCase(), condition);
+            conditions.set(qualifiedKey(declarer, condition), condition);
+        }
+    }
+
+    return conditions;
 }
 
-/**
- * The feature of the cluster a requirement qualifies.  Features are named in upper case where conditions are not, so
- * an exact match is what keeps a feature and a condition of the same spelling apart.
- */
-function featureNamed(requirement: RequirementModel, name: string): FieldModel | undefined {
-    return RequirementResolver.clusterOf(requirement)?.features.find(feature => feature.name === name);
+function qualifiedKey(declarer: DeviceTypeModel, condition: ConditionModel) {
+    return `${declarer.name}.${condition.name}`.toLowerCase();
 }
 
 function titleKey(title: string | undefined) {
     return title?.toLowerCase().replace(/\s/g, "");
 }
 
-function clusterRequirementOf(requirement: RequirementModel): RequirementModel | undefined {
-    for (let model: Model | undefined = requirement; model instanceof RequirementModel; model = model.parent) {
-        if (
-            model.element === RequirementElement.ElementType.ServerCluster ||
-            model.element === RequirementElement.ElementType.ClientCluster
-        ) {
-            return model;
-        }
-    }
+function isClusterRequirement(requirement: RequirementModel) {
+    return (
+        requirement.element === RequirementElement.ElementType.ServerCluster ||
+        requirement.element === RequirementElement.ElementType.ClientCluster
+    );
+}
 
-    return undefined;
+function clusterNamedBy(matter: MatterModel | undefined, clusterRequirement: RequirementModel) {
+    return matter?.clusters(clusterRequirement.id ?? clusterRequirement.name);
 }
