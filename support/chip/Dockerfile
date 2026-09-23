@@ -159,6 +159,10 @@ RUN build-one camera-app/linux chip-camera-app chip-camera-app treat_warnings_as
 RUN build-one ota-provider-app/linux chip-ota-provider-app
 RUN build-one ota-requestor-app/linux chip-ota-requestor-app
 
+# TC-TBRM-3.1's TH, a Thread border router with a fake Thread stack behind it. Kept under CHIP's own name,
+# which the chip-cert-bins image uses too
+RUN build-one network-manager-app/linux matter-network-manager-app
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
