@@ -72,6 +72,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node
+    - Documentation: `ClientNode`, `Peers.get` and `ClientNodeStores.allocateId` say how long a `PeerAddress` names the same device, and `ControllerBehavior.allocatePeerAddress` states when an address of a removed peer can be issued to another one
     - Enhancement: An OTA requestor's wait before querying a provider that announced an update can be set through `announcedUpdateQueryDelay`, so a node alone with its provider can shorten the random window the specification prefers
     - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
     - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
