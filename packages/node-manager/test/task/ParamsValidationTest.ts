@@ -82,6 +82,16 @@ describe("built-in task parameter validation", () => {
         );
     });
 
+    it("refuses a group id the device path would reject", () => {
+        // GroupKeyMap carries application group ids only; the universal groups at the top of the range are
+        // addressed, not administered. Admitting one here would fail at the first device write instead.
+        for (const groupId of [0xff00, 0xfffe, 0xffff]) {
+            refuses(AddNodeToGroup, ADD, { groupId });
+            refuses(RemoveNodeFromGroup, REMOVE, { groupId });
+        }
+        expect(() => AddNodeToGroup.validate?.({ ...ADD, groupId: 0xfeff })).not.throws();
+    });
+
     it("refuses malformed RemoveNodeFromGroup parameters", () => {
         refuses(RemoveNodeFromGroup, REMOVE, { peer: undefined, endpoint: "1", groupId: null });
     });

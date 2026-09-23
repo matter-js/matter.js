@@ -51,7 +51,7 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
         Require.params(ADD_NODE_TO_GROUP_TYPE, params);
         Require.peer("peer", params.peer);
         Require.endpoint("endpoint", params.endpoint);
-        Require.id("groupId", params.groupId, 0xffff);
+        Require.groupId("groupId", params.groupId);
         Require.id("groupKeySetId", params.groupKeySetId, 0xffff);
         Require.oneOf("groupKeySecurityPolicy", params.groupKeySecurityPolicy, SECURITY_POLICIES);
         if (params.groupName !== undefined) {
