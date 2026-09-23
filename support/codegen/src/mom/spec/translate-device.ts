@@ -195,6 +195,7 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
         deviceTypeName: Optional(Alias(Identifier, "devicetypename")),
         name: Alias(Identifier, "condition"),
         conformance: Optional(ConformanceCode),
+        constraint: Optional(ConstraintStr),
     });
 
     if (!records.length) {
@@ -212,11 +213,33 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
             type: qualifiedType,
             element: RequirementElement.ElementType.Condition,
             conformance: r.conformance,
+            constraint: r.constraint,
+            location: locationOf(r.location, r.name),
             xref: r.xref,
             details: r.details,
         });
 
         device.children.push(element);
+    }
+}
+
+// The specification names the location in three vocabularies that disagree; "Child" and "Descendant"
+// both denote an endpoint below the asserting one
+function locationOf(location: string | undefined, name: string) {
+    switch (location?.toLowerCase()) {
+        case undefined:
+            return undefined;
+        case "root":
+        case "root node":
+            return RequirementElement.Location.Root;
+        case "self":
+            return RequirementElement.Location.Self;
+        case "child":
+        case "descendant":
+            return RequirementElement.Location.Descendant;
+        default:
+            logger.warn(`Condition requirement ${name} states unknown location "${location}"`);
+            return undefined;
     }
 }
 

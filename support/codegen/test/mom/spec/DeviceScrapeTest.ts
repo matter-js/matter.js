@@ -316,3 +316,92 @@ describe("scrape of a device type chapter", () => {
         expect(countdownTime.xref).deep.equal({ document: "device", section: "8.5.6.1" });
     });
 });
+
+describe("scrape of a condition requirement", () => {
+    const OvenChapter = `
+# 11. Appliance Device Types
+
+## 11.1. Oven Device Type
+
+An Oven cooks food.
+
+## 11.1.1. Revision History
+
+| Revision | Description |
+| --- | --- |
+| 1 | Initial revision |
+
+## 11.1.2. Classification
+
+| Device Type ID | Device Type Name | Class | Scope |
+| --- | --- | --- | --- |
+| 0x007B | Oven | Simple | Endpoint |
+
+## 11.1.3. Condition Requirements
+
+| Location   | Device Type ID | Device Type Name               | Condition | Conformance | Constraint |
+| --- | --- | --- | --- | --- | --- |
+| Descendant | 0x0071         | Temperature Controlled Cabinet | Heater    | M           | min 1      |
+`;
+
+    const ToasterChapter = `
+# 12. Appliance Device Types
+
+## 12.1. Toaster Device Type
+
+A Toaster toasts bread.
+
+## 12.1.1. Revision History
+
+| Revision | Description |
+| --- | --- |
+| 1 | Initial revision |
+
+## 12.1.2. Classification
+
+| Device Type ID | Device Type Name | Class | Scope |
+| --- | --- | --- | --- |
+| 0x007C | Toaster | Simple | Endpoint |
+
+## 12.1.3. Condition Requirements
+
+| Device Type ID | Device Type Name               | Condition | Conformance |
+| --- | --- | --- | --- |
+| 0x0071 | Temperature Controlled Cabinet | Heater | M |
+`;
+
+    function scrapeDevices(markdownContent: string) {
+        const document: SpecReference = {
+            xref: { document: "device", section: "" },
+            name: "Device Library",
+            path: "device_library.md",
+            markdownContent,
+        };
+
+        let devices = Array<DeviceTypeElement>();
+        const messages = captured(() => {
+            devices = [...loadDevices(document)].flatMap(deviceRef => [...translateDevice(deviceRef)]);
+        });
+        return { devices, messages };
+    }
+
+    it("keeps the location and constraint of a condition requirement", () => {
+        const { devices } = scrapeDevices(OvenChapter);
+        const requirement = childNamed(devices[0], "Heater") as RequirementElement;
+
+        expect(requirement.location).equals("Descendant");
+        expect(requirement.constraint).equals("min 1");
+        expect(requirement.type).equals("TemperatureControlledCabinet.Heater");
+    });
+
+    it("leaves location undefined and silent when the table has no Location column", () => {
+        const { devices, messages } = scrapeDevices(ToasterChapter);
+        const requirement = childNamed(devices[0], "Heater") as RequirementElement;
+
+        expect(requirement.location).undefined;
+        expect(
+            messages.some(message => message.includes("unknown location")),
+            messages.join("\n"),
+        ).false;
+    });
+});
