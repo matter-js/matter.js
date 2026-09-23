@@ -168,6 +168,14 @@ function childNamed(element: { children?: unknown[] }, name: string) {
     return (element.children as Array<{ name: string }> | undefined)?.find(child => child.name === name);
 }
 
+function requirementNamed(element: DeviceTypeElement | RequirementElement, name: string): RequirementElement {
+    const child = element.children?.find(child => child.name === name);
+    if (child?.tag !== "requirement") {
+        expect.fail(`${element.name} has no requirement ${name}`);
+    }
+    return child;
+}
+
 describe("scrape of the Base device type", () => {
     const BaseChapter = `
 # 1. Base Device Type
@@ -304,15 +312,15 @@ describe("scrape of a device type chapter", () => {
     });
 
     it("gives an element requirement the section its table came from", () => {
-        const descriptor = childNamed(scrapeClosure(), "Descriptor") as RequirementElement;
-        const tagList = childNamed(descriptor, "TAGLIST") as RequirementElement;
+        const descriptor = requirementNamed(scrapeClosure(), "Descriptor");
+        const tagList = requirementNamed(descriptor, "TAGLIST");
         expect(tagList.xref).deep.equal({ document: "device", section: "8.5.5" });
     });
 
     it("gives a component device type's element requirement the section its table came from", () => {
-        const panel = childNamed(scrapeClosure(), "ClosurePanel") as RequirementElement;
-        const control = childNamed(panel, "ClosureControl") as RequirementElement;
-        const countdownTime = childNamed(control, "CountdownTime") as RequirementElement;
+        const panel = requirementNamed(scrapeClosure(), "ClosurePanel");
+        const control = requirementNamed(panel, "ClosureControl");
+        const countdownTime = requirementNamed(control, "CountdownTime");
         expect(countdownTime.xref).deep.equal({ document: "device", section: "8.5.6.1" });
     });
 });
@@ -387,7 +395,7 @@ A Toaster toasts bread.
 
     it("keeps the location and constraint of a condition requirement", () => {
         const { devices } = scrapeDevices(OvenChapter);
-        const requirement = childNamed(devices[0], "Heater") as RequirementElement;
+        const requirement = requirementNamed(devices[0], "Heater");
 
         expect(requirement.location).equals("Descendant");
         expect(requirement.constraint).equals("min 1");
@@ -396,7 +404,7 @@ A Toaster toasts bread.
 
     it("leaves location undefined and silent when the table has no Location column", () => {
         const { devices, messages } = scrapeDevices(ToasterChapter);
-        const requirement = childNamed(devices[0], "Heater") as RequirementElement;
+        const requirement = requirementNamed(devices[0], "Heater");
 
         expect(requirement.location).undefined;
         expect(
@@ -446,13 +454,13 @@ A Probe senses one quantity.
             ["AtChild", "Descendant"],
         ] as const) {
             it(`normalizes a "${name}" row's location to ${expected}`, () => {
-                const requirement = childNamed(device, name) as RequirementElement;
+                const requirement = requirementNamed(device, name);
                 expect(requirement.location).equals(expected);
             });
         }
 
         it("leaves an unrecognized location undefined and names the device type and condition in the warning", () => {
-            const requirement = childNamed(device, "AtNowhere") as RequirementElement;
+            const requirement = requirementNamed(device, "AtNowhere");
 
             expect(requirement.location).undefined;
             expect(

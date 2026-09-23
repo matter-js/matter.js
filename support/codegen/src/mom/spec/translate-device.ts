@@ -223,8 +223,8 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
     }
 }
 
-// The specification names the location in three vocabularies that disagree; "Child" and "Descendant"
-// both denote an endpoint below the asserting one
+// The specification spells the three locations more than one way: "Root Node" means Root, and "Child" means
+// Descendant, an endpoint below the asserting one
 function locationOf(location: string | undefined, deviceName: string, name: string) {
     switch (location?.toLowerCase()) {
         case undefined:
