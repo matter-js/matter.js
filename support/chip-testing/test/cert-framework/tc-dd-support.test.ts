@@ -212,6 +212,7 @@ function contextWith(
     const cx: CertStepContext = {
         controllers: { dut },
         devices: {},
+        picsMet: () => true,
         recorder: {
             beginStep() {},
             check(record) {
@@ -1124,6 +1125,7 @@ class UnpairFixture {
         this.cx = {
             devices: { th: device },
             controllers: { dut: controller },
+            picsMet: () => true,
             recorder: {
                 beginStep: () => {},
                 check: record => void this.checks.push(record),

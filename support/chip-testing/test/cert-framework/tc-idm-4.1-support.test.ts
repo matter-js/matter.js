@@ -146,6 +146,7 @@ class Fixture {
         this.cx = {
             devices: { th: device },
             controllers: { dut: controller },
+            picsMet: () => true,
             recorder: {
                 beginStep: () => {},
                 check: record => void this.checks.push(record),

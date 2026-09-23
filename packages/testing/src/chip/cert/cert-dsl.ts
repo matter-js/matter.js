@@ -25,6 +25,7 @@ import {
     CertDeviceFactory,
     CertStepContext,
     CertStepDefinition,
+    CertStepWiring,
     CertTestDefinition,
     DeviceFlavor,
     SelectableDeviceFlavor,
@@ -700,7 +701,7 @@ class WiredCertTest extends CertTest {
     #primaryRole: string;
     #controllerRoles: Record<string, "dut" | "helper">;
     #deviceRoles: Record<string, string>;
-    #cx?: CertStepContext;
+    #cx?: CertStepWiring;
     /** Held apart from {@link #cx} so teardown does not depend on how long the context lives. */
     #openControllers: Record<string, ControllerAdapter> = {};
     #extraDevices = new Array<CertDevice>();
@@ -753,14 +754,14 @@ class WiredCertTest extends CertTest {
         return this.#flavor;
     }
 
-    protected override contextFor(_subject: Subject): CertStepContext {
+    protected override contextFor(_subject: Subject): CertStepWiring {
         if (!this.#cx) {
             throw new Error("WiredCertTest.contextFor() called outside invoke()");
         }
         return this.#cx;
     }
 
-    async #buildContext(subject: Subject): Promise<CertStepContext> {
+    async #buildContext(subject: Subject): Promise<CertStepWiring> {
         if (!isCertDevice(subject)) {
             throw new Error(
                 `Cert-test subject for "${this.descriptor.name}" does not implement CertDevice ` +

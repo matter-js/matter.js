@@ -210,7 +210,26 @@ export interface CertStepContext {
     controllers: Record<string, ControllerAdapter>;
     devices: Record<string, CertDevice>;
     recorder: StepRecorder;
+
+    /**
+     * Whether a PICS expression holds for this run, against the same PICS a step's own `pics` gate
+     * reads.
+     *
+     * For a plan step whose expected outcome depends on a PICS answer ("IF (X) … Otherwise …"): the
+     * step runs either way, and its check needs to know which outcome it is owed. A malformed
+     * expression throws, and so does a run with no active PICS, where a gate would treat every
+     * expression as met.
+     */
+    picsMet(expression: string): boolean;
 }
+
+/**
+ * What a run's wiring provides before {@link CertTest} adds what only it can answer.
+ *
+ * {@link CertStepContext.picsMet} rests on the PICS the run resolves once it starts, so the wiring cannot
+ * supply it.
+ */
+export type CertStepWiring = Omit<CertStepContext, "picsMet">;
 
 /**
  * A single step of a cert test plan.

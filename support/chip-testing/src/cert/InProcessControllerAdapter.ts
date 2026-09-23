@@ -1448,7 +1448,23 @@ class InProcessCertNodeApi implements CertNodeApi {
                     );
                 }
 
-                return { announcement, exchanges: (await recording?.read()) ?? emptyOtaExchanges() };
+                let observedMs = 0;
+                if (recording !== undefined && options?.observeMs !== undefined) {
+                    const observingSince = Time.nowUs;
+
+                    // A timer may fire a fraction of a millisecond before the monotonic clock says it is
+                    // due, and the window a caller checks has to have been covered in full
+                    while (observedMs < options.observeMs) {
+                        await Time.sleep("cert OTA observation", Millis(Math.ceil(options.observeMs - observedMs)));
+                        observedMs = Time.nowUs - observingSince;
+                    }
+                }
+
+                return {
+                    announcement,
+                    exchanges: (await recording?.read()) ?? emptyOtaExchanges(),
+                    observedMs,
+                };
             } finally {
                 recording?.close();
             }

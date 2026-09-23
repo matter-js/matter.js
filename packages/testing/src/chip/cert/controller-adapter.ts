@@ -546,6 +546,16 @@ export interface AnnounceOtaProviderOptions {
      * free to wait out its own query interval, so a case waiting on the query has to say it means that.
      */
     announcementReason?: number;
+
+    /**
+     * How long to keep recording, in milliseconds, for a case asserting what the node did *not* send in
+     * that window. It starts once the node's `QueryImage` was answered, or at the announcement where
+     * {@link expectQuery} is `false`.
+     *
+     * Absent, the record is read at once. Where {@link provider} names another node there is no record
+     * to keep, so nothing is waited for.
+     */
+    observeMs?: number;
 }
 
 /** The `AnnounceOTAProvider` a controller sent, as the fields it put on the wire (§ 11.20.7.6). */
@@ -572,6 +582,14 @@ export interface OtaAnnouncement {
      * the requestor deals with that node directly, and nothing of the exchange passes through here.
      */
     exchanges: OtaProviderExchanges;
+
+    /**
+     * How long the record was kept open after the point {@link AnnounceOtaProviderOptions.observeMs}
+     * counts from, in milliseconds: at least what was asked for, and zero where nothing was observed —
+     * no `observeMs`, or another node announced as the provider. A claim that nothing arrived in a
+     * window holds only for the window this covers.
+     */
+    observedMs: number;
 }
 
 /** Options for {@link CertNodeApi.serveOtaUpdate}. */

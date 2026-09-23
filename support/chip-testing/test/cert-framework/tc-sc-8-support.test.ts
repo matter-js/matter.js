@@ -126,6 +126,7 @@ async function withDut<T>(
     const cx: CertStepContext = {
         controllers: {},
         devices: { dut },
+        picsMet: () => true,
         recorder: {
             beginStep() {},
             check(record) {
@@ -617,6 +618,7 @@ describe("recordSeveredSession", () => {
         const cx: CertStepContext = {
             controllers: { th },
             devices: { dut },
+            picsMet: () => true,
             recorder: {
                 beginStep() {},
                 check(record) {

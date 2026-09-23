@@ -92,6 +92,7 @@ function fakeContext(dutLog?: LogFollower): { cx: CertStepContext; checks: Check
         cx: {
             controllers: { dut },
             devices: {},
+            picsMet: () => true,
             recorder: {
                 beginStep() {},
                 check(record) {

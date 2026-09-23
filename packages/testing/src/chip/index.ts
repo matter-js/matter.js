@@ -14,6 +14,7 @@ export type {
     CertDeviceFactory,
     CertStepContext,
     CertStepDefinition,
+    CertStepWiring,
     CertTestDefinition,
     CheckRecord,
     DeviceExitInfo,
@@ -36,7 +37,7 @@ export { subjectFactoryFor } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. The gate `certTest()` applies before a test's device starts. */
 export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
-export { CertTest } from "./cert/cert-test.js";
+export { CertTest, PicsUnansweredError } from "./cert/cert-test.js";
 /** @internal Test seam — not API. The wired test a `certTest()` declaration registered. */
 export { createRegisteredCertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
