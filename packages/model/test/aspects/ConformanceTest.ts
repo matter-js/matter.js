@@ -15,7 +15,7 @@ import {
     RequirementElement,
 } from "#elements/index.js";
 import { ValidateModel } from "#logic/ValidateModel.js";
-import { MatterModel } from "#models/index.js";
+import { ConditionModel, MatterModel } from "#models/index.js";
 
 const TEST_DEFINITIONS = [
     "M",
@@ -200,6 +200,27 @@ describe("Conformance", () => {
         it("resolves enum field == value in OR expression", () => {
             const orExpr = validate().filter(e => e.source?.includes("maxPreRollLenOr"));
             expect(orExpr).deep.equal([]);
+        });
+    });
+
+    describe("comparison whose left side is not a value", () => {
+        function unresolvedIn(definition: string) {
+            const declared = new ConditionModel({ name: "Declared" });
+            const errors = new Array<string>();
+            new Conformance(definition).validateReferences({ error: (_code, message) => errors.push(message) }, name =>
+                name === "Declared" ? declared : undefined,
+            );
+            return errors;
+        }
+
+        it("resolves the right side through the resolver", () => {
+            expect(unresolvedIn("Declared == Declared")).deep.equals([]);
+        });
+
+        it("reports a right side the resolver does not know", () => {
+            expect(unresolvedIn("Declared != Other")).deep.equals([
+                'Conformance name reference "Other" does not resolve',
+            ]);
         });
     });
 

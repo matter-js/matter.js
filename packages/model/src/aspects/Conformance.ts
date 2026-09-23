@@ -5,7 +5,6 @@
  */
 
 import { type Model } from "#models/Model.js";
-import { type ValueModel } from "#models/ValueModel.js";
 import { asError, InternalError } from "@matter/general";
 import { FeatureSet, FieldValue } from "../common/index.js";
 import { BasicToken, Lexer, TokenStream } from "../parser/index.js";
@@ -370,7 +369,7 @@ export namespace Conformance {
                 // RHS may reference enum values using unqualified names.  Also handle boolean literals (True/False)
                 let operatorResolver = resolver;
                 if (ast.param.lhs.type === "name") {
-                    const referenced = resolver(ast.param.lhs.param) as ValueModel | undefined;
+                    const referenced = resolver(ast.param.lhs.param);
                     if (referenced !== undefined) {
                         operatorResolver = (name: string | string[]) => {
                             if (typeof name === "string") {
