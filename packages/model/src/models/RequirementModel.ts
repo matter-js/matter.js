@@ -15,6 +15,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
     declare element: RequirementElement.ElementType;
     declare default?: any;
     declare instance?: number;
+    declare location?: RequirementElement.Location;
 
     #constraint: Constraint;
     #conformance: Conformance;
@@ -103,6 +104,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
         this.element = definition.element as RequirementElement.ElementType;
         this.default = definition.default;
         this.instance = definition.instance;
+        this.location = definition.location as RequirementElement.Location;
         this.#constraint = Constraint.create(definition.constraint);
         this.#conformance = Conformance.create(definition.conformance);
         this.#access = Access.create(definition.access);
@@ -113,6 +115,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
         return super.toElement(omitResources, {
             element: this.element,
             instance: this.instance,
+            location: this.location,
             default: this.default,
             constraint: this.#constraint.valueOf(),
             conformance: this.#conformance.valueOf(),

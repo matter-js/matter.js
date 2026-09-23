@@ -32,6 +32,13 @@ export type RequirementElement = BaseElement & {
      */
     instance?: number;
 
+    /**
+     * Where a condition requirement asserts its condition.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.5
+     */
+    location?: `${RequirementElement.Location}`;
+
     children?: (RequirementElement | FieldElement)[];
 };
 
@@ -60,5 +67,11 @@ export namespace RequirementElement {
         CommandField = "commandField",
         DeviceType = "deviceType",
         Condition = "condition",
+    }
+
+    export enum Location {
+        Root = "Root",
+        Self = "Self",
+        Descendant = "Descendant",
     }
 }
