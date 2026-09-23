@@ -82,6 +82,28 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
     }
 
     /**
+     * The number of component endpoints a constraint on a component device type requirement states.
+     *
+     * A constraint that bounds no number — `all`, `desc`, or none at all — states no count, so the requirement is
+     * judged by its conformance alone. An exact count (e.g. `1`) parses as {@link Constraint.value} rather than as
+     * both bounds, so it states the same number for {@link RequirementModel.CountRange.min} and
+     * {@link RequirementModel.CountRange.max}.
+     */
+    get componentCountRange(): RequirementModel.CountRange | undefined {
+        const { value, min, max } = this.constraint;
+        if (typeof value === "number") {
+            return { min: value, max: value };
+        }
+
+        const lower = typeof min === "number" ? min : undefined;
+        const upper = typeof max === "number" ? max : undefined;
+        if (lower === undefined && upper === undefined) {
+            return undefined;
+        }
+        return { min: lower, max: upper };
+    }
+
+    /**
      * Is the element mandatory?
      */
     get isMandatory() {
@@ -132,4 +154,9 @@ RequirementModel.register();
 
 export namespace RequirementModel {
     export type Child = RequirementModel | FieldModel;
+
+    export interface CountRange {
+        min?: number;
+        max?: number;
+    }
 }

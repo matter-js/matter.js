@@ -28,4 +28,35 @@ describe("RequirementModel", () => {
             expect(new RequirementModel({ name: "PowerSource", element: "deviceType" }).location).undefined;
         });
     });
+
+    describe("componentCountRange", () => {
+        function rangeOf(constraint: string | undefined) {
+            return new RequirementModel({ name: "PowerSource", element: "deviceType", constraint }).componentCountRange;
+        }
+
+        it("reads a minimum", () => {
+            expect(rangeOf("min 2")).deep.equals({ min: 2, max: undefined });
+        });
+
+        it("reads a maximum", () => {
+            expect(rangeOf("max 1")).deep.equals({ min: undefined, max: 1 });
+        });
+
+        it("reads an exact count", () => {
+            expect(rangeOf("1")).deep.equals({ min: 1, max: 1 });
+        });
+
+        it("reads a span", () => {
+            expect(rangeOf("1 to 4")).deep.equals({ min: 1, max: 4 });
+        });
+
+        it("states no count for an empty constraint", () => {
+            expect(rangeOf(undefined)).undefined;
+        });
+
+        it("states no count for a constraint that bounds no number", () => {
+            expect(rangeOf("all")).undefined;
+            expect(rangeOf("desc")).undefined;
+        });
+    });
 });
