@@ -354,6 +354,44 @@ describe("Conformance", () => {
         });
     });
 
+    describe("names inside optional conformance and choices", () => {
+        const cluster = ClusterElement({
+            name: "BracketRefCluster",
+            id: 0xfffb,
+            children: [
+                FieldElement({ name: "Present", id: 0, type: "uint8" }),
+                FieldElement({ name: "OptionalRef", id: 1, type: "uint8", conformance: "[Present]" }),
+                FieldElement({ name: "ChoiceRef", id: 2, type: "uint8", conformance: "[Present].a+" }),
+                FieldElement({ name: "BadOptionalRef", id: 3, type: "uint8", conformance: "[NonExistent]" }),
+                FieldElement({ name: "BadChoiceRef", id: 4, type: "uint8", conformance: "NonExistent.a" }),
+            ],
+        });
+
+        const matter = new MatterModel({ name: "BracketRefMatter", children: [cluster] });
+
+        let errors: ValidateModel.Result["errors"] | undefined;
+
+        function unresolved(field: string) {
+            if (!errors) {
+                errors = ValidateModel(matter).errors.filter(e => e.code?.includes("UNRESOLVED_CONFORMANCE"));
+            }
+            return errors.filter(e => e.source?.endsWith(`.${field}`));
+        }
+
+        it("resolves names inside brackets and choices", () => {
+            expect(unresolved("OptionalRef")).deep.equal([]);
+            expect(unresolved("ChoiceRef")).deep.equal([]);
+        });
+
+        it("reports an unresolved name inside brackets", () => {
+            expect(unresolved("BadOptionalRef").length).equal(1);
+        });
+
+        it("reports an unresolved name inside a choice", () => {
+            expect(unresolved("BadChoiceRef").length).equal(1);
+        });
+    });
+
     describe("command response outer scope", () => {
         // Request command "Foo" with field "Bar", response "FooResponse" with field conformance "Foo.Bar"
         const cluster = ClusterElement({

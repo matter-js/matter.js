@@ -397,6 +397,14 @@ export namespace Conformance {
                 }
                 break;
 
+            case Special.OptionalIf:
+                validateReferences(conformance, ast.param, errorTarget, resolver);
+                break;
+
+            case Special.Choice:
+                validateReferences(conformance, ast.param.expr, errorTarget, resolver);
+                break;
+
             case Operator.DOT: {
                 const segments = collectDotSegments(ast);
                 if (segments !== undefined && !resolver(segments)) {
