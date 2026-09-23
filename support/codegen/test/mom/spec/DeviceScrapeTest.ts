@@ -317,6 +317,118 @@ describe("scrape of a device type chapter", () => {
     });
 });
 
+describe("scrape of a conformance that references a condition", () => {
+    const SensorChapter = `
+# 13. Utility Device Types
+
+## 13.1. Sensor Device Type
+
+A Sensor measures.
+
+## 13.1.1. Revision History
+
+| Revision | Description |
+| --- | --- |
+| 1 | Initial revision |
+
+## 13.1.2. Classification
+
+| Device Type ID | Device Type Name | Class | Scope |
+| --- | --- | --- | --- |
+| 0x0510 | Sensor | Simple | Endpoint |
+
+## 13.1.3. Conditions
+
+| Condition | Description |
+| --- | --- |
+| SIT | Short idle time |
+| Node | A node device type |
+
+## 13.1.4. Cluster Requirements
+
+| Cluster ID | Cluster Name | Client/Server | Conformance |
+| --- | --- | --- | --- |
+| 0x0046 | ICD Management | Server | SIT |
+| 0x009C | Power Topology | Server | M |
+| 0x001E | Binding | Server | SIT & !Zigbee |
+| 0x0003 | Identify | Server | !(Zigbee) |
+| 0x0006 | On/Off | Server | SIT & |
+| 0x0201 | Thermostat | Server | SIT % |
+
+## 13.1.5. Element Requirements
+
+| Cluster ID | Cluster Name | Element | Name | Conformance |
+| --- | --- | --- | --- | --- |
+| 0x009C | Power Topology | Feature | NODE | M |
+| 0x009C | Power Topology | Attribute | AvailableEndpoints | NODE |
+| 0x0046 | ICD Management | Attribute | IdleModeDuration | NODE |
+`;
+
+    function scrapeSensor() {
+        const document: SpecReference = {
+            xref: { document: "device", section: "" },
+            name: "Device Library",
+            path: "device_library.md",
+            markdownContent: SensorChapter,
+        };
+
+        let devices = Array<DeviceTypeElement>();
+        const messages = captured(() => {
+            devices = [...loadDevices(document)].flatMap(deviceRef => [...translateDevice(deviceRef)]);
+        });
+        return { device: devices[0], messages };
+    }
+
+    it("states the condition with the spelling the device type declares", () => {
+        const requirement = childNamed(scrapeSensor().device, "IcdManagement") as RequirementElement;
+
+        expect(requirement.conformance).equals("Sit");
+    });
+
+    it("states a condition an expression references", () => {
+        const requirement = childNamed(scrapeSensor().device, "Binding") as RequirementElement;
+
+        expect(requirement.conformance).equals("Sit & !Zigbee");
+    });
+
+    it("leaves a name that states a feature of the cluster in context alone", () => {
+        const cluster = childNamed(scrapeSensor().device, "PowerTopology") as RequirementElement;
+        const requirement = childNamed(cluster, "AvailableEndpoints") as RequirementElement;
+
+        expect(requirement.conformance).equals("NODE");
+    });
+
+    it("states the condition where the cluster in context has no feature of that name", () => {
+        const cluster = childNamed(scrapeSensor().device, "IcdManagement") as RequirementElement;
+        const requirement = childNamed(cluster, "IdleModeDuration") as RequirementElement;
+
+        expect(requirement.conformance).equals("Node");
+    });
+
+    it("leaves a conformance that references no condition exactly as the specification writes it", () => {
+        const requirement = childNamed(scrapeSensor().device, "Identify") as RequirementElement;
+
+        expect(requirement.conformance).equals("!(Zigbee)");
+    });
+
+    it("leaves a conformance the parser rejects exactly as the specification writes it", () => {
+        const requirement = childNamed(scrapeSensor().device, "Thermostat") as RequirementElement;
+
+        expect(requirement.conformance).equals("SIT %");
+    });
+
+    it("reports a conformance the parser cannot read and leaves it as the specification writes it", () => {
+        const { device, messages } = scrapeSensor();
+        const requirement = childNamed(device, "OnOff") as RequirementElement;
+
+        expect(requirement.conformance).equals("SIT &");
+        expect(
+            messages.some(message => message.includes('Cannot read conformance "SIT &"')),
+            messages.join("\n"),
+        ).true;
+    });
+});
+
 describe("scrape of a condition requirement", () => {
     const OvenChapter = `
 # 11. Appliance Device Types
