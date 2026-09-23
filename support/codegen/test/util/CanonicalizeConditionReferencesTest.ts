@@ -120,10 +120,24 @@ describe("canonicalizeConditionReferences", () => {
         expect(conformanceOf(sensor, "IcdManagement", "LONGIDLETIMESUPPORT")).equals("Lit");
     });
 
-    it("leaves a qualified name", () => {
-        const sensor = sensorWith(cluster("Identify", 0x3, "Base.SIT"));
+    describe("a qualified name", () => {
+        it("spells the condition as its declarer declares it", () => {
+            const sensor = sensorWith(cluster("Identify", 0x3, "Base.SIT"));
 
-        expect(conformanceOf(sensor, "Identify")).equals("Base.SIT");
+            expect(conformanceOf(sensor, "Identify")).equals("Base.Sit");
+        });
+
+        it("spells the declarer as it is declared", () => {
+            const sensor = sensorWith(cluster("Identify", 0x3, "SENSOR.ACLExtensionCond"));
+
+            expect(conformanceOf(sensor, "Identify")).equals("Sensor.AclExtensionCond");
+        });
+
+        it("leaves a qualified name that resolves to nothing", () => {
+            const sensor = sensorWith(cluster("Identify", 0x3, "Base.Unknown"));
+
+            expect(conformanceOf(sensor, "Identify")).equals("Base.Unknown");
+        });
     });
 
     it("leaves a name that resolves to nothing", () => {
@@ -138,6 +152,58 @@ describe("canonicalizeConditionReferences", () => {
         const sensor = sensorWith(cluster("Identify", 0x3, "!(Unknown | O)"));
 
         expect(conformanceOf(sensor, "Identify")).equals(emittedWithoutPass);
+    });
+
+    describe("an operator with one side to rename", () => {
+        for (const [written, canonical] of [
+            ["SIT & Unknown", "Sit & Unknown"],
+            ["Unknown | LIT", "Unknown | Lit"],
+        ]) {
+            it(`spells ${written} as ${canonical}`, () => {
+                const sensor = sensorWith(cluster("Identify", 0x3, written));
+
+                expect(conformanceOf(sensor, "Identify")).equals(canonical);
+            });
+        }
+
+        it("keeps a feature code of the cluster in context beside a condition it renames", () => {
+            const sensor = sensorWith(
+                cluster(
+                    "PowerTopology",
+                    0x9c,
+                    "M",
+                    new RequirementModel({
+                        name: "AvailableEndpoints",
+                        element: "attribute",
+                        conformance: "NODE & SIT",
+                    }),
+                ),
+            );
+
+            expect(conformanceOf(sensor, "PowerTopology", "AvailableEndpoints")).equals("NODE & Sit");
+        });
+    });
+
+    describe("an expression naming nothing that resolves", () => {
+        for (const written of ["[Unknown]", "[Unknown].a+"]) {
+            it(`leaves ${written}`, () => {
+                const sensor = sensorWith(cluster("Identify", 0x3, written));
+
+                expect(conformanceOf(sensor, "Identify")).equals(written);
+            });
+        }
+    });
+
+    // Characterization: the pass skips a conformance it would re-serialize unchanged, but conformance is interned by
+    // its text, so skipping it or not is indistinguishable here
+    describe("a conformance with nothing to rename", () => {
+        for (const written of ["Sit", "Base.Sit", "Unknown, O", "Sit, O"]) {
+            it(`leaves ${written}`, () => {
+                const sensor = sensorWith(cluster("Identify", 0x3, written));
+
+                expect(conformanceOf(sensor, "Identify")).equals(written);
+            });
+        }
     });
 
     describe("in each expression that can name a condition", () => {

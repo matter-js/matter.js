@@ -4,15 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConditionModel, Conformance, MatterModel, RequirementModel, RequirementResolver } from "#model";
+import {
+    collectDotSegments,
+    ConditionModel,
+    Conformance,
+    MatterModel,
+    RequirementModel,
+    RequirementResolver,
+} from "#model";
 
 /**
  * Spell every condition a device type requirement's conformance references as the condition is declared.
  *
- * The specification spells a condition's declaration and its references in different cases ("SIT" against "Sit"), and
- * the scrape normalizes the declaration only.  Each name is decided by {@link RequirementResolver.resolve}, so the
- * generator and runtime validation agree on what a name means: a feature of the cluster in context stays as written,
- * and so does a name that resolves to nothing, so model validation sees the name as the specification wrote it.
+ * The scrape normalizes the case of a condition's declaration ("SIT" becomes "Sit") but not of its references, and
+ * model validation rejects a reference spelled other than as declared. Each name is decided by
+ * {@link RequirementResolver.resolve}, so the generator and model validation agree on what a name means: a feature of
+ * the cluster in context stays as written, and so does a name that resolves to nothing, so model validation sees the
+ * name as the specification wrote it. A qualified name (`Declarer.Condition`) takes the spelling of both the declaring
+ * device type and the condition.
  *
  * Runs on the assembled model because deciding a name needs the universal conditions of the Base device type and the
  * feature codes of each cluster.
@@ -28,9 +37,12 @@ export function canonicalizeConditionReferences(matter: MatterModel) {
 }
 
 function canonicalizeRequirement(requirement: RequirementModel) {
-    const canonicalized = canonicalizedAst(requirement.conformance.ast, name => {
-        const resolved = RequirementResolver.resolve(requirement, name);
-        return resolved instanceof ConditionModel ? resolved.name : undefined;
+    const canonicalized = canonicalizedAst(requirement.conformance.ast, segments => {
+        const resolved = RequirementResolver.resolve(requirement, segments);
+        if (!(resolved instanceof ConditionModel)) {
+            return undefined;
+        }
+        return segments.length === 1 ? [resolved.name] : [resolved.parent?.name ?? segments[0], resolved.name];
     });
 
     if (canonicalized !== undefined) {
@@ -40,15 +52,26 @@ function canonicalizeRequirement(requirement: RequirementModel) {
 
 /**
  * A copy of {@link ast} with every name the caller renames replaced, or undefined if it renames none.
+ *
+ * A name arrives as its segments, one for a plain name and several for a qualified one, and is renamed segment for
+ * segment.
  */
 function canonicalizedAst(
     ast: Conformance.Ast,
-    rename: (name: string) => string | undefined,
+    rename: (segments: string[]) => string[] | undefined,
 ): Conformance.Ast | undefined {
     switch (ast.type) {
-        case Conformance.Special.Name: {
-            const name = rename(ast.param);
-            return name === undefined || name === ast.param ? undefined : { type: ast.type, param: name };
+        case Conformance.Special.Name:
+        case Conformance.Operator.DOT: {
+            const segments = collectDotSegments(ast);
+            if (segments === undefined) {
+                return undefined;
+            }
+            const renamed = rename(segments);
+            if (renamed === undefined || renamed.join(".") === segments.join(".")) {
+                return undefined;
+            }
+            return qualifiedName(renamed);
         }
 
         case Conformance.Operator.AND:
@@ -96,11 +119,18 @@ function canonicalizedAst(
             return changed ? { type: ast.type, param } : undefined;
         }
 
-        // The segments of a qualified name do not resolve on their own, so none is renamed
-        case Conformance.Operator.DOT:
-            return undefined;
-
         default:
             return undefined;
     }
+}
+
+function qualifiedName([first, ...rest]: string[]): Conformance.Ast {
+    let ast: Conformance.Ast = { type: Conformance.Special.Name, param: first };
+    for (const segment of rest) {
+        ast = {
+            type: Conformance.Operator.DOT,
+            param: { lhs: ast, rhs: { type: Conformance.Special.Name, param: segment } },
+        };
+    }
+    return ast;
 }
