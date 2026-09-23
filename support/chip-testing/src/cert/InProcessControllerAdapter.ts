@@ -54,8 +54,10 @@ import type { BdxInit, StorageScope } from "@matter/main/protocol";
 import { FileDesignator, PeerAddress } from "@matter/main/protocol";
 import {
     assertRemoteActor,
+    type AttestationFinding,
     BdxProtocol,
     BdxSession,
+    DclCertificateService,
     ClientRead,
     Flow,
     CommissionableDeviceIdentifiers,
@@ -66,6 +68,12 @@ import {
     Invoke,
     OtaImageWriter,
     NodeSession,
+    type PaaRootEntry,
+    type SeedSource,
+    TestCert_PAA_FFF1_Cert,
+    TestCert_PAA_FFF1_SKID,
+    TestCert_PAA_NoVID_Cert,
+    TestCert_PAA_NoVID_SKID,
     Peer as ProtocolPeer,
     PeerSet,
     Read,
@@ -111,6 +119,7 @@ import type {
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
+    AttestationApi,
     ManualPairingCodeFields,
     OnboardingPayloadFields,
     BdxTransferAccept,
@@ -2149,6 +2158,8 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     readonly #transport?: ControllerTransport;
     readonly #hostsWebRtcRequestor: boolean;
     #webRtcRequestor?: InProcessWebRtcRequestorApi;
+    readonly #judgesAttestation: boolean;
+    #attestation?: InProcessAttestationApi;
 
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
@@ -2162,6 +2173,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         this.id = id;
         this.#transport = options?.transport;
         this.#hostsWebRtcRequestor = options?.webRtcRequestor === true;
+        this.#judgesAttestation = options?.attestation === true;
         this.#env = new Environment(`cert-${id}`, Environment.default);
         this.#releaseLogOrigin = registerLogOrigin(this.#env.logOrigin, "adapter", this.#logStream);
         new MockStorageService(this.#env);
@@ -2192,6 +2204,13 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
     start(): Promise<void> {
         return runTagged(this.id, async () => {
+            // Before the node: a commissioning attempt resolves the service out of the environment the
+            // node is a child of, and nothing states that it does so lazily
+            if (this.#judgesAttestation) {
+                this.#attestation = new InProcessAttestationApi(this.#env);
+                await this.#attestation.construction;
+            }
+
             const controller = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
                 environment: this.#env,
                 id: this.id,
@@ -2239,6 +2258,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             await runTagged(this.id, async () => {
                 this.#webRtcRequestor?.close();
                 await this.#controller?.close();
+                await this.#attestation?.close();
             });
         } finally {
             this.#releaseLogOrigin();
@@ -2280,14 +2300,16 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
                 onAttestationFailure: findings => {
+                    const judgement = this.judgeAttestation(findings);
+
                     // Accepting is what lets a test device commission at all; the evidence still has
                     // to say what was accepted, or a step asserting a clean attestation proves nothing
                     logger.notice(
-                        `Accepting device attestation findings: ${findings
+                        `${judgement === true ? "Accepting" : "Refusing"} device attestation findings: ${findings
                             .map(({ level, type, message }) => `${level} ${type}: ${message}`)
                             .join("; ")}`,
                     );
-                    return true;
+                    return judgement;
                 },
             });
             const address = peer.peerAddress;
@@ -2303,6 +2325,21 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         return this.#webRtcRequestor;
     }
 
+    get attestation(): AttestationApi | undefined {
+        return this.#attestation;
+    }
+
+    /**
+     * What this controller does with what attestation found, which is what decides whether a
+     * commissioning attempt continues.
+     *
+     * A controller that was not built to judge attestation accepts everything: a cert device presents
+     * test certificates, and refusing those would stop every other case from running.
+     */
+    judgeAttestation(findings: AttestationFinding[]): true | string {
+        return this.#attestation?.judge(findings) ?? true;
+    }
+
     node(ref: CertNodeRef): CertNodeApi {
         return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref);
     }
@@ -2310,6 +2347,95 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     group(groupId: number): CertGroupApi {
         return new InProcessCertGroupApi(this.id, this.#startedController, this.#adminFabric, groupId);
     }
+}
+
+/**
+ * Device attestation as a cert controller judges it.
+ *
+ * A commissioner reads its trust anchors and revocation information from the DCL. A certification run
+ * has neither: its devices present the chip test PKI, which the DCL does not publish, and the
+ * revocation information a case needs is a file the test states. So this holds a certificate service
+ * seeded with the chip test roots, reaching no network, and a case installs revocation information
+ * into it before commissioning the device the information is about.
+ *
+ * The service registers itself in the root of the environment it is given, so it gets a root of its
+ * own rather than the shared default, and the adapter's environment is told about it directly. Two
+ * controllers in one run then judge attestation independently, and a run without this capability is
+ * unaffected by one that has it.
+ */
+class InProcessAttestationApi implements AttestationApi {
+    readonly #environment: Environment;
+    readonly #service: DclCertificateService;
+
+    constructor(adapterEnvironment: Environment) {
+        this.#environment = new Environment("cert-attestation");
+        this.#environment.set(Crypto, adapterEnvironment.get(Crypto));
+        new MockStorageService(this.#environment);
+
+        this.#service = new DclCertificateService(this.#environment, {
+            seed: { paaRoots: chipTestRoots() },
+
+            // Both are about test certificates counting at all, not about going and getting them: the
+            // seed consumer drops a test root unless the first is set, and the validator refuses one
+            // as a trust anchor unless the second is. Nothing is fetched — the service is offline.
+            fetchTestCertificates: true,
+            acceptTestCertificates: true,
+
+            updateInterval: null,
+            offline: true,
+        });
+
+        adapterEnvironment.set(DclCertificateService, this.#service);
+    }
+
+    get construction() {
+        return this.#service.construction;
+    }
+
+    async installRevocations(revocationSet: string) {
+        this.#service.installRevocations(DclCertificateService.parseRevocationSet(revocationSet));
+    }
+
+    /**
+     * What the controller does with what attestation found.
+     *
+     * An error-level finding is what a refusal is made of, and refusing names the findings so a case
+     * can require the refusal it asked about rather than any refusal at all. Anything softer is
+     * accepted, because a cert device presents test certificates and a case that refused those would
+     * be testing the harness.
+     */
+    judge(findings: AttestationFinding[]): true | string {
+        const errors = findings.filter(({ level }) => level === "error");
+        if (errors.length === 0) {
+            return true;
+        }
+        return `Device attestation refused: ${errors.map(({ type, message }) => `${type}: ${message}`).join("; ")}`;
+    }
+
+    async close() {
+        await this.#service.close();
+    }
+}
+
+/** The product attestation authorities a chip test device's certificates chain to. */
+function chipTestRoots(): SeedSource<PaaRootEntry> {
+    const roots = [
+        { der: TestCert_PAA_FFF1_Cert, skid: TestCert_PAA_FFF1_SKID },
+        { der: TestCert_PAA_NoVID_Cert, skid: TestCert_PAA_NoVID_SKID },
+    ].map(({ der, skid }) => ({
+        role: "paa" as const,
+        subjectKeyId: Bytes.toHex(skid),
+        derHex: Bytes.toHex(der),
+        kind: "test" as const,
+    }));
+
+    return {
+        builtAt: new Date(0).toISOString(),
+        expectedCount: roots.length,
+        entries: (async function* () {
+            yield* roots;
+        })(),
+    };
 }
 
 /**

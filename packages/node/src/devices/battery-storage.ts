@@ -18,6 +18,68 @@ import { Identity } from "@matter/general";
  * energy consumed in premises. It is not intended to be used for a UPS directly supplying a set of appliances, nor for
  * portable battery storage devices.
  *
+ * ### Battery Storage Architecture
+ *
+ * A Battery Storage device is always defined via endpoint composition. See Section 14.4.6, "Device Type Requirements"
+ * for more details.
+ *
+ * An example of a Battery Storage device with single phase AC output is illustrated below.
+ *
+ * An example of a Battery Storage device which also includes a directly connected Solar Power device supplying DC power
+ * to the battery and using a single common inverter to the single phase AC input and output is illustrated below.
+ *
+ * ### Device Type Requirements
+ *
+ * A Battery Storage device shall be composed of at least two endpoints with device types as defined by the conformance
+ * below. There may be more endpoints with additional instances of these device types or additional device types
+ * existing in the Battery Storage device.
+ *
+ * The Solar Power devices, if included, shall have separate endpoints, and include their own Power Source, Electrical
+ * Sensor, and Device Energy Management devices, as defined by the Solar Power device.
+ *
+ * #### Cluster Requirements on Component Device Types
+ *
+ * > [!NOTE]
+ *
+ * > NOTE: The use of 1st and 2nd to annotate the device types is purely to distinguish the two from each other. It does
+ *   NOT specify any order or structure of the composition.
+ *
+ * #### Element Requirements on Component Device Types
+ *
+ * The Power Source cluster in the Power Source device shall support the RECHG feature if it can be charged as well as
+ * discharged through the connection to the premises wiring.
+ *
+ * The Electrical Sensor device shall also conform to the following:
+ *
+ *   - An Electrical Sensor device shall measure the energy and power flows of the Battery Storage device at the AC grid
+ *     connection point.
+ *
+ *   - The Electrical Power Measurement cluster of this Electrical Sensor device shall support the PolyphasePower
+ *     feature if the Battery Storage device is connected via polyphase wiring, and SHOULD support the ReactivePower
+ *     attribute.
+ *
+ *   - The Electrical Energy Measurement cluster of this Electrical Sensor device shall support the ImportedEnergy
+ *     feature if it can be charged as well as discharged through the connection to the premises wiring, and SHOULD
+ *     support the CumulativeEnergy feature.
+ *
+ * If a Battery Storage device supports two or three phase power output then it may include two or three additional
+ * endpoints, each including an Electrical Sensor Device Type as child elements. For each such child endpoint it shall
+ * include a semantic tag from the Electrical Measurement Namespace in the TagList attribute of the Descriptor cluster
+ * to describe the endpoint for the relevant Electrical Power Measurement and Electrical Energy Measurement clusters
+ * indicating the relevant AC phase that is being measured.
+ *
+ * If a Battery Storage device supports measurement of the input and output of individual batteries or sets of batteries
+ * then it may include additional endpoints for each such measurement, including an Electrical Sensor Device Type as
+ * child elements. For each such child endpoint: it shall include a semantic tag from the Common Number Namespace, or a
+ * Manufacturer defined Tag and Label, in the TagList attribute of the Descriptor cluster to describe the endpoint for
+ * the relevant Electrical Power Measurement and Electrical Energy Measurement clusters indicating the relevant device
+ * port, battery, or set of batteries that is being measured. it SHOULD also include a User Label cluster to allow an
+ * installer to add identifying information if the device permits flexible connection of the actual batteries at
+ * installation time.
+ *
+ * Any Temperature Sensors included shall include Tag(s), and for non-standard Namespaces, Label(s) in the Descriptor
+ * clusters of their endpoints to identify the temperature being measured.
+ *
  * @see {@link MatterSpecification.v16.Device} § 14.4
  */
 export interface BatteryStorageDevice extends Identity<typeof BatteryStorageDeviceDefinition> {}
@@ -33,7 +95,7 @@ export namespace BatteryStorageRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { optional: { Identify: IdentifyServer }, mandatory: {} };
+    export const server = { optional: { Identify: IdentifyServer } };
 }
 
 export const BatteryStorageDeviceDefinition = MutableEndpoint({

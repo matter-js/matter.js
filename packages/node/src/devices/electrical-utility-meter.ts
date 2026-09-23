@@ -17,6 +17,40 @@ import { Identity } from "@matter/general";
  * An Electrical Utility Meter device provides utility account information, as well as optional details about tariffs
  * and metering.
  *
+ * ### Electrical Utility Meter Topology
+ *
+ * #### Basic Utility Meter
+ *
+ * A basic Electrical Utility Meter device type has a simple import tariff endpoint for grid power, tagged as Grid,
+ * Import, AC, and Current.
+ *
+ * Optionally, this endpoint may have a child endpoint representing an upcoming tariff, if available, tagged as Grid,
+ * Import, AC, and Upcoming.
+ *
+ * Optionally, this endpoint may have child endpoints representing measurements of individual phases of a polyphase
+ * power supply.
+ *
+ * #### Separate EV Rate
+ *
+ * Building on the basic topology, an Electrical Utility Meter device type which has a separate rate for EV charging
+ * would add a second endpoint, tagged as EV, Import, AC, and Current.
+ *
+ * Optionally, this endpoint may have a child endpoint representing an upcoming EV tariff, if available, tagged as EV,
+ * Import, AC, and Upcoming.
+ *
+ * #### Export Rate
+ *
+ * Similarly, an Electrical Utility Meter device type which has a separate rate for exported electrical energy would add
+ * a second endpoint, tagged as Grid, Export, AC, and Current.
+ *
+ * Optionally, this endpoint may have a child endpoint representing an upcoming export tariff, if available, tagged as
+ * Grid, Export, AC, and Upcoming.
+ *
+ * #### Combination of EV and Export
+ *
+ * The above topologies can be composed to represent various combinations of tariffs. In this example, a tariff has
+ * separate rates for an EV and for exporting energy to the grid.
+ *
  * @see {@link MatterSpecification.v16.Device} § 14.9
  */
 export interface ElectricalUtilityMeterDevice extends Identity<typeof ElectricalUtilityMeterDeviceDefinition> {}

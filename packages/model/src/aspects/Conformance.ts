@@ -100,6 +100,26 @@ export class Conformance extends Aspect<Conformance.Definition> {
     }
 
     /**
+     * Is the associated element provisional?
+     *
+     * A provisional element reads as optional so an application can exercise it and still certify, so this is the only
+     * way to tell "the specification says this is optional" from "the specification has not finished it yet".
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.3
+     */
+    get isProvisional() {
+        const conformance = this.ast;
+        if (conformance.type === Conformance.Flag.Provisional) {
+            return true;
+        }
+        if (conformance.type === Conformance.Special.Otherwise) {
+            // The whole list: a provisional term states the element is unfinished wherever it appears
+            return conformance.param.some(c => c.type === Conformance.Flag.Provisional);
+        }
+        return false;
+    }
+
+    /**
      * Is the associated element disallowed?
      */
     get isDisallowed() {

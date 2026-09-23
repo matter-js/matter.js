@@ -21,10 +21,38 @@ Resource.add({
         "  - Clusters with an Application role shall NOT be supported on the same endpoint as this device " +
         "type." +
         "\n" +
-        "  - Other device types with Node scope may be supported on the same endpoint as this device type.",
+        "  - Other device types with Node scope may be supported on the same endpoint as this device type." +
+        "\n" +
+        "### Cluster Requirements" +
+        "\n" +
+        "> [!NOTE]" +
+        "\n" +
+        "> NOTE: The Network Diagnostics clusters present on the Root Node shall serve the primary network " +
+        "interface as specified in the Network Commissioning cluster if it exists, or the " +
+        "out-of-band-configured networking interfaces." +
+        "\n" +
+        "### Element Requirements" +
+        "\n" +
+        "#### Access Control MNGD Conformance" +
+        "\n" +
+        "The MNGD (Managed Device) feature of the Access Control Cluster on the device's Root Node endpoint " +
+        "is restricted to devices that contain an Application Endpoint type that explicitly permits its use, " +
+        "such as the Network Infrastructure Manager device type (Device Type ID 0x0090)." +
+        "\n" +
+        "### Endpoint Composition" +
+        "\n" +
+        "A Root Node endpoint's Descriptor cluster PartsList attribute shall contain a list of all other " +
+        "endpoints on the node, i.e. the full-family pattern defined in the System Model specification.",
 
     children: [
-        { tag: "requirement", name: "AccessControl", xref: "device§2.1.5" },
+        {
+            tag: "requirement", name: "AccessControl", xref: "device§2.1.5",
+            children: [
+                { tag: "requirement", name: "MANAGEDDEVICE", xref: "device§2.1.6" },
+                { tag: "requirement", name: "Extension", xref: "device§2.1.6" }
+            ]
+        },
+
         { tag: "requirement", name: "BasicInformation", xref: "device§2.1.5" },
         { tag: "requirement", name: "LocalizationConfiguration", xref: "device§2.1.5" },
         { tag: "requirement", name: "TimeFormatLocalization", xref: "device§2.1.5" },
@@ -38,19 +66,35 @@ Resource.add({
         { tag: "requirement", name: "ThreadNetworkDiagnostics", xref: "device§2.1.5" },
         { tag: "requirement", name: "WiFiNetworkDiagnostics", xref: "device§2.1.5" },
         { tag: "requirement", name: "EthernetNetworkDiagnostics", xref: "device§2.1.5" },
+
         {
             tag: "requirement", name: "TimeSynchronization",
             discriminator: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNTPCCond, TimeSyncWithTZCond, TLSClientCond, TLSCertificatesCond, O:serverCluster",
-            xref: "device§2.1.5"
+            xref: "device§2.1.5",
+            children: [
+                { tag: "requirement", name: "TIMESYNCCLIENT", xref: "device§2.1.6" },
+                { tag: "requirement", name: "NTPCLIENT", xref: "device§2.1.6" },
+                { tag: "requirement", name: "TIMEZONE", xref: "device§2.1.6" }
+            ]
         },
+
         {
             tag: "requirement", name: "TimeSynchronization",
-            discriminator: "TimeSyncWithClientCond, O:clientCluster", xref: "device§2.1.5"
+            discriminator: "TimeSyncWithClientCond, O:clientCluster", xref: "device§2.1.5",
+            children: [
+                { tag: "requirement", name: "TIMESYNCCLIENT", xref: "device§2.1.6" },
+                { tag: "requirement", name: "NTPCLIENT", xref: "device§2.1.6" },
+                { tag: "requirement", name: "TIMEZONE", xref: "device§2.1.6" }
+            ]
         },
+
         { tag: "requirement", name: "AdministratorCommissioning", xref: "device§2.1.5" },
         { tag: "requirement", name: "OperationalCredentials", xref: "device§2.1.5" },
         { tag: "requirement", name: "GroupKeyManagement", xref: "device§2.1.5" },
-        { tag: "requirement", name: "IcdManagement", xref: "device§2.1.5" },
+        {
+            tag: "requirement", name: "IcdManagement", xref: "device§2.1.5",
+            children: [{ tag: "requirement", name: "LONGIDLETIMESUPPORT", xref: "device§2.1.6" }]
+        },
         { tag: "requirement", name: "TlsCertificateManagement", xref: "device§2.1.5" },
         { tag: "requirement", name: "TlsClientManagement", xref: "device§2.1.5" },
         { tag: "requirement", name: "PowerSource", xref: "device§2.1.4" },

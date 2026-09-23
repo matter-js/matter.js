@@ -133,6 +133,24 @@ export async function runCleanups(...cleanups: (() => Promise<void>)[]): Promise
     }
 }
 
+/**
+ * Reads a value a script stated on one line of a multi-line prompt.
+ *
+ * A prompt reaches the harness one line at a time, and a handler answers on the line it matched, so a
+ * value stated on an earlier line is read back out of the lines the script has printed so far. The
+ * last statement wins: a script that prompts repeatedly restates the value each time.
+ */
+export function statedInPrompt(lines: readonly string[], pattern: RegExp, what: string): string {
+    for (let index = lines.length - 1; index >= 0; index--) {
+        const match = lines[index].match(pattern);
+        if (match?.[1] !== undefined) {
+            return match[1];
+        }
+    }
+    // The harness could not read the script's own output; nothing here is a statement about the DUT
+    throw new InternalError(`No line of the prompt stated ${what}`);
+}
+
 /** An error as evidence text, naming its class as well as its message. */
 export function describeError(e: unknown): string {
     return e instanceof Error ? `${e.constructor.name}: ${e.message}` : String(e);

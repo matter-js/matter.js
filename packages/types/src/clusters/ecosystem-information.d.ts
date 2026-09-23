@@ -183,7 +183,7 @@ export declare namespace EcosystemInformation {
          *
          * @see {@link MatterSpecification.v16.Core} § 9.17.4.2.6
          */
-        uniqueLocationIDs: string[];
+        uniqueLocationIds: string[];
 
         /**
          * This field shall indicate the timestamp of when the UniqueLocationIDs was last modified.
@@ -197,7 +197,7 @@ export declare namespace EcosystemInformation {
          *
          * @see {@link MatterSpecification.v16.Core} § 9.17.4.2.7
          */
-        uniqueLocationIDsLastEdit: number | bigint;
+        uniqueLocationIdsLastEdit: number | bigint;
 
         fabricIndex: FabricIndex;
     }

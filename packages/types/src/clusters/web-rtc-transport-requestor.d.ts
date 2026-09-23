@@ -80,7 +80,7 @@ export declare namespace WebRtcTransportRequestor {
          * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry
          * in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not match the accessing
          * fabric and the Peer Node ID entry stored in the Secure Session Context (see Chapter 4 Secure Channel, Secure
-         * Session Context section, in [[MatterCore]](#ref_MatterCore)) of the session this command was received on.
+         * Session Context section, in MatterCore) of the session this command was received on.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.6.5.1
          */
@@ -136,7 +136,7 @@ export declare namespace WebRtcTransportRequestor {
      * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry in
      * CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not match the accessing fabric
      * and the Peer Node ID entry stored in the Secure Session Context (see Chapter 4 Secure Channel, Secure Session
-     * Context section, in [[MatterCore]](#ref_MatterCore)) of the session this command was received on.
+     * Context section, in MatterCore) of the session this command was received on.
      *
      * @see {@link MatterSpecification.v16.Cluster} § 11.6.5.1
      */

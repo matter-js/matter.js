@@ -2868,6 +2868,56 @@ MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 MATTER_MDNS_NETWORKINTERFACE=en0 \
     npx matter-test esm -p support/chip-testing --spec "./test/cert/TC-BDX-*.test.ts"
 ```
 
+## Revocation is something the controller has to be told (`TC-DA-1.9`)
+
+The case commissions seven devices, six of which present a DAC or PAI the test PKI has revoked, and
+the DUT has to refuse exactly those six. Three things about it are not obvious.
+
+**The revocation information reaches the controller from the case, not from the DCL.** A commissioner
+normally reads revocation distribution points from the ledger and downloads the CRL behind one. The
+PKI this case uses is published in neither ledger — `/dcl/pki/revocation-points/<akid>` answers
+`{"code":5,"message":"not found"}` on both `on.dcl.csa-iot.org` and `on.test-net.dcl.csa-iot.org` for
+every issuer in the set. The test plan allows for exactly this: its setup says revocation information
+may be "generated out of band and made available to the DUT". So the case reads the revocation set out
+of the container and installs it through `ControllerAdapter.attestation`.
+
+**A controller only judges attestation when asked, and asking changes two things.**
+`createControllerAdapter("dut", { attestation: true })` gives it a certificate service seeded with the
+chip test roots, constructed `offline` so it reaches no network — without that the service fetches
+every production PAA from the live DCL while it starts, which both trusts more than the case says and
+makes the case depend on ledger reachability. It also changes the commissioning policy: a cert
+controller's `onAttestationFailure` accepts everything, because a cert device presents test
+certificates and refusing those would stop every other case from running. A controller built to judge
+refuses an error-level finding instead, and names the findings in the refusal, so a case can require
+the refusal it asked about rather than any refusal at all — a controller that never found the device
+refuses too.
+
+A judging controller will not commission a matter.js test device at all: that device generates its own
+PAA at runtime, which is in no trust store, so attestation fails with `PaaNotTrusted` before revocation
+is ever considered. The TH for a case like this has to be a chip app presenting the chip test PKI.
+
+The service lives in a root environment of its own rather than the shared default, so one controller
+judging attestation does not change what any other controller in the run sees. A related landmine:
+`DclBehavior.certificateService` resolves through `env.root`, which walks past the adapter's
+environment to the shared default, so a case that ever touches it would create a second, differently
+configured service and register it globally. Nothing in the harness does today.
+
+**A serial number reads differently on the two sides.** A certificate states its serial as the content
+octets of a DER INTEGER, which carry a leading zero whenever the top bit is set; a revocation set
+states the number. `00E1234567` and `E1234567` are the same serial. Both sides are compared by their
+significant bytes — see `canonicalSerial` in `DclCertificateService`. Every serial in chip's own test
+set has a leading byte below `0x80`, so a fixture drawn from it will not show this.
+
+**A refusal alone proves nothing.** Six vectors expect refusal and one expects success; without the
+seventh, a controller that refused everything would score a full pass. The case also requires each
+refusal to name `CertificateRevoked`, and fails the vector where a refusal came from anything else —
+a timeout or a missing device answers `"N"` too, which is exactly what the script wanted to hear.
+
+Also worth knowing: the script states the pairing code and the revocation set path on separate lines
+of one prompt, and a handler answers on the line it matched. `statedInPrompt` (in `tc-support.ts`)
+reads the earlier lines back out of what the script has printed, because a handler cannot wait for
+more output — the loop reading it is suspended for the handler's whole duration.
+
 ## The SU block, where the DUT is the OTA provider (`TC-SU-3.1`–`TC-SU-3.4`)
 
 The Software Update plans give their 3.x cases a provider DUT, which here is the controller — the
@@ -2980,3 +3030,4 @@ endpoint is a number, and its VendorID claim rests on the requestor's log line r
 of a field the controller filled in moments earlier. Where no independent account exists — matter.js's
 requestor logs nothing for a `QueryImageResponse` — the check says so with `accepted` instead of
 matching a line the precondition already guaranteed.
+

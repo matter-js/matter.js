@@ -31,6 +31,17 @@ import { Identity } from "@matter/general";
  * A Content App is usually an application built by a Content Provider. A Casting Video Player with a Content App
  * Platform is able to launch Content Apps and represent these apps as separate endpoints.
  *
+ * ### Endpoint Composition
+ *
+ * Endpoints with this device type shall support Dynamic Endpoint Allocation as specified in the System Model
+ * specification.
+ *
+ * ### Disambiguation
+ *
+ * When there is more than one sibling endpoint with this device type in a PartsList, disambiguation information shall
+ * be provided by having a unique value in the ApplicationName attribute of the Application Basic cluster on each of
+ * these endpoints.
+ *
  * @see {@link MatterSpecification.v16.Device} § 10.5
  */
 export interface ContentAppDevice extends Identity<typeof ContentAppDeviceDefinition> {}
@@ -121,7 +132,7 @@ export namespace ContentAppRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { ContentAppObserver: ContentAppObserverClient }, mandatory: {} };
+    export const client = { optional: { ContentAppObserver: ContentAppObserverClient } };
 }
 
 export const ContentAppDeviceDefinition = MutableEndpoint({

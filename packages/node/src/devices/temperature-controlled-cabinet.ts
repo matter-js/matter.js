@@ -32,9 +32,12 @@ import { Identity } from "@matter/general";
  * part of a refrigerator, freezer, wine chiller, or other similar device. Equally, such a cabinet may be warming or
  * heating food, for example as part of an oven, range, or similar device.
  *
- * TemperatureControlledCabinetDevice requires TemperatureControl cluster but TemperatureControl is not added by default
- * because you must select the features your device supports. You can add manually using
- * TemperatureControlledCabinetDevice.with().
+ * ### Element Requirements
+ *
+ * Temperature Controlled cabinets only allow the Temperature Control cluster to use the TemperatureNumber feature (i.e.
+ * actual temperature in °C). This is because using qualitative temperature levels (e.g. Low/Medium/High) does not allow
+ * the behavior expected by the majority of clients. Clients would be trying to "set the temperature" of a cabinet using
+ * that cluster, such as an oven's cooking temperature, or a refrigerator's internal cabinet temperature setpoint.
  *
  * @see {@link MatterSpecification.v16.Device} § 13.4
  */
@@ -79,7 +82,8 @@ export namespace TemperatureControlledCabinetRequirements {
         .alter({ events: { operationCompletion: { optional: false } } });
 
     /**
-     * The TemperatureAlarm cluster is optional per the Matter specification.
+     * The TemperatureAlarm cluster is provisional per the Matter specification (conformance P, O), so it is treated as
+     * optional.
      *
      * We provide this alias to the default implementation {@link TemperatureAlarmServer} for convenience.
      */
@@ -106,7 +110,7 @@ export const TemperatureControlledCabinetDeviceDefinition = MutableEndpoint({
     deviceType: 0x71,
     deviceRevision: 6,
     requirements: TemperatureControlledCabinetRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(TemperatureControlledCabinetRequirements.server.mandatory.TemperatureControl)
 });
 
 Object.freeze(TemperatureControlledCabinetDeviceDefinition);

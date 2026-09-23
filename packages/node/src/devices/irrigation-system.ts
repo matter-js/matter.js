@@ -23,6 +23,50 @@ import { Identity } from "@matter/general";
  * for lawns. A physical irrigation system typically has a set of electrical terminals to which in-ground water valves
  * are connected so that the system can actuate them.
  *
+ * ### Irrigation System Architecture
+ *
+ * An irrigation system is always defined via endpoint composition. Irrigation system manufacturers determine how many
+ * watering "zone" terminals are present on the physical device. Each zone is represented by a disambiguated Water Valve
+ * endpoint:
+ *
+ * ### Device Type Requirements
+ *
+ * An irrigation system shall be composed of at least one endpoint with the Water Valve device type. Any instance of the
+ * Valve Configuration and Control Cluster on an endpoint is scoped to the valve on that endpoint and not the whole
+ * node.
+ *
+ * If more than one instance of the Water Valve device type is present, each instance shall include semantic tags from
+ * the common namespaces in the TagList attribute of the Descriptor cluster to disambiguate which watering zone on the
+ * device each valve endpoint represents.
+ *
+ * Some irrigation systems include a master valve installed at the main water supply line. When a master valve is
+ * present, the physical system is responsible for opening it first when receiving a command to open a downstream
+ * watering valve. In addition, the physical system is responsible for closing the master valve when the last open
+ * watering valve is closed. Since the master valve is orchestrated by the device, it is not represented as a Water
+ * Valve endpoint.
+ *
+ * ### Cluster Requirements
+ *
+ * #### Identify Cluster
+ *
+ * This cluster is used to identify the entire irrigation system device.
+ *
+ * #### Operational State Cluster
+ *
+ * This cluster, if present, is used to denote the current state of the irrigation system. An irrigation system may
+ * report the general operational states "Running" when at least one of the composed water valves is open for any
+ * reason, and "Stopped" when all water valves are closed. In addition, the system may support operational state
+ * commands "Pause" and "Resume" as well as the operational state "Paused" if it supports temporarily pausing a water
+ * valve that is currently open for a known duration. In this case, it SHOULD report the CountdownTime attribute to
+ * denote the remaining open duration of a currently open valve.
+ *
+ * #### Flow Measurement Cluster
+ *
+ * This cluster, if present, is used to measure the net flow through the irrigation system. When present, the cluster
+ * shall report the total flow through the irrigation system and not any individual valve.
+ *
+ * If present, the flow measurement client cluster is used via binding to measure flow from external flow sensors.
+ *
  * @see {@link MatterSpecification.v16.Device} § 5.7
  */
 export interface IrrigationSystemDevice extends Identity<typeof IrrigationSystemDeviceDefinition> {}
@@ -64,14 +108,13 @@ export namespace IrrigationSystemRequirements {
             Identify: IdentifyServer,
             OperationalState: OperationalStateServer,
             FlowMeasurement: FlowMeasurementServer
-        },
-        mandatory: {}
+        }
     };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { FlowMeasurement: FlowMeasurementClient }, mandatory: {} };
+    export const client = { optional: { FlowMeasurement: FlowMeasurementClient } };
 }
 
 export const IrrigationSystemDeviceDefinition = MutableEndpoint({

@@ -855,8 +855,9 @@ export declare namespace ServiceArea {
      *
      * OR
      *
-     *   - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative text from the
-     *     remainder of this section describes these constraints.
+     *   - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag)
+     *
+     * The normative text from the remainder of this section describes these constraints.
      *
      * If the LocationInfo field is null, the LandmarkInfo field shall NOT be null.
      *

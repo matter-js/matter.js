@@ -18,7 +18,7 @@ export const ElectricalMeterDt = DeviceType(
     Requirement({ name: "CommodityMetering", id: 0xb07, conformance: "P, M", element: "serverCluster" }),
     Requirement({ name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" }),
-    Requirement({ name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType" })
+    Requirement({ name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 1", element: "deviceType" })
 );
 
 MatterDefinition.children.push(ElectricalMeterDt);

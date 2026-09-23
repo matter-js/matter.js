@@ -73,6 +73,7 @@ export type {
     CertGroupApi,
     GroupKeySetSpec,
     CertNodeApi,
+    AttestationApi,
     CertNodeRef,
     CertSessionInfo,
     ClientAttributePath,

@@ -17,6 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Decommissioning a peer whose structure read never finished no longer reports an unhandled `uninitialized-dependency` error: the observer watching for that read now detaches when the node goes away, instead of reading state from a node that is closing
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
 - @matter/testing
+    - Enhancement: A certification controller can judge device attestation against the chip test roots and revocation information a case installs, via `ControllerAdapterOptions.attestation` and `ControllerAdapter.attestation`. Such a controller refuses an error-level attestation finding and names it, where a controller without the option accepts whatever a test device presents; chip-tool refuses the option, since it reads revocation from a file its process was started with
     - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own
     - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
     - Enhancement: `CertNodeApi.serveOtaUpdate()` also reports the OTA commands the controller's own provider answered, and the new `CertNodeApi.announceOtaProvider()` announces a provider to a node without staging anything. Every `CertNodeApi` implementation must provide the new method
@@ -42,6 +43,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
 - @matter/general
+    - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
     - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
     - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
     - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
@@ -58,6 +60,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
 
 - @matter/protocol
+    - Enhancement: `DclCertificateService` can be constructed `offline`, where it reaches no network and answers from what it was seeded and told about revocation
+    - Enhancement: A commissioner can be given revocation information the DCL does not publish, through `DclCertificateService.installRevocations()` or the new `revocations` option. `DclCertificateService.parseRevocationSet()` reads such a set in the format the CHIP SDK's revocation-set tool writes. The entries stay in memory and only add revocations — a serial they do not name is still checked against the DCL
     - Enhancement: A BDX message the node sends names its block counter on the log line the exchange already writes for it, with a Block's or BlockEof's data length, a BlockQueryWithSkip's skip offset, and the counter and length of the block an ack or a driving receiver's next query reports having received. A transfer flow also names the negotiated maximum block size and the start offset when it starts
     - Enhancement: `BdxSession` reports the `*Init` a responder received and what its transfer settled on, so a responder's own account of what it granted is readable without decoding the wire
     - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
@@ -68,6 +72,18 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
 
 - @matter/model
+    - Fix: The Base device type records the revision its specification section states, which is 3. It has no device type id, so no Descriptor `DeviceTypeList` entry carried one and `DeviceTypeModel.revision` answered 1
+    - Enhancement: `DeviceTypeModel.declaredRevision` states the revision a device type records for itself, or `undefined` where it records none, which `revision` cannot express because it answers 1 for both
+    - Fix: A device type's documentation carries the prose its specification chapter states below a subsection heading. Sixty-two device types gain text, and the Base device type is documented at all for the first time. Each subsection appears under a heading of its own depth, so a chapter that repeats a subsection name states which operation each one belongs to
+    - Fix: A condition carries the prose of the section that describes it, and an element requirement carries the section its table came from, so a section such as `device§8.5.6` has a cross reference
+    - Fix: Scraping says which device library chapter it ignores and how many sections below it go with it, rather than dropping them without a word
+    - Fix: Generated documentation drops an image's alt text and a table or figure caption, which name the artifact rather than describing the subject, and resolves a reference link such as `[[Aliro]](#ref_Aliro)` to the name it refers to
+    - Fix: The Heat Pump device type carries the eight element requirements its specification section states; the column heading that section uses discarded every row
+    - Fix: The Base device type's conditions carry their descriptions; nine of twenty-three were discarded because their table heads the column `Summary`
+    - Fix: A device type requirement carries the instance-count constraint the specification states, such as `min 1`
+    - Fix: `AnnounceOtaProvider` is fabric-scoped, which its command's field table states and its Access column omits
+    - Breaking: Eleven model elements whose names contain a pluralised acronym are renamed for consistency with the singular form, such as `TariffComponentIDs` to `TariffComponentIds`
+    - Enhancement: `Conformance.isProvisional` states whether the specification has not finished an element, which reads as optional and so cannot be told from a plain optional otherwise
     - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
     - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
     - Enhancement: `Constraint.referencesOf` states each name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it — where it previously stated the name alone. `Constraint.validateReferences` is replaced by it
@@ -82,6 +98,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
 
 - @matter/node
+    - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
+    - Enhancement: A device type that relaxes a cluster's mandatory element to optional is honoured. Temperature Sensor and Room Air Conditioner required `KeypadLockout`, which the specification makes optional for them
+    - Enhancement: A device type feature gated on `Rev >= vN` is enabled when the device type's revision satisfies it, which enables `ChangeEvent` on Water Freeze Detector, Water Leak Detector and Rain Sensor
+    - Enhancement: A generated requirement's documentation says when the specification states a cluster is provisional, rather than reporting it as plainly optional
+    - Fix: A generated device type no longer emits an empty `mandatory: {}`, and states `mandatory` before `optional` regardless of which it has
     - Enhancement: An OTA requestor's wait before querying a provider that announced an update can be set through `announcedUpdateQueryDelay`, so a node alone with its provider can shorten the random window the specification prefers
     - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
     - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
@@ -123,6 +144,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
 
 - @matter/types
+    - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there
+    - Breaking: A property whose name contains a pluralised acronym is now camelised the way the singular already was, so `tariffComponentIDs` is `tariffComponentIds`. Eight properties are renamed: `tariffComponentIDs`, `dayEntryIDs`, `dayPatternIDs`, `uniqueLocationIDs`, `uniqueLocationIDsLastEdit`, `groupKeySetIDs`, `messageIDs` and `activeMessageIDs`
     - Fix: A `status` field in a cluster that defines its own status codes is now `Status | <Cluster>.StatusCode`, so producing a cluster-specific code needs no cast and consuming one needs narrowing. This affects `DoorLock.SetCredentialResponse` and the DoorLock schedule responses
 
 - @matter/protocol
