@@ -21,6 +21,7 @@ import {
 function withComponents(...instances: (number | undefined)[]) {
     const Matter = new MatterModel(
         {},
+        new DeviceTypeModel({ name: "PowerSource", id: 0x11, classification: "utility" }),
         new DeviceTypeModel(
             { name: "Composite", id: 0xff01, classification: "simple" },
             ...instances.map(
@@ -277,6 +278,24 @@ describe("RequirementValidator", () => {
                 new RequirementModel({ name: "Switchable", id: 0x6, element: "serverCluster", location: "Self" }),
             ),
         ).deep.equals(["LOCATION_NOT_APPLICABLE"]);
+    });
+
+    describe("a component requirement", () => {
+        it("accepts a device type named by its ID", () => {
+            expect(
+                withRequirement(new RequirementModel({ name: "Renamed", id: 0xff08, element: "deviceType" })),
+            ).deep.equals([]);
+        });
+
+        it("accepts a device type named by its name alone", () => {
+            expect(withRequirement(new RequirementModel({ name: "Other", element: "deviceType" }))).deep.equals([]);
+        });
+
+        it("reports a device type the model does not define", () => {
+            expect(
+                withRequirement(new RequirementModel({ name: "Other", id: 0xff0f, element: "deviceType" })),
+            ).deep.equals(["UNRESOLVED_DEVICE_TYPE"]);
+        });
     });
 
     it("accepts the standard model", () => {

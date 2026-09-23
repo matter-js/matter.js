@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { decamelize } from "#general";
+import { decamelize, InternalError } from "#general";
 import {
     ClusterModel,
     ClusterVariance,
@@ -12,6 +12,7 @@ import {
     FeatureSelectionViolations,
     MatterModel,
     RequirementModel,
+    RequirementResolver,
 } from "#model";
 import { Block } from "../util/TsFile.js";
 import { ClusterRequirements } from "./ClusterRequirements.js";
@@ -85,9 +86,8 @@ export class RequirementGenerator {
         private file: EndpointFile,
         private type: "client" | "server",
     ) {
-        const matter = file.model.owner(MatterModel);
-        if (!matter) {
-            throw new Error("Unable to locate root MatterModel");
+        if (!file.model.owner(MatterModel)) {
+            throw new InternalError(`Device type ${file.model.name} belongs to no MatterModel`);
         }
         const clusterReqs = this.file.model.requirements.filter(r => r.element === `${type}Cluster`);
 
@@ -98,7 +98,7 @@ export class RequirementGenerator {
         }
 
         for (const requirement of clusterReqs) {
-            const definition = matter.get(ClusterModel, requirement.name);
+            const definition = RequirementResolver.clusterOf(requirement);
             if (!definition) {
                 reportRequirementLost(
                     `Skipping ${file.model.name} ${type} requirement for unknown cluster ${requirement.name}`,

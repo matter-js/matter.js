@@ -78,6 +78,7 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
 
         this.#validateConformanceNames();
         this.#validateCondition();
+        this.#validateComponent();
         this.#validateSatisfiability();
 
         super.validate();
@@ -136,6 +137,25 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
     }
 
     /**
+     * A component requirement must name a device type the model defines. Otherwise the requirements nested in it have
+     * no device type to resolve conditions against and can name only universal and qualified conditions.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    #validateComponent() {
+        if (
+            this.model.element === RequirementElement.ElementType.DeviceType &&
+            RequirementResolver.deviceTypeOf(this.model) === undefined
+        ) {
+            const identity = this.model.id === undefined ? "" : ` (0x${this.model.id.toString(16)})`;
+            this.error(
+                "UNRESOLVED_DEVICE_TYPE",
+                `No device type ${this.model.name}${identity} is defined for this component requirement`,
+            );
+        }
+    }
+
+    /**
      * A requirement naming a feature, attribute, command or event its cluster does not define states something no
      * endpoint can satisfy. That is wrong model data, so it is reported here once rather than at every endpoint of
      * the device type.
@@ -152,7 +172,6 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             return;
         }
 
-        const { name } = this.model;
         let named: Model | undefined;
         switch (this.model.element) {
             case RequirementElement.ElementType.Feature:
@@ -160,15 +179,9 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
                 break;
 
             case RequirementElement.ElementType.Attribute:
-                named = cluster.member(name, [ElementTag.Attribute]);
-                break;
-
             case RequirementElement.ElementType.Command:
-                named = cluster.member(name, [ElementTag.Command]);
-                break;
-
             case RequirementElement.ElementType.Event:
-                named = cluster.member(name, [ElementTag.Event]);
+                named = RequirementResolver.elementOf(this.model);
                 break;
 
             default:
@@ -178,7 +191,7 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
         if (named === undefined) {
             this.error(
                 "UNSATISFIABLE_REQUIREMENT",
-                `Cluster ${cluster.name} defines no ${this.model.element} ${name}, so no endpoint can satisfy the requirement`,
+                `Cluster ${cluster.name} defines no ${this.model.element} ${this.model.name}, so no endpoint can satisfy the requirement`,
             );
         }
     }

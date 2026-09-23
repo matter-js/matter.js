@@ -7,7 +7,6 @@
 import { InternalError, Logger } from "#general";
 import {
     ClusterModel,
-    ElementTag,
     FieldValue,
     RequirementElement,
     RequirementModel,
@@ -128,8 +127,7 @@ export class ClusterRequirements {
     private ingestElement(requirement: RequirementModel) {
         const alteration = {} as Record<string, any>;
 
-        // Not all RequirementElement.ElementType are ElementTags but the ones we care about here are
-        const element = this.cluster.member(requirement.name, [requirement.element as string as ElementTag]);
+        const element = RequirementResolver.elementOf(requirement);
 
         if (!element) {
             reportRequirementLost(

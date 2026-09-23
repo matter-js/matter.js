@@ -366,7 +366,7 @@ export namespace Conformance {
                 validateReferences(conformance, ast.param.lhs, errorTarget, resolver);
 
                 // Special case for comparison operators -- if LHS references an enum (or a field whose type is an enum),
-                // RHS may reference enum values using unqualified names.  Also handle boolean literals (True/False)
+                // RHS may reference enum values using unqualified names
                 let operatorResolver = resolver;
                 if (ast.param.lhs.type === "name") {
                     const referenced = resolver(ast.param.lhs.param);

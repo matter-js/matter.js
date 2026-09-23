@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DeviceClassification } from "../common/index.js";
+import { DeviceClassification, ElementTag } from "../common/index.js";
 import { RequirementElement } from "../elements/index.js";
 import {
     ClusterModel,
@@ -78,7 +78,7 @@ export namespace RequirementResolver {
             }
 
             if (model.element === RequirementElement.ElementType.DeviceType) {
-                scope.deviceType = matter?.deviceTypes(model.id ?? model.name);
+                scope.deviceType = deviceTypeOf(model);
                 break;
             }
         }
@@ -134,6 +134,19 @@ export namespace RequirementResolver {
     }
 
     /**
+     * The device type a component requirement names, by its ID and otherwise by its name. Undefined for a requirement
+     * that is not a component requirement or a device type the model does not define.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    export function deviceTypeOf(requirement: RequirementModel): DeviceTypeModel | undefined {
+        if (requirement.element !== RequirementElement.ElementType.DeviceType) {
+            return undefined;
+        }
+        return requirement.owner(MatterModel)?.deviceTypes(requirement.id ?? requirement.name);
+    }
+
+    /**
      * The feature of its cluster that a feature requirement names, or undefined if it names none or is not a feature
      * requirement.
      *
@@ -158,6 +171,22 @@ export namespace RequirementResolver {
 
         const title = titleKey(requirement.name);
         return features.find(feature => titleKey(feature.title) === title);
+    }
+
+    /**
+     * The attribute, command or event of its cluster that an element requirement names, or undefined if it names none
+     * or is not an attribute, command or event requirement.
+     *
+     * The name matches exactly and only an element of the kind the requirement states.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    export function elementOf(requirement: RequirementModel): Model | undefined {
+        const tag = elementTagOf(requirement.element);
+        if (tag === undefined) {
+            return undefined;
+        }
+        return endpointScopeOf(requirement).cluster?.member(requirement.name, [tag]);
     }
 
     /**
@@ -219,6 +248,22 @@ function qualifiedKey(declarer: DeviceTypeModel, condition: ConditionModel) {
 
 function titleKey(title: string | undefined) {
     return title?.toLowerCase().replace(/\s/g, "");
+}
+
+function elementTagOf(element: RequirementElement.ElementType) {
+    switch (element) {
+        case RequirementElement.ElementType.Attribute:
+            return ElementTag.Attribute;
+
+        case RequirementElement.ElementType.Command:
+            return ElementTag.Command;
+
+        case RequirementElement.ElementType.Event:
+            return ElementTag.Event;
+
+        default:
+            return undefined;
+    }
 }
 
 function isClusterRequirement(requirement: RequirementModel) {

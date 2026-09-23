@@ -9,8 +9,10 @@ import { RequirementResolver } from "#logic/RequirementResolver.js";
 import {
     AttributeModel,
     ClusterModel,
+    CommandModel,
     ConditionModel,
     DeviceTypeModel,
+    EventModel,
     FieldModel,
     MatterModel,
     RequirementModel,
@@ -405,6 +407,96 @@ describe("RequirementResolver", () => {
 
         it("answers nothing for a requirement that is not a feature requirement", () => {
             expect(RequirementResolver.featureOf(featureRequirement("LITS", "attribute"))).undefined;
+        });
+    });
+
+    describe("elementOf", () => {
+        /** An element requirement inside a cluster with one attribute, one command and one event */
+        function elementRequirement(name: string, element: "attribute" | "command" | "event" | "feature") {
+            const requirement = new RequirementModel({ name, element });
+            const cluster = new ClusterModel(
+                { name: "Elemental", id: 0xfff6 },
+                new AttributeModel({ name: "OnTime", id: 0x4001, type: "uint16" }),
+                new CommandModel({ name: "Toggle", id: 0x2, direction: "request" }),
+                new EventModel({ name: "StateChanged", id: 0x0, priority: "info" }),
+            );
+            new MatterModel(
+                {},
+                cluster,
+                new DeviceTypeModel(
+                    { name: "Elementary", id: 0xff07, classification: "simple" },
+                    new RequirementModel({ name: "Elemental", id: 0xfff6, element: "serverCluster" }, requirement),
+                ),
+            );
+            return { requirement, cluster };
+        }
+
+        for (const [element, name] of [
+            ["attribute", "OnTime"],
+            ["command", "Toggle"],
+            ["event", "StateChanged"],
+        ] as const) {
+            it(`answers the ${element} a requirement names`, () => {
+                const { requirement, cluster } = elementRequirement(name, element);
+                expect(RequirementResolver.elementOf(requirement)).equals(cluster.children.find(c => c.name === name));
+            });
+        }
+
+        it("answers nothing for an element of another kind than the requirement states", () => {
+            expect(RequirementResolver.elementOf(elementRequirement("OnTime", "command").requirement)).undefined;
+        });
+
+        it("answers nothing for a name spelled in another case", () => {
+            expect(RequirementResolver.elementOf(elementRequirement("onTime", "attribute").requirement)).undefined;
+        });
+
+        it("answers nothing for a requirement that is not an attribute, command or event requirement", () => {
+            expect(RequirementResolver.elementOf(elementRequirement("OnTime", "feature").requirement)).undefined;
+        });
+
+        it("answers the attribute of real data", () => {
+            const extension = requirement("RootNode", "AccessControl").requirements.find(
+                child => child.name === "Extension",
+            );
+            expect(extension).instanceof(RequirementModel);
+            expect(RequirementResolver.elementOf(extension!)).equals(
+                Matter.clusters("AccessControl")?.attributes.find(attribute => attribute.name === "Extension"),
+            );
+        });
+    });
+
+    describe("deviceTypeOf", () => {
+        function component(
+            definition: { name: string; id?: number },
+            element: "deviceType" | "serverCluster" = "deviceType",
+        ) {
+            const requirement = new RequirementModel({ ...definition, element });
+            const componentType = new DeviceTypeModel({ name: "Part", id: 0xff08, classification: "simple" });
+            new MatterModel(
+                {},
+                componentType,
+                new DeviceTypeModel({ name: "Whole", id: 0xff09, classification: "simple" }, requirement),
+            );
+            return { requirement, componentType };
+        }
+
+        it("answers the device type a component requirement names by ID", () => {
+            const { requirement, componentType } = component({ name: "Renamed", id: 0xff08 });
+            expect(RequirementResolver.deviceTypeOf(requirement)).equals(componentType);
+        });
+
+        it("answers the device type a component requirement names by name alone", () => {
+            const { requirement, componentType } = component({ name: "Part" });
+            expect(RequirementResolver.deviceTypeOf(requirement)).equals(componentType);
+        });
+
+        it("answers nothing for a device type the model does not define", () => {
+            expect(RequirementResolver.deviceTypeOf(component({ name: "Part", id: 0xff0f }).requirement)).undefined;
+        });
+
+        it("answers nothing for a requirement that is not a component requirement", () => {
+            const { requirement } = component({ name: "Part", id: 0xff08 }, "serverCluster");
+            expect(RequirementResolver.deviceTypeOf(requirement)).undefined;
         });
     });
 
