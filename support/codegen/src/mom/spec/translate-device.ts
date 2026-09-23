@@ -222,7 +222,7 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
             element: RequirementElement.ElementType.Condition,
             conformance: r.conformance,
             constraint: r.constraint,
-            location: locationOf(r.location, r.name),
+            location: locationOf(r.location, device.name, r.name),
             xref: r.xref,
             details: r.details,
         });
@@ -233,7 +233,7 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
 
 // The specification names the location in three vocabularies that disagree; "Child" and "Descendant"
 // both denote an endpoint below the asserting one
-function locationOf(location: string | undefined, name: string) {
+function locationOf(location: string | undefined, deviceName: string, name: string) {
     switch (location?.toLowerCase()) {
         case undefined:
             return undefined;
@@ -246,7 +246,7 @@ function locationOf(location: string | undefined, name: string) {
         case "descendant":
             return RequirementElement.Location.Descendant;
         default:
-            logger.warn(`Condition requirement ${name} states unknown location "${location}"`);
+            logger.warn(`${deviceName} condition requirement ${name} states unknown location "${location}"`);
             return undefined;
     }
 }
