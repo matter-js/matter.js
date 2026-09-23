@@ -6,7 +6,15 @@
 
 import { Matter } from "#index.js";
 import { RequirementResolver } from "#logic/RequirementResolver.js";
-import { ConditionModel, DeviceTypeModel, MatterModel, RequirementModel } from "#models/index.js";
+import {
+    AttributeModel,
+    ClusterModel,
+    ConditionModel,
+    DeviceTypeModel,
+    FieldModel,
+    MatterModel,
+    RequirementModel,
+} from "#models/index.js";
 
 function deviceType(name: string) {
     const model = Matter.deviceTypes(name);
@@ -101,6 +109,52 @@ describe("RequirementResolver", () => {
             // Keying conditions case-insensitively is what lets conformance spell a condition as the specification's
             // tables do, and it means a name shaped like a feature still lands on a condition of that name
             expect(RequirementResolver.resolve(requirement("RootNode", "IcdManagement"), "NODE")?.name).equals("Node");
+        });
+    });
+
+    describe("featureOf", () => {
+        /** A feature requirement inside a cluster whose single feature has a code and a title that differ */
+        function featureRequirement(name: string, element: "feature" | "attribute" = "feature") {
+            const requirement = new RequirementModel({ name, element });
+            new MatterModel(
+                {},
+                new ClusterModel(
+                    { name: "Featured", id: 0xfff1 },
+                    new AttributeModel(
+                        { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
+                        new FieldModel({ name: "LITS", constraint: "2", title: "LongIdleTimeSupport" }),
+                    ),
+                ),
+                new DeviceTypeModel(
+                    { name: "Featuring", id: 0xff04, classification: "simple" },
+                    new RequirementModel({ name: "Featured", id: 0xfff1, element: "serverCluster" }, requirement),
+                ),
+            );
+            return requirement;
+        }
+
+        it("answers the feature a requirement names by the feature's title", () => {
+            const icd = requirement("RootNode", "IcdManagement");
+            const longIdle = icd.requirements.find(child => child.name === "LONGIDLETIMESUPPORT")!;
+            const feature = RequirementResolver.featureOf(longIdle);
+            expect(feature?.name).equals("LITS");
+            expect(feature).equals(Matter.clusters("IcdManagement")?.features.find(feature => feature.name === "LITS"));
+        });
+
+        it("answers the feature a requirement names by the feature's code", () => {
+            expect(RequirementResolver.featureOf(featureRequirement("lits"))?.name).equals("LITS");
+        });
+
+        it("answers the feature named by its title in another case or spacing", () => {
+            expect(RequirementResolver.featureOf(featureRequirement("Long Idle Time Support"))?.name).equals("LITS");
+        });
+
+        it("answers nothing for a requirement naming no feature of the cluster", () => {
+            expect(RequirementResolver.featureOf(featureRequirement("NOSUCHFEATURE"))).undefined;
+        });
+
+        it("answers nothing for a requirement that is no feature requirement", () => {
+            expect(RequirementResolver.featureOf(featureRequirement("LITS", "attribute"))).undefined;
         });
     });
 

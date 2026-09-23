@@ -6,7 +6,15 @@
 
 import { DeviceClassification } from "../common/index.js";
 import { RequirementElement } from "../elements/index.js";
-import { ConditionModel, DeviceTypeModel, FieldModel, MatterModel, Model, RequirementModel } from "../models/index.js";
+import {
+    ClusterModel,
+    ConditionModel,
+    DeviceTypeModel,
+    FieldModel,
+    MatterModel,
+    Model,
+    RequirementModel,
+} from "../models/index.js";
 
 /**
  * Resolves the names a device type requirement's conformance references.
@@ -58,7 +66,7 @@ export namespace RequirementResolver {
         // A feature wins over a condition of the same name, because inside a cluster requirement a name that the
         // cluster defines states what the cluster supports
         if (segments.length === 1) {
-            const feature = featureOf(requirement, segments[0]);
+            const feature = featureNamed(requirement, segments[0]);
             if (feature !== undefined) {
                 return feature;
             }
@@ -70,6 +78,46 @@ export namespace RequirementResolver {
         }
 
         return conditionsOf(deviceType).get(segments.join(".").toLowerCase());
+    }
+
+    /**
+     * The cluster a requirement belongs to: the one a cluster requirement names, or the one enclosing a requirement
+     * nested in a cluster requirement.  Undefined for any other requirement or a cluster the model does not define.
+     */
+    export function clusterOf(requirement: RequirementModel): ClusterModel | undefined {
+        const clusterRequirement = clusterRequirementOf(requirement);
+        if (clusterRequirement === undefined) {
+            return undefined;
+        }
+
+        return requirement.owner(MatterModel)?.clusters(clusterRequirement.id ?? clusterRequirement.name);
+    }
+
+    /**
+     * The feature of its cluster that a feature requirement names, or undefined if it names none or is no feature
+     * requirement.
+     *
+     * A requirement names a feature by its code or by its title in any case and spacing.  The title match holds only
+     * while requirement names are not canonicalized to feature codes.
+     */
+    export function featureOf(requirement: RequirementModel): FieldModel | undefined {
+        if (requirement.element !== RequirementElement.ElementType.Feature) {
+            return undefined;
+        }
+
+        const features = clusterOf(requirement)?.features;
+        if (features === undefined) {
+            return undefined;
+        }
+
+        const code = requirement.name.toLowerCase();
+        const byCode = features.find(feature => feature.name.toLowerCase() === code);
+        if (byCode !== undefined) {
+            return byCode;
+        }
+
+        const title = titleKey(requirement.name);
+        return features.find(feature => titleKey(feature.title) === title);
     }
 
     /**
@@ -98,15 +146,12 @@ function qualifiedKey(declarer: DeviceTypeModel, condition: ConditionModel) {
  * The feature of the cluster a requirement qualifies.  Features are named in upper case where conditions are not, so
  * an exact match is what keeps a feature and a condition of the same spelling apart.
  */
-function featureOf(requirement: RequirementModel, name: string): FieldModel | undefined {
-    const clusterRequirement = clusterRequirementOf(requirement);
-    if (clusterRequirement === undefined) {
-        return undefined;
-    }
+function featureNamed(requirement: RequirementModel, name: string): FieldModel | undefined {
+    return RequirementResolver.clusterOf(requirement)?.features.find(feature => feature.name === name);
+}
 
-    const cluster = requirement.owner(MatterModel)?.clusters(clusterRequirement.id ?? clusterRequirement.name);
-
-    return cluster?.features.find(feature => feature.name === name);
+function titleKey(title: string | undefined) {
+    return title?.toLowerCase().replace(/\s/g, "");
 }
 
 function clusterRequirementOf(requirement: RequirementModel): RequirementModel | undefined {

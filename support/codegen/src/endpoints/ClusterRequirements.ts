@@ -5,7 +5,15 @@
  */
 
 import { InternalError, Logger } from "#general";
-import { ClusterModel, ElementTag, FieldValue, RequirementElement, RequirementModel, ValueModel } from "#model";
+import {
+    ClusterModel,
+    ElementTag,
+    FieldValue,
+    RequirementElement,
+    RequirementModel,
+    RequirementResolver,
+    ValueModel,
+} from "#model";
 import { EndpointFile } from "./EndpointFile.js";
 import { reportRequirementLost } from "./requirement-coverage.js";
 import { dispositionOf, RequirementDisposition } from "./requirement-disposition.js";
@@ -83,13 +91,7 @@ export class ClusterRequirements {
     }
 
     private ingestFeature(requirement: RequirementModel) {
-        let feature = this.cluster.featureMap.children.find(
-            f => f.name.toLowerCase() === requirement.name.toLowerCase(),
-        );
-        if (!feature) {
-            const desc = (str?: string) => str?.toLowerCase().replace(/\s/g, "");
-            feature = this.cluster.featureMap.children.find(f => desc(f.title) === desc(requirement.name));
-        }
+        const feature = RequirementResolver.featureOf(requirement);
         if (!feature) {
             reportRequirementLost(
                 `Skipping ${this.file.model.name} unknown feature ${requirement.name} for server cluster ${this.cluster.name}`,

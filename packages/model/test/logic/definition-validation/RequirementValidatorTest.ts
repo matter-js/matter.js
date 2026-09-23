@@ -4,8 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ValidateModel } from "#index.js";
-import { DeviceTypeModel, MatterModel, RequirementModel } from "#models/index.js";
+import { Matter, ValidateModel } from "#index.js";
+import {
+    AttributeModel,
+    ClusterModel,
+    CommandModel,
+    ConditionModel,
+    DeviceTypeModel,
+    EventModel,
+    FieldModel,
+    MatterModel,
+    RequirementModel,
+} from "#models/index.js";
 
 /** A device type requiring the same component twice, as Battery Storage requires two electrical sensors */
 function withComponents(...instances: (number | undefined)[]) {
@@ -40,7 +50,160 @@ function withNumberedAttributes(...instances: (number | undefined)[]) {
     return ValidateModel(Matter).errors.map(error => error.code);
 }
 
+/**
+ * A device type requiring a cluster, with the given conformance on the cluster requirement and the given requirements
+ * nested in it.
+ *
+ * The cluster has its own name so it cannot collide with a standard cluster another suite has loaded; the requirement
+ * carries the id, which is what resolves it.
+ */
+function withClusterRequirement(conformance: string, ...nested: RequirementModel[]) {
+    const Matter = new MatterModel(
+        {},
+        new ClusterModel(
+            { name: "Switchable", id: 0xfff2 },
+            new AttributeModel(
+                { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
+                new FieldModel({ name: "LT", constraint: "0", title: "Lighting" }),
+            ),
+            new AttributeModel({ name: "OnTime", id: 0x4001, type: "uint16" }),
+            new CommandModel({ name: "Toggle", id: 0x2, direction: "request", response: "status" }),
+            new EventModel({ name: "StateChange", id: 0x0, priority: "info" }),
+        ),
+        new DeviceTypeModel(
+            { name: "Phantom", id: 0xff03, classification: "simple" },
+            new ConditionModel({ name: "Declared" }),
+            new RequirementModel({ name: "Switchable", id: 0xfff2, element: "serverCluster", conformance }, ...nested),
+        ),
+    );
+    Matter.finalize();
+
+    return ValidateModel(Matter).errors.map(error => error.code);
+}
+
+/** A component requirement whose constraint states no count */
+function withUncountedComponent() {
+    const Matter = new MatterModel(
+        {},
+        new DeviceTypeModel(
+            { name: "Phantom", id: 0xff05, classification: "simple" },
+            new RequirementModel({
+                name: "PowerSource",
+                id: 0x11,
+                element: "deviceType",
+                conformance: "M",
+                constraint: "desc",
+            }),
+        ),
+    );
+    Matter.finalize();
+
+    return ValidateModel(Matter).errors.map(error => error.code);
+}
+
 describe("RequirementValidator", () => {
+    describe("a name a requirement's conformance references", () => {
+        it("reports a name that resolves to nothing", () => {
+            expect(withClusterRequirement("NoSuchCond")).deep.equals(["UNRESOLVED_CONFORMANCE_NAME"]);
+        });
+
+        it("reports a name inside an optional conformance", () => {
+            expect(withClusterRequirement("[NoSuchCond]")).deep.equals(["UNRESOLVED_CONFORMANCE_NAME"]);
+        });
+
+        it("reports a name inside a choice", () => {
+            expect(withClusterRequirement("[NoSuchCond].a+")).deep.equals(["UNRESOLVED_CONFORMANCE_NAME"]);
+        });
+
+        it("accepts a condition the device type declares, in any case", () => {
+            expect(withClusterRequirement("[DECLARED].a+")).deep.equals([]);
+        });
+
+        it("accepts a feature of the cluster on a nested requirement", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "OnTime", element: "attribute", conformance: "LT" }),
+                ),
+            ).deep.equals([]);
+        });
+
+        it("reports a name on a nested requirement that is neither a feature nor a condition", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "OnTime", element: "attribute", conformance: "NoSuchFeature" }),
+                ),
+            ).deep.equals(["UNRESOLVED_CONFORMANCE_NAME"]);
+        });
+    });
+
+    describe("a requirement its cluster cannot satisfy", () => {
+        for (const element of ["attribute", "command", "event"] as const) {
+            it(`reports ${element} that the cluster does not define`, () => {
+                expect(
+                    withClusterRequirement(
+                        "M",
+                        new RequirementModel({ name: "NoSuchElement", element, conformance: "M" }),
+                    ),
+                ).deep.equals(["UNSATISFIABLE_REQUIREMENT"]);
+            });
+        }
+
+        it("accepts elements the cluster defines", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "OnTime", element: "attribute", conformance: "M" }),
+                    new RequirementModel({ name: "Toggle", element: "command", conformance: "M" }),
+                    new RequirementModel({ name: "StateChange", element: "event", conformance: "M" }),
+                ),
+            ).deep.equals([]);
+        });
+
+        it("accepts a feature named by its code", () => {
+            expect(
+                withClusterRequirement("M", new RequirementModel({ name: "LT", element: "feature", conformance: "M" })),
+            ).deep.equals([]);
+        });
+
+        // The specification's tables name a feature by its title, which is how the model states most of them
+        it("accepts a feature named by its title", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "LIGHTING", element: "feature", conformance: "M" }),
+                ),
+            ).deep.equals([]);
+        });
+
+        it("reports a feature the cluster does not define", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "NOSUCHFEATURE", element: "feature", conformance: "M" }),
+                ),
+            ).deep.equals(["UNSATISFIABLE_REQUIREMENT"]);
+        });
+
+        it("accepts disallowing an element the cluster does not define", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "NoSuchElement", element: "attribute", conformance: "X" }),
+                ),
+            ).deep.equals([]);
+        });
+    });
+
+    it("accepts a component count the validator can judge", () => {
+        expect(withUncountedComponent()).deep.equals([]);
+    });
+
+    it("accepts the standard model", () => {
+        expect(ValidateModel(Matter).errors.map(error => error.code)).deep.equals([]);
+    });
+
     describe("a component required in several instances", () => {
         it("accepts one requirement per instance", () => {
             expect(withComponents(1, 2)).deep.equals([]);

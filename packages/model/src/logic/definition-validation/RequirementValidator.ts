@@ -6,7 +6,8 @@
 
 import { ElementTag, FieldValue } from "../../common/index.js";
 import { RequirementElement } from "../../elements/index.js";
-import { FieldModel, RequirementModel } from "../../models/index.js";
+import { FieldModel, Model, RequirementModel } from "../../models/index.js";
+import { RequirementResolver } from "../RequirementResolver.js";
 import { ModelValidator } from "./ModelValidator.js";
 
 ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator extends (
@@ -67,11 +68,57 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             }
         }
 
-        // TODO - conformance references on requirements (condition names, feature names) are not yet validated.
-        // This requires: (1) resolving conditions from the device type hierarchy (including inherited Base
-        // conditions), (2) case-insensitive condition matching, (3) cluster feature resolution for nested
-        // requirements.  See PR #3179 discussion.
+        this.model.conformance.validateReferences(this, name => RequirementResolver.resolve(this.model, name));
+        this.#validateSatisfiability();
 
         super.validate();
+    }
+
+    /**
+     * A requirement naming a feature, attribute, command or event its cluster does not define states something no
+     * endpoint can satisfy.  That is wrong model data, so it is reported here once rather than at every endpoint of
+     * the device type.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    #validateSatisfiability() {
+        if (this.model.isDisallowed) {
+            return;
+        }
+
+        const cluster = RequirementResolver.clusterOf(this.model);
+        if (cluster === undefined) {
+            return;
+        }
+
+        const { name } = this.model;
+        let named: Model | undefined;
+        switch (this.model.element) {
+            case RequirementElement.ElementType.Feature:
+                named = RequirementResolver.featureOf(this.model);
+                break;
+
+            case RequirementElement.ElementType.Attribute:
+                named = cluster.member(name, [ElementTag.Attribute]);
+                break;
+
+            case RequirementElement.ElementType.Command:
+                named = cluster.member(name, [ElementTag.Command]);
+                break;
+
+            case RequirementElement.ElementType.Event:
+                named = cluster.member(name, [ElementTag.Event]);
+                break;
+
+            default:
+                return;
+        }
+
+        if (named === undefined) {
+            this.error(
+                "UNSATISFIABLE_REQUIREMENT",
+                `Cluster ${cluster.name} defines no ${this.model.element} ${name}, so no endpoint can satisfy the requirement`,
+            );
+        }
     }
 };
