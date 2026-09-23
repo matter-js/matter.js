@@ -5,14 +5,7 @@
  */
 
 import { Diagnostic, Logger } from "#general";
-import {
-    ConditionElement,
-    Conformance,
-    DeviceClassification,
-    DeviceTypeElement,
-    ElementTag,
-    RequirementElement,
-} from "#model";
+import { ConditionElement, DeviceClassification, DeviceTypeElement, RequirementElement } from "#model";
 import { camelize } from "../../util/string.js";
 import { addDeviceDocumentation } from "./add-documentation.js";
 import { repairConstraint } from "./repairs/aspect-repairs.js";
@@ -53,7 +46,6 @@ export function* translateDevice(deviceRef: DeviceReference) {
     addConditionRequirements(device, deviceRef);
     addClusters(device, deviceRef);
     addComposing(device, deviceRef);
-    canonicalizeConditionReferences(device);
 
     yield device;
 }
@@ -538,174 +530,5 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
         if (!instancedDeviceIds.has(ct.id!) && !device.children!.includes(ct)) {
             device.children!.push(ct);
         }
-    }
-}
-
-const NoFeatures: ReadonlySet<string> = new Set<string>();
-
-/**
- * Align the condition names a requirement's conformance references with the spelling the device type declares.
- *
- * The specification spells a condition's declaration and its references in different cases ("SIT" against "Sit") and
- * we normalize the declaration, so a reference keeping the specification's spelling would resolve to nothing.
- *
- * A name that states a feature of the cluster in context is left alone: "NODE" under a Power Topology requirement is
- * the cluster's feature, not the "Node" condition.  The model's RequirementResolver applies the same precedence
- * at runtime.
- */
-function canonicalizeConditionReferences(device: DeviceTypeElement) {
-    const declared = new Map<string, string>();
-    for (const child of device.children ?? []) {
-        if (child.tag === ElementTag.Condition) {
-            declared.set(child.name.toLowerCase(), child.name);
-        }
-    }
-
-    if (!declared.size) {
-        return;
-    }
-
-    for (const child of device.children ?? []) {
-        if (child.tag === ElementTag.Requirement) {
-            canonicalizeRequirement(child, declared, NoFeatures);
-        }
-    }
-}
-
-function canonicalizeRequirement(
-    requirement: RequirementElement,
-    declared: Map<string, string>,
-    features: ReadonlySet<string>,
-) {
-    if (
-        requirement.element === RequirementElement.ElementType.ServerCluster ||
-        requirement.element === RequirementElement.ElementType.ClientCluster
-    ) {
-        features = featureNamesOf(requirement);
-    }
-
-    if (requirement.conformance !== undefined) {
-        requirement.conformance = canonicalizedConformance(requirement.conformance, declared, features);
-    }
-
-    for (const child of requirement.children ?? []) {
-        if (child.tag === ElementTag.Requirement) {
-            canonicalizeRequirement(child, declared, features);
-        }
-    }
-}
-
-/**
- * The features of a cluster requirement, as far as the specification's element requirements state them.  A feature the
- * device type does not qualify is unknown here, so a conformance naming it reads as a condition reference.
- */
-function featureNamesOf(cluster: RequirementElement) {
-    const features = new Set<string>();
-
-    for (const child of cluster.children ?? []) {
-        if (child.tag === ElementTag.Requirement && child.element === RequirementElement.ElementType.Feature) {
-            features.add(child.name);
-        }
-    }
-
-    return features;
-}
-
-function canonicalizedConformance(
-    conformance: Conformance.Definition,
-    declared: Map<string, string>,
-    features: ReadonlySet<string>,
-) {
-    let parsed;
-    try {
-        parsed = Conformance.create(conformance);
-    } catch (e) {
-        logger.warn(`Cannot read conformance "${conformance}", leaving its condition references as written`, e);
-        return conformance;
-    }
-
-    // A conformance the parser rejects keeps the specification's text; its partial parse serializes to less than the
-    // specification states
-    if (!parsed.valid) {
-        return conformance;
-    }
-
-    const canonicalized = canonicalizedAst(parsed.ast, name =>
-        features.has(name) ? undefined : declared.get(name.toLowerCase()),
-    );
-
-    // An unchanged conformance keeps the specification's exact text; a parse and serialize round trip normalizes
-    // spacing and parentheses
-    if (canonicalized === undefined) {
-        return conformance;
-    }
-
-    return Conformance.serialize(canonicalized);
-}
-
-/**
- * A copy of {@link ast} with every name reference the caller renames replaced, or undefined if it renames none.
- */
-function canonicalizedAst(
-    ast: Conformance.Ast,
-    rename: (name: string) => string | undefined,
-): Conformance.Ast | undefined {
-    switch (ast.type) {
-        case Conformance.Special.Name: {
-            const name = rename(ast.param);
-            return name === undefined || name === ast.param ? undefined : { type: ast.type, param: name };
-        }
-
-        case Conformance.Operator.AND:
-        case Conformance.Operator.OR:
-        case Conformance.Operator.XOR:
-        case Conformance.Operator.EQ:
-        case Conformance.Operator.NE:
-        case Conformance.Operator.GT:
-        case Conformance.Operator.LT:
-        case Conformance.Operator.GTE:
-        case Conformance.Operator.LTE: {
-            const lhs = canonicalizedAst(ast.param.lhs, rename);
-            const rhs = canonicalizedAst(ast.param.rhs, rename);
-            if (lhs === undefined && rhs === undefined) {
-                return undefined;
-            }
-            return { type: ast.type, param: { lhs: lhs ?? ast.param.lhs, rhs: rhs ?? ast.param.rhs } };
-        }
-
-        case Conformance.Operator.NOT: {
-            const param = canonicalizedAst(ast.param, rename);
-            return param === undefined ? undefined : { type: ast.type, param };
-        }
-
-        case Conformance.Special.OptionalIf: {
-            const param = canonicalizedAst(ast.param, rename);
-            return param === undefined ? undefined : { type: ast.type, param };
-        }
-
-        case Conformance.Special.Choice: {
-            const expr = canonicalizedAst(ast.param.expr, rename);
-            return expr === undefined ? undefined : { type: ast.type, param: { ...ast.param, expr } };
-        }
-
-        case Conformance.Special.Otherwise: {
-            let changed = false;
-            const param = ast.param.map(entry => {
-                const canonicalized = canonicalizedAst(entry, rename);
-                if (canonicalized === undefined) {
-                    return entry;
-                }
-                changed = true;
-                return canonicalized;
-            });
-            return changed ? { type: ast.type, param } : undefined;
-        }
-
-        // A qualified name states another device type's condition, which this device type's declarations do not spell
-        case Conformance.Operator.DOT:
-            return undefined;
-
-        default:
-            return undefined;
     }
 }
