@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext, OtaAnnouncementRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { announcementLines, announcementReasonName, OtaAnnouncementReason } from "./tc-su-support.js";
@@ -14,6 +15,7 @@ import {
     LOG_TIMEOUT,
     record,
     recordAll,
+    requireId,
     runCleanups,
 } from "./tc-support.js";
 
@@ -24,8 +26,12 @@ import {
 const commissionedRequestor = new CommissionedRefs();
 const commissionedProvider = new CommissionedRefs();
 
-/** Device type id of the OTA Provider device type (Matter Device Library § 2.7). */
-const OTA_PROVIDER_DEVICE_TYPE = 0x14;
+const DESCRIPTOR = Matter.clusters.require("Descriptor");
+const DESCRIPTOR_ID = requireId(DESCRIPTOR.id, "Descriptor cluster");
+const SERVER_LIST_ID = requireId(DESCRIPTOR.attributes.require("serverList").id, "Descriptor.serverList");
+
+const OTA_PROVIDER = Matter.clusters.require("OtaSoftwareUpdateProvider");
+const OTA_PROVIDER_ID = requireId(OTA_PROVIDER.id, "OtaSoftwareUpdateProvider cluster");
 
 certTest("TC-SU-1.1", {
     plan: "softwareupdate.adoc",
@@ -117,21 +123,25 @@ certTest("TC-SU-1.1", {
                     }),
                 },
                 {
-                    // Against what the OTA-P/TH2 itself publishes, read back from the DUT's structure
-                    // read of it. Asking whether the announced endpoint is a number would be asking the
-                    // step about a value it produced moments earlier.
+                    // Against what the OTA-P/TH2 itself publishes, read from the announced endpoint's
+                    // own ServerList. Asking whether the announced endpoint is a number would be asking
+                    // the step about a value it produced moments earlier, and asking for the OTA
+                    // Provider *device type* answers a different question: chip's ota-provider-app
+                    // carries the cluster on its root endpoint and declares no such device type.
                     what: "Endpoint is the endpoint the OTA-P/TH2 carries its provider cluster on",
                     check: async () => {
-                        const endpoints = await dut.node(provider).clientEndpoints();
-                        const carrying = endpoints
-                            .filter(entry => entry.deviceTypes.includes(OTA_PROVIDER_DEVICE_TYPE))
-                            .map(entry => entry.endpoint);
+                        const serverList = await dut.node(provider).readAttribute({
+                            endpoint: announcement.endpoint,
+                            cluster: DESCRIPTOR_ID,
+                            attribute: SERVER_LIST_ID,
+                        });
+                        const servers = Array.isArray(serverList) ? serverList.map(Number) : [];
                         return {
                             type: "response",
-                            verdict: carrying.includes(announcement.endpoint) ? "pass" : "fail",
+                            verdict: servers.includes(OTA_PROVIDER_ID) ? "pass" : "fail",
                             detail:
-                                `the DUT named endpoint ${announcement.endpoint}, and the OTA-P/TH2 publishes the ` +
-                                `OTA Provider device type on endpoint(s) ${carrying.join(", ") || "none"}`,
+                                `the DUT named endpoint ${announcement.endpoint}, whose ServerList is ` +
+                                `${servers.join(", ") || "empty"}`,
                         };
                     },
                 },
