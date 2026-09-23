@@ -17,6 +17,7 @@ export * from "./MergedModel.js";
 export * from "./ModelDiff.js";
 export * from "./ModelIndex.js";
 export * from "./ModelVariantTraversal.js";
+export * from "./RequirementApplicability.js";
 export * from "./RequirementResolver.js";
 export * from "./Scope.js";
 export * from "./SelectDefaultValue.js";
