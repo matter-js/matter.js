@@ -1348,6 +1348,15 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     #closed = false;
 
     constructor(id: string, options?: ControllerAdapterOptions) {
+        if (options?.attestation) {
+            throw new UnsupportedByControllerError(
+                "judging device attestation against installed revocation information",
+                id,
+                "chip-tool reads revocation from a file its own process is started with, which a running adapter " +
+                    "cannot change",
+            );
+        }
+
         if (options?.webRtcRequestor) {
             throw new UnsupportedByControllerError(
                 "hosting a WebRTC transport requestor cluster",

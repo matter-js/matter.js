@@ -35,8 +35,8 @@ import { Identity } from "@matter/general";
  * An Audio Doorbell device is composed in all cases with a generic switch to provide a doorbell with Audio only
  * streaming.
  *
- * AudioDoorbellDevice requires Switch and CameraAvStreamManagement clusters but they are not added by default because
- * you must select the features your device supports. You can add manually using AudioDoorbellDevice.with().
+ * AudioDoorbellDevice requires Switch cluster but Switch is not added by default because you must select the features
+ * your device supports. You can add manually using AudioDoorbellDevice.with().
  *
  * @see {@link MatterSpecification.v16.Device} § 16.5
  */
@@ -139,6 +139,7 @@ export const AudioDoorbellDeviceDefinition = MutableEndpoint({
     requirements: AudioDoorbellRequirements,
     behaviors: SupportedBehaviors(
         AudioDoorbellRequirements.server.mandatory.Identify,
+        AudioDoorbellRequirements.server.mandatory.CameraAvStreamManagement,
         AudioDoorbellRequirements.server.mandatory.WebRtcTransportProvider
     )
 });

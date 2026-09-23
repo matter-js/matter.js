@@ -43,7 +43,7 @@ export const IntercomDt = DeviceType(
     Requirement({ name: "Chime", id: 0x556, conformance: "O", element: "clientCluster" }),
 
     Requirement(
-        { name: "GenericSwitch", id: 0xf, conformance: "M", element: "deviceType" },
+        { name: "GenericSwitch", id: 0xf, conformance: "M", constraint: "min 1", element: "deviceType" },
         Requirement(
             { name: "Switch", id: 0x3b, element: "serverCluster" },
             Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature" })

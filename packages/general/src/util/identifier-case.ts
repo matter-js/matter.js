@@ -52,6 +52,13 @@ export function camelize(name: string, upperFirst = false) {
         if (name[i] >= "a" && name[i] <= "z") {
             if (!sawLower) {
                 if (sawUpper) {
+                    // A pluralised acronym is one word, so its trailing "s" does not start a new piece
+                    if (name[i] === "s" && !(name[i + 1] >= "a" && name[i + 1] <= "z")) {
+                        addPiece(i + 1);
+                        pieceStart = i + 1;
+                        continue;
+                    }
+
                     addPiece(i - 1);
                     pieceStart = i - 1;
                 }

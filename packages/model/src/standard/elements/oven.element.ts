@@ -17,8 +17,8 @@ export const OvenDt = DeviceType(
     ),
     Requirement({ name: "Heater", type: "TemperatureControlledCabinet.Heater", conformance: "M", element: "condition" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", element: "deviceType" }),
-    Requirement({ name: "Cooktop", id: 0x78, conformance: "O", element: "deviceType" })
+    Requirement({ name: "TemperatureControlledCabinet", id: 0x71, conformance: "M", constraint: "min 1", element: "deviceType" }),
+    Requirement({ name: "Cooktop", id: 0x78, conformance: "O", constraint: "max 1", element: "deviceType" })
 );
 
 MatterDefinition.children.push(OvenDt);

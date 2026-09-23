@@ -5,6 +5,7 @@
  */
 
 import { ImplementationError, InternalError } from "@matter/main";
+import { DeviceAttestationCheck } from "@matter/main/protocol";
 import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { PicsExpression, PicsFile, UnsupportedByControllerError } from "@matter/testing";
@@ -681,6 +682,103 @@ describe("InProcessControllerAdapter", () => {
 
     it("throws when constructing a second adapter with an id already registered", () => {
         expect(() => new InProcessControllerAdapter("dut")).to.throw(InternalError, /already registered/);
+    });
+});
+
+describe("InProcessControllerAdapter attestation", () => {
+    let adapter: InProcessControllerAdapter;
+
+    afterEach(async function () {
+        this.timeout(30_000);
+        await adapter?.close();
+    });
+
+    it("judges no attestation unless asked", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-off");
+        await adapter.start();
+
+        expect(adapter.attestation).equal(undefined);
+    });
+
+    it("takes revocation information a case installs", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-on", { attestation: true });
+        await adapter.start();
+
+        expect(adapter.attestation).not.equal(undefined);
+        await adapter.attestation!.installRevocations(
+            JSON.stringify([
+                {
+                    type: "revocation_set",
+                    issuer_subject_key_id: "63540E47F64B1C38D13884A462D16C195D8FFB3C",
+                    issuer_name: "MD0xJTAjBgNVBAMMHE1hdHRlciBEZXYgUEFJIDB4RkZGMSBubyBQSUQxFDASBgorBgEEAYKifAIBDARGRkYx",
+                    revoked_serial_numbers: ["19367D978EAC533A"],
+                },
+            ]),
+        );
+    });
+
+    it("accepts what a test device presents until something is wrong with it", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-accepts", { attestation: true });
+        await adapter.start();
+
+        expect(adapter.judgeAttestation([])).equal(true);
+        expect(
+            adapter.judgeAttestation([
+                { level: "warning", type: DeviceAttestationCheck.CdSignerVerificationSkipped, message: "no signer" },
+            ]),
+        ).equal(true);
+    });
+
+    it("refuses an error-level finding, and says which one", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-refuses", { attestation: true });
+        await adapter.start();
+
+        const refusal = adapter.judgeAttestation([
+            { level: "error", type: DeviceAttestationCheck.CertificateRevoked, message: "DAC has been revoked" },
+        ]);
+
+        // The case reads the reason back off the commissioning error, so a refusal that named no
+        // reason would leave it unable to tell revocation from anything else that refuses
+        expect(refusal).not.equal(true);
+        expect(refusal).contains(DeviceAttestationCheck.CertificateRevoked);
+    });
+
+    it("accepts everything where the controller was not built to judge", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-unjudged");
+        await adapter.start();
+
+        expect(
+            adapter.judgeAttestation([
+                { level: "error", type: DeviceAttestationCheck.CertificateRevoked, message: "DAC has been revoked" },
+            ]),
+        ).equal(true);
+    });
+
+    it("chip-tool refuses to judge attestation rather than running a case that proves nothing", () => {
+        expect(() => new ChipToolControllerAdapter("attestation-chip-tool", { attestation: true })).to.throw(
+            UnsupportedByControllerError,
+        );
+    });
+
+    it("refuses a revocation set it cannot read rather than commissioning as if nothing was revoked", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-malformed", { attestation: true });
+        await adapter.start();
+
+        await expect(adapter.attestation!.installRevocations("{ not a revocation set }")).to.be.rejectedWith(
+            ImplementationError,
+        );
     });
 });
 

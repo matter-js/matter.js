@@ -50,8 +50,10 @@
 # matter.js protocol code in the path. A failure there is a defect in the test step definitions or
 # in the CHIP binaries themselves, not an interop finding about matter.js.
 #
-# TC-SC-3.5 runs only where MATTER_CERT_TH_SERVER_APP_PATH names a TH_SERVER binary, and the
-# TC-WEBRTCR cases only where MATTER_CERT_CAMERA_APP_PATH names one, so both self-skip elsewhere.
+# TC-SC-3.5 and TC-DA-1.9 run only where MATTER_CERT_TH_SERVER_APP_PATH names an all-clusters binary
+# their script spawns for itself, and the TC-WEBRTCR cases only where MATTER_CERT_CAMERA_APP_PATH names
+# one, so each self-skips elsewhere. TC-DA-1.9 also skips wherever the controller is chip-tool, which
+# cannot be told what is revoked while it runs.
 
 name: Chip Certification Controller Tests
 
@@ -205,7 +207,7 @@ jobs:
       #   cert-controller          MATTER_CERT_CONTROLLER
       #   cert-device              MATTER_CERT_DEVICE
       #   app-dir                  MATTER_CERT_APP_DIR, empty where no host binaries are needed
-      #   th-server-app-path       MATTER_CERT_TH_SERVER_APP_PATH, empty where TC-SC-3.5 self-skips
+      #   th-server-app-path       MATTER_CERT_TH_SERVER_APP_PATH, empty where TC-SC-3.5 and TC-DA-1.9 self-skip
       #   camera-app-path          MATTER_CERT_CAMERA_APP_PATH, empty where the TC-WEBRTCR cases self-skip
       #   apt-packages             host packages to install, empty to skip that step entirely
       - name: Build the controller/device matrix

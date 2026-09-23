@@ -16,9 +16,6 @@ import { Identity } from "@matter/general";
 /**
  * A Doorbell device is a switch which when pressed usually causes a Chime to activate.
  *
- * DoorbellDevice requires Switch cluster but Switch is not added by default because you must select the features your
- * device supports. You can add manually using DoorbellDevice.with().
- *
  * @see {@link MatterSpecification.v16.Device} § 16.9
  */
 export interface DoorbellDevice extends Identity<typeof DoorbellDeviceDefinition> {}
@@ -61,7 +58,10 @@ export const DoorbellDeviceDefinition = MutableEndpoint({
     deviceType: 0x148,
     deviceRevision: 2,
     requirements: DoorbellRequirements,
-    behaviors: SupportedBehaviors(DoorbellRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(
+        DoorbellRequirements.server.mandatory.Identify,
+        DoorbellRequirements.server.mandatory.Switch
+    )
 });
 
 Object.freeze(DoorbellDeviceDefinition);
