@@ -15,7 +15,7 @@ import { RequirementModel } from "../models/index.js";
  * the result {@link Conformance.Applicability.Conditional} — no caller enforces that result, because
  * we do not know whether the name holds.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.5
+ * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
 export function requirementApplicability(
     requirement: RequirementModel,

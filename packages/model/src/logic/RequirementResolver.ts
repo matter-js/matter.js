@@ -15,7 +15,7 @@ import { ConditionModel, DeviceTypeModel, FieldModel, MatterModel, Model, Requir
  * also name a feature of that cluster.  The definition validator and runtime validation both resolve names here, so
  * the two cannot disagree on what a name means.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.5
+ * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
 export namespace RequirementResolver {
     /**
