@@ -11,9 +11,9 @@ import { RequirementModel } from "../models/index.js";
  * Evaluate a requirement's conformance against the names that are true for an endpoint.
  *
  * A device type's conformance expressions name conditions (e.g. `Sit`) and cluster features (e.g.
- * `TAGLIST`) the same way, so both travel here as features. A name outside {@link knownNames} leaves
- * the result {@link Conformance.Applicability.Conditional} — no caller enforces that result, because
- * we do not know whether the name holds.
+ * `TAGLIST`) the same way, so both travel here as features. Names match exactly, as the conformance
+ * spells them. A name outside {@link knownNames} leaves the result
+ * {@link Conformance.Applicability.Conditional}, because whether the name holds is unknown.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */

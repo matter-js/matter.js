@@ -58,5 +58,16 @@ describe("RequirementModel", () => {
             expect(rangeOf("all")).undefined;
             expect(rangeOf("desc")).undefined;
         });
+
+        it("states no count for a constraint of several parts", () => {
+            expect(rangeOf("1 to 2, 4")).undefined;
+        });
+
+        it("reads the constraint of a requirement that is not a component requirement", () => {
+            expect(
+                new RequirementModel({ name: "OnTime", element: "attribute", constraint: "max 10" })
+                    .componentCountRange,
+            ).deep.equals({ min: undefined, max: 10 });
+        });
     });
 });
