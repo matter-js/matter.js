@@ -6,7 +6,7 @@
 
 import { ElementTag, FieldValue } from "../../common/index.js";
 import { RequirementElement } from "../../elements/index.js";
-import { FieldModel, Model, RequirementModel } from "../../models/index.js";
+import { ConditionModel, FieldModel, Model, RequirementModel } from "../../models/index.js";
 import { RequirementResolver } from "../RequirementResolver.js";
 import { ModelValidator } from "./ModelValidator.js";
 
@@ -34,6 +34,14 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
                     `Instance ${FieldValue.serialize(instance)} is not a number of an instance, which counts from 1`,
                 );
             }
+        }
+
+        this.validateProperty({ name: "location", type: RequirementElement.Location });
+        if (this.model.location !== undefined && this.model.element !== RequirementElement.ElementType.Condition) {
+            this.error(
+                "LOCATION_NOT_APPLICABLE",
+                `Only a condition requirement states where its condition holds, not ${this.model.element}`,
+            );
         }
 
         const parentTag = this.model.parent?.tag;
@@ -68,15 +76,68 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             }
         }
 
-        this.model.conformance.validateReferences(this, name => RequirementResolver.resolve(this.model, name));
+        this.#validateConformanceNames();
+        this.#validateCondition();
         this.#validateSatisfiability();
 
         super.validate();
     }
 
     /**
+     * Every name the conformance references must resolve, and must be spelled exactly as its declaration.
+     *
+     * Names resolve regardless of case, but evaluating a requirement's conformance against the names true for an
+     * endpoint matches them exactly. A name spelled in another case would therefore validate and then never match,
+     * leaving the requirement silently unenforced.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    #validateConformanceNames() {
+        const misspelled = new Map<string, string>();
+
+        this.model.conformance.validateReferences(this, name => {
+            const resolved = RequirementResolver.resolve(this.model, name);
+            if (resolved !== undefined) {
+                const stated = typeof name === "string" ? name : name.join(".");
+                const declared = typeof name === "string" ? resolved.name : `${resolved.parent?.name}.${resolved.name}`;
+                if (stated !== declared) {
+                    misspelled.set(stated, declared);
+                }
+            }
+            return resolved;
+        });
+
+        for (const [stated, declared] of misspelled) {
+            this.error(
+                "NONCANONICAL_CONFORMANCE_NAME",
+                `Conformance name "${stated}" must be spelled "${declared}" as declared, or evaluation never matches it`,
+            );
+        }
+    }
+
+    /**
+     * A condition requirement must name a condition, or the condition it means to assert is never asserted. A
+     * requirement stating a type is already reported when the type does not resolve, so this answers for a
+     * requirement identified by its name alone.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    #validateCondition() {
+        if (this.model.element !== RequirementElement.ElementType.Condition || this.model.type !== undefined) {
+            return;
+        }
+
+        if (!(RequirementResolver.resolve(this.model, this.model.name) instanceof ConditionModel)) {
+            this.error(
+                "UNRESOLVED_CONDITION",
+                `No condition ${this.model.name} is declared by the device type, its bases or the base device type`,
+            );
+        }
+    }
+
+    /**
      * A requirement naming a feature, attribute, command or event its cluster does not define states something no
-     * endpoint can satisfy.  That is wrong model data, so it is reported here once rather than at every endpoint of
+     * endpoint can satisfy. That is wrong model data, so it is reported here once rather than at every endpoint of
      * the device type.
      *
      * @see {@link MatterSpecification.v16.Core} § 9.2.6

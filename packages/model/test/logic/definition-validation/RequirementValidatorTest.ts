@@ -58,6 +58,10 @@ function withNumberedAttributes(...instances: (number | undefined)[]) {
  * carries the id, which is what resolves it.
  */
 function withClusterRequirement(conformance: string, ...nested: RequirementModel[]) {
+    return withClusterRequirementErrors(conformance, ...nested).map(error => error.split(" ")[0]);
+}
+
+function withClusterRequirementErrors(conformance: string, ...nested: RequirementModel[]) {
     const Matter = new MatterModel(
         {},
         new ClusterModel(
@@ -78,22 +82,26 @@ function withClusterRequirement(conformance: string, ...nested: RequirementModel
     );
     Matter.finalize();
 
-    return ValidateModel(Matter).errors.map(error => error.code);
+    return ValidateModel(Matter).errors.map(error => `${error.code} ${error.message}`);
 }
 
-/** A component requirement whose constraint states no count */
-function withUncountedComponent() {
+/** A device type deriving from a parent, stating the given requirement */
+function withRequirement(requirement: RequirementModel) {
     const Matter = new MatterModel(
         {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }, new ConditionModel({ name: "Universal" })),
         new DeviceTypeModel(
-            { name: "Phantom", id: 0xff05, classification: "simple" },
-            new RequirementModel({
-                name: "PowerSource",
-                id: 0x11,
-                element: "deviceType",
-                conformance: "M",
-                constraint: "desc",
-            }),
+            { name: "Other", id: 0xff08, classification: "simple" },
+            new ConditionModel({ name: "Foreign" }),
+        ),
+        new DeviceTypeModel(
+            { name: "Parent", id: 0xff06, classification: "simple" },
+            new ConditionModel({ name: "Inherited" }),
+        ),
+        new DeviceTypeModel(
+            { name: "Asserting", id: 0xff07, classification: "simple", type: "Parent" },
+            new ConditionModel({ name: "Declared" }),
+            requirement,
         ),
     );
     Matter.finalize();
@@ -115,8 +123,33 @@ describe("RequirementValidator", () => {
             expect(withClusterRequirement("[NoSuchCond].a+")).deep.equals(["UNRESOLVED_CONFORMANCE_NAME"]);
         });
 
-        it("accepts a condition the device type declares, in any case", () => {
-            expect(withClusterRequirement("[DECLARED].a+")).deep.equals([]);
+        it("accepts a condition the device type declares", () => {
+            expect(withClusterRequirement("[Declared].a+")).deep.equals([]);
+            expect(withClusterRequirement("Phantom.Declared")).deep.equals([]);
+        });
+
+        it("reports a condition spelled other than as declared", () => {
+            expect(withClusterRequirement("[DECLARED].a+")).deep.equals(["NONCANONICAL_CONFORMANCE_NAME"]);
+        });
+
+        it("reports a qualified condition spelled other than as declared", () => {
+            expect(withClusterRequirement("Phantom.DECLARED")).deep.equals(["NONCANONICAL_CONFORMANCE_NAME"]);
+            expect(withClusterRequirement("PHANTOM.Declared")).deep.equals(["NONCANONICAL_CONFORMANCE_NAME"]);
+        });
+
+        it("names the declared spelling, once per name", () => {
+            expect(withClusterRequirementErrors("DECLARED | !DECLARED")).deep.equals([
+                'NONCANONICAL_CONFORMANCE_NAME Conformance name "DECLARED" must be spelled "Declared" as declared, or evaluation never matches it',
+            ]);
+        });
+
+        it("reports a feature of the cluster in the cluster requirement's own conformance", () => {
+            expect(withClusterRequirement("LT")).deep.equals(["UNRESOLVED_CONFORMANCE_NAME"]);
+        });
+
+        it("resolves the right side of a comparison whose left side is a condition", () => {
+            expect(withClusterRequirement("Declared == Declared")).deep.equals([]);
+            expect(withClusterRequirement("Declared != NoSuchCond")).deep.equals(["UNRESOLVED_CONFORMANCE_NAME"]);
         });
 
         it("accepts a feature of the cluster on a nested requirement", () => {
@@ -196,8 +229,54 @@ describe("RequirementValidator", () => {
         });
     });
 
-    it("accepts a component count the validator can judge", () => {
-        expect(withUncountedComponent()).deep.equals([]);
+    describe("a condition requirement", () => {
+        for (const name of ["Declared", "Inherited", "Universal"]) {
+            it(`accepts naming ${name.toLowerCase()} condition`, () => {
+                expect(withRequirement(new RequirementModel({ name, element: "condition" }))).deep.equals([]);
+            });
+        }
+
+        it("accepts a foreign condition named by its type", () => {
+            expect(
+                withRequirement(new RequirementModel({ name: "Foreign", element: "condition", type: "Other.Foreign" })),
+            ).deep.equals([]);
+        });
+
+        it("reports a type that resolves to no condition only as an unknown type", () => {
+            expect(
+                withRequirement(
+                    new RequirementModel({ name: "NoSuchCond", element: "condition", type: "Other.NoSuchCond" }),
+                ),
+            ).deep.equals(["TYPE_UNKNOWN"]);
+        });
+
+        it("reports a name that resolves to no condition", () => {
+            expect(withRequirement(new RequirementModel({ name: "NoSuchCond", element: "condition" }))).deep.equals([
+                "UNRESOLVED_CONDITION",
+            ]);
+        });
+
+        it("accepts a location the specification defines", () => {
+            for (const location of ["Root", "Self", "Descendant"] as const) {
+                expect(
+                    withRequirement(new RequirementModel({ name: "Declared", element: "condition", location })),
+                ).deep.equals([]);
+            }
+        });
+
+        it("reports a location the specification does not define", () => {
+            const requirement = new RequirementModel({ name: "Declared", element: "condition" });
+            Object.assign(requirement, { location: "Nowhere" });
+            expect(withRequirement(requirement)).deep.equals(["INVALID_ENUM_KEY"]);
+        });
+    });
+
+    it("reports a location on a requirement that is not a condition requirement", () => {
+        expect(
+            withRequirement(
+                new RequirementModel({ name: "Switchable", id: 0x6, element: "serverCluster", location: "Self" }),
+            ),
+        ).deep.equals(["LOCATION_NOT_APPLICABLE"]);
     });
 
     it("accepts the standard model", () => {
