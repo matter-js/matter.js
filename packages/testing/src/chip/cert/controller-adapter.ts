@@ -487,12 +487,20 @@ export interface OtaScriptedQueryAnswer {
     userConsentNeeded?: boolean;
 }
 
-/** An `ApplyUpdateResponse` the provider gives in place of its own (§ 11.20.6.10). */
+/**
+ * An `ApplyUpdateResponse` the provider is to give (§ 11.20.6.10).
+ *
+ * Two actions are meaningful. `AwaitNextAction` (1) the provider has no path of its own to, so it is
+ * stated directly and its side effects are suppressed — the requestor's next attempt needs the image
+ * it already downloaded. `Discontinue` (2) it does have a path to, so the controller withdraws the
+ * update's consent and lets the provider refuse for itself, which keeps the state it is left in
+ * agreeing with the answer the requestor received. Anything else leaves the provider's own answer.
+ */
 export interface OtaScriptedApplyAnswer {
-    /** `Action`: 0 Proceed, 1 AwaitNextAction, 2 Discontinue. */
+    /** `Action`: 1 AwaitNextAction, 2 Discontinue. */
     action?: number;
 
-    /** `DelayedActionTime` in seconds. */
+    /** `DelayedActionTime` in seconds, which only a stated `AwaitNextAction` carries. */
     delayedActionTime?: number;
 }
 

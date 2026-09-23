@@ -133,7 +133,6 @@ import type {
     OtaProviderExchanges,
     OtaProviderScript,
     OtaQueryImageExchange,
-    OtaScriptedApplyAnswer,
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,
@@ -446,11 +445,15 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
     };
 
     /** The peer a command arrived from, which decides whose record and whose script it belongs to. */
-    get #commandPeer(): string {
+    get #commandPeerAddress(): PeerAddress {
         assertRemoteActor(this.context);
         const session = this.context.session;
         NodeSession.assert(session);
-        return session.peerAddress.toString();
+        return session.peerAddress;
+    }
+
+    get #commandPeer(): string {
+        return this.#commandPeerAddress.toString();
     }
 
     #scriptFor(peer: string): Required<OtaProviderScript> {
@@ -518,15 +521,25 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const peer = this.#commandPeer;
         const scripted = this.#scriptFor(peer).applyUpdate.shift();
 
-        // A deferral is the one answer whose side effects must not happen: `super` closes the BDX
-        // registration on its way to answering, and the requestor's next attempt needs what it already
-        // downloaded. Every other answer, scripted or not, still settles the update through `super`,
-        // so the provider is never left holding an update it has answered the last word on.
+        // A deferral is the one answer the provider has no path of its own to, so it is the only one
+        // this states directly — and the only one whose side effects must not happen, because the
+        // requestor's next attempt needs the BDX registration and the image it already downloaded.
+        //
+        // A refusal it does have a path to: it answers Discontinue for an update it holds no consent
+        // for. Withdrawing the consent and letting it answer is what keeps the state it is left in
+        // agreeing with the answer the requestor received; overlaying Discontinue on a successful
+        // apply would record the update as applying and report it to this controller as allowed.
         const scriptedAction = scripted?.action;
-        const response =
-            scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction
-                ? { action: scriptedAction, delayedActionTime: scripted?.delayedActionTime ?? 0 }
-                : withScriptedAction(await super.applyUpdateRequest(request), scripted);
+        let response: OtaSoftwareUpdateProvider.ApplyUpdateResponse;
+        if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction) {
+            response = { action: scriptedAction, delayedActionTime: scripted?.delayedActionTime ?? 0 };
+        } else {
+            if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue) {
+                const peerAddress = this.#commandPeerAddress;
+                await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
+            }
+            response = await super.applyUpdateRequest(request);
+        }
 
         this.#exchangesFor(peer).applyUpdate.push({
             request: { updateToken: Bytes.toHex(request.updateToken), newVersion: request.newVersion },
@@ -635,20 +648,6 @@ class OtaExchangeRecording {
     close() {
         this.#observers.close();
     }
-}
-
-/** `response` with the `Action` a script asked for, which leaves `super`'s own settling in place. */
-function withScriptedAction(
-    response: OtaSoftwareUpdateProvider.ApplyUpdateResponse,
-    scripted: OtaScriptedApplyAnswer | undefined,
-): OtaSoftwareUpdateProvider.ApplyUpdateResponse {
-    if (scripted?.action === undefined) {
-        return response;
-    }
-    return {
-        action: scripted.action,
-        delayedActionTime: scripted.delayedActionTime ?? response.delayedActionTime,
-    };
 }
 
 /** `response` with `UserConsentNeeded` set, where a script asked for it. */

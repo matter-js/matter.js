@@ -688,7 +688,7 @@ export class Peers extends EndpointContainer<ClientNode> {
             // within this callback because Observable#emit iterates a snapshot of its observers.
             const onChanged = () => {
                 this.#evaluateSeeded(node);
-                if (node.lifecycle.isSeeded || !isReadable(node)) {
+                if (node.lifecycle.isSeeded || isGone(node)) {
                     node.lifecycle.changed.off(onChanged);
                 }
             };
@@ -900,13 +900,30 @@ class Factory extends ClientNodeFactory {
 }
 
 /**
- * Whether `node`'s behaviors can still be read.
+ * Whether `node`'s behaviors can be read right now.
  *
- * `close()` emits `lifecycle.changed` on its way out, after the behaviors are gone, so an observer that
- * outlives the node reaches state that throws `uninitialized-dependency` rather than answering.
+ * A node that is still initializing has nothing to answer with yet, and one that is going away has
+ * nothing left: `close()` emits `lifecycle.changed` after the behaviors are gone, so a reader reaches
+ * state that throws `uninitialized-dependency`.
  */
 function isReadable(node: ClientNode) {
     return node.construction.status === Lifecycle.Status.Active;
+}
+
+/**
+ * Whether `node` will never be readable again.
+ *
+ * Distinct from {@link isReadable}, and the distinction is the point: an observer waiting for a node
+ * to become readable must not give up while it is merely initializing, and a reader must not treat
+ * "not yet" as "go ahead".
+ */
+function isGone(node: ClientNode) {
+    const status = node.construction.status;
+    return (
+        status === Lifecycle.Status.Destroying ||
+        status === Lifecycle.Status.Destroyed ||
+        status === Lifecycle.Status.Crashed
+    );
 }
 
 function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration | number }>(

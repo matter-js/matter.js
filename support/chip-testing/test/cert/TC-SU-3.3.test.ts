@@ -47,18 +47,27 @@ async function recordTransferConduct(cx: CertStepContext) {
             // which is what the rule is about — so the claim is about what it would grant, and the
             // proposal this run carried is the evidence for it.
             what: "the DUT supports at least 1024 bytes per block over this non-TCP transport",
-            check: () => ({
-                type: "response",
-                verdict:
-                    proposal.maxBlockSize < MIN_NON_TCP_BLOCK_SIZE || accept.maxBlockSize >= MIN_NON_TCP_BLOCK_SIZE
-                        ? "pass"
-                        : "fail",
-                detail:
-                    proposal.maxBlockSize < MIN_NON_TCP_BLOCK_SIZE
-                        ? `the TH asked for only ${proposal.maxBlockSize} bytes, so this run does not exercise the ` +
-                          `${MIN_NON_TCP_BLOCK_SIZE}-byte floor`
-                        : `the TH asked for ${proposal.maxBlockSize} bytes and the DUT granted ${accept.maxBlockSize}`,
-            }),
+            check: () => {
+                // A TH that asked for less never put the floor to the DUT, and a pass there would be
+                // certification evidence for a requirement nothing exercised.
+                if (proposal.maxBlockSize < MIN_NON_TCP_BLOCK_SIZE) {
+                    return {
+                        type: "response",
+                        verdict: "unverified",
+                        detail:
+                            `the TH asked for only ${proposal.maxBlockSize} bytes, below the ` +
+                            `${MIN_NON_TCP_BLOCK_SIZE}-byte floor the plan requires the DUT to support`,
+                        accepted:
+                            "the block size is the TH's to propose, and this one proposed less than the floor, so " +
+                            "nothing here put that requirement to the DUT",
+                    };
+                }
+                return {
+                    type: "response",
+                    verdict: accept.maxBlockSize >= MIN_NON_TCP_BLOCK_SIZE ? "pass" : "fail",
+                    detail: `the TH asked for ${proposal.maxBlockSize} bytes and the DUT granted ${accept.maxBlockSize}`,
+                };
+            },
         },
         {
             // Every block this reads is already a non-final one: the last arrives as a BlockEOF, which
