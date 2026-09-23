@@ -437,11 +437,11 @@ export class CommissioningClient extends Behavior {
      * The peer's BasicInformation must be seeded — its vendor/product IDs are encoded into the QR pairing code — so
      * this throws (before opening any window) if it is not.
      *
-     * @returns the manual and QR pairing codes encoding the generated passcode.
+     * @returns the pairing codes and the values they encode.
      */
     async openEnhancedCommissioningWindow(
         commissioningTimeout: Duration = Seconds(900),
-    ): Promise<{ manualPairingCode: string; qrPairingCode: string }> {
+    ): Promise<CommissioningClient.EnhancedCommissioningWindow> {
         const basicInformation = this.endpoint.maybeStateOf(BasicInformationClient);
         if (basicInformation === undefined) {
             throw new ImplementationError(
@@ -452,6 +452,7 @@ export class CommissioningClient extends Behavior {
         const adminCommissioning = this.agent.get(AdministratorCommissioningClient);
         await this.#revokeStaleCommissioningWindow(adminCommissioning);
 
+        const timeoutSeconds = Seconds.of(commissioningTimeout);
         const crypto = this.env.get(Crypto);
         const discriminator = PaseClient.generateRandomDiscriminator(crypto);
         const passcode = PaseClient.generateRandomPasscode(crypto);
@@ -463,7 +464,7 @@ export class CommissioningClient extends Behavior {
         });
 
         await adminCommissioning.openCommissioningWindow({
-            commissioningTimeout: Seconds.of(commissioningTimeout),
+            commissioningTimeout: timeoutSeconds,
             pakePasscodeVerifier,
             salt,
             iterations,
@@ -492,6 +493,11 @@ export class CommissioningClient extends Behavior {
                 flowType: CommissioningFlowType.Standard,
             }),
             qrPairingCode,
+            passcode,
+            discriminator,
+            vendorId,
+            productId,
+            commissioningTimeout: Seconds(timeoutSeconds),
         };
     }
 
@@ -721,6 +727,27 @@ const defaultCaseConnectionTiming: Partial<PeerTimingParameters> = {
 };
 
 export namespace CommissioningClient {
+    /**
+     * The pairing codes of an open Enhanced Commissioning Window and the values they encode.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 5.1
+     * @see {@link MatterSpecification.v16.Core} § 11.19.8.1
+     */
+    export interface EnhancedCommissioningWindow {
+        manualPairingCode: string;
+        qrPairingCode: string;
+        passcode: number;
+
+        /** The long (12-bit) discriminator the device advertises while the window is open. */
+        discriminator: number;
+
+        vendorId: VendorId;
+        productId: number;
+
+        /** How long the window stays open, in whole seconds as sent to the device. */
+        commissioningTimeout: Duration;
+    }
+
     /**
      * Concrete version of {@link ProtocolPeerAddress}.
      */

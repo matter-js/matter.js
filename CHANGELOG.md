@@ -89,6 +89,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
+    - Enhancement: (@RaHehl) `ClientNode.openEnhancedCommissioningWindow` (and `CommissioningClient`) also returns the passcode, long discriminator, vendor and product ID it encodes into the pairing codes, and the commissioning timeout sent to the device
     - Enhancement: A device type that relaxes a cluster's mandatory element to optional is honoured. Temperature Sensor and Room Air Conditioner required `KeypadLockout`, which the specification makes optional for them
     - Enhancement: A device type feature gated on `Rev >= vN` is enabled when the device type's revision satisfies it, which enables `ChangeEvent` on Water Freeze Detector, Water Leak Detector and Rain Sensor
     - Enhancement: A generated requirement's documentation says when the specification states a cluster is provisional, rather than reporting it as plainly optional
@@ -150,6 +151,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certificate extension matter.js does not interpret is no longer decoded, so a proprietary extension can no longer fail the whole certificate; an extension matter.js does read is rejected with a `CertificateError` when its value is missing
 
 - @project-chip/matter.js
+    - Enhancement: (@RaHehl) `PairedNode.openEnhancedCommissioningWindow` also returns the passcode, long discriminator, vendor and product ID it encodes into the pairing codes, and the commissioning timeout sent to the device
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
 
 - @matter/general

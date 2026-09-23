@@ -1365,7 +1365,12 @@ export class PairedNode {
         await adminCommissioningCluster.commands.openBasicCommissioningWindow({ commissioningTimeout });
     }
 
-    /** Opens an Enhanced Commissioning Window (uses a generated random Passcode) with the device. */
+    /**
+     * Opens an Enhanced Commissioning Window (uses a generated random Passcode) with the device.
+     *
+     * @returns the pairing codes and the values they encode; `discriminator` is the long (12-bit) one and
+     * `commissioningTimeout` is in seconds.
+     */
     async openEnhancedCommissioningWindow(commissioningTimeout = 900 /* 15 minutes */) {
         const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning);
         if (adminCommissioningCluster === undefined) {
@@ -1430,6 +1435,11 @@ export class PairedNode {
                 flowType: CommissioningFlowType.Standard,
             }),
             qrPairingCode,
+            passcode,
+            discriminator,
+            vendorId,
+            productId,
+            commissioningTimeout,
         };
     }
 
