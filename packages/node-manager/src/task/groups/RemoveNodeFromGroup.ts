@@ -35,7 +35,7 @@ export const RemoveNodeFromGroup: TaskDefinition<RemoveNodeFromGroupParams> = {
         Require.params(REMOVE_NODE_FROM_GROUP_TYPE, params);
         Require.peer("peer", params.peer);
         Require.endpoint("endpoint", params.endpoint);
-        Require.id("groupId", params.groupId, 0xffff);
+        Require.groupId("groupId", params.groupId);
     },
 
     slotKeyFor(p) {

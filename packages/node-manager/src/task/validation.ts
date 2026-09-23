@@ -6,7 +6,7 @@
 
 import { ImplementationError, UINT64_MAX } from "@matter/general";
 import { PeerAddress } from "@matter/protocol";
-import { FabricIndex, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
+import { FabricIndex, GroupId, MATTER_EPOCH_OFFSET_US, NodeId } from "@matter/types";
 
 /**
  * Checks a task definition applies to the parameters it is handed.
@@ -85,6 +85,24 @@ export const Require = {
         Require.uint(field, value, max);
         if (value === 0) {
             throw new ImplementationError(`"${field}" must not be 0`);
+        }
+    },
+
+    /**
+     * A group a fabric administrator may manage.
+     *
+     * The universal groups at the top of the range are addressed, not administered: GroupKeyMap carries
+     * application group ids alone, which `GroupKeyManagementServer` enforces, so a run naming one could only
+     * fail at its first device write.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 2.5.4
+     */
+    groupId(field: string, value: unknown): void {
+        Require.id(field, value, 0xffff);
+        if (typeof value === "number" && !GroupId.isApplicationGroupId(GroupId(value))) {
+            throw new ImplementationError(
+                `"${field}" must be an application group id in 1..0xfeff, not ${describe(value)}`,
+            );
         }
     },
 
