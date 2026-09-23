@@ -133,6 +133,7 @@ import type {
     OtaProviderExchanges,
     OtaProviderScript,
     OtaQueryImageExchange,
+    OtaScriptedApplyAnswer,
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,
@@ -517,13 +518,15 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const peer = this.#commandPeer;
         const scripted = this.#scriptFor(peer).applyUpdate.shift();
 
-        // As in `queryImage`, and for the same reason: `super` closes the BDX registration on its way
-        // to answering, which a deferred apply needs to keep so the requestor's next attempt can use
-        // what it already downloaded.
+        // A deferral is the one answer whose side effects must not happen: `super` closes the BDX
+        // registration on its way to answering, and the requestor's next attempt needs what it already
+        // downloaded. Every other answer, scripted or not, still settles the update through `super`,
+        // so the provider is never left holding an update it has answered the last word on.
+        const scriptedAction = scripted?.action;
         const response =
-            scripted?.action === undefined
-                ? await super.applyUpdateRequest(request)
-                : { action: scripted.action, delayedActionTime: scripted.delayedActionTime ?? 0 };
+            scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction
+                ? { action: scriptedAction, delayedActionTime: scripted?.delayedActionTime ?? 0 }
+                : withScriptedAction(await super.applyUpdateRequest(request), scripted);
 
         this.#exchangesFor(peer).applyUpdate.push({
             request: { updateToken: Bytes.toHex(request.updateToken), newVersion: request.newVersion },
@@ -632,6 +635,20 @@ class OtaExchangeRecording {
     close() {
         this.#observers.close();
     }
+}
+
+/** `response` with the `Action` a script asked for, which leaves `super`'s own settling in place. */
+function withScriptedAction(
+    response: OtaSoftwareUpdateProvider.ApplyUpdateResponse,
+    scripted: OtaScriptedApplyAnswer | undefined,
+): OtaSoftwareUpdateProvider.ApplyUpdateResponse {
+    if (scripted?.action === undefined) {
+        return response;
+    }
+    return {
+        action: scripted.action,
+        delayedActionTime: scripted.delayedActionTime ?? response.delayedActionTime,
+    };
 }
 
 /** `response` with `UserConsentNeeded` set, where a script asked for it. */
