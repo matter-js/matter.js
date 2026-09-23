@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { env } from "node:process";
 import type { Subject } from "../../device/subject.js";
 import { BaseTest } from "../../device/test.js";
 import type { Container } from "../../docker/container.js";
@@ -103,6 +104,10 @@ export class CertTest extends BaseTest {
                     : count => recorded.recordControllerUnsupportedSkips?.(count),
             recordPicsSkips:
                 recorded.recordPicsSkips === undefined ? undefined : count => recorded.recordPicsSkips?.(count),
+            recordLongRunningSkips:
+                recorded.recordLongRunningSkips === undefined
+                    ? undefined
+                    : count => recorded.recordLongRunningSkips?.(count),
             recordUnverifiedChecks:
                 recorded.recordUnverifiedChecks === undefined
                     ? undefined
@@ -129,6 +134,7 @@ export class CertTest extends BaseTest {
         let failed = false;
         let controllerUnsupportedSkips = 0;
         let picsSkips = 0;
+        let longRunningSkips = 0;
         let unverifiedSteps = 0;
         let unproven = false;
         let reportingFailure: unknown;
@@ -194,6 +200,12 @@ export class CertTest extends BaseTest {
                     if (!stepPicsMet(stepDef, picsFile)) {
                         picsSkips++;
                         report(stepDef, "skipped", `PICS "${stepDef.pics}" not met`);
+                        continue;
+                    }
+
+                    if (stepDef.longRunning !== undefined && !longRunningEnabled()) {
+                        longRunningSkips++;
+                        report(stepDef, "skipped", `${stepDef.longRunning}; set MATTER_CERT_LONG_RUNNING=1 to run it`);
                         continue;
                     }
 
@@ -267,6 +279,14 @@ export class CertTest extends BaseTest {
                     () => recorder.recordPicsSkips?.(picsSkips),
                     () => announcePicsSkipSummary(cx, tc, picsSkips),
                     "PICS-skip",
+                );
+            }
+
+            if (longRunningSkips > 0) {
+                recordSummary(
+                    () => recorder.recordLongRunningSkips?.(longRunningSkips),
+                    () => announceLongRunningSkipSummary(cx, tc, longRunningSkips),
+                    "long-running-skip",
                 );
             }
 
@@ -480,6 +500,12 @@ function currentFlavor(devices: Record<string, CertDevice>): DeviceFlavor | unde
     return Object.values(devices)[0]?.flavor;
 }
 
+/** Whether this run asked for the steps that cost minutes of real time. */
+export function longRunningEnabled() {
+    const value = env.MATTER_CERT_LONG_RUNNING;
+    return value !== undefined && value !== "" && value !== "0" && value.toLowerCase() !== "false";
+}
+
 /**
  * A malformed step PICS expression, evaluated against a PICS file that *is* available, is a step-level
  * failure — unlike a missing PICS file (see {@link resolvePicsFile}), the expression itself is broken.
@@ -557,6 +583,14 @@ function announcePicsSkipSummary(cx: CertStepContext, tc: string, count: number)
     announceStep(cx, [
         STEP_BANNER_RULE,
         `${tc} — ${count} step${count === 1 ? "" : "s"} skipped by their own PICS`,
+        STEP_BANNER_RULE,
+    ]);
+}
+
+function announceLongRunningSkipSummary(cx: CertStepContext, tc: string, count: number): void {
+    announceStep(cx, [
+        STEP_BANNER_RULE,
+        `${tc} — ${count} step${count === 1 ? "" : "s"} skipped for costing minutes on this flavor`,
         STEP_BANNER_RULE,
     ]);
 }

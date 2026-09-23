@@ -21,9 +21,11 @@ import {
     Logger,
     ChannelType,
     MatterError,
+    MaybePromise,
     Millis,
     MockFilesystem,
     MockStorageService,
+    Observable,
     ObserverGroup,
     Seconds,
     ServerNode,
@@ -34,14 +36,24 @@ import {
 import { BasicInformationClient } from "@matter/main/behaviors/basic-information";
 import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
-import { OtaSoftwareUpdateProviderServer } from "@matter/main/behaviors/ota-software-update-provider";
+import {
+    OtaSoftwareUpdateProviderClient,
+    OtaSoftwareUpdateProviderServer,
+} from "@matter/main/behaviors/ota-software-update-provider";
+import { OtaSoftwareUpdateRequestorClient } from "@matter/main/behaviors/ota-software-update-requestor";
 import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-transport-requestor";
-import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
+import {
+    GeneralCommissioning,
+    OperationalCredentials,
+    OtaSoftwareUpdateProvider,
+    OtaSoftwareUpdateRequestor,
+} from "@matter/main/clusters";
 import { CameraControllerDevice } from "@matter/main/devices";
 import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
 import type { BdxInit, StorageScope } from "@matter/main/protocol";
 import { FileDesignator, PeerAddress } from "@matter/main/protocol";
 import {
+    assertRemoteActor,
     type AttestationFinding,
     BdxProtocol,
     BdxSession,
@@ -112,7 +124,15 @@ import type {
     OnboardingPayloadFields,
     BdxTransferAccept,
     BdxTransferProposal,
+    OtaApplyUpdateExchange,
     OtaBdxTransfer,
+    OtaNotifyUpdateAppliedRecord,
+    AnnounceOtaProviderOptions,
+    OtaAnnouncement,
+    OtaAnnouncementRecord,
+    OtaProviderExchanges,
+    OtaProviderScript,
+    OtaQueryImageExchange,
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,
@@ -220,6 +240,32 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     // matter.js honors an inbound BlockQueryWithSkip but never sends one, and this key asks about
     // sending it.
     "MCORE.BDX.BlockQueryWithSkip": 0,
+
+    // The OTA provider role the controller takes when it serves an image (the TC-SU-3.x block). The
+    // CHIP PICS file answers for a *device*; the provider here is the controller, which stages an
+    // image, answers QueryImage and serves the file over BDX.
+    "MCORE.OTA.Provider": 1,
+
+    // Only BDX. `SoftwareUpdateManager` stages an image into the controller's own catalog and serves
+    // it over BDX; it answers no https URI, so a case gated on this key must skip rather than run
+    // against a provider that would answer DownloadProtocolNotSupported.
+    "MCORE.OTA.HTTPS": 0,
+
+    // The administrator role TC-SU-1.1 rests on: the controller holds Administer privilege on the
+    // nodes it commissioned, and it is the OTA requestor *client* that sends AnnounceOTAProvider.
+    // CHIP's PICS file answers both for a device, which is neither.
+    "MCORE.ACL.Administrator": 1,
+    "OTAR.C.M.AnnounceOTAProvider": 1,
+
+    // The controller is not an OTA requestor, so it never tells a provider that an update was applied.
+    "OTAR.C.M.NotifyUpdateApplied": 0,
+
+    // The provider's own optional response fields. Its own answers carry a DelayedActionTime on the
+    // Busy paths and a UserConsentNeeded for an update staged as needing consent; a cert case reaches
+    // both through `CertNodeApi.scriptOtaProvider`, which has the provider state them without putting
+    // it in a state the harness cannot arrange.
+    "OTAP.S.M.DelayedActionTime": 1,
+    "OTAP.S.M.UserConsentNeeded": 1,
 
     // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
     // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
@@ -355,8 +401,275 @@ const OTA_TRANSFER_TIMEOUT = Seconds(90);
  */
 const OTA_APPLY_TIMEOUT = Seconds(10);
 
+/**
+ * How long {@link InProcessCertNodeApi.announceOtaProvider} waits for the node's own `QueryImage`.
+ *
+ * An announcement naming `UpdateAvailable` asks the node to query at once, so this covers the node's
+ * own connection back to the provider rather than any query interval of its own.
+ */
+const OTA_QUERY_TIMEOUT = Seconds(30);
+
 /** An OTA image the controller offered a node was not transferred. */
 export class OtaTransferError extends MatterError {}
+
+/**
+ * The controller's own OTA provider, which keeps the commands it answered.
+ *
+ * A provider's answer is not observable from outside it. The requestor's log states what it received,
+ * and its own rendering carries neither the update token's length nor the image URI's exact text —
+ * both of which the SU cases whose DUT is the provider assert on. So the provider records what it
+ * answered, and the requestor's log is what corroborates that the answer reached it.
+ *
+ * Recording only: every answer is `super`'s, so a case reads the provider matter.js ships rather than
+ * one this harness shaped for it. An answer is recorded once `super` has produced it, so a command
+ * this provider rejected leaves nothing in the record.
+ *
+ * {@link OtaExchangeRecording} owns the record's lifetime; nothing else clears it or reads it live.
+ */
+class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
+    declare readonly internal: RecordingOtaProviderServer.Internal;
+
+    static override Internal = class extends OtaSoftwareUpdateProviderServer.Internal {
+        /**
+         * What this provider answered, and what it is to answer next, per peer.
+         *
+         * One provider endpoint serves every node the controller holds, while the API that reads and
+         * writes this is a single node's. Keying on the peer is what keeps one node's periodic query
+         * from consuming another's scripted answer, or from appearing in its evidence.
+         */
+        exchanges = new Map<string, OtaProviderExchanges>();
+        script = new Map<string, Required<OtaProviderScript>>();
+
+        /** Emits the peer whose answer this provider just recorded, so a caller can wait for its own. */
+        recorded = Observable<[peer: string]>();
+    };
+
+    /** The peer a command arrived from, which decides whose record and whose script it belongs to. */
+    get #commandPeerAddress(): PeerAddress {
+        assertRemoteActor(this.context);
+        const session = this.context.session;
+        NodeSession.assert(session);
+        return session.peerAddress;
+    }
+
+    get #commandPeer(): string {
+        return this.#commandPeerAddress.toString();
+    }
+
+    #scriptFor(peer: string): Required<OtaProviderScript> {
+        let script = this.internal.script.get(peer);
+        if (script === undefined) {
+            script = { queryImage: [], applyUpdate: [] };
+            this.internal.script.set(peer, script);
+        }
+        return script;
+    }
+
+    #exchangesFor(peer: string): OtaProviderExchanges {
+        let exchanges = this.internal.exchanges.get(peer);
+        if (exchanges === undefined) {
+            exchanges = emptyOtaExchanges();
+            this.internal.exchanges.set(peer, exchanges);
+        }
+        return exchanges;
+    }
+
+    override async queryImage(request: OtaSoftwareUpdateProvider.QueryImageRequest) {
+        const peer = this.#commandPeer;
+        const scripted = this.#scriptFor(peer).queryImage.shift();
+
+        // A scripted status is answered without asking `super` at all. Its answer is a side effect as
+        // much as a value — it stages an in-progress entry and registers the peer for BDX — and a
+        // status written over the top afterwards would leave the provider expecting a transfer the
+        // requestor was just told not to start.
+        const response: OtaSoftwareUpdateProvider.QueryImageResponse =
+            scripted?.status === undefined
+                ? withUserConsent(await super.queryImage(request), scripted?.userConsentNeeded)
+                : {
+                      status: scripted.status,
+                      delayedActionTime: scripted.delayedActionTime,
+                      userConsentNeeded: scripted.userConsentNeeded,
+                  };
+
+        this.#exchangesFor(peer).queryImage.push({
+            request: {
+                vendorId: request.vendorId,
+                productId: request.productId,
+                softwareVersion: request.softwareVersion,
+                protocolsSupported: [...request.protocolsSupported],
+                hardwareVersion: request.hardwareVersion,
+                location: request.location,
+                requestorCanConsent: request.requestorCanConsent,
+                metadataForProvider: hexOrUndefined(request.metadataForProvider),
+            },
+            response: {
+                status: response.status,
+                delayedActionTime: response.delayedActionTime,
+                imageUri: response.imageUri,
+                softwareVersion: response.softwareVersion,
+                softwareVersionString: response.softwareVersionString,
+                updateToken: hexOrUndefined(response.updateToken),
+                userConsentNeeded: response.userConsentNeeded,
+                metadataForRequestor: hexOrUndefined(response.metadataForRequestor),
+            },
+        });
+        this.internal.recorded.emit(peer);
+        return response;
+    }
+
+    override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
+        const peer = this.#commandPeer;
+        const scripted = this.#scriptFor(peer).applyUpdate.shift();
+
+        // A deferral is the one answer the provider has no path of its own to, so it is the only one
+        // this states directly — and the only one whose side effects must not happen, because the
+        // requestor's next attempt needs the BDX registration and the image it already downloaded.
+        //
+        // A refusal it does have a path to: it answers Discontinue for an update it holds no consent
+        // for. Withdrawing the consent and letting it answer is what keeps the state it is left in
+        // agreeing with the answer the requestor received; overlaying Discontinue on a successful
+        // apply would record the update as applying and report it to this controller as allowed.
+        const scriptedAction = scripted?.action;
+        let response: OtaSoftwareUpdateProvider.ApplyUpdateResponse;
+        if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction) {
+            response = { action: scriptedAction, delayedActionTime: scripted?.delayedActionTime ?? 0 };
+        } else {
+            if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue) {
+                const peerAddress = this.#commandPeerAddress;
+                await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
+            }
+            response = await super.applyUpdateRequest(request);
+        }
+
+        this.#exchangesFor(peer).applyUpdate.push({
+            request: { updateToken: Bytes.toHex(request.updateToken), newVersion: request.newVersion },
+            response: { action: response.action, delayedActionTime: response.delayedActionTime },
+        });
+        this.internal.recorded.emit(peer);
+        return response;
+    }
+
+    override notifyUpdateApplied(request: OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest) {
+        const peer = this.#commandPeer;
+        return MaybePromise.then(super.notifyUpdateApplied(request), result => {
+            this.#exchangesFor(peer).notifyUpdateApplied.push({
+                updateToken: Bytes.toHex(request.updateToken),
+                softwareVersion: request.softwareVersion,
+            });
+            this.internal.recorded.emit(peer);
+            return result;
+        });
+    }
+}
+
+namespace RecordingOtaProviderServer {
+    export type Internal = InstanceType<(typeof RecordingOtaProviderServer)["Internal"]>;
+}
+
+/**
+ * One window of a provider's answers: opened before the stimulus, read once it is over.
+ *
+ * The record lives on the behavior and keeps growing, so a caller that held it directly would hand a
+ * case an array the requestor is still appending to — a `NotifyUpdateApplied` or a periodic
+ * `QueryImage` arriving after the call would turn a step's "the provider answered one QueryImage"
+ * into an intermittent failure. This owns the whole lifetime instead: opening clears the record and
+ * attaches the observer in one `act`, so no answer can fall between the two, and reading it copies.
+ */
+class OtaExchangeRecording {
+    #provider: Endpoint;
+    #peer: string;
+    #observers = new ObserverGroup();
+    #queried: Promise<void>;
+    #queryResolver: () => void;
+
+    private constructor(provider: Endpoint, peer: string, queried: Promise<void>, queryResolver: () => void) {
+        this.#provider = provider;
+        this.#peer = peer;
+        this.#queried = queried;
+        this.#queryResolver = queryResolver;
+
+        // The race in `awaitQueryImage` stops awaiting when the budget expires first
+        queried.catch(() => {});
+    }
+
+    static async open(provider: Endpoint, peer: PeerAddress): Promise<OtaExchangeRecording> {
+        const { promise, resolver } = createPromise<void>();
+        const key = peer.toString();
+        const recording = new OtaExchangeRecording(provider, key, promise, resolver);
+
+        await provider.act(agent => {
+            const behavior = agent.get(RecordingOtaProviderServer);
+            behavior.internal.exchanges.set(key, emptyOtaExchanges());
+
+            // Only this peer's answers: one provider endpoint serves every node the controller holds,
+            // so another requestor's periodic query would otherwise settle this wait.
+            recording.#observers.on(behavior.internal.recorded, recorded => {
+                if (recorded === key && (behavior.internal.exchanges.get(key)?.queryImage.length ?? 0) > 0) {
+                    recording.#queryResolver();
+                }
+            });
+        });
+
+        return recording;
+    }
+
+    /** Resolves once the provider has answered a `QueryImage`, rejecting where it never does. */
+    async awaitQueryImage(nodeId: NodeId, timeout: Duration) {
+        const expiry = Time.sleep("cert OTA query", timeout);
+        try {
+            await Promise.race([
+                this.#queried,
+                expiry.then(() => {
+                    throw new OtaTransferError(
+                        `Node id ${nodeId} did not query the announced OTA provider within ${timeout}`,
+                    );
+                }),
+            ]);
+        } finally {
+            expiry.cancel();
+        }
+    }
+
+    /** What the provider has answered so far, copied so later answers cannot reach the caller. */
+    async read(): Promise<OtaProviderExchanges> {
+        const live = await this.#provider.act(agent =>
+            agent.get(RecordingOtaProviderServer).internal.exchanges.get(this.#peer),
+        );
+        if (live === undefined) {
+            return emptyOtaExchanges();
+        }
+        return {
+            queryImage: [...live.queryImage],
+            applyUpdate: [...live.applyUpdate],
+            notifyUpdateApplied: [...live.notifyUpdateApplied],
+        };
+    }
+
+    close() {
+        this.#observers.close();
+    }
+}
+
+/** `response` with `UserConsentNeeded` set, where a script asked for it. */
+function withUserConsent(
+    response: OtaSoftwareUpdateProvider.QueryImageResponse,
+    userConsentNeeded: boolean | undefined,
+): OtaSoftwareUpdateProvider.QueryImageResponse {
+    return userConsentNeeded === undefined ? response : { ...response, userConsentNeeded };
+}
+
+function emptyOtaExchanges(): OtaProviderExchanges {
+    return {
+        queryImage: new Array<OtaQueryImageExchange>(),
+        applyUpdate: new Array<OtaApplyUpdateExchange>(),
+        notifyUpdateApplied: new Array<OtaNotifyUpdateAppliedRecord>(),
+    };
+}
+
+/** A `Bytes` field as hex, keeping an absent field absent rather than rendering it as an empty string. */
+function hexOrUndefined(value: Bytes | undefined) {
+    return value === undefined ? undefined : Bytes.toHex(value);
+}
 
 /** What the controller holds about a node, which is what its OTA provider matches an image against. */
 interface PeerOtaIdentity {
@@ -726,6 +1039,11 @@ class InProcessCertNodeApi implements CertNodeApi {
         return peer;
     }
 
+    /** This node's address on the controller's fabric, which keys everything the provider holds for it. */
+    get #peerAddress(): PeerAddress {
+        return this.#fabric.addressOf(this.#nodeId);
+    }
+
     /** The protocol-level peer behind {@link #peer}, which carries the negotiated session parameters. */
     get #protocolPeer(): ProtocolPeer | undefined {
         return this.#controller.env.get(PeerSet).get(this.#fabric.addressOf(this.#nodeId));
@@ -1071,6 +1389,122 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    scriptOtaProvider(script: OtaProviderScript): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            const provider = await this.#otaProvider();
+            const peer = this.#peerAddress.toString();
+            await provider.act(agent => {
+                agent.get(RecordingOtaProviderServer).internal.script.set(peer, {
+                    queryImage: [...(script.queryImage ?? [])],
+                    applyUpdate: [...(script.applyUpdate ?? [])],
+                });
+            });
+        });
+    }
+
+    announceOtaProvider(options?: AnnounceOtaProviderOptions): Promise<OtaAnnouncement> {
+        return runTagged(this.#adapterId, async () => {
+            const announced = options?.provider;
+
+            const announcement: OtaAnnouncementRecord =
+                announced === undefined
+                    ? {
+                          providerNodeId: this.#fabric.rootNodeId.toString(),
+                          vendorId: this.#controllerVendorId,
+                          announcementReason: this.#announcementReason(options),
+                          endpoint: OTA_PROVIDER_ENDPOINT,
+                      }
+                    : {
+                          providerNodeId: announced,
+                          vendorId: this.#controllerVendorId,
+                          announcementReason: this.#announcementReason(options),
+                          endpoint: this.#otaProviderEndpointOn(NodeId(BigInt(announced))),
+                      };
+
+            // Only where the controller is the provider: a node told about another node queries that
+            // node, and nothing of that exchange passes through here.
+            const recording =
+                announced === undefined
+                    ? await OtaExchangeRecording.open(await this.#otaProvider(), this.#peerAddress)
+                    : undefined;
+
+            try {
+                await this.invoke(
+                    OtaSoftwareUpdateRequestor.Cluster.id,
+                    "announceOtaProvider",
+                    {
+                        providerNodeId: NodeId(BigInt(announcement.providerNodeId)),
+                        vendorId: VendorId(announcement.vendorId),
+                        announcementReason: announcement.announcementReason,
+                        endpoint: EndpointNumber(announcement.endpoint),
+                    },
+                    this.#otaRequestorEndpointOnPeer,
+                );
+
+                if (recording !== undefined && options?.expectQuery !== false) {
+                    await recording.awaitQueryImage(
+                        this.#nodeId,
+                        options?.timeoutMs === undefined ? OTA_QUERY_TIMEOUT : Millis(options.timeoutMs),
+                    );
+                }
+
+                return { announcement, exchanges: (await recording?.read()) ?? emptyOtaExchanges() };
+            } finally {
+                recording?.close();
+            }
+        });
+    }
+
+    /** The reason an announcement carries, defaulting to the one that asks the node to query now. */
+    #announcementReason(options?: AnnounceOtaProviderOptions) {
+        return options?.announcementReason ?? OtaSoftwareUpdateRequestor.AnnouncementReason.UpdateAvailable;
+    }
+
+    /**
+     * The endpoint another commissioned node carries its OTA provider cluster on.
+     *
+     * Read from what the controller holds for that node rather than assumed, as
+     * {@link #otaRequestorEndpointOnPeer} is: an announcement naming the wrong endpoint sends the
+     * requestor to a cluster that is not there.
+     */
+    #otaProviderEndpointOn(nodeId: NodeId): number {
+        const peer = this.#controller.peers.get(this.#fabric.addressOf(nodeId));
+        if (peer === undefined) {
+            throw new OtaTransferError(`Controller "${this.#adapterId}" holds no node id ${nodeId} to announce`);
+        }
+        for (const endpoint of peer.endpoints) {
+            if (endpoint.number !== undefined && endpoint.behaviors.has(OtaSoftwareUpdateProviderClient)) {
+                return endpoint.number;
+            }
+        }
+        throw new OtaTransferError(
+            `Node id ${nodeId} exposes no OTA provider cluster, so it cannot be announced as a provider`,
+        );
+    }
+
+    /**
+     * The peer's own endpoint carrying the OTA requestor cluster.
+     *
+     * Read from the endpoints the controller holds rather than assumed: matter.js's requestor subject
+     * puts the cluster on endpoint 1 and chip's `ota-requestor-app` on the root, and an announcement
+     * to the wrong endpoint is answered `UnsupportedEndpoint` rather than ignored.
+     */
+    get #otaRequestorEndpointOnPeer(): number {
+        for (const endpoint of this.#peer.endpoints) {
+            if (endpoint.number !== undefined && endpoint.behaviors.has(OtaSoftwareUpdateRequestorClient)) {
+                return endpoint.number;
+            }
+        }
+        throw new OtaTransferError(
+            `Node id ${this.#nodeId} exposes no OTA requestor cluster, so it cannot be announced to`,
+        );
+    }
+
+    /** Vendor id the controller announces as, which is its own `BasicInformation` value. */
+    get #controllerVendorId(): VendorId {
+        return this.#controller.state.basicInformation.vendorId;
+    }
+
     serveOtaUpdate(options?: ServeOtaUpdateOptions): Promise<OtaBdxTransfer> {
         return runTagged(this.#adapterId, async () => {
             const peerAddress = this.#fabric.addressOf(this.#nodeId);
@@ -1078,10 +1512,20 @@ class InProcessCertNodeApi implements CertNodeApi {
             const provider = await this.#otaProvider();
             const { softwareVersion, fileSize } = await stageOtaImage(this.#controller, identity);
 
+            // Opened before the announcement rather than filtered afterwards: a case serving two
+            // updates has to be able to say which exchanges belong to the second.
+            const recording = await OtaExchangeRecording.open(provider, peerAddress);
+
             // Armed before the transfer starts, not after it ends: the peer asks to apply as soon as the
             // last block lands, and an observer attached afterwards can miss its own event.
             const applied =
-                options?.expectApply === false ? undefined : await this.#applyAllowed(provider, peerAddress);
+                options?.expectApply === false
+                    ? undefined
+                    : await this.#applyAllowed(
+                          provider,
+                          peerAddress,
+                          options?.applyTimeoutMs === undefined ? OTA_APPLY_TIMEOUT : Millis(options.applyTimeoutMs),
+                      );
 
             try {
                 return await this.#serveStagedImage(
@@ -1091,12 +1535,14 @@ class InProcessCertNodeApi implements CertNodeApi {
                     softwareVersion,
                     fileSize,
                     applied,
+                    recording,
                     options,
                 );
             } finally {
                 // The transfer rejecting is the path that leaves these attached: a node that never opened
                 // one never reaches the settled() that would otherwise close them.
                 applied?.close();
+                recording.close();
             }
         });
     }
@@ -1108,11 +1554,12 @@ class InProcessCertNodeApi implements CertNodeApi {
         softwareVersion: number,
         fileSize: number,
         applied: { settled: () => Promise<boolean>; close: () => void } | undefined,
+        recording: OtaExchangeRecording,
         options?: ServeOtaUpdateOptions,
     ): Promise<OtaBdxTransfer> {
         const session = await this.#runOtaTransfer(
             peerAddress,
-            await provider.act(agent => agent.get(OtaSoftwareUpdateProviderServer).updateStorage.scope),
+            await provider.act(agent => agent.get(RecordingOtaProviderServer).updateStorage.scope),
             async () =>
                 provider.act(agent =>
                     agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
@@ -1132,6 +1579,10 @@ class InProcessCertNodeApi implements CertNodeApi {
         // ends, so the exchange has to be over before this resolves.
         const applyAcknowledged = applied === undefined ? false : await applied.settled();
 
+        // After the apply wait, so a provider that answered an ApplyUpdateRequest while this was
+        // waiting reports that answer rather than the state before it.
+        const exchanges = await recording.read();
+
         const initMessage = session.initMessage;
         const parameters = session.transferParameters;
         if (initMessage === undefined || parameters === undefined) {
@@ -1142,12 +1593,14 @@ class InProcessCertNodeApi implements CertNodeApi {
 
         return {
             providerEndpoint: OTA_PROVIDER_ENDPOINT,
+            providerNodeId: this.#fabric.rootNodeId.toString(),
             softwareVersion,
             fileSize,
             proposal: bdxProposalOf(initMessage),
             accept: bdxAcceptOf(parameters),
             transferredBytes: session.transferredBytes,
             applyAcknowledged,
+            exchanges,
         };
     }
 
@@ -1188,7 +1641,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             return existing;
         }
 
-        const provider = new Endpoint(OtaProviderEndpoint.with(OtaSoftwareUpdateProviderServer), {
+        const provider = new Endpoint(OtaProviderEndpoint.with(RecordingOtaProviderServer), {
             id: OTA_PROVIDER_ENDPOINT_ID,
             number: OTA_PROVIDER_ENDPOINT,
         });
@@ -1210,7 +1663,7 @@ class InProcessCertNodeApi implements CertNodeApi {
      * Resolves rather than rejecting when the peer never asks: the image was still served, which is
      * what the BDX cases are about, and `applyAcknowledged` reports what happened instead.
      */
-    async #applyAllowed(provider: Endpoint, peerAddress: PeerAddress) {
+    async #applyAllowed(provider: Endpoint, peerAddress: PeerAddress, timeout: Duration) {
         const observers = new ObserverGroup();
         const { promise, resolver } = createPromise<boolean>();
 
@@ -1232,7 +1685,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         // it, and a single awaited promise would collapse both into one wait on the wrong side of it.
         return {
             settled: async () => {
-                const expiry = Time.sleep("cert OTA apply", OTA_APPLY_TIMEOUT);
+                const expiry = Time.sleep("cert OTA apply", timeout);
                 try {
                     return await Promise.race([promise, expiry.then(() => false)]);
                 } finally {

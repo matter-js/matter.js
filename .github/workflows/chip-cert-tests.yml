@@ -6,7 +6,8 @@
 # suite, test/cert/**/*.test.ts) — a controller stack driving real Matter certification test plan
 # steps against a TH (test harness) implementation. It is triggered by:
 #
-#   * A daily schedule
+#   * A daily schedule, which is also the only trigger that runs the steps costing minutes of real
+#     time against a device whose retry intervals cannot be shortened (MATTER_CERT_LONG_RUNNING)
 #
 #   * A manual trigger (workflow_dispatch), with inputs for the ref to test, which device binary
 #     source(s) to exercise, and a chip-cert-bins tag override
@@ -113,6 +114,7 @@ jobs:
       run-cert-bins: ${{ steps.flags.outputs.cert-bins }}
       run-own-built: ${{ steps.flags.outputs.own-built }}
       chip-bins-tag: ${{ steps.resolve.outputs.chip-bins-tag }}
+      long-running: ${{ steps.resolve.outputs.long-running }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       # Only for the change filter below, which needs the pushed tree and enough history to diff it
@@ -166,19 +168,24 @@ jobs:
               echo "ref=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
               echo "binaries-source=both" >> "$GITHUB_OUTPUT"
               echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
+              echo "long-running=" >> "$GITHUB_OUTPUT"
               ;;
             workflow_dispatch)
               echo "should-run=true" >> "$GITHUB_OUTPUT"
               echo "ref=${DISPATCH_REF:-$DEFAULT_REF}" >> "$GITHUB_OUTPUT"
               echo "binaries-source=$DISPATCH_SOURCE" >> "$GITHUB_OUTPUT"
               echo "chip-bins-tag=$DISPATCH_TAG" >> "$GITHUB_OUTPUT"
+              echo "long-running=" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              # schedule
+              # schedule. The only trigger that runs the steps costing minutes of real time on a
+              # device whose own retry intervals cannot be shortened — every other leg covers them
+              # against the matter.js device, which can.
               echo "should-run=true" >> "$GITHUB_OUTPUT"
               echo "ref=$DEFAULT_REF" >> "$GITHUB_OUTPUT"
               echo "binaries-source=both" >> "$GITHUB_OUTPUT"
               echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
+              echo "long-running=1" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
@@ -451,6 +458,12 @@ jobs:
           MATTER_CERT_TH_SERVER_APP_PATH: ${{ matrix.th-server-app-path }}
           MATTER_CERT_CAMERA_APP_PATH: ${{ matrix.camera-app-path }}
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+
+          # The matter.js device shortens the intervals a delayed OTA answer imposes, so the SU steps
+          # about one cost this leg nothing. A chip device cannot, so those steps run there only on
+          # the daily schedule.
+          MATTER_CERT_OTA_FAST_RETRY: 1
+          MATTER_CERT_LONG_RUNNING: ${{ needs.prepare.outputs.long-running }}
           MATTER_WTF: 1
         run: |
           cd support/chip-testing

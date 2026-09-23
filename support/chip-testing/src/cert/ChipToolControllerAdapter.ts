@@ -73,6 +73,14 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "MCORE.BDX.AsynchronousSender": 0,
     "MCORE.BDX.BlockQueryWithSkip": 0,
 
+    // The same for the OTA roles built on BDX. Without these the device file's own answers stand, the
+    // SU cases are admitted, and their first step fails on a controller that cannot serve an image at
+    // all — a whole case a controller cannot drive has to skip before it commissions anything.
+    "MCORE.OTA.Provider": 0,
+    "OTAR.C.M.AnnounceOTAProvider": 0,
+    "OTAP.S.M.DelayedActionTime": 0,
+    "OTAP.S.M.UserConsentNeeded": 0,
+
     // command-by-id sends one command path per invoke and no CommandRef.
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
 
@@ -918,6 +926,24 @@ class ChipToolCertNodeApi implements CertNodeApi {
             CONTROLLER,
             "chip-tool is a commissioner, not an OTA provider: it hosts no OtaSoftwareUpdateProvider cluster and " +
                 "keeps no image catalog to serve one from",
+        );
+    }
+
+    async announceOtaProvider(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "announceOtaProvider",
+            CONTROLLER,
+            "chip-tool is a commissioner, not an OTA provider: it hosts no OtaSoftwareUpdateProvider cluster to " +
+                "announce, so a node it announced would query an endpoint that does not exist",
+        );
+    }
+
+    async scriptOtaProvider(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "scriptOtaProvider",
+            CONTROLLER,
+            "chip-tool hosts no OtaSoftwareUpdateProvider cluster, so there is no provider of its own whose " +
+                "answers could be scripted",
         );
     }
 

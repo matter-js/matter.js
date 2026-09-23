@@ -93,6 +93,19 @@ export interface CertTestOptions {
     devices?: Record<string, string>;
 
     /**
+     * Role name → arguments for that role's app, for a role {@link CertTestOptions.devices} declares
+     * (or `th`, the default role).
+     *
+     * A chip example app takes behaviour a cert case depends on from its command line:
+     * `chip-ota-requestor-app` ends an update at the download unless started with `--autoApplyImage`,
+     * and chip's own certification material passes that flag for the apply cases alone. A matter.js
+     * subject reaches its own equivalent through `TestInstanceConfig.appArgs`, and ignores an argument
+     * it does not implement — the evidence bundle records what each role was started with, so a flag
+     * that meant nothing on the running flavor is visible rather than assumed.
+     */
+    appArgs?: Record<string, string[]>;
+
+    /**
      * How this test's controllers reach their peers. `"tcp"` asks for a TCP-backed session, which the
      * TCP test cases are about and which a large-payload interaction requires. Omitted, a controller
      * keeps the transport every other test's evidence and timing were written against.
@@ -115,6 +128,17 @@ export interface CertStepOptions {
      * this text as the reason, so the evidence bundle carries why rather than an unexplained gap.
      */
     notApplicable?: string;
+
+    /**
+     * Marks a step whose stimulus costs minutes of real time, and why.
+     *
+     * A plan step may have the TH wait out a delay the DUT named — minutes, by the plan's own numbers
+     * — and nothing about that wait is the DUT's behaviour under test. Such a step runs only where the
+     * run asked for it (`MATTER_CERT_LONG_RUNNING=1`), which is how a scheduled run covers it without
+     * every push paying for it. A case that can shorten the wait on the running flavor declares
+     * nothing here, so the step runs as usual.
+     */
+    longRunning?: string;
 }
 
 export interface CertTestBuilder {
@@ -145,6 +169,27 @@ function assertUsableRoleName(tc: string, role: string) {
             `certTest "${tc}" declares a device role "${role}"; a role name becomes part of the subject's id, so ` +
                 "it must start with a letter and carry only letters, digits and underscores",
         );
+    }
+}
+
+/**
+ * Holds {@link CertTestOptions.appArgs} to the roles the same declaration names.
+ *
+ * A role that does not exist takes no arguments and reports nothing, so the case would run against a
+ * device started the default way while its declaration says otherwise — which is the whole failure
+ * the option exists to prevent.
+ */
+function assertAppArgsRoles(tc: string, deviceRoles: Record<string, string>, appArgs?: Record<string, string[]>) {
+    if (appArgs === undefined) {
+        return;
+    }
+    for (const role of Object.keys(appArgs)) {
+        if (!Object.hasOwn(deviceRoles, role)) {
+            throw new Error(
+                `certTest "${tc}" declares appArgs for the role "${role}", which none of its devices use ` +
+                    `(declared: ${Object.keys(deviceRoles).join(", ")})`,
+            );
+        }
     }
 }
 
@@ -221,6 +266,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         assertUsableRoleName(tc, role);
     });
     primaryDeviceRole(deviceRoles, options.app);
+    assertAppArgsRoles(tc, deviceRoles, options.appArgs);
 
     const definition: CertTestDefinition = {
         tc,
@@ -232,6 +278,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
         flavors: options.flavors,
         chipBinsSources: options.chipBinsSources,
         transport: options.transport,
+        appArgs: options.appArgs,
         steps: new Array<CertStepDefinition>(),
     };
 
@@ -257,6 +304,13 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 );
             }
 
+            if (opts?.longRunning !== undefined && opts.longRunning.trim() === "") {
+                throw new Error(
+                    `certTest "${tc}" step ${number} declares a long-running step with no reason, which would skip ` +
+                        "it with nothing recorded to explain why — give the reason, or omit the option",
+                );
+            }
+
             if (opts?.notApplicable !== undefined && opts.notApplicable.trim() === "") {
                 throw new Error(
                     `certTest "${tc}" step ${number} declares an empty "notApplicable" reason, which would skip it ` +
@@ -279,6 +333,7 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
                 expected: opts?.expected,
                 flavors: opts?.flavors,
                 notApplicable: opts?.notApplicable,
+                longRunning: opts?.longRunning,
             });
             return builder;
         },
@@ -453,7 +508,7 @@ function defineCertTest(
                 this.skip();
             }
 
-            await State.activateSubject(factory, false, test);
+            await State.activateSubject(factory, false, test, undefined, definition.appArgs?.[primaryRole]);
         });
 
         mochaTest.descriptor = test.descriptor;
@@ -529,8 +584,9 @@ async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | u
 /**
  * Provenance for every device in a run: which binary each role ran and the revision it came from.
  *
- * `appVariant` comes from the started device, not the definition: a flavor that cannot run a variant
- * ignores the request, and a bundle claiming a variant that never started would be a lie.
+ * `appVariant` and `appArgs` come from the started device, not the definition: a flavor that cannot
+ * run a variant ignores the request, the harness adds arguments an app cannot start without, and a
+ * bundle claiming what never reached the app would be a lie.
  *
  * `chipRef` is resolved once per distinct app, but only `chip-docker` actually varies with it: a
  * `chip-local` revision names the extraction directory the binaries all came from, so every device of
@@ -539,7 +595,8 @@ async function chipRefFor(flavor: DeviceFlavor, app: string): Promise<string | u
 export async function deviceRecordsFor(
     flavor: DeviceFlavor,
     deviceRoles: Record<string, string>,
-    devices: Record<string, Pick<CertDevice, "appVariant">>,
+    devices: Record<string, Pick<CertDevice, "appVariant" | "appArgs">>,
+    appArgs?: Record<string, string[]>,
 ): Promise<RunDeviceRecord[]> {
     const refs = new Map<string, Promise<string | undefined>>();
 
@@ -552,7 +609,18 @@ export async function deviceRecordsFor(
                 refs.set(app, ref);
             }
 
-            return { role, app, appVariant: device.appVariant, flavor, chipRef: await ref };
+            return {
+                role,
+                app,
+                appVariant: device.appVariant,
+                flavor,
+
+                // What the device reports having started with, as `appVariant` is: the harness adds
+                // what an app cannot start without, and a bundle naming only the declaration would
+                // omit an argument that changed the app's behaviour.
+                appArgs: device.appArgs ?? appArgs?.[role],
+                chipRef: await ref,
+            };
         }),
     );
 }
@@ -723,6 +791,7 @@ class WiredCertTest extends CertTest {
                 // an endpoint id.
                 const device = factory(`${this.descriptor.kind ?? "cert"}-${role}`, {
                     identity: identityFor(++identityIndex),
+                    appArgs: this.definition.appArgs?.[role],
                 });
                 extra.push(device);
                 await device.initialize();
@@ -744,7 +813,7 @@ class WiredCertTest extends CertTest {
 
             const [matterJsRef, deviceRecords, chipToolRef] = await Promise.all([
                 matterJsCommit(),
-                deviceRecordsFor(this.#flavor, this.#deviceRoles, devices),
+                deviceRecordsFor(this.#flavor, this.#deviceRoles, devices, this.definition.appArgs),
                 chipToolRefFor(controllerImplementation),
             ]);
 

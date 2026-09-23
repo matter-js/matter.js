@@ -622,7 +622,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                         OtaSoftwareUpdateRequestor.ChangeReason.DelayByProvider,
                     );
                     this.#scheduleUpdateQuery(
-                        Seconds(Math.max(delayedActionTime, 120)),
+                        Millis(Math.max(Seconds(delayedActionTime), this.state.minimumQueryInterval)),
                         ScheduleReason.Busy,
                         providerLocation,
                     );
@@ -749,7 +749,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             );
             this.internal.updateDelayPromise = Time.sleep(
                 "OTAUpdateApply-AwaitNextAction",
-                Millis(Math.min(Math.max(Seconds(applyDelayedActionTime), Minutes(2)), Hours(24))),
+                Millis(Math.min(Math.max(Seconds(applyDelayedActionTime), this.state.minimumApplyDelay), Hours(24))),
             );
             await this.internal.updateDelayPromise;
             this.internal.updateDelayPromise = undefined;
@@ -1221,6 +1221,29 @@ export namespace OtaSoftwareUpdateRequestorServer {
          * @see {@link MatterSpecification.v16.Core} § 11.20.7.4.1.3
          */
         announcedUpdateQueryDelay?: Duration = undefined;
+
+        /**
+         * Shortest interval this requestor leaves between two `QueryImage` commands to one provider,
+         * which also floors the `DelayedActionTime` a `Busy` answer names.
+         *
+         * The specification requires two minutes, which is the default. It is settable so a test
+         * harness can observe the exchange that follows a delayed answer without waiting the delay
+         * out; a product that lowers it does not conform.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.3.2
+         */
+        minimumQueryInterval: Duration = Seconds(120);
+
+        /**
+         * Shortest interval this requestor leaves before re-sending an `ApplyUpdateRequest` a provider
+         * answered `AwaitNextAction`, which also floors the `DelayedActionTime` that answer names.
+         *
+         * As {@link minimumQueryInterval}: the specification requires two minutes, and lowering it is
+         * for a harness rather than for a product.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.6.10
+         */
+        minimumApplyDelay: Duration = Minutes(2);
 
         /**
          * The list of OTA providers that were recently active (by announcement or by being used).
