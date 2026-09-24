@@ -12,7 +12,6 @@ import { Lifecycle } from "@matter/general";
 import {
     AttributeModel,
     ClusterElement,
-    ClusterModel,
     CommandModel,
     DeviceClassification,
     DeviceTypeModel,
@@ -25,8 +24,8 @@ import {
 import { ValidationPass } from "./ValidationPass.js";
 
 const facts = new ValidationPass.Memo<Endpoint, EndpointFacts>();
-const deviceTypeMemo = new ValidationPass.Memo<number, DeviceTypeModel | undefined>();
-const scopeMemo = new ValidationPass.Memo<ClusterModel, Scope>();
+
+const deviceTypeMemo = new ValidationPass.ModelMemo<number, DeviceTypeModel | undefined>();
 
 /**
  * The facts about a server endpoint that a device type's requirements are judged against.
@@ -80,7 +79,7 @@ export class EndpointFacts {
         if (this.#deviceTypes === undefined) {
             this.#deviceTypes = new Array<DeviceTypeModel>();
             for (const deviceType of deviceTypeIdsOf(this.#endpoint)) {
-                const model = deviceTypeMemo.get(this.#pass, deviceType, () =>
+                const model = deviceTypeMemo.get(this.#pass.model, deviceType, () =>
                     this.#pass.model.deviceTypes(deviceType),
                 );
                 if (model !== undefined) {
@@ -165,7 +164,7 @@ export class EndpointFacts {
             return (
                 elements.events.has(element.propertyName) &&
                 event !== undefined &&
-                scopeMemo.get(this.#pass, type.schema, () => Scope(type.schema)).hasOperationalSupport(event)
+                Scope(type.schema).hasOperationalSupport(event)
             );
         }
         return false;

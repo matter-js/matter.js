@@ -10,7 +10,6 @@ import {
     Conformance,
     DeviceClassification,
     DeviceTypeModel,
-    MatterModel,
     Model,
     RequirementElement,
     requirementApplicability,
@@ -22,11 +21,12 @@ import { EndpointFacts } from "./EndpointFacts.js";
 import { ValidationPass } from "./ValidationPass.js";
 import { Violation } from "./Violation.js";
 
-const clusterMemo = new ValidationPass.Memo<RequirementModel, ClusterModel | undefined>();
-const referentMemo = new ValidationPass.Memo<RequirementModel, Model | undefined>();
-const baseMemo = new ValidationPass.Memo<MatterModel, DeviceTypeModel[]>();
-const aggregatorMemo = new ValidationPass.Memo<MatterModel, DeviceTypeModel | undefined>();
-const knownNameMemo = new ValidationPass.Memo<RequirementModel, KnownNames>();
+const clusterMemo = new ValidationPass.ModelMemo<RequirementModel, ClusterModel | undefined>();
+const referentMemo = new ValidationPass.ModelMemo<RequirementModel, Model | undefined>();
+const baseMemo = new ValidationPass.ModelMemo<undefined, DeviceTypeModel[]>();
+const aggregatorMemo = new ValidationPass.ModelMemo<undefined, DeviceTypeModel | undefined>();
+const knownNameMemo = new ValidationPass.ModelMemo<RequirementModel, KnownNames>();
+
 const componentMemo = new ValidationPass.Memo<Endpoint, Map<DeviceTypeModel, Component[]>>();
 const failureMemo = new ValidationPass.Memo<Endpoint, Map<RequirementModel, Violation[]>>();
 const singletonMemo = new ValidationPass.Memo<Endpoint, Map<number, Singleton>>();
@@ -96,7 +96,7 @@ export namespace DeviceTypeConformance {
             // Every device type derives from Base, so its requirements apply once per endpoint rather than once per
             // device type
             deviceTypes.push(
-                ...baseMemo.get(pass, model, () =>
+                ...baseMemo.get(model, undefined, () =>
                     model.deviceTypes.filter(deviceType => deviceType.classification === DeviceClassification.Base),
                 ),
             );
@@ -221,7 +221,7 @@ function checkClusters(context: Context, requirements: RequirementModel[]) {
 
 function checkCluster(context: Context, requirement: RequirementModel, side: "server" | "client") {
     const { pass } = context;
-    const cluster = clusterMemo.get(pass, requirement, () => RequirementResolver.clusterOf(requirement));
+    const cluster = clusterMemo.get(pass.model, requirement, () => RequirementResolver.clusterOf(requirement));
     if (cluster?.id === undefined) {
         return;
     }
@@ -244,14 +244,14 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
 
         switch (nested.element) {
             case RequirementElement.ElementType.Feature:
-                referent = referentMemo.get(pass, nested, () => RequirementResolver.featureOf(nested));
+                referent = referentMemo.get(pass.model, nested, () => RequirementResolver.featureOf(nested));
                 present = referent !== undefined && features.has(referent.name);
                 break;
 
             case RequirementElement.ElementType.Attribute:
             case RequirementElement.ElementType.Command:
             case RequirementElement.ElementType.Event:
-                referent = referentMemo.get(pass, nested, () => RequirementResolver.elementOf(nested));
+                referent = referentMemo.get(pass.model, nested, () => RequirementResolver.elementOf(nested));
                 present = referent !== undefined && context.facts.supports(name, referent);
                 break;
 
@@ -347,7 +347,7 @@ interface KnownNames {
 }
 
 function knownNamesOf(requirement: RequirementModel, pass: ValidationPass) {
-    return knownNameMemo.get(pass, requirement, () => knownNamesIn(requirement, pass));
+    return knownNameMemo.get(pass.model, requirement, () => knownNamesIn(requirement, pass));
 }
 
 function knownNamesIn(requirement: RequirementModel, pass: ValidationPass): KnownNames {
@@ -880,7 +880,9 @@ function singletonsOf(declarers: Iterable<Endpoint>, pass: ValidationPass) {
                     continue;
                 }
 
-                const cluster = clusterMemo.get(pass, requirement, () => RequirementResolver.clusterOf(requirement));
+                const cluster = clusterMemo.get(pass.model, requirement, () =>
+                    RequirementResolver.clusterOf(requirement),
+                );
                 if (cluster?.id === undefined) {
                     continue;
                 }
@@ -941,7 +943,7 @@ const AGGREGATED: ReadonlySet<string> = new Set(["Descriptor.TAGLIST"]);
 function baseWaiversOf(facts: EndpointFacts, pass: ValidationPass) {
     const { owner } = facts.endpoint;
     const { model } = pass;
-    const aggregator = aggregatorMemo.get(pass, model, () => model.deviceTypes("Aggregator"));
+    const aggregator = aggregatorMemo.get(model, undefined, () => model.deviceTypes("Aggregator"));
     if (owner === undefined || aggregator === undefined) {
         return NONE;
     }

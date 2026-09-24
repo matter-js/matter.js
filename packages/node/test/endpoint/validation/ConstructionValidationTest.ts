@@ -362,8 +362,6 @@ describe("device type validation at construction", () => {
         const node = await createNode();
         node.env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, node.env, nodelessModel()));
 
-        // Stand-in model: RootNode declares GroupKeyManagement a singleton and OnOffLight requires Identify, but no
-        // device type is a node
         const logged = await captureLogOf(() =>
             node.add(lightWith(Groups, OnOff, ScenesManagement, GroupKeyManagementBehavior), { id: "light" }),
         );

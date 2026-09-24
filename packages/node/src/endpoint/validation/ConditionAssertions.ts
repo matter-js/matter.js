@@ -19,9 +19,10 @@ import { EndpointFacts } from "./EndpointFacts.js";
 import { ValidationPass } from "./ValidationPass.js";
 
 const collections = new ValidationPass.Memo<Endpoint, ConditionAssertions.Collection>();
-const conditionScopes = new ValidationPass.Memo<DeviceTypeModel, Map<string, ConditionModel>>();
-const assertedConditions = new ValidationPass.Memo<RequirementModel, ConditionModel | undefined>();
 const applicationDeviceTypeCounts = new ValidationPass.Memo<Endpoint, Map<number, number>>();
+
+const conditionScopes = new ValidationPass.ModelMemo<DeviceTypeModel, Map<string, ConditionModel>>();
+const assertedConditions = new ValidationPass.ModelMemo<RequirementModel, ConditionModel | undefined>();
 
 /**
  * The conditions that hold for the endpoints of a node scope.
@@ -117,7 +118,7 @@ export namespace ConditionAssertions {
                 const knownNames = new Set([...conditionScopeOf(deviceType, pass).values()].map(c => c.name));
 
                 for (const requirement of deviceType.requirements) {
-                    const condition = assertedConditions.get(pass, requirement, () =>
+                    const condition = assertedConditions.get(pass.model, requirement, () =>
                         RequirementResolver.conditionOf(requirement),
                     );
                     if (condition === undefined) {
@@ -375,10 +376,11 @@ function conditionScopesOf(endpoint: Endpoint, pass: ValidationPass) {
 }
 
 /**
- * {@link RequirementResolver.conditionsOf}, which walks every device type of the model, once per device type and pass.
+ * {@link RequirementResolver.conditionsOf}, which walks every device type of the model, once per device type and
+ * model instance.
  */
 export function conditionScopeOf(deviceType: DeviceTypeModel, pass: ValidationPass) {
-    return conditionScopes.get(pass, deviceType, () => RequirementResolver.conditionsOf(deviceType));
+    return conditionScopes.get(pass.model, deviceType, () => RequirementResolver.conditionsOf(deviceType));
 }
 
 function resolveStated(scopes: Map<string, ConditionModel>[], name: string) {
