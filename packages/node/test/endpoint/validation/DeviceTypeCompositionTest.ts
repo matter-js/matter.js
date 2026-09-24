@@ -318,7 +318,6 @@ describe("composition", () => {
             deviceConditions: ["Wanted"],
             descriptor: { deviceTypeList: deviceTypeList(CONDITIONAL_COMPOSER_ID) },
         });
-        await addStandIn(composer, "light", "OnOffLight");
         const inner = await composer.add(DescribedLight, {
             id: "inner",
             descriptor: { deviceTypeList: deviceTypeList(INNER_NODE_ID) },
@@ -328,7 +327,10 @@ describe("composition", () => {
         const pass = new ValidationPass(nestedScopeModel());
         DeviceTypeConformance.check(innerLight, ConditionAssertions.collect(inner, pass), pass);
 
-        expect(DeviceTypeConformance.check(composer, ConditionAssertions.collect(node, pass), pass)).deep.equals([]);
+        const violations = DeviceTypeConformance.check(composer, ConditionAssertions.collect(node, pass), pass);
+        expect(violations.map(({ kind, requirement }) => ({ kind, requirement }))).deep.equals([
+            { kind: "instanceCount", requirement: "device:OnOffLight" },
+        ]);
 
         await node.close();
     });
@@ -427,14 +429,15 @@ describe("composition", () => {
             await node.close();
         });
 
-        it("disallows a member while its condition does not hold", async () => {
+        it("neither requires nor disallows a member while its condition does not hold", async () => {
             const node = await createNode();
             const meter = await node.add(MeterReferencePointDevice, { id: "meter" });
+
+            expect(violationsOf(meter)).deep.equals([]);
+
             await addStandIn(meter, "electrical", "ElectricalMeter");
 
-            expect(violationsOf(meter).map(({ kind, requirement }) => ({ kind, requirement }))).deep.equals([
-                { kind: "disallowed", requirement: "device:ElectricalMeter" },
-            ]);
+            expect(violationsOf(meter)).deep.equals([]);
 
             await node.close();
         });

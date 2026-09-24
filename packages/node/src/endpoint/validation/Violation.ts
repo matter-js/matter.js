@@ -60,7 +60,8 @@ export interface Violation {
 export namespace Violation {
     /**
      * - `missing`: a mandatory cluster or element is absent
-     * - `disallowed`: a disallowed cluster, element or component device type is present
+     * - `disallowed`: a cluster, element or component device type is present that its conformance forbids whatever
+     *   conditions hold, by an `X` or through its feature terms; a false condition never makes one disallowed
      * - `instanceCount`: a component requirement, a choice of component requirements or a `Descendant` condition
      *   matches too few or too many endpoints, or an instance of a component requirement is filled by none
      * - `singletonMisplaced`: a server cluster that a device type in the node scope declares a singleton appears on

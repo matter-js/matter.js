@@ -26,7 +26,7 @@ const clusterMemo = new ValidationPass.Memo<RequirementModel, ClusterModel | und
 const referentMemo = new ValidationPass.Memo<RequirementModel, Model | undefined>();
 const baseMemo = new ValidationPass.Memo<MatterModel, DeviceTypeModel[]>();
 const aggregatorMemo = new ValidationPass.Memo<MatterModel, DeviceTypeModel | undefined>();
-const knownNameMemo = new ValidationPass.Memo<RequirementModel, Set<string>>();
+const knownNameMemo = new ValidationPass.Memo<RequirementModel, KnownNames>();
 const componentMemo = new ValidationPass.Memo<Endpoint, Map<DeviceTypeModel, Component[]>>();
 const failureMemo = new ValidationPass.Memo<Endpoint, Map<RequirementModel, Violation[]>>();
 const singletonMemo = new ValidationPass.Memo<Endpoint, Map<number, Singleton>>();
@@ -45,6 +45,7 @@ export namespace DeviceTypeConformance {
      * require, plus the names in {@link Endpoint.deviceConditions} that name no condition.
      *
      * A mandatory requirement is violated when its cluster or element is absent, a disallowed one when it is present.
+     * Conditions decide what is mandatory but never what is disallowed: only an `X` or a feature term disallows.
      * A server cluster that a device type in the endpoint's node scope declares a singleton is violated on every
      * endpoint of that scope but the declaring ones.
      * Optional requirements and those whose conformance names something unknown are not judged. A missing or
@@ -168,7 +169,7 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
 
     const name = context.facts.clusterName(side, cluster.id);
     const path = side === "client" ? `client:${cluster.name}` : cluster.name;
-    const applicability = requirementApplicability(requirement, context.conditions, knownNamesOf(requirement, pass));
+    const applicability = applicabilityOf(requirement, context.conditions, pass);
     const departed = judge(context, applicability, name !== undefined, path, `${side} cluster ${cluster.name}`);
 
     if (departed || name === undefined || side === "client") {
@@ -205,7 +206,7 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
 
         judge(
             context,
-            requirementApplicability(nested, trueNames, knownNamesOf(nested, pass)),
+            applicabilityOf(nested, trueNames, pass),
             present,
             `${path}.${referent.name}`,
             `${nested.element} ${referent.name} of ${cluster.name}`,
@@ -249,32 +250,62 @@ function judge(
 }
 
 /**
- * The declared names a requirement's conformance may reference: the conditions reachable unqualified from its
- * {@link RequirementResolver.EndpointScope} and the features of its cluster. A name outside them leaves the requirement
- * unjudged.
+ * The applicability of {@link requirement} with {@link trueNames} true, as the endpoint is judged by it.
+ *
+ * {@link Conformance.Applicability.None} is answered only when the conformance forbids the element with every
+ * condition undecided; one that only a condition forbids is {@link Conformance.Applicability.Conditional}, which is
+ * not judged.
  */
+function applicabilityOf(requirement: RequirementModel, trueNames: Set<string>, pass: ValidationPass) {
+    const { all, features } = knownNamesOf(requirement, pass);
+    const applicability = requirementApplicability(requirement, trueNames, all);
+
+    // A condition is a maker's statement, and CHIP never decides one, so only an X or a feature term disallows
+    if (
+        applicability === Conformance.Applicability.None &&
+        requirementApplicability(requirement, trueNames, features) !== Conformance.Applicability.None
+    ) {
+        return Conformance.Applicability.Conditional;
+    }
+
+    return applicability;
+}
+
+/**
+ * The declared names a requirement's conformance may reference.
+ */
+interface KnownNames {
+    /**
+     * The conditions reachable unqualified from the requirement's {@link RequirementResolver.EndpointScope} and the
+     * features of its cluster. A name outside them leaves the requirement unjudged.
+     */
+    all: Set<string>;
+
+    /**
+     * The features of the requirement's cluster.
+     */
+    features: Set<string>;
+}
+
 function knownNamesOf(requirement: RequirementModel, pass: ValidationPass) {
     return knownNameMemo.get(pass, requirement, () => knownNamesIn(requirement, pass));
 }
 
-function knownNamesIn(requirement: RequirementModel, pass: ValidationPass) {
+function knownNamesIn(requirement: RequirementModel, pass: ValidationPass): KnownNames {
     const { deviceType, cluster } = RequirementResolver.endpointScopeOf(requirement);
-    const names = new Set<string>();
+    const features = new Set((cluster?.features ?? []).map(({ name }) => name));
+    const all = new Set(features);
 
     if (deviceType !== undefined) {
         for (const [key, condition] of conditionScopeOf(deviceType, pass)) {
             // A qualified entry names a condition of any device type, which the requirement cannot reach
             if (!key.includes(".")) {
-                names.add(condition.name);
+                all.add(condition.name);
             }
         }
     }
 
-    for (const feature of cluster?.features ?? []) {
-        names.add(feature.name);
-    }
-
-    return names;
+    return { all, features };
 }
 
 /**
@@ -309,7 +340,7 @@ function componentsOf(
             continue;
         }
 
-        const applicability = requirementApplicability(requirement, conditions, knownNamesOf(requirement, pass));
+        const applicability = applicabilityOf(requirement, conditions, pass);
         const entry = byId.get(component.id);
         if (entry === undefined) {
             byId.set(component.id, { deviceType: component, requirements: [requirement], applicability });
@@ -568,7 +599,7 @@ function checkChoices(
                 entry.members.push(component);
             }
 
-            const applicability = requirementApplicability(requirement, conditions, knownNamesOf(requirement, pass));
+            const applicability = applicabilityOf(requirement, conditions, pass);
             if (
                 applicability === Conformance.Applicability.Mandatory ||
                 applicability === Conformance.Applicability.Optional

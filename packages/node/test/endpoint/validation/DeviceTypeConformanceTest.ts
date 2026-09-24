@@ -32,6 +32,8 @@ import {
     ClusterModel,
     ConditionModel,
     DeviceTypeModel,
+    FeatureMap,
+    FieldModel,
     Matter,
     MatterModel,
     RequirementModel,
@@ -157,6 +159,34 @@ function singletonViolationsOf(endpoint: Endpoint, model?: MatterModel) {
         .map(v => [v.deviceType, v.requirement]);
 }
 
+/**
+ * A model whose OnOffLight requires OnOff with its Lighting feature under {@link conformance}, which may name the
+ * OnOff feature `OFFONLY`, off on a standard light, and OnOffLight's condition `Wanted`.
+ */
+function lightingFeatureModel(conformance: string) {
+    const featureMap = FeatureMap.clone();
+    featureMap.children = [
+        new FieldModel({ name: "LT", title: "Lighting", constraint: "0" }),
+        new FieldModel({ name: "OFFONLY", title: "OffOnly", constraint: "2" }),
+    ];
+
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }),
+        new DeviceTypeModel(
+            { name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" },
+            new ConditionModel({ name: "Wanted" }),
+            new RequirementModel(
+                { name: "OnOff", id: 6, element: "serverCluster", conformance: "M" },
+                new RequirementModel({ name: "LT", element: "feature", conformance }),
+            ),
+        ),
+        new ClusterModel({ name: "OnOff", id: 6, children: [featureMap] }),
+    );
+    model.finalize();
+    return model;
+}
+
 function requirementOf(deviceType: string, ...path: string[]) {
     let model = Matter.deviceTypes(deviceType)?.get(RequirementModel, path[0]);
     for (const name of path.slice(1)) {
@@ -210,6 +240,7 @@ describe("DeviceTypeConformance", () => {
         const node = await createNode();
         const endpoint = await node.add(lockWithGroups, { id: "lock", doorLock: lockState });
 
+        expect(String(requirementOf("DoorLock", "Groups").conformance)).equals("X");
         expect(violationsOf(endpoint).map(v => [v.kind, v.requirement])).deep.equals([["disallowed", "Groups"]]);
 
         await node.close();
@@ -222,6 +253,42 @@ describe("DeviceTypeConformance", () => {
         expect(requirementOf("DoorLock", "Groups").isDisallowed).true;
 
         expect(violationsOf(endpoint)).deep.equals([]);
+
+        await node.close();
+    });
+
+    it("does not disallow an element only a false condition forbids", async () => {
+        const node = await MockServerNode.createOnline();
+
+        expect(String(requirementOf("RootNode", "AccessControl", "Extension").conformance)).equals("AclExtensionCond");
+        expect(EndpointFacts.of(node).features("AccessControl").has("EXTS")).true;
+        expect(ConditionAssertions.collect(node).conditions.get(node)?.has("AclExtensionCond")).false;
+
+        expect(violationsOf(node).map(v => v.requirement)).not.includes("AccessControl.Extension");
+
+        await node.close();
+    });
+
+    it("reports an element present that a feature term forbids", async () => {
+        const node = await createNode();
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+
+        expect(violationsOf(light, lightingFeatureModel("OFFONLY")).map(v => [v.kind, v.requirement])).deep.equals([
+            ["disallowed", "OnOff.LT"],
+        ]);
+
+        await node.close();
+    });
+
+    it("disallows by a feature term whatever condition it is combined with", async () => {
+        const node = await createNode();
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+
+        const judged = (conformance: string) =>
+            violationsOf(light, lightingFeatureModel(conformance)).map(v => [v.kind, v.requirement]);
+
+        expect(judged("Wanted & OFFONLY")).deep.equals([["disallowed", "OnOff.LT"]]);
+        expect(judged("Wanted | OFFONLY")).deep.equals([]);
 
         await node.close();
     });
