@@ -23,6 +23,7 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
 import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
 import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
+import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
@@ -529,8 +530,9 @@ describe("DeviceTypeConformance", () => {
 
         const node = await createNode();
         const light = await node.add(OnOffLightDevice, { id: "light" });
+        const pass = new ValidationPass(model);
 
-        expect(DeviceTypeConformance.check(light, ConditionAssertions.collect(node, model), model)).deep.equals([]);
+        expect(DeviceTypeConformance.check(light, ConditionAssertions.collect(node, pass), pass)).deep.equals([]);
 
         await node.close();
     });

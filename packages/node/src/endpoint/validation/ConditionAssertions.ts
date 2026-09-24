@@ -10,14 +10,18 @@ import {
     Conformance,
     DeviceClassification,
     DeviceTypeModel,
-    Matter,
-    MatterModel,
     RequirementElement,
     requirementApplicability,
     RequirementModel,
     RequirementResolver,
 } from "@matter/model";
 import { EndpointFacts } from "./EndpointFacts.js";
+import { ValidationPass } from "./ValidationPass.js";
+
+const collections = new ValidationPass.Memo<Endpoint, ConditionAssertions.Collection>();
+const conditionScopes = new ValidationPass.Memo<DeviceTypeModel, Map<string, ConditionModel>>();
+const assertedConditions = new ValidationPass.Memo<RequirementModel, ConditionModel | undefined>();
+const applicationDeviceTypeCounts = new ValidationPass.Memo<Endpoint, Map<number, number>>();
 
 /**
  * The conditions that hold for the endpoints of a node scope.
@@ -87,27 +91,35 @@ export namespace ConditionAssertions {
      * the whole scope is collected before any requirement is judged. A requirement asserts when its conformance is
      * mandatory for the structural and stated conditions of the asserting endpoint.
      *
+     * One {@link pass} collects each node scope once.
+     *
      * @see {@link MatterSpecification.v16.Core} § 9.2.6
      */
-    export function collect(nodeEndpoint: Endpoint, model: MatterModel = Matter): Collection {
-        const scope = nodeScopeOf(nodeEndpoint, model);
+    export function collect(nodeEndpoint: Endpoint, pass = new ValidationPass()): Collection {
+        return collections.get(pass, nodeEndpoint, () => collectScope(nodeEndpoint, pass));
+    }
+
+    function collectScope(nodeEndpoint: Endpoint, pass: ValidationPass): Collection {
+        const scope = nodeScopeOf(nodeEndpoint, pass);
 
         const underived = new Map<Endpoint, Set<string>>();
         const conditions = new Map<Endpoint, Set<string>>();
         for (const endpoint of scope) {
-            const names = new Set([...structuralConditionsOf(endpoint, model), ...statedConditionsOf(endpoint, model)]);
+            const names = new Set([...structuralConditionsOf(endpoint, pass), ...statedConditionsOf(endpoint, pass)]);
             underived.set(endpoint, names);
             conditions.set(endpoint, new Set(names));
         }
 
         const descendantAssertions = new Array<DescendantAssertion>();
         for (const [endpoint, names] of underived) {
-            const facts = EndpointFacts.of(endpoint, model);
+            const facts = EndpointFacts.of(endpoint, pass);
             for (const deviceType of facts.deviceTypes) {
-                const knownNames = new Set([...RequirementResolver.conditionsOf(deviceType).values()].map(c => c.name));
+                const knownNames = new Set([...conditionScopeOf(deviceType, pass).values()].map(c => c.name));
 
                 for (const requirement of deviceType.requirements) {
-                    const condition = RequirementResolver.conditionOf(requirement);
+                    const condition = assertedConditions.get(pass, requirement, () =>
+                        RequirementResolver.conditionOf(requirement),
+                    );
                     if (condition === undefined) {
                         continue;
                     }
@@ -118,7 +130,7 @@ export namespace ConditionAssertions {
                         continue;
                     }
 
-                    const targets = targetsOf(facts, nodeEndpoint, requirement, condition, model);
+                    const targets = targetsOf(facts, nodeEndpoint, requirement, condition, pass);
                     if (requirement.location === RequirementElement.Location.Descendant) {
                         descendantAssertions.push({ endpoint, requirement, matches: targets });
                     }
@@ -142,9 +154,9 @@ export namespace ConditionAssertions {
      * BasicVideoPlayer and CastingVideoPlayer. The name is not ambiguous: conditions hold by name, so stating it makes
      * it true for both, as qualifying it would.
      */
-    export function unknownNames(endpoint: Endpoint, model: MatterModel = Matter): UnknownName[] {
+    export function unknownNames(endpoint: Endpoint, pass = new ValidationPass()): UnknownName[] {
         const unknown = new Array<UnknownName>();
-        const scopes = conditionScopesOf(endpoint, model);
+        const scopes = conditionScopesOf(endpoint, pass);
 
         for (const name of endpoint.deviceConditions) {
             const { condition, suggestion } = resolveStated(scopes, name);
@@ -163,12 +175,12 @@ export namespace ConditionAssertions {
      *
      * @see {@link MatterSpecification.v16.Core} § 9.2.6
      */
-    export function nodeScopeOf(nodeEndpoint: Endpoint, model: MatterModel = Matter): Endpoint[] {
+    export function nodeScopeOf(nodeEndpoint: Endpoint, pass = new ValidationPass()): Endpoint[] {
         const scope = [nodeEndpoint];
 
         const visit = (endpoint: Endpoint) => {
-            for (const child of EndpointFacts.of(endpoint, model).children) {
-                if (EndpointFacts.of(child, model).isNodeEndpoint) {
+            for (const child of EndpointFacts.of(endpoint, pass).children) {
+                if (EndpointFacts.of(child, pass).isNodeEndpoint) {
                     continue;
                 }
                 scope.push(child);
@@ -186,9 +198,9 @@ export namespace ConditionAssertions {
      *
      * @see {@link MatterSpecification.v16.Core} § 9.2.6
      */
-    export function nodeEndpointOf(endpoint: Endpoint, model: MatterModel = Matter): Endpoint | undefined {
+    export function nodeEndpointOf(endpoint: Endpoint, pass = new ValidationPass()): Endpoint | undefined {
         for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
-            if (EndpointFacts.of(current, model).isNodeEndpoint) {
+            if (EndpointFacts.of(current, pass).isNodeEndpoint) {
                 return current;
             }
         }
@@ -215,7 +227,7 @@ function targetsOf(
     nodeEndpoint: Endpoint,
     requirement: RequirementModel,
     condition: ConditionModel,
-    model: MatterModel,
+    pass: ValidationPass,
 ): Endpoint[] {
     switch (requirement.location) {
         case RequirementElement.Location.Root:
@@ -233,7 +245,7 @@ function targetsOf(
                 return [];
             }
             return facts.compositionScope.filter(endpoint =>
-                EndpointFacts.of(endpoint, model).deviceTypes.some(deviceType => deviceType.id === declarer.id),
+                EndpointFacts.of(endpoint, pass).deviceTypes.some(deviceType => deviceType.id === declarer.id),
             );
         }
 
@@ -248,8 +260,8 @@ function targetsOf(
  * @see {@link MatterSpecification.v16.Device} § 1.1.5
  * @see {@link MatterSpecification.v16.Device} § 1.1.6
  */
-function structuralConditionsOf(endpoint: Endpoint, model: MatterModel) {
-    const facts = EndpointFacts.of(endpoint, model);
+function structuralConditionsOf(endpoint: Endpoint, pass: ValidationPass) {
+    const facts = EndpointFacts.of(endpoint, pass);
     const conditions = new Set<string>();
 
     for (const deviceType of facts.deviceTypes) {
@@ -284,7 +296,7 @@ function structuralConditionsOf(endpoint: Endpoint, model: MatterModel) {
     if (facts.hasApplicationCluster("client")) {
         conditions.add(StructuralCondition.Client);
     }
-    if (overlapsSibling(facts, model)) {
+    if (overlapsSibling(facts, pass)) {
         conditions.add(StructuralCondition.Duplicate);
     }
 
@@ -296,7 +308,7 @@ function structuralConditionsOf(endpoint: Endpoint, model: MatterModel) {
  *
  * @see {@link MatterSpecification.v16.Device} § 1.1.6.1
  */
-function overlapsSibling(facts: EndpointFacts, model: MatterModel) {
+function overlapsSibling(facts: EndpointFacts, pass: ValidationPass) {
     const { owner } = facts.endpoint;
     if (owner === undefined) {
         return false;
@@ -307,17 +319,22 @@ function overlapsSibling(facts: EndpointFacts, model: MatterModel) {
         return false;
     }
 
-    for (const sibling of EndpointFacts.of(owner, model).children) {
-        if (sibling === facts.endpoint) {
-            continue;
-        }
-        for (const id of applicationDeviceTypeIdsOf(EndpointFacts.of(sibling, model))) {
-            if (own.has(id)) {
-                return true;
+    // Counted once per parent, so the children of an aggregator do not each walk their siblings
+    const counts = applicationDeviceTypeCounts.get(pass, owner, () => {
+        const tally = new Map<number, number>();
+        for (const child of EndpointFacts.of(owner, pass).children) {
+            for (const id of applicationDeviceTypeIdsOf(EndpointFacts.of(child, pass))) {
+                tally.set(id, (tally.get(id) ?? 0) + 1);
             }
         }
-    }
+        return tally;
+    });
 
+    for (const id of own) {
+        if ((counts.get(id) ?? 0) > 1) {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -335,9 +352,9 @@ function applicationDeviceTypeIdsOf(facts: EndpointFacts) {
     return ids;
 }
 
-function statedConditionsOf(endpoint: Endpoint, model: MatterModel) {
+function statedConditionsOf(endpoint: Endpoint, pass: ValidationPass) {
     const names = new Set<string>();
-    const scopes = conditionScopesOf(endpoint, model);
+    const scopes = conditionScopesOf(endpoint, pass);
     for (const name of endpoint.deviceConditions) {
         const { condition } = resolveStated(scopes, name);
         if (condition !== undefined) {
@@ -347,12 +364,21 @@ function statedConditionsOf(endpoint: Endpoint, model: MatterModel) {
     return names;
 }
 
-function conditionScopesOf(endpoint: Endpoint, model: MatterModel) {
-    let deviceTypes = EndpointFacts.of(endpoint, model).deviceTypes;
+function conditionScopesOf(endpoint: Endpoint, pass: ValidationPass) {
+    let deviceTypes = EndpointFacts.of(endpoint, pass).deviceTypes;
     if (!deviceTypes.length) {
-        deviceTypes = model.deviceTypes.filter(deviceType => deviceType.classification === DeviceClassification.Base);
+        deviceTypes = pass.model.deviceTypes.filter(
+            deviceType => deviceType.classification === DeviceClassification.Base,
+        );
     }
-    return deviceTypes.map(deviceType => RequirementResolver.conditionsOf(deviceType));
+    return deviceTypes.map(deviceType => conditionScopeOf(deviceType, pass));
+}
+
+/**
+ * {@link RequirementResolver.conditionsOf}, which walks every device type of the model, once per device type and pass.
+ */
+export function conditionScopeOf(deviceType: DeviceTypeModel, pass: ValidationPass) {
+    return conditionScopes.get(pass, deviceType, () => RequirementResolver.conditionsOf(deviceType));
 }
 
 function resolveStated(scopes: Map<string, ConditionModel>[], name: string) {

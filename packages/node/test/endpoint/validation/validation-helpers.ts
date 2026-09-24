@@ -10,6 +10,7 @@ import { TemperatureControlledCabinetDevice } from "#devices/temperature-control
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
 import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
+import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { ImplementationError } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { DeviceTypeId } from "@matter/types";
@@ -82,5 +83,6 @@ export function violationsOf(endpoint: Endpoint, model: MatterModel = Matter) {
     while (root.owner !== undefined) {
         root = root.owner;
     }
-    return DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(root, model), model);
+    const pass = new ValidationPass(model);
+    return DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(root, pass), pass);
 }

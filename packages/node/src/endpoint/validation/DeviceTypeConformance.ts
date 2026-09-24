@@ -6,10 +6,10 @@
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import {
+    ClusterModel,
     Conformance,
     DeviceClassification,
     DeviceTypeModel,
-    Matter,
     MatterModel,
     Model,
     RequirementElement,
@@ -17,9 +17,18 @@ import {
     RequirementModel,
     RequirementResolver,
 } from "@matter/model";
-import { ConditionAssertions } from "./ConditionAssertions.js";
+import { ConditionAssertions, conditionScopeOf } from "./ConditionAssertions.js";
 import { EndpointFacts } from "./EndpointFacts.js";
+import { ValidationPass } from "./ValidationPass.js";
 import { Violation } from "./Violation.js";
+
+const clusterMemo = new ValidationPass.Memo<RequirementModel, ClusterModel | undefined>();
+const referentMemo = new ValidationPass.Memo<RequirementModel, Model | undefined>();
+const baseMemo = new ValidationPass.Memo<MatterModel, DeviceTypeModel[]>();
+const knownNameMemo = new ValidationPass.Memo<RequirementModel, Set<string>>();
+const componentMemo = new ValidationPass.Memo<Endpoint, Map<DeviceTypeModel, Component[]>>();
+const failureMemo = new ValidationPass.Memo<Endpoint, Map<RequirementModel, Violation[]>>();
+const singletonMemo = new ValidationPass.Memo<Endpoint, Map<number, Singleton>>();
 
 /**
  * Judge a constructed endpoint against the device types it declares.
@@ -48,6 +57,8 @@ export namespace DeviceTypeConformance {
      *
      * @param collection the conditions of the endpoint's node scope, as {@link ConditionAssertions.collect} answers
      * them
+     * @param pass the validation pass the check belongs to, which shares what the checks of several endpoints read and
+     * resolves in its model
      *
      * @see {@link MatterSpecification.v16.Core} § 9.2.3
      * @see {@link MatterSpecification.v16.Core} § 9.2.6
@@ -55,14 +66,15 @@ export namespace DeviceTypeConformance {
     export function check(
         endpoint: Endpoint,
         collection: ConditionAssertions.Collection,
-        model: MatterModel = Matter,
+        pass = new ValidationPass(),
     ): Violation[] {
+        const { model } = pass;
         const violations = new Array<Violation>();
-        const facts = EndpointFacts.of(endpoint, model);
+        const facts = EndpointFacts.of(endpoint, pass);
         const assertions = collection.conditions;
         const conditions = assertions.get(endpoint) ?? new Set<string>();
 
-        for (const { name, suggestion } of ConditionAssertions.unknownNames(endpoint, model)) {
+        for (const { name, suggestion } of ConditionAssertions.unknownNames(endpoint, pass)) {
             violations.push({
                 endpoint,
                 deviceType: facts.deviceTypes[0]?.name ?? "",
@@ -80,19 +92,21 @@ export namespace DeviceTypeConformance {
             // Every device type derives from Base, so its requirements apply once per endpoint rather than once per
             // device type
             deviceTypes.push(
-                ...model.deviceTypes.filter(deviceType => deviceType.classification === DeviceClassification.Base),
+                ...baseMemo.get(pass, model, () =>
+                    model.deviceTypes.filter(deviceType => deviceType.classification === DeviceClassification.Base),
+                ),
             );
         }
 
         for (const deviceType of deviceTypes) {
-            const context = { violations, facts, deviceType, conditions };
+            const context = { violations, facts, deviceType, conditions, pass };
             checkClusters(context, deviceType.requirements);
-            checkComposition(context, assertions, model);
+            checkComposition(context, assertions);
         }
 
-        checkComponentOf(violations, facts, assertions, model);
+        checkComponentOf(violations, facts, assertions, pass);
         checkDescendantCounts(violations, endpoint, collection.descendantAssertions);
-        checkSingletons(violations, facts, model);
+        checkSingletons(violations, facts, pass);
 
         // Base and a device type may state the same requirement; the device type's own report is kept
         const unique = new Map<string, Violation>();
@@ -115,6 +129,7 @@ interface Context {
     facts: EndpointFacts;
     deviceType: DeviceTypeModel;
     conditions: Set<string>;
+    pass: ValidationPass;
 }
 
 /**
@@ -138,14 +153,15 @@ function checkClusters(context: Context, requirements: RequirementModel[]) {
 }
 
 function checkCluster(context: Context, requirement: RequirementModel, side: "server" | "client") {
-    const cluster = RequirementResolver.clusterOf(requirement);
+    const { pass } = context;
+    const cluster = clusterMemo.get(pass, requirement, () => RequirementResolver.clusterOf(requirement));
     if (cluster?.id === undefined) {
         return;
     }
 
     const name = context.facts.clusterName(side, cluster.id);
     const path = side === "client" ? `client:${cluster.name}` : cluster.name;
-    const applicability = requirementApplicability(requirement, context.conditions, knownNamesOf(requirement));
+    const applicability = requirementApplicability(requirement, context.conditions, knownNamesOf(requirement, pass));
     const departed = judge(context, applicability, name !== undefined, path, `${side} cluster ${cluster.name}`);
 
     if (departed || name === undefined || side === "client") {
@@ -161,14 +177,14 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
 
         switch (nested.element) {
             case RequirementElement.ElementType.Feature:
-                referent = RequirementResolver.featureOf(nested);
+                referent = referentMemo.get(pass, nested, () => RequirementResolver.featureOf(nested));
                 present = referent !== undefined && features.has(referent.name);
                 break;
 
             case RequirementElement.ElementType.Attribute:
             case RequirementElement.ElementType.Command:
             case RequirementElement.ElementType.Event:
-                referent = RequirementResolver.elementOf(nested);
+                referent = referentMemo.get(pass, nested, () => RequirementResolver.elementOf(nested));
                 present = referent !== undefined && context.facts.supports(name, referent);
                 break;
 
@@ -182,7 +198,7 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
 
         judge(
             context,
-            requirementApplicability(nested, trueNames, knownNamesOf(nested)),
+            requirementApplicability(nested, trueNames, knownNamesOf(nested, pass)),
             present,
             `${path}.${referent.name}`,
             `${nested.element} ${referent.name} of ${cluster.name}`,
@@ -226,12 +242,16 @@ function judge(
  * {@link RequirementResolver.EndpointScope} and the features of its cluster. A name outside them leaves the requirement
  * unjudged.
  */
-function knownNamesOf(requirement: RequirementModel) {
+function knownNamesOf(requirement: RequirementModel, pass: ValidationPass) {
+    return knownNameMemo.get(pass, requirement, () => knownNamesIn(requirement, pass));
+}
+
+function knownNamesIn(requirement: RequirementModel, pass: ValidationPass) {
     const { deviceType, cluster } = RequirementResolver.endpointScopeOf(requirement);
     const names = new Set<string>();
 
     if (deviceType !== undefined) {
-        for (const [key, condition] of RequirementResolver.conditionsOf(deviceType)) {
+        for (const [key, condition] of conditionScopeOf(deviceType, pass)) {
             // A qualified entry names a condition of any device type, which the requirement cannot reach
             if (!key.includes(".")) {
                 names.add(condition.name);
@@ -256,29 +276,41 @@ interface Component {
 }
 
 /**
- * The component requirements of {@link deviceType}, grouped by component device type, with their applicability under
- * {@link conditions}, the conditions of the composing endpoint.
+ * The component requirements of {@link deviceType}, a device type of {@link composing}, grouped by component device
+ * type, with their applicability under {@link conditions}, the conditions of {@link composing}.
  */
-function componentsOf(deviceType: DeviceTypeModel, conditions: Set<string>) {
-    const components = new Map<number, Component>();
+function componentsOf(
+    composing: Endpoint,
+    deviceType: DeviceTypeModel,
+    conditions: Set<string>,
+    pass: ValidationPass,
+): Component[] {
+    const byDeviceType = componentMemo.get(pass, composing, () => new Map());
+    let found = byDeviceType.get(deviceType);
+    if (found !== undefined) {
+        return found;
+    }
 
+    const byId = new Map<number, Component>();
     for (const requirement of deviceType.requirements) {
         const component = RequirementResolver.deviceTypeOf(requirement);
         if (component === undefined) {
             continue;
         }
 
-        const applicability = requirementApplicability(requirement, conditions, knownNamesOf(requirement));
-        const entry = components.get(component.id);
+        const applicability = requirementApplicability(requirement, conditions, knownNamesOf(requirement, pass));
+        const entry = byId.get(component.id);
         if (entry === undefined) {
-            components.set(component.id, { deviceType: component, requirements: [requirement], applicability });
+            byId.set(component.id, { deviceType: component, requirements: [requirement], applicability });
         } else {
             entry.requirements.push(requirement);
             entry.applicability = strongerOf(entry.applicability, applicability);
         }
     }
 
-    return [...components.values()];
+    found = [...byId.values()];
+    byDeviceType.set(deviceType, found);
+    return found;
 }
 
 /**
@@ -302,9 +334,9 @@ function strongerOf(a: Conformance.Applicability, b: Conformance.Applicability) 
  * The device type ID must match exactly, so an endpoint of a device type that derives from the component is not a
  * candidate.
  */
-function candidatesOf(facts: EndpointFacts, component: Component, model: MatterModel) {
+function candidatesOf(facts: EndpointFacts, component: Component, pass: ValidationPass) {
     return facts.compositionScope
-        .map(endpoint => EndpointFacts.of(endpoint, model))
+        .map(endpoint => EndpointFacts.of(endpoint, pass))
         .filter(candidate => candidate.deviceTypes.some(deviceType => deviceType.id === component.deviceType.id));
 }
 
@@ -312,16 +344,25 @@ function candidatesOf(facts: EndpointFacts, component: Component, model: MatterM
  * The departures of {@link candidate} from the requirements nested in {@link instance}, a component requirement of
  * {@link composing}. They are judged with the rules of the endpoint's own cluster requirements and returned rather
  * than reported.
+ *
+ * The composing endpoint judges them for every candidate and each candidate judges them for itself, so one pass judges
+ * each candidate and instance once.
  */
 function failuresOf(
     candidate: EndpointFacts,
     instance: RequirementModel,
     composing: DeviceTypeModel,
     assertions: Map<Endpoint, Set<string>>,
+    pass: ValidationPass,
 ) {
-    const violations = new Array<Violation>();
-    const conditions = assertions.get(candidate.endpoint) ?? new Set<string>();
-    checkClusters({ violations, facts: candidate, deviceType: composing, conditions }, instance.requirements);
+    const byInstance = failureMemo.get(pass, candidate.endpoint, () => new Map());
+    let violations = byInstance.get(instance);
+    if (violations === undefined) {
+        violations = new Array<Violation>();
+        const conditions = assertions.get(candidate.endpoint) ?? new Set<string>();
+        checkClusters({ violations, facts: candidate, deviceType: composing, conditions, pass }, instance.requirements);
+        byInstance.set(instance, violations);
+    }
     return violations;
 }
 
@@ -335,13 +376,13 @@ function failuresOf(
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.3
  */
-function checkComposition(context: Context, assertions: Map<Endpoint, Set<string>>, model: MatterModel) {
-    const { violations, facts, deviceType, conditions } = context;
-    const components = componentsOf(deviceType, conditions);
+function checkComposition(context: Context, assertions: Map<Endpoint, Set<string>>) {
+    const { violations, facts, deviceType, conditions, pass } = context;
+    const components = componentsOf(facts.endpoint, deviceType, conditions, pass);
     const candidates = new Map<Component, EndpointFacts[]>();
 
     for (const component of components) {
-        const found = candidatesOf(facts, component, model);
+        const found = candidatesOf(facts, component, pass);
         candidates.set(component, found);
         const requirement = `device:${component.deviceType.name}`;
 
@@ -407,13 +448,13 @@ function checkCount(
  * left unmatched with what it requires that no candidate offers.
  */
 function checkInstances(
-    { violations, facts, deviceType }: Context,
+    { violations, facts, deviceType, pass }: Context,
     component: Component,
     candidates: EndpointFacts[],
     assertions: Map<Endpoint, Set<string>>,
 ) {
     const failures = component.requirements.map(instance =>
-        candidates.map(candidate => failuresOf(candidate, instance, deviceType, assertions)),
+        candidates.map(candidate => failuresOf(candidate, instance, deviceType, assertions, pass)),
     );
     const matched = matchInstances(failures.map(row => row.map(failed => !failed.length)));
 
@@ -491,7 +532,7 @@ function matchInstances(accepts: boolean[][]) {
  * @see {@link MatterSpecification.v16.Core} § 7.3
  */
 function checkChoices(
-    { violations, facts, deviceType, conditions }: Context,
+    { violations, facts, deviceType, conditions, pass }: Context,
     components: Component[],
     candidates: Map<Component, EndpointFacts[]>,
 ) {
@@ -513,7 +554,7 @@ function checkChoices(
                 entry.members.push(component);
             }
 
-            const applicability = requirementApplicability(requirement, conditions, knownNamesOf(requirement));
+            const applicability = requirementApplicability(requirement, conditions, knownNamesOf(requirement, pass));
             if (
                 applicability === Conformance.Applicability.Mandatory ||
                 applicability === Conformance.Applicability.Optional
@@ -566,7 +607,7 @@ function checkComponentOf(
     violations: Violation[],
     facts: EndpointFacts,
     assertions: Map<Endpoint, Set<string>>,
-    model: MatterModel,
+    pass: ValidationPass,
 ) {
     const own = new Set(facts.deviceTypes.map(deviceType => deviceType.id));
     if (!own.size || facts.isNodeEndpoint) {
@@ -574,11 +615,11 @@ function checkComponentOf(
     }
 
     for (let composer = facts.endpoint.owner; composer !== undefined; composer = composer.owner) {
-        const composerFacts = EndpointFacts.of(composer, model);
+        const composerFacts = EndpointFacts.of(composer, pass);
         const conditions = assertions.get(composer) ?? new Set<string>();
 
         const filled = composerFacts.deviceTypes.flatMap(deviceType =>
-            componentsOf(deviceType, conditions)
+            componentsOf(composer, deviceType, conditions, pass)
                 .filter(
                     ({ deviceType: component, applicability }) =>
                         own.has(component.id) &&
@@ -589,10 +630,10 @@ function checkComponentOf(
         );
 
         // Checked before the scope walk, so the many children of an aggregator do not each walk its whole family
-        if (filled.length && composerFacts.compositionScope.includes(facts.endpoint)) {
+        if (filled.length && composerFacts.composes(facts.endpoint)) {
             for (const { deviceType, component } of filled) {
                 const failures = component.requirements.map(instance =>
-                    failuresOf(facts, instance, deviceType, assertions),
+                    failuresOf(facts, instance, deviceType, assertions, pass),
                 );
                 if (failures.some(failed => !failed.length)) {
                     continue;
@@ -689,13 +730,14 @@ function describeInstance(component: Component, instance: RequirementModel) {
  *
  * @see {@link MatterSpecification.v16.Core} § 7.7.3
  */
-function checkSingletons(violations: Violation[], facts: EndpointFacts, model: MatterModel) {
-    const nodeEndpoint = ConditionAssertions.nodeEndpointOf(facts.endpoint, model);
+function checkSingletons(violations: Violation[], facts: EndpointFacts, pass: ValidationPass) {
+    const nodeEndpoint = ConditionAssertions.nodeEndpointOf(facts.endpoint, pass);
     if (nodeEndpoint === undefined) {
         return;
     }
 
-    for (const [id, { cluster, deviceType, endpoints }] of singletonsOf(nodeEndpoint, model)) {
+    const scope = singletonMemo.get(pass, nodeEndpoint, () => singletonsOf(nodeEndpoint, pass));
+    for (const [id, { cluster, deviceType, endpoints }] of scope) {
         if (endpoints.has(facts.endpoint) || facts.clusterName("server", id) === undefined) {
             continue;
         }
@@ -714,11 +756,11 @@ function checkSingletons(violations: Violation[], facts: EndpointFacts, model: M
  * The server clusters declared singletons in the node scope of {@link nodeEndpoint}, by cluster ID, with the first
  * declaring device type and every declaring endpoint.
  */
-function singletonsOf(nodeEndpoint: Endpoint, model: MatterModel) {
-    const singletons = new Map<number, { cluster: string; deviceType: string; endpoints: Set<Endpoint> }>();
+function singletonsOf(nodeEndpoint: Endpoint, pass: ValidationPass) {
+    const singletons = new Map<number, Singleton>();
 
-    for (const endpoint of ConditionAssertions.nodeScopeOf(nodeEndpoint, model)) {
-        for (const deviceType of EndpointFacts.of(endpoint, model).deviceTypes) {
+    for (const endpoint of ConditionAssertions.nodeScopeOf(nodeEndpoint, pass)) {
+        for (const deviceType of EndpointFacts.of(endpoint, pass).deviceTypes) {
             for (const requirement of deviceType.requirements) {
                 if (
                     requirement.element !== RequirementElement.ElementType.ServerCluster ||
@@ -743,4 +785,10 @@ function singletonsOf(nodeEndpoint: Endpoint, model: MatterModel) {
     }
 
     return singletons;
+}
+
+interface Singleton {
+    cluster: string;
+    deviceType: string;
+    endpoints: Set<Endpoint>;
 }

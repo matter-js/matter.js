@@ -6,6 +6,7 @@
 
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
@@ -166,6 +167,7 @@ class NodeServices {
 
             env.set(EndpointInitializer, new ServerEndpointInitializer(env));
             env.set(IdentityService, new IdentityService(node));
+            env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, env));
 
             const notifications = new ChangeNotificationService(node);
             env.set(ChangeNotificationService, notifications);

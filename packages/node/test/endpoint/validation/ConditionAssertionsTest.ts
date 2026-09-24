@@ -10,6 +10,7 @@ import { OnOffLightSwitchDevice } from "#devices/on-off-light-switch";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { ConditionAssertions, StructuralCondition } from "#endpoint/validation/ConditionAssertions.js";
 import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
+import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { ImplementationError } from "@matter/general";
 import { ConditionModel, DeviceTypeModel, Matter, MatterModel, RequirementModel } from "@matter/model";
 import { addCabinet, addRefrigerator, createNode, deviceTypeList } from "./validation-helpers.js";
@@ -87,7 +88,7 @@ describe("ConditionAssertions", () => {
                 descriptor: { deviceTypeList: deviceTypeList(SELF_ASSERTER_ID) },
             });
 
-            const { conditions } = ConditionAssertions.collect(node, fixtureModel());
+            const { conditions } = ConditionAssertions.collect(node, new ValidationPass(fixtureModel()));
 
             expect(conditions.get(endpoint)?.has("Selfish")).true;
             expect(conditions.get(node)?.has("Selfish")).false;
@@ -247,7 +248,9 @@ describe("ConditionAssertions", () => {
                 descriptor: { deviceTypeList: deviceTypeList(DYNAMIC_ID) },
             });
 
-            const conditions = ConditionAssertions.collect(node, fixtureModel()).conditions.get(endpoint);
+            const conditions = ConditionAssertions.collect(node, new ValidationPass(fixtureModel())).conditions.get(
+                endpoint,
+            );
 
             expect(conditions?.has("App")).true;
             expect(conditions?.has("Dynamic")).true;
@@ -263,7 +266,9 @@ describe("ConditionAssertions", () => {
                 descriptor: { deviceTypeList: deviceTypeList(APPLICATION_ID) },
             });
 
-            const conditions = ConditionAssertions.collect(node, fixtureModel()).conditions.get(endpoint);
+            const conditions = ConditionAssertions.collect(node, new ValidationPass(fixtureModel())).conditions.get(
+                endpoint,
+            );
 
             expect(conditions?.has("App")).true;
             expect(conditions?.has("Simple")).false;

@@ -11,17 +11,21 @@ import type { Endpoint } from "#endpoint/Endpoint.js";
 import {
     AttributeModel,
     ClusterElement,
+    ClusterModel,
     CommandModel,
     DeviceClassification,
     DeviceTypeModel,
     ElementTag,
     EndpointComposition,
     EventModel,
-    Matter,
-    MatterModel,
     Model,
     Scope,
 } from "@matter/model";
+import { ValidationPass } from "./ValidationPass.js";
+
+const facts = new ValidationPass.Memo<Endpoint, EndpointFacts>();
+const deviceTypeMemo = new ValidationPass.Memo<number, DeviceTypeModel | undefined>();
+const scopeMemo = new ValidationPass.Memo<ClusterModel, Scope>();
 
 /**
  * The facts about a constructed server endpoint that a device type's requirements are judged against.
@@ -38,21 +42,24 @@ import {
  */
 export class EndpointFacts {
     readonly #endpoint: Endpoint;
-    readonly #model: MatterModel;
+    readonly #pass: ValidationPass;
     #deviceTypes?: DeviceTypeModel[];
     #servers?: Map<string, ClusterBehavior.Type>;
     #clients?: Map<string, ClusterBehavior.Type>;
+    #compositionScope?: Endpoint[];
+    #compositionMembers?: Set<Endpoint>;
 
     /**
-     * Facts about {@link endpoint}, with device types and clusters resolved in {@link model}.
+     * Facts about {@link endpoint}, with device types and clusters resolved in the model of {@link pass}. One pass
+     * answers one instance per endpoint, which reads the endpoint at most once.
      */
-    static of(endpoint: Endpoint, model: MatterModel = Matter) {
-        return new EndpointFacts(endpoint, model);
+    static of(endpoint: Endpoint, pass = new ValidationPass()) {
+        return facts.get(pass, endpoint, () => new EndpointFacts(endpoint, pass));
     }
 
-    private constructor(endpoint: Endpoint, model: MatterModel) {
+    private constructor(endpoint: Endpoint, pass: ValidationPass) {
         this.#endpoint = endpoint;
-        this.#model = model;
+        this.#pass = pass;
     }
 
     get endpoint() {
@@ -67,7 +74,9 @@ export class EndpointFacts {
         if (this.#deviceTypes === undefined) {
             this.#deviceTypes = new Array<DeviceTypeModel>();
             for (const { deviceType } of this.#endpoint.stateOf(DescriptorServer).deviceTypeList) {
-                const model = this.#model.deviceTypes(deviceType);
+                const model = deviceTypeMemo.get(this.#pass, deviceType, () =>
+                    this.#pass.model.deviceTypes(deviceType),
+                );
                 if (model !== undefined) {
                     this.#deviceTypes.push(model);
                 }
@@ -150,7 +159,7 @@ export class EndpointFacts {
             return (
                 elements.events.has(element.propertyName) &&
                 event !== undefined &&
-                Scope(type.schema).hasOperationalSupport(event)
+                scopeMemo.get(this.#pass, type.schema, () => Scope(type.schema)).hasOperationalSupport(event)
             );
         }
         return false;
@@ -184,12 +193,16 @@ export class EndpointFacts {
      * its descendants for the full-family pattern, never entering a node endpoint below it.
      */
     get compositionScope(): Endpoint[] {
+        if (this.#compositionScope !== undefined) {
+            return this.#compositionScope;
+        }
+
         const scope = new Array<Endpoint>();
         const fullFamily = this.composesFullFamily;
 
         const visit = (endpoint: Endpoint) => {
-            for (const child of EndpointFacts.of(endpoint, this.#model).children) {
-                if (EndpointFacts.of(child, this.#model).isNodeEndpoint) {
+            for (const child of EndpointFacts.of(endpoint, this.#pass).children) {
+                if (EndpointFacts.of(child, this.#pass).isNodeEndpoint) {
                     continue;
                 }
                 scope.push(child);
@@ -200,7 +213,16 @@ export class EndpointFacts {
         };
         visit(this.#endpoint);
 
+        this.#compositionScope = scope;
         return scope;
+    }
+
+    /**
+     * Whether {@link endpoint} is in the {@link compositionScope}.
+     */
+    composes(endpoint: Endpoint) {
+        this.#compositionMembers ??= new Set(this.compositionScope);
+        return this.#compositionMembers.has(endpoint);
     }
 
     get #serverTypes() {
