@@ -146,7 +146,9 @@ class Fixture {
         this.cx = {
             devices: { th: device },
             controllers: { dut: controller },
-            picsMet: () => true,
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep: () => {},
                 check: record => void this.checks.push(record),

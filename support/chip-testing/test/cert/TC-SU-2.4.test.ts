@@ -6,6 +6,7 @@
 
 import type { CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import { SPEC_INTERVALS_ARG } from "../../src/OtaRequestorTestInstance.js";
 import type { BdxTransferEvidence } from "./tc-bdx-support.js";
 import { BDX_RECEIVER_ROLES, serveOtaTransfer } from "./tc-bdx-support.js";
 import { recordRequestorIdle, singleApplyUpdate, singleQueryImage } from "./tc-su-support.js";
@@ -37,7 +38,6 @@ async function recordApplyUpdateRequest(cx: CertStepContext) {
             }),
         },
         {
-            // The TH staged one image and moved all of it, so its version is the version downloaded
             what: "NewVersion is the software version the DUT downloaded",
             check: () => ({
                 type: "response",
@@ -66,6 +66,9 @@ certTest("TC-SU-2.4", {
     // and having applied, it exits, which this harness reads as the DUT dying mid-run. The request this
     // case is about is the one that precedes the exit, so there is no chip leg that survives it.
     flavors: ["matterjs"],
+
+    // A requestor DUT runs as a product would, whatever the run shortens for a requestor TH
+    appArgs: { dut: [SPEC_INTERVALS_ARG] },
 })
     .step(
         "0",

@@ -376,6 +376,14 @@ export interface OtaQueryImageResponseRecord {
 export interface OtaQueryImageExchange {
     request: OtaQueryImageRequestRecord;
     response: OtaQueryImageResponseRecord;
+
+    /**
+     * When the provider received the command, in milliseconds on the controller's monotonic clock.
+     *
+     * Only the difference between two exchanges means anything: it is how far apart the requestor
+     * queried, measured on the side that received the queries (Matter Core § 11.20.3.2).
+     */
+    receivedAtMs: number;
 }
 
 /** One `ApplyUpdateRequest` a requestor sent this provider, with the answer it got (§ 11.20.6.9–10). */

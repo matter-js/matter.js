@@ -1710,7 +1710,9 @@ describe("CommissionedRefs", () => {
         return {
             controllers: { dut: controllerFor("dut"), th_cr2: controllerFor("th_cr2") },
             devices: {},
-            picsMet: () => true,
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check() {},
@@ -1830,7 +1832,9 @@ describe("recordAll", () => {
         const cx = {
             controllers: {},
             devices: {},
-            picsMet: () => true,
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check(check: CheckRecord) {

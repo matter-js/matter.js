@@ -475,6 +475,7 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
     }
 
     override async queryImage(request: OtaSoftwareUpdateProvider.QueryImageRequest) {
+        const receivedAtMs = Time.nowUs;
         const peer = this.#commandPeer;
         const scripted = this.#scriptFor(peer).queryImage.shift();
 
@@ -512,6 +513,7 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 userConsentNeeded: response.userConsentNeeded,
                 metadataForRequestor: hexOrUndefined(response.metadataForRequestor),
             },
+            receivedAtMs,
         });
         this.internal.recorded.emit(peer);
         return response;

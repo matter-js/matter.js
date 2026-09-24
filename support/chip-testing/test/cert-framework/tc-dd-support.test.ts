@@ -212,7 +212,9 @@ function contextWith(
     const cx: CertStepContext = {
         controllers: { dut },
         devices: {},
-        picsMet: () => true,
+        picsMet: () => {
+            throw new InternalError("not used by these tests");
+        },
         recorder: {
             beginStep() {},
             check(record) {
@@ -1125,7 +1127,9 @@ class UnpairFixture {
         this.cx = {
             devices: { th: device },
             controllers: { dut: controller },
-            picsMet: () => true,
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep: () => {},
                 check: record => void this.checks.push(record),

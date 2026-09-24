@@ -8,10 +8,12 @@ import { Duration, Millis, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertStepContext, CheckRecord, OtaAnnouncement } from "@matter/testing";
 import { certTest, UnsupportedByControllerError } from "@matter/testing";
+import { SPEC_INTERVALS_ARG } from "../../src/OtaRequestorTestInstance.js";
 import { BDX_RECEIVER_ROLES } from "./tc-bdx-support.js";
 import {
     announcementLines,
     OtaDownloadProtocol,
+    OtaQueryStatus,
     queryStatusName,
     recordRequestorIdle,
     singleQueryImage,
@@ -26,8 +28,20 @@ const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation c
 /** The `QueryImage` fields step 1 compares with the Basic Information attribute of the same name. */
 type IdentityField = "vendorId" | "productId" | "softwareVersion" | "hardwareVersion" | "location";
 
-/** How long the plan watches for a second `QueryImage` (step 2). */
+/** How long the plan watches for a second `QueryImage` (step 2), and the spacing § 11.20.3.2 requires. */
 const QUERY_WINDOW = Seconds(120);
+
+/**
+ * How long step 2 keeps recording past the window: long enough for a conformant requestor's retry, due
+ * the moment the window ends, to land in step 2's own record rather than in step 3's.
+ */
+const RETRY_MARGIN = Seconds(15);
+
+/**
+ * The `DelayedActionTime` step 2's `Busy` answer carries: below the two-minute floor, so that only the
+ * floor holds a conformant requestor back.
+ */
+const BUSY_DELAYED_ACTION_TIME = 1;
 
 /**
  * How long a later step waits for the DUT to act on an announcement.
@@ -149,7 +163,7 @@ async function recordQueryImageFields(cx: CertStepContext) {
         {
             // Both ways, not only where the PICS say HTTPS: a DUT listing a protocol it declares it
             // does not support is as wrong as one leaving out a protocol it declares
-            what: "ProtocolsSupported lists HTTPS exactly where the DUT declares MCORE.OTA.HTTPS",
+            what: "ProtocolsSupported lists HTTPS where the DUT declares MCORE.OTA.HTTPS, and not otherwise (the second half is this suite's)",
             check: () => ({
                 type: "response",
                 verdict: listsHttps === https ? "pass" : "fail",
@@ -175,16 +189,29 @@ async function recordQueryImageFields(cx: CertStepContext) {
     ]);
 }
 
+/**
+ * The plan's step 2 as chip's own `Test_TC_SU_2_1.yaml` runs it: the provider answers `Busy`, which
+ * invites a retry, and the requestor must hold it back for two minutes (§ 11.20.3.2.4).
+ */
 async function recordSingleQueryInWindow(cx: CertStepContext) {
-    const { exchanges, observedMs } = await announce(cx, { timeoutMs: SPACED_QUERY_TIMEOUT, observeMs: QUERY_WINDOW });
+    const node = cx.controllers.th.node(commissioned.require("th", "the DUT"));
+    await node.scriptOtaProvider({
+        queryImage: [{ status: OtaQueryStatus.Busy, delayedActionTime: BUSY_DELAYED_ACTION_TIME }],
+    });
+
+    const { exchanges, observedMs } = await announce(cx, {
+        timeoutMs: SPACED_QUERY_TIMEOUT,
+        observeMs: QUERY_WINDOW + RETRY_MARGIN,
+    });
     const watched = Millis(observedMs);
-    const queries = exchanges.queryImage;
+    const [busy, ...later] = exchanges.queryImage;
+    const early = later.filter(({ receivedAtMs }) => receivedAtMs - busy.receivedAtMs < QUERY_WINDOW);
+    const spacing = later.map(({ receivedAtMs }) => Duration.format(Millis(receivedAtMs - busy.receivedAtMs)));
 
     await recordAll(cx, [
         {
-            // The count below is only the plan's claim if the TH actually waited: a record read at once
-            // holds one query whatever the DUT does next
-            what: "the TH watched the whole window after the DUT's query",
+            // Without the wait no second query can be in the record, whatever the DUT does next
+            what: "the TH watched the whole window after the Busy answer",
             check: () => ({
                 type: "response",
                 verdict: watched >= QUERY_WINDOW ? "pass" : "fail",
@@ -192,14 +219,15 @@ async function recordSingleQueryInWindow(cx: CertStepContext) {
             }),
         },
         {
-            what: "the DUT sent no further QueryImage in the two minutes after this step's query",
+            what: "the DUT sent no further QueryImage in the two minutes after the Busy answer",
             check: () => ({
                 type: "response",
-                verdict: queries.length === 1 ? "pass" : "fail",
+                verdict: busy?.response.status === OtaQueryStatus.Busy && early.length === 0 ? "pass" : "fail",
                 detail:
-                    `the TH received ${queries.length} QueryImage command(s) from the DUT, counting this step's ` +
-                    `own and the ${Duration.format(watched)} it watched after it, answering ` +
-                    (queries.map(({ response }) => queryStatusName(response.status)).join(", ") || "none"),
+                    `the TH answered ${busy === undefined ? "no QueryImage" : queryStatusName(busy.response.status)} ` +
+                    `with DelayedActionTime ${BUSY_DELAYED_ACTION_TIME}s, and the DUT queried again ` +
+                    (spacing.length === 0 ? "not at all" : `after ${spacing.join(", ")}`) +
+                    ` within the ${Duration.format(watched)} watched`,
             }),
         },
     ]);
@@ -239,6 +267,9 @@ certTest("TC-SU-2.1", {
     pics: ["MCORE.OTA.Requestor", "MCORE.OTA.Provider", "OTAR.C.M.AnnounceOTAProvider"],
     app: "ota-requestor",
     ...BDX_RECEIVER_ROLES,
+
+    // The spacing step 2 checks is the DUT's own; a matter.js DUT keeps it whatever the run shortens
+    appArgs: { dut: [SPEC_INTERVALS_ARG] },
 })
     .step(
         "0",
@@ -278,7 +309,7 @@ certTest("TC-SU-2.1", {
         "DUT sends a QueryImage command to the TH/OTA-P. Wait for 2 minutes. (11.19.3.2)",
         recordSingleQueryInWindow,
         {
-            longRunning: "the plan watches the DUT for two minutes after its query",
+            longRunning: "the plan watches the DUT for two minutes after a Busy answer",
             expected:
                 "On the TH/OTA-P verify that the QueryImage command is sent only once in that 2 minutes interval.",
         },

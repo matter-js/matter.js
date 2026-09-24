@@ -753,7 +753,7 @@ handler after it fires). A matched handler's returned string is written straight
 This TC is registered as a **bare `describe`/`it`**, not a `certTest()`, because there's no `CertDevice`
 in the picture at all — TH_SERVER lives entirely inside the container, spawned by the script itself, and
 the thing under test is `InProcessControllerAdapter`'s own commissioning stack acting as DUT_Commissioner
-against it. Building a `CertStepContext` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
+against it. Building a `CertStepWiring` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
 and calling `PromptDrivenPythonTest.invoke()` directly was simpler and more honest than forcing this
 shape through `certTest()`'s device-flavor machinery just to obtain a `Subject` it doesn't need.
 
@@ -3064,10 +3064,24 @@ because chip-tool's `MCORE.OTA.Provider` `0` skips every provider case first.
 neither. chip-tool answers both `0`, so its leg skips before commissioning instead of passing on the
 precondition alone.
 
-**A check that something did *not* happen has to prove the window was watched.** Step 2 counts the
-queries in the two minutes after its own. A record read at once holds one query whatever the DUT does
-next, so the step also checks `OtaAnnouncement.observedMs`, which the adapter measures from the
-answered query to the read and never reports short of the window asked for. Without that check, removing the wait passes the step.
+**Step 2 is a `Busy` answer and a two-minute watch, as chip's own `Test_TC_SU_2_1.yaml` runs it.**
+That script starts its provider with `-q busy`: `Busy` invites a retry, and § 11.20.3.2.4 requires the
+requestor to hold it back for two minutes whatever `DelayedActionTime` says. A `NotAvailable` answer
+invites nothing — the next query is a day away — so a step built on it passes whatever the DUT's
+spacing is. The provider stamps every `QueryImage` with `receivedAtMs` on the controller's monotonic
+clock, and the step fails a retry closer than 120 s to the `Busy` answer. It keeps recording a
+margin past the window, so the conformant retry lands in step 2's own record and not in step 3's.
+
+**A check that something did *not* happen has to prove the window was watched.** A record read at
+once holds one query whatever the DUT does next, so step 2 also checks `OtaAnnouncement.observedMs`,
+which the adapter measures from the answered query to the read and never reports short of the window
+asked for. Removing the wait fails the step; the framework test in
+`test/cert-framework/ota-requestor-test-instance.test.ts` fails the same way.
+
+**A requestor DUT keeps the specification's floors.** `MATTER_CERT_OTA_FAST_RETRY` lowers the matter.js
+requestor's two-minute floors for cases where it is the TH, whose wait is only the TH's. Where it is the
+DUT, those floors are what is under test, so TC-SU-2.x start it with `SPEC_INTERVALS_ARG`, which keeps
+them whatever the run shortens.
 
 **Step 3 announces the provider the DUT already uses.** The harness has one provider, so it cannot
 tell "queried the indicated provider" apart from "queried its last provider". chip's own
