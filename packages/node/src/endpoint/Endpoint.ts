@@ -52,8 +52,6 @@ import { EndpointType } from "./type/EndpointType.js";
 
 const logger = Logger.get("Endpoint");
 
-const EMPTY_CONDITIONS: ReadonlySet<string> = Object.freeze(new Set<string>());
-
 /**
  * Endpoints consist of a hierarchy of parts.  This class manages the current state of a single endpoint.
  *
@@ -77,7 +75,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     #events = {} as SupportedBehaviors.EventsOf<T["behaviors"]>;
     #commands?: Commands<T>;
     #activity?: NodeActivity;
-    #deviceConditions?: Set<string>;
+    #deviceConditions: Set<string>;
 
     /**
      * A string that uniquely identifies an endpoint.
@@ -137,7 +135,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * @see {@link Endpoint.EndpointOptions.deviceConditions}
      */
     get deviceConditions(): ReadonlySet<string> {
-        return this.#deviceConditions ?? EMPTY_CONDITIONS;
+        return this.#deviceConditions;
     }
 
     /**
@@ -623,9 +621,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             this.number = config.number;
         }
 
-        if (config.deviceConditions) {
-            this.#deviceConditions = new Set(config.deviceConditions);
-        }
+        this.#deviceConditions = new Set(config.deviceConditions);
 
         this.#behaviors = new Behaviors(this, config as Record<string, object | undefined>);
 
