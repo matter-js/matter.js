@@ -8,7 +8,6 @@ import {
     Bytes,
     camelize,
     Duration,
-    ImplementationError,
     InternalError,
     MatterAggregateError,
     MatterError,
@@ -758,7 +757,10 @@ export function matterjsCommandPath(endpoint: number, cluster: number, command: 
  * mid-value. A value matter.js cannot write on one line, or writes indistinguishably from an absent
  * one, has no pattern at all and is refused here rather than waiting for a line that cannot come.
  */
-function matterjsFieldValue(value: number | bigint | string): string {
+function matterjsFieldValue(value: CommandFieldValue["value"]): string {
+    if (typeof value === "object") {
+        return `${Bytes.toHex(value)}(?![0-9a-f])`;
+    }
     if (typeof value !== "string") {
         return `${value}(?!\\d)`;
     }
@@ -921,7 +923,14 @@ export function answersWithStatus(cluster: ClusterModel, commandName: string): b
  */
 export interface CommandFieldValue {
     id: number;
-    value: number | bigint | string;
+    value: number | bigint | string | Bytes;
+}
+
+/** `fields` as evidence text, with byte values as hex. */
+function describeFields(fields: CommandFieldValue[]) {
+    return fields
+        .map(({ id, value }) => `0x${id.toString(16)}=${typeof value === "object" ? Bytes.toHex(value) : value}`)
+        .join(", ");
 }
 
 /**
@@ -944,7 +953,7 @@ export function literally(value: string): string {
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
  */
-function chipCommandField({ id, value }: CommandFieldValue): RegExp {
+function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
     const rendered =
         typeof value === "string"
             ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
@@ -1064,9 +1073,24 @@ export async function expectCommandInvoke(
         last = block.last;
         cursor = block.last.index + 1;
 
-        for (const field of fields) {
+        for (const { id, value } of fields) {
+            if (typeof value === "object") {
+                const bytes = await expectAdjacentLines(
+                    log,
+                    flavor,
+                    { chip: chipOctetStringField(id, value) },
+                    cursor,
+                    remaining(),
+                );
+                if (bytes.verdict === "unverified") {
+                    return { type: "device-log", verdict: "unverified" };
+                }
+                last = bytes.last;
+                cursor = bytes.last.index + 1;
+                continue;
+            }
             const result = await log.expect(
-                { chip: chipCommandField(field) },
+                { chip: chipCommandField({ id, value }) },
                 { flavor, timeoutMs: remaining(), from: cursor },
             );
             if (result.verdict === "unverified") {
@@ -1092,7 +1116,7 @@ export async function expectCommandInvoke(
     return {
         type: "device-log",
         verdict: "pass",
-        pattern: `CommandDataIB CommandId=0x${command.toString(16)}, fields=${JSON.stringify(fields)}`,
+        pattern: `CommandDataIB CommandId=0x${command.toString(16)}, fields=[${describeFields(fields)}]`,
         matched: last?.text,
         logLine: last?.index,
     };
@@ -1110,38 +1134,6 @@ export function chipOctetStringField(id: number, bytes: Bytes): RegExp[] {
         new RegExp(`\\s${rendered}\\s*$`),
         new RegExp(`\\] \\(${Bytes.of(bytes).byteLength} bytes\\),?\\s*$`),
     ];
-}
-
-/**
- * Checks that device `role`'s log carries `fields` as the `CommandFields` of the command logged at `commandLine`
- * (the line {@link expectCommandInvoke} matched), consecutively and in order, so they cannot be read from any
- * other message. chip's dump only: a list, an octet string or several fields together are not one line there.
- */
-export async function expectCommandFields(
-    cx: CertStepContext,
-    role: string,
-    commandLine: number | undefined,
-    label: string,
-    fields: RegExp[],
-) {
-    const device = cx.devices[role];
-    if (device === undefined) {
-        throw new ImplementationError(`No device plays role "${role}" in this run`);
-    }
-    if (commandLine === undefined) {
-        record(
-            cx,
-            { type: "device-log", verdict: "fail", detail: `the command itself was not found in the ${role} log` },
-            label,
-        );
-        return;
-    }
-    const lines = [/CommandFields =\s*$/, /\{\s*$/, ...fields];
-    record(
-        cx,
-        await expectSequence(device.log, device.flavor, label, { chip: lines }, commandLine + 1, LOG_TIMEOUT),
-        label,
-    );
 }
 
 // How long a further report chunk may take to surface before the transfer counts as finished. The

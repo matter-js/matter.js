@@ -8,12 +8,11 @@ import { Bytes, InternalError, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertIcdEvent, CertIcdRegistration, CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import type { CommandFieldValue } from "./tc-support.js";
 import {
-    chipOctetStringField,
     CommissionedRefs,
     describeError,
     describeValue,
-    expectCommandFields,
     expectCommandInvoke,
     expectDeviceLog,
     LOG_TIMEOUT,
@@ -81,16 +80,16 @@ function requireRegistration() {
 }
 
 /**
- * The lines chip prints for a `RegisterClient`'s fields, in id order, with `VerificationKey` where one was sent. The
- * DUT names itself as both CheckInNodeID and MonitoredSubject.
+ * A `RegisterClient`'s fields in id order, with `VerificationKey` where one was sent. The DUT names itself as both
+ * CheckInNodeID and MonitoredSubject, and registers as a permanent client.
  */
-function registerClientFields(nodeId: bigint, key: Uint8Array, verificationKey?: Uint8Array) {
+function registerClientFields(nodeId: bigint, key: Uint8Array, verificationKey?: Uint8Array): CommandFieldValue[] {
     return [
-        new RegExp(`0x0 = ${nodeId} \\(unsigned\\),\\s*$`),
-        new RegExp(`0x1 = ${nodeId} \\(unsigned\\),\\s*$`),
-        ...chipOctetStringField(2, key),
-        ...(verificationKey === undefined ? [] : chipOctetStringField(3, verificationKey)),
-        /0x4 = 0 \(unsigned\),\s*$/,
+        { id: 0, value: nodeId },
+        { id: 1, value: nodeId },
+        { id: 2, value: key },
+        ...(verificationKey === undefined ? [] : [{ id: 3, value: verificationKey }]),
+        { id: 4, value: 0 },
     ];
 }
 
@@ -115,15 +114,14 @@ async function sendTestEventTrigger(cx: CertStepContext, ref: CertNodeRef, event
         ROOT_ENDPOINT,
         GENERAL_DIAGNOSTICS_ID,
         TEST_EVENT_TRIGGER_ID,
-        [],
+        [
+            { id: 0, value: ENABLE_KEY },
+            { id: 1, value: eventTrigger },
+        ],
         from,
         LOG_TIMEOUT,
     );
-    record(cx, invoke, `CommandDataIB log for ${label}`);
-    await expectCommandFields(cx, "th", invoke.logLine, `${label} EnableKey (ID 0), EventTrigger (ID 1)`, [
-        ...chipOctetStringField(0, ENABLE_KEY),
-        new RegExp(`0x1 = ${eventTrigger} \\(unsigned\\),\\s*$`),
-    ]);
+    record(cx, invoke, `CommandDataIB log for ${label}, EnableKey and EventTrigger`);
 }
 
 function offsetOf(counter: number, counterStart: number) {
@@ -138,11 +136,11 @@ certTest("TC-ICDB-1.3", {
     appArgs: { th: TH_ARGS },
 
     // A TH that persists subscriptions sends no Check-In to a client with a persisted one, and the DUT holds a
-    // subscription before it registers. Only this project's own image carries the variant without persistence, and
-    // only chip-local runs a variant
+    // subscription before it registers. Only this project's own image carries the chip variant without persistence,
+    // and chip-docker runs no variant
     appVariant: { matterjs: "nopersist" },
     chipBinsSources: ["matterjs"],
-    flavors: ["chip-local"],
+    flavors: ["chip-local", "matterjs"],
 })
     .step(
         "0",
@@ -199,17 +197,14 @@ certTest("TC-ICDB-1.3", {
                 ROOT_ENDPOINT,
                 ICD_MANAGEMENT_ID,
                 REGISTER_CLIENT_ID,
-                [],
+                registerClientFields(registration.nodeId, registration.key),
                 from,
                 LOG_TIMEOUT,
             );
-            record(cx, invoke, "CommandDataIB log for RegisterClient");
-            await expectCommandFields(
+            record(
                 cx,
-                "th",
-                invoke.logLine,
-                "RegisterClient CheckInNodeID, MonitoredSubject, Key1, ClientType",
-                registerClientFields(registration.nodeId, registration.key),
+                invoke,
+                "CommandDataIB log for RegisterClient with CheckInNodeID, MonitoredSubject, Key1, ClientType",
             );
 
             // An ICD sends Check-Ins only to a client without an active subscription (Core § 9.15), and the DUT
@@ -313,18 +308,11 @@ certTest("TC-ICDB-1.3", {
                 ROOT_ENDPOINT,
                 ICD_MANAGEMENT_ID,
                 REGISTER_CLIENT_ID,
-                [],
+                registerClientFields(nodeId, refresh.key, key1),
                 refreshFrom.thLog,
                 LOG_TIMEOUT,
             );
-            record(cx, invoke, "CommandDataIB log for the refreshing RegisterClient");
-            await expectCommandFields(
-                cx,
-                "th",
-                invoke.logLine,
-                "RegisterClient Key2, VerificationKey Key1",
-                registerClientFields(nodeId, refresh.key, key1),
-            );
+            record(cx, invoke, "CommandDataIB log for the refreshing RegisterClient with Key2, VerificationKey Key1");
         }),
         {
             pics: "ICDB.C",
@@ -349,7 +337,7 @@ certTest("TC-ICDB-1.3", {
             const sent = await expectDeviceLog(
                 th.log,
                 th.flavor,
-                { chip: /Msg TX .* Type 0000:50 /, matterjs: /Msg TX .* Type 0000:50 / },
+                { chip: /Msg TX .* Type 0000:50 /, matterjs: /Message » for: SC\/IcdCheckInMessage / },
                 thFrom,
                 CHECK_IN_TIMEOUT,
             );

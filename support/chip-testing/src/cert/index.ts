@@ -26,6 +26,7 @@ import { env } from "node:process";
 import { AllClustersTestInstance } from "../AllClustersTestInstance.js";
 import { BridgeTestInstance } from "../BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../GenericTestApp.js";
+import { IcdTestInstance } from "../IcdTestInstance.js";
 import { NodeTestInstance } from "../NodeTestInstance.js";
 import { OtaProviderTestInstance } from "../OtaProviderTestInstance.js";
 import { OtaRequestorTestInstance } from "../OtaRequestorTestInstance.js";
@@ -229,6 +230,7 @@ function MatterJsCertSubject(implementation: DeviceTestInstanceConstructor<NodeT
 
 registerMatterJsCertSubject("all-clusters", MatterJsCertSubject(AllClustersTestInstance));
 registerMatterJsCertSubject("bridge", MatterJsCertSubject(BridgeTestInstance));
+registerMatterJsCertSubject("lit-icd", MatterJsCertSubject(IcdTestInstance));
 registerMatterJsCertSubject("ota-requestor", MatterJsCertSubject(OtaRequestorTestInstance));
 registerMatterJsCertSubject("ota-provider", MatterJsCertSubject(OtaProviderTestInstance));
 

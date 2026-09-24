@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/protocol
+    - Enhancement: `IcdCounter.advance()` moves the ICD counter by up to 2^32 − 1, for test event triggers that invalidate counter values
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 - @matter/node
     - Fix: A node whose fabric was created before it started (a controller calling `FabricAuthority.defaultFabric()` before `start()` on first run) now counts as commissioned once online and advertises operationally, as it already did after a restart, so an ICD can resolve such a controller to send it Check-Ins

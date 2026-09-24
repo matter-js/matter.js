@@ -60,7 +60,7 @@ to an app this way:
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
-| `ICDB`                              | `lit-icd`    | `lit-icd-app-nopersist` (variant) | no — `flavors: ["chip-local"]`, own-built binaries only |
+| `ICDB`                              | `lit-icd`    | `lit-icd-app-nopersist` (variant) | yes (`IcdTestInstance`); chip binaries own-built only |
 
 A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
@@ -3054,8 +3054,8 @@ cluster-client block. What it adds:
   Steps 3 and 4 read both back, so the case raises the timer in CHIP's
   `PIXIT.TBRM.THREAD_PENDING_DATASET` from 20 to 300 seconds rather than race it.
 - **chip prints an octet-string field over three lines**: `0x0 = [`, every byte as `0x0e, ` on the
-  next line, then `] (107 bytes)`. `expectCommandInvoke` matches one line per field, so the fields go
-  through `expectSequence`, anchored on the line after the command's `CommandId`. The byte line fits
+  next line, then `] (107 bytes)`. A `CommandFieldValue` may carry bytes: `expectCommandInvoke` matches those
+  three lines together on chip and the hex value on matter.js's single field line. The byte line fits
   only because CHIP's Linux and macOS builds with detail logging allow 1708 characters per log line
   (`chip_log_message_max_size`); the 256-character default in `CHIPConfig.h` would cut it after about
   40 bytes.
@@ -3075,7 +3075,9 @@ and key refreshes it accepted (`events()`, `waitFor()`). Four things had to line
   (stock `lit-icd-app`), the persisted entry lives until every resumption attempt is spent, and a retry after a
   failed attempt waits at least 300 seconds. With persistence but no resumption, `mIsBootUpResumeSubscriptionExecuted` is only set after a
   boot-time resumption, so on a freshly started app a persisted subscription blocks Check-Ins for good. The case
-  therefore runs `lit-icd-app-nopersist`, built with neither, which only this project's image carries.
+  therefore runs `lit-icd-app-nopersist`, built with neither, which only this project's image carries. The matter.js
+  TH (`IcdTestInstance`) checks active subscriptions only and needs no variant. It implements the counter triggers
+  (`…03`, `…04`) through `IcdCounter.advance()`, by the amounts CHIP uses.
 - **TH2 must not become a Check-In client too.** `IcdClient` auto-registers with a LIT peer while subscribed, and
   TH1 turns LIT when the DUT registers, so step 0 ends TH2's subscription first.
 - **The DUT has to drop its own subscription.** `IcdClient.register()` requires an active subscription (it reads
