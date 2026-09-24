@@ -151,7 +151,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A certificate extension matter.js does not interpret is no longer decoded, so a proprietary extension can no longer fail the whole certificate; an extension matter.js does read is rejected with a `CertificateError` when its value is missing
 
 - @project-chip/matter.js
-    - Enhancement: (@RaHehl) `PairedNode.openEnhancedCommissioningWindow` also returns the passcode, long discriminator, vendor and product ID it encodes into the pairing codes, and the commissioning timeout sent to the device
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
 
 - @matter/general
