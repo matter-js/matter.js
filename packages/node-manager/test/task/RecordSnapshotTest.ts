@@ -122,6 +122,19 @@ describe("the two halves of a rollback link", () => {
         ).throws(InternalError, /undoes 1, which names 9 as its rollback/);
     });
 
+    it("refuses an undo stored for another fabric than its original", () => {
+        const store = new RunStore();
+        expect(() =>
+            store.load({
+                runs: {
+                    "1": { ...persisted(1, "cancelled"), retireSeq: RetireSeq(1), rollbackRunId: RunId(2) },
+                    "2": { ...undo(2, 1), fabric: "2" },
+                },
+                nextRunId: 10,
+            }),
+        ).throws(InternalError, /undoes 1, which acts on another fabric/);
+    });
+
     it("refuses a record that undoes itself", () => {
         const store = new RunStore();
         expect(() => store.load({ runs: { "1": undo(1, 1) }, nextRunId: 10 })).throws(

@@ -360,6 +360,13 @@ export class RunStore {
             }
             if (rollbackOf !== undefined) {
                 const original = this.#records.get(rollbackOf);
+                // A rollback replays its original's priors on the original's devices; one stored for another
+                // fabric would be driven, or settled, as though they were that fabric's.
+                if (original !== undefined && original.fabric !== record.fabric) {
+                    throw new InternalError(
+                        `Stored task record ${runId} undoes ${rollbackOf}, which acts on another fabric`,
+                    );
+                }
                 if (
                     original !== undefined &&
                     original.rollbackRunId !== undefined &&
