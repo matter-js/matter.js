@@ -36,9 +36,11 @@ export interface Violation {
      * - a feature: the cluster path, a dot and the feature code (`OnOff.LT`)
      * - an attribute, command or event: the cluster path, a dot and the element name (`Identify.TriggerEffect`)
      * - an unknown condition: the name as stated
-     * - a component requirement, on the composing endpoint: `device:` and the component device type's name
-     *   (`device:TemperatureControlledCabinet`), with `#` and the instance number for one instance
-     *   (`device:ElectricalSensor#2`)
+     * - a component requirement's count, on the composing endpoint: `device:` and the component device type's name
+     *   (`device:TemperatureControlledCabinet`)
+     * - one instance of a component requirement, on the composing endpoint: the count's path, `#` and the instance
+     *   number (`device:ElectricalSensor#2`), or `#1` for a requirement that states no instance number
+     *   (`device:TemperatureControlledCabinet#1`)
      * - component requirements that share a choice: `device:` and their component device types' names joined by `|`
      *   (`device:ElectricalEnergyTariff|ElectricalMeter`)
      * - a component requirement, on the component endpoint: `device:`, the composing device type's name, a slash and

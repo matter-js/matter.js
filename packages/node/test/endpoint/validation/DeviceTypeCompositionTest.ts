@@ -18,6 +18,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { DeviceEnergyManagementEndpoint } from "#endpoints/device-energy-management";
 import { ElectricalSensorEndpoint } from "#endpoints/electrical-sensor";
 import { PowerSourceEndpoint } from "#endpoints/power-source";
+import { ClusterModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
 import { MeasurementType } from "@matter/types";
 import { DeviceEnergyManagement } from "@matter/types/clusters/device-energy-management";
 import { ElectricalPowerMeasurement } from "@matter/types/clusters/electrical-power-measurement";
@@ -31,11 +32,11 @@ const tagList = [{ mfgCode: null, namespaceId: 7, tag: 0, label: null }];
 type Current = "AlternatingCurrent" | "DirectCurrent";
 type Energy = "ImportedEnergy" | "ExportedEnergy";
 
-function electricalSensor(current: Current, energy: Energy) {
+function electricalSensor(currents: Current[], energy: Energy) {
     return ElectricalSensorEndpoint.with(
         TaggedDescriptor,
         PowerTopologyServer.with("NodeTopology"),
-        ElectricalPowerMeasurementServer.with(current),
+        ElectricalPowerMeasurementServer.with(...currents),
         ElectricalEnergyMeasurementServer.with(energy, "CumulativeEnergy"),
     );
 }
@@ -63,8 +64,13 @@ const sensorState = {
     electricalEnergyMeasurement: { accuracy: accuracyOf(MeasurementType.ElectricalEnergy) },
 };
 
-async function addSensor(parent: Endpoint, id: string, current: Current, energy: Energy = "ExportedEnergy") {
-    return parent.add(electricalSensor(current, energy), { id, ...sensorState });
+async function addSensor(
+    parent: Endpoint,
+    id: string,
+    current: Current | Current[],
+    energy: Energy = "ExportedEnergy",
+) {
+    return parent.add(electricalSensor([current].flat(), energy), { id, ...sensorState });
 }
 
 async function addWiredSource(parent: Endpoint) {
@@ -124,6 +130,36 @@ async function addStorage(parent: Endpoint) {
     await addBatterySource(storage);
     await addEnergyManagement(storage);
     return storage;
+}
+
+const COMPOSER_ID = 0xfff10010;
+
+/**
+ * A model whose Composer device type requires exactly one OnOffLight component carrying ColorControl, which an
+ * OnOffLight lacks.
+ */
+function singleLightModel() {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }),
+        new DeviceTypeModel(
+            { name: "Composer", id: COMPOSER_ID, classification: "simple" },
+            new RequirementModel(
+                {
+                    name: "OnOffLight",
+                    id: OnOffLightDevice.deviceType,
+                    element: "deviceType",
+                    conformance: "M",
+                    constraint: "1",
+                },
+                new RequirementModel({ name: "ColorControl", id: 0x300, element: "serverCluster", conformance: "M" }),
+            ),
+        ),
+        new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+        new ClusterModel({ name: "ColorControl", id: 0x300 }),
+    );
+    model.finalize();
+    return model;
 }
 
 /**
@@ -209,6 +245,49 @@ describe("composition", () => {
         ]);
         expect(violations[0].detail).includes("ElectricalPowerMeasurement.DIRC");
         expect(violationsOf(ac2)).deep.equals([]);
+
+        await node.close();
+    });
+
+    it("reassigns an instance's endpoint so that every instance is filled", async () => {
+        const node = await createNode();
+        const storage = await addStorage(node);
+        // Satisfies both instances and is added first, so a first-fit assignment gives it to instance 1
+        await addSensor(storage, "dual", ["AlternatingCurrent", "DirectCurrent"]);
+        await addSensor(storage, "ac", "AlternatingCurrent");
+
+        expect(violationsOf(storage)).deep.equals([]);
+
+        await node.close();
+    });
+
+    it("reports both a component count and an instance without a number that no child fills", async () => {
+        const node = await createNode();
+        const model = singleLightModel();
+        const composer = await node.add(DescribedLight, {
+            id: "composer",
+            descriptor: { deviceTypeList: deviceTypeList(COMPOSER_ID) },
+        });
+        await composer.add(OnOffLightDevice, { id: "light1" });
+        await composer.add(OnOffLightDevice, { id: "light2" });
+
+        expect(violationsOf(composer, model).map(({ kind, requirement }) => ({ kind, requirement }))).deep.equals([
+            { kind: "instanceCount", requirement: "device:OnOffLight" },
+            { kind: "instanceCount", requirement: "device:OnOffLight#1" },
+        ]);
+
+        await node.close();
+    });
+
+    it("does not judge a descendant outside the composition scope against the composer", async () => {
+        const node = await createNode();
+        const storage = await addStorage(node);
+        const ac = await addSensor(storage, "ac", "AlternatingCurrent");
+        await addSensor(storage, "dc", "DirectCurrent");
+        // Lacks the TagList that BatteryStorage demands of its optional TemperatureSensor component
+        const grandchild = await ac.add(TemperatureSensorDevice, { id: "temperature" });
+
+        expect(violationsOf(grandchild)).deep.equals([]);
 
         await node.close();
     });

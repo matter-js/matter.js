@@ -485,6 +485,9 @@ function matchInstances(accepts: boolean[][]) {
  * the number of them with endpoints in range must meet the choice's count. A choice counts only at the top of a
  * conformance.
  *
+ * A member counts as satisfied when it has endpoints in range, whether or not they meet its nested requirements,
+ * because each endpoint that does not is reported on itself.
+ *
  * @see {@link MatterSpecification.v16.Core} § 7.3
  */
 function checkChoices(
@@ -663,9 +666,12 @@ function describeRange({ min, max }: RequirementModel.CountRange) {
     return min !== undefined ? `min ${min}` : `max ${max}`;
 }
 
+/**
+ * The path of one instance, which always carries a number so it never equals the path of the component's count.
+ */
 function pathOf(component: Component, instance: RequirementModel) {
-    const path = `device:${component.deviceType.name}`;
-    return instance.instanceNumber === undefined ? path : `${path}#${instance.instanceNumber}`;
+    const number = instance.instanceNumber ?? component.requirements.indexOf(instance) + 1;
+    return `device:${component.deviceType.name}#${number}`;
 }
 
 function describeInstance(component: Component, instance: RequirementModel) {
