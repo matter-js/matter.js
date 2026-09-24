@@ -428,6 +428,8 @@ export class TaskManagerBehavior extends Behavior {
         // while this early behavior initializes. A peer removed before this point is settled by the sweep
         // below, which keys on what no longer resolves rather than on the event.
         this.reactTo(this.#rootNode.peers.deleted, this.#reviewDepartedPeers);
+        // What this pass defers for want of a fabric is not deferred forever: adopting one runs it again.
+        this.reactTo(this.endpoint.eventsOf(ReconcilerBehavior).managedFabricAdopted, this.#resumePersisted);
         // Awaited before anything is driven: a run the sweep is about to end must not pick up a driver that
         // would write to the peers the sweep is rolling back.
         this.#reviewDepartedPeers()
@@ -1791,6 +1793,13 @@ export class TaskManagerBehavior extends Behavior {
             await this.#commit({ record });
             while (record.phaseIndex < execution.phases.length && record.state === "running") {
                 const phase = execution.phases[record.phaseIndex];
+                // Before the phase, not only inside its gate: a phase reaches peers through the manager, and
+                // with no fabric there are none, which a phase reads as "nothing to do" and completes on.
+                if (this.managedFabric() === undefined) {
+                    throw new TaskSuspendedSignal(
+                        `${runLabel(record.runId)} waits for a fabric: ${this.unmanagedReason()}`,
+                    );
+                }
                 const ctx = await this.endpoint.act(agent => this.#contextFor(execution, this.taskReconciler(agent)));
                 // A phase mutates the peer before it reaches its gate, so this is the last point at which an
                 // abort accepted meanwhile can still prevent the write.
@@ -1837,6 +1846,12 @@ export class TaskManagerBehavior extends Behavior {
                 e instanceof TaskStopSignal &&
                 (e === execution.gate.aborted || this.internal.runs.transitionOf(execution.runId) !== undefined)
             ) {
+                return;
+            }
+            // Nothing to drive against: the run keeps its state and its target, and the adoption of a fabric
+            // resumes it. Recording a failure would state an outcome for work that was never attempted.
+            if (e instanceof TaskSuspendedSignal && this.managedFabric() === undefined) {
+                logger.warn(`${runLabel(record.runId)} is not driven while no fabric is managed`);
                 return;
             }
             // Teardown: neither the failure nor a rollback of it can be recorded, and the rollback's driving would

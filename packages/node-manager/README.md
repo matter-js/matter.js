@@ -109,8 +109,10 @@ ServerNode.RootEndpoint.with(TaskManagerBehavior, ReconcilerBehavior.set({ fabri
 Until a fabric is settled no work is admitted at all (`TaskNoManagedFabricError`): every item this layer
 writes is fabric-scoped, so a manager holding no fabric can do nothing an operator would want reported as done.
 Which fabric a manager adopted is stored, by an identity that survives the fabric index — an index is reissued
-to a later fabric once its own is removed — so a restart manages the same fabric it did before. Name another
-fabric to take over from one that has left the controller.
+to a later fabric once its own is removed — so a restart manages the same fabric it did before. The identity is never
+forgotten on its own: a fabric table drops a fabric before it announces the removal, so "one fabric left and
+nothing remembered" is exactly what a deletion leaves behind, and adopting that fabric would drive one fabric's
+records against another. Name the fabric's index to take over.
 
 A fabric that leaves takes the manager's reach with it: runs that named its peers keep their targets and their
 state, gates park instead of concluding, and no stored run is resumed until a fabric is settled again. Ending
