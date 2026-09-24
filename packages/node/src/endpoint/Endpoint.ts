@@ -52,6 +52,8 @@ import { EndpointType } from "./type/EndpointType.js";
 
 const logger = Logger.get("Endpoint");
 
+const EMPTY_CONDITIONS: ReadonlySet<string> = Object.freeze(new Set<string>());
+
 /**
  * Endpoints consist of a hierarchy of parts.  This class manages the current state of a single endpoint.
  *
@@ -75,6 +77,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     #events = {} as SupportedBehaviors.EventsOf<T["behaviors"]>;
     #commands?: Commands<T>;
     #activity?: NodeActivity;
+    #deviceConditions?: Set<string>;
 
     /**
      * A string that uniquely identifies an endpoint.
@@ -126,6 +129,15 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      */
     get owner(): Endpoint | undefined {
         return this.#owner;
+    }
+
+    /**
+     * Conditions this endpoint asserts, as stated at construction.
+     *
+     * @see {@link Endpoint.EndpointOptions.deviceConditions}
+     */
+    get deviceConditions(): ReadonlySet<string> {
+        return this.#deviceConditions ?? EMPTY_CONDITIONS;
     }
 
     /**
@@ -609,6 +621,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
 
         if (config.number !== undefined) {
             this.number = config.number;
+        }
+
+        if (config.deviceConditions) {
+            this.#deviceConditions = new Set(config.deviceConditions);
         }
 
         this.#behaviors = new Behaviors(this, config as Record<string, object | undefined>);
@@ -1402,6 +1418,18 @@ export namespace Endpoint {
          * Endpoints are essential by default but you may disable by setting this to false.
          */
         isEssential?: boolean;
+
+        /**
+         * Conditions this endpoint asserts that its structure does not state.
+         *
+         * A device type's requirements may depend on a condition — a named fact such as `Cooler` or
+         * `PhysicalInputs`.  Most conditions follow from the endpoint tree and matter.js derives those.
+         * State here only the ones that describe the product rather than the structure.  A condition
+         * matter.js does not know about is reported rather than ignored.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 9.2.6
+         */
+        deviceConditions?: string[];
     }
 
     export type Options<
