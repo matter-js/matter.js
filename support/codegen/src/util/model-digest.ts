@@ -22,6 +22,7 @@ export interface ElementDigest {
     conformance?: string;
     access?: string;
     quality?: string;
+    location?: string;
 }
 
 export type ModelDigest = Record<string, ElementDigest>;
@@ -151,6 +152,7 @@ export function digestOf(root: Model) {
             conformance: aspectOf(model, "conformance"),
             access: aspectOf(model, "access"),
             quality: aspectOf(model, "quality"),
+            location: model instanceof RequirementModel ? model.location : undefined,
         };
 
         for (const child of model.children) {
@@ -165,7 +167,7 @@ export function digestOf(root: Model) {
     return digest;
 }
 
-export type LossKind = "element" | "id" | "constraint" | "default" | "conformance" | "access" | "quality";
+export type LossKind = "element" | "id" | "constraint" | "default" | "conformance" | "access" | "quality" | "location";
 
 export interface Loss {
     kind: LossKind;
@@ -179,7 +181,7 @@ export interface Loss {
 /**
  * Properties whose content the specification states and a regeneration can quietly change.
  */
-const STATED = ["constraint", "default", "conformance", "access", "quality"] as const;
+const STATED = ["constraint", "default", "conformance", "access", "quality", "location"] as const;
 
 /**
  * Report everything {@link previous} states that {@link next} no longer states the same way.

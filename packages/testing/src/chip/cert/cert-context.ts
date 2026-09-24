@@ -59,6 +59,15 @@ export interface CertDevice extends Subject {
 
     /** The app variant this device actually runs, absent for a device whose flavor has no binary to vary. */
     readonly appVariant?: string;
+
+    /**
+     * The arguments this device was actually started with, absent for a device that takes none.
+     *
+     * What the case declared plus whatever the harness had to add for the app to start at all, which
+     * is what a reader of a bundle needs: an argument that changed the app's behaviour is no less
+     * relevant for having come from the harness.
+     */
+    readonly appArgs?: string[];
 }
 
 /**
@@ -150,6 +159,12 @@ export interface StepRecorder {
      */
     recordPicsSkips?(count: number): void;
     /**
+     * Records how many steps were skipped for costing minutes of real time on the running flavor. A
+     * run that does not ask for them covers the plan minus what this names, and without the count a
+     * bundle would read as covering the whole plan.
+     */
+    recordLongRunningSkips?(count: number): void;
+    /**
      * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
      * evaluated at all. Counts the checks that declared their gap ({@link CheckRecord.accepted})
      * alongside those that did not, so this says how much the run left unobserved whatever the
@@ -209,6 +224,8 @@ export interface CertStepDefinition {
     flavors?: SelectableDeviceFlavor[];
     /** Reason this step can never execute; present makes the engine skip it (see `cert-dsl.ts`'s `CertStepOptions`). */
     notApplicable?: string;
+    /** Why this step costs minutes of real time (see `cert-dsl.ts`'s `CertStepOptions`). */
+    longRunning?: string;
     run: (cx: CertStepContext) => Promise<void>;
 }
 
@@ -243,4 +260,6 @@ export interface CertTestDefinition {
      * here; every other test keeps the transport its evidence and timing were written against.
      */
     transport?: ControllerTransport;
+    /** Role name → arguments that role's app starts with (see `cert-dsl.ts`'s `CertTestOptions`). */
+    appArgs?: Record<string, string[]>;
 }

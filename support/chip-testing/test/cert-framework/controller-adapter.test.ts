@@ -1012,6 +1012,21 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares the ThreadBorderRouterManagement client commands TC-TBRM-3.1 sends, and the cluster itself", () => {
+        // The device file answers only the server side, and an absent key evaluates false, so an undeclared
+        // TBRM.C would leave the whole test pending.
+        const keys = ["TBRM.C", ...["00", "01", "03", "04"].map(id => `TBRM.C.C${id}.Tx`)];
+        const asDevice = new PicsFile(["TBRM.S=1"]);
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
     it("declares the group-administration client commands TC-SC-6.1 sends", () => {
         // ViewGroup is 0 in the device file; the two GroupKeyManagement keys are absent from it
         // entirely, and an absent key evaluates false, so either omission skips a step silently.

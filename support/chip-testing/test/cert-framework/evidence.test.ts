@@ -49,9 +49,51 @@ describe("deviceRecordsFor", () => {
         );
 
         expect(records).deep.equal([
-            { role: "th", app: "ota-requestor", appVariant: undefined, flavor: "matterjs", chipRef: undefined },
-            { role: "th2", app: "ota-provider", appVariant: undefined, flavor: "matterjs", chipRef: undefined },
+            {
+                role: "th",
+                app: "ota-requestor",
+                appVariant: undefined,
+                flavor: "matterjs",
+                appArgs: undefined,
+                chipRef: undefined,
+            },
+            {
+                role: "th2",
+                app: "ota-provider",
+                appVariant: undefined,
+                flavor: "matterjs",
+                appArgs: undefined,
+                chipRef: undefined,
+            },
         ]);
+    });
+
+    // A chip app takes behaviour a case depends on from its command line, and a matter.js subject
+    // ignores an argument it does not implement, so the bundle is where a reader sees which flags the
+    // run actually started each role with
+    it("names the arguments each role was started with", async () => {
+        const records = await deviceRecordsFor(
+            "matterjs",
+            { th: "ota-requestor", th2: "ota-provider" },
+            { th: {}, th2: {} },
+            { th: ["--autoApplyImage"] },
+        );
+
+        expect(records.map(record => record.appArgs)).deep.equal([["--autoApplyImage"], undefined]);
+    });
+
+    // The harness adds what an app cannot start without — a chip ota-provider dies with no image
+    // argument — so a bundle naming only the declaration would omit an argument that changed the
+    // app's behaviour
+    it("prefers what the device reports over what the case declared", async () => {
+        const records = await deviceRecordsFor(
+            "chip-local",
+            { th: "ota-provider" },
+            { th: { appArgs: ["-f", "/tmp/cert-app/ota-placeholder.bin"] } },
+            {},
+        );
+
+        expect(records[0].appArgs).deep.equal(["-f", "/tmp/cert-app/ota-placeholder.bin"]);
     });
 
     // A flavor that cannot run a variant ignores the request, so a bundle claiming one that never
@@ -84,6 +126,7 @@ describe("deviceRecordsFor", () => {
                 app: "/opt/th/chip-th-server",
                 appVariant: undefined,
                 flavor: "python-wrapped",
+                appArgs: undefined,
                 chipRef: undefined,
             },
         ]);
@@ -501,6 +544,50 @@ describe("EvidenceRecorder", () => {
 
         expect(resultJson.verdict).equal("pass");
         expect(resultJson.picsSkips).equal(1);
+    });
+
+    it("records how many steps were skipped for costing minutes of real time", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SU-3.2",
+            plan: "softwareupdate.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            devices: [{ role: "th", app: "ota-requestor", flavor: "chip-local" }],
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+        recorder.endStep(step2, "skipped", "the TH waits out three minutes; set MATTER_CERT_LONG_RUNNING=1 to run it");
+        recorder.recordLongRunningSkips(1);
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect(resultJson.verdict).equal("pass");
+        expect(resultJson.longRunningSkips).equal(1);
+    });
+
+    // A bundle carrying no count covers the whole plan, so the field must be absent rather than zero
+    it("omits the long-running skip count when no step was skipped that way", async () => {
+        const recorder = new EvidenceRecorder(outDir, {
+            tc: "TC-SU-3.2",
+            plan: "softwareupdate.adoc",
+            timestamp: "2026-08-07T00:00:00.000Z",
+            controller: "dut",
+            controllerImplementation: "chip-tool",
+            devices: [{ role: "th", app: "ota-requestor", flavor: "chip-local" }],
+            matterJsCommit: "abc1234",
+        });
+
+        recorder.beginStep(step1);
+        recorder.endStep(step1, "pass");
+
+        const dir = await publish(recorder);
+        const resultJson = JSON.parse(await fsp.readFile(pathMod.join(dir, "result.json"), "utf8"));
+
+        expect("longRunningSkips" in resultJson).equal(false);
     });
 
     it("omits the PICS-skip count when every step's PICS was met", async () => {

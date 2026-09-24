@@ -15,7 +15,10 @@ export const RefrigeratorDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 112, revision: 3 } ], element: "attribute" })
     ),
-    Requirement({ name: "Cooler", type: "TemperatureControlledCabinet.Cooler", conformance: "M", element: "condition" }),
+    Requirement({
+        name: "Cooler", type: "TemperatureControlledCabinet.Cooler", conformance: "M", constraint: "min 1",
+        element: "condition", location: "Descendant"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
 
     Requirement(

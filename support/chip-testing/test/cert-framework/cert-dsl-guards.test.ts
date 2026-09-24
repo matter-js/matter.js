@@ -141,6 +141,53 @@ describe("multi-device declaration guards", () => {
         }
     }
 
+    function declareWithAppArgs(tc: string, devices: Record<string, string>, appArgs: Record<string, string[]>) {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        Reflect.set(globalThis, "describe", () => {});
+        try {
+            certTest(tc, { plan: "n/a", pics: [], app: "all-clusters", devices, appArgs });
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+        }
+    }
+
+    // A role that does not exist takes no arguments and reports nothing, so the case would run against
+    // a device started the default way while its declaration says otherwise
+    it("rejects appArgs for a role no device uses", () => {
+        expect(() =>
+            declareWithAppArgs("TC-APPARGS-ROLE-0.0", { th: "all-clusters" }, { th2: ["--autoApplyImage"] }),
+        ).to.throw(/declares appArgs for the role "th2"/);
+    });
+
+    it("accepts appArgs for a declared role", () => {
+        expect(() =>
+            declareWithAppArgs(
+                "TC-APPARGS-ROLE-0.1",
+                { th: "all-clusters", th2: "ota-requestor" },
+                { th2: ["--autoApplyImage"] },
+            ),
+        ).to.not.throw();
+    });
+
+    // The default declaration names one role, `th`, and a case with no `devices` of its own still has
+    // to be able to pass its app an argument
+    it("accepts appArgs for the default role of a case declaring no devices", () => {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        Reflect.set(globalThis, "describe", () => {});
+        try {
+            expect(() =>
+                certTest("TC-APPARGS-ROLE-0.2", {
+                    plan: "n/a",
+                    pics: [],
+                    app: "ota-requestor",
+                    appArgs: { th: ["--autoApplyImage"] },
+                }),
+            ).to.not.throw();
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+        }
+    });
+
     // A role name becomes part of the subject's id, and a matter.js subject rejects a dot outright
     // because an id becomes an endpoint id
     it("rejects a role name a subject cannot carry in its id", () => {

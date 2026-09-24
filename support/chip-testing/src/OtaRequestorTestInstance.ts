@@ -33,6 +33,27 @@ const ENDPOINT = {
 const ANNOUNCED_QUERY_DELAY = Millis(250);
 
 /**
+ * What this requestor leaves between a delayed answer and the command that follows it, in place of the
+ * two minutes the specification requires.
+ *
+ * The plan steps about a `Busy` answer or a deferred apply assert on the *provider's* fields, and the
+ * wait that follows is the TH's. Shortening it here costs those steps nothing and saves minutes of
+ * real time per run; a case that wants the specified wait observed leaves this off and pays for it.
+ */
+const FAST_RETRY_INTERVAL = Millis(500);
+
+/**
+ * Whether this subject shortens the intervals a delayed provider answer imposes.
+ *
+ * The harness decides, not the library: a product lowering these does not conform, and the value a
+ * run used reaches the evidence through the case's own check rather than through this file.
+ */
+export function otaFastRetryEnabled() {
+    const value = process.env.MATTER_CERT_OTA_FAST_RETRY;
+    return value !== undefined && value !== "" && value !== "0" && value.toLowerCase() !== "false";
+}
+
+/**
  * Establishes that a transferred OTA file is the image that was staged for this device.
  *
  * `OtaSoftwareUpdateRequestorServer.validateUpdateFile()` already rejects a file whose header, payload
@@ -98,6 +119,12 @@ class CertOtaRequestorServer extends OtaSoftwareUpdateRequestorServer {
     protected override async applyUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) {
         const blob = await fileDesignator.openBlob();
         await verifyOtaTestTransfer(this.env.get(Crypto), blob, newSoftwareVersion);
+
+        // A real device reboots into the new image and leaves nothing behind. This one does not, and a
+        // downloaded file that outlives its update short-circuits every later query — the requestor
+        // applies what it already has instead of asking the provider — so a case can drive only one
+        // update against this subject unless the file goes with the update that produced it.
+        await fileDesignator.delete();
     }
 
     protected override requestUserConsent() {
@@ -179,7 +206,17 @@ export class OtaRequestorTestInstance extends NodeTestInstance {
                 // ten minutes — only makes the run's own duration unpredictable; its purpose, spreading a
                 // fabric's queries, has nothing to spread here. chip's `ota-requestor-app` ships with the
                 // same wait at zero.
-                otaSoftwareUpdateRequestor: { announcedUpdateQueryDelay: ANNOUNCED_QUERY_DELAY },
+                otaSoftwareUpdateRequestor: {
+                    announcedUpdateQueryDelay: ANNOUNCED_QUERY_DELAY,
+
+                    // `CertOtaRequestorServer` implements `requestUserConsent`, so this requestor can
+                    // consent; without the declaration it sends no RequestorCanConsent and refuses any
+                    // update whose provider asks for consent.
+                    canConsent: true,
+                    ...(otaFastRetryEnabled()
+                        ? { minimumQueryInterval: FAST_RETRY_INTERVAL, minimumApplyDelay: FAST_RETRY_INTERVAL }
+                        : {}),
+                },
             }),
         );
 

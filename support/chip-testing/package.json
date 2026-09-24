@@ -29,7 +29,8 @@
         "test-app-cc-2": "matter-test --spec=test/app-cc/CC.2.test.ts --report",
         "test-icd": "matter-test --spec=test/icd/**/*.test.ts --report",
         "test-cert": "MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 matter-test --spec=test/cert/**/*.test.ts --report",
-        "test-cert-framework": "MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 matter-test --spec=test/cert-framework/**/*.test.ts --report"
+        "test-cert-framework": "MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 matter-test --spec=test/cert-framework/**/*.test.ts --report",
+        "test-cert-long": "MATTER_CERT_LONG_RUNNING=1 npm run test-cert"
     },
     "dependencies": {
         "@matter/general": "*",

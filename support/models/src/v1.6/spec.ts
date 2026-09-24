@@ -47366,15 +47366,15 @@ export const SpecMatter = Matter(
         ),
         Requirement({
             name: "AclExtensionCond", type: "RootNode.AclExtensionCond", conformance: "M", element: "condition",
-            xref: "device§8.1.4"
+            location: "Root", xref: "device§8.1.4"
         }),
         Requirement({
             name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "O", element: "condition",
-            xref: "device§8.1.4"
+            location: "Root", xref: "device§8.1.4"
         }),
         Requirement({
             name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "O",
-            element: "condition", xref: "device§8.1.4"
+            element: "condition", location: "Root", xref: "device§8.1.4"
         }),
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§8.1.5" }),
         Requirement({ name: "Groups", id: 0x4, conformance: "X", element: "serverCluster", xref: "device§8.1.5" }),
@@ -47395,7 +47395,7 @@ export const SpecMatter = Matter(
         ),
         Requirement({
             name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "O", element: "condition",
-            xref: "device§8.2.4"
+            location: "Root", xref: "device§8.2.4"
         }),
         Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster", xref: "device§8.2.5" }),
         Requirement(
@@ -48445,8 +48445,8 @@ export const SpecMatter = Matter(
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 112, revision: 3 } ], element: "attribute" })
         ),
         Requirement({
-            name: "Cooler", type: "TemperatureControlledCabinet.Cooler", conformance: "M", element: "condition",
-            xref: "device§13.2.5"
+            name: "Cooler", type: "TemperatureControlledCabinet.Cooler", conformance: "M", constraint: "min 1",
+            element: "condition", location: "Descendant", xref: "device§13.2.5"
         }),
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.2.7" }),
 
@@ -48892,8 +48892,8 @@ export const SpecMatter = Matter(
             Requirement({ name: "DeviceTypeList", default: [ { deviceType: 123, revision: 2 } ], element: "attribute" })
         ),
         Requirement({
-            name: "Heater", type: "TemperatureControlledCabinet.Heater", conformance: "M", element: "condition",
-            xref: "device§13.9.5"
+            name: "Heater", type: "TemperatureControlledCabinet.Heater", conformance: "M", constraint: "min 1",
+            element: "condition", location: "Descendant", xref: "device§13.9.5"
         }),
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.9.7" }),
         Requirement({
@@ -49794,7 +49794,7 @@ export const SpecMatter = Matter(
         }),
         Requirement({
             name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "M", element: "condition",
-            xref: "device§14.6.4"
+            location: "Root", xref: "device§14.6.4"
         }),
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§14.6.5" }),
 
@@ -49927,7 +49927,7 @@ export const SpecMatter = Matter(
         ),
         Requirement({
             name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "M", element: "condition",
-            xref: "device§14.9.4"
+            location: "Root", xref: "device§14.9.4"
         }),
         Requirement({ name: "MeterIdentification", id: 0xb06, conformance: "M", element: "serverCluster", xref: "device§14.9.5" })
     ),
@@ -50072,7 +50072,7 @@ export const SpecMatter = Matter(
 
         Requirement({
             name: "ManagedAclAllowed", type: "RootNode.ManagedAclAllowed", conformance: "O",
-            element: "condition", xref: "device§15.3.4.1",
+            element: "condition", location: "Root", xref: "device§15.3.4.1",
 
             details: "A Network Infrastructure Manager device may utilize the ManagedAclAllowed condition to allow the " +
                 "Managed Device (MNGD) feature flag of the Access Control Cluster on the device's Root Node endpoint " +
@@ -50089,14 +50089,30 @@ export const SpecMatter = Matter(
                 "Network Infrastructure Manager device type."
         }),
 
-        Requirement({ name: "Ip", type: "Base.Ip", conformance: "M", element: "condition", xref: "device§15.3.4" }),
-        Requirement({ name: "IPv4", type: "Base.IPv4", conformance: "M", element: "condition", xref: "device§15.3.4" }),
-        Requirement({ name: "IPv6", type: "Base.IPv6", conformance: "M", element: "condition", xref: "device§15.3.4" }),
-        Requirement(
-            { name: "Ethernet", type: "Base.Ethernet", conformance: "M", element: "condition", xref: "device§15.3.4" }
-        ),
-        Requirement({ name: "WiFi", type: "Base.WiFi", conformance: "M", element: "condition", xref: "device§15.3.4" }),
-        Requirement({ name: "Thread", type: "Base.Thread", conformance: "M", element: "condition", xref: "device§15.3.4" }),
+        Requirement({
+            name: "Ip", type: "Base.Ip", conformance: "M", element: "condition", location: "Root",
+            xref: "device§15.3.4"
+        }),
+        Requirement({
+            name: "IPv4", type: "Base.IPv4", conformance: "M", element: "condition", location: "Root",
+            xref: "device§15.3.4"
+        }),
+        Requirement({
+            name: "IPv6", type: "Base.IPv6", conformance: "M", element: "condition", location: "Root",
+            xref: "device§15.3.4"
+        }),
+        Requirement({
+            name: "Ethernet", type: "Base.Ethernet", conformance: "M", element: "condition", location: "Root",
+            xref: "device§15.3.4"
+        }),
+        Requirement({
+            name: "WiFi", type: "Base.WiFi", conformance: "M", element: "condition", location: "Root",
+            xref: "device§15.3.4"
+        }),
+        Requirement({
+            name: "Thread", type: "Base.Thread", conformance: "M", element: "condition", location: "Root",
+            xref: "device§15.3.4"
+        }),
         Requirement({
             name: "ThreadNetworkDiagnostics", id: 0x35, conformance: "M", element: "serverCluster",
             xref: "device§15.3.5"
@@ -50285,27 +50301,27 @@ export const SpecMatter = Matter(
         ),
         Requirement({
             name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M",
-            element: "condition", xref: "device§16.1.5"
+            element: "condition", location: "Root", xref: "device§16.1.5"
         }),
         Requirement({
             name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
-            xref: "device§16.1.5"
+            location: "Root", xref: "device§16.1.5"
         }),
         Requirement({
             name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "M",
-            element: "condition", xref: "device§16.1.5"
+            element: "condition", location: "Root", xref: "device§16.1.5"
         }),
         Requirement({
             name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "M",
-            element: "condition", xref: "device§16.1.5"
+            element: "condition", location: "Root", xref: "device§16.1.5"
         }),
         Requirement({
             name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M",
-            element: "condition", xref: "device§16.1.5"
+            element: "condition", location: "Root", xref: "device§16.1.5"
         }),
         Requirement({
             name: "TlsClientCond", type: "RootNode.TlsClientCond", conformance: "M", element: "condition",
-            xref: "device§16.1.5"
+            location: "Root", xref: "device§16.1.5"
         }),
 
         Requirement(
@@ -50449,23 +50465,23 @@ export const SpecMatter = Matter(
         ),
         Requirement({
             name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M",
-            element: "condition", xref: "device§16.4.5"
+            element: "condition", location: "Root", xref: "device§16.4.5"
         }),
         Requirement({
             name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
-            xref: "device§16.4.5"
+            location: "Root", xref: "device§16.4.5"
         }),
         Requirement({
             name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "M",
-            element: "condition", xref: "device§16.4.5"
+            element: "condition", location: "Root", xref: "device§16.4.5"
         }),
         Requirement({
             name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "M",
-            element: "condition", xref: "device§16.4.5"
+            element: "condition", location: "Root", xref: "device§16.4.5"
         }),
         Requirement({
             name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M",
-            element: "condition", xref: "device§16.4.5"
+            element: "condition", location: "Root", xref: "device§16.4.5"
         }),
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§16.4.6" }),
 
@@ -50525,19 +50541,19 @@ export const SpecMatter = Matter(
         ),
         Requirement({
             name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M",
-            element: "condition", xref: "device§16.5.3"
+            element: "condition", location: "Root", xref: "device§16.5.3"
         }),
         Requirement({
             name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
-            xref: "device§16.5.3"
+            location: "Root", xref: "device§16.5.3"
         }),
         Requirement({
             name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "O",
-            element: "condition", xref: "device§16.5.3"
+            element: "condition", location: "Root", xref: "device§16.5.3"
         }),
         Requirement({
             name: "TlsClientCond", type: "RootNode.TlsClientCond", conformance: "O", element: "condition",
-            xref: "device§16.5.3"
+            location: "Root", xref: "device§16.5.3"
         }),
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§16.5.4" }),
         Requirement({ name: "Switch", id: 0x3b, conformance: "M", element: "serverCluster", xref: "device§16.5.4" }),
@@ -50604,11 +50620,11 @@ export const SpecMatter = Matter(
         ),
         Requirement({
             name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
-            xref: "device§16.6.5"
+            location: "Root", xref: "device§16.6.5"
         }),
         Requirement({
             name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M",
-            element: "condition", xref: "device§16.6.5"
+            element: "condition", location: "Root", xref: "device§16.6.5"
         }),
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§16.6.6" }),
         Requirement(
