@@ -55,15 +55,23 @@ function makeTarget(items: Record<string, ManagedItem> = {}): ReconcileTarget & 
     return {
         node: STUB_NODE,
         items: state,
-        async updateStatus(kind, key, itemState, code) {
+        // Mirrors DesiredStateBehavior: the generation is compared where the write happens, so a replacement
+        // that landed while the action ran keeps its own status.
+        async updateStatus(kind, key, itemState, code, ifGeneration) {
             const id = `${kind}:${key}`;
             const existing = state[id];
-            if (existing !== undefined) {
-                state[id] = { ...existing, status: { state: itemState, updateTimestamp: 0, failureCode: code } };
+            if (existing === undefined || (ifGeneration !== undefined && existing.generation !== ifGeneration)) {
+                return;
             }
+            state[id] = { ...existing, status: { state: itemState, updateTimestamp: 0, failureCode: code } };
         },
-        async dropItem(kind, key) {
-            delete state[`${kind}:${key}`];
+        async dropItem(kind, key, ifGeneration) {
+            const id = `${kind}:${key}`;
+            const existing = state[id];
+            if (existing === undefined || (ifGeneration !== undefined && existing.generation !== ifGeneration)) {
+                return;
+            }
+            delete state[id];
         },
         currentItem(kind, key) {
             return state[`${kind}:${key}`];
@@ -294,6 +302,29 @@ describe("executeActions (failure paths)", () => {
         await executeActions(target, planned, registry);
 
         expect(target.items[id]?.status.state).equals("commitFailed");
+    });
+
+    it("leaves a replacement alone when the action it ran for is finished with", async () => {
+        const registry = new ItemKindRegistry();
+        registry.register(new FakeKind());
+
+        const id = "fake:raced";
+        const target = makeTarget({ [id]: pendingItem("fake", "raced") });
+        const write = target.updateStatus.bind(target);
+        target.updateStatus = async (kind, key, itemState, code, ifGeneration) => {
+            // The replacement lands after the executor last looked and before this write commits — the window
+            // a check outside the write cannot close, because the two are different transactions.
+            target.items[id] = { ...pendingItem("fake", "raced"), generation: 2 };
+            await write(kind, key, itemState, code, ifGeneration);
+        };
+
+        const planned = planActions([pendingItem("fake", "raced")], { verify: false, recoverable: () => false });
+        await executeActions(target, planned, registry);
+
+        // The replacement is still waiting for its own apply. Marking it committed would tell a task the intent
+        // it set is on the device when nothing has written it.
+        expect(target.items[id]?.status.state).equals("pending");
+        expect(target.items[id]?.generation).equals(2);
     });
 
     it("finishes a removal that is retried after a recoverable failure", async () => {

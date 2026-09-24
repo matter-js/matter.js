@@ -20,18 +20,25 @@ const logger = Logger.get("Reconciler");
  */
 export interface ReconcileTarget {
     readonly node: ClientNode;
+    /**
+     * Record what became of an item, for the intent `ifGeneration` names.
+     *
+     * The generation reaches the write because the item may have been replaced while the action ran: the store
+     * compares and writes in one transaction, which a comparison out here could not.
+     */
     updateStatus(
         kind: string,
         key: string,
         state: "committed" | "commitFailed" | "pending",
         code?: number,
+        ifGeneration?: number,
     ): Promise<void>;
     /**
      * Take the item out of desired state, which now says only one thing: what it asked for is done.
      *
      * An item the engine gave up on keeps its place and its status instead — see the `abandon` action.
      */
-    dropItem(kind: string, key: string): Promise<void>;
+    dropItem(kind: string, key: string, ifGeneration?: number): Promise<void>;
     /**
      * The item as it stands now, re-read after a slow apply.
      *
@@ -71,7 +78,7 @@ export async function executeActions(
                     if (!stillPlanned(target, item)) {
                         break;
                     }
-                    await target.updateStatus(item.kind, item.key, "committed");
+                    await target.updateStatus(item.kind, item.key, "committed", undefined, item.generation);
                 } catch (e) {
                     if (!stillPlanned(target, item)) {
                         break;
@@ -80,7 +87,13 @@ export async function executeActions(
                     // place the cause survives — and a local schema refusal and a device's own status read
                     // identically once it is gone.
                     logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, e);
-                    await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
+                    await target.updateStatus(
+                        item.kind,
+                        item.key,
+                        "commitFailed",
+                        extractStatusCode(e),
+                        item.generation,
+                    );
                 }
                 break;
 
@@ -95,7 +108,7 @@ export async function executeActions(
                     if (!stillPlanned(target, item)) {
                         break;
                     }
-                    await target.dropItem(item.kind, item.key);
+                    await target.dropItem(item.kind, item.key, item.generation);
                 } catch (e) {
                     if (!stillPlanned(target, item)) {
                         break;
@@ -104,11 +117,17 @@ export async function executeActions(
                     // The rule belongs to removal rather than to any one kind: stated per kind, a kind added
                     // later states it or reports a failure for work that is already done.
                     if (extractStatusCode(e) === Status.NotFound) {
-                        await target.dropItem(item.kind, item.key);
+                        await target.dropItem(item.kind, item.key, item.generation);
                         break;
                     }
                     logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not be removed:`, e);
-                    await target.updateStatus(item.kind, item.key, "commitFailed", extractStatusCode(e));
+                    await target.updateStatus(
+                        item.kind,
+                        item.key,
+                        "commitFailed",
+                        extractStatusCode(e),
+                        item.generation,
+                    );
                 }
                 break;
 
@@ -141,6 +160,9 @@ export async function executeActions(
  * Only `setIntent` and `removeIntent` advance {@link ManagedItem.generation}, so an equal generation says the
  * intent this action was planned for is the one stored now. A status write leaves it alone, which is why a
  * retry of a failed action still recognizes its own item.
+ *
+ * An early exit, not the guarantee: this reads outside the transaction that writes, so a replacement landing
+ * after it is caught by the generation the write itself carries.
  */
 function stillPlanned(target: ReconcileTarget, item: ManagedItem): boolean {
     const current = target.currentItem(item.kind, item.key);
