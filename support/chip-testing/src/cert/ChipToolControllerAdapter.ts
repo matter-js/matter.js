@@ -130,6 +130,14 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
 
+    // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
+    // only the server side, because it describes a device; here the client is the controller.
+    "TBRM.C": 1,
+    "TBRM.C.C00.Tx": 1,
+    "TBRM.C.C01.Tx": 1,
+    "TBRM.C.C03.Tx": 1,
+    "TBRM.C.C04.Tx": 1,
+
     // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
     // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
     "G.C.C01.Tx": 1,
