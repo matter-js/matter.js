@@ -18,10 +18,9 @@ import { TaskCancellation, TaskCancelOutcome, TaskManagerBehavior } from "#task/
 import { Teardown, TaskPhase, TaskState } from "#task/types.js";
 import { RunId } from "#task/types.js";
 import { CrashedDependencyError, Environment, InternalError, Lifecycle, MaybePromise } from "@matter/general";
-import { Behavior, ClientNode, ItemKind, itemMapKey } from "@matter/node";
+import { Behavior, ItemKind, itemMapKey } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { PeerAddress } from "@matter/protocol";
-import { testAddress } from "./helpers.js";
+import { testAddress, TestTaskManagerBase } from "./helpers.js";
 import {
     kindOf,
     cancelSlot,
@@ -39,20 +38,17 @@ import {
     SyntheticTask,
 } from "./helpers.js";
 
-class TestTaskManager extends TaskManagerBehavior {
+class TestTaskManager extends TestTaskManagerBase {
+    // Own property, not inherited: the framework decorates each class with `Object.hasOwn(type, "schema")`, so
+    // a subclass that only inherits one falls back to an inferred schema, which drops the nonvolatile
+    // qualities the run table needs.
     static override readonly schema = TaskManagerBehavior.schema;
-    static peers = new Map<string, FakePeer>();
-    static reconcilerPeer?: FakePeer;
 
     /** Fires while the driver builds a phase context: the gate exists but the phase has not run yet. */
     static atContext?: (manager: TestTaskManager) => void;
 
     /** Fires before the shutdown abort pass, so a test can release a task into the pre-gate window. */
     static atShutdown?: (manager: TestTaskManager) => void;
-
-    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
-        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
-    }
 
     /** The verb tearing a run down, once it has accepted the request and before it settles. */
     teardownOf(runId: RunId): Teardown | undefined {

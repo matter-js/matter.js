@@ -92,6 +92,30 @@ hands out, which is free again once the node is removed. A record outlives the n
 can be re-issued would let an undo write to whatever device inherited it. `node.peerAddress` is the value to
 pass; a group has one too, with its group id in the node id.
 
+### One fabric per manager
+
+Groups, group keys, bindings and ACL entries are fabric-scoped, so "group key set 42" names one thing only
+once a fabric is fixed. A manager therefore manages the nodes of exactly one fabric: a controller holding
+several runs one manager per fabric, and work naming a peer of another fabric is refused
+(`TaskForeignFabricError`).
+
+A controller with one fabric needs no configuration — the manager adopts it. With several, name the one to
+manage:
+
+```ts
+ServerNode.RootEndpoint.with(TaskManagerBehavior, ReconcilerBehavior.set({ fabric: FabricIndex(2) }));
+```
+
+Until a fabric is settled no work is admitted at all (`TaskNoManagedFabricError`): every item this layer
+writes is fabric-scoped, so a manager holding no fabric can do nothing an operator would want reported as done.
+Which fabric a manager adopted is stored, by an identity that survives the fabric index — an index is reissued
+to a later fabric once its own is removed — so a restart manages the same fabric it did before. Name another
+fabric to take over from one that has left the controller.
+
+A fabric that leaves takes the manager's reach with it: runs that named its peers keep their targets and their
+state, gates park instead of concluding, and no stored run is resumed until a fabric is settled again. Ending
+those runs, so their targets are released, is not implemented yet.
+
 ### One task per target
 
 A task names the _target_ it changes — one peer's group membership, one fabric's key set — and one target has
