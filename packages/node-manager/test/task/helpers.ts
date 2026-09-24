@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ManagedFabric } from "#ManagedFabric.js";
 import { BUILT_IN_KINDS } from "#reconcile/kinds.js";
+import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { RunRecord, TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
@@ -20,7 +22,7 @@ import {
     itemMapKey,
 } from "@matter/node";
 import { PeerAddress } from "@matter/protocol";
-import { FabricIndex, NodeId } from "@matter/types";
+import { FabricIndex, GlobalFabricId, NodeId } from "@matter/types";
 import { Status } from "@matter/types";
 
 /** Mirrors the reconciler's default recoverability rule for a failure status code. */
@@ -534,4 +536,92 @@ export async function awaitRun(
         await MockTime.macrotask;
     }
     throw new Error(`Run #${runId} did not reach state ${states.join("|")}`);
+}
+
+/**
+ * The task manager as the unit tests drive it: peers and reconciler are fakes, and the fabric is the one
+ * `testAddress` puts every fixture peer on.
+ *
+ * One class, because nine copies of these three overrides is nine places to update when a seam changes — which
+ * is how the suite came to have eight copies of "which states are terminal".
+ */
+export class TestTaskManagerBase extends TaskManagerBehavior {
+    static override readonly schema = TaskManagerBehavior.schema;
+
+    /**
+     * Fixtures per concrete subclass, not per base: one shared map would let a test file answer for the peers
+     * another file registered, and one file's cleanup would erase another's.
+     */
+    static readonly #fixtures = new WeakMap<object, { peers: Map<string, FakePeer>; reconcilerPeer?: FakePeer }>();
+
+    protected static fixturesFor(cls: object) {
+        let fixtures = TestTaskManagerBase.#fixtures.get(cls);
+        if (fixtures === undefined) {
+            fixtures = { peers: new Map<string, FakePeer>() };
+            TestTaskManagerBase.#fixtures.set(cls, fixtures);
+        }
+        return fixtures;
+    }
+
+    /**
+     * The fixtures of the nearest class that has any.
+     *
+     * The behavior an endpoint instantiates is a class matter.js derived from the one a test declared, so the
+     * instance's own constructor holds nothing; what the test registered sits further up the chain.
+     */
+    static #inheritedFixtures(cls: object | null) {
+        for (let current = cls; current !== null; current = Object.getPrototypeOf(current)) {
+            const fixtures = TestTaskManagerBase.#fixtures.get(current);
+            if (fixtures !== undefined) {
+                return fixtures;
+            }
+        }
+        // No bucket of its own means the class was reached before its test registered anything. A shared
+        // fallback would answer with another file's peers, so this one is empty and belongs to nobody.
+        return { peers: new Map<string, FakePeer>() };
+    }
+
+    static get peers() {
+        return TestTaskManagerBase.fixturesFor(this).peers;
+    }
+
+    static get reconcilerPeer() {
+        return TestTaskManagerBase.fixturesFor(this).reconcilerPeer;
+    }
+
+    static set reconcilerPeer(peer: FakePeer | undefined) {
+        TestTaskManagerBase.fixturesFor(this).reconcilerPeer = peer;
+    }
+
+    /** This subclass's fixtures, so one test file never answers with another's peers. */
+    protected get fixtures() {
+        return TestTaskManagerBase.#inheritedFixtures(this.constructor);
+    }
+
+    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
+        return [...this.fixtures.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
+    }
+
+    protected override taskReconciler(): ReconcilerBehavior {
+        return this.fixtures.reconcilerPeer as unknown as ReconcilerBehavior;
+    }
+
+    protected override managedFabric() {
+        return testFabric(() => [...this.fixtures.peers.values()].map(peer => peer.asNode()));
+    }
+}
+
+/** The fabric a fixture peer is on: index 1, as {@link testAddress} assigns. */
+export function testFabric(peers: () => ClientNode[], index = FabricIndex(1)): ManagedFabric {
+    const owns = (address: PeerAddress | undefined) => address !== undefined && address.fabricIndex === index;
+    return {
+        index,
+        globalId: GlobalFabricId(index),
+        owns,
+        peers: () => peers().filter(peer => owns(peer.peerAddress)),
+        peer: address =>
+            owns(address)
+                ? peers().find(peer => peer.peerAddress !== undefined && PeerAddress.is(peer.peerAddress, address))
+                : undefined,
+    };
 }

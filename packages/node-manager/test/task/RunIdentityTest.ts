@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
     TaskConflictError,
     TaskFindingCode,
@@ -22,22 +21,25 @@ import { TaskDefinition, TaskPersistence } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError } from "@matter/general";
-import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
+import { itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
-import { PeerAddress } from "@matter/protocol";
-import { FakePeer, kindOf, onTerminalWrite, pumpUntil, recordFor, SyntheticTask, testAddress } from "./helpers.js";
+import {
+    FakePeer,
+    kindOf,
+    onTerminalWrite,
+    pumpUntil,
+    recordFor,
+    SyntheticTask,
+    testAddress,
+    TestTaskManagerBase,
+} from "./helpers.js";
 
 /** Resolves peers to fakes, so a phase records a real changeSet and its rollback has something to undo. */
-class TestTaskManager extends TaskManagerBehavior {
+class TestTaskManager extends TestTaskManagerBase {
+    // Own property, not inherited: the framework decorates each class with `Object.hasOwn(type, "schema")`, so
+    // a subclass that only inherits one falls back to an inferred schema, which drops the nonvolatile
+    // qualities the run table needs.
     static override readonly schema = TaskManagerBehavior.schema;
-    static peers = new Map<string, FakePeer>();
-    static reconcilerPeer?: FakePeer;
-    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
-        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
-    }
-    protected override taskReconciler(): ReconcilerBehavior {
-        return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
-    }
 
     /** Hands out an identity without running anything, to reproduce a stop before the first record. */
     get internalRunStore() {

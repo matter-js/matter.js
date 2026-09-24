@@ -10,9 +10,9 @@ import { PeerAddress } from "@matter/protocol";
 /**
  * The identity of a node, as anything that outlives the node's presence must name it.
  *
- * A node's local id (`peerN`) is reusable: it is free again once the node is removed, so a record that kept one
- * can resolve to a different device. A {@link PeerAddress} is not — an operational node id is never re-issued
- * to another node of the fabric, and a group's address *is* its group id.
+ * A node's local id (`peerN`) is reusable the moment the node is removed, so a record that kept one can resolve
+ * to a different device. A {@link PeerAddress} holds while the peer is commissioned, which is as long as the
+ * work a record describes can still mean anything; a group's address *is* its group id.
  *
  * Undefined only while a node has no address yet, which is a node that cannot be found again after a restart
  * either.

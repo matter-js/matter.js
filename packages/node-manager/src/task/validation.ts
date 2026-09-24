@@ -157,9 +157,9 @@ export const Require = {
     },
 
     /**
-     * The identity of a peer or group: the one thing about a node that is never re-issued.
+     * The identity of a peer or group, which holds for as long as the peer is commissioned.
      *
-     * A local node id is not that — it is free again once the node is removed — so nothing a record keeps may
+     * A local node id does not: it is free again the moment the node is removed, so nothing a record keeps may
      * be one.
      */
     peerAddress(field: string, value: unknown): void {
