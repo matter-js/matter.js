@@ -22,6 +22,7 @@ import { SupportedClientClusters } from "#endpoint/properties/SupportedClientClu
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
 import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
+import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
 import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
@@ -41,7 +42,7 @@ import {
 } from "@matter/model";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
-import { createNode, deviceTypeList, violationsOf } from "./validation-helpers.js";
+import { createNode, createUnjudgedNode, deviceTypeList, violationsOf } from "./validation-helpers.js";
 
 const { Identify, Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
 
@@ -56,6 +57,8 @@ function lightWith(...behaviors: SupportedBehaviors.List) {
 
 // Lacks the mandatory Identify server, whose own nested TriggerEffect requirement must not repeat the finding
 const lightWithoutIdentify = lightWith(Groups, OnOff, ScenesManagement);
+
+const ASSERTER_ID = 0xfff1_0020;
 
 // Lacks the mandatory ScenesManagement server, whose nested CopyScene requirement must not repeat the finding
 const lightWithoutScenes = lightWith(Identify, Groups, OnOff);
@@ -539,7 +542,7 @@ describe("DeviceTypeConformance", () => {
         });
 
         it("reports a singleton on another endpoint of the node scope", async () => {
-            const node = await createNode();
+            const node = await createUnjudgedNode();
             const light = await node.add(lightWithGroupKeyManagement, { id: "light" });
 
             expect(requirementOf("RootNode", "GroupKeyManagement").quality.singleton).true;
@@ -555,7 +558,7 @@ describe("DeviceTypeConformance", () => {
 
         it("reports a RootNode singleton on a bridged node", async () => {
             // A bridged node is inside the root's node scope until Bridged Node is classified as a node
-            const node = await createNode();
+            const node = await createUnjudgedNode();
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
             const bridged = await aggregator.add(bridgedNodeWithAdministratorCommissioning, { id: "bridged" });
 
@@ -577,7 +580,7 @@ describe("DeviceTypeConformance", () => {
         });
 
         it("judges no singleton outside a node scope", async () => {
-            const node = await createNode();
+            const node = await createUnjudgedNode();
             const light = await node.add(lightWithGroupKeyManagement, { id: "light" });
 
             // Stand-in model: the same tree has a node scope only while RootNode is classified node
@@ -588,7 +591,7 @@ describe("DeviceTypeConformance", () => {
         });
 
         it("keeps a nested node scope's singletons to itself", async () => {
-            const node = await createNode();
+            const node = await createUnjudgedNode();
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
             const bridged = await aggregator.add(BridgedNodeEndpoint.with(GroupKeyManagementBehavior), {
                 id: "bridged",
@@ -603,6 +606,51 @@ describe("DeviceTypeConformance", () => {
 
             await node.close();
         });
+    });
+
+    it("constructs an endpoint carrying an outer singleton below a nested node endpoint", async () => {
+        const node = await createNode();
+        const model = singletonModel({ bridgedNodeIsNode: true });
+        node.env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, node.env, model));
+        const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+
+        // Stand-in model: BridgedNode is a node, so RootNode's GroupKeyManagement singleton does not reach below it
+        const bridged = await aggregator.add({
+            type: BridgedNodeEndpoint,
+            id: "bridged",
+            parts: [{ type: lightWith(GroupKeyManagementBehavior), id: "light" }],
+        });
+
+        expect(bridged.parts.has("light")).true;
+
+        await node.close();
+    });
+
+    it("takes the conditions of the whole tree for an endpoint in no node scope", async () => {
+        // Stand-in model: no device type is a node, and Asserter asserts on the root a condition that makes Identify
+        // mandatory
+        const model = new MatterModel(
+            {},
+            new DeviceTypeModel({ name: "Base", classification: "base" }),
+            new DeviceTypeModel(
+                { name: "Asserter", id: ASSERTER_ID, classification: "simple" },
+                new ConditionModel({ name: "Rooted" }),
+                new RequirementModel({ name: "Rooted", element: "condition", conformance: "M", location: "Root" }),
+                new RequirementModel({ name: "Identify", id: 3, element: "serverCluster", conformance: "Rooted" }),
+            ),
+            new ClusterModel({ name: "Identify", id: 3 }),
+        );
+        model.finalize();
+
+        const node = await createNode();
+        const asserter = await node.add(lightWithoutIdentify.with(DescriptorServer), {
+            id: "asserter",
+            descriptor: { deviceTypeList: deviceTypeList(ASSERTER_ID) },
+        });
+
+        expect(violationsOf(asserter, model)).deep.equals([]);
+
+        await node.close();
     });
 
     it("does not treat another device type's condition as known to a requirement", async () => {
@@ -627,7 +675,7 @@ describe("DeviceTypeConformance", () => {
         const light = await node.add(OnOffLightDevice, { id: "light" });
         const pass = new ValidationPass(model);
 
-        expect(DeviceTypeConformance.check(light, ConditionAssertions.collect(node, pass), pass)).deep.equals([]);
+        expect(DeviceTypeConformance.check(light, pass)).deep.equals([]);
 
         await node.close();
     });

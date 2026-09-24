@@ -5,22 +5,76 @@
  */
 
 import { DescriptorServer } from "#behaviors/descriptor";
+import { GroupKeyManagementBehavior } from "#behaviors/group-key-management";
+import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
 import { RefrigeratorDevice } from "#devices/refrigerator";
 import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
+import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
+import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
+import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
-import { ImplementationError } from "@matter/general";
-import { Matter, MatterModel } from "@matter/model";
+import type { ServerNode } from "#node/ServerNode.js";
+import { Diagnostic, ImplementationError, LogDestination, Logger, LogFormat, LogLevel } from "@matter/general";
+import { DeviceTypeModel, Matter, MatterModel } from "@matter/model";
 import { DeviceTypeId } from "@matter/types";
 import { MockServerNode } from "../../node/mock-server-node.js";
+
+const { Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
+
+/**
+ * An OnOffLight endpoint type with exactly {@link behaviors}.
+ */
+export function lightWith(...behaviors: SupportedBehaviors.List) {
+    return MutableEndpoint({
+        name: "OnOffLight",
+        deviceType: OnOffLightDevice.deviceType,
+        deviceRevision: OnOffLightDevice.deviceRevision,
+        behaviors: SupportedBehaviors(...behaviors),
+    });
+}
+
+/**
+ * Lacks the mandatory Identify and ScenesManagement servers.
+ */
+export const lightWithoutIdentifyAndScenes = lightWith(Groups, OnOff);
+
+/**
+ * Lacks the mandatory Identify server. Descriptor is listed so a test can change the device types.
+ */
+export const lightWithoutIdentify = lightWith(Groups, OnOff, ScenesManagement, DescriptorServer);
+
+/**
+ * Carries GroupKeyManagement, a singleton of RootNode. Stand-in: the unimplemented behavior, because the server cannot
+ * initialize off the root.
+ */
+export const lightWithGroupKeyManagement = OnOffLightDevice.with(GroupKeyManagementBehavior);
 
 /**
  * A started node whose root carries no application endpoint, so each test builds exactly the tree it describes.
  */
 export async function createNode() {
     return MockServerNode.createOnline(undefined, { device: undefined });
+}
+
+/**
+ * A started node like {@link createNode} whose construction judges no device types, so a test can build a tree that
+ * construction would refuse and judge it itself.
+ */
+export async function createUnjudgedNode() {
+    const node = await createNode();
+    node.env.set(DeviceTypeConformanceService, unjudgedServiceOf(node));
+    return node;
+}
+
+/**
+ * A conformance service for {@link node} that judges nothing, because no device type of its model is a node.
+ */
+export function unjudgedServiceOf(node: ServerNode) {
+    const model = new MatterModel({}, new DeviceTypeModel({ name: "Base", classification: "base" }));
+    model.finalize();
+    return new DeviceTypeConformanceService(node, node.env, model);
 }
 
 /**
@@ -75,14 +129,53 @@ export async function addCabinet(parent: Endpoint, id: string) {
 }
 
 /**
- * The violations {@link DeviceTypeConformance.check} finds on {@link endpoint}, with conditions collected across the
- * node scope of the tree's root, both resolved in {@link model}.
+ * The violations {@link DeviceTypeConformance.check} finds on {@link endpoint}, resolved in {@link model}.
  */
 export function violationsOf(endpoint: Endpoint, model: MatterModel = Matter) {
-    let root = endpoint;
-    while (root.owner !== undefined) {
-        root = root.owner;
-    }
-    const pass = new ValidationPass(model);
-    return DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(root, pass), pass);
+    return DeviceTypeConformance.check(endpoint, new ValidationPass(model));
+}
+
+/**
+ * A log line captured by {@link captureLog}.
+ */
+export interface Captured {
+    level: LogLevel;
+    text: string;
+    origin?: Diagnostic.Origin;
+}
+
+/**
+ * The device type conformance warnings logged while {@link actor} runs.
+ */
+export function captureLog(actor: () => void) {
+    using capture = capturing();
+    actor();
+    return capture.conformanceWarnings();
+}
+
+/**
+ * The device type conformance warnings logged until {@link actor} settles.
+ */
+export async function captureLogOf(actor: () => Promise<unknown>) {
+    using capture = capturing();
+    await actor();
+    return capture.conformanceWarnings();
+}
+
+function capturing() {
+    const messages = new Array<Captured>();
+    Logger.destinations.capture = LogDestination({
+        format: LogFormat.formats.plain,
+        write(text, { level, origin }) {
+            messages.push({ level, text, origin });
+        },
+    });
+
+    return {
+        conformanceWarnings: () => messages.filter(({ text }) => text.includes("does not conform")),
+
+        [Symbol.dispose]() {
+            delete Logger.destinations.capture;
+        },
+    };
 }

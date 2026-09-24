@@ -15,7 +15,6 @@ import { MeterReferencePointDevice } from "#devices/meter-reference-point";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
 import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
 import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceEnergyManagementEndpoint } from "#endpoints/device-energy-management";
@@ -325,9 +324,9 @@ describe("composition", () => {
         const innerLight = await addStandIn(inner, "light", "OnOffLight");
 
         const pass = new ValidationPass(nestedScopeModel());
-        DeviceTypeConformance.check(innerLight, ConditionAssertions.collect(inner, pass), pass);
+        DeviceTypeConformance.check(innerLight, pass);
 
-        const violations = DeviceTypeConformance.check(composer, ConditionAssertions.collect(node, pass), pass);
+        const violations = DeviceTypeConformance.check(composer, pass);
         expect(violations.map(({ kind, requirement }) => ({ kind, requirement }))).deep.equals([
             { kind: "instanceCount", requirement: "device:OnOffLight" },
         ]);

@@ -8,6 +8,7 @@ import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { DescriptorServer } from "#behaviors/descriptor";
 import type { Endpoint } from "#endpoint/Endpoint.js";
+import { Lifecycle } from "@matter/general";
 import {
     AttributeModel,
     ClusterElement,
@@ -28,7 +29,7 @@ const deviceTypeMemo = new ValidationPass.Memo<number, DeviceTypeModel | undefin
 const scopeMemo = new ValidationPass.Memo<ClusterModel, Scope>();
 
 /**
- * The facts about a constructed server endpoint that a device type's requirements are judged against.
+ * The facts about a server endpoint that a device type's requirements are judged against.
  *
  * Clusters are named by their model name, as {@link RequirementResolver.clusterOf} answers it. Features are feature
  * codes (e.g. `LT`), which is the name of the feature model {@link RequirementResolver.featureOf} resolves a feature
@@ -36,7 +37,12 @@ const scopeMemo = new ValidationPass.Memo<ClusterModel, Scope>();
  * recorded them in {@link Behaviors.elementsOf}; reading them requires the behavior to be initialized.
  *
  * Device types come from Descriptor's `DeviceTypeList` rather than the endpoint type, because
- * {@link DescriptorServer.addDeviceTypes} adds more at runtime.
+ * {@link DescriptorServer.addDeviceTypes} adds more at runtime. Before the endpoint's behaviors initialize they come
+ * from the list the endpoint is configured with, or else its type, as Descriptor initializes a new list; a list
+ * persisted from an earlier run is not read until then.
+ *
+ * Children are the endpoints whose behaviors have initialized and that are neither crashed nor closing, because only
+ * those answer what their behaviors implement.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
@@ -73,7 +79,7 @@ export class EndpointFacts {
     get deviceTypes(): DeviceTypeModel[] {
         if (this.#deviceTypes === undefined) {
             this.#deviceTypes = new Array<DeviceTypeModel>();
-            for (const { deviceType } of this.#endpoint.stateOf(DescriptorServer).deviceTypeList) {
+            for (const deviceType of deviceTypeIdsOf(this.#endpoint)) {
                 const model = deviceTypeMemo.get(this.#pass, deviceType, () =>
                     this.#pass.model.deviceTypes(deviceType),
                 );
@@ -169,7 +175,7 @@ export class EndpointFacts {
      * The endpoint's direct children.
      */
     get children(): Endpoint[] {
-        return this.#endpoint.hasParts ? [...this.#endpoint.parts] : [];
+        return this.#endpoint.hasParts ? [...this.#endpoint.parts].filter(isReadable) : [];
     }
 
     /**
@@ -238,6 +244,34 @@ export class EndpointFacts {
         }
         return this.#clients;
     }
+}
+
+function deviceTypeIdsOf(endpoint: Endpoint): number[] {
+    if (endpoint.lifecycle.isReady) {
+        return endpoint.stateOf(DescriptorServer).deviceTypeList.map(({ deviceType }) => deviceType);
+    }
+
+    const configured = new Array<number>();
+    const list = endpoint.behaviors.defaultsFor(DescriptorServer)?.deviceTypeList;
+    if (Array.isArray(list)) {
+        for (const entry of list) {
+            if (typeof entry === "object" && entry !== null && "deviceType" in entry) {
+                const { deviceType } = entry;
+                if (typeof deviceType === "number") {
+                    configured.push(deviceType);
+                }
+            }
+        }
+    }
+    return configured.length ? configured : [endpoint.type.deviceType];
+}
+
+function isReadable(endpoint: Endpoint) {
+    if (!endpoint.lifecycle.isReady) {
+        return false;
+    }
+    const { status } = endpoint.construction;
+    return status === Lifecycle.Status.Active || status === Lifecycle.Status.Initializing;
 }
 
 function clusterTypesOf(types: Behavior.Type[]) {

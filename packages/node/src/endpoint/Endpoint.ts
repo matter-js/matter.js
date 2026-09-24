@@ -1068,8 +1068,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Derivatives may override to perform async construction prior to full initialization.
      */
     protected initialize() {
+        const initializer = this.env.get(EndpointInitializer);
+
         // Configure the endpoint for the appropriate node type
-        this.env.get(EndpointInitializer).initializeDescendant(this);
+        initializer.initializeDescendant(this);
 
         // Initialize behaviors.  Success brings endpoint to "ready" state
         let promise = this.behaviors.initialize();
@@ -1081,7 +1083,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             promise = this.parts.initialize();
         }
 
-        return promise;
+        return MaybePromise.then(promise, () => initializer.partsInitialized(this));
     }
 
     /**

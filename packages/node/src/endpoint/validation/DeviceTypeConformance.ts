@@ -30,6 +30,7 @@ const knownNameMemo = new ValidationPass.Memo<RequirementModel, KnownNames>();
 const componentMemo = new ValidationPass.Memo<Endpoint, Map<DeviceTypeModel, Component[]>>();
 const failureMemo = new ValidationPass.Memo<Endpoint, Map<RequirementModel, Violation[]>>();
 const singletonMemo = new ValidationPass.Memo<Endpoint, Map<number, Singleton>>();
+const declarationMemo = new ValidationPass.Memo<Endpoint, Map<number, Singleton>>();
 
 /**
  * Judge a constructed endpoint against the device types it declares.
@@ -57,22 +58,23 @@ export namespace DeviceTypeConformance {
      * each component requirement it fills. A `Descendant` condition is judged on the asserting endpoint against the
      * number of endpoints it reached.
      *
-     * @param collection the conditions of the endpoint's node scope, as {@link ConditionAssertions.collect} answers
-     * them
+     * Conditions are those {@link ConditionAssertions.collect} answers for the endpoint's node scope in {@link pass},
+     * so one pass collects each scope once. An endpoint in no node scope takes the conditions of its whole tree.
+     *
      * @param pass the validation pass the check belongs to, which shares what the checks of several endpoints read and
      * resolves in its model
      *
      * @see {@link MatterSpecification.v16.Core} § 9.2.3
      * @see {@link MatterSpecification.v16.Core} § 9.2.6
      */
-    export function check(
-        endpoint: Endpoint,
-        collection: ConditionAssertions.Collection,
-        pass = new ValidationPass(),
-    ): Violation[] {
+    export function check(endpoint: Endpoint, pass = new ValidationPass()): Violation[] {
         const { model } = pass;
         const violations = new Array<Violation>();
         const facts = EndpointFacts.of(endpoint, pass);
+        const collection = ConditionAssertions.collect(
+            ConditionAssertions.nodeEndpointOf(endpoint, pass) ?? treeRootOf(endpoint),
+            pass,
+        );
         const assertions = collection.conditions;
         const conditions = assertions.get(endpoint) ?? new Set<string>();
 
@@ -121,6 +123,63 @@ export namespace DeviceTypeConformance {
         }
         return [...unique.values()];
     }
+
+    /**
+     * The server clusters of {@link endpoint} and its descendants that a device type of an endpoint above them in the
+     * same node scope declares a singleton, as {@link check} reports them.
+     *
+     * Reads the device types of an endpoint whose behaviors have not initialized as configured, and nothing beside the
+     * endpoint's ancestors, so it judges an endpoint and its descendants before they are constructed. {@link check}
+     * also finds a singleton declared elsewhere in the node scope.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.7.3
+     */
+    export function misplacedSingletons(endpoint: Endpoint, pass = new ValidationPass()): Violation[] {
+        const violations = new Array<Violation>();
+
+        const above = new Array<Endpoint>();
+        let scoped = false;
+        for (let ancestor = endpoint.owner; ancestor !== undefined; ancestor = ancestor.owner) {
+            above.unshift(ancestor);
+            if (EndpointFacts.of(ancestor, pass).isNodeEndpoint) {
+                scoped = true;
+                break;
+            }
+        }
+
+        const visit = (current: Endpoint, inherited: Map<number, Singleton> | undefined) => {
+            const facts = EndpointFacts.of(current, pass);
+            const scope = facts.isNodeEndpoint ? new Map<number, Singleton>() : inherited;
+            const singletons = scope && withDeclarationsOf(current, scope, pass);
+            if (singletons !== undefined) {
+                reportMisplaced(violations, facts, singletons);
+            }
+            if (current.hasParts) {
+                for (const child of current.parts) {
+                    visit(child, singletons);
+                }
+            }
+        };
+
+        visit(
+            endpoint,
+            scoped
+                ? above.reduce(
+                      (scope, ancestor) => withDeclarationsOf(ancestor, scope, pass),
+                      new Map<number, Singleton>(),
+                  )
+                : undefined,
+        );
+        return violations;
+    }
+}
+
+function treeRootOf(endpoint: Endpoint) {
+    let root = endpoint;
+    while (root.owner !== undefined) {
+        root = root.owner;
+    }
+    return root;
 }
 
 /**
@@ -782,8 +841,14 @@ function checkSingletons(violations: Violation[], facts: EndpointFacts, pass: Va
         return;
     }
 
-    const scope = singletonMemo.get(pass, nodeEndpoint, () => singletonsOf(nodeEndpoint, pass));
-    for (const [id, { cluster, deviceType, endpoints }] of scope) {
+    const singletons = singletonMemo.get(pass, nodeEndpoint, () =>
+        singletonsOf(ConditionAssertions.nodeScopeOf(nodeEndpoint, pass), pass),
+    );
+    reportMisplaced(violations, facts, singletons);
+}
+
+function reportMisplaced(violations: Violation[], facts: EndpointFacts, singletons: Map<number, Singleton>) {
+    for (const [id, { cluster, deviceType, endpoints }] of singletons) {
         if (endpoints.has(facts.endpoint) || facts.clusterName("server", id) === undefined) {
             continue;
         }
@@ -799,13 +864,13 @@ function checkSingletons(violations: Violation[], facts: EndpointFacts, pass: Va
 }
 
 /**
- * The server clusters declared singletons in the node scope of {@link nodeEndpoint}, by cluster ID, with the first
+ * The server clusters the device types of {@link declarers} declare singletons, by cluster ID, with the first
  * declaring device type and every declaring endpoint.
  */
-function singletonsOf(nodeEndpoint: Endpoint, pass: ValidationPass) {
+function singletonsOf(declarers: Iterable<Endpoint>, pass: ValidationPass) {
     const singletons = new Map<number, Singleton>();
 
-    for (const endpoint of ConditionAssertions.nodeScopeOf(nodeEndpoint, pass)) {
+    for (const endpoint of declarers) {
         for (const deviceType of EndpointFacts.of(endpoint, pass).deviceTypes) {
             for (const requirement of deviceType.requirements) {
                 if (
@@ -815,7 +880,7 @@ function singletonsOf(nodeEndpoint: Endpoint, pass: ValidationPass) {
                     continue;
                 }
 
-                const cluster = RequirementResolver.clusterOf(requirement);
+                const cluster = clusterMemo.get(pass, requirement, () => RequirementResolver.clusterOf(requirement));
                 if (cluster?.id === undefined) {
                     continue;
                 }
@@ -831,6 +896,28 @@ function singletonsOf(nodeEndpoint: Endpoint, pass: ValidationPass) {
     }
 
     return singletons;
+}
+
+/**
+ * {@link singletons} extended by what the device types of {@link endpoint} declare.
+ */
+function withDeclarationsOf(endpoint: Endpoint, singletons: Map<number, Singleton>, pass: ValidationPass) {
+    const declared = declarationMemo.get(pass, endpoint, () => singletonsOf([endpoint], pass));
+    if (!declared.size) {
+        return singletons;
+    }
+
+    const extended = new Map(singletons);
+    for (const [id, singleton] of declared) {
+        const known = extended.get(id);
+        extended.set(
+            id,
+            known === undefined
+                ? singleton
+                : { ...known, endpoints: new Set([...known.endpoints, ...singleton.endpoints]) },
+        );
+    }
+    return extended;
 }
 
 interface Singleton {

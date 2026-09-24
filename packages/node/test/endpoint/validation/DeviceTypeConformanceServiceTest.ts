@@ -4,72 +4,41 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DescriptorServer } from "#behaviors/descriptor";
-import { GroupKeyManagementBehavior } from "#behaviors/group-key-management";
-import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
-import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
-import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
+import { OnOffLightDevice } from "#devices/on-off-light";
 import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
 import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
-import { Diagnostic, Environment, LogDestination, Logger, LogFormat, LogLevel } from "@matter/general";
+import { Environment, LogLevel } from "@matter/general";
 import { ClusterModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
 import { MockServerNode } from "../../node/mock-server-node.js";
-import { createNode, deviceTypeList } from "./validation-helpers.js";
-
-const { Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
-
-function lightWith(...behaviors: SupportedBehaviors.List) {
-    return MutableEndpoint({
-        name: "OnOffLight",
-        deviceType: OnOffLightDevice.deviceType,
-        deviceRevision: OnOffLightDevice.deviceRevision,
-        behaviors: SupportedBehaviors(...behaviors),
-    });
-}
-
-// Lacks the mandatory Identify and ScenesManagement servers
-const lightWithoutIdentifyAndScenes = lightWith(Groups, OnOff);
-
-// Lacks the mandatory Identify server. Descriptor is listed so a test can change the device types
-const lightWithoutIdentify = lightWith(Groups, OnOff, ScenesManagement, DescriptorServer);
-
-// Carries GroupKeyManagement, a singleton of RootNode. Stand-in: the unimplemented behavior, because the server
-// cannot initialize off the root
-const lightWithGroupKeyManagement = OnOffLightDevice.with(GroupKeyManagementBehavior);
-
-interface Captured {
-    level: LogLevel;
-    text: string;
-    origin?: Diagnostic.Origin;
-}
-
-function captureLog(actor: () => void) {
-    const messages = new Array<Captured>();
-    Logger.destinations.capture = LogDestination({
-        format: LogFormat.formats.plain,
-        write(text, { level, origin }) {
-            messages.push({ level, text, origin });
-        },
-    });
-    try {
-        actor();
-    } finally {
-        delete Logger.destinations.capture;
-    }
-    return messages.filter(({ text }) => text.includes("does not conform"));
-}
+import {
+    captureLog,
+    captureLogOf,
+    createNode,
+    createUnjudgedNode,
+    deviceTypeList,
+    lightWithGroupKeyManagement,
+    lightWithoutIdentify,
+    lightWithoutIdentifyAndScenes,
+} from "./validation-helpers.js";
 
 function serviceOf(node: MockServerNode) {
     return node.env.get(DeviceTypeConformanceService);
 }
 
-async function createStrictNode(strict: boolean) {
+/**
+ * A service of {@link node} that has reported nothing yet, strict as {@link strict} says or as the node's environment
+ * says without it.
+ */
+function judgeOf(node: MockServerNode, strict?: boolean) {
+    if (strict === undefined) {
+        return new DeviceTypeConformanceService(node, node.env);
+    }
     const environment = new Environment("test");
     environment.vars.set("endpoint.validation.strict", strict);
-    return MockServerNode.createOnline(undefined, { environment, device: undefined });
+    return new DeviceTypeConformanceService(node, environment);
 }
 
 /**
@@ -93,25 +62,26 @@ function modelWithoutNodes() {
 
 describe("DeviceTypeConformanceService", () => {
     it("logs one warning listing every violation of an endpoint", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentifyAndScenes, { id: "light" });
+        const service = judgeOf(node);
 
-        const logged = captureLog(() => serviceOf(node).validate(light));
+        const logged = captureLog(() => service.validate(light));
 
         expect(logged.length).equals(1);
         expect(logged[0].level).equals(LogLevel.WARN);
         expect(logged[0].text).contains("missing OnOffLight Identify: Mandatory server cluster Identify is missing");
         expect(logged[0].text).contains("missing OnOffLight ScenesManagement");
-        expect(serviceOf(node).knows(light)).true;
+        expect(service.knows(light)).true;
 
         await node.close();
     });
 
     it("names the node as the origin of its warning", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
-        const logged = captureLog(() => serviceOf(node).validate(light));
+        const logged = captureLog(() => judgeOf(node).validate(light));
 
         expect(logged.length).equals(1);
         expect(logged[0].origin).equals(node.env.logOrigin);
@@ -120,9 +90,9 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("does not log the same violation twice", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = serviceOf(node);
+        const service = judgeOf(node);
 
         expect(captureLog(() => service.validate(light)).length).equals(1);
         expect(captureLog(() => service.validate(light))).deep.equals([]);
@@ -131,9 +101,9 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("logs only the new violation of an endpoint it reported before", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = serviceOf(node);
+        const service = judgeOf(node);
         captureLog(() => service.validate(light));
 
         // DimmableLight adds the mandatory LevelControl server the light lacks
@@ -148,9 +118,9 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("logs a violation again once it disappeared and returned", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = serviceOf(node);
+        const service = judgeOf(node);
         captureLog(() => service.validate(light));
 
         // Without a device type the endpoint violates nothing
@@ -165,19 +135,21 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("is not strict unless the environment says so", async () => {
-        const node = await createStrictNode(false);
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
-        expect(serviceOf(node).strict).false;
-        expect(captureLog(() => serviceOf(node).validate(light)).length).equals(1);
+        const service = judgeOf(node, false);
+
+        expect(service.strict).false;
+        expect(captureLog(() => service.validate(light)).length).equals(1);
 
         await node.close();
     });
 
     it("throws when validation is strict", async () => {
-        const node = await createStrictNode(true);
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = serviceOf(node);
+        const service = judgeOf(node, true);
 
         expect(service.strict).true;
 
@@ -202,9 +174,9 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("refuses an endpoint again until it conforms", async () => {
-        const node = await createStrictNode(true);
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = serviceOf(node);
+        const service = judgeOf(node, true);
 
         expect(() => service.validate(light)).throws(DeviceTypeConformanceError);
         expect(service.knows(light)).false;
@@ -214,9 +186,9 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("keeps what it reported for an endpoint it refuses", async () => {
-        const node = await createStrictNode(true);
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = serviceOf(node);
+        const service = judgeOf(node, true);
         expect(captureLog(() => service.validate(light, { refuse: false })).length).equals(1);
 
         // DimmableLight adds the mandatory LevelControl server the light lacks
@@ -244,18 +216,18 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("logs rather than throws in strict mode when told not to refuse", async () => {
-        const node = await createStrictNode(true);
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
-        expect(captureLog(() => serviceOf(node).validate(light, { refuse: false })).length).equals(1);
+        expect(captureLog(() => judgeOf(node, true).validate(light, { refuse: false })).length).equals(1);
 
         await node.close();
     });
 
     it("throws a misplaced singleton when validation is not strict", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithGroupKeyManagement, { id: "light" });
-        const service = serviceOf(node);
+        const service = judgeOf(node);
 
         expect(service.strict).false;
         expect(() => service.validate(light)).throws(DeviceTypeConformanceError);
@@ -264,14 +236,15 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("throws the first refused endpoint and logs the others", async () => {
-        const node = await createStrictNode(true);
+        const node = await createUnjudgedNode();
         const first = await node.add(lightWithoutIdentify, { id: "first" });
         const second = await node.add(lightWithoutIdentify, { id: "second" });
+        const service = judgeOf(node, true);
 
         let error: unknown;
         const logged = captureLog(() => {
             try {
-                serviceOf(node).validate([first, second]);
+                service.validate([first, second]);
             } catch (e) {
                 error = e;
             }
@@ -283,7 +256,6 @@ describe("DeviceTypeConformanceService", () => {
         expect(logged[0].text).contains("second");
 
         // The logged endpoint counts as reported, the thrown one does not
-        const service = serviceOf(node);
         expect(service.knows(first)).false;
         expect(service.knows(second)).true;
         expect(() => service.validate(second)).not.throws();
@@ -292,11 +264,24 @@ describe("DeviceTypeConformanceService", () => {
         await node.close();
     });
 
+    it("records nothing for an addition it refuses", async () => {
+        const node = await createUnjudgedNode();
+        const parent = await node.add(lightWithoutIdentify, { id: "parent" });
+        const child = await parent.add(lightWithoutIdentify, { id: "child" });
+        const service = judgeOf(node, true);
+
+        captureLog(() => expect(() => service.validateAddition(child)).throws(DeviceTypeConformanceError));
+
+        expect(service.knows(parent)).false;
+
+        await node.close();
+    });
+
     it("validates every endpoint of a node scope", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const first = await node.add(lightWithoutIdentify, { id: "first" });
         const second = await node.add(lightWithoutIdentify, { id: "second" });
-        const service = serviceOf(node);
+        const service = judgeOf(node);
 
         const logged = captureLog(() => service.validateNodeScope(first));
 
@@ -308,7 +293,7 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("does not judge an endpoint in no node scope", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
         // RootNode is not a node here, so nothing is judged, though OnOffLight requires the missing Identify
@@ -321,7 +306,7 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("validates no node scope for an endpoint in none", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
         const service = new DeviceTypeConformanceService(node, node.env, modelWithoutNodes());
 
@@ -332,9 +317,9 @@ describe("DeviceTypeConformanceService", () => {
     });
 
     it("reports an endpoint's violations again once it is forgotten", async () => {
-        const node = await createNode();
+        const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = serviceOf(node);
+        const service = judgeOf(node);
         captureLog(() => service.validate(light));
 
         service.forget(light);
@@ -345,17 +330,16 @@ describe("DeviceTypeConformanceService", () => {
         await node.close();
     });
 
-    it("forgets every endpoint on factory reset", async () => {
+    it("reports every endpoint again after a factory reset", async () => {
         const node = await createNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
         const service = serviceOf(node);
-        captureLog(() => service.validate(light));
         expect(service.knows(light)).true;
 
-        await MockTime.resolve(node.erase(), { macrotasks: true });
+        const logged = await captureLogOf(() => MockTime.resolve(node.erase(), { macrotasks: true }));
 
         expect(serviceOf(node)).equals(service);
-        expect(service.knows(light)).false;
+        expect(logged.filter(({ text }) => text.includes("light")).length).equals(1);
 
         await node.close();
     });
