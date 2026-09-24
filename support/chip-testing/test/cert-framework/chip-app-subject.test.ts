@@ -462,6 +462,29 @@ describe("ChipLocalSubject", () => {
         }
     });
 
+    it("spawns an app whose CHIP binary does not carry the chip- prefix", async function () {
+        this.timeout(15_000);
+
+        await writeFile(join(appDir, "matter-network-manager-app"), "#!/bin/sh\necho nm-line\nexec sleep 300\n", {
+            mode: 0o755,
+        });
+
+        const device = ChipLocalSubject("network-manager")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["nm-line"]);
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
     it("hands a simulation command to the app through the pipe it opened", async function () {
         this.timeout(15_000);
 
