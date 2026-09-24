@@ -253,10 +253,9 @@ export class ReconcilerBehavior extends Behavior {
         this.internal.unmanagedReason = undefined;
         this.state.managedFabricId = String(fabric.globalId);
         logger.info(`Reconciler manages fabric ${GlobalFabricId.strOf(fabric.globalId)} (index ${fabric.fabricIndex})`);
+        this.events.managedFabricAdopted.emit(fabric.globalId);
         for (const peer of this.internal.fabric.peers()) {
-            if (!this.internal.peerObservers.has(peer)) {
-                this.#wirePeer(peer);
-            }
+            this.#wirePeer(peer);
             if (this.#reachable(peer)) {
                 this.#schedule(peer, { verify: true, refreshCapacity: true });
             }
@@ -267,15 +266,13 @@ export class ReconcilerBehavior extends Behavior {
     /**
      * Give up the fabric, for a reason a caller can act on.
      *
-     * `forgetIdentity` says the fabric itself is gone rather than merely unreachable from here, so the manager
-     * may take up another. Kept otherwise: a manager that forgot which fabric its stored records describe would
-     * adopt the next one and drive that run's peers against a fabric that never saw the work.
+     * The stored identity stays, whatever the reason. A manager that forgot which fabric its records and
+     * desired state describe would adopt whichever fabric is present — and the fabric table drops a fabric
+     * before it announces the removal, so "one fabric left and nothing stored" is exactly the state a deletion
+     * would leave behind. Taking up another fabric is an operator's decision, made by naming its index.
      */
-    #stayUnmanaged(reason: string, forgetIdentity = false): void {
+    #stayUnmanaged(reason: string): void {
         this.internal.unmanagedReason = reason;
-        if (forgetIdentity) {
-            this.state.managedFabricId = null;
-        }
     }
 
     #fabricDeleted(fabric: Fabric): void {
@@ -291,7 +288,6 @@ export class ReconcilerBehavior extends Behavior {
         this.internal.fabric = undefined;
         this.#stayUnmanaged(
             `the fabric it managed (${GlobalFabricId.strOf(fabric.globalId)}) was removed from this controller`,
-            true,
         );
         this.internal.sweepTimer?.stop();
         this.internal.sweepTimer = undefined;
@@ -339,6 +335,12 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     #wirePeer(peer: ClientNode) {
+        // Asked for from initialization, from `peers.added` and from adopting a fabric. A second group would
+        // replace the first without closing it, and its observers would go on firing with nothing to dispose
+        // them.
+        if (this.internal.peerObservers.has(peer)) {
+            return;
+        }
         const observers = new ObserverGroup();
         this.internal.peerObservers.set(peer, observers);
 
@@ -561,6 +563,13 @@ export namespace ReconcilerBehavior {
     }
 
     export class Events extends Behavior.Events {
+        /**
+         * A fabric is managed from now on.
+         *
+         * What was deferred for want of one — a resume pass, a departed-peer sweep — happens on this.
+         */
+        managedFabricAdopted = Observable<[globalId: GlobalFabricId]>();
+
         /**
          * The managed fabric left the controller, so nothing of it can be reached again.
          *
