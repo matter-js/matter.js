@@ -110,6 +110,7 @@ describe("RunStore", () => {
                             phaseIndex: 0,
                             changeSet: [],
                             wrote: false,
+                            fabric: "1",
                             [field]: value,
                         },
                     } as unknown as Record<string, TaskPersistence>,
@@ -129,6 +130,7 @@ describe("RunStore", () => {
                             phaseIndex: 0,
                             changeSet: [],
                             wrote: false,
+                            fabric: "1",
                             // What a group task actually carries: raw key material, and a bigint that cannot be
                             // serialized at all.
                             params: { newEpochKey: KEY_MATERIAL, epochStartTime0: 1n },
@@ -188,6 +190,10 @@ describe("RunStore", () => {
             ["wrote", "false"],
             ["rollbackOf", "2"],
             ["rollbackRunId", 0],
+            ["fabric", undefined],
+            ["fabric", ""],
+            ["fabric", "0x1f"],
+            ["fabric", 1],
         ] as Array<[string, unknown]>) {
             // Named without JSON: a change entry carries a node id, which is a bigint and cannot be stringified.
             it(`refuses a record whose ${field} is ${describeValue(value)}`, () => {
@@ -208,6 +214,7 @@ describe("RunStore", () => {
                             phaseIndex: 0,
                             changeSet: [],
                             wrote: false,
+                            fabric: "1",
                         },
                     } as unknown as Record<string, TaskPersistence>,
                 }),
@@ -224,6 +231,7 @@ describe("RunStore", () => {
                 phaseIndex: 0,
                 changeSet: [],
                 wrote: false,
+                fabric: "1",
             });
             expect(() =>
                 store.load({

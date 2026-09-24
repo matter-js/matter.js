@@ -18,7 +18,8 @@ import {
 } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
-import { PeerAddress } from "@matter/protocol";
+import { FabricManager, PeerAddress } from "@matter/protocol";
+import { GlobalFabricId } from "@matter/types";
 import {
     TaskAbandonedError,
     TaskAbandonedSignal,
@@ -48,6 +49,7 @@ import {
     TaskSlotOccupiedError,
     TaskSlotSettlingError,
     TaskStopSignal,
+    TaskSettledSignal,
     TaskStoreVersionError,
     TaskSupersededError,
     TaskSuspendedSignal,
@@ -285,12 +287,13 @@ export class TaskManagerBehavior extends Behavior {
      * for a peer that left while this process was not running.
      */
     async #reviewDepartedPeers(): Promise<void> {
-        // A manager with no fabric resolves no peer, which is not the same as every peer having left: reading
-        // it that way would retire every stored run the first time a controller started without one settled.
-        if (this.managedFabric() === undefined) {
-            return;
-        }
         for (const record of this.internal.runs.unfinished) {
+            // A manager that does not hold a run's fabric resolves none of its peers, which is not the same as
+            // every one of them having left: reading it that way would retire every stored run the first time a
+            // controller started without its fabric settled.
+            if (!this.#drivesFabricOf(record)) {
+                continue;
+            }
             // Another verb already owns this run's outcome and will settle it; deciding here too would write a
             // second outcome over the first.
             if (this.internal.runs.transitionOf(record.runId) !== undefined) {
@@ -360,14 +363,22 @@ export class TaskManagerBehavior extends Behavior {
             this.internal.runs.executionOf(record.runId)?.gate.wake.emit();
             return;
         }
+        // A verb that claimed the run while this sweep awaited an earlier write decides it, as the sweep's own
+        // entry check assumes; waiting here instead would hold every later record behind that verb's unwind.
+        if (this.internal.runs.transitionOf(record.runId) !== undefined || isTerminal(record.state)) {
+            return;
+        }
         logger.notice(
             `${runLabel(record.runId)} ends: ${addressLabel(address)} left the fabric and ${record.type} cannot continue without it`,
         );
         const execution = this.internal.runs.executionOf(record.runId);
         if (execution === undefined) {
             // Nothing is driving it, so this has to do what the driver's failure path would, including the
-            // rollback of what the run changed on the peers that are still here.
-            await this.#failUndriven(record, bound, without, `${addressLabel(address)} left the fabric`);
+            // rollback of what the run changed on the peers that are still here — as the owner of its outcome,
+            // because the writes below yield and another verb could otherwise decide it in between.
+            await this.#transition(record, "settlement", () =>
+                this.#failUndriven(record, bound, without, `${addressLabel(address)} left the fabric`),
+            );
             return;
         }
         // Driven: the driver owns the outcome, so it is aborted and its own failure path records it — which
@@ -430,13 +441,144 @@ export class TaskManagerBehavior extends Behavior {
         rollback.start();
     }
 
+    /**
+     * End what this manager holds for a fabric the controller no longer has.
+     *
+     * Nothing on it can be reached again, not to finish and not to undo, so no run of it is driven, no rollback
+     * of it starts, and none of its priors are kept: they exist to be replayed, and a device on a later fabric
+     * can inherit the addresses they name. A run ends `failed` and a rollback `abandoned`, the state that says a
+     * device is knowingly left part-changed.
+     *
+     * Keyed on the fabric table rather than on the removal event, so the next start settles a fabric that left
+     * while this process was not running. Each record settles on its own: one driver slow to stop holds up no
+     * other.
+     */
+    #settleLostFabrics(): void {
+        for (const record of this.internal.runs.records) {
+            this.#settleIfFabricGone(record);
+        }
+    }
+
+    #settleIfFabricGone(record: RunRecord): void {
+        this.#settleForLostFabric(record).catch(e => {
+            // Shutdown refuses the write; the record is left as the next start finds it, and settled then.
+            if (this.#isClosing) {
+                logger.debug(`${runLabel(record.runId)} not settled before shutdown`, e);
+                return;
+            }
+            logger.error(`Cannot settle ${runLabel(record.runId)} for its fabric leaving this controller`, e);
+        });
+    }
+
+    /** Settle one record of a fabric that left, as the exclusive owner of its outcome. */
+    async #settleForLostFabric(record: RunRecord): Promise<void> {
+        if (!this.#fabricGone(record)) {
+            return;
+        }
+        for (let pending = this.#pendingTransition(record.runId); pending !== undefined;) {
+            await pending;
+            pending = this.#pendingTransition(record.runId);
+        }
+        if (this.#lostFabricDisposition(record) === undefined) {
+            return;
+        }
+        const execution = this.internal.runs.executionOf(record.runId);
+        await this.#transition(record, "settlement", async () => {
+            if (execution !== undefined) {
+                await this.#unwind(execution, this.#stopSignal("settlement", record.runId));
+                // #retire declined to release a run that reached an outcome inside the window, because this
+                // transition owns it.
+                if (isTerminal(record.state)) {
+                    this.internal.runs.commitRetirement(record);
+                }
+            }
+            this.#refuseIfClosing(`${runLabel(record.runId)} cannot be settled`);
+            // Decided after the unwind: the driver may have reached an outcome of its own meanwhile.
+            const disposition = this.#lostFabricDisposition(record);
+            if (disposition === undefined) {
+                return;
+            }
+            try {
+                await this.#commitRetiring(...this.#lostFabricSettlement(record, disposition));
+            } catch (e) {
+                if (!isTerminal(record.state) && !this.#isClosing) {
+                    if (execution !== undefined) {
+                        execution.driverGaveUp = true;
+                    }
+                    this.#giveUpOnStating(record, this.#unstated(record.runId));
+                }
+                throw e;
+            }
+            this.internal.runs.commitRetirement(record);
+        });
+    }
+
+    /**
+     * What settling `record` for its fabric's departure does, or undefined when nothing of it is left to settle.
+     *
+     * Unfinished work ends; a failed rollback still answering for its original is given up on, as `abandon`
+     * would; and an original whose priors nothing can replay loses them. A rollback that ends spends its
+     * original's priors in the same write, so the original needs no settlement of its own.
+     */
+    #lostFabricDisposition(record: RunRecord): "end" | "abandon" | "spendPriors" | undefined {
+        // Forgotten by a retirement since the pass began, writing it would put it back; not recorded yet, its
+        // producer may still discard it, and a write here would store a run nothing links to. A run admitted
+        // that late is settled when its driver meets the missing fabric.
+        if (this.internal.runs.get(record.runId) !== record || !record.recorded || !this.#fabricGone(record)) {
+            return undefined;
+        }
+        const runs = this.internal.runs;
+        if (record.rollbackOf !== undefined) {
+            const answering =
+                !isTerminal(record.state) ||
+                (record.state === "failed" && runs.rollbackFor(record.rollbackOf) === record);
+            return answering ? "abandon" : undefined;
+        }
+        if (!isTerminal(record.state)) {
+            return "end";
+        }
+        return record.changeSet.length > 0 && runs.rollbackFor(record.runId) === undefined ? "spendPriors" : undefined;
+    }
+
+    /** The write a {@link #lostFabricDisposition} makes. */
+    #lostFabricSettlement(record: RunRecord, disposition: "end" | "abandon" | "spendPriors"): RunChange[] {
+        const reason = `the fabric it acts on (${record.fabric}) left this controller`;
+        const retireSeq = this.internal.runs.nextRetirement(record);
+        switch (disposition) {
+            case "end":
+                return [{ record, next: { state: "failed", error: reason, retireSeq, changeSet: [] }, drop: RETIRE }];
+            case "abandon":
+                return [
+                    {
+                        record,
+                        next: {
+                            state: "abandoned",
+                            error: this.#abandonReason(record.error, reason),
+                            retireSeq,
+                            changeSet: [],
+                        },
+                        drop: RETIRE,
+                    },
+                    ...this.#priorsSpentByUndo(record),
+                ];
+            case "spendPriors":
+                return [{ record, next: { changeSet: [] } }];
+        }
+    }
+
     #resumePersisted(): void {
         // Subscribed here rather than at initialize: reading `peers` builds the container, which is not ready
         // while this early behavior initializes. A peer removed before this point is settled by the sweep
         // below, which keys on what no longer resolves rather than on the event.
         this.reactTo(this.#rootNode.peers.deleted, this.#reviewDepartedPeers);
-        // What this pass defers for want of a fabric is not deferred forever: adopting one runs it again.
+        // What this pass defers because the manager does not hold a run's fabric is not deferred forever:
+        // adopting that fabric runs it again.
         this.reactTo(this.endpoint.eventsOf(ReconcilerBehavior).managedFabricAdopted, this.#resumePersisted);
+        // Any fabric leaving, managed or not: the runs of one this manager does not manage are settled too.
+        this.reactTo(this.env.get(FabricManager).events.deleted, this.#settleLostFabrics);
+        // Not awaited by what follows: it ends only runs whose fabric is gone, which the resume pass and the
+        // departed-peer sweep both skip; a driver still attached to one is stopped by the settlement itself.
+        this.#settleLostFabrics();
         // Awaited before anything is driven: a run the sweep is about to end must not pick up a driver that
         // would write to the peers the sweep is rolling back.
         this.#reviewDepartedPeers()
@@ -502,14 +644,14 @@ export class TaskManagerBehavior extends Behavior {
         if (!this.internal.registry.has(type)) {
             return;
         }
-        // Driving acts on peers of the fabric this manager holds. With none held, every record would resolve
-        // no peer, and a run driven that way records an outcome for work it never did. The records keep their
-        // targets and a later start, with a fabric settled, resumes them.
-        if (this.managedFabric() === undefined) {
-            return;
-        }
         for (const record of this.#resumable) {
             if (record.type !== type) {
+                continue;
+            }
+            // Driving acts on peers of the fabric this manager holds. A record of any other fabric would
+            // resolve no peer, and a run driven that way records an outcome for work it never did. It keeps its
+            // target: adopting its fabric resumes it, and the fabric leaving the controller settles it.
+            if (!this.#drivesFabricOf(record)) {
                 continue;
             }
             // A transition owns this run's outcome and will settle it; a driver attached now would advance a
@@ -685,7 +827,7 @@ export class TaskManagerBehavior extends Behavior {
             return { verdict: "blocked", findings: [findingOf(unreadable)] };
         }
         const bound = this.#interpretCallerRun(definition, params);
-        const admission = this.#admission(bound, { externalId: opts?.externalId });
+        const admission = this.#admission(bound, this.#seed({ externalId: opts?.externalId }));
         switch (admission.verdict) {
             case "blocked":
                 return { verdict: "blocked", findings: [findingOf(admission.refusal)] };
@@ -750,7 +892,7 @@ export class TaskManagerBehavior extends Behavior {
 
         // 2. The work names peers; this manager answers for one fabric's. Asked before the slot, because a
         //    request for another fabric is not competing for anything here.
-        const foreign = this.#fabricRefusal(bound, slotKey);
+        const foreign = this.#fabricRefusal(bound, slotKey, seed.fabric);
         if (foreign !== undefined) {
             return blocked(foreign);
         }
@@ -902,8 +1044,9 @@ export class TaskManagerBehavior extends Behavior {
      *
      * Everything that changes state happens here; {@link #admission} decides and changes nothing.
      */
-    #spawn(bound: BoundDefinition, seed: Partial<TaskPersistence>): SpawnedExecution {
+    #spawn(bound: BoundDefinition, requested: Partial<TaskPersistence>): SpawnedExecution {
         const runs = this.internal.runs;
+        const seed = this.#seed(requested);
         const admission = this.#admission(bound, seed);
         if (admission.verdict === "blocked") {
             throw admission.refusal;
@@ -916,6 +1059,11 @@ export class TaskManagerBehavior extends Behavior {
         const execution = new Execution(record, bound);
         runs.admit(record, execution);
         return { execution, joined: false };
+    }
+
+    /** A new run's persisted fields: a rollback carries the fabric of the run it undoes, anything else the managed one. */
+    #seed(requested: Partial<TaskPersistence>): Partial<TaskPersistence> {
+        return { ...requested, fabric: requested.fabric ?? this.#managedFabricKey() };
     }
 
     /** Resolve a run: live, awaiting resume, or retired — the record answers all three. */
@@ -1553,9 +1701,14 @@ export class TaskManagerBehavior extends Behavior {
 
     /** The stop a driver sees, matching the verb that took over. Never a plain error: #drive would fail the run. */
     #stopSignal(teardown: Teardown, runId: RunId): TaskStopSignal {
-        return teardown === "cancel"
-            ? new TaskCancelledSignal(`${runLabel(runId)} cancelled`)
-            : new TaskAbandonedSignal(`${runLabel(runId)} abandoned`);
+        switch (teardown) {
+            case "cancel":
+                return new TaskCancelledSignal(`${runLabel(runId)} cancelled`);
+            case "abandon":
+                return new TaskAbandonedSignal(`${runLabel(runId)} abandoned`);
+            case "settlement":
+                return new TaskSettledSignal(`${runLabel(runId)} ended by the manager`);
+        }
     }
 
     /**
@@ -1681,7 +1834,7 @@ export class TaskManagerBehavior extends Behavior {
         }
         // `rollbackOf` is seeded on every rollback the manager creates, retries included: it is the identity
         // link that refuses a re-run of the original, and a rollback that lacks it excludes nothing.
-        const { execution: rollback, joined } = this.#spawn(bound, { rollbackOf: record.runId });
+        const { execution: rollback, joined } = this.#spawn(bound, { rollbackOf: record.runId, fabric: record.fabric });
         // The link is not set here: it is part of the state the caller's write carries, so a refused write
         // leaves the run not naming a rollback that was never recorded.
         // A joined rollback is already live and driving, so it is not ours to start or to forget.
@@ -1695,7 +1848,7 @@ export class TaskManagerBehavior extends Behavior {
         };
     }
 
-    /** Throw a recorded abort (a cancel, an abandon or shutdown) so the driver stops before it writes. */
+    /** Throw a recorded abort (a cancel, an abandon, a settlement or shutdown) so the driver stops before it writes. */
     #throwIfAborted(execution: Execution): void {
         const aborted = execution.gate.aborted;
         if (aborted !== undefined) {
@@ -1710,13 +1863,24 @@ export class TaskManagerBehavior extends Behavior {
      * parameters. Work that names peers it cannot know in advance is bounded instead by the peers the manager
      * hands it, and by `resolvePeer`, which refuses an address of another fabric.
      */
-    #fabricRefusal(bound: BoundDefinition, slotKey: string): TaskRefusedError | undefined {
+    #fabricRefusal(
+        bound: BoundDefinition,
+        slotKey: string,
+        runFabric: string | undefined,
+    ): TaskRefusedError | undefined {
         const fabric = this.managedFabric();
         if (fabric === undefined) {
             // Whatever the work names: every item this layer writes is fabric-scoped, and a task that names no
             // peer reaches the ones the manager hands it, which is none. Admitting it would report work done
             // that never touched a device.
             return new TaskNoManagedFabricError(`Task ${slotKey} rejected: ${this.unmanagedReason()}`);
+        }
+        // A rollback replays what a run found on the devices of its own fabric. Once another fabric is managed,
+        // the addresses it would replay onto may name that fabric's devices, because indices are reused.
+        if (runFabric !== String(fabric.globalId)) {
+            return new TaskForeignFabricError(
+                `Task ${slotKey} rejected: it acts on fabric ${runFabric ?? "(none recorded)"}, and this manager manages ${fabric.globalId}`,
+            );
         }
         const named = [...bound.peers(), ...bound.plannedChanges().map(change => change.peer)];
         for (const peer of named) {
@@ -1735,7 +1899,9 @@ export class TaskManagerBehavior extends Behavior {
      */
     async #admit(execution: Execution): Promise<void> {
         const planned = execution.bound.plannedChanges();
-        if (planned.length === 0) {
+        // A run of a fabric not managed now resolves none of its peers, and asking by address would reach
+        // whichever fabric holds that index. The drive loop suspends it before any phase.
+        if (planned.length === 0 || !this.#drivesFabricOf(execution.record)) {
             return;
         }
         const byNodeKind = new Map<string, PlannedChange[]>();
@@ -1801,10 +1967,11 @@ export class TaskManagerBehavior extends Behavior {
             while (record.phaseIndex < execution.phases.length && record.state === "running") {
                 const phase = execution.phases[record.phaseIndex];
                 // Before the phase, not only inside its gate: a phase reaches peers through the manager, and
-                // with no fabric there are none, which a phase reads as "nothing to do" and completes on.
-                if (this.managedFabric() === undefined) {
+                // without the run's fabric there are none, which a phase reads as "nothing to do" and completes
+                // on.
+                if (!this.#drivesFabricOf(record)) {
                     throw new TaskSuspendedSignal(
-                        `${runLabel(record.runId)} waits for a fabric: ${this.unmanagedReason()}`,
+                        `${runLabel(record.runId)} waits for fabric ${record.fabric}, which this manager does not manage`,
                     );
                 }
                 const ctx = await this.endpoint.act(agent => this.#contextFor(execution, this.taskReconciler(agent)));
@@ -1857,8 +2024,13 @@ export class TaskManagerBehavior extends Behavior {
             }
             // Nothing to drive against: the run keeps its state and its target, and the adoption of a fabric
             // resumes it. Recording a failure would state an outcome for work that was never attempted.
-            if (e instanceof TaskSuspendedSignal && this.managedFabric() === undefined) {
-                logger.warn(`${runLabel(record.runId)} is not driven while no fabric is managed`);
+            if (e instanceof TaskSuspendedSignal && !this.#drivesFabricOf(record)) {
+                if (this.#fabricGone(record)) {
+                    // Admitted, or made durable, after the settlement pass looked at it.
+                    this.#settleIfFabricGone(record);
+                } else {
+                    logger.warn(`${runLabel(record.runId)} is not driven while its fabric is not managed`);
+                }
                 return;
             }
             // Teardown: neither the failure nor a rollback of it can be recorded, and the rollback's driving would
@@ -1947,15 +2119,18 @@ export class TaskManagerBehavior extends Behavior {
             record.state = state;
             this.#mutex.run(() => this.#writeRecords([{ record }]));
         };
+        // Every peer question is asked per run: a phase already under way when its fabric leaves must reach
+        // nothing, even once another fabric is managed and the addresses it names resolve there.
+        const drives = () => this.#drivesFabricOf(record);
         return new RunningTaskContext(
             record,
-            id => this.resolvePeerNode(id),
+            id => (drives() ? this.resolvePeerNode(id) : undefined),
             reconciler,
             setState,
             this.#gateFor(execution.gate),
-            () => this.managedPeers(),
+            () => (drives() ? this.managedPeers() : new Array<ClientNode>()),
             next => this.#commit({ record, next }),
-            () => this.managedFabric() !== undefined,
+            drives,
         );
     }
 
@@ -1994,6 +2169,34 @@ export class TaskManagerBehavior extends Behavior {
      */
     protected managedFabric(): ManagedFabric | undefined {
         return this.endpoint.behaviors.internalsOf(ReconcilerBehavior).fabric;
+    }
+
+    /** The managed fabric as a record stores it, or undefined while none is managed. */
+    #managedFabricKey(): string | undefined {
+        const fabric = this.managedFabric();
+        return fabric === undefined ? undefined : String(fabric.globalId);
+    }
+
+    /**
+     * Whether this manager may drive `record`: it manages the fabric the run acts on.
+     *
+     * The one question every path that reaches a run's peers asks. Holding no fabric at all is the case where it
+     * answers false for every run, which is not the same as the run's fabric having left — see
+     * {@link #fabricGone}.
+     */
+    #drivesFabricOf(record: RunRecord): boolean {
+        const managed = this.#managedFabricKey();
+        return managed !== undefined && record.fabric === managed;
+    }
+
+    /** Whether the fabric `record` acts on has left this controller, so none of its work can be reached again. */
+    #fabricGone(record: RunRecord): boolean {
+        return record.fabric !== undefined && !this.fabricOnController(record.fabric);
+    }
+
+    /** Whether the controller holds the fabric a record names. Overridable for testing. */
+    protected fabricOnController(fabric: string): boolean {
+        return this.env.get(FabricManager).maybeFor(GlobalFabricId(fabric)) !== undefined;
     }
 
     /** Why no fabric is managed, for the refusal a caller receives. Overridable for testing. */

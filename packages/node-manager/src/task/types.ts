@@ -51,7 +51,7 @@ export function isRetireSeq(value: unknown): value is RetireSeq {
 }
 
 /** A verb that takes ownership of a run's outcome, stopping its driver first. */
-export type Teardown = "cancel" | "abandon";
+export type Teardown = "cancel" | "abandon" | "settlement";
 
 /**
  * Where a run stands. `abandoned` belongs to rollbacks alone: an operator gave up on the undo, so the device is

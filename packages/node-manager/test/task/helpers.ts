@@ -606,7 +606,11 @@ export class TestTaskManagerBase extends TaskManagerBehavior {
         return this.fixtures.reconcilerPeer as unknown as ReconcilerBehavior;
     }
 
-    protected override managedFabric() {
+    protected override fabricOnController(fabric: string) {
+        return fabric === String(this.managedFabric()?.globalId);
+    }
+
+    protected override managedFabric(): ManagedFabric | undefined {
         return testFabric(() => [...this.fixtures.peers.values()].map(peer => peer.asNode()));
     }
 }

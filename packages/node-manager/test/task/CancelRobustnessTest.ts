@@ -632,6 +632,7 @@ describe("cancel robustness", () => {
                     state: "running",
                     changeSet: [],
                     wrote: false,
+                    fabric: "1",
                 },
             };
         });

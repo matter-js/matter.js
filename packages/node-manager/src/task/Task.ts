@@ -42,6 +42,15 @@ export interface TaskPersistence {
     rollbackRunId?: RunId;
     /** The run this one undoes, when it is itself a rollback. Pass that id to `retryRollback`. */
     rollbackOf?: RunId;
+    /**
+     * The fabric this run acts on, as its `GlobalFabricId` in decimal. Stamped at admission, and inherited
+     * by a rollback from the run it undoes.
+     *
+     * The peer addresses a run records carry only a fabric *index*, and a controller reuses an index once its
+     * fabric is gone, so the index alone would let a run of a removed fabric drive a device of its successor.
+     * Absent only on a record built outside admission; storage refuses one without it.
+     */
+    fabric?: string;
 }
 
 /**
@@ -58,7 +67,15 @@ export type DroppableField = "params";
  * strip cannot reach a required field: `params` is typed `unknown`, which widens the indexed type enough that
  * deleting `runId` or `state` would type-check.
  */
-const OPTIONAL_FIELDS = ["params", "externalId", "error", "retireSeq", "rollbackRunId", "rollbackOf"] as const;
+const OPTIONAL_FIELDS = [
+    "params",
+    "externalId",
+    "error",
+    "retireSeq",
+    "rollbackRunId",
+    "rollbackOf",
+    "fabric",
+] as const;
 
 /** Reason a cancel is declined when a definition states none of its own. */
 export const NOT_ROLLBACKABLE_REASON = "it has passed its point of no return";
@@ -75,6 +92,8 @@ export class RunRecord implements RunView {
     readonly slotKey: string;
     readonly type: string;
     readonly externalId?: string;
+    /** See {@link TaskPersistence.fabric}. */
+    readonly fabric?: string;
 
     params: unknown;
     phaseIndex: number;
@@ -100,6 +119,7 @@ export class RunRecord implements RunView {
         this.type = type;
         this.params = params;
         this.externalId = persisted?.externalId;
+        this.fabric = persisted?.fabric;
         this.phaseIndex = persisted?.phaseIndex ?? 0;
         this.state = persisted?.state ?? "running";
         this.changeSet = persisted?.changeSet ?? new Array<ChangeEntry>();
@@ -139,6 +159,7 @@ export class RunRecord implements RunView {
             retireSeq: this.retireSeq,
             rollbackRunId: this.rollbackRunId,
             rollbackOf: this.rollbackOf,
+            fabric: this.fabric,
         };
         // Only what `next` actually carries: a field it leaves undefined means "unchanged", and spreading it
         // would erase the value the run already holds. Clearing a field is not expressible, and nothing needs

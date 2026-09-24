@@ -36,7 +36,7 @@ export const RUN_ID_RESERVATION = 64;
  * so this buys detection from here on, not backward safety. An older table is read rather than refused: its
  * records go through the same field checks, which refuse one that lacks what this build requires.
  */
-export const RUN_STORE_VERSION = 3;
+export const RUN_STORE_VERSION = 4;
 
 /**
  * One verb's exclusive hold on a run's outcome.
@@ -165,6 +165,11 @@ export class RunStore {
             }
             if (stored.externalId !== undefined && typeof stored.externalId !== "string") {
                 throw new InternalError(`Stored task record "${key}" has no usable external id`);
+            }
+            // Which fabric a run acts on decides whether it may be driven at all: a record without it could be
+            // neither driven safely nor told apart from the runs of a fabric that has left.
+            if (typeof stored.fabric !== "string" || !/^[0-9]+$/.test(stored.fabric)) {
+                throw new InternalError(`Stored task record "${key}" does not say which fabric it acts on`);
             }
             if (typeof stored.wrote !== "boolean") {
                 throw new InternalError(`Stored task record "${key}" does not say whether it reached a device`);
@@ -381,6 +386,11 @@ export class RunStore {
                 }
             }
         }
+    }
+
+    /** Every record this process holds, in every state. */
+    get records(): RunRecord[] {
+        return [...this.#records.values()];
     }
 
     /** Every run this process still holds a record for, driven or not. */

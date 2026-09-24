@@ -29,6 +29,7 @@ function persisted(runId: number, state: TaskState, changeSet: ChangeEntry[] = [
         state,
         wrote: changeSet.length > 0,
         changeSet,
+        fabric: "1",
     };
 }
 

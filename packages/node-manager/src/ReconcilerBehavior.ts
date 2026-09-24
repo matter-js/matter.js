@@ -581,8 +581,9 @@ export namespace ReconcilerBehavior {
         /**
          * The managed fabric left the controller, so nothing of it can be reached again.
          *
-         * For an application that holds work of its own against those peers: the task layer parks instead,
-         * because a run's records outlive the fabric and ending them is not settled.
+         * For an application that holds work of its own against those peers. The task layer ends its own runs of
+         * that fabric from the fabric table, not from this event, so a fabric removed while another is managed
+         * is settled too.
          */
         managedFabricLost = Observable<[globalId: GlobalFabricId]>();
     }

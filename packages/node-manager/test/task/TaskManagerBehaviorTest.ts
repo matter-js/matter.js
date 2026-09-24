@@ -437,6 +437,7 @@ describe("TaskManagerBehavior", () => {
                     phaseIndex: 1,
                     state: "cancelled",
                     wrote: false,
+                    fabric: "1",
                     retireSeq: RetireSeq(1),
                     changeSet: [],
                 },

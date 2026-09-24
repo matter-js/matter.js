@@ -337,25 +337,31 @@ describe("the fabric a manager manages", () => {
         expect(after.globalId).equals(before.globalId);
     });
 
-    it("drives nothing once the fabric its runs act on has left", async () => {
+    it("ends the runs of a fabric that leaves, and undoes none of them", async () => {
         await using site = new MockSite();
         const { controller, peerA } = await controllerWithTaskManager(site);
         const address = addressOfNode(peerA);
 
-        // Park a run so it is in flight, with its record stored, when the fabric goes.
+        // Park a run so it is in flight, with its record stored and its priors recorded, when the fabric goes.
         await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
         const handle = await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(address)));
         await pumpUntil("the run parks", () => handle.status.state === "parked");
+        expect(handle.status.wrote).equals(true);
 
         const managed = await reconcilerOf(controller);
         await MockTime.resolve(controller.env.get(FabricManager).for(managed.index!).delete(), { macrotasks: true });
-        await MockTime.advance(Seconds(30));
-        await MockTime.macrotask;
+        await pumpUntil("the run ends", () => isTerminalState(handle.status.state));
 
-        // The run keeps its target and reads as parked, not as running and not as finished: nothing can reach
-        // the peers it names, so no phase runs and no outcome is stated for work nobody did.
-        expect(handle.status.state).equals("parked");
+        // Nothing on that fabric can be reached again, to finish or to undo: the run ends without a rollback,
+        // keeps no priors a later fabric's devices could be handed, and gives its target back.
+        expect(handle.status.state).equals("failed");
+        expect(handle.status.error).match(/^the fabric it acts on \(\d+\) left this controller$/);
         expect(handle.status.rollbackRunId).equals(undefined);
+        const stored = await controller.act(
+            a => a.get(TaskManagerBehavior).state.runs[String(handle.status.runId)].changeSet,
+        );
+        expect(stored).deep.equals([]);
+        expect(await controller.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(0);
 
         // And nothing new is admitted while the manager holds no fabric.
         let refusal: unknown;
@@ -391,6 +397,31 @@ describe("the fabric a manager manages", () => {
         expect(status).not.equals(undefined);
         expect(isTerminalState(status!.state)).equals(false);
         expect(status!.rollbackRunId).equals(undefined);
+    });
+
+    it("ends the runs of a fabric it does not manage when that fabric leaves", async () => {
+        await using site = new MockSite();
+        const { controller, peerA } = await controllerWithTaskManager(site);
+        const address = addressOfNode(peerA);
+
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
+        const handle = await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(address)));
+        await pumpUntil("the run parks", () => handle.status.state === "parked");
+        const runId = handle.status.runId;
+        const managedIndex = (await reconcilerOf(controller)).index!;
+
+        // A restart that cannot tell which of two fabrics is its own leaves this one on the controller, unmanaged.
+        await addFabric(controller, FabricId(2));
+        await controller.act(a => (a.get(ReconcilerBehavior).state.managedFabricId = null));
+        const restarted = await restart(site, controller, controller.id, 1);
+        await restarted.act(a => a.get(TaskManagerBehavior).register(AddNodeToGroup));
+        expect((await reconcilerOf(restarted)).index).equals(undefined);
+
+        await MockTime.resolve(restarted.env.get(FabricManager).for(managedIndex).delete(), { macrotasks: true });
+        await pumpUntil("the run ends", async () => {
+            const state = await restarted.act(a => a.get(TaskManagerBehavior).get(runId)?.status.state);
+            return state === "failed";
+        });
     });
 
     it("takes up the runs it deferred when an operator names the fabric", async () => {

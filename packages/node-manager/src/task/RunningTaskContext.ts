@@ -49,7 +49,7 @@ export class RunningTaskContext implements TaskContext {
         protected readonly persistChanges: (next: Partial<TaskPersistence>) => Promise<void> = async next =>
             record.adopt(next),
         /**
-         * Whether the manager can reach peers at all — it holds a fabric.
+         * Whether the manager can reach this run's peers at all — it manages the fabric the run acts on.
          *
          * Defaults to true, for a context built without a manager: a test double resolves the peers it was
          * given, and which fabric they are on is a question only a manager holding one can answer.
@@ -201,7 +201,7 @@ export class RunningTaskContext implements TaskContext {
     /**
      * Whether a gate may conclude from what the peers hold.
      *
-     * A manager that holds no fabric resolves no peer, and a gate that read that as "they all left" would
+     * A manager that does not hold the run's fabric resolves none of its peers, and a gate that read that as "they all left" would
      * conclude that work nobody did is done. Two different facts reach this layer as one absent peer: the peer
      * left, or nothing can be reached at all. Only the first lets a gate finish.
      */
@@ -383,7 +383,7 @@ export class RunningTaskContext implements TaskContext {
     }
 
     async #evaluate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<boolean> {
-        // Nothing can be reached, so nothing can be concluded: the gate parks until a fabric is settled again.
+        // Nothing can be reached, so nothing can be concluded: the gate parks until the manager manages the run's fabric again, or the run is settled.
         if (!this.canConclude()) {
             return false;
         }
@@ -402,7 +402,7 @@ export class RunningTaskContext implements TaskContext {
     }
 
     #classify(nodes: ClientNode[]) {
-        // Nothing resolves while no fabric is managed, so the waiting set is empty and "running" would be what
+        // Nothing resolves while the run's fabric is not managed, so the waiting set is empty and "running" would be what
         // a gate reports for a run it cannot evaluate at all.
         if (!this.canConclude()) {
             this.setState("parked");
