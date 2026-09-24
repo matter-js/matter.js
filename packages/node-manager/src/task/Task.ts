@@ -319,8 +319,8 @@ export interface TaskDefinition<P = unknown> {
      * `false`: a definition that has not considered a departure should not go on driving a fleet that changed
      * under it.
      *
-     * Asked only of a run that names the peer — through its change set, or through
-     * {@link plannedChanges} — and asked again after a restart for a run whose peer did not come back.
+     * Asked only of a run that names the peer — through its change set, through {@link plannedChanges}, or
+     * through {@link peers} — and asked again after a restart for a run whose peer did not come back.
      */
     survivesWithout?(peer: PeerAddress, params: P): boolean;
 }
