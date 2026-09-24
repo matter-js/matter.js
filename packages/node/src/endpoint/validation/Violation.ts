@@ -8,18 +8,20 @@ import type { Endpoint } from "#endpoint/Endpoint.js";
 import { Diagnostic, ImplementationError, MatterAggregateError } from "@matter/general";
 
 /**
- * One departure of an endpoint from a device type it declares.
+ * One departure of an endpoint from a device type requirement that applies to it.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
 export interface Violation {
     /**
-     * The endpoint that departs from the device type.
+     * The endpoint that departs from the requirement.
      */
     endpoint: Endpoint;
 
     /**
-     * The name of the device type whose requirement the endpoint violates.
+     * The name of the device type whose requirement the endpoint violates: a device type the endpoint lists, or Base.
+     * For `singletonMisplaced` it is the device type in the node scope that declares the singleton, which the endpoint
+     * need not list. For `unknownCondition` it is the endpoint's first listed device type, empty when it lists none.
      */
     deviceType: string;
 

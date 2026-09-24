@@ -111,15 +111,18 @@ const rainSensorWithoutChangeEvent = RainSensorDevice.with(BooleanStateServer.wi
 // BooleanState derived without the ChangeEvent feature from a base that never had it, so no StateChange emitter exists
 const rainSensorWithoutStateChange = RainSensorDevice.with(BooleanStateBehavior.with());
 
-// Carries GroupKeyManagement, a singleton of RootNode.  Stand-in: the unimplemented behavior, because the server
+// Carries GroupKeyManagement, a singleton of RootNode. Stand-in: the unimplemented behavior, because the server
 // cannot initialize off the root
 const lightWithGroupKeyManagement = OnOffLightDevice.with(GroupKeyManagementBehavior);
+
+// Carries OnOff, which RainSensor does not list and OnOffLight lists without the singleton quality
+const rainSensorWithOnOff = RainSensorDevice.with(OnOffServer);
 
 // Carries AdministratorCommissioning, a singleton of RootNode
 const bridgedNodeWithAdministratorCommissioning = BridgedNodeEndpoint.with(AdministratorCommissioningServer);
 
 /**
- * A model whose RootNode declares GroupKeyManagement a singleton and whose OnOffLight lists nothing.  With
+ * A model whose RootNode declares GroupKeyManagement a singleton and whose OnOffLight lists nothing. With
  * {@link bridgedNodeIsNode} BridgedNode is classified `node` and declares Identify a singleton.
  */
 function singletonModel({ rootIsNode = true, bridgedNodeIsNode = false } = {}) {
@@ -148,12 +151,7 @@ function singletonModel({ rootIsNode = true, bridgedNodeIsNode = false } = {}) {
 }
 
 function singletonViolationsOf(endpoint: Endpoint, model?: MatterModel) {
-    let root = endpoint;
-    while (root.owner !== undefined) {
-        root = root.owner;
-    }
-    const conditions = ConditionAssertions.collect(root, model).conditions;
-    return DeviceTypeConformance.check(endpoint, conditions, model)
+    return violationsOf(endpoint, model)
         .filter(v => v.kind === "singletonMisplaced")
         .map(v => [v.deviceType, v.requirement]);
 }
@@ -469,14 +467,14 @@ describe("DeviceTypeConformance", () => {
             await node.close();
         });
 
-        it("accepts a cluster that is no singleton on several endpoints", async () => {
+        it("accepts a cluster that another device type lists as no singleton", async () => {
             const node = await createNode();
-            const first = await node.add(OnOffLightDevice, { id: "first" });
-            const second = await node.add(OnOffLightDevice, { id: "second" });
+            await node.add(OnOffLightDevice, { id: "light" });
+            const sensor = await node.add(rainSensorWithOnOff, { id: "sensor" });
 
-            for (const endpoint of [first, second]) {
-                expect(singletonViolationsOf(endpoint)).deep.equals([]);
-            }
+            expect(requirementOf("OnOffLight", "OnOff").quality.singleton).not.true;
+
+            expect(singletonViolationsOf(sensor)).deep.equals([]);
 
             await node.close();
         });

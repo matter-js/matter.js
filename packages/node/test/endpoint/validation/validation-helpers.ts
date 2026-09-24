@@ -11,7 +11,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
 import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
 import { ImplementationError } from "@matter/general";
-import { Matter } from "@matter/model";
+import { Matter, MatterModel } from "@matter/model";
 import { DeviceTypeId } from "@matter/types";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
@@ -75,12 +75,12 @@ export async function addCabinet(parent: Endpoint, id: string) {
 
 /**
  * The violations {@link DeviceTypeConformance.check} finds on {@link endpoint}, with conditions collected across the
- * node scope of the tree's root.
+ * node scope of the tree's root, both resolved in {@link model}.
  */
-export function violationsOf(endpoint: Endpoint) {
+export function violationsOf(endpoint: Endpoint, model: MatterModel = Matter) {
     let root = endpoint;
     while (root.owner !== undefined) {
         root = root.owner;
     }
-    return DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(root).conditions);
+    return DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(root, model).conditions, model);
 }
