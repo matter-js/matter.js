@@ -48,6 +48,13 @@ export class RunningTaskContext implements TaskContext {
         protected readonly peerLister: () => ClientNode[] = () => new Array<ClientNode>(),
         protected readonly persistChanges: (next: Partial<TaskPersistence>) => Promise<void> = async next =>
             record.adopt(next),
+        /**
+         * Whether the manager can reach peers at all — it holds a fabric.
+         *
+         * Defaults to true, for a context built without a manager: a test double resolves the peers it was
+         * given, and which fabric they are on is a question only a manager holding one can answer.
+         */
+        protected readonly resolvesPeers: () => boolean = () => true,
     ) {}
 
     resolvePeer(address: PeerAddress): ClientNode {
@@ -133,7 +140,7 @@ export class RunningTaskContext implements TaskContext {
      * the state the run itself created.
      */
     async #record(peer: ClientNode, kind: string, key: string) {
-        // A record outlives the node's presence, so it names the node by the identity that is never re-issued.
+        // A record outlives the node's presence, so it names the node by its address rather than by a local id.
         // A node with none cannot be named at all, which is the same node a restart could not resolve.
         const address = addressOf(peer);
         if (address === undefined) {
@@ -189,6 +196,17 @@ export class RunningTaskContext implements TaskContext {
     #stillCommissioned(peer: ClientNode): boolean {
         const address = addressOf(peer);
         return address !== undefined && this.peerResolver(address) !== undefined;
+    }
+
+    /**
+     * Whether a gate may conclude from what the peers hold.
+     *
+     * A manager that holds no fabric resolves no peer, and a gate that read that as "they all left" would
+     * conclude that work nobody did is done. Two different facts reach this layer as one absent peer: the peer
+     * left, or nothing can be reached at all. Only the first lets a gate finish.
+     */
+    protected canConclude(): boolean {
+        return this.resolvesPeers();
     }
     /**
      * A commit gate only ever observes success, so an intent nothing will converge would park the task
@@ -365,6 +383,10 @@ export class RunningTaskContext implements TaskContext {
     }
 
     async #evaluate(nodes: ClientNode[], until: (items: ManagedItem[]) => boolean): Promise<boolean> {
+        // Nothing can be reached, so nothing can be concluded: the gate parks until a fabric is settled again.
+        if (!this.canConclude()) {
+            return false;
+        }
         // A peer that left the fabric is not one to wait for: it will never be reachable again, and the run
         // has already been asked whether it survives the departure.
         nodes = nodes.filter(node => this.#stillCommissioned(node));

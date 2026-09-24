@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type { ManagedFabric } from "./ManagedFabric.js";
 export * from "./reconcile/kinds.js";
 export { ReconcilerBehavior } from "./ReconcilerBehavior.js";
 export type { ItemKind } from "./ReconcilerBehavior.js";

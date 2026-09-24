@@ -81,6 +81,12 @@ export enum TaskFindingCode {
 
     /** The run has no undo to retry. */
     NoRollback = "noRollback",
+
+    /** The request names a peer of a fabric this manager does not manage. */
+    ForeignFabric = "foreignFabric",
+
+    /** This manager manages no fabric, so it has nothing to act on. */
+    NoManagedFabric = "noManagedFabric",
 }
 
 /**
@@ -117,6 +123,27 @@ export class TaskCapacityExceededError extends TaskError {}
 
 /** A task refused to run because a member's current intent violates a required precondition. */
 export class RotationPreconditionError extends TaskError {}
+
+/**
+ * The request names a peer of another fabric.
+ *
+ * A manager manages one fabric, because what a task changes — group memberships, group keys, bindings, ACL
+ * entries — is fabric-scoped. A controller on several fabrics runs one manager per fabric, and this says the
+ * request went to the wrong one.
+ */
+export class TaskForeignFabricError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.ForeignFabric;
+}
+
+/**
+ * The manager has not settled on a fabric, so it manages nothing.
+ *
+ * A controller with one fabric needs no configuration; with several, `ReconcilerBehavior.state.fabric` names
+ * the one to manage, and until it does no work is admitted.
+ */
+export class TaskNoManagedFabricError extends TaskRefusedError {
+    override readonly code = TaskFindingCode.NoManagedFabric;
+}
 
 /** cancel() was refused: the task passed its point of no return (e.g. a realized group-key rotation). */
 export class TaskNotRollbackableError extends TaskRefusedError {

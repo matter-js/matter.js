@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ManagedFabric } from "#ManagedFabric.js";
 import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
     asError,
@@ -28,6 +29,8 @@ import {
     TaskExternalIdInUseError,
     TaskFailedError,
     TaskFinding,
+    TaskForeignFabricError,
+    TaskNoManagedFabricError,
     findingOf,
     TaskManagerClosingError,
     TaskOutcomeUnrecordedError,
@@ -193,6 +196,14 @@ interface RunChange {
     record: RunRecord;
     next?: Partial<TaskPersistence>;
     /**
+     * The write's fields, derived from the record inside the transaction that writes them.
+     *
+     * For a write whose value depends on what the record holds *now*: a run still driving appends to its change
+     * set, so a value computed before this write queued would either erase what it recorded meanwhile or
+     * reinstate what this write removes. Takes the place of {@link RunChange.next}.
+     */
+    nextFrom?: (record: RunRecord) => Partial<TaskPersistence>;
+    /**
      * Fields to remove. Separate from {@link RunChange.next}, where `undefined` means "unchanged" — an
      * intended-state merge that expressed removal as `undefined` erased a retirement order once already.
      */
@@ -274,6 +285,11 @@ export class TaskManagerBehavior extends Behavior {
      * for a peer that left while this process was not running.
      */
     async #reviewDepartedPeers(): Promise<void> {
+        // A manager with no fabric resolves no peer, which is not the same as every peer having left: reading
+        // it that way would retire every stored run the first time a controller started without one settled.
+        if (this.managedFabric() === undefined) {
+            return;
+        }
         for (const record of this.internal.runs.unfinished) {
             // Another verb already owns this run's outcome and will settle it; deciding here too would write a
             // second outcome over the first.
@@ -326,10 +342,12 @@ export class TaskManagerBehavior extends Behavior {
      * forget.
      */
     async #departed(record: RunRecord, bound: BoundDefinition, address: PeerAddress): Promise<void> {
-        const changeSet = record.changeSet.filter(entry => !PeerAddress.is(entry.peer, address));
+        const without = (current: RunRecord) => current.changeSet.filter(entry => !PeerAddress.is(entry.peer, address));
         if (bound.survivesWithout(address)) {
-            if (changeSet.length !== record.changeSet.length) {
-                await this.#commit({ record, next: { changeSet } });
+            if (without(record).length !== record.changeSet.length) {
+                // Derived inside the write: this run goes on driving, and an entry it records while this write
+                // queues belongs in the change set the write lands.
+                await this.#commit({ record, nextFrom: current => ({ changeSet: without(current) }) });
             }
             // A gate parked on that peer waits on events the node can no longer emit.
             this.internal.runs.executionOf(record.runId)?.gate.wake.emit();
@@ -342,7 +360,7 @@ export class TaskManagerBehavior extends Behavior {
         if (execution === undefined) {
             // Nothing is driving it, so this has to do what the driver's failure path would, including the
             // rollback of what the run changed on the peers that are still here.
-            await this.#failUndriven(record, bound, changeSet, `${addressLabel(address)} left the fabric`);
+            await this.#failUndriven(record, bound, without, `${addressLabel(address)} left the fabric`);
             return;
         }
         // Driven: the driver owns the outcome, so it is aborted and its own failure path records it — which
@@ -362,13 +380,13 @@ export class TaskManagerBehavior extends Behavior {
     async #failUndriven(
         record: RunRecord,
         bound: BoundDefinition,
-        changeSet: ChangeEntry[],
+        without: (current: RunRecord) => ChangeEntry[],
         error: string,
     ): Promise<void> {
         let rollback = NO_ROLLBACK;
         try {
-            if (changeSet.length !== record.changeSet.length) {
-                await this.#commit({ record, next: { changeSet } });
+            if (without(record).length !== record.changeSet.length) {
+                await this.#commit({ record, nextFrom: current => ({ changeSet: without(current) }) });
             }
             let rollbackRefused = false;
             try {
@@ -473,6 +491,12 @@ export class TaskManagerBehavior extends Behavior {
      */
     #resumeType(type: string): void {
         if (!this.internal.registry.has(type)) {
+            return;
+        }
+        // Driving acts on peers of the fabric this manager holds. With none held, every record would resolve
+        // no peer, and a run driven that way records an outcome for work it never did. The records keep their
+        // targets and a later start, with a fabric settled, resumes them.
+        if (this.managedFabric() === undefined) {
             return;
         }
         for (const record of this.#resumable) {
@@ -715,7 +739,14 @@ export class TaskManagerBehavior extends Behavior {
             return blocked(closing);
         }
 
-        // 2. The slot has one owner, whether or not this process has attached to it. A record awaiting resume
+        // 2. The work names peers; this manager answers for one fabric's. Asked before the slot, because a
+        //    request for another fabric is not competing for anything here.
+        const foreign = this.#fabricRefusal(bound, slotKey);
+        if (foreign !== undefined) {
+            return blocked(foreign);
+        }
+
+        // 3. The slot has one owner, whether or not this process has attached to it. A record awaiting resume
         //    still owns its slot: letting new work take it would leave that run unresumable and its
         //    already-written intents with no owner.
         const owner = runs.ownerOf(slotKey);
@@ -774,7 +805,7 @@ export class TaskManagerBehavior extends Behavior {
             return { verdict: "joins", owner: ownerExecution };
         }
 
-        // 3. An external id is one-to-one: a live run of another slot must not lose the name it answers to.
+        // 4. An external id is one-to-one: a live run of another slot must not lose the name it answers to.
         if (seed.externalId !== undefined) {
             const holder = runs.conflictingExternalIdHolder(seed.externalId, slotKey);
             if (holder !== undefined) {
@@ -787,7 +818,7 @@ export class TaskManagerBehavior extends Behavior {
             }
         }
 
-        // 4. A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap —
+        // 5. A rollback rewrites exactly the intents a re-run would re-apply, so the two must never overlap —
         //    and the rollback in flight need not be undoing the most recent run of the slot.
         const pendingRollback = runs.liveRollbackOfTarget(slotKey);
         if (pendingRollback !== undefined) {
@@ -811,7 +842,7 @@ export class TaskManagerBehavior extends Behavior {
             );
         }
 
-        // 5. A rollback contends for the slot of the run it undoes, not for its own: its slot is unique per
+        // 6. A rollback contends for the slot of the run it undoes, not for its own: its slot is unique per
         //    run, so checking that alone would let two rollbacks of one slot, or a rollback and the newer run
         //    that now owns the slot, rewrite the same intents at once.
         const undone = bound.undoes;
@@ -1664,6 +1695,32 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
+     * Refuse work that names a peer this manager does not answer for.
+     *
+     * Read from what the definition says it names and what it plans to change, both derived from its
+     * parameters. Work that names peers it cannot know in advance is bounded instead by the peers the manager
+     * hands it, and by `resolvePeer`, which refuses an address of another fabric.
+     */
+    #fabricRefusal(bound: BoundDefinition, slotKey: string): TaskRefusedError | undefined {
+        const fabric = this.managedFabric();
+        if (fabric === undefined) {
+            // Whatever the work names: every item this layer writes is fabric-scoped, and a task that names no
+            // peer reaches the ones the manager hands it, which is none. Admitting it would report work done
+            // that never touched a device.
+            return new TaskNoManagedFabricError(`Task ${slotKey} rejected: ${this.unmanagedReason()}`);
+        }
+        const named = [...bound.peers(), ...bound.plannedChanges().map(change => change.peer)];
+        for (const peer of named) {
+            if (!fabric.owns(peer)) {
+                return new TaskForeignFabricError(
+                    `Task ${slotKey} rejected: ${addressLabel(peer)} is not on the fabric this manager manages (index ${fabric.index})`,
+                );
+            }
+        }
+        return undefined;
+    }
+
+    /**
      * Reject a task before any node mutation if its planned changes would overflow a target's device capacity.
      * Runs before the first persist/phase; the thrown error ends the task `failed` with an empty changeSet.
      */
@@ -1874,8 +1931,9 @@ export class TaskManagerBehavior extends Behavior {
             reconciler,
             setState,
             this.#gateFor(execution.gate),
-            () => [...this.#rootNode.peers],
+            () => this.managedPeers(),
             next => this.#commit({ record, next }),
+            () => this.managedFabric() !== undefined,
         );
     }
 
@@ -1895,9 +1953,32 @@ export class TaskManagerBehavior extends Behavior {
         return agent.get(ReconcilerBehavior);
     }
 
-    /** Resolve a peer by id for gates and cancel-rollback. Overridable for testing. */
+    /**
+     * Resolve a peer by address for gates and cancel-rollback, within the managed fabric. Overridable for
+     * testing.
+     */
     protected resolvePeerNode(address: PeerAddress): ClientNode | undefined {
-        return this.#rootNode.peers.get(address);
+        return this.managedFabric()?.peer(address);
+    }
+
+    /** The peers a task may act on: those of the managed fabric. Overridable for testing. */
+    protected managedPeers(): ClientNode[] {
+        return this.managedFabric()?.peers() ?? new Array<ClientNode>();
+    }
+
+    /**
+     * The fabric the reconciler settled on, read without an agent: the resolver runs in closures a detached
+     * driver holds, outside any activity of this behavior. Overridable for testing.
+     */
+    protected managedFabric(): ManagedFabric | undefined {
+        return this.endpoint.behaviors.internalsOf(ReconcilerBehavior).fabric;
+    }
+
+    /** Why no fabric is managed, for the refusal a caller receives. Overridable for testing. */
+    protected unmanagedReason(): string {
+        return (
+            this.endpoint.behaviors.internalsOf(ReconcilerBehavior).unmanagedReason ?? "this manager manages no fabric"
+        );
     }
 
     /**
@@ -1978,7 +2059,11 @@ export class TaskManagerBehavior extends Behavior {
         //
         // Built here rather than at the call site: a snapshot taken before this write queued would carry state
         // an earlier transition has since superseded.
-        const records = changes.map(
+        const resolved = changes.map(change => ({
+            ...change,
+            next: change.nextFrom === undefined ? change.next : change.nextFrom(change.record),
+        }));
+        const records = resolved.map(
             change => [runKey(change.record.runId), change.record.toPersistence(change.next, change.drop)] as const,
         );
         let evictable: readonly RunRecord[] = [];
@@ -1995,7 +2080,7 @@ export class TaskManagerBehavior extends Behavior {
                 // Only a record this write moves INTO a terminal state. One already retired — the failed
                 // rollback an abandon is recording a disposition for — is in `retired` already, and counting
                 // it twice raises the overflow by one and evicts a record the limit says to keep.
-                const retiringNow = changes.filter(
+                const retiringNow = resolved.filter(
                     change =>
                         change.next?.state !== undefined &&
                         isTerminal(change.next.state) &&
@@ -2007,7 +2092,7 @@ export class TaskManagerBehavior extends Behavior {
                     // The priors this write discharges, so a record it unpins is evictable by this retirement
                     // rather than by whatever retires next.
                     new Set(
-                        changes
+                        resolved
                             .filter(change => change.next?.changeSet?.length === 0)
                             .map(change => change.record.runId),
                     ),
@@ -2039,7 +2124,7 @@ export class TaskManagerBehavior extends Behavior {
         if (evictable.length > 0) {
             logger.debug(`Forgot ${evictable.length} retired task record(s) beyond the history limit`);
         }
-        for (const change of changes) {
+        for (const change of resolved) {
             // Durable from this write on, whichever run of the transaction it belongs to: a rollback recorded
             // alongside the run it undoes is as durable as that run, and discarding it later would leave the
             // original naming a rollback nothing holds.
@@ -2050,7 +2135,7 @@ export class TaskManagerBehavior extends Behavior {
         }
         // After every record of the transaction has adopted its write, so an observer reading a second run of
         // the same transaction sees its committed state rather than the state it is about to leave.
-        for (const change of changes) {
+        for (const change of resolved) {
             // Before the public event and independent of it: an observer that throws aborts the emit, and a
             // caller awaiting an outcome would then wait on another consumer's defect.
             this.#noteOutcome(change.record);

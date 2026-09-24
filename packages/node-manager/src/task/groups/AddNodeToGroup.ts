@@ -81,6 +81,10 @@ export const AddNodeToGroup: TaskDefinition<AddNodeToGroupParams> = {
         return false;
     },
 
+    peers(params) {
+        return [params.peer];
+    },
+
     plannedChanges(p) {
         return [
             { peer: p.peer, kind: GroupKey, key: String(p.groupKeySetId), intent: keySet(p) },
