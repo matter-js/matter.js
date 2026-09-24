@@ -67,10 +67,19 @@ export class DesiredStateBehavior extends Behavior {
         this.events.itemChanged.emit(item);
     }
 
-    updateStatus(kind: string, key: string, state: ItemState, failureCode?: number): void {
+    /**
+     * Record what became of an item.
+     *
+     * `ifGeneration` names the intent the status describes. The engine reads an item, yields while it works,
+     * and writes the outcome here; a caller that replaced the intent meanwhile gets a new generation, and this
+     * write is dropped rather than describing the new intent by what happened to the old one. The comparison
+     * belongs here because this is where the item is written: a caller that compared first would be deciding
+     * outside the transaction that acts on the decision.
+     */
+    updateStatus(kind: string, key: string, state: ItemState, failureCode?: number, ifGeneration?: number): void {
         const id = itemMapKey(kind, key);
         const existing = this.state.items[id];
-        if (existing === undefined) {
+        if (existing === undefined || (ifGeneration !== undefined && existing.generation !== ifGeneration)) {
             return;
         }
         const item: ManagedItem = { ...existing, status: newStatus(state, failureCode) };
@@ -83,10 +92,14 @@ export class DesiredStateBehavior extends Behavior {
      *
      * The only meaning absence carries. An item the engine gave up on stays, in `commitFailed` — see
      * {@link ItemState} — so nothing has to infer from a missing item what became of it.
+     *
+     * `ifGeneration` names the intent being dropped, so a removal that yielded does not take a fresh intent
+     * with it; see {@link updateStatus}.
      */
-    dropItem(kind: string, key: string): void {
+    dropItem(kind: string, key: string, ifGeneration?: number): void {
         const id = itemMapKey(kind, key);
-        if (this.state.items[id] === undefined) {
+        const existing = this.state.items[id];
+        if (existing === undefined || (ifGeneration !== undefined && existing.generation !== ifGeneration)) {
             return;
         }
         const { [id]: _removed, ...rest } = this.state.items;
