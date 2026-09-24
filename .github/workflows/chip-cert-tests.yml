@@ -138,7 +138,7 @@ jobs:
               - ".github/workflows/chip-cert-tests.yml"
               - "packages/testing/src/chip/cert/**"
               - "packages/testing/src/chip/pics/**"
-              - "support/chip-testing/src/cert/**"
+              - "support/chip-testing/src/**"
               - "support/chip-testing/test/cert/**"
               - "support/chip-testing/test/cert-framework/**"
 
