@@ -70,10 +70,9 @@ export class ClientNodeStores {
      *
      * The ID is not an identity that outlives the peer.  The counter starts from the IDs already in storage, so once a
      * peer is removed and its data is gone, a peer commissioned later may receive the same ID.  Anything stored for
-     * longer than the peer itself must name it by `PeerAddress`, which names one device for as long as that device
-     * stays commissioned.  Past that it may be issued to another device, under the rules
-     * `ControllerBehavior.allocatePeerAddress` documents, and a lookup by it then succeeds naming that other
-     * device.
+     * longer than the peer itself cannot rely on either identifier. A `PeerAddress` names one device only for as long as
+     * that device stays commissioned. Past that it may be issued to another device under the rules
+     * `ControllerBehavior.allocatePeerAddress` documents, and a lookup can then name that other device.
      */
     allocateId() {
         this.#construction.assert();
