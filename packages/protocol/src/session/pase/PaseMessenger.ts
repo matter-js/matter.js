@@ -28,11 +28,14 @@ export class PaseServerMessenger extends SecureChannelMessenger {
     #closed = false;
 
     async readPbkdfParamRequest() {
-        const { payload } = await this.nextMessage({
+        const message = await this.nextMessage({
             type: SecureMessageType.PbkdfParamRequest,
             expectedProcessingTime: DEFAULT_NORMAL_PROCESSING_TIME,
         });
-        return { requestPayload: payload, request: TlvPbkdfParamRequest.decode(payload) as PbkdfParamRequest };
+        return {
+            requestPayload: message.payload,
+            request: this.decode(TlvPbkdfParamRequest, message) as PbkdfParamRequest,
+        };
     }
 
     async sendPbkdfParamResponse(response: PbkdfParamResponse) {
@@ -86,14 +89,17 @@ export class PaseClientMessenger extends SecureChannelMessenger {
     }
 
     async readPbkdfParamResponse(options?: SecureChannelMessenger.ReadOptions) {
-        const { payload } = await this.nextMessage({
+        const message = await this.nextMessage({
             type: SecureMessageType.PbkdfParamResponse,
             expectedProcessingTime: DEFAULT_NORMAL_PROCESSING_TIME,
             abort: options?.abort,
         });
 
         // TODO Add support for BUSY response and resend the message after waiting time
-        return { responsePayload: payload, response: TlvPbkdfParamResponse.decode(payload) as PbkdfParamResponse };
+        return {
+            responsePayload: message.payload,
+            response: this.decode(TlvPbkdfParamResponse, message) as PbkdfParamResponse,
+        };
     }
 
     sendPasePake1(pasePake1: PasePake1, options?: ExchangeSendOptions) {
