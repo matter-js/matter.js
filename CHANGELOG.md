@@ -14,6 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/protocol
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 - @matter/node
+    - Fix: A node whose fabric was created before it started (a controller calling `FabricAuthority.defaultFabric()` before `start()` on first run) now counts as commissioned once online and advertises operationally, as it already did after a restart, so an ICD can resolve such a controller to send it Check-Ins
     - Fix: Decommissioning a peer whose structure read never finished no longer reports an unhandled `uninitialized-dependency` error: the observer watching for that read now detaches when the node goes away, instead of reading state from a node that is closing
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
 - @matter/testing
