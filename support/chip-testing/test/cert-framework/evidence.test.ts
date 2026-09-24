@@ -82,6 +82,18 @@ describe("deviceRecordsFor", () => {
         expect(records.map(record => record.appArgs)).deep.equal([["--autoApplyImage"], undefined]);
     });
 
+    // A chip app refuses to start on a flag it does not know, so an argument only the matter.js subject
+    // implements must never reach a chip leg
+    it("names only the arguments meant for the flavor that ran", async () => {
+        const perImplementation = { dut: { matterjs: ["--specIntervals"] } };
+
+        const matterjs = await deviceRecordsFor("matterjs", { dut: "ota-requestor" }, { dut: {} }, perImplementation);
+        const chip = await deviceRecordsFor("chip-local", { dut: "ota-requestor" }, { dut: {} }, perImplementation);
+
+        expect(matterjs[0].appArgs).deep.equal(["--specIntervals"]);
+        expect(chip[0].appArgs).equal(undefined);
+    });
+
     // The harness adds what an app cannot start without — a chip ota-provider dies with no image
     // argument — so a bundle naming only the declaration would omit an argument that changed the
     // app's behaviour

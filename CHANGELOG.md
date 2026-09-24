@@ -11,8 +11,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/types
+    - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 - @matter/protocol
     - Enhancement: `IcdCounter.advance()` moves the ICD counter by up to 2^32 − 1, for test event triggers that invalidate counter values
+    - Fix: A commissioner rejects a `PBKDFParamResponse` whose PBKDF iteration count is outside 1000..100000 and answers `InvalidParam`, instead of deriving the PASE key with whatever count the device sent. A PASE message that fails schema validation is reported as an `UnexpectedDataError` naming the message and field, and ends only the commissioning candidate that sent it, instead of cancelling every other candidate. The commissioner passes each address of a device as a separate candidate, so its other addresses are still tried
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 - @matter/node
     - Fix: A node whose fabric was created before it started (a controller calling `FabricAuthority.defaultFabric()` before `start()` on first run) now counts as commissioned once online and advertises operationally, as it already did after a restart, so an ICD can resolve such a controller to send it Check-Ins
@@ -27,9 +30,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own
     - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
     - Enhancement: `CertNodeApi.serveOtaUpdate()` also reports the OTA commands the controller's own provider answered, and the new `CertNodeApi.announceOtaProvider()` announces a provider to a node without staging anything. Every `CertNodeApi` implementation must provide the new method
-    - Enhancement: A certification test can give each of its devices its own app arguments, via `certTest`'s `appArgs`, and the evidence bundle records what each role was started with
+    - Enhancement: A certification test can give each of its devices its own app arguments, via `certTest`'s `appArgs`, and the evidence bundle records what each role was started with. A role's arguments may be given per implementation (`{ chip, matterjs }`), for a flag only one of them understands
     - Fix: A chip `ota-provider` certification device starts without a case naming an image: the app exits at startup unless given one, and the harness supplies a placeholder where the case named none
     - Enhancement: `CertNodeApi.scriptOtaProvider()` has the controller's own OTA provider answer a case's next commands, so a plan step about a `Busy`, a deferred apply or a `UserConsentNeeded` can be driven
+    - Breaking: A certification step can ask whether a PICS expression holds for its run, via `CertStepContext.picsMet()`, so a plan outcome that depends on a PICS answer is checked either way. Code building a `CertStepContext` must provide it, and a run with no active PICS fails a step that asks, with `PicsUnansweredError`. `CertTest.contextFor()` returns the new `CertStepWiring`, which leaves it out, and `PromptDrivenPythonTest` and `PromptHandler.action` take one
+    - Breaking: `CertNodeApi.announceOtaProvider()` can keep recording after the node's query via `observeMs`, and reports the window it covered as `OtaAnnouncement.observedMs`, so a case can assert what the node did not send in it; every recorded `QueryImage` carries its receipt time as `OtaQueryImageExchange.receivedAtMs`. Every implementation must report both
     - Enhancement: A certification step costing minutes of real time declares `longRunning`, and runs only where the run asked for it (`MATTER_CERT_LONG_RUNNING`); `RunRecord.longRunningSkips` counts what a run left out
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
     - Enhancement: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
@@ -111,7 +116,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A feature, attribute, command, event or command field requirement must be parented by a server or client cluster requirement (`ILLEGAL_REQUIREMENT_PARENT`); any parent previously passed. A command field requirement is now also checked against its cluster's commands
 
 - @matter/node
+    - Documentation: `ClientNode`, `Peers.get` and `ClientNodeStores.allocateId` say how long a `PeerAddress` names the same device, and `ControllerBehavior.allocatePeerAddress` states when an address of a removed peer can be issued to another one
     - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
+    - Enhancement: (@RaHehl) `ClientNode.openEnhancedCommissioningWindow` (and `CommissioningClient`) also returns the passcode, long discriminator, vendor and product ID it encodes into the pairing codes, and the commissioning timeout sent to the device
     - Enhancement: A device type that relaxes a cluster's mandatory element to optional is honoured. Temperature Sensor and Room Air Conditioner required `KeypadLockout`, which the specification makes optional for them
     - Enhancement: A device type feature gated on `Rev >= vN` is enabled when the device type's revision satisfies it, which enables `ChangeEvent` on Water Freeze Detector, Water Leak Detector and Rain Sensor
     - Enhancement: A generated requirement's documentation says when the specification states a cluster is provisional, rather than reporting it as plainly optional

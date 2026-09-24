@@ -4,7 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { OtaProviderExchanges, OtaQueryImageExchange } from "@matter/testing";
+import { InternalError } from "@matter/general";
+import type {
+    AttributeReadEntry,
+    CertStepContext,
+    CheckRecord,
+    OtaProviderExchanges,
+    OtaQueryImageExchange,
+} from "@matter/testing";
 import { expect } from "chai";
 import {
     announcementLines,
@@ -17,11 +24,13 @@ import {
     hexByteLength,
     queryImageResponseLines,
     queryStatusName,
+    recordRequestorIdle,
     singleApplyUpdate,
     singleQueryImage,
     unsupportedByDut,
 } from "../cert/tc-su-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 // The decimal form the API carries a node id in, and the hex form a BDX image URI renders it as
 const NODE_ID = "5722633860078098523";
@@ -112,6 +121,7 @@ describe("singleQueryImage", () => {
         const exchange = {
             request: { vendorId: 1, productId: 1, softwareVersion: 1, protocolsSupported: [0] },
             response: { status: 0 },
+            receivedAtMs: 0,
         } satisfies OtaQueryImageExchange;
         return {
             queryImage: new Array<OtaQueryImageExchange>(count).fill(exchange),
@@ -332,5 +342,68 @@ describe("hexByteLength and queryStatusName", () => {
     it("names a status the cluster defines, and says so where it does not", () => {
         expect(queryStatusName(2)).equal("NotAvailable");
         expect(queryStatusName(9)).equal("unknown (9)");
+    });
+});
+
+describe("recordRequestorIdle", () => {
+    const OTA_REQUESTOR = 0x2a;
+    const UPDATE_STATE = 0x2;
+    const IDLE = 1;
+    const QUERYING = 2;
+
+    async function verdictFor(entries: AttributeReadEntry[]) {
+        const checks = new Array<CheckRecord>();
+        const cx: CertStepContext = {
+            controllers: {},
+            devices: {},
+            recorder: {
+                beginStep() {},
+                check(record) {
+                    checks.push(record);
+                },
+                endStep() {
+                    return [];
+                },
+                async flush() {
+                    return "";
+                },
+            },
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
+        };
+        const node = fakeCertNode({ readAttributes: async () => entries });
+
+        let failed = false;
+        try {
+            await recordRequestorIdle(cx, node);
+        } catch (e) {
+            expect(e).instanceOf(CertCheckFailedError);
+            failed = true;
+        }
+        expect(checks).length(1);
+        expect(checks[0].verdict).equal(failed ? "fail" : "pass");
+        return checks[0].verdict;
+    }
+
+    const entry = (endpoint: number, value: number): AttributeReadEntry => ({
+        endpoint,
+        cluster: OTA_REQUESTOR,
+        attribute: UPDATE_STATE,
+        value,
+    });
+
+    it("passes a requestor that reports Idle on its one endpoint", async () => {
+        expect(await verdictFor([entry(1, IDLE)])).equal("pass");
+    });
+
+    it("fails a requestor that is mid-update", async () => {
+        expect(await verdictFor([entry(1, QUERYING)])).equal("fail");
+    });
+
+    // With the cluster on two endpoints "the" UpdateState is not defined, even where both say Idle
+    it("fails where the cluster is on more than one endpoint, or on none", async () => {
+        expect(await verdictFor([entry(0, IDLE), entry(1, IDLE)])).equal("fail");
+        expect(await verdictFor([])).equal("fail");
     });
 });
