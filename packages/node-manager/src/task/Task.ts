@@ -283,6 +283,18 @@ export interface TaskDefinition<P = unknown> {
     plannedChanges?(params: P): PlannedChange[];
 
     /**
+     * The peers this work names, derived from params.
+     *
+     * A manager answers for one fabric, so it refuses work naming a peer of another before the work starts.
+     * Separate from {@link plannedChanges}, which answers a capacity question and says nothing about a removal:
+     * a task that only removes still names the peer it removes from.
+     *
+     * Work that reaches peers it cannot name in advance — by asking which of them hold an intent, as a group
+     * key rotation does — answers with none, and is bounded by the peers the manager hands it.
+     */
+    peers?(params: P): PeerAddress[];
+
+    /**
      * Whether cancel or failure may roll back the given run of this work. False once a run passes a point of no
      * return whose forward effect cannot be undone; the manager then declines cancel and suppresses
      * auto-rollback.
@@ -354,6 +366,11 @@ export class BoundDefinition<P = unknown> {
 
     plannedChanges(): PlannedChange[] {
         return this.definition.plannedChanges?.(this.params) ?? new Array<PlannedChange>();
+    }
+
+    /** The peers this work names; see {@link TaskDefinition.peers}. */
+    peers(): PeerAddress[] {
+        return this.definition.peers?.(this.params) ?? new Array<PeerAddress>();
     }
 
     /** Whether this work still makes sense without `peer`; see {@link TaskDefinition.survivesWithout}. */

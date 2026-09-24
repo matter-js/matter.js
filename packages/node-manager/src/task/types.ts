@@ -108,7 +108,7 @@ export interface TaskStatus {
 }
 
 export interface ChangeEntry {
-    /** The peer or group this run changed, by the identity that is never re-issued. */
+    /** The peer or group this run changed, by the identity that holds while it is commissioned. */
     peer: PeerAddress;
     kind: string;
     key: string;
