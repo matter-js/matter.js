@@ -21,11 +21,12 @@ const logger = Logger.get("ClusterRequirements");
 
 /**
  * A requirement kind nothing handles is a specification statement we are dropping, so it stops the build rather than
- * disappearing.  A new member of {@link RequirementElement.ElementType} lands here until it is given a home.
+ * disappearing.  A new member of {@link RequirementElement.ElementType} fails to compile here until it is given a home;
+ * an element outside the enum still throws at runtime.
  */
-function unsupportedRequirement(requirement: RequirementModel): never {
+function unsupportedRequirement(element: never, requirement: RequirementModel): never {
     throw new InternalError(
-        `No handling for ${requirement.element} requirement ${requirement.name}; every requirement kind must be handled or explicitly skipped`,
+        `No handling for ${element} requirement ${requirement.name}; every requirement kind must be handled or explicitly skipped`,
     );
 }
 
@@ -84,7 +85,7 @@ export class ClusterRequirements {
                     break;
 
                 default:
-                    unsupportedRequirement(requirement);
+                    unsupportedRequirement(requirement.element, requirement);
             }
         }
     }

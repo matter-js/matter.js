@@ -6,7 +6,7 @@
 
 import { ElementTag, FieldValue } from "../../common/index.js";
 import { RequirementElement } from "../../elements/index.js";
-import { ConditionModel, FieldModel, Model, RequirementModel } from "../../models/index.js";
+import { FieldModel, Model, RequirementModel } from "../../models/index.js";
 import { RequirementResolver } from "../RequirementResolver.js";
 import { ModelValidator } from "./ModelValidator.js";
 
@@ -44,20 +44,21 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
             );
         }
 
-        const parentTag = this.model.parent?.tag;
-        if (parentTag) {
+        const { parent } = this.model;
+        if (parent) {
             switch (this.model.element) {
                 case RequirementElement.ElementType.ClientCluster:
                 case RequirementElement.ElementType.ServerCluster:
                     if (
-                        parentTag !== ElementTag.DeviceType &&
-                        (parentTag !== ElementTag.Requirement ||
-                            (this.model.parent as RequirementModel).element !==
-                                RequirementElement.ElementType.DeviceType)
+                        parent.tag !== ElementTag.DeviceType &&
+                        !(
+                            parent instanceof RequirementModel &&
+                            parent.element === RequirementElement.ElementType.DeviceType
+                        )
                     ) {
                         this.error(
                             "ILLEGAL_REQUIREMENT_PARENT",
-                            `Requirement type ${this.model.type} must be parented by device type or device requirement`,
+                            `${this.model.element} requirement ${this.model.name} must be parented by a device type or component requirement`,
                         );
                     }
                     break;
@@ -66,10 +67,15 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
                 case RequirementElement.ElementType.Attribute:
                 case RequirementElement.ElementType.Command:
                 case RequirementElement.ElementType.Event:
-                    if (parentTag !== ElementTag.Requirement) {
+                case RequirementElement.ElementType.CommandField:
+                    if (
+                        !(parent instanceof RequirementModel) ||
+                        (parent.element !== RequirementElement.ElementType.ServerCluster &&
+                            parent.element !== RequirementElement.ElementType.ClientCluster)
+                    ) {
                         this.error(
                             "ILLEGAL_REQUIREMENT_PARENT",
-                            `Requirement type ${this.model.type} must be parented by cluster requirement`,
+                            `${this.model.element} requirement ${this.model.name} must be parented by a server or client cluster requirement`,
                         );
                     }
                     break;
@@ -77,9 +83,7 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
         }
 
         this.#validateConformanceNames();
-        this.#validateCondition();
-        this.#validateComponent();
-        this.#validateSatisfiability();
+        this.#validateReferent();
 
         super.validate();
     }
@@ -117,82 +121,89 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
     }
 
     /**
-     * A condition requirement must name a condition, or the condition it means to assert is never asserted. A
-     * requirement stating a type is already reported when the type does not resolve, so this answers for a
-     * requirement identified by its name alone.
+     * The condition, component device type, cluster or cluster member a requirement names must resolve, or the
+     * requirement states something no endpoint can meet. That is wrong model data, so it is reported here once rather
+     * than at every endpoint of the device type.
      *
      * @see {@link MatterSpecification.v16.Core} § 9.2.6
      */
-    #validateCondition() {
-        if (this.model.element !== RequirementElement.ElementType.Condition || this.model.type !== undefined) {
-            return;
-        }
-
-        if (!(RequirementResolver.resolve(this.model, this.model.name) instanceof ConditionModel)) {
-            this.error(
-                "UNRESOLVED_CONDITION",
-                `No condition ${this.model.name} is declared by the device type, its bases or the base device type`,
-            );
-        }
-    }
-
-    /**
-     * A component requirement must name a device type the model defines. Otherwise the requirements nested in it have
-     * no device type to resolve conditions against and can name only universal and qualified conditions.
-     *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
-     */
-    #validateComponent() {
-        if (
-            this.model.element === RequirementElement.ElementType.DeviceType &&
-            RequirementResolver.deviceTypeOf(this.model) === undefined
-        ) {
-            const identity = this.model.id === undefined ? "" : ` (0x${this.model.id.toString(16)})`;
-            this.error(
-                "UNRESOLVED_DEVICE_TYPE",
-                `No device type ${this.model.name}${identity} is defined for this component requirement`,
-            );
-        }
-    }
-
-    /**
-     * A requirement naming a feature, attribute, command or event its cluster does not define states something no
-     * endpoint can satisfy. That is wrong model data, so it is reported here once rather than at every endpoint of
-     * the device type.
-     *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
-     */
-    #validateSatisfiability() {
+    #validateReferent() {
+        // A prohibition holds for a referent that does not exist. We accept missing a typo in one because a strict rule
+        // would stop model generation on a specification row disallowing what a cluster no longer defines
         if (this.model.isDisallowed) {
             return;
         }
 
-        const cluster = RequirementResolver.clusterOf(this.model);
-        if (cluster === undefined) {
-            return;
-        }
+        const { element } = this.model;
+        switch (element) {
+            case RequirementElement.ElementType.Condition:
+                // A stated type that does not resolve is already reported as an unknown type
+                if (this.model.type === undefined && RequirementResolver.conditionOf(this.model) === undefined) {
+                    this.error(
+                        "UNRESOLVED_CONDITION",
+                        `No condition ${this.model.name} is declared by the device type, its bases or the base device type`,
+                    );
+                }
+                break;
 
-        let named: Model | undefined;
-        switch (this.model.element) {
+            case RequirementElement.ElementType.DeviceType:
+                if (RequirementResolver.deviceTypeOf(this.model) === undefined) {
+                    this.error(
+                        "UNRESOLVED_DEVICE_TYPE",
+                        `No device type ${this.#identity} is defined for this component requirement`,
+                    );
+                }
+                break;
+
+            case RequirementElement.ElementType.ServerCluster:
+            case RequirementElement.ElementType.ClientCluster:
+                if (RequirementResolver.clusterOf(this.model) === undefined) {
+                    this.error(
+                        "UNRESOLVED_CLUSTER",
+                        `No cluster ${this.#identity} is defined for this ${element} requirement`,
+                    );
+                }
+                break;
+
             case RequirementElement.ElementType.Feature:
-                named = RequirementResolver.featureOf(this.model);
+                this.#validateMember(RequirementResolver.featureOf(this.model));
                 break;
 
             case RequirementElement.ElementType.Attribute:
             case RequirementElement.ElementType.Command:
             case RequirementElement.ElementType.Event:
-                named = RequirementResolver.elementOf(this.model);
+                this.#validateMember(RequirementResolver.elementOf(this.model));
+                break;
+
+            case RequirementElement.ElementType.CommandField:
+                this.#validateMember(RequirementResolver.commandFieldOf(this.model));
                 break;
 
             default:
-                return;
+                // An element that is not an element type is already reported by the property validation
+                element satisfies never;
+        }
+    }
+
+    #validateMember(member: Model | undefined) {
+        if (member !== undefined) {
+            return;
         }
 
-        if (named === undefined) {
-            this.error(
-                "UNSATISFIABLE_REQUIREMENT",
-                `Cluster ${cluster.name} defines no ${this.model.element} ${this.model.name}, so no endpoint can satisfy the requirement`,
-            );
+        // Without a cluster the enclosing cluster requirement is what is wrong, and it reports itself
+        const cluster = RequirementResolver.clusterOf(this.model);
+        if (cluster === undefined) {
+            return;
         }
+
+        this.error(
+            "UNSATISFIABLE_REQUIREMENT",
+            `Cluster ${cluster.name} defines no ${this.model.element} ${this.model.name}, so no endpoint can satisfy the requirement`,
+        );
+    }
+
+    get #identity() {
+        const { name, id } = this.model;
+        return id === undefined ? name : `${name} (0x${id.toString(16)})`;
     }
 };

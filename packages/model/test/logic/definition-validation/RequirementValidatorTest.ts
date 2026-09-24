@@ -38,6 +38,10 @@ function withComponents(...instances: (number | undefined)[]) {
 function withNumberedAttributes(...instances: (number | undefined)[]) {
     const Matter = new MatterModel(
         {},
+        new ClusterModel(
+            { name: "Countable", id: 0x6 },
+            new AttributeModel({ name: "OnTime", id: 0x4001, type: "uint16" }),
+        ),
         new DeviceTypeModel(
             { name: "Numbered", id: 0xff02, classification: "simple" },
             new RequirementModel(
@@ -72,7 +76,10 @@ function withClusterRequirementErrors(conformance: string, ...nested: Requiremen
                 new FieldModel({ name: "LT", constraint: "0", title: "Lighting" }),
             ),
             new AttributeModel({ name: "OnTime", id: 0x4001, type: "uint16" }),
-            new CommandModel({ name: "Toggle", id: 0x2, direction: "request", response: "status" }),
+            new CommandModel(
+                { name: "Toggle", id: 0x2, direction: "request", response: "status" },
+                new FieldModel({ name: "Delay", id: 0x0, type: "uint8" }),
+            ),
             new EventModel({ name: "StateChange", id: 0x0, priority: "info" }),
         ),
         new DeviceTypeModel(
@@ -88,8 +95,16 @@ function withClusterRequirementErrors(conformance: string, ...nested: Requiremen
 
 /** A device type deriving from a parent, stating the given requirement */
 function withRequirement(requirement: RequirementModel) {
+    return withRequirementErrors(requirement).map(error => error.split(" ")[0]);
+}
+
+function withRequirementErrors(requirement: RequirementModel) {
     const Matter = new MatterModel(
         {},
+        new ClusterModel(
+            { name: "Present", id: 0xfff4 },
+            new AttributeModel({ name: "Level", id: 0x0, type: "uint8" }),
+        ),
         new DeviceTypeModel({ name: "Base", classification: "base" }, new ConditionModel({ name: "Universal" })),
         new DeviceTypeModel(
             { name: "Other", id: 0xff08, classification: "simple" },
@@ -107,7 +122,7 @@ function withRequirement(requirement: RequirementModel) {
     );
     Matter.finalize();
 
-    return ValidateModel(Matter).errors.map(error => error.code);
+    return ValidateModel(Matter).errors.map(error => `${error.code} ${error.message}`);
 }
 
 describe("RequirementValidator", () => {
@@ -220,6 +235,26 @@ describe("RequirementValidator", () => {
             ).deep.equals(["UNSATISFIABLE_REQUIREMENT"]);
         });
 
+        it("accepts a command field named by its command and its field", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "ToggleDelay", element: "commandField", conformance: "M" }),
+                ),
+            ).deep.equals([]);
+        });
+
+        for (const name of ["ToggleNoSuchField", "NoSuchCommandDelay", "Delay"]) {
+            it(`reports command field ${name} that no command of the cluster defines`, () => {
+                expect(
+                    withClusterRequirement(
+                        "M",
+                        new RequirementModel({ name, element: "commandField", conformance: "M" }),
+                    ),
+                ).deep.equals(["UNSATISFIABLE_REQUIREMENT"]);
+            });
+        }
+
         it("accepts disallowing an element the cluster does not define", () => {
             expect(
                 withClusterRequirement(
@@ -257,6 +292,12 @@ describe("RequirementValidator", () => {
             ]);
         });
 
+        it("reports a name that resolves to a feature rather than a condition", () => {
+            expect(withClusterRequirement("M", new RequirementModel({ name: "LT", element: "condition" }))).deep.equals(
+                ["UNRESOLVED_CONDITION"],
+            );
+        });
+
         it("accepts a location the specification defines", () => {
             for (const location of ["Root", "Self", "Descendant"] as const) {
                 expect(
@@ -275,9 +316,112 @@ describe("RequirementValidator", () => {
     it("reports a location on a requirement that is not a condition requirement", () => {
         expect(
             withRequirement(
-                new RequirementModel({ name: "Switchable", id: 0x6, element: "serverCluster", location: "Self" }),
+                new RequirementModel({ name: "Present", id: 0xfff4, element: "serverCluster", location: "Self" }),
             ),
         ).deep.equals(["LOCATION_NOT_APPLICABLE"]);
+    });
+
+    describe("a cluster requirement", () => {
+        for (const element of ["serverCluster", "clientCluster"] as const) {
+            it(`accepts ${element} naming a cluster the model defines`, () => {
+                expect(withRequirement(new RequirementModel({ name: "Present", id: 0xfff4, element }))).deep.equals([]);
+            });
+
+            it(`reports ${element} naming a cluster the model does not define`, () => {
+                expect(withRequirement(new RequirementModel({ name: "Present", id: 0xfff5, element }))).deep.equals([
+                    "UNRESOLVED_CLUSTER",
+                ]);
+            });
+        }
+
+        it("reports only the cluster, not the members nested in it", () => {
+            expect(
+                withRequirement(
+                    new RequirementModel(
+                        { name: "Absent", id: 0xfff5, element: "serverCluster" },
+                        new RequirementModel({ name: "OnTime", element: "attribute", conformance: "M" }),
+                    ),
+                ),
+            ).deep.equals(["UNRESOLVED_CLUSTER"]);
+        });
+    });
+
+    describe("a requirement under a parent that cannot hold it", () => {
+        it("names the member requirement and the parent it needs", () => {
+            expect(
+                withRequirementErrors(
+                    new RequirementModel(
+                        { name: "Other", element: "deviceType" },
+                        new RequirementModel({ name: "OnTime", element: "attribute", conformance: "M" }),
+                    ),
+                ),
+            ).deep.equals([
+                "ILLEGAL_REQUIREMENT_PARENT attribute requirement OnTime must be parented by a server or client cluster requirement",
+            ]);
+        });
+
+        it("names the cluster requirement and the parent it needs", () => {
+            expect(
+                withRequirementErrors(
+                    new RequirementModel(
+                        { name: "Present", id: 0xfff4, element: "serverCluster" },
+                        new RequirementModel({ name: "Present", id: 0xfff4, element: "clientCluster" }),
+                    ),
+                ),
+            ).deep.equals([
+                "ILLEGAL_REQUIREMENT_PARENT clientCluster requirement Present must be parented by a device type or component requirement",
+            ]);
+        });
+
+        it("accepts a cluster requirement in a component requirement", () => {
+            expect(
+                withRequirement(
+                    new RequirementModel(
+                        { name: "Other", element: "deviceType" },
+                        new RequirementModel({ name: "Present", id: 0xfff4, element: "serverCluster" }),
+                    ),
+                ),
+            ).deep.equals([]);
+        });
+    });
+
+    describe("a cluster member requirement outside a cluster requirement", () => {
+        for (const element of ["feature", "attribute", "command", "event", "commandField"] as const) {
+            it(`reports ${element} nested in a component requirement`, () => {
+                expect(
+                    withRequirement(
+                        new RequirementModel(
+                            { name: "Other", element: "deviceType" },
+                            new RequirementModel({ name: "Anything", element, conformance: "M" }),
+                        ),
+                    ),
+                ).deep.equals(["ILLEGAL_REQUIREMENT_PARENT"]);
+            });
+        }
+    });
+
+    describe("a disallowed requirement naming something that does not exist", () => {
+        for (const [element, id] of [
+            ["condition", undefined],
+            ["deviceType", 0xff0f],
+            ["serverCluster", 0xfff5],
+            ["clientCluster", 0xfff5],
+        ] as const) {
+            it(`accepts ${element}`, () => {
+                expect(
+                    withRequirement(new RequirementModel({ name: "NoSuchThing", id, element, conformance: "X" })),
+                ).deep.equals([]);
+            });
+        }
+
+        it("accepts commandField", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "ToggleNoSuchField", element: "commandField", conformance: "X" }),
+                ),
+            ).deep.equals([]);
+        });
     });
 
     describe("a component requirement", () => {

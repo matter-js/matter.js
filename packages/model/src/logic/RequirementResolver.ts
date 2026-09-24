@@ -190,6 +190,50 @@ export namespace RequirementResolver {
     }
 
     /**
+     * The field of a command of its cluster that a command field requirement names, or undefined if it names none or
+     * is not a command field requirement.
+     *
+     * The specification's tables name a command field by the command's name followed by the field's, with nothing
+     * between them, and state it directly in the cluster requirement. Both names match exactly.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    export function commandFieldOf(requirement: RequirementModel): Model | undefined {
+        if (requirement.element !== RequirementElement.ElementType.CommandField) {
+            return undefined;
+        }
+
+        const { name } = requirement;
+        for (const command of endpointScopeOf(requirement).cluster?.commands ?? []) {
+            if (!name.startsWith(command.name)) {
+                continue;
+            }
+
+            const field = command.member(name.slice(command.name.length), [ElementTag.Field]);
+            if (field !== undefined) {
+                return field;
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
+     * The condition a condition requirement asserts, named by its type and otherwise by its name, or undefined if it
+     * names none or is not a condition requirement.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    export function conditionOf(requirement: RequirementModel): ConditionModel | undefined {
+        if (requirement.element !== RequirementElement.ElementType.Condition) {
+            return undefined;
+        }
+
+        const resolved = resolve(requirement, requirement.type?.split(".") ?? requirement.name);
+        return resolved instanceof ConditionModel ? resolved : undefined;
+    }
+
+    /**
      * The canonical name a condition requirement asserts, or undefined for a requirement that is not a condition
      * requirement.
      *
@@ -202,9 +246,7 @@ export namespace RequirementResolver {
             return undefined;
         }
 
-        const resolved = resolve(requirement, requirement.type?.split(".") ?? requirement.name);
-
-        return resolved?.name ?? requirement.name;
+        return conditionOf(requirement)?.name ?? requirement.name;
     }
 }
 

@@ -410,6 +410,56 @@ describe("RequirementResolver", () => {
         });
     });
 
+    describe("commandFieldOf", () => {
+        /** A command field requirement inside a cluster whose commands share a prefix */
+        function commandFieldRequirement(name: string, element: "commandField" | "command" = "commandField") {
+            const requirement = new RequirementModel({ name, element });
+            const cluster = new ClusterModel(
+                { name: "Positioned", id: 0xfff7 },
+                new CommandModel(
+                    { name: "GoTo", id: 0x0, direction: "request" },
+                    new FieldModel({ name: "Target", id: 0x0, type: "uint8" }),
+                ),
+                new CommandModel(
+                    { name: "GoToPercentage", id: 0x1, direction: "request" },
+                    new FieldModel({ name: "Value", id: 0x0, type: "uint8" }),
+                ),
+            );
+            new MatterModel(
+                {},
+                cluster,
+                new DeviceTypeModel(
+                    { name: "Positioner", id: 0xff09, classification: "simple" },
+                    new RequirementModel({ name: "Positioned", id: 0xfff7, element: "serverCluster" }, requirement),
+                ),
+            );
+            return { requirement, cluster };
+        }
+
+        it("answers the field of the command whose name prefixes the requirement's", () => {
+            const { requirement, cluster } = commandFieldRequirement("GoToPercentageValue");
+            expect(RequirementResolver.commandFieldOf(requirement)).equals(
+                cluster.commands.find(command => command.name === "GoToPercentage")?.children[0],
+            );
+        });
+
+        it("answers the field of a command whose name prefixes another command's", () => {
+            const { requirement, cluster } = commandFieldRequirement("GoToTarget");
+            expect(RequirementResolver.commandFieldOf(requirement)).equals(
+                cluster.commands.find(command => command.name === "GoTo")?.children[0],
+            );
+        });
+
+        it("answers nothing for a field no command defines", () => {
+            expect(RequirementResolver.commandFieldOf(commandFieldRequirement("GoToValue").requirement)).undefined;
+        });
+
+        it("answers nothing for a requirement that is not a command field requirement", () => {
+            expect(RequirementResolver.commandFieldOf(commandFieldRequirement("GoToTarget", "command").requirement))
+                .undefined;
+        });
+    });
+
     describe("elementOf", () => {
         /** An element requirement inside a cluster with one attribute, one command and one event */
         function elementRequirement(name: string, element: "attribute" | "command" | "event" | "feature") {
