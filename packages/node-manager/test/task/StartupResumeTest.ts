@@ -4,30 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import { TaskFailedError } from "#task/errors.js";
 import { addressLabel } from "#task/peer.js";
 import { RunningTaskContext } from "#task/RunningTaskContext.js";
 import { RunRecord } from "#task/Task.js";
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
 import { RunId } from "#task/types.js";
-import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
+import { itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode, MockSite } from "@matter/node/testing";
 import { PeerAddress } from "@matter/protocol";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
-import { FakePeer, kindOf, pumpUntil, testAddress } from "./helpers.js";
+import { FakePeer, kindOf, pumpUntil, testAddress, TestTaskManagerBase } from "./helpers.js";
 
-class TestTaskManager extends TaskManagerBehavior {
+class TestTaskManager extends TestTaskManagerBase {
+    // Own property, not inherited: the framework decorates each class with `Object.hasOwn(type, "schema")`, so
+    // a subclass that only inherits one falls back to an inferred schema, which drops the nonvolatile
+    // qualities the run table needs.
     static override readonly schema = TaskManagerBehavior.schema;
-    static peers = new Map<string, FakePeer>();
-    static reconcilerPeer?: FakePeer;
-
-    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
-        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
-    }
-    protected override taskReconciler(): ReconcilerBehavior {
-        return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
-    }
 }
 
 const RootEndpoint = MockServerNode.RootEndpoint.with(TestTaskManager);

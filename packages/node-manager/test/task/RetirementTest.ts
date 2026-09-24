@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReconcilerBehavior } from "#ReconcilerBehavior.js";
 import {
     TaskConflictError,
     TaskFailedError,
@@ -19,26 +18,21 @@ import {
 } from "#task/errors.js";
 import { RUN_STORE_VERSION } from "#task/RunStore.js";
 import { TaskDefinition, TaskPersistence } from "#task/Task.js";
-import { TaskHandle, TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
+import { TaskHandle } from "#task/TaskManagerBehavior.js";
 import { RunId, TaskPhase } from "#task/types.js";
 import { Environment, ImplementationError, InternalError } from "@matter/general";
-import { ClientNode, itemMapKey, ServerNode } from "@matter/node";
+import { itemMapKey, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import { PeerAddress } from "@matter/protocol";
-import { testAddress } from "./helpers.js";
+import { testAddress, TestTaskManagerBase } from "./helpers.js";
 import { kindOf, FakePeer, isTerminalState, pumpUntil, SyntheticTask } from "./helpers.js";
 
-class TestTaskManager extends TaskManagerBehavior {
+class TestTaskManager extends TestTaskManagerBase {
+    // Own property, not inherited: the framework decorates each class with `Object.hasOwn(type, "schema")`, so
+    // a subclass that only inherits one falls back to an inferred schema, which drops the nonvolatile
+    // qualities the run table needs.
     static override readonly schema = TaskManagerBehavior.schema;
-    static peers = new Map<string, FakePeer>();
-    static reconcilerPeer?: FakePeer;
-
-    protected override resolvePeerNode(address: PeerAddress): ClientNode | undefined {
-        return [...TestTaskManager.peers.values()].find(p => PeerAddress.is(p.address, address))?.asNode();
-    }
-    protected override taskReconciler(): ReconcilerBehavior {
-        return TestTaskManager.reconcilerPeer as unknown as ReconcilerBehavior;
-    }
 
     isAttached(runId: RunId) {
         return this.internal.runs.isAttached(runId);
