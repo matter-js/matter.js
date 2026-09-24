@@ -17,7 +17,7 @@ import {
     NetworkClient,
 } from "@matter/node";
 import { PeerAddress, SustainedSubscription } from "@matter/protocol";
-import { TaskFailedError, TaskPeerUnavailableError } from "./errors.js";
+import { TaskFailedError, TaskPeerUnavailableError, TaskSuspendedSignal } from "./errors.js";
 import { addressLabel, addressOf, peerLabel } from "./peer.js";
 import { runLabel, RunRecord, TaskPersistence } from "./Task.js";
 import { TaskContext, TaskState } from "./types.js";
@@ -74,6 +74,7 @@ export class RunningTaskContext implements TaskContext {
     async setIntent<I>(peer: ClientNode, kind: ItemKind<I>, key: string, intent: I, mode: ItemMode = "converge") {
         this.#requireRegistered(kind);
         await this.#record(peer, kind.kind, key);
+        this.#throwIfStopped();
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).setIntent(kind.kind, key, intent, mode);
         });
@@ -89,6 +90,7 @@ export class RunningTaskContext implements TaskContext {
             return false;
         }
         await this.#record(peer, kind.kind, key);
+        this.#throwIfStopped();
         await peer.act(agent => {
             agent.get(DesiredStateBehavior).removeIntent(kind.kind, key);
         });
@@ -128,6 +130,22 @@ export class RunningTaskContext implements TaskContext {
             );
         }
         return registered;
+    }
+
+    /**
+     * Refuse to change a peer once the run was stopped or its fabric is no longer the managed one.
+     *
+     * Asked after the prior is recorded, which awaits a write: a phase holds the node it resolved before that
+     * await, and the fabric may have left while it waited.
+     */
+    #throwIfStopped(): void {
+        const aborted = this.gate?.aborted();
+        if (aborted !== undefined) {
+            throw asError(aborted);
+        }
+        if (!this.resolvesPeers()) {
+            throw new TaskSuspendedSignal(`Task ${runLabel(this.record.runId)}: its fabric is not managed`);
+        }
     }
 
     /**

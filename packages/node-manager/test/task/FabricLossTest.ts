@@ -298,6 +298,48 @@ describe("a driven run whose fabric leaves", () => {
         });
     }
 
+    it("writes nothing through a node a phase resolved before its fabric left", async () => {
+        await using site = new MockSite();
+        const peer = new FakePeer(PEER);
+        LosingTaskManager.peers.set(PEER, peer);
+        LosingTaskManager.reconcilerPeer = peer;
+
+        let release!: () => void;
+        const held = new Promise<void>(resolve => (release = resolve));
+        let reached = false;
+        SyntheticTask.phasesByTag[TAG] = [
+            {
+                name: "resolve-wait-write",
+                async run(ctx) {
+                    const node = ctx.resolvePeer(peer.address);
+                    reached = true;
+                    await held;
+                    await ctx.setIntent(node, kindOf("groupKey"), "42", { a: 1 });
+                },
+            },
+        ];
+
+        const node = await site.addNode(LosingRoot, { id: "cached-node", index: 1 });
+        await node.act(a => a.get(LosingTaskManager).register(SyntheticTask));
+        const handle = await node.act(a => a.get(LosingTaskManager).run(SyntheticTask, { tag: TAG }));
+        await pumpUntil("the phase holds its node", () => reached);
+
+        const other = await (
+            await node.env.load(FabricAuthority)
+        ).createFabric({
+            adminFabricId: FabricId(2),
+            adminFabricLabel: "other",
+            adminNodeId: NodeId(2002),
+        });
+        LosingTaskManager.lost = true;
+        await MockTime.resolve(other.delete(), { macrotasks: true });
+        release();
+
+        await pumpUntil("the run ends", () => handle.status.state === "failed");
+        expect(peer.items).deep.equals({});
+        await MockTime.resolve(node.close(), { macrotasks: true });
+    });
+
     it("drives a run on when its fabric comes back while the settlement stops it", async () => {
         await using site = new MockSite();
         const peer = new FakePeer(PEER);
