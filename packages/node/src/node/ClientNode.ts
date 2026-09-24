@@ -181,7 +181,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Open an Enhanced Commissioning Window on this peer using a freshly generated random passcode.
      *
-     * @returns the manual and QR pairing codes encoding the generated passcode.
+     * @returns the pairing codes and the values they encode.
      */
     async openEnhancedCommissioningWindow(commissioningTimeout?: Duration) {
         return await this.act(agent => agent.commissioning.openEnhancedCommissioningWindow(commissioningTimeout));
