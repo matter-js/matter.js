@@ -168,7 +168,7 @@ export class RunStore {
             }
             // Which fabric a run acts on decides whether it may be driven at all: a record without it could be
             // neither driven safely nor told apart from the runs of a fabric that has left.
-            if (typeof stored.fabric !== "string" || !/^[0-9]+$/.test(stored.fabric)) {
+            if (typeof stored.fabric !== "string" || !/^(0|[1-9][0-9]*)$/.test(stored.fabric)) {
                 throw new InternalError(`Stored task record "${key}" does not say which fabric it acts on`);
             }
             if (typeof stored.wrote !== "boolean") {
