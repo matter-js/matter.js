@@ -6,15 +6,16 @@
 
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertIcdRegistration } from "@matter/testing";
+import type { CertIcdClientApi, CertIcdRegistration, CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import type { CommandFieldValue } from "./tc-support.js";
 import {
     CommissionedRefs,
     describeError,
     expectCommandInvoke,
     icdRegisterClientFields,
     LOG_TIMEOUT,
-    record,
+    recordAll,
     requireId,
 } from "./tc-support.js";
 
@@ -31,6 +32,55 @@ const STAY_ACTIVE_DURATION_MS = 10_000;
 const commissioned = new CommissionedRefs<"dut">();
 
 let registration: CertIcdRegistration | undefined;
+
+/**
+ * Has the DUT send one IcdManagement command, and records both its response and the TH's log of the command before
+ * failing the step. The log check expects `options.fields`, else the fields `send` returns; a failed `send` without
+ * `options.fields` is checked against the command path alone.
+ */
+async function sendAndCheck(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    options: {
+        command: string;
+        commandId: number;
+        what: string;
+        fields?: CommandFieldValue[];
+        send: (icd: CertIcdClientApi) => Promise<{ detail: string; fields?: CommandFieldValue[] }>;
+    },
+) {
+    const { command, commandId, what, send } = options;
+    const th = cx.devices.th;
+    const from = th.log.mark();
+
+    let response: CheckRecord;
+    let fields = options.fields;
+    try {
+        const sent = await send(cx.controllers.dut.node(ref).icdClient());
+        response = { type: "response", verdict: "pass", detail: sent.detail };
+        fields ??= sent.fields;
+    } catch (e) {
+        response = { type: "response", verdict: "fail", detail: describeError(e) };
+    }
+
+    await recordAll(cx, [
+        { what: `${command} response`, check: () => response },
+        {
+            what: `CommandDataIB log for ${command} with ${what}`,
+            check: () =>
+                expectCommandInvoke(
+                    th.log,
+                    th.flavor,
+                    ROOT_ENDPOINT,
+                    ICD_MANAGEMENT_ID,
+                    commandId,
+                    fields ?? [],
+                    from,
+                    LOG_TIMEOUT,
+                ),
+        },
+    ]);
+}
 
 certTest("TC-ICDM-6.1", {
     plan: "icdmanagement.adoc",
@@ -61,34 +111,20 @@ certTest("TC-ICDM-6.1", {
     .step(
         1,
         "DUT issues a RegisterClient command to the Test Harness.",
-        commissioned.withRef("dut", async (cx, ref) => {
-            const th = cx.devices.th;
-            const from = th.log.mark();
-
-            try {
-                registration = await cx.controllers.dut.node(ref).icdClient().register();
-            } catch (e) {
-                record(cx, { type: "response", verdict: "fail", detail: describeError(e) }, "RegisterClient response");
-                return;
-            }
-            record(
-                cx,
-                { type: "response", verdict: "pass", detail: `ICDCounter=${registration.icdCounter}` },
-                "RegisterClient response",
-            );
-
-            const invoke = await expectCommandInvoke(
-                th.log,
-                th.flavor,
-                ROOT_ENDPOINT,
-                ICD_MANAGEMENT_ID,
-                REGISTER_CLIENT_ID,
-                icdRegisterClientFields(registration.nodeId, registration.key),
-                from,
-                LOG_TIMEOUT,
-            );
-            record(cx, invoke, "CommandDataIB log for RegisterClient with CheckInNodeID, MonitoredSubject, Key");
-        }),
+        commissioned.withRef("dut", (cx, ref) =>
+            sendAndCheck(cx, ref, {
+                command: "RegisterClient",
+                commandId: REGISTER_CLIENT_ID,
+                what: "CheckInNodeID, MonitoredSubject, Key, ClientType",
+                send: async icd => {
+                    registration = await icd.register();
+                    return {
+                        detail: `ICDCounter=${registration.icdCounter}`,
+                        fields: icdRegisterClientFields(registration.nodeId, registration.key),
+                    };
+                },
+            }),
+        ),
         {
             pics: "ICDM.C.C00.Tx",
             expected:
@@ -103,36 +139,20 @@ certTest("TC-ICDM-6.1", {
             if (registration === undefined) {
                 throw new InternalError("step 1 did not register the DUT");
             }
-            const th = cx.devices.th;
-            const from = th.log.mark();
-
             const { nodeId, key } = registration;
-            try {
-                await cx.controllers.dut.node(ref).icdClient().unregister();
-            } catch (e) {
-                record(
-                    cx,
-                    { type: "response", verdict: "fail", detail: describeError(e) },
-                    "UnregisterClient response",
-                );
-                return;
-            }
-            record(cx, { type: "response", verdict: "pass", detail: "status=Success" }, "UnregisterClient response");
-
-            const invoke = await expectCommandInvoke(
-                th.log,
-                th.flavor,
-                ROOT_ENDPOINT,
-                ICD_MANAGEMENT_ID,
-                UNREGISTER_CLIENT_ID,
-                [
+            await sendAndCheck(cx, ref, {
+                command: "UnregisterClient",
+                commandId: UNREGISTER_CLIENT_ID,
+                what: "CheckInNodeID, VerificationKey",
+                fields: [
                     { id: 0, value: nodeId },
                     { id: 1, value: key },
                 ],
-                from,
-                LOG_TIMEOUT,
-            );
-            record(cx, invoke, "CommandDataIB log for UnregisterClient with CheckInNodeID, VerificationKey");
+                send: async icd => {
+                    await icd.unregister();
+                    return { detail: "status=Success" };
+                },
+            });
         }),
         {
             pics: "ICDM.C.C02.Tx",
@@ -144,34 +164,17 @@ certTest("TC-ICDM-6.1", {
     .step(
         3,
         "DUT issues a StayActiveRequest command to the Test Harness.",
-        commissioned.withRef("dut", async (cx, ref) => {
-            const th = cx.devices.th;
-            const from = th.log.mark();
-
-            try {
-                const promised = await cx.controllers.dut.node(ref).icdClient().stayActive(STAY_ACTIVE_DURATION_MS);
-                record(
-                    cx,
-                    { type: "response", verdict: "pass", detail: `PromisedActiveDuration=${promised}` },
-                    "StayActiveResponse",
-                );
-            } catch (e) {
-                record(cx, { type: "response", verdict: "fail", detail: describeError(e) }, "StayActiveResponse");
-                return;
-            }
-
-            const invoke = await expectCommandInvoke(
-                th.log,
-                th.flavor,
-                ROOT_ENDPOINT,
-                ICD_MANAGEMENT_ID,
-                STAY_ACTIVE_REQUEST_ID,
-                [{ id: 0, value: STAY_ACTIVE_DURATION_MS }],
-                from,
-                LOG_TIMEOUT,
-            );
-            record(cx, invoke, "CommandDataIB log for StayActiveRequest with StayActiveDuration");
-        }),
+        commissioned.withRef("dut", (cx, ref) =>
+            sendAndCheck(cx, ref, {
+                command: "StayActiveRequest",
+                commandId: STAY_ACTIVE_REQUEST_ID,
+                what: "StayActiveDuration",
+                fields: [{ id: 0, value: STAY_ACTIVE_DURATION_MS }],
+                send: async icd => ({
+                    detail: `PromisedActiveDuration=${await icd.stayActive(STAY_ACTIVE_DURATION_MS)}`,
+                }),
+            }),
+        ),
         {
             pics: "ICDM.C.C03.Tx",
             expected: "TH receives StayActiveRequest with the StayActiveDuration the DUT asked for, as uint32.",
