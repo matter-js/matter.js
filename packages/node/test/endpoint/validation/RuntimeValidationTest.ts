@@ -17,7 +17,7 @@ import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeCon
 import { DeviceTypeConformanceError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { Environment, ImplementationError } from "@matter/general";
-import { DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
+import { ClusterModel, ConditionModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import {
     addCabinet,
@@ -28,9 +28,20 @@ import {
     deviceTypeList,
     lightWithGroupKeyManagement,
     recordingChecks,
+    WiFiCommissioningServer,
 } from "./validation-helpers.js";
 
 const BridgedLight = OnOffLightDevice.with(BridgedDeviceBasicInformationServer);
+
+const TaggedLight = OnOffLightDevice.with(DescriptorServer.with("TagList"));
+
+const DescribedLight = OnOffLightDevice.with(DescriptorServer);
+
+const tagList = [{ mfgCode: null, namespaceId: 7, tag: 0, label: null }];
+
+const WiFiLight = OnOffLightDevice.with(WiFiCommissioningServer);
+
+const missingTagList = "missing Descriptor.TAGLIST";
 
 const Fridge = RefrigeratorDevice.with(DescriptorServer);
 
@@ -60,6 +71,79 @@ function singleComponentModel() {
     );
     model.finalize();
     return model;
+}
+
+const WIDGET_ID = 0xfff1_0031;
+const ASSERTER_ID = 0xfff1_0032;
+const DUPLICATE_ASSERTER_ID = 0xfff1_0033;
+const DECLARER_ID = 0xfff1_0034;
+
+/**
+ * A model whose RootNode requires a Widget component carrying ColorControl, which an OnOffLight lacks, only under its
+ * condition Guarded. Asserter asserts Guarded on the node endpoint; DuplicateAsserter does only while it shares an
+ * application device type with a sibling. Declarer declares ColorControl a singleton.
+ */
+function guardedRootModel() {
+    const guarded = (conformance: string) =>
+        new RequirementModel({
+            name: "Guarded",
+            type: "RootNode.Guarded",
+            element: "condition",
+            conformance,
+            location: "Root",
+        });
+
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }, new ConditionModel({ name: "Duplicate" })),
+        new DeviceTypeModel(
+            { name: "RootNode", id: 0x16, classification: "node" },
+            new ConditionModel({ name: "Guarded" }),
+            new RequirementModel(
+                { name: "Widget", id: WIDGET_ID, element: "deviceType", conformance: "Guarded" },
+                new RequirementModel({ name: "ColorControl", id: 0x300, element: "serverCluster", conformance: "M" }),
+            ),
+        ),
+        new DeviceTypeModel({ name: "Widget", id: WIDGET_ID, classification: "simple" }),
+        new DeviceTypeModel({ name: "Asserter", id: ASSERTER_ID, classification: "simple" }, guarded("M")),
+        new DeviceTypeModel(
+            { name: "DuplicateAsserter", id: DUPLICATE_ASSERTER_ID, classification: "simple" },
+            guarded("Duplicate"),
+        ),
+        new DeviceTypeModel(
+            { name: "Declarer", id: DECLARER_ID, classification: "simple" },
+            new RequirementModel({
+                name: "ColorControl",
+                id: 0x300,
+                element: "serverCluster",
+                conformance: "O",
+                quality: "I",
+            }),
+        ),
+        new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+        new ClusterModel({ name: "ColorControl", id: 0x300 }),
+    );
+    model.finalize();
+    return model;
+}
+
+const unguardedWidget = "missing device:RootNode/Widget";
+
+/**
+ * A node judged in {@link guardedRootModel}, with a Widget child.
+ */
+async function createGuardedNode() {
+    const node = await createNode();
+    node.env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, node.env, guardedRootModel()));
+    const widget = await addStandIn(node, "widget", WIDGET_ID);
+    return { node, widget };
+}
+
+/**
+ * An endpoint whose Descriptor lists only {@link deviceTypes}.
+ */
+async function addStandIn(parent: Endpoint, id: string, ...deviceTypes: (string | number)[]) {
+    return parent.add(DescribedLight, { id, descriptor: { deviceTypeList: deviceTypeList(...deviceTypes) } });
 }
 
 class CrashingBehavior extends Behavior {
@@ -289,7 +373,345 @@ describe("device type validation after construction", () => {
         });
     });
 
+    describe("siblings", () => {
+        it("judges the sibling a second light makes a duplicate", async () => {
+            const node = await createNode();
+            const first = await node.add(OnOffLightDevice, { id: "first" });
+            expect(requirementsOf(node, first)).deep.equals([]);
+
+            using recording = recordingChecks();
+            const logged = await captureLogOf(() => node.add(OnOffLightDevice, { id: "second" }));
+            const second = node.parts.require("second");
+
+            expect(recording.judged).deep.equals([second, first, node]);
+            expect(logged.length).equals(2);
+            expect(requirementsOf(node, first)).deep.equals([missingTagList]);
+
+            await node.close();
+        });
+
+        it("clears the violation of the sibling a removal leaves unique", async () => {
+            const node = await createNode();
+            const first = await node.add(OnOffLightDevice, { id: "first" });
+            const second = await captureLogOf(() => node.add(OnOffLightDevice, { id: "second" })).then(() =>
+                node.parts.require("second"),
+            );
+            expect(requirementsOf(node, first)).deep.equals([missingTagList]);
+
+            using recording = recordingChecks();
+            await second.close();
+
+            expect(recording.judged).deep.equals([first, node]);
+            expect(requirementsOf(node, first)).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("judges the siblings a device type change makes duplicates", async () => {
+            const node = await createNode();
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+            const sensor = await node.add(TemperatureSensorDevice.with(DescriptorServer), { id: "sensor" });
+
+            await captureLogOf(() => addDeviceTypes(sensor, "OnOffLight"));
+
+            expect(requirementsOf(node, light)).deep.equals([missingTagList]);
+
+            await node.close();
+        });
+
+        it("judges a constant number of endpoints per identical bridged light", async () => {
+            const node = await createNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            await addBridgedLight(aggregator, "light1");
+            await addBridgedLight(aggregator, "light2");
+
+            for (let i = 3; i <= 100; i++) {
+                using recording = recordingChecks();
+                const light = await addBridgedLight(aggregator, `light${i}`);
+                expect(recording.judged).deep.equals([light, aggregator, node]);
+            }
+
+            using recording = recordingChecks();
+            await aggregator.parts.require("light50").close();
+            expect(recording.judged).deep.equals([aggregator, node]);
+
+            await node.close();
+        });
+    });
+
+    describe("a fact that reaches the node scope", () => {
+        it("judges the whole node scope when an endpoint supporting a network interface is added", async () => {
+            const node = await createNode();
+            const sensor = await node.add(TemperatureSensorDevice, { id: "sensor" });
+
+            using recording = recordingChecks();
+            await captureLogOf(() => node.add(WiFiLight, { id: "wifi" }));
+
+            expect(recording.judged).contains(sensor);
+
+            await node.close();
+        });
+
+        it("judges the whole node scope when a subtree with such an endpoint is added", async () => {
+            const node = await createNode();
+            const sensor = await node.add(TemperatureSensorDevice, { id: "sensor" });
+
+            using recording = recordingChecks();
+            await captureLogOf(() =>
+                node.add({ type: AggregatorEndpoint, id: "aggregator", parts: [{ type: WiFiLight, id: "wifi" }] }),
+            );
+
+            expect(recording.judged).contains(sensor);
+
+            await node.close();
+        });
+
+        it("judges the whole node scope when an endpoint declaring a singleton is added", async () => {
+            const { node, widget } = await createGuardedNode();
+
+            using recording = recordingChecks();
+            await captureLogOf(() => addStandIn(node, "declarer", DECLARER_ID));
+
+            expect(recording.judged).contains(widget);
+
+            await node.close();
+        });
+
+        it("judges the whole node scope when an endpoint without a recorded judgement changes", async () => {
+            const node = await createNode();
+            const sensor = await node.add(TemperatureSensorDevice, { id: "sensor" });
+            const light = await node.add(DescribedLight, { id: "light" });
+            serviceOf(node).forget(light);
+
+            using recording = recordingChecks();
+            await captureLogOf(() => addDeviceTypes(light, "OnOffLightSwitch"));
+
+            expect(recording.judged).deep.equals([light, node, sensor]);
+
+            await node.close();
+        });
+
+        it("judges the whole node scope when an endpoint without a recorded judgement is destroyed", async () => {
+            const node = await createNode();
+            const sensor = await node.add(TemperatureSensorDevice, { id: "sensor" });
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+            serviceOf(node).forget(light);
+
+            using recording = recordingChecks();
+            await light.close();
+
+            expect(recording.judged).deep.equals([node, sensor]);
+
+            await node.close();
+        });
+
+        it("judges the whole node scope when a destroyed descendant has no recorded judgement", async () => {
+            const node = await createNode();
+            const sensor = await node.add(TemperatureSensorDevice, { id: "sensor" });
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            const light = await addBridgedLight(aggregator, "light");
+            serviceOf(node).forget(light);
+
+            using recording = recordingChecks();
+            await aggregator.close();
+
+            expect(recording.judged).deep.equals([node, sensor]);
+
+            await node.close();
+        });
+
+        it("judges only the node endpoint when a nested node endpoint with such a descendant is destroyed", async () => {
+            const node = await createNode();
+            await node.add(TemperatureSensorDevice, { id: "sensor" });
+            const nested = await node.add(DescribedLight, { id: "nested" });
+            await captureLogOf(() => nested.add(WiFiLight, { id: "wifi" }));
+            await captureLogOf(() => nested.set({ descriptor: { deviceTypeList: deviceTypeList("RootNode") } }));
+
+            using recording = recordingChecks();
+            await captureLogOf(() => nested.close());
+
+            expect(recording.judged).deep.equals([node]);
+
+            await node.close();
+        });
+
+        it("judges the whole node scope when an endpoint above such an endpoint becomes a node endpoint", async () => {
+            const node = await createNode();
+            const sensor = await node.add(TemperatureSensorDevice, { id: "sensor" });
+            const light = await node.add(OnOffLightDevice.with(DescriptorServer), { id: "light" });
+            await captureLogOf(() => light.add(WiFiLight, { id: "wifi" }));
+
+            using recording = recordingChecks();
+            await captureLogOf(() => addDeviceTypes(light, "RootNode"));
+
+            expect(recording.judged).contains(sensor);
+
+            await node.close();
+        });
+
+        it("judges the whole node scope when a subtree with such an endpoint is destroyed", async () => {
+            const node = await createNode();
+            const sensor = await node.add(TemperatureSensorDevice, { id: "sensor" });
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            await captureLogOf(() => aggregator.add(WiFiLight, { id: "wifi" }));
+
+            using recording = recordingChecks();
+            await captureLogOf(() => aggregator.close());
+
+            expect(recording.judged).deep.equals([node, sensor]);
+
+            await node.close();
+        });
+    });
+
+    describe("a condition asserted on the node endpoint", () => {
+        it("judges a constant number of endpoints per bridged lock", async () => {
+            const node = await createNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            const addLock = (id: string) =>
+                captureLogOf(() =>
+                    aggregator.add(BridgedLight.with(DescriptorServer), {
+                        id,
+                        bridgedDeviceBasicInformation: { nodeLabel: id },
+                        descriptor: { deviceTypeList: deviceTypeList("DoorLock", "BridgedNode") },
+                    }),
+                ).then(() => aggregator.parts.require(id));
+            await addLock("lock1");
+            await addLock("lock2");
+
+            for (let i = 3; i <= 30; i++) {
+                using recording = recordingChecks();
+                const lock = await addLock(`lock${i}`);
+                expect(recording.judged).deep.equals([lock, aggregator, node]);
+            }
+
+            using recording = recordingChecks();
+            await captureLogOf(() => aggregator.parts.require("lock10").close());
+            expect(recording.judged).deep.equals([aggregator, node]);
+
+            await node.close();
+        });
+
+        it("judges the endpoints whose component judgement reads the node endpoint's conditions", async () => {
+            const { node, widget } = await createGuardedNode();
+            const bystander = await addStandIn(node, "bystander", "OnOffLight");
+            expect(requirementsOf(node, widget)).deep.equals([]);
+
+            using recording = recordingChecks();
+            const asserter = await captureLogOf(() => addStandIn(node, "asserter", ASSERTER_ID)).then(() =>
+                node.parts.require("asserter"),
+            );
+
+            expect(recording.judged).deep.equals([asserter, node, widget]);
+            expect(recording.judged).not.contains(bystander);
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await node.close();
+        });
+
+        it("judges them when a sibling starts asserting because it becomes a duplicate", async () => {
+            const { node, widget } = await createGuardedNode();
+            await addStandIn(node, "asserter", DUPLICATE_ASSERTER_ID, "OnOffLight");
+            expect(requirementsOf(node, widget)).deep.equals([]);
+
+            await captureLogOf(() => addStandIn(node, "light", "OnOffLight"));
+
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await node.close();
+        });
+
+        it("judges them when an endpoint starts asserting", async () => {
+            const { node, widget } = await createGuardedNode();
+            const light = await addStandIn(node, "light", "OnOffLight");
+
+            await captureLogOf(() =>
+                light.set({ descriptor: { deviceTypeList: deviceTypeList("OnOffLight", ASSERTER_ID) } }),
+            );
+
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await node.close();
+        });
+
+        it("judges them when an endpoint stops asserting", async () => {
+            const { node, widget } = await createGuardedNode();
+            const asserter = await captureLogOf(() => addStandIn(node, "asserter", ASSERTER_ID)).then(() =>
+                node.parts.require("asserter"),
+            );
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await captureLogOf(() => asserter.set({ descriptor: { deviceTypeList: deviceTypeList("OnOffLight") } }));
+
+            expect(requirementsOf(node, widget)).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("judges no reader above a nested node endpoint the assertion targets", async () => {
+            const { node, widget } = await createGuardedNode();
+
+            using recording = recordingChecks();
+            await captureLogOf(() =>
+                node.add(DescribedLight, {
+                    id: "nested",
+                    descriptor: { deviceTypeList: deviceTypeList("RootNode") },
+                    parts: [
+                        new Endpoint(DescribedLight, {
+                            id: "asserter",
+                            descriptor: { deviceTypeList: deviceTypeList(ASSERTER_ID) },
+                        }),
+                    ],
+                }),
+            );
+
+            expect(recording.judged).not.contains(widget);
+
+            await node.close();
+        });
+
+        it("judges them when an asserting endpoint is destroyed", async () => {
+            const { node, widget } = await createGuardedNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            await captureLogOf(() => addStandIn(aggregator, "asserter", ASSERTER_ID));
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await captureLogOf(() => aggregator.close());
+
+            expect(requirementsOf(node, widget)).deep.equals([]);
+
+            await node.close();
+        });
+    });
+
     describe("a later addition", () => {
+        it("is not refused in strict mode for a sibling violation a runtime change caused", async () => {
+            const node = await createStrictNode();
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+            const sensor = await node.add(TemperatureSensorDevice.with(DescriptorServer), { id: "sensor" });
+            await captureLogOf(() => addDeviceTypes(sensor, "OnOffLight"));
+
+            const logged = await captureLogOf(() => light.add(OnOffLightDevice, { id: "child" }));
+
+            expect(light.parts.has("child")).true;
+            expect(logged).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("is refused in strict mode for a sibling violation it causes", async () => {
+            const node = await createStrictNode();
+            await node.add(OnOffLightDevice, { id: "untagged" });
+
+            await expect(node.add(TaggedLight, { id: "tagged", descriptor: { tagList } })).rejectedWith(
+                DeviceTypeConformanceError,
+                "untagged",
+            );
+            expect(node.parts.has("tagged")).false;
+
+            await node.close();
+        });
+
         it("is not refused in strict mode for an ancestor violation a runtime change caused", async () => {
             const node = await createStrictNode();
             const { fridge, cabinet } = await addFridge(node);

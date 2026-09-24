@@ -154,6 +154,46 @@ export namespace ConditionAssertions {
     }
 
     /**
+     * Whether the Base `Duplicate` condition holds for {@link endpoint}: it shares an application device type with a
+     * sibling.
+     *
+     * @see {@link MatterSpecification.v16.Device} § 1.1.6.1
+     */
+    export function isDuplicate(endpoint: Endpoint, pass = new ValidationPass()) {
+        return overlapsSibling(EndpointFacts.of(endpoint, pass), pass);
+    }
+
+    /**
+     * Whether {@link endpoint} supports a network interface through its NetworkCommissioning server, which enters the
+     * conditions {@link collect} answers for every endpoint of the node scope.
+     */
+    export function reachesNodeScope(endpoint: Endpoint, pass = new ValidationPass()) {
+        for (const feature of EndpointFacts.of(endpoint, pass).features("NetworkCommissioning")) {
+            if (interfaceConditions.has(feature)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a device type of {@link endpoint} states a condition requirement located at the node endpoint, whatever
+     * its conformance. Such a requirement enters the conditions {@link collect} answers for the node endpoint and no
+     * other endpoint.
+     */
+    export function assertsOnNodeEndpoint(endpoint: Endpoint, pass = new ValidationPass()) {
+        return EndpointFacts.of(endpoint, pass).deviceTypes.some(deviceType =>
+            deviceType.requirements.some(
+                requirement =>
+                    requirement.location === RequirementElement.Location.Root &&
+                    assertedConditions.get(pass.model, requirement, () =>
+                        RequirementResolver.conditionOf(requirement),
+                    ) !== undefined,
+            ),
+        );
+    }
+
+    /**
      * The names in {@link Endpoint.deviceConditions} that name no condition in the endpoint's scope exactly.
      *
      * A name resolves in the scope of any of the endpoint's device types: their own conditions, their bases', the Base

@@ -172,6 +172,39 @@ export namespace DeviceTypeConformance {
         );
         return violations;
     }
+
+    /**
+     * Whether a device type of {@link endpoint} declares a server cluster a singleton, which {@link check} then judges
+     * on every endpoint of the endpoint's node scope.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.7.3
+     */
+    export function declaresSingleton(endpoint: Endpoint, pass = new ValidationPass()) {
+        return declarationMemo.get(pass, endpoint, () => singletonsOf([endpoint], pass)).size > 0;
+    }
+
+    /**
+     * The endpoints other than {@link nodeEndpoint} whose {@link check} verdict can depend on the conditions of
+     * {@link nodeEndpoint}: those of its composition scope that list a component device type of its device types.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.3
+     */
+    export function nodeConditionReadersOf(nodeEndpoint: Endpoint, pass = new ValidationPass()): Endpoint[] {
+        const facts = EndpointFacts.of(nodeEndpoint, pass);
+        const components = new Set<number>();
+        for (const deviceType of facts.deviceTypes) {
+            for (const requirement of deviceType.requirements) {
+                const component = RequirementResolver.deviceTypeOf(requirement);
+                if (component !== undefined) {
+                    components.add(component.id);
+                }
+            }
+        }
+
+        return facts.compositionScope.filter(endpoint =>
+            EndpointFacts.of(endpoint, pass).deviceTypes.some(deviceType => components.has(deviceType.id)),
+        );
+    }
 }
 
 function treeRootOf(endpoint: Endpoint) {
