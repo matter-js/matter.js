@@ -47,7 +47,10 @@ const logger = Logger.get("ClientNode");
  * you invoke {@link commissioned}.
  *
  * A node's `id` names it locally and may be reissued after the node is removed. Persist a {@link PeerAddress} when you
- * need to refer to the same logical fabric/node identity across local restarts.
+ * need to refer to the same logical fabric/node identity across local restarts. That address names one device for as
+ * long as the device stays commissioned. Once the node is removed the address may be handed to another
+ * device — `ControllerBehavior.allocatePeerAddress` documents when — so a reference kept for longer must cope
+ * both with finding nothing and with finding someone else.
  */
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #matter?: MatterModel;
