@@ -81,8 +81,8 @@ function switchWith(servers: SupportedBehaviors.List, clients: SupportedClientCl
 // Carries the mandatory Identify and OnOff clients and the Binding server Base requires of a simple client
 const completeSwitch = switchWith([BindingServer], [IdentifyClient, OnOffClient]);
 
-// Lacks the mandatory OnOff client; with no application client left, Base does not require Binding either
-const switchWithoutOnOffClient = switchWith([], [IdentifyClient]);
+// Lacks the mandatory OnOff client
+const switchWithoutOnOffClient = switchWith([BindingServer], [IdentifyClient]);
 
 // Lacks the Binding server that Base requires of a simple device type with an application client
 const switchWithoutBinding = switchWith([], [IdentifyClient, OnOffClient]);
@@ -300,6 +300,15 @@ describe("DeviceTypeConformance", () => {
             expect(violationsOf(endpoint).map(v => [v.deviceType, v.kind, v.requirement])).deep.equals([
                 ["Base", "missing", "Binding"],
             ]);
+
+            await node.close();
+        });
+
+        it("does not report Binding on an endpoint Base does not require it of", async () => {
+            const node = await createNode();
+            const endpoint = await node.add(OnOffLightDevice.with(BindingServer), { id: "light" });
+
+            expect(violationsOf(endpoint)).deep.equals([]);
 
             await node.close();
         });

@@ -175,7 +175,12 @@ function judge(
     if (applicability === Conformance.Applicability.Mandatory && !present) {
         kind = "missing";
         detail = `Mandatory ${subject} is missing`;
-    } else if (applicability === Conformance.Applicability.None && present) {
+    } else if (
+        applicability === Conformance.Applicability.None &&
+        present &&
+        // Base only adds duties: CHIP does not judge Base, and its reference apps carry Binding on non-client endpoints
+        deviceType.classification !== DeviceClassification.Base
+    ) {
         kind = "disallowed";
         detail = `Disallowed ${subject} is present`;
     } else {
