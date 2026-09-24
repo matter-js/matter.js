@@ -98,6 +98,24 @@ interface FanOutParams {
  * Provisions one group across several peers in a single run, so one run's change set names more than one
  * device — the shape a built-in task does not have, and the one an undo has to put back in full.
  */
+/** Names a peer and waits on it without writing: what a run looks like before its first change. */
+const WatchOnly: TaskDefinition<{ peer: PeerAddress }> = {
+    type: "watchOnly",
+    slotKeyFor: params => `watchOnly:${addressLabel(params.peer)}`,
+    peers: params => [params.peer],
+    phases(params) {
+        return [
+            {
+                name: "watch",
+                async run(ctx) {
+                    const peer = ctx.resolvePeer(params.peer);
+                    await ctx.awaitCommitted([{ peer, kind: GroupKey, key: String(GROUP_KEY_SET_ID) }]);
+                },
+            },
+        ];
+    },
+};
+
 const FanOut: TaskDefinition<FanOutParams> = {
     type: "fanOut",
     slotKeyFor: params => `fanOut:${params.tag}`,
@@ -384,6 +402,26 @@ describe("task layer against commissioned nodes", () => {
         // one could never be replayed, and would pin the record against the history limit forever.
         expect(await controller.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(0);
         expect(record?.changeSet.some(entry => PeerAddress.is(entry.peer, address))).equals(false);
+    });
+
+    it("ends a run whose named peer left before it wrote anything", async () => {
+        await using site = new MockSite();
+        const { controller, peerA } = await twoDevices(site);
+        const address = addressOfNode(peerA);
+        await controller.act(a => a.get(TaskManagerBehavior).register(WatchOnly));
+
+        // Parked on a gate it never wrote for, so it has no change set and no planned changes: the peer it
+        // names is the only thing that says which peer this run is about.
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
+        const handle = await controller.act(a => a.get(TaskManagerBehavior).run(WatchOnly, { peer: address }));
+        await awaitState(controller, `watchOnly:${addressLabel(address)}`, "parked");
+
+        await MockTime.resolve(peerA.delete(), { macrotasks: true });
+
+        // Ends, rather than holding its target for a peer this controller no longer has.
+        await awaitState(controller, `watchOnly:${addressLabel(address)}`, "failed");
+        expect(handle.status.error).contains("left the fabric");
+        expect(await controller.act(a => a.get(TaskManagerBehavior).tasks.length)).equals(0);
     });
 
     it("keeps what a surviving run recorded when a departed peer's priors are trimmed", async () => {

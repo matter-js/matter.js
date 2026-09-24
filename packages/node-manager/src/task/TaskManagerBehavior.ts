@@ -324,7 +324,14 @@ export class TaskManagerBehavior extends Behavior {
 
     /** The peers a run names — through what it changed, or through what it said it would change — that are gone. */
     #departedPeersOf(record: RunRecord, bound: BoundDefinition): PeerAddress[] {
-        const named = [...record.changeSet.map(entry => entry.peer), ...bound.plannedChanges().map(c => c.peer)];
+        // What it changed, what it says it will change, and what it says it names: a task that only removes has
+        // no planned changes and, before its first write, no change set either, so nothing else would notice
+        // that the peer it was started for is gone.
+        const named = [
+            ...record.changeSet.map(entry => entry.peer),
+            ...bound.plannedChanges().map(c => c.peer),
+            ...bound.peers(),
+        ];
         const departed = new Array<PeerAddress>();
         for (const address of named) {
             if (this.resolvePeerNode(address) === undefined && !departed.some(a => PeerAddress.is(a, address))) {

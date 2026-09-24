@@ -393,7 +393,7 @@ describe("the fabric a manager manages", () => {
         expect(status!.rollbackRunId).equals(undefined);
     });
 
-    it("takes up the runs it deferred once a fabric is settled", async () => {
+    it("takes up the runs it deferred when an operator names the fabric", async () => {
         await using site = new MockSite();
         const { controller, peerA } = await controllerWithTaskManager(site);
         const address = addressOfNode(peerA);
@@ -408,18 +408,14 @@ describe("the fabric a manager manages", () => {
         await controller.act(a => (a.get(ReconcilerBehavior).state.managedFabricId = null));
 
         const restarted = await restart(site, controller, controller.id, 1);
-        await restarted.act(a => {
-            a.get(ReconcilerBehavior).state.fabric = managedIndex;
-            return a.get(TaskManagerBehavior).register(AddNodeToGroup);
-        });
+        await restarted.act(a => a.get(TaskManagerBehavior).register(AddNodeToGroup));
         expect((await reconcilerOf(restarted)).index).equals(undefined);
 
-        // A fabric arriving is what makes the manager look again, and adopting one releases the resume pass
-        // the manager had nothing to run: the record is live in this process from here.
-        await addFabric(restarted, FabricId(3));
-        await pumpUntil("the manager adopts the fabric it was told to", async () => {
-            return (await reconcilerOf(restarted)).index === managedIndex;
-        });
+        // Naming the fabric is the documented takeover, and the fabric named is already here — so nothing else
+        // would announce that the answer changed. Adopting it releases the resume pass the manager had nothing
+        // to run, and the deferred record is driven from here.
+        await restarted.act(a => (a.get(ReconcilerBehavior).state.fabric = managedIndex));
+        expect((await reconcilerOf(restarted)).index).equals(managedIndex);
         await pumpUntil("the deferred run finishes", async () => {
             const status = await restarted.act(a => a.get(TaskManagerBehavior).get(runId)?.status.state);
             return status === "completed";
