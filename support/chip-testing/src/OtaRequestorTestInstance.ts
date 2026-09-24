@@ -14,6 +14,7 @@ import { OtaRequestorEndpoint } from "@matter/main/endpoints/ota-requestor";
 import type { OtaImageHeader, PersistedFileDesignator } from "@matter/main/protocol";
 import { OtaImageError, OtaImageReader } from "@matter/main/protocol";
 import { DeviceTypeId } from "@matter/main/types";
+import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
 import {
     isOtaTestSoftwareVersionString,
@@ -28,6 +29,15 @@ import {
 const ENDPOINT = {
     otaRequestor: 1,
 } as const;
+
+/**
+ * App argument that keeps the specification's two-minute floors whatever `MATTER_CERT_OTA_FAST_RETRY` says.
+ *
+ * A case whose DUT is this requestor passes it: the floors are what those cases check, and a requestor
+ * with lowered floors is not one a product could ship. The shortening is for cases where this subject is
+ * the TH and the wait is only the TH's.
+ */
+export const SPEC_INTERVALS_ARG = "--specIntervals";
 
 /** See {@link CertOtaRequestorServer.announcedUpdateQueryDelay}. */
 const ANNOUNCED_QUERY_DELAY = Millis(250);
@@ -140,6 +150,13 @@ class CertOtaRequestorServer extends OtaSoftwareUpdateRequestorServer {
 export class OtaRequestorTestInstance extends NodeTestInstance {
     static override id = "ota-requestor-6100";
 
+    #fastRetry: boolean;
+
+    constructor(config: DeviceTestInstanceConfig) {
+        super(config);
+        this.#fastRetry = otaFastRetryEnabled() && !(config.appArgs ?? []).includes(SPEC_INTERVALS_ARG);
+    }
+
     async setupServer(): Promise<ServerNode> {
         const networkId = new Uint8Array(32);
 
@@ -213,7 +230,7 @@ export class OtaRequestorTestInstance extends NodeTestInstance {
                     // consent; without the declaration it sends no RequestorCanConsent and refuses any
                     // update whose provider asks for consent.
                     canConsent: true,
-                    ...(otaFastRetryEnabled()
+                    ...(this.#fastRetry
                         ? { minimumQueryInterval: FAST_RETRY_INTERVAL, minimumApplyDelay: FAST_RETRY_INTERVAL }
                         : {}),
                 },

@@ -755,7 +755,7 @@ handler after it fires). A matched handler's returned string is written straight
 This TC is registered as a **bare `describe`/`it`**, not a `certTest()`, because there's no `CertDevice`
 in the picture at all — TH_SERVER lives entirely inside the container, spawned by the script itself, and
 the thing under test is `InProcessControllerAdapter`'s own commissioning stack acting as DUT_Commissioner
-against it. Building a `CertStepContext` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
+against it. Building a `CertStepWiring` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
 and calling `PromptDrivenPythonTest.invoke()` directly was simpler and more honest than forcing this
 shape through `certTest()`'s device-flavor machinery just to obtain a `Subject` it doesn't need.
 
@@ -3032,6 +3032,79 @@ endpoint is a number, and its VendorID claim rests on the requestor's log line r
 of a field the controller filled in moments earlier. Where no independent account exists — matter.js's
 requestor logs nothing for a `QueryImageResponse` — the check says so with `accepted` instead of
 matching a line the precondition already guaranteed.
+
+## The SU block, where the DUT is the OTA requestor (`TC-SU-2.1`, `TC-SU-2.4`)
+
+The 2.x cases put the DUT in the requestor's role, so it is the device and the controller is the TH —
+`BDX_RECEIVER_ROLES`, as TC-BDX-1.2 and TC-BDX-2.2 use. The TH is also the plan's TH2/Administrator:
+one controller commissions, announces and answers as the OTA-P, and `exchanges` is the provider's own
+account of what the DUT sent it.
+
+**A requestor field is compared with a fresh read of the DUT, not with what the TH holds.** TC-SU-2.1
+step 1 reads `BasicInformation` over the wire after the query. The TH's held client state is what its
+provider validated the query against, so comparing the two would be comparing the query with itself.
+
+**An outcome that depends on a PICS answer asks for it with `cx.picsMet(expression)`.** It reads the
+same PICS a step's `pics` gate does, but where a gate runs a step with no active PICS, `picsMet`
+fails it: the step would otherwise be owed both outcomes. The plan's "IF (MCORE.OTA.RequestorConsent) True. Otherwise
+False" is then one check that holds both ways, rather than two steps of which one is always skipped.
+The HTTPS check is written both ways on the same grounds, although the plan states only the positive
+half: a DUT listing a protocol its PICS deny is as wrong as one leaving out a protocol they declare.
+
+**The requestor's OTA keys are declared per flavor, because CHIP's PICS file does not describe chip's
+app as this suite starts it.** The file describes a generic device and answers `MCORE.OTA.HTTPS` and
+`MCORE.OTA.RequestorConsent` `1`. `chip-ota-requestor-app` lists BDX synchronous alone and, started
+without `--requestorCanConsent` or `--userConsentState`, sends `RequestorCanConsent` false — chip's own
+`Test_TC_SU_2_1.yaml` sample log shows `RequestorCanConsent: 0`. Both declarations live in
+`src/cert/index.ts`. `MCORE.OTA.HTTPS` is one key for both roles, so in a case whose DUT is the
+provider the requestor app's `0` answers wherever the controller declares nothing. chip-tool declares
+nothing for it, so on a chip-tool leg the app's answer gates TC-SU-3.2 step 4; no verdict changes,
+because chip-tool's `MCORE.OTA.Provider` `0` skips every provider case first.
+
+**A case whose DUT is the requestor gates on the TH's provider keys too.** `MCORE.OTA.Provider` and
+`OTAR.C.M.AnnounceOTAProvider` are answered by the controller there, since the requestor app declares
+neither. chip-tool answers both `0`, so its leg skips before commissioning instead of passing on the
+precondition alone.
+
+**Step 2 is a `Busy` answer and a two-minute watch, as chip's own `Test_TC_SU_2_1.yaml` runs it.**
+That script starts its provider with `-q busy`: `Busy` invites a retry, and § 11.20.3.2.4 requires the
+requestor to hold it back for two minutes whatever `DelayedActionTime` says. A `NotAvailable` answer
+invites nothing — the next query is a day away — so a step built on it passes whatever the DUT's
+spacing is. The provider stamps every `QueryImage` with `receivedAtMs` on the controller's monotonic
+clock, and the step fails a retry closer than 120 s to the `Busy` answer. It keeps recording a
+margin past the window, so the conformant retry lands in step 2's own record and not in step 3's.
+
+**A check that something did *not* happen has to prove the window was watched.** A record read at
+once holds one query whatever the DUT does next, so step 2 also checks `OtaAnnouncement.observedMs`,
+which the adapter measures from the answered query to the read and never reports short of the window
+asked for. Removing the wait fails the step; the framework test in
+`test/cert-framework/ota-requestor-test-instance.test.ts` fails the same way.
+
+**A requestor DUT keeps the specification's floors.** `MATTER_CERT_OTA_FAST_RETRY` lowers the matter.js
+requestor's two-minute floors for cases where it is the TH, whose wait is only the TH's. Where it is the
+DUT, those floors are what is under test, so TC-SU-2.x start it with `SPEC_INTERVALS_ARG`, which keeps
+them whatever the run shortens. The flag goes under the `matterjs` key of `appArgs`: chip's requestor
+refuses to start on an argument it does not know.
+
+**Step 3 announces the provider the DUT already uses.** The harness has one provider, so it cannot
+tell "queried the indicated provider" apart from "queried its last provider". chip's own
+`Test_TC_SU_2_1.yaml` step 3 announces the same provider too. What the step shows is that the DUT
+received the announcement and then queried the provider it named.
+
+**Neither requestor honors the 120-second spacing on an announced query.** Matter Core § 11.20.3.2:
+"An OTA Requestor SHALL NOT query more frequently than once every 120 seconds". matter.js schedules
+the query `announcedUpdateQueryDelay` after the announcement, and chip after `mOtaStartDelaySec`, with
+no reference to the last query. The plan never asks this directly — its step 3 follows step 2's
+two-minute wait — so a later announcement's budget (`SPACED_QUERY_TIMEOUT`) covers a DUT that does
+honor it, and the case passes against both behaviours.
+
+**TC-SU-2.4 is matterjs-only, for TC-SU-3.4's reason.** chip's requestor sends `ApplyUpdateRequest` only
+under `--autoApplyImage`, and then exits, which the harness reads as the DUT dying mid-run.
+
+**TC-SU-2.6 is not reachable yet.** A requestor sends `NotifyUpdateApplied` when it starts up running
+the version it was updating to (`OtaSoftwareUpdateRequestorServer.#handlePreviousUpdateOnStart`).
+`OtaRequestorTestInstance` never restarts and never advances its `softwareVersion`, and chip's app
+cannot restart into the image this harness stages. Step 2's `BootReason` needs the same reboot.
 
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 

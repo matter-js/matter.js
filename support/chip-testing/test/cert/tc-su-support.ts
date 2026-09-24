@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Matter } from "@matter/model";
 import type {
+    CertNodeApi,
     CertNodeRef,
+    CertStepContext,
     CheckRecord,
     OtaAnnouncementRecord,
     OtaApplyUpdateExchange,
@@ -15,7 +18,7 @@ import type {
 } from "@matter/testing";
 import { resolveDeviceFlavor } from "@matter/testing";
 import { otaFastRetryEnabled } from "../../src/OtaRequestorTestInstance.js";
-import { CertCheckFailedError } from "./tc-support.js";
+import { CertCheckFailedError, record, requireId } from "./tc-support.js";
 
 /** `QueryStatus` of a `QueryImageResponse`, which the SU plans name by word (Matter Core § 11.20.6.6). */
 export const OtaQueryStatus = {
@@ -380,4 +383,33 @@ export function longRunningReason(what: string) {
     return otaDelaysShortened()
         ? undefined
         : `${what} costs the plan's ${PLAN_DELAYED_ACTION_TIME}s of real time on this flavor`;
+}
+
+const OTA_REQUESTOR = Matter.clusters.require("OtaSoftwareUpdateRequestor");
+const OTA_REQUESTOR_ID = requireId(OTA_REQUESTOR.id, "OtaSoftwareUpdateRequestor cluster");
+const UPDATE_STATE_ID = requireId(OTA_REQUESTOR.attributes.require("updateState").id, "UpdateState attribute");
+
+/** `UpdateState` Idle (Matter Core § 11.20.7.5.3), the state the plans' Test Setup requires. */
+const UPDATE_STATE_IDLE = 1;
+
+/**
+ * Records the Test Setup every requestor plan shares: "reading the UpdateState Attribute of the OTA
+ * Requestor should return the value as Idle".
+ *
+ * Read on every endpoint, because the two requestors this suite runs carry the cluster on different
+ * ones, and a requestor carrying it twice would leave "the" UpdateState undefined.
+ */
+export async function recordRequestorIdle(cx: CertStepContext, node: CertNodeApi) {
+    const entries = await node.readAttributes([{ cluster: OTA_REQUESTOR_ID, attribute: UPDATE_STATE_ID }]);
+    const states = entries.map(({ endpoint, value }) => `${value} on endpoint ${endpoint}`);
+
+    record(
+        cx,
+        {
+            type: "response",
+            verdict: entries.length === 1 && entries[0].value === UPDATE_STATE_IDLE ? "pass" : "fail",
+            detail: `the DUT reported UpdateState ${states.join(", ") || "on no endpoint"}, where Idle is ${UPDATE_STATE_IDLE}`,
+        },
+        "the DUT's OTA requestor is Idle",
+    );
 }

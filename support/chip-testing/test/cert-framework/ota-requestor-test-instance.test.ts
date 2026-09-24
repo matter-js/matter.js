@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, StandardCrypto } from "@matter/general";
+import { Bytes, StandardCrypto, Time } from "@matter/general";
 import { OtaSoftwareUpdateRequestorServer } from "@matter/main/behaviors/ota-software-update-requestor";
 import { OtaImageWriter } from "@matter/main/protocol";
 import { NodeId, VendorId } from "@matter/main/types";
@@ -227,6 +227,64 @@ describe("OtaRequestorTestInstance", () => {
         // Every cleanup runs, in teardown order, even if an earlier one throws. A cleanup failure
         // replaces a passing body's result, but never a failing one — the body's own error is the
         // actual defect under test, and a cleanup failure on top of it is logged instead of thrown.
+        try {
+            await runCleanups(
+                () =>
+                    ref === undefined || adapter === undefined ? Promise.resolve() : adapter.node(ref).decommission(),
+                () => adapter?.close() ?? Promise.resolve(),
+                () => device?.close() ?? Promise.resolve(),
+            );
+        } catch (cleanupFailure) {
+            if (bodyFailure === undefined) {
+                throw cleanupFailure;
+            }
+            console.warn("OtaRequestorTestInstance cleanup failed after the test body already failed:", cleanupFailure);
+        }
+
+        if (bodyFailure !== undefined) {
+            throw bodyFailure;
+        }
+    });
+
+    it("watches a window after the announced query, and reports it", async function () {
+        this.timeout(30_000);
+
+        let device: OtaRequestorTestInstance | undefined;
+        let adapter: InProcessControllerAdapter | undefined;
+        let ref: CertNodeRef | undefined;
+        let bodyFailure: unknown;
+        try {
+            device = new OtaRequestorTestInstance({
+                domain: `ota-requestor-observe-${Math.random().toString(36).slice(2)}`,
+                commandPipeFactory: async () => {},
+                discriminator: REQUESTOR_DISCRIMINATOR,
+                passcode: REQUESTOR_PASSCODE,
+                port: REQUESTOR_PORT,
+            });
+            await device.initialize();
+            await device.start();
+            expect(device.node.lifecycle.isOnline, "the subject is listening after start()").equal(true);
+
+            adapter = new InProcessControllerAdapter("ota-requestor-observe");
+            await adapter.start();
+            ref = await adapter.commission({ passcode: REQUESTOR_PASSCODE, discriminator: REQUESTOR_DISCRIMINATOR });
+            const node = adapter.node(ref);
+
+            const observeMs = 500;
+            const before = Time.nowUs;
+            const observed = await node.announceOtaProvider({ observeMs });
+            const after = Time.nowUs;
+            expect(observed.observedMs).least(observeMs);
+            expect(observed.exchanges.queryImage).length(1);
+            expect(observed.exchanges.queryImage[0].receivedAtMs).within(before, after);
+
+            // Nothing is waited for without an expected query, whatever the requestor does with it
+            const unobserved = await node.announceOtaProvider({ expectQuery: false });
+            expect(unobserved.observedMs).equal(0);
+        } catch (error) {
+            bodyFailure = error;
+        }
+
         try {
             await runCleanups(
                 () =>
