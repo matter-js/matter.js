@@ -115,8 +115,9 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
     }
 
     const name = context.facts.clusterName(side, cluster.id);
+    const path = side === "client" ? `client:${cluster.name}` : cluster.name;
     const applicability = requirementApplicability(requirement, context.conditions, knownNamesOf(requirement));
-    const departed = judge(context, applicability, name !== undefined, cluster.name, `${side} cluster ${cluster.name}`);
+    const departed = judge(context, applicability, name !== undefined, path, `${side} cluster ${cluster.name}`);
 
     if (departed || name === undefined || side === "client") {
         return;
@@ -154,7 +155,7 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
             context,
             requirementApplicability(nested, trueNames, knownNamesOf(nested)),
             present,
-            `${cluster.name}.${referent.name}`,
+            `${path}.${referent.name}`,
             `${nested.element} ${referent.name} of ${cluster.name}`,
         );
     }

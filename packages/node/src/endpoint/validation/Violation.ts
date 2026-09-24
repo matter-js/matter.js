@@ -24,9 +24,13 @@ export interface Violation {
     deviceType: string;
 
     /**
-     * The path of the violated requirement: the cluster name for a cluster (`Identify`), the cluster and feature code
-     * for a feature (`OnOff.LT`), the cluster and element name for an attribute, command or event
-     * (`Identify.TriggerEffect`), and the stated name for an unknown condition.
+     * The path of the violated requirement, which identifies it on the endpoint:
+     *
+     * - a server cluster: its name (`Identify`)
+     * - a client cluster: `client:` and its name (`client:Identify`)
+     * - a feature: the cluster path, a dot and the feature code (`OnOff.LT`)
+     * - an attribute, command or event: the cluster path, a dot and the element name (`Identify.TriggerEffect`)
+     * - an unknown condition: the name as stated
      */
     requirement: string;
 

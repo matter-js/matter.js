@@ -84,6 +84,15 @@ const completeSwitch = switchWith([BindingServer], [IdentifyClient, OnOffClient]
 // Lacks the mandatory OnOff client
 const switchWithoutOnOffClient = switchWith([BindingServer], [IdentifyClient]);
 
+// Lacks both the Identify server and the Identify client
+const switchWithoutIdentify = MutableEndpoint({
+    name: "OnOffLightSwitch",
+    deviceType: OnOffLightSwitchDevice.deviceType,
+    deviceRevision: OnOffLightSwitchDevice.deviceRevision,
+    behaviors: SupportedBehaviors(BindingServer),
+    clientClusters: SupportedClientClusters(OnOffClient),
+});
+
 // Lacks the Binding server that Base requires of a simple device type with an application client
 const switchWithoutBinding = switchWith([], [IdentifyClient, OnOffClient]);
 
@@ -245,7 +254,19 @@ describe("DeviceTypeConformance", () => {
         const node = await createNode();
         const endpoint = await node.add(switchWithoutOnOffClient, { id: "switch" });
 
-        expect(violationsOf(endpoint).map(v => [v.kind, v.requirement])).deep.equals([["missing", "OnOff"]]);
+        expect(violationsOf(endpoint).map(v => [v.kind, v.requirement])).deep.equals([["missing", "client:OnOff"]]);
+
+        await node.close();
+    });
+
+    it("reports a cluster missing on both sides once per side", async () => {
+        const node = await createNode();
+        const endpoint = await node.add(switchWithoutIdentify, { id: "switch" });
+
+        expect(violationsOf(endpoint).map(v => [v.kind, v.requirement])).deep.equals([
+            ["missing", "Identify"],
+            ["missing", "client:Identify"],
+        ]);
 
         await node.close();
     });
