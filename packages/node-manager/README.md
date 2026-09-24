@@ -64,6 +64,9 @@ const MyTask: TaskDefinition<{ peer: PeerAddress; groupId: number }> = {
         Require.id("groupId", params.groupId, 0xffff);
     },
     slotKeyFor: params => `myTask:${addressLabel(params.peer)}:${params.groupId}`,
+    // The peers this task names. Without this the manager cannot tell that the work is for a fabric it does
+    // not answer for, nor that the peer has left before the task has written anything.
+    peers: params => [params.peer],
     // Everything this task does is on that one peer. Say so, or a departure ends the run: the default is that
     // work cannot continue without a peer it names.
     survivesWithout: () => false,

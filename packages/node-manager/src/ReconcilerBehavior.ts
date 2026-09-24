@@ -134,6 +134,9 @@ export class ReconcilerBehavior extends Behavior {
         this.#settleFabric();
         this.reactTo(fabrics.events.added, this.#settleFabric);
         this.reactTo(fabrics.events.deleted, this.#fabricDeleted);
+        // Naming a fabric is how an operator takes over from one that has left, and the fabric it names is
+        // usually already here — so nothing else would announce that the answer has changed.
+        this.reactTo(this.events.fabric$Changed, this.#settleFabric);
 
         this.internal.settleTimer = Time.getTimer(
             "reconciler settle",
@@ -300,6 +303,8 @@ export class ReconcilerBehavior extends Behavior {
             `Reconciler no longer manages fabric ${GlobalFabricId.strOf(fabric.globalId)}: it was removed from this controller`,
         );
         this.events.managedFabricLost.emit(fabric.globalId);
+        // A fabric an operator already named takes over from here, rather than at whatever event happens next.
+        this.#settleFabric();
     }
 
     #startSweep(): void {
@@ -563,6 +568,9 @@ export namespace ReconcilerBehavior {
     }
 
     export class Events extends Behavior.Events {
+        /** An operator named a different fabric to manage; see {@link State.fabric}. */
+        fabric$Changed = new Observable<[value: FabricIndex | undefined, oldValue: FabricIndex | undefined]>();
+
         /**
          * A fabric is managed from now on.
          *
