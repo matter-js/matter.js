@@ -8,6 +8,8 @@ import { DescriptorServer } from "#behaviors/descriptor";
 import { RefrigeratorDevice } from "#devices/refrigerator";
 import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
+import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
 import { ImplementationError } from "@matter/general";
 import { Matter } from "@matter/model";
 import { DeviceTypeId } from "@matter/types";
@@ -69,4 +71,16 @@ export async function addCabinet(parent: Endpoint, id: string) {
         id,
         temperatureControl: { minTemperature: 0, maxTemperature: 1000, temperatureSetpoint: 400 },
     });
+}
+
+/**
+ * The violations {@link DeviceTypeConformance.check} finds on {@link endpoint}, with conditions collected across the
+ * node scope of the tree's root.
+ */
+export function violationsOf(endpoint: Endpoint) {
+    let root = endpoint;
+    while (root.owner !== undefined) {
+        root = root.owner;
+    }
+    return DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(root).conditions);
 }

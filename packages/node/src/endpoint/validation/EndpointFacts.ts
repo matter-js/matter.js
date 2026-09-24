@@ -89,6 +89,19 @@ export class EndpointFacts {
     }
 
     /**
+     * The name the endpoint's server or client cluster with {@link id} goes by in {@link servers} or {@link clients},
+     * or undefined when the endpoint has no such cluster.
+     */
+    clusterName(side: "server" | "client", id: number): string | undefined {
+        const types = side === "server" ? this.#serverTypes : this.#clientTypes;
+        for (const [name, type] of types) {
+            if (type.schema.id === id) {
+                return name;
+            }
+        }
+    }
+
+    /**
      * Whether a server or client application cluster exists on the endpoint.
      */
     hasApplicationCluster(side: "server" | "client") {
