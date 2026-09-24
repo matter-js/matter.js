@@ -297,6 +297,50 @@ describe("a driven run whose fabric leaves", () => {
             await MockTime.resolve(node.close(), { macrotasks: true });
         });
     }
+
+    it("drives a run on when its fabric comes back while the settlement stops it", async () => {
+        await using site = new MockSite();
+        const peer = new FakePeer(PEER);
+        LosingTaskManager.peers.set(PEER, peer);
+        LosingTaskManager.reconcilerPeer = peer;
+
+        let release!: () => void;
+        const held = new Promise<void>(resolve => (release = resolve));
+        let reached = false;
+        SyntheticTask.phasesByTag[TAG] = [
+            {
+                name: "wait",
+                async run() {
+                    reached = true;
+                    await held;
+                },
+            },
+        ];
+
+        const node = await site.addNode(LosingRoot, { id: "fabric-returns", index: 1 });
+        await node.act(a => a.get(LosingTaskManager).register(SyntheticTask));
+        const handle = await node.act(a => a.get(LosingTaskManager).run(SyntheticTask, { tag: TAG }));
+        await pumpUntil("the phase is running", () => reached);
+
+        const other = await (
+            await node.env.load(FabricAuthority)
+        ).createFabric({
+            adminFabricId: FabricId(2),
+            adminFabricLabel: "other",
+            adminNodeId: NodeId(2002),
+        });
+        LosingTaskManager.lost = true;
+        await MockTime.resolve(other.delete(), { macrotasks: true });
+        // Back before the driver has stopped, so the settlement finds nothing to end once it has.
+        LosingTaskManager.lost = false;
+        release();
+
+        await pumpUntil("the run completes", () => handle.status.state === "completed");
+        await pumpUntil("the run releases its target", async () =>
+            node.act(a => a.get(LosingTaskManager).tasks.length === 0),
+        );
+        await MockTime.resolve(node.close(), { macrotasks: true });
+    });
 });
 
 /**
