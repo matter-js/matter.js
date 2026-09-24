@@ -5,8 +5,10 @@
  */
 
 import {
+    Bytes,
     camelize,
     Duration,
+    ImplementationError,
     InternalError,
     MatterAggregateError,
     MatterError,
@@ -1094,6 +1096,52 @@ export async function expectCommandInvoke(
         matched: last?.text,
         logLine: last?.index,
     };
+}
+
+/**
+ * The lines chip prints for an octet-string command field: its id opening a list, every byte on the next line,
+ * and the byte count closing it. The byte line fits because CHIP's Linux and macOS builds with detail logging
+ * allow a 1708-character log line (`chip_log_message_max_size` in `src/lib/core/core.gni`).
+ */
+export function chipOctetStringField(id: number, bytes: Bytes): RegExp[] {
+    const rendered = Array.from(Bytes.of(bytes), byte => `0x${byte.toString(16).padStart(2, "0")}, `).join("");
+    return [
+        new RegExp(`0x${id.toString(16)} = \\[\\s*$`),
+        new RegExp(`\\s${rendered}\\s*$`),
+        new RegExp(`\\] \\(${Bytes.of(bytes).byteLength} bytes\\),?\\s*$`),
+    ];
+}
+
+/**
+ * Checks that device `role`'s log carries `fields` as the `CommandFields` of the command logged at `commandLine`
+ * (the line {@link expectCommandInvoke} matched), consecutively and in order, so they cannot be read from any
+ * other message. chip's dump only: a list, an octet string or several fields together are not one line there.
+ */
+export async function expectCommandFields(
+    cx: CertStepContext,
+    role: string,
+    commandLine: number | undefined,
+    label: string,
+    fields: RegExp[],
+) {
+    const device = cx.devices[role];
+    if (device === undefined) {
+        throw new ImplementationError(`No device plays role "${role}" in this run`);
+    }
+    if (commandLine === undefined) {
+        record(
+            cx,
+            { type: "device-log", verdict: "fail", detail: `the command itself was not found in the ${role} log` },
+            label,
+        );
+        return;
+    }
+    const lines = [/CommandFields =\s*$/, /\{\s*$/, ...fields];
+    record(
+        cx,
+        await expectSequence(device.log, device.flavor, label, { chip: lines }, commandLine + 1, LOG_TIMEOUT),
+        label,
+    );
 }
 
 // How long a further report chunk may take to surface before the transfer counts as finished. The

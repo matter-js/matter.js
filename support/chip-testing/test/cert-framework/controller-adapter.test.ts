@@ -31,6 +31,7 @@ import {
     SessionStateError,
 } from "../../src/cert/InProcessControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
+import { IcdTestInstance } from "../../src/IcdTestInstance.js";
 import { manualPairingCode } from "../cert/tc-dd-support.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
@@ -1114,5 +1115,54 @@ describe("ControllerAdapter registry", () => {
                 CHIP_TOOL_CONTROLLER_PICS,
             );
         }
+    });
+});
+
+describe("InProcessControllerAdapter ICD client", () => {
+    let device: IcdTestInstance;
+    let adapter: InProcessControllerAdapter;
+
+    beforeEach(async function () {
+        this.timeout(20_000);
+
+        device = new IcdTestInstance({
+            domain: `controller-adapter-icd-test-${Math.random().toString(36).slice(2)}`,
+            commandPipeFactory: async () => {},
+            discriminator: 3840,
+            passcode: 20202021,
+            appArgs: ["--icdIdleModeDuration", "1", "--icdActiveModeDurationMs", "500"],
+        });
+        await device.initialize();
+        await device.start();
+
+        adapter = new InProcessControllerAdapter("icd-dut");
+        await adapter.start();
+    });
+
+    afterEach(async function () {
+        this.timeout(20_000);
+
+        await adapter?.close();
+        await device?.close();
+    });
+
+    it("records Check-Ins once unsubscribed, and does not count its own registration as a key refresh", async function () {
+        this.timeout(60_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const icd = adapter.node(ref).icdClient();
+
+        await icd.register();
+
+        // Several of the device's one-second idle periods: subscribed, it sends none
+        await new Promise(resolve => setTimeout(resolve, 3_000));
+        expect(icd.events()).deep.equal([]);
+
+        await icd.stopSubscription();
+        const { event, index } = await icd.waitFor("checkIn", 0, 30_000);
+        expect(icd.events()[index]).deep.equal(event);
+        expect(adapter.node(ref).icdClient()).equal(icd);
+
+        await adapter.node(ref).decommission();
     });
 });

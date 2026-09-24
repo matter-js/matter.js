@@ -16,6 +16,7 @@ import {
     Endpoint,
     Environment,
     Filesystem,
+    IcdClient,
     ImplementationError,
     InternalError,
     Logger,
@@ -30,6 +31,7 @@ import {
     Seconds,
     ServerNode,
     Time,
+    TimeoutError,
     Timer,
     UnexpectedDataError,
 } from "@matter/main";
@@ -108,6 +110,9 @@ import type {
     BatchCommandResult,
     BatchCommandSpec,
     CertGroupApi,
+    CertIcdClientApi,
+    CertIcdEvent,
+    CertIcdRegistration,
     CertNodeApi,
     ClientAttributePath,
     ClientEndpointEntry,
@@ -217,6 +222,10 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "TBRM.C.C01.Tx": 1,
     "TBRM.C.C03.Tx": 1,
     "TBRM.C.C04.Tx": 1,
+
+    // The controller registers as an ICD Check-In client and refreshes its key (TC-ICDB-1.3). The CHIP
+    // PICS file answers only the server side.
+    "ICDB.C": 1,
 
     // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
     // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
@@ -1024,17 +1033,145 @@ function transportNameOf(type: ChannelType): CertSessionInfo["transport"] {
     }
 }
 
+/**
+ * The controller's {@link IcdClient} for one peer, recording the Check-Ins and key refreshes it accepts.
+ *
+ * One per peer {@link ClientNode}: a case registers in one step and waits for Check-Ins in later ones, and each step
+ * obtains a fresh {@link InProcessCertNodeApi}.
+ */
+class InProcessIcdClient implements CertIcdClientApi {
+    readonly peer: ClientNode;
+    readonly #adapterId: string;
+    readonly #events = new Array<CertIcdEvent>();
+    readonly #waiters = new Set<() => void>();
+
+    constructor(adapterId: string, peer: ClientNode) {
+        this.#adapterId = adapterId;
+        this.peer = peer;
+
+        const events = peer.eventsOf(IcdClient);
+        events.checkedIn.on(({ counter }) => this.#push({ kind: "checkIn", counter }));
+
+        // A refresh replaces one starting counter with another; registration sets the first and clearing removes it.
+        // Committed by the time this fires, so state holds the new key
+        events.counterStart$Changed.on((counterStart, previous) => {
+            if (counterStart === undefined || previous === undefined) {
+                return;
+            }
+            const { key } = peer.stateOf(IcdClient);
+            if (key === undefined) {
+                logger.error(`IcdClient for ${peer} committed a new starting counter without a key`);
+                return;
+            }
+            this.#push({ kind: "keyRefresh", key: Bytes.of(key), counterStart });
+        });
+    }
+
+    register(options?: { allowMultiAdmin?: boolean }): Promise<CertIcdRegistration> {
+        return runTagged(this.#adapterId, async () => {
+            await this.peer.act("cert-icd-register", agent =>
+                agent.get(IcdClient).register({ allowMultiAdmin: options?.allowMultiAdmin }),
+            );
+            const { key, counterStart, monitoredSubject } = this.peer.stateOf(IcdClient);
+            if (key === undefined || counterStart === undefined || monitoredSubject === undefined) {
+                throw new InternalError(
+                    "IcdClient registered without recording what it sent and what the peer answered",
+                );
+            }
+            return { key: Bytes.of(key), nodeId: BigInt(monitoredSubject), icdCounter: counterStart };
+        });
+    }
+
+    stopSubscription(): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            await this.peer.set({ network: { autoSubscribe: false } });
+        });
+    }
+
+    events(): CertIcdEvent[] {
+        return [...this.#events];
+    }
+
+    waitFor<K extends CertIcdEvent["kind"]>(
+        kind: K,
+        from: number,
+        timeoutMs: number,
+    ): Promise<{ event: Extract<CertIcdEvent, { kind: K }>; index: number }> {
+        const isKind = (event: CertIcdEvent): event is Extract<CertIcdEvent, { kind: K }> => event.kind === kind;
+        const find = () => {
+            for (let index = from; index < this.#events.length; index++) {
+                const event = this.#events[index];
+                if (isKind(event)) {
+                    return { event, index };
+                }
+            }
+            return undefined;
+        };
+
+        const already = find();
+        if (already !== undefined) {
+            return Promise.resolve(already);
+        }
+
+        return new Promise((resolve, reject) => {
+            const waiter = () => {
+                const found = find();
+                if (found !== undefined) {
+                    timer.stop();
+                    this.#waiters.delete(waiter);
+                    resolve(found);
+                }
+            };
+            const timer = Time.getTimer("icd event wait", Millis(timeoutMs), () => {
+                this.#waiters.delete(waiter);
+                reject(
+                    new TimeoutError(
+                        `No ICD ${kind} recorded within ${Duration.format(Millis(timeoutMs))} (recorded: ${this.#events.length})`,
+                    ),
+                );
+            });
+            this.#waiters.add(waiter);
+            timer.start();
+        });
+    }
+
+    #push(event: CertIcdEvent) {
+        this.#events.push(event);
+        for (const waiter of [...this.#waiters]) {
+            waiter();
+        }
+    }
+}
+
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
     readonly #fabric: Fabric;
     readonly #nodeId: NodeId;
+    readonly #icdClients: Map<NodeId, InProcessIcdClient>;
 
-    constructor(adapterId: string, controller: ServerNode, fabric: Fabric, ref: CertNodeRef) {
+    constructor(
+        adapterId: string,
+        controller: ServerNode,
+        fabric: Fabric,
+        ref: CertNodeRef,
+        icdClients: Map<NodeId, InProcessIcdClient>,
+    ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
         this.#fabric = fabric;
         this.#nodeId = NodeId(ref);
+        this.#icdClients = icdClients;
+    }
+
+    icdClient(): CertIcdClientApi {
+        const peer = this.#peer;
+        let client = this.#icdClients.get(this.#nodeId);
+        if (client?.peer !== peer) {
+            client = new InProcessIcdClient(this.#adapterId, peer);
+            this.#icdClients.set(this.#nodeId, client);
+        }
+        return client;
     }
 
     get #peer(): ClientNode {
@@ -2184,6 +2321,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     #webRtcRequestor?: InProcessWebRtcRequestorApi;
     readonly #judgesAttestation: boolean;
     #attestation?: InProcessAttestationApi;
+    readonly #icdClients = new Map<NodeId, InProcessIcdClient>();
 
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
@@ -2253,10 +2391,10 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             });
             this.#controller = controller;
 
+            await controller.start();
+
             const fabricAuthority = await controller.env.load(FabricAuthority);
             this.#fabric = await fabricAuthority.defaultFabric({ adminFabricLabel: this.id });
-
-            await controller.start();
 
             if (this.#hostsWebRtcRequestor) {
                 const endpoint = await controller.add(CameraControllerDevice, {
@@ -2365,7 +2503,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     }
 
     node(ref: CertNodeRef): CertNodeApi {
-        return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref);
+        return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref, this.#icdClients);
     }
 
     group(groupId: number): CertGroupApi {

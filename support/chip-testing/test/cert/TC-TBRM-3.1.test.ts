@@ -9,10 +9,11 @@ import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
+    chipOctetStringField,
     CommissionedRefs,
     describeValue,
+    expectCommandFields,
     expectCommandInvoke,
-    expectSequence,
     LOG_TIMEOUT,
     record,
     requireId,
@@ -143,43 +144,6 @@ async function invokeAndCheck(
     return { response, commandLine: logCheck.logLine };
 }
 
-/**
- * The lines chip prints for an octet-string command field: its id opening a list, every byte on the next line,
- * and the byte count closing it. The byte line fits because CHIP's Linux and macOS builds with detail logging
- * allow a 1708-character log line (`chip_log_message_max_size` in `src/lib/core/core.gni`).
- */
-function chipOctetStringField(id: number, bytes: Bytes): RegExp[] {
-    const rendered = Array.from(Bytes.of(bytes), byte => `0x${byte.toString(16).padStart(2, "0")}, `).join("");
-    return [
-        new RegExp(`0x${id.toString(16)} = \\[\\s*$`),
-        new RegExp(`\\s${rendered}\\s*$`),
-        new RegExp(`\\] \\(${Bytes.of(bytes).byteLength} bytes\\),?\\s*$`),
-    ];
-}
-
-/**
- * Checks that the TH's log carries `fields` as the `CommandFields` of the command logged at `commandLine`,
- * consecutively and in order, so they cannot be read from any other message.
- */
-async function expectCommandFields(
-    cx: CertStepContext,
-    commandLine: number | undefined,
-    label: string,
-    fields: RegExp[],
-) {
-    const th = cx.devices.th;
-    if (commandLine === undefined) {
-        record(
-            cx,
-            { type: "device-log", verdict: "fail", detail: "the command itself was not found in the TH log" },
-            label,
-        );
-        return;
-    }
-    const lines = [/CommandFields =\s*$/, /\{\s*$/, ...fields];
-    record(cx, await expectSequence(th.log, th.flavor, label, { chip: lines }, commandLine + 1, LOG_TIMEOUT), label);
-}
-
 /** Checks that a `DatasetResponse` returns the dataset an earlier step set. */
 function expectDataset(cx: CertStepContext, commandName: string, response: unknown, expected: Bytes) {
     const dataset = datasetOf(response);
@@ -241,6 +205,7 @@ certTest("TC-TBRM-3.1", {
             );
             await expectCommandFields(
                 cx,
+                "th",
                 commandLine,
                 "SetActiveDatasetRequest ActiveDataset (ID 0), Breadcrumb (ID 1)",
                 [...chipOctetStringField(0, ACTIVE_DATASET), new RegExp(`0x1 = ${BREADCRUMB} \\(unsigned\\),\\s*$`)],
@@ -268,6 +233,7 @@ certTest("TC-TBRM-3.1", {
             );
             await expectCommandFields(
                 cx,
+                "th",
                 commandLine,
                 "SetPendingDatasetRequest PendingDataset (ID 0)",
                 chipOctetStringField(0, PENDING_DATASET),

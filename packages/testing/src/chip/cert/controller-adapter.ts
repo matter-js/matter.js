@@ -645,6 +645,69 @@ export interface CertSessionInfo {
 }
 
 /**
+ * What the controller's ICD Check-In client accepted from one node, in arrival order.
+ *
+ * A Check-In the client drops leaves no entry, so a step asserting a refusal checks that none arrived beside the
+ * controller's own log.
+ */
+export type CertIcdEvent =
+    | { kind: "checkIn"; counter: number }
+    | {
+          kind: "keyRefresh";
+
+          /** The key the client re-registered with. */
+          key: Uint8Array;
+
+          /** The `ICDCounter` the node answered the re-registration with, the new key's starting value. */
+          counterStart: number;
+      };
+
+/** What {@link CertIcdClientApi.register} sent, and what the node answered. */
+export interface CertIcdRegistration {
+    key: Uint8Array;
+
+    /** The controller's own node id, which it sends as both `CheckInNodeID` and `MonitoredSubject`. */
+    nodeId: bigint;
+
+    icdCounter: number;
+}
+
+/**
+ * The controller as the ICD Check-In client of one node.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.22
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16
+ */
+export interface CertIcdClientApi {
+    /**
+     * Sends `RegisterClient` with this controller as Check-In target and monitored subject, and resolves with what it
+     * sent (the key, and its own node id as `CheckInNodeID` and `MonitoredSubject`) and the `ICDCounter` the node
+     * answered.
+     */
+    register(options?: { allowMultiAdmin?: boolean }): Promise<CertIcdRegistration>;
+
+    /**
+     * Ends the controller's own subscription to the node and keeps it from subscribing again. An ICD sends Check-In
+     * messages only to a registered client without an active subscription, so a step waiting for one has to drop it
+     * first; and a controller auto-registers with a LIT node only while subscribed.
+     */
+    stopSubscription(): Promise<void>;
+
+    /** Everything recorded since the controller first handed out this client for the node. */
+    events(): CertIcdEvent[];
+
+    /**
+     * Resolves with the first event of `kind` at index `from` or later in {@link events}, and that index, and rejects
+     * once `timeoutMs` passes without one.
+     */
+    waitFor<K extends CertIcdEvent["kind"]>(
+        kind: K,
+        from: number,
+        timeoutMs: number,
+    ): Promise<{ event: Extract<CertIcdEvent, { kind: K }>; index: number }>;
+}
+
+/**
  * Controller-side view of a single commissioned node.
  *
  * A method whose controller cannot express the requested operation throws
@@ -772,6 +835,14 @@ export interface CertNodeApi {
      * describe (its channel already detached) is omitted rather than reported half-known.
      */
     sessions(): Promise<CertSessionInfo[]>;
+
+    /**
+     * The controller as this node's ICD Check-In client. The same object is returned for the node every time, so
+     * what it recorded survives from one step to the next, until the node is commissioned anew.
+     *
+     * A controller that cannot act as a Check-In client throws {@link UnsupportedByControllerError}.
+     */
+    icdClient(): CertIcdClientApi;
 
     /**
      * Drop the transport connection beneath the session {@link CertSessionInfo.id} names, without

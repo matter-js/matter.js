@@ -60,6 +60,7 @@ to an app this way:
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
+| `ICDB`                              | `lit-icd`    | `lit-icd-app-nopersist` (variant) | no — `flavors: ["chip-local"]`, own-built binaries only |
 
 A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
@@ -3061,3 +3062,39 @@ cluster-client block. What it adds:
 - **Building the app on macOS needs the zap version the CHIP checkout names.** An older `zap-cli`
   fails codegen with "Version validation failed". `scripts/tools/zap/zap_download.py --zap RELEASE`
   fetches the right one, and `ZAP_INSTALL_PATH` points the build at it.
+
+## The ICD client case, and what it takes for a TH to send a Check-In (`TC-ICDB-1.3`)
+
+The DUT registers as TH1's Check-In client, TH2 (a helper controller on TH1's second fabric) sends CHIP's ICD test
+event triggers, and the DUT must refresh its key after half the counter range and drop a Check-In whose counter
+repeats. `CertNodeApi.icdClient()` is the controller side: `register()`, `stopSubscription()`, and the Check-Ins
+and key refreshes it accepted (`events()`, `waitFor()`). Four things had to line up before any Check-In arrived:
+
+- **An ICD sends no Check-In to a client that holds a subscription, active or persisted.** CHIP's
+  `ICDManager::ShouldCheckInMsgsBeSentAtActiveModeFunction` checks both. With subscription timeout resumption
+  (stock `lit-icd-app`), the persisted entry lives until every resumption attempt is spent, and a retry after a
+  failed attempt waits at least 300 seconds. With persistence but no resumption, `mIsBootUpResumeSubscriptionExecuted` is only set after a
+  boot-time resumption, so on a freshly started app a persisted subscription blocks Check-Ins for good. The case
+  therefore runs `lit-icd-app-nopersist`, built with neither, which only this project's image carries.
+- **TH2 must not become a Check-In client too.** `IcdClient` auto-registers with a LIT peer while subscribed, and
+  TH1 turns LIT when the DUT registers, so step 0 ends TH2's subscription first.
+- **The DUT has to drop its own subscription.** `IcdClient.register()` requires an active subscription (it reads
+  the peer's operating mode), and a registration makes matter.js recreate that subscription for the new operating
+  mode. `stopSubscription()` turns the peer's `autoSubscribe` off; the TH tears the subscription down when its next
+  report goes unanswered, and sends a Check-In at its next active mode.
+- **The controller has to advertise operationally**, or the TH fails with "Node Address resolution failed for ICD
+  Check-In". A node advertises when it starts with a fabric, or when `FabricManager` `added` fires after it is
+  online — a fabric created before `start()` on a fresh node does neither. The adapter therefore creates its
+  fabric after starting the controller, and every in-process cert controller now advertises `_matter._tcp`.
+
+Two more traps:
+
+- **`IcdClient.keyRefreshed` fires inside the refresh transaction**, so state read in the listener is still the
+  old key and counter. The recorder listens to `counterStart$Changed`, which fires after commit.
+- **The step-3 trigger invalidates exactly one Check-In.** It advances the counter by 2^32 − 1, so the next
+  Check-In repeats the last counter and the one after is valid again. The trigger's own exchange can also wake TH1
+  into a Check-In that is still valid, so step 3 does not count Check-Ins: it requires the drop line and that no
+  counter was accepted twice.
+
+The TH's active mode came every 10–20 seconds rather than the configured 5, so every wait is 90 seconds.
+

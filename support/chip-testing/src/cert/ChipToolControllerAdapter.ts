@@ -138,6 +138,9 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "TBRM.C.C03.Tx": 1,
     "TBRM.C.C04.Tx": 1,
 
+    // chip-tool has an ICD client of its own, but this adapter does not expose it.
+    "ICDB.C": 0,
+
     // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
     // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
     "G.C.C01.Tx": 1,
@@ -926,6 +929,15 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return responseModel === undefined
             ? response.value
             : chipJsonToMatter(response.value, responseModel, clusterModel);
+    }
+
+    icdClient(): never {
+        throw new UnsupportedByControllerError(
+            "icdClient",
+            CONTROLLER,
+            "this adapter drives chip-tool's commands for single interactions and does not expose its ICD client " +
+                "(registration, key refresh and Check-In handling)",
+        );
     }
 
     async serveOtaUpdate(): Promise<never> {
