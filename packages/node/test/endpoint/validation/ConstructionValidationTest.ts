@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
 import {
     GroupKeyManagementBehavior,
@@ -33,6 +34,7 @@ import {
     lightWithGroupKeyManagement,
     lightWithoutIdentify,
     unjudgedServiceOf,
+    withBle,
 } from "./validation-helpers.js";
 
 function cabinet() {
@@ -48,17 +50,16 @@ const Fridge = RefrigeratorDevice.with(DescriptorServer);
 const { Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
 
 /**
- * A started node that refuses any violation. Its root states `CustomNetworkConfig` so the root itself is accepted
- * whatever the root's network conditions come to be.
+ * A started node that refuses any violation.
  */
 async function createStrictNode() {
+    return MockServerNode.createOnline(undefined, { environment: strictEnvironment(), device: undefined });
+}
+
+function strictEnvironment() {
     const environment = new Environment("test");
     environment.vars.set("endpoint.validation.strict", true);
-    return MockServerNode.createOnline(undefined, {
-        environment,
-        device: undefined,
-        deviceConditions: ["CustomNetworkConfig"],
-    });
+    return environment;
 }
 
 /**
@@ -410,5 +411,56 @@ describe("device type validation at construction", () => {
         const mirrored = [...(peer?.parts ?? [])].filter(part => part.behaviors.has(GroupKeyManagementClient));
         expect(mirrored.length).equals(1);
         expect(logged).deep.equals([]);
+    });
+
+    it("constructs a strict node in default configuration", async () => {
+        const node = await createStrictNode();
+
+        expect(node.lifecycle.isOnline).true;
+
+        await node.close();
+    });
+
+    it("refuses a strict node that commissions over BLE without NetworkCommissioning", async () => {
+        const node = new MockServerNode(undefined, { environment: withBle(strictEnvironment()), device: undefined });
+
+        const error = await node.construction.then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).property("cause").instanceOf(DeviceTypeConformanceError);
+        expect(error)
+            .nested.property("cause.errors[0].message")
+            .match(/^RootNode NetworkCommissioning: /);
+
+        await node.close();
+    });
+
+    describe("in default configuration", () => {
+        it("logs no warning for a plain light", async () => {
+            const logged = await captureLogOf(async () => {
+                const node = await MockServerNode.createOnline();
+                await node.close();
+            });
+
+            expect(logged).deep.equals([]);
+        });
+
+        it("logs no warning for a bridge", async () => {
+            const logged = await captureLogOf(async () => {
+                const node = await MockServerNode.createOnline(undefined, { device: undefined });
+                const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+                for (const id of ["light1", "light2"]) {
+                    await aggregator.add(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
+                        id,
+                        bridgedDeviceBasicInformation: { nodeLabel: id },
+                    });
+                }
+                await node.close();
+            });
+
+            expect(logged).deep.equals([]);
+        });
     });
 });

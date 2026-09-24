@@ -6,6 +6,7 @@
 
 import { DescriptorServer } from "#behaviors/descriptor";
 import { GroupKeyManagementBehavior } from "#behaviors/group-key-management";
+import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
 import { RefrigeratorDevice } from "#devices/refrigerator";
 import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
@@ -16,9 +17,21 @@ import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformanc
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Diagnostic, ImplementationError, LogDestination, Logger, LogFormat, LogLevel } from "@matter/general";
+import {
+    Bytes,
+    Diagnostic,
+    Environment,
+    ImplementationError,
+    LogDestination,
+    Logger,
+    LogFormat,
+    LogLevel,
+    Transport,
+} from "@matter/general";
 import { DeviceTypeModel, Matter, MatterModel } from "@matter/model";
+import { Ble, BlePeripheralInterface, Scanner } from "@matter/protocol";
 import { DeviceTypeId } from "@matter/types";
+import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 const { Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
@@ -67,6 +80,81 @@ export async function createUnjudgedNode() {
     node.env.set(DeviceTypeConformanceService, unjudgedServiceOf(node));
     return node;
 }
+
+/**
+ * A node that commissions over BLE, constructed but not started, because its BLE support is a stand-in.
+ */
+export async function createBleNode({
+    type = MockServerNode.RootEndpoint,
+    deviceConditions,
+}: { type?: MockServerNode.RootEndpoint; deviceConditions?: string[] } = {}) {
+    return MockServerNode.createOnline(type, {
+        environment: withBle(new Environment("test")),
+        device: undefined,
+        online: false,
+        deviceConditions,
+    });
+}
+
+/**
+ * {@link environment} with BLE support a node that never starts can commission over.
+ */
+export function withBle(environment: Environment) {
+    environment.set(Ble, new UnusableBle());
+    return environment;
+}
+
+/**
+ * BLE support whose interfaces a node that never starts does not reach. Reading one throws, so a test that fails with
+ * this error reached BLE, not the code under test.
+ */
+class UnusableBle extends Ble {
+    get peripheralInterface(): BlePeripheralInterface {
+        throw new ImplementationError("Test BLE support has no peripheral interface");
+    }
+
+    get centralInterface(): Transport {
+        throw new ImplementationError("Test BLE support has no central interface");
+    }
+
+    get scanner(): Scanner {
+        throw new ImplementationError("Test BLE support has no scanner");
+    }
+}
+
+export class WiFiCommissioningServer extends NetworkCommissioningServer.with("WiFiNetworkInterface") {
+    override initialize() {
+        initializeNetworkCommissioning(this.state);
+        this.state.supportedWiFiBands = [NetworkCommissioning.WiFiBand["2G4"]];
+    }
+}
+
+export class ThreadCommissioningServer extends NetworkCommissioningServer.with("ThreadNetworkInterface") {
+    override initialize() {
+        initializeNetworkCommissioning(this.state);
+        this.state.supportedThreadFeatures = { isFullThreadDevice: true };
+        this.state.threadVersion = 4;
+    }
+}
+
+export class EthernetCommissioningServer extends NetworkCommissioningServer.with("EthernetNetworkInterface") {
+    override initialize() {
+        initializeNetworkCommissioning(this.state);
+    }
+}
+
+function initializeNetworkCommissioning(state: NetworkCommissioningServer["state"]) {
+    state.maxNetworks = 1;
+    state.interfaceEnabled = true;
+    state.networks = [{ networkId: Bytes.fromHex("00"), connected: true }];
+}
+
+/**
+ * Root endpoints whose NetworkCommissioning server supports one network interface each.
+ */
+export const RootWithWiFi = MockServerNode.RootEndpoint.with(WiFiCommissioningServer);
+export const RootWithThread = MockServerNode.RootEndpoint.with(ThreadCommissioningServer);
+export const RootWithEthernet = MockServerNode.RootEndpoint.with(EthernetCommissioningServer);
 
 /**
  * A conformance service for {@link node} that judges nothing, because no device type of its model is a node.

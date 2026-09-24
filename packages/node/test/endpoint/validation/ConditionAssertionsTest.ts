@@ -8,12 +8,24 @@ import { DescriptorServer } from "#behaviors/descriptor";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { OnOffLightSwitchDevice } from "#devices/on-off-light-switch";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { ConditionAssertions, StructuralCondition } from "#endpoint/validation/ConditionAssertions.js";
+import { ConditionAssertions, NodeCondition, StructuralCondition } from "#endpoint/validation/ConditionAssertions.js";
 import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
 import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
+import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-interface";
 import { ImplementationError } from "@matter/general";
 import { ConditionModel, DeviceTypeModel, Matter, MatterModel, RequirementModel } from "@matter/model";
-import { addCabinet, addRefrigerator, createNode, deviceTypeList } from "./validation-helpers.js";
+import { MockServerNode } from "../../node/mock-server-node.js";
+import {
+    addCabinet,
+    addRefrigerator,
+    createBleNode,
+    createNode,
+    deviceTypeList,
+    RootWithEthernet,
+    RootWithThread,
+    RootWithWiFi,
+    ThreadCommissioningServer,
+} from "./validation-helpers.js";
 
 const DescribedLight = OnOffLightDevice.with(DescriptorServer);
 const DescribedSwitch = OnOffLightSwitchDevice.with(DescriptorServer);
@@ -348,6 +360,85 @@ describe("ConditionAssertions", () => {
             });
 
             expect(ConditionAssertions.collect(node).conditions.get(first)?.has("Duplicate")).false;
+
+            await node.close();
+        });
+    });
+
+    describe("node conditions", () => {
+        it("holds CustomNetworkConfig for every endpoint of a node that does not commission over BLE", async () => {
+            const node = await createNode();
+            const light = await node.add(DescribedLight, { id: "light" });
+
+            const { conditions } = ConditionAssertions.collect(node);
+
+            expect(conditions.get(node)?.has(NodeCondition.CustomNetworkConfig)).true;
+            expect(conditions.get(light)?.has(NodeCondition.CustomNetworkConfig)).true;
+
+            await node.close();
+        });
+
+        it("does not hold CustomNetworkConfig for a node that commissions over BLE", async () => {
+            const node = await createBleNode();
+
+            const { conditions } = ConditionAssertions.collect(node);
+
+            expect(conditions.get(node)?.has(NodeCondition.CustomNetworkConfig)).false;
+
+            await node.close();
+        });
+
+        for (const [root, condition] of [
+            [RootWithWiFi, NodeCondition.WiFi],
+            [RootWithThread, NodeCondition.Thread],
+            [RootWithEthernet, NodeCondition.Ethernet],
+        ] as const) {
+            it(`holds ${condition} for every endpoint when NetworkCommissioning supports that interface`, async () => {
+                const node = await MockServerNode.createOnline(root, {
+                    device: undefined,
+                });
+                const light = await node.add(DescribedLight, { id: "light" });
+
+                const { conditions } = ConditionAssertions.collect(node);
+
+                const interfaces = [NodeCondition.WiFi, NodeCondition.Thread, NodeCondition.Ethernet];
+                expect(interfaces.filter(name => conditions.get(node)?.has(name))).deep.equals([condition]);
+                expect(interfaces.filter(name => conditions.get(light)?.has(name))).deep.equals([condition]);
+
+                await node.close();
+            });
+        }
+
+        it("holds a network interface condition that a secondary interface's NetworkCommissioning supports", async () => {
+            const node = await createNode();
+            await node.add(SecondaryNetworkInterfaceEndpoint.with(ThreadCommissioningServer), { id: "thread" });
+
+            const conditions = ConditionAssertions.collect(node).conditions.get(node);
+
+            expect(conditions?.has(NodeCondition.Thread)).true;
+
+            await node.close();
+        });
+
+        it("holds no network interface condition without NetworkCommissioning", async () => {
+            const node = await createNode();
+
+            const conditions = ConditionAssertions.collect(node).conditions.get(node);
+
+            expect(conditions?.has(NodeCondition.WiFi)).false;
+            expect(conditions?.has(NodeCondition.Thread)).false;
+            expect(conditions?.has(NodeCondition.Ethernet)).false;
+
+            await node.close();
+        });
+
+        it("holds a stated condition the node does not answer", async () => {
+            const node = await createBleNode({ deviceConditions: ["CustomNetworkConfig", "Sit"] });
+
+            const conditions = ConditionAssertions.collect(node).conditions.get(node);
+
+            expect(conditions?.has(NodeCondition.CustomNetworkConfig)).true;
+            expect(conditions?.has("Sit")).true;
 
             await node.close();
         });

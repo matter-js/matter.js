@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import {
     ConditionModel,
@@ -28,8 +29,9 @@ const assertedConditions = new ValidationPass.ModelMemo<RequirementModel, Condit
  * The conditions that hold for the endpoints of a node scope.
  *
  * A condition is true for an endpoint when a condition requirement of a device type in the scope asserts it there,
- * when the Base device type's structural definition makes it true, or when the endpoint states it in
- * {@link Endpoint.deviceConditions}. Every other condition is false.
+ * when the Base device type's structural definition makes it true, when the node's configuration answers it (see
+ * {@link NodeCondition}), or when the endpoint states it in {@link Endpoint.deviceConditions}. Every other condition is
+ * false; stating a name never makes a condition false.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
@@ -90,7 +92,7 @@ export namespace ConditionAssertions {
      *
      * A condition requirement asserts its condition rather than testing it, and it may assert on another endpoint, so
      * the whole scope is collected before any requirement is judged. A requirement asserts when its conformance is
-     * mandatory for the structural and stated conditions of the asserting endpoint.
+     * mandatory for the structural, node and stated conditions of the asserting endpoint.
      *
      * One {@link pass} collects each node scope once.
      *
@@ -103,10 +105,16 @@ export namespace ConditionAssertions {
     function collectScope(nodeEndpoint: Endpoint, pass: ValidationPass): Collection {
         const scope = nodeScopeOf(nodeEndpoint, pass);
 
+        const nodeConditions = nodeConditionsOf(nodeEndpoint, scope, pass);
+
         const underived = new Map<Endpoint, Set<string>>();
         const conditions = new Map<Endpoint, Set<string>>();
         for (const endpoint of scope) {
-            const names = new Set([...structuralConditionsOf(endpoint, pass), ...statedConditionsOf(endpoint, pass)]);
+            const names = new Set([
+                ...structuralConditionsOf(endpoint, pass),
+                ...nodeConditions,
+                ...statedConditionsOf(endpoint, pass),
+            ]);
             underived.set(endpoint, names);
             conditions.set(endpoint, new Set(names));
         }
@@ -223,6 +231,23 @@ export enum StructuralCondition {
     Duplicate = "Duplicate",
 }
 
+/**
+ * The declared names of the conditions the node's configuration answers. Conformance matches names exactly, so each
+ * must stay spelled as Base or RootNode declares it.
+ */
+export enum NodeCondition {
+    CustomNetworkConfig = "CustomNetworkConfig",
+    Ethernet = "Ethernet",
+    WiFi = "WiFi",
+    Thread = "Thread",
+}
+
+const interfaceConditions = new Map<string, NodeCondition>([
+    ["WI", NodeCondition.WiFi],
+    ["TH", NodeCondition.Thread],
+    ["ET", NodeCondition.Ethernet],
+]);
+
 function targetsOf(
     facts: EndpointFacts,
     nodeEndpoint: Endpoint,
@@ -299,6 +324,39 @@ function structuralConditionsOf(endpoint: Endpoint, pass: ValidationPass) {
     }
     if (overlapsSibling(facts, pass)) {
         conditions.add(StructuralCondition.Duplicate);
+    }
+
+    return conditions;
+}
+
+/**
+ * The conditions the node's configuration answers, which hold for every endpoint of its node scope. Each is read from a
+ * fact independent of the requirements the condition gates.
+ *
+ * Interpretation: a node that does not commission over BLE only supports out-of-band-configured networking, because
+ * its host provides the network. The node supports a network interface when a NetworkCommissioning server in its node
+ * scope supports that interface.
+ *
+ * Only a node endpoint with a {@link NetworkServer} answers CustomNetworkConfig, and only once the server is active,
+ * because it resolves its BLE flag as it initializes.
+ *
+ * @see {@link MatterSpecification.v16.Device} § 1.1.3.1
+ * @see {@link MatterSpecification.v16.Device} § 2.1.3
+ */
+function nodeConditionsOf(nodeEndpoint: Endpoint, scope: Endpoint[], pass: ValidationPass) {
+    const conditions = new Set<string>();
+
+    if (nodeEndpoint.behaviors.isActive(NetworkServer) && nodeEndpoint.stateOf(NetworkServer).ble === false) {
+        conditions.add(NodeCondition.CustomNetworkConfig);
+    }
+
+    for (const endpoint of scope) {
+        for (const feature of EndpointFacts.of(endpoint, pass).features("NetworkCommissioning")) {
+            const condition = interfaceConditions.get(feature);
+            if (condition !== undefined) {
+                conditions.add(condition);
+            }
+        }
     }
 
     return conditions;

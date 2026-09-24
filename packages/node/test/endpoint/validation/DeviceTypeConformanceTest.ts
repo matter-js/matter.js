@@ -42,7 +42,14 @@ import {
 } from "@matter/model";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
-import { createNode, createUnjudgedNode, deviceTypeList, violationsOf } from "./validation-helpers.js";
+import {
+    createBleNode,
+    createNode,
+    createUnjudgedNode,
+    deviceTypeList,
+    RootWithWiFi,
+    violationsOf,
+} from "./validation-helpers.js";
 
 const { Identify, Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
 
@@ -527,6 +534,44 @@ describe("DeviceTypeConformance", () => {
 
             const tagList = violationsOf(endpoints[0]).filter(v => v.requirement === "Descriptor.TAGLIST");
             expect(tagList.map(v => [v.deviceType, v.kind])).deep.equals([["ClosurePanel", "missing"]]);
+
+            await node.close();
+        });
+    });
+
+    describe("node conditions", () => {
+        it("does not require NetworkCommissioning of a node that does not commission over BLE", async () => {
+            const node = await createNode();
+
+            expect(violationsOf(node).map(v => [v.kind, v.requirement])).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("requires NetworkCommissioning of a node that commissions over BLE", async () => {
+            const node = await createBleNode();
+
+            expect(violationsOf(node).map(v => [v.kind, v.deviceType, v.requirement])).deep.equals([
+                ["missing", "RootNode", "NetworkCommissioning"],
+            ]);
+
+            await node.close();
+        });
+
+        it("accepts a node that commissions over BLE with NetworkCommissioning", async () => {
+            const node = await createBleNode({ type: RootWithWiFi });
+
+            expect(violationsOf(node).map(v => [v.kind, v.requirement])).deep.equals([]);
+
+            await node.close();
+        });
+
+        // Characterization: RootNode states the diagnostics cluster of each interface as optional under its
+        // condition ("[WiFi]"), so a node supporting WiFi is not required to carry it
+        it("does not require the diagnostics cluster of a supported network interface", async () => {
+            const node = await MockServerNode.createOnline(RootWithWiFi, { device: undefined });
+
+            expect(violationsOf(node).map(v => [v.kind, v.requirement])).deep.equals([]);
 
             await node.close();
         });
