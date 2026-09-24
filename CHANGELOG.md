@@ -11,8 +11,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/types
+    - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 - @matter/protocol
-    - Fix: A commissioner rejects a `PBKDFParamResponse` whose PBKDF iteration count is outside 1000..100000 and answers `InvalidParam`, instead of deriving the PASE key with whatever count the device sent. A PASE message that fails schema validation is reported as an `UnexpectedDataError` naming the message and field, and ends only the attempt on the address that sent it, instead of the attempts on all of the device's addresses
+    - Fix: A commissioner rejects a `PBKDFParamResponse` whose PBKDF iteration count is outside 1000..100000 and answers `InvalidParam`, instead of deriving the PASE key with whatever count the device sent. A PASE message that fails schema validation is reported as an `UnexpectedDataError` naming the message and field, and ends only the commissioning candidate that sent it, instead of cancelling every other candidate. The commissioner passes each address of a device as a separate candidate, so its other addresses are still tried
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 - @matter/node
     - Fix: A node whose fabric was created before it started (a controller calling `FabricAuthority.defaultFabric()` before `start()` on first run) now counts as commissioned once online and advertises operationally, as it already did after a restart, so an ICD can resolve such a controller to send it Check-Ins
