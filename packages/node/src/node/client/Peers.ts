@@ -683,12 +683,12 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         this.#evaluateSeeded(node);
         if (!node.lifecycle.isSeeded) {
-            // Self-disposing: removes itself once seeding latches so no dead listener persists for the node's
-            // remaining lifetime.  Safe to call off() from within this callback because Observable#emit iterates a
-            // snapshot of its observers.
+            // Self-disposing: removes itself once seeding latches, or once the node goes away without ever
+            // seeding, so no dead listener persists for the node's remaining lifetime.  Safe to call off() from
+            // within this callback because Observable#emit iterates a snapshot of its observers.
             const onChanged = () => {
                 this.#evaluateSeeded(node);
-                if (node.lifecycle.isSeeded) {
+                if (node.lifecycle.isSeeded || isGone(node)) {
                     node.lifecycle.changed.off(onChanged);
                 }
             };
@@ -701,7 +701,7 @@ export class Peers extends EndpointContainer<ClientNode> {
      * endpoint beyond the root is present.  Re-evaluated on BasicInformation install and on any endpoint tree change.
      */
     #evaluateSeeded(node: ClientNode) {
-        if (node.lifecycle.isSeeded) {
+        if (node.lifecycle.isSeeded || !isReadable(node)) {
             return;
         }
         if (node.maybeStateOf(BasicInformationClient) === undefined || node.endpoints.size <= 1) {
@@ -897,6 +897,33 @@ class Factory extends ClientNodeFactory {
     get nodes() {
         return this.#owner;
     }
+}
+
+/**
+ * Whether `node`'s behaviors can be read right now.
+ *
+ * A node that is still initializing has nothing to answer with yet, and one that is going away has
+ * nothing left: `close()` emits `lifecycle.changed` after the behaviors are gone, so a reader reaches
+ * state that throws `uninitialized-dependency`.
+ */
+function isReadable(node: ClientNode) {
+    return node.construction.status === Lifecycle.Status.Active;
+}
+
+/**
+ * Whether `node` will never be readable again.
+ *
+ * Distinct from {@link isReadable}, and the distinction is the point: an observer waiting for a node
+ * to become readable must not give up while it is merely initializing, and a reader must not treat
+ * "not yet" as "go ahead".
+ */
+function isGone(node: ClientNode) {
+    const status = node.construction.status;
+    return (
+        status === Lifecycle.Status.Destroying ||
+        status === Lifecycle.Status.Destroyed ||
+        status === Lifecycle.Status.Crashed
+    );
 }
 
 function expirationOf<T extends { discoveredAt?: Timestamp; ttl?: Duration | number }>(

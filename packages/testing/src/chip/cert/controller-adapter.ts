@@ -336,6 +336,84 @@ export interface BdxTransferAccept {
 }
 
 /**
+ * The `QueryImage` a requestor sent this provider, as the provider received it (Matter Core
+ * § 11.20.6.5).
+ *
+ * `protocolsSupported` and the optional fields are reported as the requestor set them, because a case
+ * asserting on the DUT's answer has to be able to say what the answer was to.
+ */
+export interface OtaQueryImageRequestRecord {
+    vendorId: number;
+    productId: number;
+    softwareVersion: number;
+    protocolsSupported: number[];
+    hardwareVersion?: number;
+    location?: string;
+    requestorCanConsent?: boolean;
+
+    /** `MetadataForProvider` as hex, absent where the requestor sent none. */
+    metadataForProvider?: string;
+}
+
+/** The `QueryImageResponse` this provider answered with (Matter Core § 11.20.6.6). */
+export interface OtaQueryImageResponseRecord {
+    /** `QueryStatus`, as the cluster enumerates it: 0 UpdateAvailable, 1 Busy, 2 NotAvailable, 3 DownloadProtocolNotSupported. */
+    status: number;
+    delayedActionTime?: number;
+    imageUri?: string;
+    softwareVersion?: number;
+    softwareVersionString?: string;
+
+    /** `UpdateToken` as hex, whose byte length is what the plan's 8–32 byte rule is about. */
+    updateToken?: string;
+    userConsentNeeded?: boolean;
+
+    /** `MetadataForRequestor` as hex, absent where the provider sent none. */
+    metadataForRequestor?: string;
+}
+
+/** One `QueryImage` a requestor sent this provider, with the answer it got. */
+export interface OtaQueryImageExchange {
+    request: OtaQueryImageRequestRecord;
+    response: OtaQueryImageResponseRecord;
+}
+
+/** One `ApplyUpdateRequest` a requestor sent this provider, with the answer it got (§ 11.20.6.9–10). */
+export interface OtaApplyUpdateExchange {
+    request: {
+        /** `UpdateToken` as hex, which the plan compares with the one the `QueryImageResponse` carried. */
+        updateToken: string;
+        newVersion: number;
+    };
+    response: {
+        /** `Action`: 0 Proceed, 1 AwaitNextAction, 2 Discontinue. */
+        action: number;
+        delayedActionTime: number;
+    };
+}
+
+/** One `NotifyUpdateApplied` a requestor sent this provider (§ 11.20.6.11). */
+export interface OtaNotifyUpdateAppliedRecord {
+    /** `UpdateToken` as hex. */
+    updateToken: string;
+    softwareVersion: number;
+}
+
+/**
+ * Every OTA command the controller's provider answered during one served update, in the order it
+ * answered them.
+ *
+ * A provider's own answer is not observable from outside it: the requestor's log says what it
+ * received, and nothing says what the fields of the response were. So the cases whose DUT is the
+ * provider read them here, and the requestor's log is what corroborates that they reached it.
+ */
+export interface OtaProviderExchanges {
+    queryImage: OtaQueryImageExchange[];
+    applyUpdate: OtaApplyUpdateExchange[];
+    notifyUpdateApplied: OtaNotifyUpdateAppliedRecord[];
+}
+
+/**
  * One OTA image the controller served over BDX, and what its BDX session negotiated and moved.
  *
  * The controller answers a requestor's `ReceiveInit` here, so this is the sender's and responder's
@@ -344,6 +422,16 @@ export interface BdxTransferAccept {
 export interface OtaBdxTransfer {
     /** Endpoint on the controller that hosts the OTA provider which served the image. */
     providerEndpoint: number;
+
+    /**
+     * Operational node id the controller holds on the node's fabric, in the form
+     * {@link ControllerAdapter.commission} answers with.
+     *
+     * A BDX image URI names this node as its authority, and the controller is the only side that can
+     * state it: the requestor reads it out of the URI, so checking the URI against it there would be
+     * checking the URI against itself. The URI's own rendering of it is the URI's business.
+     */
+    providerNodeId: CertNodeRef;
 
     /** Software version of the image staged and announced, one newer than the node reported. */
     softwareVersion: number;
@@ -368,6 +456,122 @@ export interface OtaBdxTransfer {
      * this is reported rather than being a condition of serving.
      */
     applyAcknowledged: boolean;
+
+    /**
+     * The OTA commands the controller's own provider answered while serving this image.
+     *
+     * A copy taken when this resolved, covering this served update alone: the record is opened afresh
+     * for each call, and an answer the provider gives afterwards cannot reach a case still holding
+     * this one.
+     */
+    exchanges: OtaProviderExchanges;
+}
+
+/**
+ * An answer the controller's OTA provider gives in place of the one it would compute.
+ *
+ * A plan step may be about a status the provider reaches only in a state the harness cannot arrange —
+ * `Busy` while consent is outstanding, an `ApplyUpdateResponse` deferring the apply. The provider is
+ * the DUT here, and a vendor's provider is likewise free to answer these; what the case proves is that
+ * the cluster server states them the way the specification requires, and that the requestor acts on
+ * them. An absent field leaves the provider's own answer standing.
+ */
+export interface OtaScriptedQueryAnswer {
+    /** `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.6). */
+    status?: number;
+
+    /** `DelayedActionTime` in seconds, which a `Busy` answer carries. */
+    delayedActionTime?: number;
+
+    /** `UserConsentNeeded` to set on the answer the provider computed. */
+    userConsentNeeded?: boolean;
+}
+
+/**
+ * An `ApplyUpdateResponse` the provider is to give (§ 11.20.6.10).
+ *
+ * Two actions are meaningful. `AwaitNextAction` (1) the provider has no path of its own to, so it is
+ * stated directly and its side effects are suppressed — the requestor's next attempt needs the image
+ * it already downloaded. `Discontinue` (2) it does have a path to, so the controller withdraws the
+ * update's consent and lets the provider refuse for itself, which keeps the state it is left in
+ * agreeing with the answer the requestor received. Anything else leaves the provider's own answer.
+ */
+export interface OtaScriptedApplyAnswer {
+    /** `Action`: 1 AwaitNextAction, 2 Discontinue. */
+    action?: number;
+
+    /** `DelayedActionTime` in seconds, which only a stated `AwaitNextAction` carries. */
+    delayedActionTime?: number;
+}
+
+/**
+ * Answers the controller's provider gives to the next commands it receives, in order.
+ *
+ * One entry per command; once a list is spent the provider answers for itself again, which is how a
+ * case scripts the first answer and lets the real one follow.
+ */
+export interface OtaProviderScript {
+    queryImage?: OtaScriptedQueryAnswer[];
+    applyUpdate?: OtaScriptedApplyAnswer[];
+}
+
+/** Options for {@link CertNodeApi.announceOtaProvider}. */
+export interface AnnounceOtaProviderOptions {
+    /** How long to wait for the node's own `QueryImage` once it has been announced to. */
+    timeoutMs?: number;
+
+    /**
+     * Whether the node is expected to query the announced provider. Absent, it is.
+     *
+     * Only the controller's own provider can be waited for, so this has no effect at all where
+     * {@link provider} names another node: that node answers the query, and nothing of the exchange
+     * passes through this controller. A node that never queries rejects rather than leaving the step
+     * to assert over an empty record.
+     */
+    expectQuery?: boolean;
+
+    /**
+     * Another commissioned node to name as the provider, rather than the controller itself.
+     *
+     * This is the administrator's role: the controller tells a requestor where to update from, and the
+     * two nodes deal with each other afterwards. The provider's endpoint is resolved from what the
+     * controller holds for that node.
+     */
+    provider?: CertNodeRef;
+
+    /**
+     * `AnnouncementReason` to send: 0 SimpleAnnouncement, 1 UpdateAvailable, 2 UrgentUpdateAvailable.
+     *
+     * Absent, `UpdateAvailable`, which asks the requestor to query now. A simple announcement leaves it
+     * free to wait out its own query interval, so a case waiting on the query has to say it means that.
+     */
+    announcementReason?: number;
+}
+
+/** The `AnnounceOTAProvider` a controller sent, as the fields it put on the wire (§ 11.20.7.6). */
+export interface OtaAnnouncementRecord {
+    /** `ProviderNodeID`, in the form {@link ControllerAdapter.commission} answers with. */
+    providerNodeId: CertNodeRef;
+
+    /** `VendorID`, which is the announcing controller's own `BasicInformation` value. */
+    vendorId: number;
+
+    /** `AnnouncementReason`: 0 SimpleAnnouncement, 1 UpdateAvailable, 2 UrgentUpdateAvailable. */
+    announcementReason: number;
+
+    /** `Endpoint` on the provider node that carries the OTA provider cluster. */
+    endpoint: number;
+}
+
+/** What {@link CertNodeApi.announceOtaProvider} sent, and what the announced provider then answered. */
+export interface OtaAnnouncement {
+    announcement: OtaAnnouncementRecord;
+
+    /**
+     * What the controller's own provider answered afterwards, empty where another node was announced:
+     * the requestor deals with that node directly, and nothing of the exchange passes through here.
+     */
+    exchanges: OtaProviderExchanges;
 }
 
 /** Options for {@link CertNodeApi.serveOtaUpdate}. */
@@ -389,6 +593,15 @@ export interface ServeOtaUpdateOptions {
      * Absent, the node is expected to ask.
      */
     expectApply?: boolean;
+
+    /**
+     * How long to wait for the node's `ApplyUpdateRequest` once the transfer is complete.
+     *
+     * The request follows the last block immediately, so the default covers the two rather than a
+     * node that decided against applying. A case whose provider defers the apply names the delay it
+     * asked for plus room for the exchange that follows.
+     */
+    applyTimeoutMs?: number;
 }
 
 /**
@@ -597,6 +810,25 @@ export interface CertNodeApi {
      * (see {@link CertNodeApi}'s own doc for the general contract).
      */
     serveOtaUpdate(options?: ServeOtaUpdateOptions): Promise<OtaBdxTransfer>;
+
+    /**
+     * Invokes `AnnounceOTAProvider` on this node, naming the controller's own OTA provider, and
+     * reports what that provider then answered.
+     *
+     * Unlike {@link serveOtaUpdate} this stages nothing, which is what makes it the way to observe a
+     * provider with no image to offer: the node queries, and the provider answers `NotAvailable` out
+     * of its own catalog rather than out of a state the case arranged.
+     */
+    announceOtaProvider(options?: AnnounceOtaProviderOptions): Promise<OtaAnnouncement>;
+
+    /**
+     * Has the controller's own OTA provider answer the next commands as `script` says.
+     *
+     * Replaces whatever a previous call installed, and an empty script clears it. The answers the
+     * provider then gave are reported the same way its own are, so a step asserts on what went on the
+     * wire rather than on what it asked for.
+     */
+    scriptOtaProvider(script: OtaProviderScript): Promise<void>;
 
     openCommissioningWindow(opts: {
         timeout: number;

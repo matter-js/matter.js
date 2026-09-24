@@ -50,6 +50,16 @@ export interface RunDeviceRecord {
     appVariant?: string;
     flavor: DeviceFlavor;
     /**
+     * Arguments this role's app was started with, absent where it took none.
+     *
+     * What the case declared plus whatever the harness had to add for the app to start at all.
+     *
+     * A chip app takes behaviour a case depends on from its command line, and a matter.js subject
+     * ignores an argument it does not implement — so a bundle recording the arguments is what lets a
+     * reader tell a flag that took effect from one that meant nothing on the flavor that ran.
+     */
+    appArgs?: string[];
+    /**
      * Revision of the image or extraction this device's binary came from, absent where none is
      * available.
      *
@@ -116,6 +126,13 @@ export interface RunRecord {
      */
     picsSkips?: number;
     /**
+     * How many steps were skipped for costing minutes of real time on this flavor, absent if none.
+     *
+     * Such a step is covered by a run that asks for it (`MATTER_CERT_LONG_RUNNING`), so a bundle
+     * without this count covers the plan and one with it covers the plan minus what it names.
+     */
+    longRunningSkips?: number;
+    /**
      * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
      * disproves what its step claims, so this is what tells a reader of this record alone how much of
      * the run's claims rest on nothing observed. A step carrying one ends `"unverified"` unless the
@@ -135,10 +152,14 @@ function errorText(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
 }
 
-/** One device's line in the run header: the role, the binary it ran, and where that binary came from. */
-function describeDevice({ role, app, appVariant, flavor, chipRef }: RunDeviceRecord): string {
+/**
+ * One device's line in the run header: the role, the binary it ran, the arguments it was started
+ * with, and where that binary came from.
+ */
+function describeDevice({ role, app, appVariant, flavor, appArgs, chipRef }: RunDeviceRecord): string {
     const binary = appVariant === undefined ? app : `${app}-${appVariant}`;
-    return `${role} = ${flavor}:${binary} (chip ref ${chipRef ?? "(unknown)"})`;
+    const args = appArgs?.length ? ` ${appArgs.join(" ")}` : "";
+    return `${role} = ${flavor}:${binary}${args} (chip ref ${chipRef ?? "(unknown)"})`;
 }
 
 /**
@@ -164,6 +185,7 @@ export class EvidenceRecorder implements StepRecorder {
     #unproven = false;
     #controllerUnsupportedSkips?: number;
     #picsSkips?: number;
+    #longRunningSkips?: number;
     #unverifiedChecks?: number;
     #concluded = false;
 
@@ -241,6 +263,15 @@ export class EvidenceRecorder implements StepRecorder {
      */
     recordPicsSkips(count: number): void {
         this.#picsSkips = count;
+    }
+
+    /**
+     * Records how many steps were skipped for their cost in real time (see
+     * {@link RunRecord.longRunningSkips}). Like a PICS skip this never changes the verdict: the run
+     * did not ask for those steps.
+     */
+    recordLongRunningSkips(count: number): void {
+        this.#longRunningSkips = count;
     }
 
     /**
@@ -359,6 +390,7 @@ export class EvidenceRecorder implements StepRecorder {
             runError: this.#runError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
             picsSkips: this.#picsSkips,
+            longRunningSkips: this.#longRunningSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
 

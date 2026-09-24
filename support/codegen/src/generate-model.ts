@@ -27,6 +27,7 @@ import { hideBin } from "yargs/helpers";
 import { AcknowledgedRemovals } from "./acknowledged-removals.js";
 import { generateElement } from "./mom/common/generate-element.js";
 import { DEFAULT_MATTER_VERSION } from "./mom/spec/md/load-markdown-files.js";
+import { canonicalizeConditionReferences } from "./util/canonicalize-condition-references.js";
 import { checkNumberTlvMapping } from "./util/check-number-tlv-mapping.js";
 import { clean, OutputSession } from "./util/file.js";
 import { finalizeModel } from "./util/finalize-model.js";
@@ -183,6 +184,8 @@ inputs.local = LocalMatter;
 const merged = MergedModel(args.revision as Specification.Revision, inputs);
 
 const matter = new MatterModel(merged as MatterElement);
+
+canonicalizeConditionReferences(matter);
 
 const validationResult = finalizeModel(matter);
 

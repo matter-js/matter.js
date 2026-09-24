@@ -5,7 +5,7 @@
  */
 
 import { AcknowledgedRemovals } from "#acknowledged-removals.js";
-import { ClusterModel, MatterModel } from "#model";
+import { ClusterModel, DeviceTypeModel, MatterModel, RequirementModel } from "#model";
 import "@matter/model/resources";
 import { digestOf, findLosses, ModelDigest } from "#util/model-digest.js";
 
@@ -148,6 +148,24 @@ describe("loss detection", () => {
             children: [{ tag: "attribute", name: "Thing", id: 0x2, constraint: "1 to 4", default: 2 }],
         } as typeof WITH_ATTRIBUTE);
         expect(findLosses(previous, next).map(r => r.kind)).deep.equals(["element"]);
+    });
+
+    it("reports a condition requirement location that disappears", () => {
+        function oven(location?: "Descendant") {
+            return digestOf(
+                new MatterModel(
+                    { name: "Matter" },
+                    new DeviceTypeModel(
+                        { name: "Oven", id: 0x7b, classification: "simple" },
+                        new RequirementModel({ name: "Heater", element: "condition", location, constraint: "min 1" }),
+                    ),
+                ),
+            );
+        }
+
+        expect(findLosses(oven("Descendant"), oven()).map(r => [r.kind, r.key, r.was])).deep.equals([
+            ["location", "deviceType#123/condition:Heater", "Descendant"],
+        ]);
     });
 
     it("reports nothing for an addition", () => {

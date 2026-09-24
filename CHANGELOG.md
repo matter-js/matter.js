@@ -11,10 +11,20 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/protocol
+    - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
+- @matter/node
+    - Fix: Decommissioning a peer whose structure read never finished no longer reports an unhandled `uninitialized-dependency` error: the observer watching for that read now detaches when the node goes away, instead of reading state from a node that is closing
+    - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
 - @matter/testing
     - Enhancement: A certification controller can judge device attestation against the chip test roots and revocation information a case installs, via `ControllerAdapterOptions.attestation` and `ControllerAdapter.attestation`. Such a controller refuses an error-level attestation finding and names it, where a controller without the option accepts whatever a test device presents; chip-tool refuses the option, since it reads revocation from a file its process was started with
     - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own
     - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
+    - Enhancement: `CertNodeApi.serveOtaUpdate()` also reports the OTA commands the controller's own provider answered, and the new `CertNodeApi.announceOtaProvider()` announces a provider to a node without staging anything. Every `CertNodeApi` implementation must provide the new method
+    - Enhancement: A certification test can give each of its devices its own app arguments, via `certTest`'s `appArgs`, and the evidence bundle records what each role was started with
+    - Fix: A chip `ota-provider` certification device starts without a case naming an image: the app exits at startup unless given one, and the harness supplies a placeholder where the case named none
+    - Enhancement: `CertNodeApi.scriptOtaProvider()` has the controller's own OTA provider answer a case's next commands, so a plan step about a `Busy`, a deferred apply or a `UserConsentNeeded` can be driven
+    - Enhancement: A certification step costing minutes of real time declares `longRunning`, and runs only where the run asked for it (`MATTER_CERT_LONG_RUNNING`); `RunRecord.longRunningSkips` counts what a run left out
     - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
     - Enhancement: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
     - Enhancement: A certification step's read may require a session that permits large payloads via `ReadAttributeOptions.largeMessage`
@@ -86,6 +96,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A constraint bounding a value with neither a magnitude nor a length reports `UNBOUNDABLE_TYPE`
     - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNENFORCEABLE_ENTRY_BOUND`, as nothing enforces such a bound
     - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
+    - Enhancement: A condition requirement records where it asserts its condition via `RequirementModel.location` (`Root`, `Self` or `Descendant`), and carries the constraint the specification states for it
+    - Enhancement: `RequirementModel.componentCountRange` gives the range of endpoint counts that a component device type requirement's constraint allows
+    - Enhancement: New `RequirementResolver` resolves the condition and feature names a device type requirement's conformance references, the endpoint scope they resolve in, and the cluster, feature, attribute, command, event or component device type a requirement names; new `requirementApplicability()` evaluates a requirement's conformance against the names true for an endpoint
+    - Fix: A condition reference in a device type requirement's conformance is spelled as the model declares the condition, such as `Sit | Lit` rather than `SIT | LIT`, so evaluating the conformance matches the condition
+    - Breaking: `Conformance.validateReferences` checks a name inside optional conformance or a choice, such as `[X]` or `[X].a+`, so a model whose bracketed conformance names something undefined no longer validates
+    - Breaking: Model validation checks device type requirements and reports a conformance name that does not resolve (`UNRESOLVED_CONFORMANCE_NAME`) or is spelled other than as declared (`NONCANONICAL_CONFORMANCE_NAME`), a condition requirement naming no condition (`UNRESOLVED_CONDITION`), a location on a requirement that is not a condition requirement (`LOCATION_NOT_APPLICABLE`), a component requirement naming no defined device type (`UNRESOLVED_DEVICE_TYPE`), a cluster requirement naming no defined cluster (`UNRESOLVED_CLUSTER`), and a required feature, element or command field its cluster does not define (`UNSATISFIABLE_REQUIREMENT`)
+    - Breaking: A feature, attribute, command, event or command field requirement must be parented by a server or client cluster requirement (`ILLEGAL_REQUIREMENT_PARENT`); any parent previously passed. A command field requirement is now also checked against its cluster's commands
 
 - @matter/node
     - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
