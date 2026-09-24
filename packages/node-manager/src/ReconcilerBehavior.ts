@@ -4,10 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ManagedFabric, managedFabricOf } from "#ManagedFabric.js";
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { BUILT_IN_KINDS } from "#reconcile/kinds.js";
 import { planActions, PlannedAction, VerifyResult } from "#reconcile/planActions.js";
-import { Duration, Logger, Minutes, Mutex, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
+import {
+    Duration,
+    ImplementationError,
+    Logger,
+    Minutes,
+    Mutex,
+    Observable,
+    ObserverGroup,
+    Seconds,
+    Time,
+    Timer,
+} from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     Behavior,
     CapacityInfo,
@@ -21,8 +34,8 @@ import {
     Node,
     ServerNode,
 } from "@matter/node";
-import { SustainedSubscription } from "@matter/protocol";
-import { Status } from "@matter/types";
+import { Fabric, FabricManager, SustainedSubscription } from "@matter/protocol";
+import { FabricIndex, GlobalFabricId, Status } from "@matter/types";
 
 const logger = Logger.get("Reconciler");
 
@@ -83,6 +96,17 @@ export class ReconcilerBehavior extends Behavior {
     static override readonly id = "reconciler";
     static override readonly early = true;
 
+    /**
+     * Only `managedFabricId` persists: which fabric this manager adopted is the one thing a later start cannot
+     * work out again, because a fabric index is recyclable and the configured index may name another fabric by
+     * then. Nonvolatile state records what a transaction changed, so the member has to carry the quality.
+     */
+    static override readonly schema = new DatatypeModel({
+        name: "Reconciler",
+        type: "struct",
+        children: [FieldElement({ name: "managedFabricId", type: "string", quality: "NX", default: null })],
+    });
+
     declare readonly state: ReconcilerBehavior.State;
     declare internal: ReconcilerBehavior.Internal;
     declare readonly events: ReconcilerBehavior.Events;
@@ -91,11 +115,25 @@ export class ReconcilerBehavior extends Behavior {
         return Node.forEndpoint(this.endpoint) as ServerNode;
     }
 
+    /** The fabric this manager manages, once one is settled. */
+    get managedFabric(): ManagedFabric | undefined {
+        return this.internal.fabric;
+    }
+
+    /** Why no fabric is settled, for the refusal a caller receives. */
+    get unmanagedReason(): string | undefined {
+        return this.internal.unmanagedReason;
+    }
+
     override async initialize() {
         for (const kind of BUILT_IN_KINDS) {
             this.internal.registry.register(kind);
         }
         this.internal.peerObservers = new Map();
+        const fabrics = this.env.get(FabricManager);
+        this.#settleFabric();
+        this.reactTo(fabrics.events.added, this.#settleFabric);
+        this.reactTo(fabrics.events.deleted, this.#fabricDeleted);
 
         this.internal.settleTimer = Time.getTimer(
             "reconciler settle",
@@ -103,7 +141,11 @@ export class ReconcilerBehavior extends Behavior {
             this.callback(this.#afterSettle),
         ).start();
 
-        this.reactTo(this.#rootNode.peers.added, this.#wirePeer);
+        // Wired for every peer, whatever fabric it is on: a node being commissioned has no address yet, so
+        // there is nothing to judge it by. `#schedule` is the gate that keeps work to the managed fabric.
+        // A peer appearing is also the moment a fabric this manager was waiting for may have arrived without
+        // an event of its own, which a fabric table built without storage never emits.
+        this.reactTo(this.#rootNode.peers.added, this.#peerAdded);
         this.reactTo(this.#rootNode.peers.deleted, this.#unwirePeer);
 
         for (const peer of this.#rootNode.peers) {
@@ -111,17 +153,161 @@ export class ReconcilerBehavior extends Behavior {
         }
     }
 
-    async #afterSettle() {
-        if (this.internal.disposed) {
+    #peerAdded(peer: ClientNode) {
+        this.#wirePeer(peer);
+        if (this.internal.fabric === undefined) {
+            this.#settleFabric();
+        }
+    }
+
+    /**
+     * Settle which fabric this manager manages.
+     *
+     * The identity it stored wins: it names the fabric whose peers its records and desired-state items already
+     * describe, and a configured index that now names a different fabric is a mistake, not an instruction. With
+     * nothing stored, an explicitly configured index is taken, and a controller holding exactly one fabric needs
+     * no configuration at all. Anything else stays unmanaged until an operator says which.
+     *
+     * Idempotent, and safe to call again whenever the answer may have changed: nothing here unbinds a fabric
+     * this manager already holds.
+     */
+    #settleFabric(): void {
+        if (this.internal.fabric !== undefined) {
             return;
         }
-        logger.debug("Reconciler settle elapsed, starting first pass");
-        for (const peer of this.#rootNode.peers) {
+        const fabrics = this.env.get(FabricManager);
+        const stored = this.state.managedFabricId;
+        if (stored !== null && stored !== undefined) {
+            const fabric = fabrics.maybeFor(GlobalFabricId(stored));
+            if (fabric === undefined) {
+                // Gone while this process was not running, so no removal event will ever say so. An operator
+                // naming another fabric is how that is recovered from; without a name, the identity stays,
+                // because adopting whatever fabric is present would drive this fabric's records against it.
+                const configured = this.state.fabric;
+                if (configured === undefined) {
+                    this.#stayUnmanaged(
+                        `the fabric it manages (${GlobalFabricId.strOf(GlobalFabricId(stored))}) is not on this controller, and no other fabric is named`,
+                    );
+                    return;
+                }
+                const named = fabrics.maybeFor(configured);
+                if (named === undefined) {
+                    this.#stayUnmanaged(`no fabric holds the configured index ${configured}`);
+                } else {
+                    logger.warn(
+                        `Reconciler takes up fabric ${GlobalFabricId.strOf(named.globalId)} (index ${configured}): the fabric it managed (${GlobalFabricId.strOf(GlobalFabricId(stored))}) is no longer on this controller`,
+                    );
+                    this.#bind(named);
+                }
+            } else if (!this.#configuredIndexAgrees(fabric)) {
+                this.#stayUnmanaged(
+                    `it manages fabric ${GlobalFabricId.strOf(fabric.globalId)}, which is index ${fabric.fabricIndex}, but is configured for index ${this.state.fabric}`,
+                );
+            } else {
+                this.#bind(fabric);
+            }
+            return;
+        }
+        const configured = this.state.fabric;
+        if (configured !== undefined) {
+            const fabric = fabrics.maybeFor(configured);
+            if (fabric === undefined) {
+                this.#stayUnmanaged(`no fabric holds the configured index ${configured}`);
+            } else {
+                this.#bind(fabric);
+            }
+            return;
+        }
+        // One fabric and no configuration is the ordinary controller, and its one fabric is what its work is
+        // about. Several are ambiguous, and guessing would bind desired state and records to a fabric an
+        // operator never named.
+        switch (fabrics.length) {
+            case 0:
+                this.#stayUnmanaged("this controller holds no fabric yet");
+                break;
+            case 1:
+                this.#bind(fabrics.fabrics[0]);
+                break;
+            default:
+                this.#stayUnmanaged(
+                    `this controller holds ${fabrics.length} fabrics (${fabrics.fabrics
+                        .map(f => f.fabricIndex)
+                        .join(", ")}) and none is configured`,
+                );
+        }
+    }
+
+    #configuredIndexAgrees(fabric: Fabric): boolean {
+        const configured = this.state.fabric;
+        return configured === undefined || configured === fabric.fabricIndex;
+    }
+
+    /**
+     * Take up a fabric: remember it, record it for the next start, and resume the work that belongs to it.
+     *
+     * Wiring and the sweep are part of binding, not of startup: a manager that adopts a fabric later — or again
+     * after losing one — would otherwise report itself managing while no trigger and no sweep ever reach a peer.
+     */
+    #bind(fabric: Fabric): void {
+        this.internal.fabric = managedFabricOf(this.#rootNode, fabric.fabricIndex, fabric.globalId);
+        this.internal.unmanagedReason = undefined;
+        this.state.managedFabricId = String(fabric.globalId);
+        logger.info(`Reconciler manages fabric ${GlobalFabricId.strOf(fabric.globalId)} (index ${fabric.fabricIndex})`);
+        for (const peer of this.internal.fabric.peers()) {
+            if (!this.internal.peerObservers.has(peer)) {
+                this.#wirePeer(peer);
+            }
             if (this.#reachable(peer)) {
-                await this.reconcile(peer);
+                this.#schedule(peer, { verify: true, refreshCapacity: true });
             }
         }
-        if (!shouldStartSweep(this.internal)) {
+        this.#startSweep();
+    }
+
+    /**
+     * Give up the fabric, for a reason a caller can act on.
+     *
+     * `forgetIdentity` says the fabric itself is gone rather than merely unreachable from here, so the manager
+     * may take up another. Kept otherwise: a manager that forgot which fabric its stored records describe would
+     * adopt the next one and drive that run's peers against a fabric that never saw the work.
+     */
+    #stayUnmanaged(reason: string, forgetIdentity = false): void {
+        this.internal.unmanagedReason = reason;
+        if (forgetIdentity) {
+            this.state.managedFabricId = null;
+        }
+    }
+
+    #fabricDeleted(fabric: Fabric): void {
+        if (this.internal.fabric?.globalId !== fabric.globalId) {
+            return;
+        }
+        // The peers stay in the container — nothing erases a client node when the fabric beneath it goes — so
+        // they have to stop being managed here, and whoever holds work for them has to be told.
+        //
+        // Nothing is awaited: this runs inside the fabric's own removal, and draining a peer's in-flight pass
+        // would hold that removal for as long as the device takes to answer, or fail it outright.
+        const peers = this.internal.fabric.peers();
+        this.internal.fabric = undefined;
+        this.#stayUnmanaged(
+            `the fabric it managed (${GlobalFabricId.strOf(fabric.globalId)}) was removed from this controller`,
+            true,
+        );
+        this.internal.sweepTimer?.stop();
+        this.internal.sweepTimer = undefined;
+        for (const peer of peers) {
+            this.internal.peerObservers.get(peer)?.close();
+            this.internal.peerObservers.delete(peer);
+            this.internal.pending.delete(peer);
+        }
+        logger.notice(
+            `Reconciler no longer manages fabric ${GlobalFabricId.strOf(fabric.globalId)}: it was removed from this controller`,
+        );
+        this.events.managedFabricLost.emit(fabric.globalId);
+    }
+
+    #startSweep(): void {
+        if (this.internal.sweepTimer !== undefined || !shouldStartSweep(this.internal)) {
             return;
         }
         this.internal.sweepTimer = Time.getPeriodicTimer(
@@ -131,8 +317,21 @@ export class ReconcilerBehavior extends Behavior {
         ).start();
     }
 
+    async #afterSettle() {
+        if (this.internal.disposed) {
+            return;
+        }
+        logger.debug("Reconciler settle elapsed, starting first pass");
+        for (const peer of this.#managedPeers()) {
+            if (this.#reachable(peer)) {
+                await this.reconcile(peer);
+            }
+        }
+        this.#startSweep();
+    }
+
     async #sweep() {
-        for (const peer of this.#rootNode.peers) {
+        for (const peer of this.#managedPeers()) {
             if (this.#reachable(peer) && Object.keys(peer.stateOf(DesiredStateBehavior).items).length > 0) {
                 await this.reconcile(peer, { verify: false });
             }
@@ -162,6 +361,15 @@ export class ReconcilerBehavior extends Behavior {
         });
     }
 
+    /** The peers of the managed fabric, or none while no fabric is managed. */
+    #managedPeers(): ClientNode[] {
+        return this.internal.fabric?.peers() ?? new Array<ClientNode>();
+    }
+
+    #manages(peer: ClientNode): boolean {
+        return this.internal.fabric?.owns(peer.peerAddress) === true;
+    }
+
     #mutexFor(peer: ClientNode): Mutex {
         let mutex = this.internal.locks.get(peer);
         if (mutex === undefined) {
@@ -175,6 +383,12 @@ export class ReconcilerBehavior extends Behavior {
     // arriving while a pass runs merges into one follow-up pass. The mutex owns and serializes the work and
     // logs task rejections, so nothing is voided or swallowed silently.
     #schedule(peer: ClientNode, pass: PendingPass) {
+        // The gate for every trigger: a peer is wired as soon as it appears, because a node being commissioned
+        // has no address yet and so no fabric to judge it by, and it is only worked on once it turns out to be
+        // one of ours.
+        if (!this.#manages(peer)) {
+            return;
+        }
         const pending = this.internal.pending.get(peer);
         if (pending !== undefined) {
             pending.verify ||= pass.verify;
@@ -238,6 +452,18 @@ export class ReconcilerBehavior extends Behavior {
     }
 
     async reconcile(peer: ClientNode, options?: { verify?: boolean }): Promise<void> {
+        const fabric = this.internal.fabric;
+        if (fabric === undefined) {
+            // Not a caller's mistake: a pass already under way when the fabric went has nothing left to do, and
+            // a run's gate asks for this pass while it settles.
+            logger.debug(`Not reconciling ${peer.id}: ${this.internal.unmanagedReason}`);
+            return;
+        }
+        if (!fabric.owns(peer.peerAddress)) {
+            throw new ImplementationError(
+                `Cannot reconcile ${peer.id}: it is not on the fabric this manager manages (index ${fabric.index})`,
+            );
+        }
         logger.debug(`Reconcile ${peer.id}${options?.verify ? " (verify)" : ""}`);
         // Serialize on the peer's node-level mutex so an explicit reconcile never overlaps a triggered pass.
         await this.#mutexFor(peer).produce(() => this.#reconcileEndpoint(peer, options));
@@ -254,13 +480,17 @@ export class ReconcilerBehavior extends Behavior {
     async #runExecutor(peer: ClientNode, planned: PlannedAction[], registry: ItemKindRegistry): Promise<void> {
         const target: ReconcileTarget = {
             node: peer,
-            updateStatus(kind, key, state, code) {
+            updateStatus(kind, key, state, code, ifGeneration) {
                 return Promise.resolve(
-                    peer.act(agent => agent.get(DesiredStateBehavior).updateStatus(kind, key, state, code)),
+                    peer.act(agent =>
+                        agent.get(DesiredStateBehavior).updateStatus(kind, key, state, code, ifGeneration),
+                    ),
                 );
             },
-            dropItem: (kind, key) => {
-                return Promise.resolve(peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key)));
+            dropItem: (kind, key, ifGeneration) => {
+                return Promise.resolve(
+                    peer.act(agent => agent.get(DesiredStateBehavior).dropItem(kind, key, ifGeneration)),
+                );
             },
             currentItem(kind, key) {
                 return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
@@ -305,10 +535,22 @@ export namespace ReconcilerBehavior {
     export class State {
         settleDelay: Duration = Seconds(5);
         sweepInterval: Duration = Minutes(5);
+
+        /**
+         * The fabric to manage, where a controller holds more than one. Policy a deployment sets, so it is not
+         * persisted; what the manager adopted is.
+         */
+        fabric?: FabricIndex = undefined;
+
+        /** The adopted fabric's {@link GlobalFabricId}, as a decimal string. Written when it is adopted. */
+        managedFabricId: string | null = null;
     }
 
     export class Internal {
         registry = new ItemKindRegistry();
+        fabric?: ManagedFabric;
+        /** Why {@link fabric} is unset, for a refusal that has no agent to ask. */
+        unmanagedReason?: string;
         peerObservers!: Map<ClientNode, ObserverGroup>;
         sweepTimer?: Timer;
         settleTimer?: Timer;
@@ -318,7 +560,15 @@ export namespace ReconcilerBehavior {
         disposed = false;
     }
 
-    export class Events extends Behavior.Events {}
+    export class Events extends Behavior.Events {
+        /**
+         * The managed fabric left the controller, so nothing of it can be reached again.
+         *
+         * For an application that holds work of its own against those peers: the task layer parks instead,
+         * because a run's records outlive the fabric and ending them is not settled.
+         */
+        managedFabricLost = Observable<[globalId: GlobalFabricId]>();
+    }
 }
 
 export type { ItemKind };
