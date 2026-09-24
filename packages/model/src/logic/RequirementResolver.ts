@@ -24,9 +24,12 @@ import { ModelTraversal } from "./ModelTraversal.js";
  * also name a feature of that cluster. Every name resolves in the {@link EndpointScope} of the requirement, the scope
  * of the endpoint the requirement describes.
  *
- * Names resolve regardless of case. That is what lets a caller find the declared spelling of a name the
- * specification's conformance tables spell in another case; whether a name is spelled as declared is a separate
- * question, which model validation answers.
+ * A condition name in conformance resolves regardless of case. That is what lets a caller find the declared spelling
+ * of a name the specification's conformance tables spell in another case; whether a name is spelled as declared is a
+ * separate question, which model validation answers. A feature code in conformance must match exactly, so below a
+ * cluster requirement whose cluster defines the feature `NODE`, the name `NODE` resolves to the feature while `Node`
+ * resolves to the Base condition `Node`. {@link featureOf}, which answers what a feature requirement itself names,
+ * follows its own rule.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
