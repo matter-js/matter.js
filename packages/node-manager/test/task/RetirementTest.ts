@@ -725,6 +725,7 @@ describe("run records after a retirement", () => {
                         phaseIndex: 0,
                         state: "running",
                         wrote: false,
+                        fabric: "1",
                         changeSet: [],
                         rollbackOf: RunId(1),
                     },

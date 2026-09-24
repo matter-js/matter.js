@@ -38,6 +38,7 @@ import {
     TaskSlotSettlingError,
     TaskStoreVersionError,
     TaskSupersededError,
+    TaskSettledSignal,
     TaskSuspendedSignal,
     TaskTypeNotRegisteredError,
 } from "#task/errors.js";
@@ -119,6 +120,7 @@ describe("task error taxonomy", () => {
             new TaskCancelledSignal(""),
             new TaskAbandonedSignal(""),
             new TaskSuspendedSignal(""),
+            new TaskSettledSignal(""),
         ]) {
             expect(notARefusal).not.instanceOf(TaskRefusedError);
         }

@@ -82,7 +82,7 @@ export enum TaskFindingCode {
     /** The run has no undo to retry. */
     NoRollback = "noRollback",
 
-    /** The request names a peer of a fabric this manager does not manage. */
+    /** The request names a peer of, or undoes a run of, a fabric this manager does not manage. */
     ForeignFabric = "foreignFabric",
 
     /** This manager manages no fabric, so it has nothing to act on. */
@@ -125,7 +125,8 @@ export class TaskCapacityExceededError extends TaskError {}
 export class RotationPreconditionError extends TaskError {}
 
 /**
- * The request names a peer of another fabric.
+ * The request names a peer of another fabric, or would undo a run of a fabric this manager does not manage —
+ * whose recorded addresses carry an index the managed fabric may now use for other devices.
  *
  * A manager manages one fabric, because what a task changes — group memberships, group keys, bindings, ACL
  * entries — is fabric-scoped. A controller on several fabrics runs one manager per fabric, and this says the
@@ -330,6 +331,12 @@ export class TaskCancelledSignal extends TaskStopSignal {}
 
 /** Thrown into a running phase when a rollback is abandoned, so #drive stops without recording a failure. */
 export class TaskAbandonedSignal extends TaskStopSignal {}
+
+/**
+ * Thrown into a running phase when the manager ends its run for a reason outside the task — the fabric it acts
+ * on left the controller — so #drive stops without recording a failure or starting a rollback.
+ */
+export class TaskSettledSignal extends TaskStopSignal {}
 
 /** Thrown into a running phase on shutdown so #drive stops without a state change (resume later). */
 export class TaskSuspendedSignal extends TaskStopSignal {}

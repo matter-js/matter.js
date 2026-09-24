@@ -37,6 +37,7 @@ function seedRollback(node: ServerNode) {
                 phaseIndex: 0,
                 state: "running",
                 wrote: false,
+                fabric: "1",
                 changeSet: [],
                 rollbackOf: RunId(1),
             },
@@ -64,6 +65,7 @@ function seedCrossPeerRun(node: ServerNode, gone: PeerAddress, survivor: PeerAdd
                 phaseIndex: 0,
                 state: "running",
                 wrote: true,
+                fabric: "1",
                 changeSet: [
                     { peer: gone, kind: "groupKeyMap", key: "1" },
                     { peer: survivor, kind: "groupKeyMap", key: "1" },

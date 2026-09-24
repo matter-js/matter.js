@@ -117,9 +117,11 @@ forgotten on its own: a fabric table drops a fabric before it announces the remo
 nothing remembered" is exactly what a deletion leaves behind, and adopting that fabric would drive one fabric's
 records against another. Name the fabric's index to take over.
 
-A fabric that leaves takes the manager's reach with it: runs that named its peers keep their targets and their
-state, gates park instead of concluding, and no stored run is resumed until a fabric is settled again. Ending
-those runs, so their targets are released, is not implemented yet.
+Every run records the fabric it acts on, by that same identity, and is driven only while the manager manages
+that fabric. When a fabric leaves the controller, its runs end: an unfinished run is recorded `failed`, an
+unfinished or failed rollback `abandoned`, and nothing they changed is undone or kept for an undo — no device
+of that fabric can be reached again, and its addresses may later name devices of another fabric. Their targets
+are released. A fabric that left while the controller was stopped is settled at the next start.
 
 ### One task per target
 
