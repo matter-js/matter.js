@@ -179,6 +179,20 @@ export namespace ConditionAssertions {
 
         return scope;
     }
+
+    /**
+     * The node endpoint whose node scope {@link endpoint} belongs to: the closest endpoint at or above it whose device
+     * type is classified as a node. Undefined when there is none, so the endpoint belongs to no node scope.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     */
+    export function nodeEndpointOf(endpoint: Endpoint, model: MatterModel = Matter): Endpoint | undefined {
+        for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
+            if (EndpointFacts.of(current, model).isNodeEndpoint) {
+                return current;
+            }
+        }
+    }
 }
 
 /**

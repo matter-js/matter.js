@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { BindingServer } from "#behaviors/binding";
 import { BooleanStateBehavior, BooleanStateServer } from "#behaviors/boolean-state";
 import { DescriptorServer } from "#behaviors/descriptor";
+import { GroupKeyManagementBehavior } from "#behaviors/group-key-management";
 import { GroupsServer } from "#behaviors/groups";
 import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
@@ -22,6 +24,8 @@ import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js
 import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
 import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
 import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
+import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import { ImplementationError, MatterAggregateError } from "@matter/general";
 import {
     ClusterModel,
@@ -33,6 +37,7 @@ import {
     RequirementResolver,
 } from "@matter/model";
 import { DoorLock } from "@matter/types/clusters/door-lock";
+import { MockServerNode } from "../../node/mock-server-node.js";
 import { createNode, deviceTypeList, violationsOf } from "./validation-helpers.js";
 
 const { Identify, Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
@@ -105,6 +110,53 @@ const rainSensorWithoutChangeEvent = RainSensorDevice.with(BooleanStateServer.wi
 
 // BooleanState derived without the ChangeEvent feature from a base that never had it, so no StateChange emitter exists
 const rainSensorWithoutStateChange = RainSensorDevice.with(BooleanStateBehavior.with());
+
+// Carries GroupKeyManagement, a singleton of RootNode.  Stand-in: the unimplemented behavior, because the server
+// cannot initialize off the root
+const lightWithGroupKeyManagement = OnOffLightDevice.with(GroupKeyManagementBehavior);
+
+// Carries AdministratorCommissioning, a singleton of RootNode
+const bridgedNodeWithAdministratorCommissioning = BridgedNodeEndpoint.with(AdministratorCommissioningServer);
+
+/**
+ * A model whose RootNode declares GroupKeyManagement a singleton and whose OnOffLight lists nothing.  With
+ * {@link bridgedNodeIsNode} BridgedNode is classified `node` and declares Identify a singleton.
+ */
+function singletonModel({ rootIsNode = true, bridgedNodeIsNode = false } = {}) {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }),
+        new DeviceTypeModel(
+            { name: "RootNode", id: 0x16, classification: rootIsNode ? "node" : "simple" },
+            new RequirementModel({
+                name: "GroupKeyManagement",
+                id: 0x3f,
+                element: "serverCluster",
+                quality: "I",
+            }),
+        ),
+        new DeviceTypeModel(
+            { name: "BridgedNode", id: 0x13, classification: bridgedNodeIsNode ? "node" : "utility" },
+            new RequirementModel({ name: "Identify", id: 3, element: "serverCluster", quality: "I" }),
+        ),
+        new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+        new ClusterModel({ name: "Identify", id: 3 }),
+        new ClusterModel({ name: "GroupKeyManagement", id: 0x3f }),
+    );
+    model.finalize();
+    return model;
+}
+
+function singletonViolationsOf(endpoint: Endpoint, model?: MatterModel) {
+    let root = endpoint;
+    while (root.owner !== undefined) {
+        root = root.owner;
+    }
+    const conditions = ConditionAssertions.collect(root, model).conditions;
+    return DeviceTypeConformance.check(endpoint, conditions, model)
+        .filter(v => v.kind === "singletonMisplaced")
+        .map(v => [v.deviceType, v.requirement]);
+}
 
 function requirementOf(deviceType: string, ...path: string[]) {
     let model = Matter.deviceTypes(deviceType)?.get(RequirementModel, path[0]);
@@ -377,6 +429,82 @@ describe("DeviceTypeConformance", () => {
 
             const tagList = violationsOf(endpoints[0]).filter(v => v.requirement === "Descriptor.TAGLIST");
             expect(tagList.map(v => [v.deviceType, v.kind])).deep.equals([["ClosurePanel", "missing"]]);
+
+            await node.close();
+        });
+    });
+
+    describe("singleton placement", () => {
+        it("accepts the singletons on the endpoint that declares them", async () => {
+            const node = await MockServerNode.createOnline();
+
+            expect(singletonViolationsOf(node)).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("reports a singleton on another endpoint of the node scope", async () => {
+            const node = await createNode();
+            const light = await node.add(lightWithGroupKeyManagement, { id: "light" });
+
+            expect(requirementOf("RootNode", "GroupKeyManagement").quality.singleton).true;
+
+            const violations = violationsOf(light).filter(v => v.kind === "singletonMisplaced");
+            expect(violations.length).equals(1);
+            expect(violations[0].endpoint).equals(light);
+            expect(violations[0].deviceType).equals("RootNode");
+            expect(violations[0].requirement).equals("GroupKeyManagement");
+
+            await node.close();
+        });
+
+        it("reports a RootNode singleton on a bridged node", async () => {
+            // A bridged node is inside the root's node scope until Bridged Node is classified as a node
+            const node = await createNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            const bridged = await aggregator.add(bridgedNodeWithAdministratorCommissioning, { id: "bridged" });
+
+            expect(singletonViolationsOf(bridged)).deep.equals([["RootNode", "AdministratorCommissioning"]]);
+
+            await node.close();
+        });
+
+        it("accepts a cluster that is no singleton on several endpoints", async () => {
+            const node = await createNode();
+            const first = await node.add(OnOffLightDevice, { id: "first" });
+            const second = await node.add(OnOffLightDevice, { id: "second" });
+
+            for (const endpoint of [first, second]) {
+                expect(singletonViolationsOf(endpoint)).deep.equals([]);
+            }
+
+            await node.close();
+        });
+
+        it("judges no singleton outside a node scope", async () => {
+            const node = await createNode();
+            const light = await node.add(lightWithGroupKeyManagement, { id: "light" });
+
+            // Stand-in model: the same tree has a node scope only while RootNode is classified node
+            expect(singletonViolationsOf(light, singletonModel())).deep.equals([["RootNode", "GroupKeyManagement"]]);
+            expect(singletonViolationsOf(light, singletonModel({ rootIsNode: false }))).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("keeps a nested node scope's singletons to itself", async () => {
+            const node = await createNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            const bridged = await aggregator.add(BridgedNodeEndpoint.with(GroupKeyManagementBehavior), {
+                id: "bridged",
+            });
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+
+            // Stand-in model: BridgedNode is a node declaring Identify a singleton, so neither scope sees the other's
+            // declarations
+            const model = singletonModel({ bridgedNodeIsNode: true });
+            expect(singletonViolationsOf(bridged, model)).deep.equals([]);
+            expect(singletonViolationsOf(light, model)).deep.equals([]);
 
             await node.close();
         });

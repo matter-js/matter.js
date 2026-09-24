@@ -35,6 +35,8 @@ export namespace DeviceTypeConformance {
      * {@link Endpoint.deviceConditions} that name no condition.
      *
      * A mandatory requirement is violated when its cluster or element is absent, a disallowed one when it is present.
+     * A server cluster that a device type in the endpoint's node scope declares a singleton is violated on every
+     * endpoint of that scope but the declaring ones.
      * Optional requirements and those whose conformance names something unknown are not judged. A missing or
      * disallowed cluster is the one finding for that cluster; its nested requirements are not judged.
      *
@@ -88,6 +90,8 @@ export namespace DeviceTypeConformance {
                 }
             }
         }
+
+        checkSingletons(violations, facts, model);
 
         // Base and a device type may state the same requirement; the device type's own report is kept
         const unique = new Map<string, Violation>();
@@ -215,4 +219,69 @@ function knownNamesOf(requirement: RequirementModel) {
     }
 
     return names;
+}
+
+/**
+ * Report each server cluster of the endpoint that a device type elsewhere in its node scope declares a singleton.
+ *
+ * The quality lets the declaring endpoint carry the cluster and forbids it on every other endpoint of the scope. It
+ * does not make the cluster required on the declaring endpoint; conformance decides that. An endpoint in no node scope
+ * is not judged.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.7.3
+ */
+function checkSingletons(violations: Violation[], facts: EndpointFacts, model: MatterModel) {
+    const nodeEndpoint = ConditionAssertions.nodeEndpointOf(facts.endpoint, model);
+    if (nodeEndpoint === undefined) {
+        return;
+    }
+
+    for (const [id, { cluster, deviceType, endpoints }] of singletonsOf(nodeEndpoint, model)) {
+        if (endpoints.has(facts.endpoint) || facts.clusterName("server", id) === undefined) {
+            continue;
+        }
+
+        violations.push({
+            endpoint: facts.endpoint,
+            deviceType,
+            requirement: cluster,
+            kind: "singletonMisplaced",
+            detail: `Server cluster ${cluster} is a singleton of ${deviceType} in this node scope, so it may appear only on the endpoint of that device type`,
+        });
+    }
+}
+
+/**
+ * The server clusters declared singletons in the node scope of {@link nodeEndpoint}, by cluster ID, with the first
+ * declaring device type and every declaring endpoint.
+ */
+function singletonsOf(nodeEndpoint: Endpoint, model: MatterModel) {
+    const singletons = new Map<number, { cluster: string; deviceType: string; endpoints: Set<Endpoint> }>();
+
+    for (const endpoint of ConditionAssertions.nodeScopeOf(nodeEndpoint, model)) {
+        for (const deviceType of EndpointFacts.of(endpoint, model).deviceTypes) {
+            for (const requirement of deviceType.requirements) {
+                if (
+                    requirement.element !== RequirementElement.ElementType.ServerCluster ||
+                    !requirement.quality.singleton
+                ) {
+                    continue;
+                }
+
+                const cluster = RequirementResolver.clusterOf(requirement);
+                if (cluster?.id === undefined) {
+                    continue;
+                }
+
+                let singleton = singletons.get(cluster.id);
+                if (singleton === undefined) {
+                    singleton = { cluster: cluster.name, deviceType: deviceType.name, endpoints: new Set() };
+                    singletons.set(cluster.id, singleton);
+                }
+                singleton.endpoints.add(endpoint);
+            }
+        }
+    }
+
+    return singletons;
 }

@@ -47,7 +47,8 @@ export namespace Violation {
      * - `missing`: a mandatory cluster or element is absent
      * - `disallowed`: a disallowed cluster or element is present
      * - `instanceCount`: a component requirement matches too few or too many endpoints
-     * - `singletonMisplaced`: a device type that may appear only on the node endpoint appears elsewhere
+     * - `singletonMisplaced`: a server cluster that a device type in the node scope declares a singleton appears on
+     *   an endpoint other than the declaring one
      * - `unknownCondition`: {@link Endpoint.deviceConditions} names no condition in the endpoint's scope
      */
     export type Kind = "missing" | "disallowed" | "instanceCount" | "singletonMisplaced" | "unknownCondition";
