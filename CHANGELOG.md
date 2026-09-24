@@ -20,6 +20,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: A node whose fabric was created before it started (a controller calling `FabricAuthority.defaultFabric()` before `start()` on first run) now counts as commissioned once online and advertises operationally, as it already did after a restart, so an ICD can resolve such a controller to send it Check-Ins
     - Fix: Decommissioning a peer whose structure read never finished no longer reports an unhandled `uninitialized-dependency` error: the observer watching for that read now detaches when the node goes away, instead of reading state from a node that is closing
+    - Fix: (@RaHehl) A freshly commissioned node, also one commissioned again after a factory reset, re-establishes its subscriptions after its next restart; it previously persisted none until it had been restarted once
     - Enhancement: `IcdClient` emits `counterStart$Changed` after a registration, a key refresh or a cleared registration has committed, so a listener can read the new key from state; `keyRefreshed` fires before that
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
 - @matter/testing
