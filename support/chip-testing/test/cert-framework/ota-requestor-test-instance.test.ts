@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, StandardCrypto } from "@matter/general";
+import { Bytes, StandardCrypto, Time } from "@matter/general";
 import { OtaSoftwareUpdateRequestorServer } from "@matter/main/behaviors/ota-software-update-requestor";
 import { OtaImageWriter } from "@matter/main/protocol";
 import { NodeId, VendorId } from "@matter/main/types";
@@ -270,17 +270,17 @@ describe("OtaRequestorTestInstance", () => {
             ref = await adapter.commission({ passcode: REQUESTOR_PASSCODE, discriminator: REQUESTOR_DISCRIMINATOR });
             const node = adapter.node(ref);
 
-            const unobserved = await node.announceOtaProvider();
-            expect(unobserved.observedMs).equal(0);
-            expect(unobserved.exchanges.queryImage).length(1);
-
             const observeMs = 500;
+            const before = Time.nowUs;
             const observed = await node.announceOtaProvider({ observeMs });
+            const after = Time.nowUs;
             expect(observed.observedMs).least(observeMs);
             expect(observed.exchanges.queryImage).length(1);
-            expect(observed.exchanges.queryImage[0].receivedAtMs).greaterThan(
-                unobserved.exchanges.queryImage[0].receivedAtMs,
-            );
+            expect(observed.exchanges.queryImage[0].receivedAtMs).within(before, after);
+
+            // Nothing is waited for without an expected query, whatever the requestor does with it
+            const unobserved = await node.announceOtaProvider({ expectQuery: false });
+            expect(unobserved.observedMs).equal(0);
         } catch (error) {
             bodyFailure = error;
         }
