@@ -496,6 +496,11 @@ export class TaskManagerBehavior extends Behavior {
             // Decided after the unwind: the driver may have reached an outcome of its own meanwhile.
             const disposition = this.#lostFabricDisposition(record);
             if (disposition === undefined) {
+                // Its fabric came back while the driver stopped: a run that keeps its state keeps its driver, as
+                // when a cancel or an abandon backs out.
+                if (execution !== undefined && !isTerminal(record.state)) {
+                    this.#restoreDriver(record, execution.bound);
+                }
                 return;
             }
             try {
