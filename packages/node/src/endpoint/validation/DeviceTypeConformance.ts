@@ -7,6 +7,7 @@
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import {
     Conformance,
+    DeviceClassification,
     DeviceTypeModel,
     Matter,
     MatterModel,
@@ -62,7 +63,16 @@ export namespace DeviceTypeConformance {
             });
         }
 
-        for (const deviceType of facts.deviceTypes) {
+        const deviceTypes = [...facts.deviceTypes];
+        if (deviceTypes.length) {
+            // Every device type derives from Base, so its requirements apply once per endpoint rather than once per
+            // device type
+            deviceTypes.push(
+                ...model.deviceTypes.filter(deviceType => deviceType.classification === DeviceClassification.Base),
+            );
+        }
+
+        for (const deviceType of deviceTypes) {
             const context = { violations, facts, deviceType, conditions };
             for (const requirement of deviceType.requirements) {
                 switch (requirement.element) {
@@ -79,7 +89,15 @@ export namespace DeviceTypeConformance {
             }
         }
 
-        return violations;
+        // Base and a device type may state the same requirement; the device type's own report is kept
+        const unique = new Map<string, Violation>();
+        for (const violation of violations) {
+            const key = `${violation.kind} ${violation.requirement}`;
+            if (!unique.has(key)) {
+                unique.set(key, violation);
+            }
+        }
+        return [...unique.values()];
     }
 }
 
@@ -169,16 +187,20 @@ function judge(
 }
 
 /**
- * The declared names a requirement's conformance may reference: the conditions and cluster features of its
- * {@link RequirementResolver.EndpointScope}. A name outside them leaves the requirement unjudged.
+ * The declared names a requirement's conformance may reference: the conditions reachable unqualified from its
+ * {@link RequirementResolver.EndpointScope} and the features of its cluster. A name outside them leaves the requirement
+ * unjudged.
  */
 function knownNamesOf(requirement: RequirementModel) {
     const { deviceType, cluster } = RequirementResolver.endpointScopeOf(requirement);
     const names = new Set<string>();
 
     if (deviceType !== undefined) {
-        for (const condition of RequirementResolver.conditionsOf(deviceType).values()) {
-            names.add(condition.name);
+        for (const [key, condition] of RequirementResolver.conditionsOf(deviceType)) {
+            // A qualified entry names a condition of any device type, which the requirement cannot reach
+            if (!key.includes(".")) {
+                names.add(condition.name);
+            }
         }
     }
 

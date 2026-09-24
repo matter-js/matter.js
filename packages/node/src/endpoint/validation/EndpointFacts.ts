@@ -14,11 +14,13 @@ import {
     CommandModel,
     DeviceClassification,
     DeviceTypeModel,
+    ElementTag,
     EndpointComposition,
     EventModel,
     Matter,
     MatterModel,
     Model,
+    Scope,
 } from "@matter/model";
 
 /**
@@ -124,6 +126,9 @@ export class EndpointFacts {
     /**
      * Whether the endpoint's server {@link cluster} implements {@link element}, an attribute, command or event model
      * of that cluster.
+     *
+     * An event also needs operational support in the cluster's schema: mandatory under the enabled features, or
+     * enabled explicitly.
      */
     supports(cluster: string, element: Model): boolean {
         const type = this.#serverTypes.get(cluster);
@@ -139,7 +144,14 @@ export class EndpointFacts {
             return elements.commands.has(element.propertyName);
         }
         if (element instanceof EventModel) {
-            return elements.events.has(element.propertyName);
+            // A behavior derived with a feature turned off keeps the emitters its base had, so an emitter alone does
+            // not mean the endpoint emits the event
+            const event = type.schema.member(element.name, [ElementTag.Event]);
+            return (
+                elements.events.has(element.propertyName) &&
+                event !== undefined &&
+                Scope(type.schema).hasOperationalSupport(event)
+            );
         }
         return false;
     }
