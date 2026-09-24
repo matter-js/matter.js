@@ -65,6 +65,29 @@ export function record(cx: CertStepContext, check: CheckRecord, what: string) {
     }
 }
 
+/** One check {@link recordAll} records, named for the failure message. */
+export interface RecordedCheck {
+    check: () => CheckRecord | Promise<CheckRecord>;
+    what: string;
+}
+
+/**
+ * Runs `action` as a response check that does not throw for the action: a pass with `describe`'s text and the
+ * action's `value`, or a fail with the error the action threw.
+ */
+export async function attempt<T>(
+    action: () => Promise<T>,
+    describe: (value: T) => string,
+): Promise<{ ok: true; value: T; check: CheckRecord } | { ok: false; check: CheckRecord }> {
+    let value: T;
+    try {
+        value = await action();
+    } catch (e) {
+        return { ok: false, check: { type: "response", verdict: "fail", detail: describeError(e) } };
+    }
+    return { ok: true, value, check: { type: "response", verdict: "pass", detail: describe(value) } };
+}
+
 /**
  * Records every check and fails the step once at the end, so a step asserting several artifacts puts
  * all of them in the evidence — {@link record} in a loop stops at the first failure and leaves the
@@ -77,10 +100,7 @@ export function record(cx: CertStepContext, check: CheckRecord, what: string) {
  * in the same call as its response checks: a wait held outside the call is a check the step claims
  * and never records once an earlier one fails.
  */
-export async function recordAll(
-    cx: CertStepContext,
-    checks: readonly { check: () => CheckRecord | Promise<CheckRecord>; what: string }[],
-): Promise<void> {
+export async function recordAll(cx: CertStepContext, checks: readonly RecordedCheck[]): Promise<void> {
     const failed = new Array<string>();
     for (const { check, what } of checks) {
         const record = await check();

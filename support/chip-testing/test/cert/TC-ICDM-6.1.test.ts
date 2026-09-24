@@ -6,12 +6,12 @@
 
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertIcdClientApi, CertIcdRegistration, CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
+import type { CertIcdClientApi, CertIcdRegistration, CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import type { CommandFieldValue } from "./tc-support.js";
+import type { CommandFieldValue, RecordedCheck } from "./tc-support.js";
 import {
+    attempt,
     CommissionedRefs,
-    describeError,
     expectCommandInvoke,
     icdRegisterClientFields,
     LOG_TIMEOUT,
@@ -34,52 +34,44 @@ const commissioned = new CommissionedRefs<"dut">();
 let registration: CertIcdRegistration | undefined;
 
 /**
- * Has the DUT send one IcdManagement command, and records both its response and the TH's log of the command before
- * failing the step. The log check expects `options.fields`, else the fields `send` returns; a failed `send` without
- * `options.fields` is checked against the command path alone.
+ * Has the DUT send one IcdManagement command, and records its response and the TH's log of the command before
+ * failing the step. `fields` as a function depends on what the DUT sent, so a failed send leaves the log unchecked.
  */
-async function sendAndCheck(
+async function sendAndCheck<T>(
     cx: CertStepContext,
     ref: CertNodeRef,
     options: {
         command: string;
         commandId: number;
         what: string;
-        fields?: CommandFieldValue[];
-        send: (icd: CertIcdClientApi) => Promise<{ detail: string; fields?: CommandFieldValue[] }>;
+        send: (icd: CertIcdClientApi) => Promise<T>;
+        describe: (value: T) => string;
+        fields: CommandFieldValue[] | ((value: T) => CommandFieldValue[]);
     },
 ) {
-    const { command, commandId, what, send } = options;
+    const { command, commandId, what, send, describe, fields } = options;
     const th = cx.devices.th;
     const from = th.log.mark();
 
-    let response: CheckRecord;
-    let fields = options.fields;
-    try {
-        const sent = await send(cx.controllers.dut.node(ref).icdClient());
-        response = { type: "response", verdict: "pass", detail: sent.detail };
-        fields ??= sent.fields;
-    } catch (e) {
-        response = { type: "response", verdict: "fail", detail: describeError(e) };
+    const response = await attempt(() => send(cx.controllers.dut.node(ref).icdClient()), describe);
+    const checks: RecordedCheck[] = [{ what: `${command} response`, check: () => response.check }];
+
+    const expected = Array.isArray(fields) ? fields : response.ok ? fields(response.value) : undefined;
+    if (expected !== undefined) {
+        const invoke = await expectCommandInvoke(
+            th.log,
+            th.flavor,
+            ROOT_ENDPOINT,
+            ICD_MANAGEMENT_ID,
+            commandId,
+            expected,
+            from,
+            LOG_TIMEOUT,
+        );
+        checks.push({ what: `CommandDataIB log for ${command} with ${what}`, check: () => invoke });
     }
 
-    await recordAll(cx, [
-        { what: `${command} response`, check: () => response },
-        {
-            what: `CommandDataIB log for ${command} with ${what}`,
-            check: () =>
-                expectCommandInvoke(
-                    th.log,
-                    th.flavor,
-                    ROOT_ENDPOINT,
-                    ICD_MANAGEMENT_ID,
-                    commandId,
-                    fields ?? [],
-                    from,
-                    LOG_TIMEOUT,
-                ),
-        },
-    ]);
+    await recordAll(cx, checks);
 }
 
 certTest("TC-ICDM-6.1", {
@@ -116,13 +108,9 @@ certTest("TC-ICDM-6.1", {
                 command: "RegisterClient",
                 commandId: REGISTER_CLIENT_ID,
                 what: "CheckInNodeID, MonitoredSubject, Key, ClientType",
-                send: async icd => {
-                    registration = await icd.register();
-                    return {
-                        detail: `ICDCounter=${registration.icdCounter}`,
-                        fields: icdRegisterClientFields(registration.nodeId, registration.key),
-                    };
-                },
+                send: async icd => (registration = await icd.register()),
+                describe: ({ icdCounter }) => `ICDCounter=${icdCounter}`,
+                fields: ({ nodeId, key }) => icdRegisterClientFields(nodeId, key),
             }),
         ),
         {
@@ -148,10 +136,8 @@ certTest("TC-ICDM-6.1", {
                     { id: 0, value: nodeId },
                     { id: 1, value: key },
                 ],
-                send: async icd => {
-                    await icd.unregister();
-                    return { detail: "status=Success" };
-                },
+                send: icd => icd.unregister(),
+                describe: () => "status=Success",
             });
         }),
         {
@@ -170,9 +156,8 @@ certTest("TC-ICDM-6.1", {
                 commandId: STAY_ACTIVE_REQUEST_ID,
                 what: "StayActiveDuration",
                 fields: [{ id: 0, value: STAY_ACTIVE_DURATION_MS }],
-                send: async icd => ({
-                    detail: `PromisedActiveDuration=${await icd.stayActive(STAY_ACTIVE_DURATION_MS)}`,
-                }),
+                send: icd => icd.stayActive(STAY_ACTIVE_DURATION_MS),
+                describe: promised => `PromisedActiveDuration=${promised}`,
             }),
         ),
         {

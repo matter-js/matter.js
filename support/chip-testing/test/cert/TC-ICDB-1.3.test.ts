@@ -8,15 +8,16 @@ import { Bytes, InternalError, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertIcdEvent, CertIcdRegistration, CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import type { RecordedCheck } from "./tc-support.js";
 import {
+    attempt,
     CommissionedRefs,
-    describeError,
     describeValue,
     expectCommandInvoke,
     expectDeviceLog,
     icdRegisterClientFields,
     LOG_TIMEOUT,
-    record,
+    recordAll,
     requireId,
 } from "./tc-support.js";
 
@@ -79,20 +80,27 @@ function requireRegistration() {
     return registration;
 }
 
-/** TH2 sends `TestEventTrigger` to TH1 and the TH's log shows the key and trigger it carried. */
+/**
+ * TH2 sends `TestEventTrigger` to TH1, judged by the response and the TH's log of the key and trigger it carried.
+ * `sentAt` marks the TH's log right after the response.
+ */
 async function sendTestEventTrigger(cx: CertStepContext, ref: CertNodeRef, eventTrigger: bigint, label: string) {
     const th = cx.devices.th;
     const from = th.log.mark();
 
-    try {
-        await cx.controllers.th2
-            .node(ref)
-            .invoke("GeneralDiagnostics", "testEventTrigger", { enableKey: ENABLE_KEY, eventTrigger }, ROOT_ENDPOINT);
-    } catch (e) {
-        record(cx, { type: "response", verdict: "fail", detail: describeError(e) }, `${label} response`);
-        return;
-    }
-    record(cx, { type: "response", verdict: "pass", detail: "status=Success" }, `${label} response`);
+    const response = await attempt(
+        () =>
+            cx.controllers.th2
+                .node(ref)
+                .invoke(
+                    "GeneralDiagnostics",
+                    "testEventTrigger",
+                    { enableKey: ENABLE_KEY, eventTrigger },
+                    ROOT_ENDPOINT,
+                ),
+        () => "status=Success",
+    );
+    const sentAt = th.log.mark();
 
     const invoke = await expectCommandInvoke(
         th.log,
@@ -107,7 +115,12 @@ async function sendTestEventTrigger(cx: CertStepContext, ref: CertNodeRef, event
         from,
         LOG_TIMEOUT,
     );
-    record(cx, invoke, `CommandDataIB log for ${label}, EnableKey and EventTrigger`);
+
+    const checks: RecordedCheck[] = [
+        { what: `${label} response`, check: () => response.check },
+        { what: `CommandDataIB log for ${label}, EnableKey and EventTrigger`, check: () => invoke },
+    ];
+    return { checks, sentAt };
 }
 
 function offsetOf(counter: number, counterStart: number) {
@@ -170,12 +183,16 @@ certTest("TC-ICDB-1.3", {
             const from = th.log.mark();
 
             // TH1 has a second administrator, TH2, which is the plan's own topology
-            registration = await icd.register({ allowMultiAdmin: true });
-            record(
-                cx,
-                { type: "response", verdict: "pass", detail: `ICDCounter1=${registration.icdCounter}` },
-                "RegisterClient response",
+            const response = await attempt(
+                () => icd.register({ allowMultiAdmin: true }),
+                ({ icdCounter }) => `ICDCounter1=${icdCounter}`,
             );
+            registration = response.ok ? response.value : undefined;
+            const checks: RecordedCheck[] = [{ what: "RegisterClient response", check: () => response.check }];
+            if (registration === undefined) {
+                return recordAll(cx, checks);
+            }
+            const { nodeId, key, icdCounter } = registration;
 
             const invoke = await expectCommandInvoke(
                 th.log,
@@ -183,43 +200,45 @@ certTest("TC-ICDB-1.3", {
                 ROOT_ENDPOINT,
                 ICD_MANAGEMENT_ID,
                 REGISTER_CLIENT_ID,
-                icdRegisterClientFields(registration.nodeId, registration.key),
+                icdRegisterClientFields(nodeId, key),
                 from,
                 LOG_TIMEOUT,
-            );
-            record(
-                cx,
-                invoke,
-                "CommandDataIB log for RegisterClient with CheckInNodeID, MonitoredSubject, Key1, ClientType",
             );
 
             // An ICD sends Check-Ins only to a client without an active subscription (Core § 9.15), and the DUT
             // subscribed when it commissioned TH1. The first Check-In shows the ones the later steps rely on arrive
-            await icd.stopSubscription();
-            const checkIn = (await waitForEvent(cx, "checkIn", 0, "first Check-In after registration"))?.event;
-            // Read by TH2, so fabric-filtered to TH2's own registrations
-            const th2Clients = await cx.controllers.th2.node(commissioned.require("th2")).readAttribute({
-                endpoint: ROOT_ENDPOINT,
-                cluster: ICD_MANAGEMENT_ID,
-                attribute: REGISTERED_CLIENTS_ID,
-            });
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict: Array.isArray(th2Clients) && th2Clients.length === 0 ? "pass" : "fail",
-                    detail: `TH2's RegisteredClients on TH1: ${describeValue(th2Clients)}`,
+            const checkIn = await attempt(
+                async () => {
+                    await icd.stopSubscription();
+                    return (await icd.waitFor("checkIn", 0, CHECK_IN_TIMEOUT)).event;
                 },
-                "TH2 is not a Check-In client of TH1",
+                ({ counter }) => `DUT accepted a Check-In, counter ${counter}, offset ${offsetOf(counter, icdCounter)}`,
             );
 
-            if (checkIn !== undefined) {
-                cx.recorder.check({
-                    type: "response",
-                    verdict: "pass",
-                    detail: `DUT accepted a Check-In, counter ${checkIn.counter}, offset ${offsetOf(checkIn.counter, registration.icdCounter)}`,
-                });
-            }
+            // Read by TH2, so fabric-filtered to TH2's own registrations
+            const th2Clients = await attempt(
+                () =>
+                    cx.controllers.th2.node(commissioned.require("th2")).readAttribute({
+                        endpoint: ROOT_ENDPOINT,
+                        cluster: ICD_MANAGEMENT_ID,
+                        attribute: REGISTERED_CLIENTS_ID,
+                    }),
+                clients => `TH2's RegisteredClients on TH1: ${describeValue(clients)}`,
+            );
+            const th2IsClient = !th2Clients.ok || !Array.isArray(th2Clients.value) || th2Clients.value.length !== 0;
+
+            await recordAll(cx, [
+                ...checks,
+                {
+                    what: "CommandDataIB log for RegisterClient with CheckInNodeID, MonitoredSubject, Key1, ClientType",
+                    check: () => invoke,
+                },
+                { what: "DUT ended its subscription and accepted a Check-In", check: () => checkIn.check },
+                {
+                    what: "TH2 is not a Check-In client of TH1",
+                    check: () => (th2IsClient ? { ...th2Clients.check, verdict: "fail" } : th2Clients.check),
+                },
+            ]);
         }),
         {
             pics: "ICDB.C",
@@ -234,7 +253,13 @@ certTest("TC-ICDB-1.3", {
         commissioned.withRef("th2", async (cx, ref) => {
             const icd = cx.controllers.dut.node(commissioned.require("dut")).icdClient();
             refreshFrom = { thLog: cx.devices.th.log.mark(), events: icd.events().length };
-            await sendTestEventTrigger(cx, ref, INVALIDATE_HALF_COUNTER_VALUES, "TestEventTrigger (half counter)");
+            const { checks } = await sendTestEventTrigger(
+                cx,
+                ref,
+                INVALIDATE_HALF_COUNTER_VALUES,
+                "TestEventTrigger (half counter)",
+            );
+            await recordAll(cx, checks);
         }),
         {
             pics: "ICDB.C",
@@ -250,43 +275,27 @@ certTest("TC-ICDB-1.3", {
             if (refreshFrom === undefined) {
                 throw new InternalError("step 2a did not record where the refresh starts");
             }
+            const start = refreshFrom;
             const th = cx.devices.th;
             const icd = cx.controllers.dut.node(ref).icdClient();
 
-            const found = await waitForEvent(cx, "keyRefresh", refreshFrom.events, "key refresh");
-            if (found === undefined) {
-                return;
+            const refresh = await attempt(
+                () => icd.waitFor("keyRefresh", start.events, CHECK_IN_TIMEOUT),
+                ({ event }) => `DUT refreshed its key, new starting counter ${event.counterStart}`,
+            );
+            const checks: RecordedCheck[] = [{ what: "key refresh", check: () => refresh.check }];
+            if (!refresh.ok) {
+                return recordAll(cx, checks);
             }
-            const { event: refresh, index: refreshAt } = found;
+            const { event: refreshed, index: refreshAt } = refresh.value;
 
             const trigger = icd
                 .events()
-                .slice(refreshFrom.events, refreshAt)
+                .slice(start.events, refreshAt)
                 .find(
                     (event): event is Extract<CertIcdEvent, { kind: "checkIn" }> =>
                         event.kind === "checkIn" && offsetOf(event.counter, icdCounter1) >= KEY_REFRESH_OFFSET,
                 );
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict: trigger === undefined ? "fail" : "pass",
-                    detail:
-                        trigger === undefined
-                            ? "no Check-In with an offset of 2^31 or more preceded the key refresh"
-                            : `ICDCounter2=${trigger.counter}, offset ${offsetOf(trigger.counter, icdCounter1)}`,
-                },
-                "Check-In showing 2^31 counter values used",
-            );
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict: Bytes.areEqual(refresh.key, key1) ? "fail" : "pass",
-                    detail: `Key2=${Bytes.toHex(refresh.key)}, new starting counter ${refresh.counterStart}`,
-                },
-                "DUT re-registered with a new key",
-            );
 
             const invoke = await expectCommandInvoke(
                 th.log,
@@ -294,11 +303,37 @@ certTest("TC-ICDB-1.3", {
                 ROOT_ENDPOINT,
                 ICD_MANAGEMENT_ID,
                 REGISTER_CLIENT_ID,
-                icdRegisterClientFields(nodeId, refresh.key, key1),
-                refreshFrom.thLog,
+                icdRegisterClientFields(nodeId, refreshed.key, key1),
+                start.thLog,
                 LOG_TIMEOUT,
             );
-            record(cx, invoke, "CommandDataIB log for the refreshing RegisterClient with Key2, VerificationKey Key1");
+
+            await recordAll(cx, [
+                ...checks,
+                {
+                    what: "Check-In showing 2^31 counter values used",
+                    check: () => ({
+                        type: "response",
+                        verdict: trigger === undefined ? "fail" : "pass",
+                        detail:
+                            trigger === undefined
+                                ? "no Check-In with an offset of 2^31 or more preceded the key refresh"
+                                : `ICDCounter2=${trigger.counter}, offset ${offsetOf(trigger.counter, icdCounter1)}`,
+                    }),
+                },
+                {
+                    what: "DUT re-registered with a new key",
+                    check: () => ({
+                        type: "response",
+                        verdict: Bytes.areEqual(refreshed.key, key1) ? "fail" : "pass",
+                        detail: `Key2=${Bytes.toHex(refreshed.key)}`,
+                    }),
+                },
+                {
+                    what: "CommandDataIB log for the refreshing RegisterClient with Key2, VerificationKey Key1",
+                    check: () => invoke,
+                },
+            ]);
         }),
         {
             pics: "ICDB.C",
@@ -316,18 +351,20 @@ certTest("TC-ICDB-1.3", {
             const icd = dut.node(commissioned.require("dut")).icdClient();
             const dutLog = dut.log.mark();
 
-            await sendTestEventTrigger(cx, ref, INVALIDATE_ALL_COUNTER_VALUES, "TestEventTrigger (all counter values)");
-
-            const thFrom = th.log.mark();
+            const { checks, sentAt } = await sendTestEventTrigger(
+                cx,
+                ref,
+                INVALIDATE_ALL_COUNTER_VALUES,
+                "TestEventTrigger (all counter values)",
+            );
 
             const sent = await expectDeviceLog(
                 th.log,
                 th.flavor,
                 { chip: /Msg TX .* Type 0000:50 /, matterjs: /Message » for: SC\/IcdCheckInMessage / },
-                thFrom,
+                sentAt,
                 CHECK_IN_TIMEOUT,
             );
-            record(cx, sent.check, "TH1 sent a Check-In after the trigger");
 
             const dropped = await expectDeviceLog(
                 dut.log,
@@ -336,7 +373,6 @@ certTest("TC-ICDB-1.3", {
                 dutLog,
                 CHECK_IN_TIMEOUT,
             );
-            record(cx, dropped.check, "DUT dropped the Check-In as an invalid counter");
 
             // ICDCounter3 repeats the last counter TH1 sent. The trigger's own exchange may wake TH1 into a Check-In
             // that is still valid, so what the DUT must not have done is accept any counter twice
@@ -345,18 +381,23 @@ certTest("TC-ICDB-1.3", {
                 .filter(event => event.kind === "checkIn")
                 .map(event => event.counter);
             const repeated = counters.filter((counter, index) => counters.indexOf(counter) !== index);
-            record(
-                cx,
+
+            await recordAll(cx, [
+                ...checks,
+                { what: "TH1 sent a Check-In after the trigger", check: () => sent.check },
+                { what: "DUT dropped the Check-In as an invalid counter", check: () => dropped.check },
                 {
-                    type: "response",
-                    verdict: repeated.length === 0 ? "pass" : "fail",
-                    detail:
-                        repeated.length === 0
-                            ? `no counter accepted twice among ${counters.length} Check-Ins`
-                            : `accepted counter(s) ${repeated.join(", ")} twice`,
+                    what: "DUT accepted no Check-In with ICDCounter3",
+                    check: () => ({
+                        type: "response",
+                        verdict: repeated.length === 0 ? "pass" : "fail",
+                        detail:
+                            repeated.length === 0
+                                ? `no counter accepted twice among ${counters.length} Check-Ins`
+                                : `accepted counter(s) ${repeated.join(", ")} twice`,
+                    }),
                 },
-                "DUT accepted no Check-In with ICDCounter3",
-            );
+            ]);
         }),
         {
             pics: "ICDB.C",
@@ -366,19 +407,3 @@ certTest("TC-ICDB-1.3", {
         },
     )
     .finalize(cx => commissioned.decommissionAll(cx));
-
-/** Waits for an ICD event and records a failure instead of throwing, so the step's evidence carries it. */
-async function waitForEvent<K extends CertIcdEvent["kind"]>(
-    cx: CertStepContext,
-    kind: K,
-    from: number,
-    what: string,
-): Promise<{ event: Extract<CertIcdEvent, { kind: K }>; index: number } | undefined> {
-    const icd = cx.controllers.dut.node(commissioned.require("dut")).icdClient();
-    try {
-        return await icd.waitFor(kind, from, CHECK_IN_TIMEOUT);
-    } catch (e) {
-        record(cx, { type: "response", verdict: "fail", detail: describeError(e) }, what);
-        return undefined;
-    }
-}
