@@ -38,9 +38,10 @@
 #
 #   * "own-built" — the app binaries matter.js builds itself (support/chip/Dockerfile), taken from
 #     the published ghcr.io/matter-js/chip image: chip-all-clusters-app,
-#     chip-all-clusters-app-nlfaultinject, chip-bridge-app, chip-camera-app and the
-#     chip-ota-provider-app/chip-ota-requestor-app pair. Published as a multi-arch manifest,
-#     so each leg pulls the variant matching its runner. Runs when run-own-built is selected
+#     chip-all-clusters-app-nlfaultinject, chip-bridge-app, chip-camera-app, the
+#     chip-ota-provider-app/chip-ota-requestor-app pair and matter-network-manager-app. Published as a
+#     multi-arch manifest, so each leg pulls the variant matching its runner. Runs when run-own-built
+#     is selected
 #
 #   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published
 #     linux/arm64 only, so any leg touching it runs on an arm64 runner (ubuntu-24.04-arm) with the
@@ -387,7 +388,8 @@ jobs:
           mkdir -p /tmp/cert-app-dir
           docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
             bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app \
-                           /bin/chip-ota-provider-app /bin/chip-ota-requestor-app /out/"
+                           /bin/chip-ota-provider-app /bin/chip-ota-requestor-app \
+                           /bin/matter-network-manager-app /out/"
           # cert-dsl.ts's chipLocalMarkerRevision() reads this to populate evidence's chipRef; the
           # image carries the same connectedhomeip commit in its org.opencontainers.image.revision
           # label (baked by docker-bake.hcl from CHIP_COMMIT).
@@ -399,7 +401,7 @@ jobs:
         run: |
           for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject \
                      chip-all-clusters-app-nogroupcast chip-bridge-app \
-                     chip-ota-provider-app chip-ota-requestor-app; do
+                     chip-ota-provider-app chip-ota-requestor-app matter-network-manager-app; do
             if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
               echo "::error::$bin is missing from the published ghcr.io/matter-js/chip image." \
                 "support/chip/Dockerfile's own-built binaries changed shape, or the image pipeline" \

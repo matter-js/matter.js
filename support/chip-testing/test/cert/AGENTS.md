@@ -46,8 +46,8 @@ commands → a smaller invoke-only variant → multi-controller → the python-w
 ## App → chip binary mapping
 
 `certTest()`'s `app` option (and `devices`' per-role app names) is the string chip's own example
-app binaries are named after: the flavor layer spawns/pulls `chip-<app>-app` (`chip-app-subject.ts`)
-or looks up a `registerMatterJsCertSubject(<app>, ...)` registration
+app binaries are named after: the flavor layer spawns/pulls `chip-<app>-app`, or CHIP's own name where it
+differs (`appBinaryName` in `chip-app-subject.ts`), or looks up a `registerMatterJsCertSubject(<app>, ...)` registration
 (`support/chip-testing/src/cert/index.ts`) for the matterjs flavor. Map a new TC's plan-doc prefix
 to an app this way:
 
@@ -59,21 +59,23 @@ to an app this way:
 | `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
+| `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
 
 A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
-The four "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
+The "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
 exist (verify with `MATTER_CERT_APP_DIR`/an app-specific image, or `MATTER_CHIP_BINS_SOURCE=cert-bins`
 for the official binaries — see the root `README.md`'s "Choosing a CHIP binary source"), same as any
 pilot. They're blocked
 on **matterjs** only: either restrict every step to `flavors: ["chip-local", "chip-docker"]` (see
 "Declaring a device-flavor capability gap" below) so the TC still registers and runs on the flavors
 it can, or add the missing `TestInstance` + `registerMatterJsCertSubject(...)` call first if
-matterjs coverage is actually wanted. Skipping the registration entirely is not an option: every
-`app` any cert TC's `certTest()` names must have a `registerMatterJsCertSubject` entry, even one
-whose matterjs implementation is capability-incomplete for that TC, or the whole
-`test/cert/**/*.test.ts` file set throws at load time under the matterjs flavor (see "Declaring a
-device-flavor capability gap").
+matterjs coverage is actually wanted. A step-level restriction does not skip the registration: every
+`app` such a TC's `certTest()` names must have a `registerMatterJsCertSubject` entry, even one whose
+matterjs implementation is capability-incomplete for that TC, or the whole `test/cert/**/*.test.ts`
+file set throws at load time under the matterjs flavor (see "Declaring a device-flavor capability
+gap"). The one way around it is a test-level `certTest({ flavors })` that leaves `matterjs` out, which
+skips the case before any subject is built (`TC-TBRM-3.1`).
 
 ## Flavor policy: chip is the pass/fail bar, matterjs is optional
 
@@ -3031,3 +3033,31 @@ of a field the controller filled in moments earlier. Where no independent accoun
 requestor logs nothing for a `QueryImageResponse` — the check says so with `accepted` instead of
 matching a line the precondition already guaranteed.
 
+## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
+
+Four "DUT sends *command* to TH" steps against chip's network-manager app, the same shape as the
+cluster-client block. What it adds:
+
+- **A test-level `flavors` skips a case before any subject is built.** `defineCertTest` checks it
+  before `subjectFactoryFor` runs, so an app with no `registerMatterJsCertSubject` entry is fine
+  there. The load-time throw described under "Declaring a device-flavor capability gap" applies only
+  to step-level `flavors`. chip-docker is left out as well, since no per-app image exists for it.
+- **Not every CHIP binary is `chip-<app>-app`.** This one is `matter-network-manager-app`, in
+  chip-cert-bins and in this project's image alike. `appBinaryName` maps an app to CHIP's full name
+  where it differs, so add the name there rather than renaming the binary.
+- **`SetActiveDatasetRequest` needs an armed fail-safe.** CHIP's server answers `FAILSAFE_REQUIRED`
+  otherwise. The step arms it, sets the dataset and sends `CommissioningComplete`, as CHIP's own
+  TC-TBRM-2.2 does. The app only accepts an active dataset while it has none, so the case works on a
+  fresh TH only.
+- **The TH makes a pending dataset active once its delay timer runs out**, and clears the pending one.
+  Steps 3 and 4 read both back, so the case raises the timer in CHIP's
+  `PIXIT.TBRM.THREAD_PENDING_DATASET` from 20 to 300 seconds rather than race it.
+- **chip prints an octet-string field over three lines**: `0x0 = [`, every byte as `0x0e, ` on the
+  next line, then `] (107 bytes)`. `expectCommandInvoke` matches one line per field, so the fields go
+  through `expectSequence`, anchored on the line after the command's `CommandId`. The byte line fits
+  only because CHIP's Linux and macOS builds with detail logging allow 1708 characters per log line
+  (`chip_log_message_max_size`); the 256-character default in `CHIPConfig.h` would cut it after about
+  40 bytes.
+- **Building the app on macOS needs the zap version the CHIP checkout names.** An older `zap-cli`
+  fails codegen with "Version validation failed". `scripts/tools/zap/zap_download.py --zap RELEASE`
+  fetches the right one, and `ZAP_INSTALL_PATH` points the build at it.

@@ -232,11 +232,18 @@ function portArgs(identity?: Subject.Identity): string[] {
 }
 
 /**
+ * The apps whose CHIP executable is not named `chip-<app>-app`. These are CHIP's own names, which both the
+ * chip-cert-bins image and this project's image keep.
+ */
+const APP_BINARY_NAMES = new Map([["network-manager", "matter-network-manager-app"]]);
+
+/**
  * CHIP builds a variant of an app as its own binary beside the plain one — `nlfaultinject` adds the
  * fault-injection hooks TC-IDM-1.3 arms — so a variant selects a filename, not a different app.
  */
 export function appBinaryName(app: string, appVariant?: string) {
-    return `chip-${app}-app${appVariant === undefined ? "" : `-${appVariant}`}`;
+    const name = APP_BINARY_NAMES.get(app) ?? `chip-${app}-app`;
+    return appVariant === undefined ? name : `${name}-${appVariant}`;
 }
 
 function throwUnsupported(flavor: DeviceFlavor, capability: string): never {
@@ -302,7 +309,7 @@ function createExitDeferred(): ExitDeferred {
 }
 
 /**
- * Resolve the directory `chip-local` subjects spawn `chip-<app>-app` binaries from. When
+ * Resolve the directory `chip-local` subjects spawn their binaries ({@link appBinaryName}) from. When
  * `MATTER_CHIP_BINS_SOURCE=cert-bins`, this extracts (if not already cached — see
  * {@link prepareChipBins}) the official `connectedhomeip/chip-cert-bins` image and returns its own
  * directory, ignoring `MATTER_CERT_APP_DIR` entirely; otherwise it requires `MATTER_CERT_APP_DIR` as
@@ -329,7 +336,7 @@ export async function resolveChipLocalAppDir(): Promise<string> {
 
     const dir = env.MATTER_CERT_APP_DIR;
     if (!dir) {
-        throw new Error("MATTER_CERT_APP_DIR is not set; ChipLocalSubject needs it to find chip-<app>-app binaries");
+        throw new Error("MATTER_CERT_APP_DIR is not set; ChipLocalSubject needs it to find the CHIP app binaries");
     }
     return dir;
 }
@@ -1253,7 +1260,8 @@ export class ChipDockerDevice implements CertDevice {
 }
 
 /**
- * Spawns `${MATTER_CERT_APP_DIR}/chip-<app>-app` as a local child process for cert tests.
+ * Spawns the app's CHIP binary ({@link appBinaryName}) from `MATTER_CERT_APP_DIR` as a local child process for
+ * cert tests.
  */
 export function ChipLocalSubject(app: string, appVariant?: string): CertDeviceFactory {
     return (domain: string, options?: Subject.Options) => new ChipLocalDevice(app, domain, options, appVariant);
