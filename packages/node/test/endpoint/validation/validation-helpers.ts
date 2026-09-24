@@ -82,5 +82,5 @@ export function violationsOf(endpoint: Endpoint, model: MatterModel = Matter) {
     while (root.owner !== undefined) {
         root = root.owner;
     }
-    return DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(root, model).conditions, model);
+    return DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(root, model), model);
 }

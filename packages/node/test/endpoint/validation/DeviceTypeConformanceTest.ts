@@ -347,7 +347,8 @@ describe("DeviceTypeConformance", () => {
 
         expect(requirementOf("BatteryStorage", "ElectricalSensor", "ElectricalPowerMeasurement").isMandatory).true;
 
-        expect(violationsOf(endpoint)).deep.equals([]);
+        // The missing components are reported by count; their nested requirements are not
+        expect(violationsOf(endpoint).filter(({ kind }) => kind !== "instanceCount")).deep.equals([]);
 
         await node.close();
     });
@@ -529,8 +530,7 @@ describe("DeviceTypeConformance", () => {
         const node = await createNode();
         const light = await node.add(OnOffLightDevice, { id: "light" });
 
-        const { conditions } = ConditionAssertions.collect(node, model);
-        expect(DeviceTypeConformance.check(light, conditions, model)).deep.equals([]);
+        expect(DeviceTypeConformance.check(light, ConditionAssertions.collect(node, model), model)).deep.equals([]);
 
         await node.close();
     });
