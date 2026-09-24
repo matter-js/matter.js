@@ -87,20 +87,33 @@ export class DeviceTypeConformanceService {
         let refusal: DeviceTypeConformanceError | undefined;
 
         for (const endpoint of endpoints) {
-            const fresh = this.#judge(endpoint, pass);
-            if (!fresh.length) {
+            const judgement = this.#judge(endpoint, pass);
+            if (judgement === undefined) {
                 continue;
             }
 
+            const { fresh, current } = judgement;
             if (
                 refuse &&
                 refusal === undefined &&
+                fresh.length &&
                 (this.#strict || fresh.some(({ kind }) => kind === "singletonMisplaced"))
             ) {
+                // Left as it was, so the endpoint is refused again until it conforms
                 refusal = new DeviceTypeConformanceError(
                     endpoint.toString(),
                     fresh.map(violation => new DeviceTypeViolationError(violation)),
                 );
+                continue;
+            }
+
+            if (current.size) {
+                this.#reported.set(endpoint, current);
+            } else {
+                this.#reported.delete(endpoint);
+            }
+
+            if (!fresh.length) {
                 continue;
             }
 
@@ -142,26 +155,23 @@ export class DeviceTypeConformanceService {
     }
 
     /**
-     * The violations of {@link endpoint} not reported before. What the endpoint violates now becomes what was reported.
+     * The violations of {@link endpoint} not reported before, and the keys of all it violates now. Undefined for an
+     * endpoint in no node scope, which is not judged.
      */
     #judge(endpoint: Endpoint, pass: ValidationPass) {
         const nodeEndpoint = ConditionAssertions.nodeEndpointOf(endpoint, pass);
         if (nodeEndpoint === undefined) {
-            return [];
+            return;
         }
 
         const violations = DeviceTypeConformance.check(endpoint, ConditionAssertions.collect(nodeEndpoint, pass), pass);
 
         // The kind and requirement path identify a violation on its endpoint; check() reports each pair once
-        const keys = new Set(violations.map(keyOf));
+        const current = new Set(violations.map(keyOf));
         const previous = this.#reported.get(endpoint);
-        if (keys.size) {
-            this.#reported.set(endpoint, keys);
-        } else {
-            this.#reported.delete(endpoint);
-        }
+        const fresh = violations.filter(violation => !previous?.has(keyOf(violation)));
 
-        return violations.filter(violation => !previous?.has(keyOf(violation)));
+        return { fresh, current };
     }
 
     /**
@@ -176,8 +186,10 @@ export namespace DeviceTypeConformanceService {
     export interface ValidateOptions {
         /**
          * Whether an endpoint with a new misplaced singleton, or with any new violation in strict mode, throws. Defaults
-         * to true. Off, those violations log like any other; changes after the node started are reported that way,
-         * because nothing could roll them back.
+         * to true. Off, those violations log like any other, a misplaced singleton included; changes after the node
+         * started are reported that way, because nothing could roll them back.
+         *
+         * A refused endpoint's violations do not count as reported, so validating it again refuses it again.
          */
         refuse?: boolean;
     }

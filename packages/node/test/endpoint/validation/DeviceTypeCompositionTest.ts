@@ -15,10 +15,13 @@ import { MeterReferencePointDevice } from "#devices/meter-reference-point";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
+import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
+import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceEnergyManagementEndpoint } from "#endpoints/device-energy-management";
 import { ElectricalSensorEndpoint } from "#endpoints/electrical-sensor";
 import { PowerSourceEndpoint } from "#endpoints/power-source";
-import { ClusterModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
+import { ClusterModel, ConditionModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
 import { MeasurementType } from "@matter/types";
 import { DeviceEnergyManagement } from "@matter/types/clusters/device-energy-management";
 import { ElectricalPowerMeasurement } from "@matter/types/clusters/electrical-power-measurement";
@@ -162,6 +165,35 @@ function singleLightModel() {
     return model;
 }
 
+const INNER_NODE_ID = 0xfff10020;
+const CONDITIONAL_COMPOSER_ID = 0xfff10021;
+
+/**
+ * A model whose ConditionalComposer requires an OnOffLight component only under its own condition Wanted, and whose
+ * InnerNode is classified a node, so it starts a node scope of its own.
+ */
+function nestedScopeModel() {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }),
+        new DeviceTypeModel({ name: "RootNode", id: 0x16, classification: "node" }),
+        new DeviceTypeModel({ name: "InnerNode", id: INNER_NODE_ID, classification: "node" }),
+        new DeviceTypeModel(
+            { name: "ConditionalComposer", id: CONDITIONAL_COMPOSER_ID, classification: "simple" },
+            new ConditionModel({ name: "Wanted" }),
+            new RequirementModel({
+                name: "OnOffLight",
+                id: OnOffLightDevice.deviceType,
+                element: "deviceType",
+                conformance: "Wanted",
+            }),
+        ),
+        new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+    );
+    model.finalize();
+    return model;
+}
+
 /**
  * An endpoint whose Descriptor lists only {@link deviceType}, standing in for a device that cannot start without
  * implementations. Composition reads no more than the Descriptor of an endpoint that no nested requirement judges.
@@ -275,6 +307,28 @@ describe("composition", () => {
             { kind: "instanceCount", requirement: "device:OnOffLight" },
             { kind: "instanceCount", requirement: "device:OnOffLight#1" },
         ]);
+
+        await node.close();
+    });
+
+    it("judges a composer with its own conditions after a component of a nested node scope in the same pass", async () => {
+        const node = await createNode();
+        const composer = await node.add(DescribedLight, {
+            id: "composer",
+            deviceConditions: ["Wanted"],
+            descriptor: { deviceTypeList: deviceTypeList(CONDITIONAL_COMPOSER_ID) },
+        });
+        await addStandIn(composer, "light", "OnOffLight");
+        const inner = await composer.add(DescribedLight, {
+            id: "inner",
+            descriptor: { deviceTypeList: deviceTypeList(INNER_NODE_ID) },
+        });
+        const innerLight = await addStandIn(inner, "light", "OnOffLight");
+
+        const pass = new ValidationPass(nestedScopeModel());
+        DeviceTypeConformance.check(innerLight, ConditionAssertions.collect(inner, pass), pass);
+
+        expect(DeviceTypeConformance.check(composer, ConditionAssertions.collect(node, pass), pass)).deep.equals([]);
 
         await node.close();
     });

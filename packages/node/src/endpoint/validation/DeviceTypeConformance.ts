@@ -25,6 +25,7 @@ import { Violation } from "./Violation.js";
 const clusterMemo = new ValidationPass.Memo<RequirementModel, ClusterModel | undefined>();
 const referentMemo = new ValidationPass.Memo<RequirementModel, Model | undefined>();
 const baseMemo = new ValidationPass.Memo<MatterModel, DeviceTypeModel[]>();
+const aggregatorMemo = new ValidationPass.Memo<MatterModel, DeviceTypeModel | undefined>();
 const knownNameMemo = new ValidationPass.Memo<RequirementModel, Set<string>>();
 const componentMemo = new ValidationPass.Memo<Endpoint, Map<DeviceTypeModel, Component[]>>();
 const failureMemo = new ValidationPass.Memo<Endpoint, Map<RequirementModel, Violation[]>>();
@@ -99,7 +100,8 @@ export namespace DeviceTypeConformance {
         }
 
         for (const deviceType of deviceTypes) {
-            const context = { violations, facts, deviceType, conditions, pass };
+            const waived = deviceType.classification === DeviceClassification.Base ? baseWaiversOf(facts, pass) : NONE;
+            const context = { violations, facts, deviceType, conditions, pass, waived };
             checkClusters(context, deviceType.requirements);
             checkComposition(context, assertions);
         }
@@ -130,6 +132,11 @@ interface Context {
     deviceType: DeviceTypeModel;
     conditions: Set<string>;
     pass: ValidationPass;
+
+    /**
+     * Paths of requirements of {@link deviceType} that are not judged on the endpoint.
+     */
+    waived: ReadonlySet<string>;
 }
 
 /**
@@ -210,12 +217,16 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
  * Record the violation {@link applicability} and {@link present} amount to, and answer whether there is one.
  */
 function judge(
-    { violations, facts, deviceType }: Context,
+    { violations, facts, deviceType, waived }: Context,
     applicability: Conformance.Applicability,
     present: boolean,
     requirement: string,
     subject: string,
 ) {
+    if (waived.has(requirement)) {
+        return false;
+    }
+
     let kind: Violation.Kind;
     let detail: string;
     if (applicability === Conformance.Applicability.Mandatory && !present) {
@@ -360,7 +371,10 @@ function failuresOf(
     if (violations === undefined) {
         violations = new Array<Violation>();
         const conditions = assertions.get(candidate.endpoint) ?? new Set<string>();
-        checkClusters({ violations, facts: candidate, deviceType: composing, conditions, pass }, instance.requirements);
+        checkClusters(
+            { violations, facts: candidate, deviceType: composing, conditions, pass, waived: NONE },
+            instance.requirements,
+        );
         byInstance.set(instance, violations);
     }
     return violations;
@@ -662,6 +676,7 @@ function checkComponentOf(
             }
         }
 
+        // A composer beyond the node endpoint has its conditions in another scope, and componentsOf() memoizes per composer
         if (composerFacts.isNodeEndpoint) {
             break;
         }
@@ -791,4 +806,28 @@ interface Singleton {
     cluster: string;
     deviceType: string;
     endpoints: Set<Endpoint>;
+}
+
+const NONE: ReadonlySet<string> = new Set();
+
+const AGGREGATED: ReadonlySet<string> = new Set(["Descriptor.TAGLIST"]);
+
+/**
+ * The paths of Base requirements not judged on the endpoint of {@link facts}.
+ *
+ * Base requires a TagList of an endpoint that duplicates a sibling unless its device types define another way to
+ * disambiguate. Aggregator defines one for its children, the bridged devices' NodeLabel, which the model cannot express.
+ *
+ * @see {@link MatterSpecification.v16.Device} § 11.2.6
+ */
+function baseWaiversOf(facts: EndpointFacts, pass: ValidationPass) {
+    const { owner } = facts.endpoint;
+    const { model } = pass;
+    const aggregator = aggregatorMemo.get(pass, model, () => model.deviceTypes("Aggregator"));
+    if (owner === undefined || aggregator === undefined) {
+        return NONE;
+    }
+
+    const parentAggregates = EndpointFacts.of(owner, pass).deviceTypes.some(({ id }) => id === aggregator.id);
+    return parentAggregates ? AGGREGATED : NONE;
 }

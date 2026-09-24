@@ -72,6 +72,25 @@ async function createStrictNode(strict: boolean) {
     return MockServerNode.createOnline(undefined, { environment, device: undefined });
 }
 
+/**
+ * A model in which no device type is classified a node, so no endpoint belongs to a node scope. Its OnOffLight requires
+ * Identify.
+ */
+function modelWithoutNodes() {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }),
+        new DeviceTypeModel({ name: "RootNode", id: 0x16, classification: "simple" }),
+        new DeviceTypeModel(
+            { name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" },
+            new RequirementModel({ name: "Identify", id: 3, element: "serverCluster", conformance: "M" }),
+        ),
+        new ClusterModel({ name: "Identify", id: 3 }),
+    );
+    model.finalize();
+    return model;
+}
+
 describe("DeviceTypeConformanceService", () => {
     it("logs one warning listing every violation of an endpoint", async () => {
         const node = await createNode();
@@ -182,6 +201,48 @@ describe("DeviceTypeConformanceService", () => {
         await node.close();
     });
 
+    it("refuses an endpoint again until it conforms", async () => {
+        const node = await createStrictNode(true);
+        const light = await node.add(lightWithoutIdentify, { id: "light" });
+        const service = serviceOf(node);
+
+        expect(() => service.validate(light)).throws(DeviceTypeConformanceError);
+        expect(service.knows(light)).false;
+        expect(() => service.validate(light)).throws(DeviceTypeConformanceError);
+
+        await node.close();
+    });
+
+    it("keeps what it reported for an endpoint it refuses", async () => {
+        const node = await createStrictNode(true);
+        const light = await node.add(lightWithoutIdentify, { id: "light" });
+        const service = serviceOf(node);
+        expect(captureLog(() => service.validate(light, { refuse: false })).length).equals(1);
+
+        // DimmableLight adds the mandatory LevelControl server the light lacks
+        await light.set({ descriptor: { deviceTypeList: deviceTypeList("OnOffLight", "DimmableLight") } });
+        const refusedWith = () => {
+            try {
+                service.validate(light);
+            } catch (error) {
+                if (error instanceof DeviceTypeConformanceError) {
+                    return error.errors.map(({ message }) => message.split(":")[0]);
+                }
+                throw error;
+            }
+        };
+
+        expect(refusedWith()).deep.equals(["DimmableLight LevelControl"]);
+        expect(refusedWith()).deep.equals(["DimmableLight LevelControl"]);
+
+        const logged = captureLog(() => service.validate(light, { refuse: false }));
+        expect(logged.length).equals(1);
+        expect(logged[0].text).contains("LevelControl");
+        expect(logged[0].text).not.contains("Identify");
+
+        await node.close();
+    });
+
     it("logs rather than throws in strict mode when told not to refuse", async () => {
         const node = await createStrictNode(true);
         const light = await node.add(lightWithoutIdentify, { id: "light" });
@@ -221,6 +282,13 @@ describe("DeviceTypeConformanceService", () => {
         expect(logged.length).equals(1);
         expect(logged[0].text).contains("second");
 
+        // The logged endpoint counts as reported, the thrown one does not
+        const service = serviceOf(node);
+        expect(service.knows(first)).false;
+        expect(service.knows(second)).true;
+        expect(() => service.validate(second)).not.throws();
+        expect(() => service.validate(first)).throws(DeviceTypeConformanceError);
+
         await node.close();
     });
 
@@ -244,20 +312,20 @@ describe("DeviceTypeConformanceService", () => {
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
         // RootNode is not a node here, so nothing is judged, though OnOffLight requires the missing Identify
-        const model = new MatterModel(
-            {},
-            new DeviceTypeModel({ name: "Base", classification: "base" }),
-            new DeviceTypeModel({ name: "RootNode", id: 0x16, classification: "simple" }),
-            new DeviceTypeModel(
-                { name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" },
-                new RequirementModel({ name: "Identify", id: 3, element: "serverCluster", conformance: "M" }),
-            ),
-            new ClusterModel({ name: "Identify", id: 3 }),
-        );
-        model.finalize();
-        const service = new DeviceTypeConformanceService(node, node.env, model);
+        const service = new DeviceTypeConformanceService(node, node.env, modelWithoutNodes());
 
         expect(captureLog(() => service.validate(light))).deep.equals([]);
+        expect(service.knows(light)).false;
+
+        await node.close();
+    });
+
+    it("validates no node scope for an endpoint in none", async () => {
+        const node = await createNode();
+        const light = await node.add(lightWithoutIdentify, { id: "light" });
+        const service = new DeviceTypeConformanceService(node, node.env, modelWithoutNodes());
+
+        expect(captureLog(() => service.validateNodeScope(light))).deep.equals([]);
         expect(service.knows(light)).false;
 
         await node.close();

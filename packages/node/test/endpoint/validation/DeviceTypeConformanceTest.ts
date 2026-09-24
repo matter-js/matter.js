@@ -400,6 +400,34 @@ describe("DeviceTypeConformance", () => {
             await node.close();
         });
 
+        it("requires no TagList of an aggregator's children, which disambiguate by NodeLabel", async () => {
+            const node = await createNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            const bridged = [
+                await aggregator.add(OnOffLightDevice, { id: "first" }),
+                await aggregator.add(OnOffLightDevice, { id: "second" }),
+            ];
+            const parent = await node.add(DescribedLight, { id: "parent" });
+            const composed = [
+                await parent.add(OnOffLightDevice, { id: "first" }),
+                await parent.add(OnOffLightDevice, { id: "second" }),
+            ];
+
+            const tagList = (endpoint: Endpoint) =>
+                violationsOf(endpoint)
+                    .filter(v => v.requirement === "Descriptor.TAGLIST")
+                    .map(v => v.deviceType);
+            for (const endpoint of bridged) {
+                expect(ConditionAssertions.collect(node).conditions.get(endpoint)?.has("Duplicate")).true;
+                expect(tagList(endpoint)).deep.equals([]);
+            }
+            for (const endpoint of composed) {
+                expect(tagList(endpoint)).deep.equals(["Base"]);
+            }
+
+            await node.close();
+        });
+
         it("requires neither Binding nor TagList of the node endpoint", async () => {
             const node = await createNode();
             await node.add(completeSwitch, { id: "switch" });
