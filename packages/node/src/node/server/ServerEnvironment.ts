@@ -5,7 +5,9 @@
  */
 
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
+import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
@@ -168,6 +170,13 @@ class NodeServices {
             env.set(EndpointInitializer, new ServerEndpointInitializer(env));
             env.set(IdentityService, new IdentityService(node));
             env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, env));
+            const followDestruction = (change: EndpointLifecycle.Change, endpoint: Endpoint) => {
+                if (change === EndpointLifecycle.Change.Destroyed) {
+                    env.get(DeviceTypeConformanceService).endpointDestroyed(endpoint);
+                }
+            };
+            node.lifecycle.changed.on(followDestruction);
+            release.push({ on: "close", run: () => node.lifecycle.changed.off(followDestruction) });
 
             const notifications = new ChangeNotificationService(node);
             env.set(ChangeNotificationService, notifications);

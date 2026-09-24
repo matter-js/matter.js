@@ -250,6 +250,15 @@ export async function captureLogOf(actor: () => Promise<unknown>) {
     return capture.conformanceWarnings();
 }
 
+/**
+ * The errors logged until {@link actor} settles.
+ */
+export async function captureErrorsOf(actor: () => Promise<unknown>) {
+    using capture = capturing();
+    await actor();
+    return capture.errors();
+}
+
 function capturing() {
     const messages = new Array<Captured>();
     Logger.destinations.capture = LogDestination({
@@ -262,8 +271,31 @@ function capturing() {
     return {
         conformanceWarnings: () => messages.filter(({ text }) => text.includes("does not conform")),
 
+        errors: () => messages.filter(({ level }) => level >= LogLevel.ERROR),
+
         [Symbol.dispose]() {
             delete Logger.destinations.capture;
+        },
+    };
+}
+
+/**
+ * Records every endpoint {@link DeviceTypeConformance.check} judges until disposed.
+ */
+export function recordingChecks() {
+    const { check } = DeviceTypeConformance;
+    const judged = new Array<Endpoint>();
+
+    DeviceTypeConformance.check = (endpoint, pass) => {
+        judged.push(endpoint);
+        return check(endpoint, pass);
+    };
+
+    return {
+        judged,
+
+        [Symbol.dispose]() {
+            DeviceTypeConformance.check = check;
         },
     };
 }

@@ -7,6 +7,7 @@
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
+import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ImplementationError, isDeepEqual, Logger } from "@matter/general";
 import { EndpointComposition, Matter } from "@matter/model";
 import { ClusterId, DeviceTypeId, EndpointNumber, Semtag } from "@matter/types";
@@ -49,6 +50,12 @@ export class DescriptorServer extends DescriptorBehavior {
 
         // Initialize DeviceTypeList
         this.#initializeDeviceTypeList();
+
+        this.reactTo(this.events.deviceTypeList$Changed, this.#deviceTypesChanged);
+    }
+
+    #deviceTypesChanged() {
+        this.env.maybeGet(DeviceTypeConformanceService)?.deviceTypesChanged(this.endpoint);
     }
 
     /** Initialize device type list when it is not already initialized. */
