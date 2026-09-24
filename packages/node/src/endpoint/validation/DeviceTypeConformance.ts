@@ -891,7 +891,7 @@ function reportMisplaced(violations: Violation[], facts: EndpointFacts, singleto
             deviceType,
             requirement: cluster,
             kind: "singletonMisplaced",
-            detail: `Server cluster ${cluster} is a singleton of ${deviceType} in this node scope, so it may appear only on the endpoint of that device type`,
+            detail: `Server cluster ${cluster} is a singleton of ${deviceType} in this node scope, so it may appear only on an endpoint that lists that device type`,
         });
     }
 }

@@ -6,7 +6,8 @@ they declare and reports where they depart from them.
 
 ## What is checked
 
-For every device type an endpoint lists, and for the Base device type every endpoint carries implicitly:
+For every device type an endpoint lists that the model defines, and for the Base device type, which applies once the
+endpoint lists at least one such device type:
 
 - **Clusters and elements.** Mandatory and disallowed server and client clusters, and the feature, attribute,
   command and event requirements nested in them. A condition (see below) can only ever make something mandatory;
@@ -19,7 +20,9 @@ For every device type an endpoint lists, and for the Base device type every endp
   component endpoint itself — that it satisfies the nested requirements of at least one instance it can fill. A
   `Descendant` condition requirement is checked the same way, against how many endpoints it reaches.
 - **Singleton placement.** A server cluster that a device type in the node scope declares a singleton (§ 7.7.3)
-  must appear only on the declaring endpoint.
+  must appear only on an endpoint that declares it. For example, `BridgedNodeEndpoint` offers
+  `AdministratorCommissioningServer` and `PowerSourceConfigurationServer` as optional, but both are RootNode
+  singletons, so a bridged node carrying either is refused.
 - **Stated conditions.** A name in an endpoint's `deviceConditions` (see below) that matches no condition in its
   scope is reported.
 
@@ -34,10 +37,10 @@ side.
 ## When it runs
 
 - **Construction.** A misplaced singleton whose declaring device type sits above the endpoint being constructed is
-  refused before that endpoint's behaviors initialize. Every other violation, a misplaced singleton included, is
-  refused once the endpoint's parts have initialized: the whole tree in one pass for the node endpoint, or what an
-  addition to an already-constructed tree may change for everything added later. Either way, a misplaced singleton
-  is refused whether or not strict mode is on.
+  refused before that endpoint's behaviors initialize. Once the endpoint's parts have initialized, the whole tree is
+  checked in one pass for the node endpoint, or what an addition to an already-constructed tree may change for
+  everything added later. A new misplaced singleton found then is refused; every other new violation is refused only
+  in strict mode and otherwise logged.
 - **After construction.** Destroying an endpoint or a device type list change (a `Descriptor` cluster's
   `DeviceTypeList` attribute changing) re-checks what the change may affect. This only ever logs and records —
   never refuses — even with strict mode on and even for a misplaced singleton, because nothing can roll back a
@@ -50,8 +53,11 @@ was already reported and still holds is not repeated. This is deliberate: depart
 certification problem, not by itself a runtime fault.
 
 Set `endpoint.validation.strict` (environment variable `MATTER_ENDPOINT_VALIDATION_STRICT`) to `true` to refuse
-construction instead — any new violation on an endpoint being constructed then throws instead of just logging. The
-value is read once, when the node's environment is built, so changing it after the node exists has no effect.
+construction instead — any new violation that a construction check finds then throws instead of just logging. An
+addition checks more than the added endpoints: their ancestors, siblings whose `Duplicate` condition changes, and in
+some cases the whole node scope. So a strict refusal can name an endpoint other than the one added, such as its parent
+when the addition breaks the parent's composition. The value is read once, when the node's environment is built, so
+changing it after the node exists has no effect.
 Strict mode only changes what happens at construction; changes after construction has finished are always only
 logged, as above.
 
@@ -84,6 +90,13 @@ A name matter.js does not recognize is reported rather than silently ignored.
 - A child endpoint that crashes after construction reports no change by itself; its siblings are re-checked only
   by the next unrelated change under the same parent, and a violation it causes is not recorded until then. A
   strict addition whose pass reaches such a child is refused for it.
+- Server clusters added to or dropped from a constructed endpoint (`Behaviors.require`, `inject`, `drop`) are not
+  re-checked on their own; a later change that checks that endpoint, such as a change to it or an addition below it,
+  catches up.
+- For an endpoint still being constructed, the check that refuses a misplaced singleton before behaviors initialize
+  reads the device types the endpoint is configured with. So after a restart, a device type added at runtime
+  (`DescriptorServer.addDeviceTypes`) and persisted is not seen by that check, and a singleton it declares is refused
+  only once the declaring endpoint's parts have initialized.
 - The initial check of a node scope covers only that scope; a node scope nested inside the initial tree (only
   `RootNode` is classified a node, so this does not occur in a standard tree) is checked only by later changes
   within it.

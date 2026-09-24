@@ -19,9 +19,10 @@ export interface Violation {
     endpoint: Endpoint;
 
     /**
-     * The name of the device type whose requirement the endpoint violates: a device type the endpoint lists, or Base.
-     * For `singletonMisplaced` it is the device type in the node scope that declares the singleton, which the endpoint
-     * need not list. For `unknownCondition` it is the endpoint's first listed device type, empty when it lists none.
+     * The name of the device type whose requirement the endpoint violates: a device type the endpoint lists, or Base,
+     * which applies once the endpoint lists a device type the model defines. For `singletonMisplaced` it is the device
+     * type in the node scope that declares the singleton, which the endpoint need not list. For `unknownCondition` it
+     * is the first device type the endpoint lists that the model defines, empty when there is none.
      * For a component endpoint that satisfies no instance of the component requirement it fills, it is the composing
      * device type, which the endpoint need not list. For a `Descendant` condition's count it is the asserting device
      * type.
@@ -75,16 +76,16 @@ export namespace Violation {
 }
 
 /**
- * Thrown when an endpoint's structure departs from a device type it declares: at construction, for a misplaced
- * singleton always, and for any other violation when validation is strict.
+ * Thrown when an endpoint's structure departs from a device type requirement that applies to it: at construction, for
+ * a new misplaced singleton always, and for any other new violation when validation is strict.
  */
 export class DeviceTypeConformanceError extends MatterAggregateError {
     constructor(endpoint: string, errors: DeviceTypeViolationError[]) {
         super(
             errors,
             Diagnostic.upgrade(
-                `Endpoint ${endpoint} does not conform to its device types`,
-                Diagnostic.squash("Endpoint ", Diagnostic.strong(endpoint), " does not conform to its device types"),
+                `Endpoint ${endpoint} violates device type requirements`,
+                Diagnostic.squash("Endpoint ", Diagnostic.strong(endpoint), " violates device type requirements"),
             ),
         );
     }

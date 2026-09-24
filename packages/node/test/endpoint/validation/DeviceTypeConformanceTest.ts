@@ -736,7 +736,7 @@ describe("DeviceTypeConformance", () => {
 
         expect(error).instanceof(MatterAggregateError);
         expect(error.errors[0]).instanceof(ImplementationError);
-        expect(error.message).equals("Endpoint light does not conform to its device types");
+        expect(error.message).equals("Endpoint light violates device type requirements");
         expect(error.errors[0].message).equals("OnOffLight Identify: Mandatory server cluster Identify is missing");
     });
 });

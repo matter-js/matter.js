@@ -269,7 +269,7 @@ function capturing() {
     });
 
     return {
-        conformanceWarnings: () => messages.filter(({ text }) => text.includes("does not conform")),
+        conformanceWarnings: () => messages.filter(({ text }) => text.includes("violates device type requirements")),
 
         errors: () => messages.filter(({ level }) => level >= LogLevel.ERROR),
 

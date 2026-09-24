@@ -18,6 +18,7 @@ import { DeviceTypeConformanceError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { Environment, ImplementationError } from "@matter/general";
 import { ClusterModel, ConditionModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
+import { NodeId } from "@matter/types";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import {
     addCabinet,
@@ -670,6 +671,24 @@ describe("device type validation after construction", () => {
             await node.close();
         });
 
+        it("judges no reader when a nested node endpoint starts asserting on itself", async () => {
+            const { node, widget } = await createGuardedNode();
+            await addStandIn(node, "light", "OnOffLight");
+            const nested = await addStandIn(node, "nested", "RootNode", DUPLICATE_ASSERTER_ID);
+
+            using recording = recordingChecks();
+            await captureLogOf(() =>
+                nested.set({
+                    descriptor: { deviceTypeList: deviceTypeList("RootNode", DUPLICATE_ASSERTER_ID, "OnOffLight") },
+                }),
+            );
+
+            expect(recording.judged).contains(nested);
+            expect(recording.judged).not.contains(widget);
+
+            await node.close();
+        });
+
         it("judges them when an asserting endpoint is destroyed", async () => {
             const { node, widget } = await createGuardedNode();
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
@@ -792,6 +811,35 @@ describe("device type validation after construction", () => {
             expect(recording.judged).deep.equals([]);
             expect(logged).deep.equals([]);
             expect(service.knows(fridge)).false;
+        });
+    });
+
+    describe("a peer", () => {
+        it("judges nothing when an endpoint of a peer changes or is destroyed", async () => {
+            const node = await createNode();
+            const fabric = await node.addFabric();
+            const address = { fabricIndex: fabric.fabricIndex, nodeId: NodeId(BigInt(fabric.nodeId) + 1n) };
+            await node.peers.forAddress(address);
+            const peer = node.peers.get(address);
+            if (peer === undefined) {
+                throw new ImplementationError("Test peer is missing");
+            }
+            const endpoint = peer.endpoints.require(1);
+            await endpoint.construction.ready;
+            const service = serviceOf(node);
+
+            using recording = recordingChecks();
+            const logged = await captureLogOf(async () => {
+                service.deviceTypesChanged(endpoint);
+                service.deviceTypesChanged(peer);
+                service.endpointDestroyed(endpoint);
+                await endpoint.close();
+            });
+
+            expect(recording.judged).deep.equals([]);
+            expect(logged).deep.equals([]);
+
+            await node.close();
         });
     });
 

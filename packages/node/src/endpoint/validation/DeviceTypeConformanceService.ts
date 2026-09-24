@@ -17,8 +17,9 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  * Reports where the endpoints of a node depart from the device types they declare.
  *
  * Reporting is one warning per endpoint by default, because departing from a device type is a certification problem
- * rather than a runtime fault. Two cases refuse the endpoint with a {@link DeviceTypeConformanceError}: a misplaced
- * singleton, which is unambiguous, and any violation when the environment variable `endpoint.validation.strict` is set.
+ * rather than a runtime fault. Two cases refuse the endpoint with a {@link DeviceTypeConformanceError}: a new misplaced
+ * singleton, which is unambiguous, and any new violation when the `endpoint.validation.strict` variable (environment
+ * variable `MATTER_ENDPOINT_VALIDATION_STRICT`) is set.
  *
  * Each violation is logged once per endpoint and recorded while it persists; a later pass logs only the violations not
  * recorded. A violation that disappears and returns is logged again, because it is a new departure.
@@ -64,8 +65,13 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  * Limits:
  *
  * - A child that crashes after construction reports no change, so its siblings are judged again only by the next
- *   change under the same parent, and a violation it causes is never recorded. A strict addition whose pass judges an
- *   endpoint with such a violation is refused for it.
+ *   change under the same parent, and a violation it causes is not recorded until then. A strict addition whose pass
+ *   judges an endpoint with such a violation is refused for it.
+ * - Server clusters added to or dropped from a constructed endpoint report no change either. Their effect is judged
+ *   only when a later change judges that endpoint, such as a change to it or an addition below it.
+ * - {@link assertPlacement} reads the device types an endpoint still being constructed is configured with, not a
+ *   `DeviceTypeList` persisted from an earlier run. So when a restart constructs the tree again, a singleton declared
+ *   only by a device type added at runtime is refused only once the declaring endpoint's parts have initialized.
  * - {@link validateNodeScope} judges only the node scope the endpoint it is called for belongs to, so a node scope
  *   nested in the initial tree is judged only by later changes in it. Only RootNode is classified a node,
  *   so no standard tree nests one.
@@ -93,7 +99,8 @@ export class DeviceTypeConformanceService {
     }
 
     /**
-     * Whether any violation refuses the endpoint, as set by `endpoint.validation.strict` when the service was created.
+     * Whether any new violation refuses the endpoint, as set by `endpoint.validation.strict` when the service was
+     * created.
      */
     get strict() {
         return this.#strict;
@@ -270,7 +277,7 @@ export class DeviceTypeConformanceService {
             }
 
             this.#logger.warn(
-                `Endpoint ${endpoint} does not conform to its device types:`,
+                `Endpoint ${endpoint} violates device type requirements:`,
                 Diagnostic.list(
                     fresh.map(
                         ({ kind, deviceType, requirement, detail }) =>
@@ -366,11 +373,13 @@ export class DeviceTypeConformanceService {
         };
 
         let owner: Endpoint | undefined;
+        let anchor: Endpoint;
         let reach: Reach;
         switch (change.kind) {
             case "added":
                 addSubtree(change.endpoint);
                 owner = change.endpoint.owner;
+                anchor = owner ?? change.endpoint;
                 reach = subtreeReachOf(change.endpoint, pass);
                 break;
 
@@ -378,6 +387,7 @@ export class DeviceTypeConformanceService {
                 const { endpoint, previous } = change;
                 addSubtree(endpoint);
                 owner = endpoint.owner;
+                anchor = owner ?? endpoint;
                 const now = footprintOf(endpoint, pass);
                 reach =
                     previous === undefined || previous.isNodeEndpoint !== now.isNodeEndpoint
@@ -387,7 +397,7 @@ export class DeviceTypeConformanceService {
             }
 
             case "removed":
-                owner = change.owner;
+                owner = anchor = change.owner;
                 reach = change.previous === undefined ? Reach.NodeScope : change.previous.reach;
                 break;
         }
@@ -417,8 +427,7 @@ export class DeviceTypeConformanceService {
             return [...affected];
         }
 
-        const anchor = owner ?? (change.kind === "removed" ? undefined : change.endpoint);
-        const nodeEndpoint = anchor && ConditionAssertions.nodeEndpointOf(anchor, pass);
+        const nodeEndpoint = ConditionAssertions.nodeEndpointOf(anchor, pass);
         if (nodeEndpoint !== undefined) {
             const reached =
                 reach === Reach.NodeScope
@@ -433,18 +442,23 @@ export class DeviceTypeConformanceService {
     }
 
     /**
-     * Whether {@link endpoint} and every ancestor up to the node are constructed, not crashed and not being destroyed.
+     * Whether {@link endpoint} and every ancestor up to the node are constructed, not crashed and not being destroyed,
+     * and each is a part of its owner, so an endpoint of a peer, whose node the node owns without listing it, is not.
      */
     #isSettled(endpoint: Endpoint) {
-        for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
+        for (let current = endpoint; ;) {
             if (!current.lifecycle.isReady || current.construction.status !== Lifecycle.Status.Active) {
                 return false;
             }
-            if (current.owner === undefined) {
-                return current === this.#node;
+            if (current === this.#node) {
+                return true;
             }
+            const { owner } = current;
+            if (owner === undefined || !owner.parts.has(current)) {
+                return false;
+            }
+            current = owner;
         }
-        return false;
     }
 
     /**
