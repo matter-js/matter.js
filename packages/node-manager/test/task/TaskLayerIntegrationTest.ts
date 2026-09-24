@@ -386,6 +386,31 @@ describe("task layer against commissioned nodes", () => {
         expect(record?.changeSet.some(entry => PeerAddress.is(entry.peer, address))).equals(false);
     });
 
+    it("keeps what a surviving run recorded when a departed peer's priors are trimmed", async () => {
+        await using site = new MockSite();
+        const { controller, peerA, peerB } = await twoDevices(site);
+        const addressA = addressOfNode(peerA);
+        const addressB = addressOfNode(peerB);
+
+        // Both peers offline, so the run is still in flight — and still holds its priors — when A leaves.
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
+        await MockTime.resolve(subscriptionOf(peerB).active.emit(false), { macrotasks: true });
+        await controller.act(a =>
+            a.get(TaskManagerBehavior).run(FanOut, { tag: "records", peers: [addressB, addressA] }),
+        );
+        await awaitState(controller, "fanOut:records", "parked", "running");
+
+        await MockTime.resolve(peerA.delete(), { macrotasks: true });
+        await MockTime.advance(Seconds(1));
+        await MockTime.macrotask;
+
+        // A's entries go, B's stay: the trim is derived from the record the write lands on, not from a snapshot
+        // taken before the run recorded its work on B.
+        const record = await controller.act(a => recordFor(a.get(TaskManagerBehavior).state.runs, "fanOut:records"));
+        expect(record?.changeSet.some(entry => PeerAddress.is(entry.peer, addressA))).equals(false);
+        expect(record?.changeSet.some(entry => PeerAddress.is(entry.peer, addressB))).equals(true);
+    });
+
     it("carries on with the peers that remain when the work is not about the one that left", async () => {
         await using site = new MockSite();
         const { controller, deviceB, peerA, peerB } = await twoDevices(site);

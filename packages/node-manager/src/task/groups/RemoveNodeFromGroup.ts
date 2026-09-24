@@ -48,6 +48,10 @@ export const RemoveNodeFromGroup: TaskDefinition<RemoveNodeFromGroupParams> = {
         return true;
     },
 
+    peers(params) {
+        return [params.peer];
+    },
+
     phases(params) {
         return [{ name: "remove", run: ctx => remove(ctx, params) }];
     },
