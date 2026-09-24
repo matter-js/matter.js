@@ -117,14 +117,12 @@ export async function verifyOtaTestTransfer(
  */
 class CertOtaRequestorServer extends OtaSoftwareUpdateRequestorServer {
     protected override async applyUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) {
-        const blob = await fileDesignator.openBlob();
-        await verifyOtaTestTransfer(this.env.get(Crypto), blob, newSoftwareVersion);
-
-        // A real device reboots into the new image and leaves nothing behind. This one does not, and a
-        // downloaded file that outlives its update short-circuits every later query — the requestor
-        // applies what it already has instead of asking the provider — so a case can drive only one
-        // update against this subject unless the file goes with the update that produced it.
-        await fileDesignator.delete();
+        try {
+            const blob = await fileDesignator.openBlob();
+            await verifyOtaTestTransfer(this.env.get(Crypto), blob, newSoftwareVersion);
+        } finally {
+            await fileDesignator.delete();
+        }
     }
 
     protected override requestUserConsent() {

@@ -31,6 +31,7 @@ import {
     ClientSubscriptions,
     FabricAuthority,
     PeerAddress,
+    PersistedFileDesignator,
     SessionManager,
     SustainedSubscription,
 } from "@matter/protocol";
@@ -44,6 +45,7 @@ import {
     initOtaSite,
     InstrumentedOtaProviderServer,
     InstrumentedOtaRequestorServer,
+    restartDeviceFromStorage,
     streamFromBytes,
 } from "./ota-utils.js";
 
@@ -202,6 +204,214 @@ describe("Ota", () => {
 
         await site[Symbol.asyncDispose]();
     }).timeout(10_000); // locally needs 1s, but CI might be slower
+
+    /**
+     * Drives one update to the apply and returns what the restart tests need.  The requestor's in-memory state is
+     * discarded by the restart that follows, so what it does next rests on storage alone.
+     */
+    async function applyUpdateThenRestart(restartVersion: (target: number, previous: number) => number) {
+        // An application's applyUpdate typically restarts the node before returning, so storage is read from inside it
+        let persisted = new Array<string>();
+        const data = {
+            expectedOtaImage: Bytes.fromHex(""),
+            duringApply: () => {
+                persisted = Object.keys(
+                    site.storageFor(device)["root.parts.ota-requestor.otaSoftwareUpdateRequestor"] ?? {},
+                );
+            },
+        };
+        const { applyUpdatePromise, TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            data,
+        );
+        const provider = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const { site, device, controller, otaProvider, deviceEnvironment } = await initOtaSite(
+            provider.TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+
+        // The tests take ownership of the site and the restarted node only once this returns
+        let restarted: ServerNode | undefined;
+        try {
+            const previousVersion = device.state.basicInformation.softwareVersion;
+            const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+            data.expectedOtaImage = Bytes.of(otaImage.image);
+
+            const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+            await otaProvider.act(agent =>
+                agent
+                    .get(SoftwareUpdateManager)
+                    .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+            );
+            await MockTime.resolve(applyUpdatePromise);
+
+            restarted = await restartDeviceFromStorage(
+                device,
+                deviceEnvironment,
+                TestOtaRequestorServer,
+                restartVersion(targetSoftwareVersion, previousVersion),
+            );
+
+            const requestor = restarted.parts.require("ota-requestor");
+            const transitions = new Array<OtaSoftwareUpdateRequestor.StateTransitionEvent>();
+            requestor.eventsOf(TestOtaRequestorServer).stateTransition.on(event => void transitions.push(event));
+            const versionsApplied = new Array<OtaSoftwareUpdateRequestor.VersionAppliedEvent>();
+            requestor.eventsOf(TestOtaRequestorServer).versionApplied.on(event => void versionsApplied.push(event));
+
+            return {
+                site,
+                provider,
+                restarted,
+                requestor,
+                TestOtaRequestorServer,
+                targetSoftwareVersion,
+                transitions,
+                versionsApplied,
+                persisted,
+            };
+        } catch (error) {
+            if (restarted !== undefined) {
+                await MockTime.resolve(restarted.close());
+            }
+            await site.close();
+            throw error;
+        }
+    }
+
+    it("reports the update applied once restarted from storage into the new version", async () => {
+        const {
+            site,
+            provider,
+            restarted,
+            requestor,
+            TestOtaRequestorServer,
+            targetSoftwareVersion,
+            transitions,
+            versionsApplied,
+            persisted,
+        } = await applyUpdateThenRestart(target => target);
+        await using _localSite = site;
+
+        try {
+            // What the restart relies on has to have reached storage, not only the old node's memory
+            expect(persisted).contains("updateInProgressDetails");
+
+            await MockTime.resolve(restarted.start());
+            await MockTime.resolve(provider.notifyUpdateAppliedPromise);
+
+            const issued = provider.queryImageResponses.find(response => response.updateToken !== undefined);
+            expect(issued).not.undefined;
+            expect(provider.notifyUpdateAppliedRequests).length(1);
+            const [notification] = provider.notifyUpdateAppliedRequests;
+            expect(notification.softwareVersion).equals(targetSoftwareVersion);
+            expect(Bytes.areEqual(notification.updateToken, issued!.updateToken!)).equals(true);
+
+            expect(
+                transitions.map(({ previousState, newState, reason }) => [previousState, newState, reason]),
+            ).deep.equals([
+                [
+                    OtaSoftwareUpdateRequestor.UpdateState.Applying,
+                    OtaSoftwareUpdateRequestor.UpdateState.Idle,
+                    OtaSoftwareUpdateRequestor.ChangeReason.Success,
+                ],
+            ]);
+            expect(versionsApplied.map(({ softwareVersion }) => softwareVersion)).deep.equals([targetSoftwareVersion]);
+            expect(requestor.stateOf(TestOtaRequestorServer).updateInProgressDetails).equals(null);
+        } finally {
+            await MockTime.resolve(restarted.close());
+        }
+    }).timeout(10_000);
+
+    it("reports a failed update once restarted from storage into the previous version", async () => {
+        const { site, provider, restarted, requestor, TestOtaRequestorServer, transitions, versionsApplied } =
+            await applyUpdateThenRestart((_target, previous) => previous);
+        await using _localSite = site;
+
+        try {
+            await MockTime.resolve(restarted.start());
+            await MockTime.macrotasks;
+
+            expect(provider.notifyUpdateAppliedRequests).length(0);
+            expect(versionsApplied).length(0);
+            expect(
+                transitions.map(({ previousState, newState, reason }) => [previousState, newState, reason]),
+            ).deep.equals([
+                [
+                    OtaSoftwareUpdateRequestor.UpdateState.Applying,
+                    OtaSoftwareUpdateRequestor.UpdateState.Idle,
+                    OtaSoftwareUpdateRequestor.ChangeReason.Failure,
+                ],
+            ]);
+            expect(requestor.stateOf(TestOtaRequestorServer).updateInProgressDetails).equals(null);
+        } finally {
+            await MockTime.resolve(restarted.close());
+        }
+    }).timeout(10_000);
+
+    it("returns to idle, forgets the update and asks the provider again when applying it fails", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+        const { applyUpdatePromise, TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            data,
+        );
+
+        class FailingOtaRequestorServer extends TestOtaRequestorServer {
+            override async applyUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) {
+                await super.applyUpdate(newSoftwareVersion, fileDesignator);
+                await fileDesignator.delete();
+                throw new ImplementationError("Simulated apply failure");
+            }
+        }
+
+        const provider = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+        const { site, device, controller, otaProvider, otaRequestor } = await initOtaSite(
+            provider.TestOtaProviderServer,
+            FailingOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const transitions = new Array<OtaSoftwareUpdateRequestor.StateTransitionEvent>();
+        const { resolver: idleResolver, promise: idlePromise } = createPromise<void>();
+        const { resolver: nextResolver, promise: nextPromise } = createPromise<void>();
+        otaRequestor.eventsOf(FailingOtaRequestorServer).stateTransition.on(event => {
+            transitions.push(event);
+            if (event.newState === OtaSoftwareUpdateRequestor.UpdateState.Idle) {
+                idleResolver();
+            } else if (transitions.at(-2)?.reason === OtaSoftwareUpdateRequestor.ChangeReason.Failure) {
+                nextResolver();
+            }
+        });
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+        await MockTime.resolve(applyUpdatePromise);
+        await MockTime.resolve(idlePromise);
+
+        expect(
+            transitions.slice(-1).map(({ previousState, newState, reason }) => [previousState, newState, reason]),
+        ).deep.equals([
+            [
+                OtaSoftwareUpdateRequestor.UpdateState.Applying,
+                OtaSoftwareUpdateRequestor.UpdateState.Idle,
+                OtaSoftwareUpdateRequestor.ChangeReason.Failure,
+            ],
+        ]);
+        expect(otaRequestor.stateOf(FailingOtaRequestorServer).updateInProgressDetails).equals(null);
+        const stored = site.storageFor(device)["root.parts.ota-requestor.otaSoftwareUpdateRequestor"];
+        expect(stored?.updateInProgressDetails ?? null).equals(null);
+
+        // With the file gone the next attempt asks the provider rather than applying from disk
+        await MockTime.resolve(nextPromise);
+        expect(transitions.at(-1)?.newState).equals(OtaSoftwareUpdateRequestor.UpdateState.Querying);
+    }).timeout(10_000);
 
     it("OTA reboot: closes older sessions and does not re-subscribe a device that feeds its subscription", async () => {
         const data = { expectedOtaImage: Bytes.fromHex("") };
