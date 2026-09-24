@@ -93,7 +93,7 @@ describe("SecureChannelMessenger", () => {
 
             expect(error).instanceOf(UnexpectedDataError);
             expect(error).property("cause").instanceOf(ValidationOutOfBoundsError);
-            expect(error).property("message").contains("Malformed Sigma2 field value from peer");
+            expect(error).property("message").equal("Malformed Sigma2 field value from peer");
         });
 
         it("passes other decode errors through unchanged", () => {

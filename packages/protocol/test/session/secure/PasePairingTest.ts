@@ -170,7 +170,9 @@ describe("PasePairing", () => {
 
                 expect(error).instanceOf(UnexpectedDataError);
                 expect(error).property("cause").instanceOf(ValidationOutOfBoundsError);
-                expect(error).property("message").contains("field pbkdfParameters.iterations");
+                expect(error)
+                    .property("message")
+                    .equal("Malformed PbkdfParamResponse field pbkdfParameters.iterations from peer");
                 expect(pbkdfIterations).deep.equal([]);
                 expect(statusReports).deep.equal([SecureChannelStatusCode.InvalidParam]);
             });

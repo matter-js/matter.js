@@ -128,9 +128,12 @@ export class SecureChannelMessenger {
                 throw error;
             }
             const field = error.fieldName === undefined ? "" : ` field ${error.fieldName}`;
+            // The cause carries the offending value; the message must not echo peer-supplied data into logs
             throw new UnexpectedDataError(
-                `Malformed ${SecureMessageType[messageType] ?? messageType}${field} from peer: ${error.message}`,
-                { cause: error },
+                `Malformed ${SecureMessageType[messageType] ?? messageType}${field} from peer`,
+                {
+                    cause: error,
+                },
             );
         }
     }
