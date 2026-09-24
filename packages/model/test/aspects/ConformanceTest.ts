@@ -15,7 +15,7 @@ import {
     RequirementElement,
 } from "#elements/index.js";
 import { ValidateModel } from "#logic/ValidateModel.js";
-import { MatterModel } from "#models/index.js";
+import { ConditionModel, MatterModel } from "#models/index.js";
 
 const TEST_DEFINITIONS = [
     "M",
@@ -203,6 +203,27 @@ describe("Conformance", () => {
         });
     });
 
+    describe("comparison whose left side is not a value", () => {
+        function unresolvedIn(definition: string) {
+            const declared = new ConditionModel({ name: "Declared" });
+            const errors = new Array<string>();
+            new Conformance(definition).validateReferences({ error: (_code, message) => errors.push(message) }, name =>
+                name === "Declared" ? declared : undefined,
+            );
+            return errors;
+        }
+
+        it("resolves the right side through the resolver", () => {
+            expect(unresolvedIn("Declared == Declared")).deep.equals([]);
+        });
+
+        it("reports a right side the resolver does not know", () => {
+            expect(unresolvedIn("Declared != Other")).deep.equals([
+                'Conformance name reference "Other" does not resolve',
+            ]);
+        });
+    });
+
     describe("boolean field resolution in == expressions", () => {
         const boolCluster = ClusterElement({
             name: "BoolTestCluster",
@@ -351,6 +372,44 @@ describe("Conformance", () => {
         it("reports unresolved qualified reference", () => {
             const badErrors = validate().filter(e => e.source?.endsWith(".BadRef"));
             expect(badErrors.length).equal(1);
+        });
+    });
+
+    describe("names inside optional conformance and choices", () => {
+        const cluster = ClusterElement({
+            name: "BracketRefCluster",
+            id: 0xfffb,
+            children: [
+                FieldElement({ name: "Present", id: 0, type: "uint8" }),
+                FieldElement({ name: "OptionalRef", id: 1, type: "uint8", conformance: "[Present]" }),
+                FieldElement({ name: "ChoiceRef", id: 2, type: "uint8", conformance: "[Present].a+" }),
+                FieldElement({ name: "BadOptionalRef", id: 3, type: "uint8", conformance: "[NonExistent]" }),
+                FieldElement({ name: "BadChoiceRef", id: 4, type: "uint8", conformance: "NonExistent.a" }),
+            ],
+        });
+
+        const matter = new MatterModel({ name: "BracketRefMatter", children: [cluster] });
+
+        let errors: ValidateModel.Result["errors"] | undefined;
+
+        function unresolved(field: string) {
+            if (!errors) {
+                errors = ValidateModel(matter).errors.filter(e => e.code?.includes("UNRESOLVED_CONFORMANCE"));
+            }
+            return errors.filter(e => e.source?.endsWith(`.${field}`));
+        }
+
+        it("resolves names inside brackets and choices", () => {
+            expect(unresolved("OptionalRef")).deep.equal([]);
+            expect(unresolved("ChoiceRef")).deep.equal([]);
+        });
+
+        it("reports an unresolved name inside brackets", () => {
+            expect(unresolved("BadOptionalRef").length).equal(1);
+        });
+
+        it("reports an unresolved name inside a choice", () => {
+            expect(unresolved("BadChoiceRef").length).equal(1);
         });
     });
 

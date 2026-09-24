@@ -218,7 +218,8 @@ jobs:
           fi
           docker run --rm --entrypoint /bin/sh ghcr.io/matter-js/chip:latest -c '
             for bin in chip-tool chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app \
-                chip-camera-app chip-ota-provider-app chip-ota-requestor-app matter-network-manager-app; do
+                chip-camera-app chip-ota-provider-app chip-ota-requestor-app matter-network-manager-app \
+                lit-icd-app-nopersist; do
               "$bin" --help >/dev/null 2>&1
               status=$?
               if [ "$status" -ge 126 ]; then

@@ -69,7 +69,7 @@ Resource.add({
 
         {
             tag: "requirement", name: "TimeSynchronization",
-            discriminator: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNTPCCond, TimeSyncWithTZCond, TLSClientCond, TLSCertificatesCond, O:serverCluster",
+            discriminator: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNtpcCond, TimeSyncWithTzCond, TlsClientCond, TlsCertificatesCond, O:serverCluster",
             xref: "device§2.1.5",
             children: [
                 { tag: "requirement", name: "TIMESYNCCLIENT", xref: "device§2.1.6" },
