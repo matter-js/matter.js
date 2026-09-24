@@ -687,6 +687,18 @@ export interface CertIcdClientApi {
     register(options?: { allowMultiAdmin?: boolean }): Promise<CertIcdRegistration>;
 
     /**
+     * Sends `UnregisterClient` with the controller's node id as `CheckInNodeID` and its current key as
+     * `VerificationKey`. Rejects without sending anything when the controller holds no registration with the node.
+     */
+    unregister(): Promise<void>;
+
+    /**
+     * Sends `StayActiveRequest` asking the node to stay active for `durationMs`, and resolves with the
+     * `PromisedActiveDuration` in milliseconds the node answered.
+     */
+    stayActive(durationMs: number): Promise<number>;
+
+    /**
      * Ends the controller's own subscription to the node and keeps it from subscribing again. An ICD sends Check-In
      * messages only to a registered client without an active subscription, so a step waiting for one has to drop it
      * first; and a controller auto-registers with a LIT node only while subscribed.

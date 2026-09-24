@@ -1165,4 +1165,25 @@ describe("InProcessControllerAdapter ICD client", () => {
 
         await adapter.node(ref).decommission();
     });
+
+    it("unregisters, refuses without a registration, and requests stay-active", async function () {
+        this.timeout(60_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+        const icd = node.icdClient();
+
+        await icd.register();
+        await icd.unregister();
+
+        // IcdManagement.RegisteredClients
+        const clients = await node.readAttribute({ endpoint: 0, cluster: 0x46, attribute: 0x3 });
+        expect(clients).deep.equal([]);
+
+        await expect(icd.unregister()).rejectedWith(ImplementationError);
+
+        expect(await icd.stayActive(5_000)).greaterThan(0);
+
+        await node.decommission();
+    });
 });

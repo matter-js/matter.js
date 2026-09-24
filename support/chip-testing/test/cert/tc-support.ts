@@ -1136,6 +1136,25 @@ export function chipOctetStringField(id: number, bytes: Bytes): RegExp[] {
     ];
 }
 
+/**
+ * An IcdManagement `RegisterClient`'s fields in id order, as a cert controller's ICD client sends them, with
+ * `VerificationKey` where one was sent. It names itself as both CheckInNodeID and MonitoredSubject, and registers as a
+ * permanent client.
+ */
+export function icdRegisterClientFields(
+    nodeId: bigint,
+    key: Uint8Array,
+    verificationKey?: Uint8Array,
+): CommandFieldValue[] {
+    return [
+        { id: 0, value: nodeId },
+        { id: 1, value: nodeId },
+        { id: 2, value: key },
+        ...(verificationKey === undefined ? [] : [{ id: 3, value: verificationKey }]),
+        { id: 4, value: 0 },
+    ];
+}
+
 // How long a further report chunk may take to surface before the transfer counts as finished. The
 // read has already returned by the time a step checks, so this covers the follower's pump lag only.
 const CHUNK_QUIET = Seconds(2);

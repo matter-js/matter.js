@@ -60,7 +60,7 @@ to an app this way:
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
-| `ICDB`                              | `lit-icd`    | `lit-icd-app-nopersist` (variant) | yes (`IcdTestInstance`); chip binaries own-built only |
+| `ICDB`, `ICDM`                      | `lit-icd`    | `lit-icd-app-nopersist` (variant) | yes (`IcdTestInstance`); chip binaries own-built only |
 
 A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
@@ -3067,8 +3067,9 @@ cluster-client block. What it adds:
 
 The DUT registers as TH1's Check-In client, TH2 (a helper controller on TH1's second fabric) sends CHIP's ICD test
 event triggers, and the DUT must refresh its key after half the counter range and drop a Check-In whose counter
-repeats. `CertNodeApi.icdClient()` is the controller side: `register()`, `stopSubscription()`, and the Check-Ins
-and key refreshes it accepted (`events()`, `waitFor()`). Four things had to line up before any Check-In arrived:
+repeats. `CertNodeApi.icdClient()` is the controller side: `register()`, `unregister()`, `stayActive()`,
+`stopSubscription()`, and the Check-Ins and key refreshes it accepted (`events()`, `waitFor()`). TC-ICDM-6.1 uses
+the first three against the same `lit-icd` TH and needs none of the Check-In conditions below. Four things had to line up before any Check-In arrived:
 
 - **An ICD sends no Check-In to a client that holds a subscription, active or persisted.** CHIP's
   `ICDManager::ShouldCheckInMsgsBeSentAtActiveModeFunction` checks both. With subscription timeout resumption
