@@ -75,7 +75,8 @@ export namespace Violation {
 }
 
 /**
- * Thrown when an endpoint's structure departs from a device type it declares and validation is strict.
+ * Thrown when an endpoint's structure departs from a device type it declares: at construction, for a misplaced
+ * singleton always, and for any other violation when validation is strict.
  */
 export class DeviceTypeConformanceError extends MatterAggregateError {
     constructor(endpoint: string, errors: DeviceTypeViolationError[]) {

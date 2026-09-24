@@ -9,3 +9,4 @@ export * from "./Endpoint.js";
 export * from "./properties/index.js";
 export * from "./storage/index.js";
 export * from "./type/index.js";
+export * from "./validation/index.js";

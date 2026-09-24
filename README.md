@@ -161,6 +161,10 @@ If you face issues using matter.js or for Matter in general please check out our
 
 A list of known issues with some ecosystems can be found in [KNOWN_ISSUES.md](./docs/KNOWN_ISSUES.md).
 
+When building a device, matter.js checks each endpoint against the device types it declares and reports where it
+departs from them; see [Device Type Validation](./docs/DEVICE_TYPE_VALIDATION.md) for what is checked and how to
+configure it.
+
 matter.js/matter-node.js as Controller was successfully tested with Chip example apps and several production devices (see [here](https://github.com/project-chip/matter.js/discussions/316) ).
 
 Please report any outdated or newly discovered information on compatible ecosystems, devices, and device types or issues.
