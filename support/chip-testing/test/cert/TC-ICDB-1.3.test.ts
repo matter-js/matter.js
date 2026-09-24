@@ -8,13 +8,13 @@ import { Bytes, InternalError, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertIcdEvent, CertIcdRegistration, CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import type { CommandFieldValue } from "./tc-support.js";
 import {
     CommissionedRefs,
     describeError,
     describeValue,
     expectCommandInvoke,
     expectDeviceLog,
+    icdRegisterClientFields,
     LOG_TIMEOUT,
     record,
     requireId,
@@ -77,20 +77,6 @@ function requireRegistration() {
         throw new InternalError("step 1 did not register the DUT");
     }
     return registration;
-}
-
-/**
- * A `RegisterClient`'s fields in id order, with `VerificationKey` where one was sent. The DUT names itself as both
- * CheckInNodeID and MonitoredSubject, and registers as a permanent client.
- */
-function registerClientFields(nodeId: bigint, key: Uint8Array, verificationKey?: Uint8Array): CommandFieldValue[] {
-    return [
-        { id: 0, value: nodeId },
-        { id: 1, value: nodeId },
-        { id: 2, value: key },
-        ...(verificationKey === undefined ? [] : [{ id: 3, value: verificationKey }]),
-        { id: 4, value: 0 },
-    ];
 }
 
 /** TH2 sends `TestEventTrigger` to TH1 and the TH's log shows the key and trigger it carried. */
@@ -197,7 +183,7 @@ certTest("TC-ICDB-1.3", {
                 ROOT_ENDPOINT,
                 ICD_MANAGEMENT_ID,
                 REGISTER_CLIENT_ID,
-                registerClientFields(registration.nodeId, registration.key),
+                icdRegisterClientFields(registration.nodeId, registration.key),
                 from,
                 LOG_TIMEOUT,
             );
@@ -308,7 +294,7 @@ certTest("TC-ICDB-1.3", {
                 ROOT_ENDPOINT,
                 ICD_MANAGEMENT_ID,
                 REGISTER_CLIENT_ID,
-                registerClientFields(nodeId, refresh.key, key1),
+                icdRegisterClientFields(nodeId, refresh.key, key1),
                 refreshFrom.thLog,
                 LOG_TIMEOUT,
             );

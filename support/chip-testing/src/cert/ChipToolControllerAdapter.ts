@@ -140,6 +140,7 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
 
     // chip-tool has an ICD client of its own, but this adapter does not expose it.
     "ICDB.C": 0,
+    "ICDM.C": 0,
 
     // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
     // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.

@@ -203,6 +203,11 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "G.C.C04.Tx": 1,
     "G.C.C05.Tx": 1,
 
+    // The IcdManagement client commands `CertIcdClientApi` sends. The CHIP PICS file does not answer these.
+    "ICDM.C.C00.Tx": 1,
+    "ICDM.C.C02.Tx": 1,
+    "ICDM.C.C03.Tx": 1,
+
     // Every ScenesManagement client command TC-S-3.1 sends. The CHIP PICS file answers 0 for the
     // cluster and each command because it describes a device, which is not a scenes client.
     "S.C": 1,
@@ -1042,11 +1047,13 @@ function transportNameOf(type: ChannelType): CertSessionInfo["transport"] {
 class InProcessIcdClient implements CertIcdClientApi {
     readonly peer: ClientNode;
     readonly #adapterId: string;
+    readonly #ownNodeId: NodeId;
     readonly #events = new Array<CertIcdEvent>();
     readonly #waiters = new Set<() => void>();
 
-    constructor(adapterId: string, peer: ClientNode) {
+    constructor(adapterId: string, peer: ClientNode, ownNodeId: NodeId) {
         this.#adapterId = adapterId;
+        this.#ownNodeId = ownNodeId;
         this.peer = peer;
 
         const events = peer.eventsOf(IcdClient);
@@ -1072,13 +1079,32 @@ class InProcessIcdClient implements CertIcdClientApi {
             await this.peer.act("cert-icd-register", agent =>
                 agent.get(IcdClient).register({ allowMultiAdmin: options?.allowMultiAdmin }),
             );
-            const { key, counterStart, monitoredSubject } = this.peer.stateOf(IcdClient);
-            if (key === undefined || counterStart === undefined || monitoredSubject === undefined) {
+            const { key, counterStart } = this.peer.stateOf(IcdClient);
+            if (key === undefined || counterStart === undefined) {
                 throw new InternalError(
                     "IcdClient registered without recording what it sent and what the peer answered",
                 );
             }
-            return { key: Bytes.of(key), nodeId: BigInt(monitoredSubject), icdCounter: counterStart };
+            return { key: Bytes.of(key), nodeId: BigInt(this.#ownNodeId), icdCounter: counterStart };
+        });
+    }
+
+    unregister(): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            // IcdClient.unregister() is a silent no-op without a registration
+            if (!this.peer.stateOf(IcdClient).registered) {
+                throw new ImplementationError(`No ICD registration with ${this.peer} to unregister`);
+            }
+            await this.peer.act("cert-icd-unregister", agent => agent.get(IcdClient).unregister());
+        });
+    }
+
+    stayActive(durationMs: number): Promise<number> {
+        return runTagged(this.#adapterId, async () => {
+            const promised = await this.peer.act("cert-icd-stay-active", agent =>
+                agent.get(IcdClient).stayActive(Millis(durationMs)),
+            );
+            return Millis.of(promised);
         });
     }
 
@@ -1168,7 +1194,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         const peer = this.#peer;
         let client = this.#icdClients.get(this.#nodeId);
         if (client?.peer !== peer) {
-            client = new InProcessIcdClient(this.#adapterId, peer);
+            client = new InProcessIcdClient(this.#adapterId, peer, this.#fabric.nodeId);
             this.#icdClients.set(this.#nodeId, client);
         }
         return client;
