@@ -113,9 +113,9 @@ async function restart(site: MockSite, node: ServerNode, id: string, index: numb
     return await site.addNode(ControllerRoot, { id, index });
 }
 
-async function pumpUntil(what: string, done: () => boolean) {
+async function pumpUntil(what: string, done: () => boolean | Promise<boolean>) {
     for (let i = 0; i < 2000; i++) {
-        if (done()) {
+        if (await done()) {
             return;
         }
         await MockTime.advance(Millis(10));
@@ -352,9 +352,9 @@ describe("the fabric a manager manages", () => {
         await MockTime.advance(Seconds(30));
         await MockTime.macrotask;
 
-        // The run keeps its target and its state: nothing can reach the peers it names, so nothing states an
-        // outcome for it, and nothing rolls it back onto devices this controller no longer shares a fabric with.
-        expect(isTerminalState(handle.status.state)).equals(false);
+        // The run keeps its target and reads as parked, not as running and not as finished: nothing can reach
+        // the peers it names, so no phase runs and no outcome is stated for work nobody did.
+        expect(handle.status.state).equals("parked");
         expect(handle.status.rollbackRunId).equals(undefined);
 
         // And nothing new is admitted while the manager holds no fabric.
@@ -391,6 +391,39 @@ describe("the fabric a manager manages", () => {
         expect(status).not.equals(undefined);
         expect(isTerminalState(status!.state)).equals(false);
         expect(status!.rollbackRunId).equals(undefined);
+    });
+
+    it("takes up the runs it deferred once a fabric is settled", async () => {
+        await using site = new MockSite();
+        const { controller, peerA } = await controllerWithTaskManager(site);
+        const address = addressOfNode(peerA);
+
+        // A run recorded and parked, then a start that cannot tell which fabric its records belong to.
+        await MockTime.resolve(subscriptionOf(peerA).active.emit(false), { macrotasks: true });
+        const handle = await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, paramsFor(address)));
+        await pumpUntil("the run parks", () => handle.status.state === "parked");
+        const runId = handle.status.runId;
+        const managedIndex = (await reconcilerOf(controller)).index;
+        await addFabric(controller, FabricId(2));
+        await controller.act(a => (a.get(ReconcilerBehavior).state.managedFabricId = null));
+
+        const restarted = await restart(site, controller, controller.id, 1);
+        await restarted.act(a => {
+            a.get(ReconcilerBehavior).state.fabric = managedIndex;
+            return a.get(TaskManagerBehavior).register(AddNodeToGroup);
+        });
+        expect((await reconcilerOf(restarted)).index).equals(undefined);
+
+        // A fabric arriving is what makes the manager look again, and adopting one releases the resume pass
+        // the manager had nothing to run: the record is live in this process from here.
+        await addFabric(restarted, FabricId(3));
+        await pumpUntil("the manager adopts the fabric it was told to", async () => {
+            return (await reconcilerOf(restarted)).index === managedIndex;
+        });
+        await pumpUntil("the deferred run finishes", async () => {
+            const status = await restarted.act(a => a.get(TaskManagerBehavior).get(runId)?.status.state);
+            return status === "completed";
+        });
     });
 
     it("stops managing a fabric that leaves the controller", async () => {

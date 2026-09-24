@@ -402,6 +402,12 @@ export class RunningTaskContext implements TaskContext {
     }
 
     #classify(nodes: ClientNode[]) {
+        // Nothing resolves while no fabric is managed, so the waiting set is empty and "running" would be what
+        // a gate reports for a run it cannot evaluate at all.
+        if (!this.canConclude()) {
+            this.setState("parked");
+            return;
+        }
         const waiting = nodes.filter(node => this.#stillCommissioned(node));
         this.setState(waiting.some(node => !this.#reachable(node)) ? "parked" : "running");
     }
