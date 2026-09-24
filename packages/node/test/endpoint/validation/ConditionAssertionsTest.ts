@@ -160,7 +160,7 @@ describe("ConditionAssertions", () => {
             expect(conditions.get(child)?.has("Cooler")).true;
             expect(conditions.get(grandchild)?.has("Cooler")).true;
             expect(descendantAssertions[0].matches).deep.equals([child, grandchild]);
-            expect(ConditionAssertions.collect(nested).conditions.get(beyond)?.has("Cooler")).false;
+            expect(conditions.has(beyond)).false;
 
             await node.close();
         });
@@ -452,6 +452,7 @@ describe("EndpointFacts", () => {
         expect(facts.supports("OnOff", memberOf("OnOff", "OnTime"))).true;
         expect(facts.supports("OnOff", memberOf("OnOff", "OnWithTimedOff"))).true;
         expect(facts.supports("OnOff", memberOf("OnOff", "OffWaitTime"))).true;
+        expect(EndpointFacts.of(node).supports("BasicInformation", memberOf("BasicInformation", "StartUp"))).true;
         expect(facts.supports("LevelControl", memberOf("LevelControl", "CurrentLevel"))).false;
 
         await node.close();

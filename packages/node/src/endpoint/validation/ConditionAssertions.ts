@@ -112,7 +112,7 @@ export namespace ConditionAssertions {
                         continue;
                     }
 
-                    // Evaluated against underived names only, so the outcome does not depend on visiting order
+                    // An asserted condition never triggers another condition requirement; chains are not followed
                     const applicability = requirementApplicability(requirement, names, knownNames);
                     if (applicability !== Conformance.Applicability.Mandatory) {
                         continue;
