@@ -269,7 +269,7 @@ certTest("TC-SU-2.1", {
     ...BDX_RECEIVER_ROLES,
 
     // The spacing step 2 checks is the DUT's own; a matter.js DUT keeps it whatever the run shortens
-    appArgs: { dut: [SPEC_INTERVALS_ARG] },
+    appArgs: { dut: { matterjs: [SPEC_INTERVALS_ARG] } },
 })
     .step(
         "0",

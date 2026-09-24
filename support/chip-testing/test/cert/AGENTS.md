@@ -3083,7 +3083,8 @@ asked for. Removing the wait fails the step; the framework test in
 **A requestor DUT keeps the specification's floors.** `MATTER_CERT_OTA_FAST_RETRY` lowers the matter.js
 requestor's two-minute floors for cases where it is the TH, whose wait is only the TH's. Where it is the
 DUT, those floors are what is under test, so TC-SU-2.x start it with `SPEC_INTERVALS_ARG`, which keeps
-them whatever the run shortens.
+them whatever the run shortens. The flag goes under the `matterjs` key of `appArgs`: chip's requestor
+refuses to start on an argument it does not know.
 
 **Step 3 announces the provider the DUT already uses.** The harness has one provider, so it cannot
 tell "queried the indicated provider" apart from "queried its last provider". chip's own

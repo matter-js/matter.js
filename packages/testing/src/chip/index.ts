@@ -10,6 +10,7 @@
 // support/chip-testing's own cert-framework tests (a separate package, `@matter/testing` consumer)
 // need them and can only reach this module's `.` entrypoint.
 export type {
+    CertAppArgs,
     CertDevice,
     CertDeviceFactory,
     CertStepContext,

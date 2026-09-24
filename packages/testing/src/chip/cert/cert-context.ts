@@ -280,5 +280,22 @@ export interface CertTestDefinition {
      */
     transport?: ControllerTransport;
     /** Role name → arguments that role's app starts with (see `cert-dsl.ts`'s `CertTestOptions`). */
-    appArgs?: Record<string, string[]>;
+    appArgs?: Record<string, CertAppArgs>;
+}
+
+/**
+ * Arguments one role's app starts with.
+ *
+ * A list goes to every flavor. A flag only one implementation understands goes under that
+ * implementation's key instead: chip's apps refuse to start on an argument they do not know, where a
+ * matter.js subject ignores one.
+ */
+export type CertAppArgs = string[] | { chip?: string[]; matterjs?: string[] };
+
+/** The arguments {@link CertAppArgs} gives the app a run of `flavor` starts. */
+export function appArgsFor(args: CertAppArgs | undefined, flavor: DeviceFlavor): string[] | undefined {
+    if (args === undefined || Array.isArray(args)) {
+        return args;
+    }
+    return flavor === "matterjs" ? args.matterjs : args.chip;
 }

@@ -68,7 +68,7 @@ certTest("TC-SU-2.4", {
     flavors: ["matterjs"],
 
     // A requestor DUT runs as a product would, whatever the run shortens for a requestor TH
-    appArgs: { dut: [SPEC_INTERVALS_ARG] },
+    appArgs: { dut: { matterjs: [SPEC_INTERVALS_ARG] } },
 })
     .step(
         "0",
