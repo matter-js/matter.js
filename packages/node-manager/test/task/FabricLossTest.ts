@@ -122,7 +122,7 @@ function stored(node: ServerNode, runId: number) {
  *
  * Nothing on that fabric can be reached again, so its runs end and nothing of theirs is kept for an undo. The
  * addresses they recorded carry only a fabric index, which a controller reuses — so each case here names peers
- * at the index the managed fabric holds now, and a run that were driven or undone would reach its devices.
+ * at the index the managed fabric holds now, and a run that was driven or undone would reach its devices.
  */
 describe("runs of a fabric that left the controller", () => {
     before(() => MockTime.init());

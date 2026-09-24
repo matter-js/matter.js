@@ -193,6 +193,8 @@ describe("RunStore", () => {
             ["fabric", undefined],
             ["fabric", ""],
             ["fabric", "0x1f"],
+            // Not canonical: the fabric table would find it, while a comparison with the managed fabric would not.
+            ["fabric", "01"],
             ["fabric", 1],
         ] as Array<[string, unknown]>) {
             // Named without JSON: a change entry carries a node id, which is a bigint and cannot be stringified.
