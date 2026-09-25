@@ -126,15 +126,7 @@ export class MockSite {
 
     async addCommissionedPair(options?: MockSite.PairOptions) {
         const { controller, device } = await this.addUncommissionedPair(options);
-        await this.commission(controller, device);
 
-        return { controller, device };
-    }
-
-    /**
-     * Commission {@link device} to {@link controller}, starting the controller if it is offline.
-     */
-    async commission(controller: ServerNode, device: ServerNode) {
         const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
         const deviceCrypto = device.env.get(Crypto) as MockCrypto;
 
@@ -151,6 +143,8 @@ export class MockSite {
         });
 
         controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        return { controller, device };
     }
 
     async close() {

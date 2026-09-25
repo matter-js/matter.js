@@ -6,6 +6,7 @@
 
 import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
+import { commission } from "../../../node/icd-helpers.js";
 import { MockSite } from "../../../node/mock-site.js";
 import { subscribedPeer } from "../../../node/node-helpers.js";
 
@@ -21,7 +22,7 @@ describe("A node taken offline and started again", () => {
         await MockTime.resolve(device.stop());
         await MockTime.resolve(device.start());
 
-        await site.commission(controller, device);
+        await commission(controller, device);
 
         expect(device.lifecycle.isCommissioned).true;
     });
