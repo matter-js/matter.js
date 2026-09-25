@@ -155,7 +155,6 @@ function instrumentKnownShape(shape: PeerBehavior.KnownClusterShape) {
     type = ClusterBehaviorType({
         base,
         namespace: base.cluster,
-        schema: base.schema,
         name: `${base.schema.name}Client`,
         forClient: true,
         commandFactory: factory,

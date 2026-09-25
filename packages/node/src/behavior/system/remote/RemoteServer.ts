@@ -143,8 +143,8 @@ export abstract class RemoteServer extends Behavior {
         FieldElement({ name: "address", type: "string" }),
         FieldElement({ name: "enabled", type: "bool" }),
         FieldElement({ name: "allowOfflineUse", type: "bool" }),
-        FieldElement({ name: "certificate", type: "octstr" }),
-        FieldElement({ name: "key", type: "octstr" }),
+        FieldElement({ name: "certificate", type: "string" }),
+        FieldElement({ name: "key", type: "string" }),
     );
 
     async #createKey() {
