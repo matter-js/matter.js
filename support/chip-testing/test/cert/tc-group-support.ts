@@ -6,19 +6,19 @@
 
 import { Bytes } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertNodeApi, CertNodeRef, CertStepContext } from "@matter/testing";
-import type { CommandFieldValue } from "./tc-support.js";
+import type { CertNodeApi, CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import {
-    answersWithStatus,
+    attempt,
     CertCheckFailedError,
     CommissionedRefs,
     describeValue,
-    expectCommandInvoke,
     expectMessageWithPath,
+    invokeCommand,
     LOG_TIMEOUT,
     record,
+    recordAll,
     requireId,
-    responseStatusOf,
+    withChecks,
 } from "./tc-support.js";
 
 /**
@@ -79,68 +79,6 @@ export function groupKeySet() {
         epochKey2: null,
         epochStartTime2: null,
     };
-}
-
-/**
- * Invokes a command on the TH and verifies the TH's own log recorded it with the fields sent. A
- * response carrying its own status is checked separately, since a command the cluster refused still
- * resolves.
- */
-export async function invokeAndCheck(
-    cx: CertStepContext,
-    ref: CertNodeRef,
-    cluster: typeof GROUP_KEY_MANAGEMENT,
-    clusterId: number,
-    endpoint: number,
-    commandName: string,
-    args: object,
-    fields: CommandFieldValue[],
-): Promise<unknown> {
-    const th = cx.devices.th;
-    const from = th.log.mark();
-
-    let response: unknown;
-    try {
-        response = await cx.controllers.dut.node(ref).invoke(cluster.name, commandName, args, endpoint);
-    } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
-        throw e;
-    }
-    cx.recorder.check({
-        type: "response",
-        verdict: "pass",
-        detail: response === undefined ? "status=Success" : `status=Success, response=${describeValue(response)}`,
-    });
-
-    if (answersWithStatus(cluster, commandName)) {
-        const payloadStatus = responseStatusOf(response);
-        record(
-            cx,
-            {
-                type: "response",
-                verdict: payloadStatus === 0 ? "pass" : "fail",
-                detail:
-                    payloadStatus === undefined
-                        ? `${commandName} answered ${describeValue(response)}, which carries no status`
-                        : `${commandName} response status=${payloadStatus}`,
-            },
-            `${cluster.name}.${commandName} response status`,
-        );
-    }
-
-    const logCheck = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        endpoint,
-        clusterId,
-        requireId(cluster.commands.require(commandName).id, `${cluster.name}.${commandName}`),
-        fields,
-        from,
-        LOG_TIMEOUT,
-    );
-    record(cx, logCheck, `CommandDataIB log for ${cluster.name}.${commandName}`);
-
-    return response;
 }
 
 /**
@@ -272,22 +210,22 @@ export function keyMaterialStep() {
  * join the group's multicast address, which is failure surface a case that never sends does not need.
  */
 export function keySetWriteStep(commissioned: CommissionedRefs, alsoProvisionSender = false) {
-    return commissioned.withRef("dut", async (cx: CertStepContext, ref: CertNodeRef) => {
-        if (alsoProvisionSender) {
-            await cx.controllers.dut.group(GROUP.id).defineKeySet(groupKeySet());
-        }
+    return commissioned.withRef("dut", async (cx: CertStepContext, ref: CertNodeRef) =>
+        withChecks(cx, async checks => {
+            if (alsoProvisionSender) {
+                await cx.controllers.dut.group(GROUP.id).defineKeySet(groupKeySet());
+            }
 
-        await invokeAndCheck(
-            cx,
-            ref,
-            GROUP_KEY_MANAGEMENT,
-            GROUP_KEY_MANAGEMENT_ID,
-            ROOT_ENDPOINT,
-            "keySetWrite",
-            { groupKeySet: groupKeySet() },
-            [],
-        );
-    });
+            const invoked = await invokeCommand(cx, ref, {
+                cluster: GROUP_KEY_MANAGEMENT,
+                endpoint: ROOT_ENDPOINT,
+                command: "keySetWrite",
+                args: { groupKeySet: groupKeySet() },
+                fields: [],
+            });
+            checks.push(...invoked.checks);
+        }),
+    );
 }
 
 /**
@@ -298,67 +236,81 @@ export function keySetWriteStep(commissioned: CommissionedRefs, alsoProvisionSen
  * case that later adds a *second* group has to bind that one here as well.
  */
 export function groupKeyMapStep(commissioned: CommissionedRefs, groups: number[] = [GROUP.id]) {
-    return commissioned.withRef("dut", async (cx: CertStepContext, ref: CertNodeRef) => {
-        const th = cx.devices.th;
-        const from = th.log.mark();
-        const path = {
-            endpoint: ROOT_ENDPOINT,
-            cluster: GROUP_KEY_MANAGEMENT_ID,
-            attribute: attributeId(GROUP_KEY_MANAGEMENT, "groupKeyMap"),
-        };
+    return commissioned.withRef("dut", async (cx: CertStepContext, ref: CertNodeRef) =>
+        withChecks(cx, async checks => {
+            const th = cx.devices.th;
+            const from = th.log.mark();
+            const path = {
+                endpoint: ROOT_ENDPOINT,
+                cluster: GROUP_KEY_MANAGEMENT_ID,
+                attribute: attributeId(GROUP_KEY_MANAGEMENT, "groupKeyMap"),
+            };
 
-        await cx.controllers.dut.node(ref).writeAttribute(
-            path,
-            groups.map(groupId => ({ groupId, groupKeySetId: GROUP_KEY_SET_ID })),
-        );
-        cx.recorder.check({ type: "response", verdict: "pass", detail: "GroupKeyMap write accepted" });
+            const node = cx.controllers.dut.node(ref);
 
-        record(
-            cx,
-            await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT),
-            "WriteRequestMessage log for GroupKeyManagement.groupKeyMap",
-        );
-
-        const readBack = await cx.controllers.dut.node(ref).readAttribute(path);
-        const bound =
-            Array.isArray(readBack) &&
-            groups.every(wanted =>
-                readBack.some(entry => {
-                    if (typeof entry !== "object" || entry === null) {
-                        return false;
-                    }
-                    const { groupId, groupKeySetId } = entry as { groupId?: unknown; groupKeySetId?: unknown };
-                    return groupId === wanted && groupKeySetId === GROUP_KEY_SET_ID;
-                }),
+            const write = await attempt(
+                () =>
+                    node.writeAttribute(
+                        path,
+                        groups.map(groupId => ({ groupId, groupKeySetId: GROUP_KEY_SET_ID })),
+                    ),
+                () => "GroupKeyMap write accepted",
             );
-        record(
-            cx,
-            {
-                type: "response",
-                verdict: bound ? "pass" : "fail",
-                detail: `GroupKeyMap reads back as ${describeValue(readBack)}`,
-            },
-            "the binding the TH kept",
-        );
-    });
+            checks.push({ what: "GroupKeyManagement.groupKeyMap write", check: () => write.check });
+
+            const logged = await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT);
+            checks.push({ what: "WriteRequestMessage log for GroupKeyManagement.groupKeyMap", check: () => logged });
+
+            if (write.ok) {
+                const readBack = await attempt(
+                    () => node.readAttribute(path),
+                    () => "GroupKeyMap read",
+                );
+                const kept: CheckRecord = readBack.ok
+                    ? {
+                          type: "response",
+                          verdict: bindsAll(readBack.value, groups) ? "pass" : "fail",
+                          detail: `GroupKeyMap reads back as ${describeValue(readBack.value)}`,
+                      }
+                    : readBack.check;
+                checks.push({ what: "the binding the TH kept", check: () => kept });
+            }
+        }),
+    );
+}
+
+/** Whether a GroupKeyMap read binds every one of `groups` to the key set this plan writes. */
+function bindsAll(groupKeyMap: unknown, groups: number[]): boolean {
+    return (
+        Array.isArray(groupKeyMap) &&
+        groups.every(wanted =>
+            groupKeyMap.some(
+                entry =>
+                    typeof entry === "object" &&
+                    entry !== null &&
+                    "groupId" in entry &&
+                    "groupKeySetId" in entry &&
+                    entry.groupId === wanted &&
+                    entry.groupKeySetId === GROUP_KEY_SET_ID,
+            ),
+        )
+    );
 }
 
 /** The plan's AddGroup step, which makes the device a member of the group. */
 export function addGroupStep(commissioned: CommissionedRefs) {
     return commissioned.withRef("dut", async (cx: CertStepContext, ref: CertNodeRef) => {
-        await invokeAndCheck(
-            cx,
-            ref,
-            GROUPS,
-            GROUPS_ID,
-            GROUPS_ENDPOINT,
-            "addGroup",
-            { groupId: GROUP.id, groupName: GROUP.name },
-            [
+        const { checks } = await invokeCommand(cx, ref, {
+            cluster: GROUPS,
+            endpoint: GROUPS_ENDPOINT,
+            command: "addGroup",
+            args: { groupId: GROUP.id, groupName: GROUP.name },
+            fields: [
                 { id: 0, value: GROUP.id },
                 { id: 1, value: GROUP.name },
             ],
-        );
+        });
+        await recordAll(cx, checks);
     });
 }
 

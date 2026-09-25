@@ -29,6 +29,7 @@ import type {
     LogExpectSequences,
     LogFollower,
     LogLine,
+    TimedInteractionOptions,
 } from "@matter/testing";
 import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/testing";
 
@@ -112,6 +113,33 @@ export async function recordAll(cx: CertStepContext, checks: readonly RecordedCh
     if (failed.length) {
         throw new CertCheckFailedError(`${failed.length} of ${checks.length} checks failed: ${failed.join("; ")}`);
     }
+}
+
+/**
+ * Runs a step's `body`, which adds each check to `checks` as soon as it exists, and records them with
+ * {@link recordAll} once `body` has ended. When an action in `body` throws, the checks added before it are still
+ * recorded and the action's error fails the step. Checks are evaluated after `body`, so a check should hold a result
+ * already obtained rather than contact a device.
+ */
+export async function withChecks(cx: CertStepContext, body: (checks: RecordedCheck[]) => Promise<void>): Promise<void> {
+    const checks = new Array<RecordedCheck>();
+    try {
+        await body(checks);
+    } catch (e) {
+        for (const { check, what } of checks) {
+            try {
+                cx.recorder.check(await check());
+            } catch (checkError) {
+                cx.recorder.check({
+                    type: "response",
+                    verdict: "fail",
+                    detail: `${what}: ${describeError(checkError)}`,
+                });
+            }
+        }
+        throw e;
+    }
+    await recordAll(cx, checks);
 }
 
 /**
@@ -1140,6 +1168,97 @@ export async function expectCommandInvoke(
         matched: last?.text,
         logLine: last?.index,
     };
+}
+
+/** A command {@link invokeCommand} has the DUT send to the TH. */
+export interface CommandInvocation {
+    cluster: ClusterModel;
+    endpoint: number;
+    command: string;
+    args: object;
+
+    /** The fields the TH's log must show the command carried. */
+    fields: CommandFieldValue[];
+
+    /** Evidence text for a resolved invoke; by default the success status and any response payload. */
+    describe?: (response: unknown) => string;
+
+    options?: TimedInteractionOptions;
+}
+
+/** What {@link invokeCommand} found. */
+export interface InvokedCommand {
+    /** The command's answer, where the invoke resolved. */
+    response: { ok: true; value: unknown } | { ok: false };
+
+    /** Every check the invoke settled, in the order a step records them. */
+    checks: RecordedCheck[];
+
+    /** The TH log mark taken before the invoke, for a further check on the same request. */
+    from: number;
+}
+
+/**
+ * Has the DUT invoke a command on the TH and checks it without recording anything: that the invoke
+ * resolved, that a response whose schema carries a status carries success, and that the TH's log shows
+ * the command with its `fields`. A step adds the checks it derives from the answer and records the
+ * whole list with {@link recordAll}.
+ *
+ * The response status is a claim of its own because a command the cluster refused still resolves; an
+ * absent status fails it, since the log check alone says only that the request arrived. The log check
+ * runs whether or not the invoke resolved — it is what shows whether the TH received the command.
+ */
+export async function invokeCommand(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    invocation: CommandInvocation,
+): Promise<InvokedCommand> {
+    const { cluster, endpoint, command, args, fields, describe = describeInvokeResponse, options } = invocation;
+    const name = `${cluster.name}.${command}`;
+    const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
+    const commandId = requireId(cluster.commands.require(command).id, name);
+    const th = cx.devices.th;
+    const from = th.log.mark();
+
+    const response = await attempt(
+        () => cx.controllers.dut.node(ref).invoke(cluster.name, command, args, endpoint, options),
+        describe,
+    );
+    const responseCheck: CheckRecord = response.ok
+        ? response.check
+        : { ...response.check, detail: `${command}: ${response.check.detail}` };
+    const checks: RecordedCheck[] = [{ what: `${name} response`, check: () => responseCheck }];
+
+    if (response.ok && answersWithStatus(cluster, command)) {
+        const status = responseStatusOf(response.value);
+        const statusCheck: CheckRecord = {
+            type: "response",
+            verdict: status === 0 ? "pass" : "fail",
+            detail:
+                status === undefined
+                    ? `${command} answered ${describeValue(response.value)}, which carries no status`
+                    : `${command} response status=${status}`,
+        };
+        checks.push({ what: `${name} response status`, check: () => statusCheck });
+    }
+
+    const logged = await expectCommandInvoke(
+        th.log,
+        th.flavor,
+        endpoint,
+        clusterId,
+        commandId,
+        fields,
+        from,
+        LOG_TIMEOUT,
+    );
+    checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
+
+    return { response: response.ok ? { ok: true, value: response.value } : { ok: false }, checks, from };
+}
+
+function describeInvokeResponse(response: unknown): string {
+    return response === undefined ? "status=Success" : `status=Success, response=${describeValue(response)}`;
 }
 
 /**

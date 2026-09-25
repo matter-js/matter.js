@@ -291,6 +291,14 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
   it is not interop evidence, and the `.b` step that feeds the artifact to the DUT is what carries
   that. A step generating several artifacts records them through `recordAll` (`tc-support.ts`), which
   puts every one in the evidence before failing; `record` in a loop stops at the first bad one.
+- **A step records every check it claims before it fails.** `record()` throws on a fail, so it only
+  fits a step's last check or a check every later one depends on; code after a failing `record()`
+  never runs. Otherwise turn each action's outcome into a check as it happens (`attempt()` for a call
+  that may throw, `invokeCommand()` for an invoke with its response, status and CommandDataIB log
+  checks) and record the list once: `recordAll` when nothing can throw in between, `withChecks` when
+  an action can, so checks collected before a throw still reach the evidence. Take the TH's log check
+  even when the DUT's action failed — it shows whether the request reached the TH. Leave out a check
+  whose expected values depend on a failed action instead of matching it against less.
 - `certTest` registers the mocha `it()` immediately; `.step()` calls append to it and may continue
   after `certTest()` returns (see `cert-dsl.ts`'s `certTest`/`defineCertTest`).
 - Role names: `cx.controllers.dut` / `cx.devices.th` are the defaults (`controllers: { dut: "dut" }`,
