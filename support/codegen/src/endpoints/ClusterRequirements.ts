@@ -5,7 +5,14 @@
  */
 
 import { InternalError, Logger } from "#general";
-import { ClusterModel, ElementTag, FieldValue, RequirementElement, RequirementModel, ValueModel } from "#model";
+import {
+    ClusterModel,
+    FieldValue,
+    RequirementElement,
+    RequirementModel,
+    RequirementResolver,
+    ValueModel,
+} from "#model";
 import { EndpointFile } from "./EndpointFile.js";
 import { reportRequirementLost } from "./requirement-coverage.js";
 import { dispositionOf, RequirementDisposition } from "./requirement-disposition.js";
@@ -14,11 +21,12 @@ const logger = Logger.get("ClusterRequirements");
 
 /**
  * A requirement kind nothing handles is a specification statement we are dropping, so it stops the build rather than
- * disappearing.  A new member of {@link RequirementElement.ElementType} lands here until it is given a home.
+ * disappearing.  A new member of {@link RequirementElement.ElementType} fails to compile here until it is given a home;
+ * an element outside the enum still throws at runtime.
  */
-function unsupportedRequirement(requirement: RequirementModel): never {
+function unsupportedRequirement(element: never, requirement: RequirementModel): never {
     throw new InternalError(
-        `No handling for ${requirement.element} requirement ${requirement.name}; every requirement kind must be handled or explicitly skipped`,
+        `No handling for ${element} requirement ${requirement.name}; every requirement kind must be handled or explicitly skipped`,
     );
 }
 
@@ -77,19 +85,13 @@ export class ClusterRequirements {
                     break;
 
                 default:
-                    unsupportedRequirement(requirement);
+                    unsupportedRequirement(requirement.element, requirement);
             }
         }
     }
 
     private ingestFeature(requirement: RequirementModel) {
-        let feature = this.cluster.featureMap.children.find(
-            f => f.name.toLowerCase() === requirement.name.toLowerCase(),
-        );
-        if (!feature) {
-            const desc = (str?: string) => str?.toLowerCase().replace(/\s/g, "");
-            feature = this.cluster.featureMap.children.find(f => desc(f.title) === desc(requirement.name));
-        }
+        const feature = RequirementResolver.featureOf(requirement);
         if (!feature) {
             reportRequirementLost(
                 `Skipping ${this.file.model.name} unknown feature ${requirement.name} for server cluster ${this.cluster.name}`,
@@ -126,8 +128,7 @@ export class ClusterRequirements {
     private ingestElement(requirement: RequirementModel) {
         const alteration = {} as Record<string, any>;
 
-        // Not all RequirementElement.ElementType are ElementTags but the ones we care about here are
-        const element = this.cluster.member(requirement.name, [requirement.element as string as ElementTag]);
+        const element = RequirementResolver.elementOf(requirement);
 
         if (!element) {
             reportRequirementLost(

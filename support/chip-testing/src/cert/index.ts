@@ -26,6 +26,7 @@ import { env } from "node:process";
 import { AllClustersTestInstance } from "../AllClustersTestInstance.js";
 import { BridgeTestInstance } from "../BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../GenericTestApp.js";
+import { IcdTestInstance } from "../IcdTestInstance.js";
 import { NodeTestInstance } from "../NodeTestInstance.js";
 import { OtaProviderTestInstance } from "../OtaProviderTestInstance.js";
 import { OtaRequestorTestInstance } from "../OtaRequestorTestInstance.js";
@@ -229,6 +230,7 @@ function MatterJsCertSubject(implementation: DeviceTestInstanceConstructor<NodeT
 
 registerMatterJsCertSubject("all-clusters", MatterJsCertSubject(AllClustersTestInstance));
 registerMatterJsCertSubject("bridge", MatterJsCertSubject(BridgeTestInstance));
+registerMatterJsCertSubject("lit-icd", MatterJsCertSubject(IcdTestInstance));
 registerMatterJsCertSubject("ota-requestor", MatterJsCertSubject(OtaRequestorTestInstance));
 registerMatterJsCertSubject("ota-provider", MatterJsCertSubject(OtaProviderTestInstance));
 
@@ -246,6 +248,13 @@ const OTA_REQUESTOR_BDX_ROLES = {
 
 registerCertAppPics("matterjs", "ota-requestor", {
     ...OTA_REQUESTOR_BDX_ROLES,
+    "MCORE.OTA.Requestor": 1,
+
+    // `transferProtocolsSupported` is left at its default, which lists BDX synchronous alone.
+    "MCORE.OTA.HTTPS": 0,
+
+    // `CertOtaRequestorServer` implements `requestUserConsent`, and the subject declares `canConsent`.
+    "MCORE.OTA.RequestorConsent": 1,
 
     // Asynchronous transfer is refused outright, whichever side proposes it (`bdxSessionInitiator`).
     "MCORE.BDX.AsynchronousReceiver": 0,
@@ -255,9 +264,22 @@ registerCertAppPics("matterjs", "ota-requestor", {
     "MCORE.BDX.BlockQueryWithSkip": 0,
 });
 
-// Only the roles, for chip's requestor: what it does with BlockQueryWithSkip and asynchronous transfer
-// has not been observed here. Note this leaves the controller's own answers standing for those keys,
-// which describe the controller rather than chip's requestor — a step gated on one of them would need
-// this app to declare it first.
-registerCertAppPics("chip-local", "ota-requestor", { ...OTA_REQUESTOR_BDX_ROLES });
-registerCertAppPics("chip-docker", "ota-requestor", { ...OTA_REQUESTOR_BDX_ROLES });
+// For chip's requestor, no BDX key beyond the roles: what it does with BlockQueryWithSkip and asynchronous
+// transfer has not been observed here. Note this leaves the controller's own answers standing for those
+// keys, which describe the controller rather than chip's requestor — a step gated on one of them would
+// need this app to declare it first.
+//
+// The OTA keys are what the app is as this suite starts it. `DefaultOTARequestor` lists BDX synchronous
+// alone in ProtocolsSupported. It sends RequestorCanConsent false unless started with
+// `--requestorCanConsent true` or with `--userConsentState`, which installs a consent delegate; a case
+// passing either through `appArgs` makes the consent answer here wrong. CHIP's own PICS file, which
+// describes a generic device, answers both keys `1`.
+const CHIP_OTA_REQUESTOR = {
+    ...OTA_REQUESTOR_BDX_ROLES,
+    "MCORE.OTA.Requestor": 1,
+    "MCORE.OTA.HTTPS": 0,
+    "MCORE.OTA.RequestorConsent": 0,
+} as const;
+
+registerCertAppPics("chip-local", "ota-requestor", CHIP_OTA_REQUESTOR);
+registerCertAppPics("chip-docker", "ota-requestor", CHIP_OTA_REQUESTOR);

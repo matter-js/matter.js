@@ -8,15 +8,8 @@ import { Bytes, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import {
-    CommissionedRefs,
-    describeValue,
-    expectCommandInvoke,
-    expectSequence,
-    LOG_TIMEOUT,
-    record,
-    requireId,
-} from "./tc-support.js";
+import type { CommandFieldValue } from "./tc-support.js";
+import { CommissionedRefs, describeValue, expectCommandInvoke, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
 
 const TBRM = Matter.clusters.require("ThreadBorderRouterManagement");
 const TBRM_ID = requireId(TBRM.id, "ThreadBorderRouterManagement cluster");
@@ -98,16 +91,17 @@ async function invokeGeneralCommissioning(cx: CertStepContext, ref: CertNodeRef,
 }
 
 /**
- * Invokes `commandName` on the TH's ThreadBorderRouterManagement cluster and verifies the TH's own log recorded
- * it. Returns the response and the log line of the command's `CommandId`, which the command's fields follow.
+ * Invokes `commandName` on the TH's ThreadBorderRouterManagement cluster and verifies the TH's own log recorded it
+ * with `fields`.
  */
 async function invokeAndCheck(
     cx: CertStepContext,
     ref: CertNodeRef,
     commandName: string,
     args: object,
+    fields: CommandFieldValue[],
     timed: boolean,
-): Promise<{ response: unknown; commandLine?: number }> {
+): Promise<unknown> {
     const th = cx.devices.th;
     const from = th.log.mark();
 
@@ -134,50 +128,13 @@ async function invokeAndCheck(
         ENDPOINT,
         TBRM_ID,
         commandId(commandName),
-        [],
+        fields,
         from,
         LOG_TIMEOUT,
     );
     record(cx, logCheck, `CommandDataIB log for ThreadBorderRouterManagement.${commandName}`);
 
-    return { response, commandLine: logCheck.logLine };
-}
-
-/**
- * The lines chip prints for an octet-string command field: its id opening a list, every byte on the next line,
- * and the byte count closing it. The byte line fits because CHIP's Linux and macOS builds with detail logging
- * allow a 1708-character log line (`chip_log_message_max_size` in `src/lib/core/core.gni`).
- */
-function chipOctetStringField(id: number, bytes: Bytes): RegExp[] {
-    const rendered = Array.from(Bytes.of(bytes), byte => `0x${byte.toString(16).padStart(2, "0")}, `).join("");
-    return [
-        new RegExp(`0x${id.toString(16)} = \\[\\s*$`),
-        new RegExp(`\\s${rendered}\\s*$`),
-        new RegExp(`\\] \\(${Bytes.of(bytes).byteLength} bytes\\),?\\s*$`),
-    ];
-}
-
-/**
- * Checks that the TH's log carries `fields` as the `CommandFields` of the command logged at `commandLine`,
- * consecutively and in order, so they cannot be read from any other message.
- */
-async function expectCommandFields(
-    cx: CertStepContext,
-    commandLine: number | undefined,
-    label: string,
-    fields: RegExp[],
-) {
-    const th = cx.devices.th;
-    if (commandLine === undefined) {
-        record(
-            cx,
-            { type: "device-log", verdict: "fail", detail: "the command itself was not found in the TH log" },
-            label,
-        );
-        return;
-    }
-    const lines = [/CommandFields =\s*$/, /\{\s*$/, ...fields];
-    record(cx, await expectSequence(th.log, th.flavor, label, { chip: lines }, commandLine + 1, LOG_TIMEOUT), label);
+    return response;
 }
 
 /** Checks that a `DatasetResponse` returns the dataset an earlier step set. */
@@ -232,18 +189,16 @@ certTest("TC-TBRM-3.1", {
                 breadcrumb: 1,
             });
 
-            const { commandLine } = await invokeAndCheck(
+            await invokeAndCheck(
                 cx,
                 ref,
                 "setActiveDatasetRequest",
                 { activeDataset: ACTIVE_DATASET, breadcrumb: BREADCRUMB },
+                [
+                    { id: 0, value: ACTIVE_DATASET },
+                    { id: 1, value: BREADCRUMB },
+                ],
                 true,
-            );
-            await expectCommandFields(
-                cx,
-                commandLine,
-                "SetActiveDatasetRequest ActiveDataset (ID 0), Breadcrumb (ID 1)",
-                [...chipOctetStringField(0, ACTIVE_DATASET), new RegExp(`0x1 = ${BREADCRUMB} \\(unsigned\\),\\s*$`)],
             );
 
             await invokeGeneralCommissioning(cx, ref, "commissioningComplete", {});
@@ -259,18 +214,13 @@ certTest("TC-TBRM-3.1", {
         2,
         "In a CASE session, DUT sends SetPendingDatasetRequest to TH.",
         commissioned.withRef("dut", async (cx, ref) => {
-            const { commandLine } = await invokeAndCheck(
+            await invokeAndCheck(
                 cx,
                 ref,
                 "setPendingDatasetRequest",
                 { pendingDataset: PENDING_DATASET },
+                [{ id: 0, value: PENDING_DATASET }],
                 true,
-            );
-            await expectCommandFields(
-                cx,
-                commandLine,
-                "SetPendingDatasetRequest PendingDataset (ID 0)",
-                chipOctetStringField(0, PENDING_DATASET),
             );
         }),
         {
@@ -284,7 +234,7 @@ certTest("TC-TBRM-3.1", {
         3,
         "In a CASE session, DUT sends GetActiveDatasetRequest to TH.",
         commissioned.withRef("dut", async (cx, ref) => {
-            const { response } = await invokeAndCheck(cx, ref, "getActiveDatasetRequest", {}, false);
+            const response = await invokeAndCheck(cx, ref, "getActiveDatasetRequest", {}, [], false);
             expectDataset(cx, "getActiveDatasetRequest", response, ACTIVE_DATASET);
         }),
         {
@@ -298,7 +248,7 @@ certTest("TC-TBRM-3.1", {
         4,
         "In a CASE session, DUT sends GetPendingDatasetRequest to TH.",
         commissioned.withRef("dut", async (cx, ref) => {
-            const { response } = await invokeAndCheck(cx, ref, "getPendingDatasetRequest", {}, false);
+            const response = await invokeAndCheck(cx, ref, "getPendingDatasetRequest", {}, [], false);
             expectDataset(cx, "getPendingDatasetRequest", response, PENDING_DATASET);
         }),
         {

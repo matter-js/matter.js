@@ -60,6 +60,7 @@ to an app this way:
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
+| `ICDB`, `ICDM`                      | `lit-icd`    | `lit-icd-app-nopersist` (variant) | yes (`IcdTestInstance`); chip binaries own-built only |
 
 A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
@@ -755,7 +756,7 @@ handler after it fires). A matched handler's returned string is written straight
 This TC is registered as a **bare `describe`/`it`**, not a `certTest()`, because there's no `CertDevice`
 in the picture at all — TH_SERVER lives entirely inside the container, spawned by the script itself, and
 the thing under test is `InProcessControllerAdapter`'s own commissioning stack acting as DUT_Commissioner
-against it. Building a `CertStepContext` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
+against it. Building a `CertStepWiring` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
 and calling `PromptDrivenPythonTest.invoke()` directly was simpler and more honest than forcing this
 shape through `certTest()`'s device-flavor machinery just to obtain a `Subject` it doesn't need.
 
@@ -3033,6 +3034,79 @@ of a field the controller filled in moments earlier. Where no independent accoun
 requestor logs nothing for a `QueryImageResponse` — the check says so with `accepted` instead of
 matching a line the precondition already guaranteed.
 
+## The SU block, where the DUT is the OTA requestor (`TC-SU-2.1`, `TC-SU-2.4`)
+
+The 2.x cases put the DUT in the requestor's role, so it is the device and the controller is the TH —
+`BDX_RECEIVER_ROLES`, as TC-BDX-1.2 and TC-BDX-2.2 use. The TH is also the plan's TH2/Administrator:
+one controller commissions, announces and answers as the OTA-P, and `exchanges` is the provider's own
+account of what the DUT sent it.
+
+**A requestor field is compared with a fresh read of the DUT, not with what the TH holds.** TC-SU-2.1
+step 1 reads `BasicInformation` over the wire after the query. The TH's held client state is what its
+provider validated the query against, so comparing the two would be comparing the query with itself.
+
+**An outcome that depends on a PICS answer asks for it with `cx.picsMet(expression)`.** It reads the
+same PICS a step's `pics` gate does, but where a gate runs a step with no active PICS, `picsMet`
+fails it: the step would otherwise be owed both outcomes. The plan's "IF (MCORE.OTA.RequestorConsent) True. Otherwise
+False" is then one check that holds both ways, rather than two steps of which one is always skipped.
+The HTTPS check is written both ways on the same grounds, although the plan states only the positive
+half: a DUT listing a protocol its PICS deny is as wrong as one leaving out a protocol they declare.
+
+**The requestor's OTA keys are declared per flavor, because CHIP's PICS file does not describe chip's
+app as this suite starts it.** The file describes a generic device and answers `MCORE.OTA.HTTPS` and
+`MCORE.OTA.RequestorConsent` `1`. `chip-ota-requestor-app` lists BDX synchronous alone and, started
+without `--requestorCanConsent` or `--userConsentState`, sends `RequestorCanConsent` false — chip's own
+`Test_TC_SU_2_1.yaml` sample log shows `RequestorCanConsent: 0`. Both declarations live in
+`src/cert/index.ts`. `MCORE.OTA.HTTPS` is one key for both roles, so in a case whose DUT is the
+provider the requestor app's `0` answers wherever the controller declares nothing. chip-tool declares
+nothing for it, so on a chip-tool leg the app's answer gates TC-SU-3.2 step 4; no verdict changes,
+because chip-tool's `MCORE.OTA.Provider` `0` skips every provider case first.
+
+**A case whose DUT is the requestor gates on the TH's provider keys too.** `MCORE.OTA.Provider` and
+`OTAR.C.M.AnnounceOTAProvider` are answered by the controller there, since the requestor app declares
+neither. chip-tool answers both `0`, so its leg skips before commissioning instead of passing on the
+precondition alone.
+
+**Step 2 is a `Busy` answer and a two-minute watch, as chip's own `Test_TC_SU_2_1.yaml` runs it.**
+That script starts its provider with `-q busy`: `Busy` invites a retry, and § 11.20.3.2.4 requires the
+requestor to hold it back for two minutes whatever `DelayedActionTime` says. A `NotAvailable` answer
+invites nothing — the next query is a day away — so a step built on it passes whatever the DUT's
+spacing is. The provider stamps every `QueryImage` with `receivedAtMs` on the controller's monotonic
+clock, and the step fails a retry closer than 120 s to the `Busy` answer. It keeps recording a
+margin past the window, so the conformant retry lands in step 2's own record and not in step 3's.
+
+**A check that something did *not* happen has to prove the window was watched.** A record read at
+once holds one query whatever the DUT does next, so step 2 also checks `OtaAnnouncement.observedMs`,
+which the adapter measures from the answered query to the read and never reports short of the window
+asked for. Removing the wait fails the step; the framework test in
+`test/cert-framework/ota-requestor-test-instance.test.ts` fails the same way.
+
+**A requestor DUT keeps the specification's floors.** `MATTER_CERT_OTA_FAST_RETRY` lowers the matter.js
+requestor's two-minute floors for cases where it is the TH, whose wait is only the TH's. Where it is the
+DUT, those floors are what is under test, so TC-SU-2.x start it with `SPEC_INTERVALS_ARG`, which keeps
+them whatever the run shortens. The flag goes under the `matterjs` key of `appArgs`: chip's requestor
+refuses to start on an argument it does not know.
+
+**Step 3 announces the provider the DUT already uses.** The harness has one provider, so it cannot
+tell "queried the indicated provider" apart from "queried its last provider". chip's own
+`Test_TC_SU_2_1.yaml` step 3 announces the same provider too. What the step shows is that the DUT
+received the announcement and then queried the provider it named.
+
+**Neither requestor honors the 120-second spacing on an announced query.** Matter Core § 11.20.3.2:
+"An OTA Requestor SHALL NOT query more frequently than once every 120 seconds". matter.js schedules
+the query `announcedUpdateQueryDelay` after the announcement, and chip after `mOtaStartDelaySec`, with
+no reference to the last query. The plan never asks this directly — its step 3 follows step 2's
+two-minute wait — so a later announcement's budget (`SPACED_QUERY_TIMEOUT`) covers a DUT that does
+honor it, and the case passes against both behaviours.
+
+**TC-SU-2.4 is matterjs-only, for TC-SU-3.4's reason.** chip's requestor sends `ApplyUpdateRequest` only
+under `--autoApplyImage`, and then exits, which the harness reads as the DUT dying mid-run.
+
+**TC-SU-2.6 is not reachable yet.** A requestor sends `NotifyUpdateApplied` when it starts up running
+the version it was updating to (`OtaSoftwareUpdateRequestorServer.#handlePreviousUpdateOnStart`).
+`OtaRequestorTestInstance` never restarts and never advances its `softwareVersion`, and chip's app
+cannot restart into the image this harness stages. Step 2's `BootReason` needs the same reboot.
+
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 
 Four "DUT sends *command* to TH" steps against chip's network-manager app, the same shape as the
@@ -3053,11 +3127,50 @@ cluster-client block. What it adds:
   Steps 3 and 4 read both back, so the case raises the timer in CHIP's
   `PIXIT.TBRM.THREAD_PENDING_DATASET` from 20 to 300 seconds rather than race it.
 - **chip prints an octet-string field over three lines**: `0x0 = [`, every byte as `0x0e, ` on the
-  next line, then `] (107 bytes)`. `expectCommandInvoke` matches one line per field, so the fields go
-  through `expectSequence`, anchored on the line after the command's `CommandId`. The byte line fits
+  next line, then `] (107 bytes)`. A `CommandFieldValue` may carry bytes: `expectCommandInvoke` matches those
+  three lines together on chip and the hex value on matter.js's single field line. The byte line fits
   only because CHIP's Linux and macOS builds with detail logging allow 1708 characters per log line
   (`chip_log_message_max_size`); the 256-character default in `CHIPConfig.h` would cut it after about
   40 bytes.
 - **Building the app on macOS needs the zap version the CHIP checkout names.** An older `zap-cli`
   fails codegen with "Version validation failed". `scripts/tools/zap/zap_download.py --zap RELEASE`
   fetches the right one, and `ZAP_INSTALL_PATH` points the build at it.
+
+## The ICD client case, and what it takes for a TH to send a Check-In (`TC-ICDB-1.3`)
+
+The DUT registers as TH1's Check-In client, TH2 (a helper controller on TH1's second fabric) sends CHIP's ICD test
+event triggers, and the DUT must refresh its key after half the counter range and drop a Check-In whose counter
+repeats. `CertNodeApi.icdClient()` is the controller side: `register()`, `unregister()`, `stayActive()`,
+`stopSubscription()`, and the Check-Ins and key refreshes it accepted (`events()`, `waitFor()`). TC-ICDM-6.1 uses
+the first three against the same `lit-icd` TH and needs none of the Check-In conditions below. Four things had to line up before any Check-In arrived:
+
+- **An ICD sends no Check-In to a client that holds a subscription, active or persisted.** CHIP's
+  `ICDManager::ShouldCheckInMsgsBeSentAtActiveModeFunction` checks both. With subscription timeout resumption
+  (stock `lit-icd-app`), the persisted entry lives until every resumption attempt is spent, and a retry after a
+  failed attempt waits at least 300 seconds. With persistence but no resumption, `mIsBootUpResumeSubscriptionExecuted` is only set after a
+  boot-time resumption, so on a freshly started app a persisted subscription blocks Check-Ins for good. The case
+  therefore runs `lit-icd-app-nopersist`, built with neither, which only this project's image carries. The matter.js
+  TH (`IcdTestInstance`) checks active subscriptions only and needs no variant. It implements the counter triggers
+  (`…03`, `…04`) through `IcdCounter.advance()`, by the amounts CHIP uses.
+- **TH2 must not become a Check-In client too.** `IcdClient` auto-registers with a LIT peer while subscribed, and
+  TH1 turns LIT when the DUT registers, so step 0 ends TH2's subscription first.
+- **The DUT has to drop its own subscription.** `IcdClient.register()` requires an active subscription (it reads
+  the peer's operating mode), and a registration makes matter.js recreate that subscription for the new operating
+  mode. `stopSubscription()` turns the peer's `autoSubscribe` off; the TH tears the subscription down when its next
+  report goes unanswered, and sends a Check-In at its next active mode.
+- **The controller has to advertise operationally**, or the TH fails with "Node Address resolution failed for ICD
+  Check-In". A node advertises when it starts with a fabric, or when `FabricManager` `added` fires after it is
+  online — a fabric created before `start()` on a fresh node does neither. The adapter therefore creates its
+  fabric after starting the controller, and every in-process cert controller now advertises `_matter._tcp`.
+
+Two more traps:
+
+- **`IcdClient.keyRefreshed` fires inside the refresh transaction**, so state read in the listener is still the
+  old key and counter. The recorder listens to `counterStart$Changed`, which fires after commit.
+- **The step-3 trigger invalidates exactly one Check-In.** It advances the counter by 2^32 − 1, so the next
+  Check-In repeats the last counter and the one after is valid again. The trigger's own exchange can also wake TH1
+  into a Check-In that is still valid, so step 3 does not count Check-Ins: it requires the drop line and that no
+  counter was accepted twice.
+
+The TH's active mode came every 10–20 seconds rather than the configured 5, so every wait is 90 seconds.
+

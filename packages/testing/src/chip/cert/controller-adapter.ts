@@ -376,6 +376,14 @@ export interface OtaQueryImageResponseRecord {
 export interface OtaQueryImageExchange {
     request: OtaQueryImageRequestRecord;
     response: OtaQueryImageResponseRecord;
+
+    /**
+     * When the provider received the command, in milliseconds on the controller's monotonic clock.
+     *
+     * Only the difference between two exchanges means anything: it is how far apart the requestor
+     * queried, measured on the side that received the queries (Matter Core § 11.20.3.2).
+     */
+    receivedAtMs: number;
 }
 
 /** One `ApplyUpdateRequest` a requestor sent this provider, with the answer it got (§ 11.20.6.9–10). */
@@ -546,6 +554,16 @@ export interface AnnounceOtaProviderOptions {
      * free to wait out its own query interval, so a case waiting on the query has to say it means that.
      */
     announcementReason?: number;
+
+    /**
+     * How long to keep recording, in milliseconds, for a case asserting what the node did *not* send in
+     * that window. It starts once the node's `QueryImage` was answered, or at the announcement where
+     * {@link expectQuery} is `false`.
+     *
+     * Absent, the record is read at once. Where {@link provider} names another node there is no record
+     * to keep, so nothing is waited for.
+     */
+    observeMs?: number;
 }
 
 /** The `AnnounceOTAProvider` a controller sent, as the fields it put on the wire (§ 11.20.7.6). */
@@ -572,6 +590,14 @@ export interface OtaAnnouncement {
      * the requestor deals with that node directly, and nothing of the exchange passes through here.
      */
     exchanges: OtaProviderExchanges;
+
+    /**
+     * How long the record was kept open after the point {@link AnnounceOtaProviderOptions.observeMs}
+     * counts from, in milliseconds: at least what was asked for, and zero where nothing was observed —
+     * no `observeMs`, or another node announced as the provider. A claim that nothing arrived in a
+     * window holds only for the window this covers.
+     */
+    observedMs: number;
 }
 
 /** Options for {@link CertNodeApi.serveOtaUpdate}. */
@@ -642,6 +668,81 @@ export interface CertSessionInfo {
      * that header — four bytes for TCP.
      */
     maxPayloadSize: number;
+}
+
+/**
+ * What the controller's ICD Check-In client accepted from one node, in arrival order.
+ *
+ * A Check-In the client drops leaves no entry, so a step asserting a refusal checks that none arrived beside the
+ * controller's own log.
+ */
+export type CertIcdEvent =
+    | { kind: "checkIn"; counter: number }
+    | {
+          kind: "keyRefresh";
+
+          /** The key the client re-registered with. */
+          key: Uint8Array;
+
+          /** The `ICDCounter` the node answered the re-registration with, the new key's starting value. */
+          counterStart: number;
+      };
+
+/** What {@link CertIcdClientApi.register} sent, and what the node answered. */
+export interface CertIcdRegistration {
+    key: Uint8Array;
+
+    /** The controller's own node id, which it sends as both `CheckInNodeID` and `MonitoredSubject`. */
+    nodeId: bigint;
+
+    icdCounter: number;
+}
+
+/**
+ * The controller as the ICD Check-In client of one node.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.22
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16
+ */
+export interface CertIcdClientApi {
+    /**
+     * Sends `RegisterClient` with this controller as Check-In target and monitored subject, and resolves with what it
+     * sent (the key, and its own node id as `CheckInNodeID` and `MonitoredSubject`) and the `ICDCounter` the node
+     * answered.
+     */
+    register(options?: { allowMultiAdmin?: boolean }): Promise<CertIcdRegistration>;
+
+    /**
+     * Sends `UnregisterClient` with the controller's node id as `CheckInNodeID` and its current key as
+     * `VerificationKey`. Rejects without sending anything when the controller holds no registration with the node.
+     */
+    unregister(): Promise<void>;
+
+    /**
+     * Sends `StayActiveRequest` asking the node to stay active for `durationMs`, and resolves with the
+     * `PromisedActiveDuration` in milliseconds the node answered.
+     */
+    stayActive(durationMs: number): Promise<number>;
+
+    /**
+     * Ends the controller's own subscription to the node and keeps it from subscribing again. An ICD sends Check-In
+     * messages only to a registered client without an active subscription, so a step waiting for one has to drop it
+     * first; and a controller auto-registers with a LIT node only while subscribed.
+     */
+    stopSubscription(): Promise<void>;
+
+    /** Everything recorded since the controller first handed out this client for the node. */
+    events(): CertIcdEvent[];
+
+    /**
+     * Resolves with the first event of `kind` at index `from` or later in {@link events}, and that index, and rejects
+     * once `timeoutMs` passes without one.
+     */
+    waitFor<K extends CertIcdEvent["kind"]>(
+        kind: K,
+        from: number,
+        timeoutMs: number,
+    ): Promise<{ event: Extract<CertIcdEvent, { kind: K }>; index: number }>;
 }
 
 /**
@@ -772,6 +873,14 @@ export interface CertNodeApi {
      * describe (its channel already detached) is omitted rather than reported half-known.
      */
     sessions(): Promise<CertSessionInfo[]>;
+
+    /**
+     * The controller as this node's ICD Check-In client. The same object is returned for the node every time, so
+     * what it recorded survives from one step to the next, until the node is commissioned anew.
+     *
+     * A controller that cannot act as a Check-In client throws {@link UnsupportedByControllerError}.
+     */
+    icdClient(): CertIcdClientApi;
 
     /**
      * Drop the transport connection beneath the session {@link CertSessionInfo.id} names, without

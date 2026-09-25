@@ -5,7 +5,6 @@
  */
 
 import { type Model } from "#models/Model.js";
-import { type ValueModel } from "#models/ValueModel.js";
 import { asError, InternalError } from "@matter/general";
 import { FeatureSet, FieldValue } from "../common/index.js";
 import { BasicToken, Lexer, TokenStream } from "../parser/index.js";
@@ -367,10 +366,10 @@ export namespace Conformance {
                 validateReferences(conformance, ast.param.lhs, errorTarget, resolver);
 
                 // Special case for comparison operators -- if LHS references an enum (or a field whose type is an enum),
-                // RHS may reference enum values using unqualified names.  Also handle boolean literals (True/False)
+                // RHS may reference enum values using unqualified names
                 let operatorResolver = resolver;
                 if (ast.param.lhs.type === "name") {
-                    const referenced = resolver(ast.param.lhs.param) as ValueModel | undefined;
+                    const referenced = resolver(ast.param.lhs.param);
                     if (referenced !== undefined) {
                         operatorResolver = (name: string | string[]) => {
                             if (typeof name === "string") {
@@ -395,6 +394,14 @@ export namespace Conformance {
                 for (const a of ast.param) {
                     validateReferences(conformance, a, errorTarget, resolver);
                 }
+                break;
+
+            case Special.OptionalIf:
+                validateReferences(conformance, ast.param, errorTarget, resolver);
+                break;
+
+            case Special.Choice:
+                validateReferences(conformance, ast.param.expr, errorTarget, resolver);
                 break;
 
             case Operator.DOT: {

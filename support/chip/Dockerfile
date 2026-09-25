@@ -163,6 +163,11 @@ RUN build-one ota-requestor-app/linux chip-ota-requestor-app
 # which the chip-cert-bins image uses too
 RUN build-one network-manager-app/linux matter-network-manager-app
 
+# TC-ICDB-1.3's TH, an ICD server with long idle time support, under CHIP's own name plus a variant suffix.
+# Built without subscription persistence: CHIP suppresses Check-In messages to a client while it holds a
+# persisted subscription for it, and a controller always subscribes before it registers
+RUN build-one lit-icd-app/linux lit-icd-app lit-icd-app-nopersist chip_persist_subscriptions=false chip_subscription_timeout_resumption=false
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python

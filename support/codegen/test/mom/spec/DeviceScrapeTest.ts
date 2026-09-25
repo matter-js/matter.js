@@ -168,6 +168,14 @@ function childNamed(element: { children?: unknown[] }, name: string) {
     return (element.children as Array<{ name: string }> | undefined)?.find(child => child.name === name);
 }
 
+function requirementNamed(element: DeviceTypeElement | RequirementElement, name: string): RequirementElement {
+    const child = element.children?.find(child => child.name === name);
+    if (child?.tag !== "requirement") {
+        expect.fail(`${element.name} has no requirement ${name}`);
+    }
+    return child;
+}
+
 describe("scrape of the Base device type", () => {
     const BaseChapter = `
 # 1. Base Device Type
@@ -304,15 +312,166 @@ describe("scrape of a device type chapter", () => {
     });
 
     it("gives an element requirement the section its table came from", () => {
-        const descriptor = childNamed(scrapeClosure(), "Descriptor") as RequirementElement;
-        const tagList = childNamed(descriptor, "TAGLIST") as RequirementElement;
+        const descriptor = requirementNamed(scrapeClosure(), "Descriptor");
+        const tagList = requirementNamed(descriptor, "TAGLIST");
         expect(tagList.xref).deep.equal({ document: "device", section: "8.5.5" });
     });
 
     it("gives a component device type's element requirement the section its table came from", () => {
-        const panel = childNamed(scrapeClosure(), "ClosurePanel") as RequirementElement;
-        const control = childNamed(panel, "ClosureControl") as RequirementElement;
-        const countdownTime = childNamed(control, "CountdownTime") as RequirementElement;
+        const panel = requirementNamed(scrapeClosure(), "ClosurePanel");
+        const control = requirementNamed(panel, "ClosureControl");
+        const countdownTime = requirementNamed(control, "CountdownTime");
         expect(countdownTime.xref).deep.equal({ document: "device", section: "8.5.6.1" });
+    });
+});
+
+describe("scrape of a condition requirement", () => {
+    const OvenChapter = `
+# 11. Appliance Device Types
+
+## 11.1. Oven Device Type
+
+An Oven cooks food.
+
+## 11.1.1. Revision History
+
+| Revision | Description |
+| --- | --- |
+| 1 | Initial revision |
+
+## 11.1.2. Classification
+
+| Device Type ID | Device Type Name | Class | Scope |
+| --- | --- | --- | --- |
+| 0x007B | Oven | Simple | Endpoint |
+
+## 11.1.3. Condition Requirements
+
+| Location   | Device Type ID | Device Type Name               | Condition | Conformance | Constraint |
+| --- | --- | --- | --- | --- | --- |
+| Descendant | 0x0071         | Temperature Controlled Cabinet | Heater    | M           | min 1      |
+`;
+
+    const ToasterChapter = `
+# 12. Appliance Device Types
+
+## 12.1. Toaster Device Type
+
+A Toaster toasts bread.
+
+## 12.1.1. Revision History
+
+| Revision | Description |
+| --- | --- |
+| 1 | Initial revision |
+
+## 12.1.2. Classification
+
+| Device Type ID | Device Type Name | Class | Scope |
+| --- | --- | --- | --- |
+| 0x007C | Toaster | Simple | Endpoint |
+
+## 12.1.3. Condition Requirements
+
+| Device Type ID | Device Type Name               | Condition | Conformance |
+| --- | --- | --- | --- |
+| 0x0071 | Temperature Controlled Cabinet | Heater | M |
+`;
+
+    function scrapeDevices(markdownContent: string) {
+        const document: SpecReference = {
+            xref: { document: "device", section: "" },
+            name: "Device Library",
+            path: "device_library.md",
+            markdownContent,
+        };
+
+        let devices = Array<DeviceTypeElement>();
+        const messages = captured(() => {
+            devices = [...loadDevices(document)].flatMap(deviceRef => [...translateDevice(deviceRef)]);
+        });
+        return { devices, messages };
+    }
+
+    it("keeps the location and constraint of a condition requirement", () => {
+        const { devices } = scrapeDevices(OvenChapter);
+        const requirement = requirementNamed(devices[0], "Heater");
+
+        expect(requirement.location).equals("Descendant");
+        expect(requirement.constraint).equals("min 1");
+        expect(requirement.type).equals("TemperatureControlledCabinet.Heater");
+    });
+
+    it("leaves location undefined and silent when the table has no Location column", () => {
+        const { devices, messages } = scrapeDevices(ToasterChapter);
+        const requirement = requirementNamed(devices[0], "Heater");
+
+        expect(requirement.location).undefined;
+        expect(
+            messages.some(message => message.includes("unknown location")),
+            messages.join("\n"),
+        ).false;
+    });
+
+    describe("every location spelling the specification uses", () => {
+        const LocationSpellingsChapter = `
+# 14. Sensing Device Types
+
+## 14.1. Probe Device Type
+
+A Probe senses one quantity.
+
+## 14.1.1. Revision History
+
+| Revision | Description |
+| --- | --- |
+| 1 | Initial revision |
+
+## 14.1.2. Classification
+
+| Device Type ID | Device Type Name | Class | Scope |
+| --- | --- | --- | --- |
+| 0x007D | Probe | Simple | Endpoint |
+
+## 14.1.3. Condition Requirements
+
+| Location   | Condition   | Conformance |
+| --- | --- | --- |
+| Root       | AtRoot      | M |
+| Root Node  | AtRootNode  | M |
+| Self       | AtSelf      | M |
+| Child      | AtChild     | M |
+| Nowhere    | AtNowhere   | M |
+`;
+
+        const { devices, messages } = scrapeDevices(LocationSpellingsChapter);
+        const device = devices[0];
+
+        for (const [name, expected] of [
+            ["AtRoot", "Root"],
+            ["AtRootNode", "Root"],
+            ["AtSelf", "Self"],
+            ["AtChild", "Descendant"],
+        ] as const) {
+            it(`normalizes a "${name}" row's location to ${expected}`, () => {
+                const requirement = requirementNamed(device, name);
+                expect(requirement.location).equals(expected);
+            });
+        }
+
+        it("leaves an unrecognized location undefined and names the device type and condition in the warning", () => {
+            const requirement = requirementNamed(device, "AtNowhere");
+
+            expect(requirement.location).undefined;
+            expect(
+                messages.some(
+                    message =>
+                        message.includes("unknown location") &&
+                        message.includes("Probe") &&
+                        message.includes("AtNowhere"),
+                ),
+                messages.join("\n"),
+            ).true;
+        });
     });
 });
