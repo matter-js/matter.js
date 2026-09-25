@@ -1686,10 +1686,7 @@ describe("GroupcastServer", () => {
             const GroupcastRoot = ServerNode.RootEndpoint.with(
                 GroupcastServer.with("Listener", "Sender", "PerGroup"),
                 GroupKeyManagementServer,
-                AccessControlServer.with("Extension", "Auxiliary").enable({
-                    attributes: { auxiliaryAcl: true },
-                    events: { auxiliaryAccessUpdated: true },
-                }),
+                AccessControlServer.with("Extension", "Auxiliary"),
             );
 
             await using site = new MockSite();

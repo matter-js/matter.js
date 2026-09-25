@@ -18,10 +18,12 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/types
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 - @matter/protocol
+    - Feature: Groupcast support (Matter 1.6.1): group session handling for multicast send and receive including Groupcast testing events
     - Enhancement: `IcdCounter.advance()` moves the ICD counter by up to 2^32 − 1, for test event triggers that invalidate counter values
     - Fix: A commissioner rejects a `PBKDFParamResponse` whose PBKDF iteration count is outside 1000..100000 and answers `InvalidParam`, instead of deriving the PASE key with whatever count the device sent. A PASE message that fails schema validation is reported as an `UnexpectedDataError` naming the message and field, and ends only the commissioning candidate that sent it, instead of cancelling every other candidate. The commissioner passes each address of a device as a separate candidate, so its other addresses are still tried
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 - @matter/node
+    - Feature: `GroupcastServer` (Groupcast cluster) and the AccessControl `Auxiliary` feature are available; both no longer throw on initialization. The GroupKeyManagement `Groupcast` feature stays provisional and is still rejected
     - Fix: A node whose fabric was created before it started (a controller calling `FabricAuthority.defaultFabric()` before `start()` on first run) now counts as commissioned once online and advertises operationally, as it already did after a restart, so an ICD can resolve such a controller to send it Check-Ins
     - Fix: Decommissioning a peer whose structure read never finished no longer reports an unhandled `uninitialized-dependency` error: the observer watching for that read now detaches when the node goes away, instead of reading state from a node that is closing
     - Breaking: A subclass of a behavior with a static `schema` takes that schema whichever class resolves first, so it validates and persists state as its parent does. Newly persisted in such subclasses: `uniqueId` of `BasicInformationServer` and `BridgedDeviceBasicInformationServer`, `totalOperationalHoursCounter` of `GeneralDiagnosticsServer`, `groupKeySets` of `GroupKeyManagementServer`, `persistedPresets` of `ThermostatBaseServer`, `updateInProgressDetails` and `activeOtaProviders` of `OtaSoftwareUpdateRequestorServer`, the subscriptions of `SubscriptionsServer`, the passcode and discriminator of `CommissioningServer`, and five `NetworkClient` fields. Stored values take precedence over changed defaults, and state that does not match the schema is rejected. `HttpServer`, `MqttServer` and `WebSocketServer` convert environment values to their declared types, so `MATTER_MQTT_ENABLED=false` disables the service
@@ -595,7 +597,6 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Bind the WebSocket/web server to loopback (127.0.0.1) by default instead of all interfaces; added a `--webAddress` option to choose the listen address
 
 - @matter/protocol
-    - Feature: Groupcast support (Matter 1.6.1): group session handling for multicast send and receive including Groupcast testing events
     - Feature: ICD Check-In protocol: CheckInMessage codec with counter-validation and replay protection, Check-In sender, and controller-side peer wakefulness scheduling
     - Enhancement: Worst-case MRP response-time now accounts for the sender's fixed-backoff/additional-delay pad
     - Enhancement: WiFi peers now use a dedicated network profile with a 1s additive MRP retransmission margin, selected by operational medium for dual-stack nodes
