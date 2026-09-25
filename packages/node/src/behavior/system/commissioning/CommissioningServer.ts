@@ -107,7 +107,7 @@ export class CommissioningServer extends Behavior {
         // Wait for cleanup to finish
         await this.internal.mutex;
 
-        // Delete on dispose, not on going offline: initialize() installs it only once
+        // Lives as long as the behavior: initialize() does not install it again when the node restarts
         this.env.delete(CommissioningConfigProvider);
     }
 
