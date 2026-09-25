@@ -19,7 +19,7 @@ import {
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, record, recordAll, requireId, runCleanups } from "./tc-support.js";
+import { attempt, CommissionedRefs, record, recordAll, requireId, runCleanups } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation cluster");
@@ -117,7 +117,13 @@ certTest("TC-DD-3.18", {
             const { th1, th2 } = await distinctSubjects(cx);
             await recordAll(cx, [
                 {
-                    check: () => distinctPayloadsCheck(th1, th2),
+                    check: async () => {
+                        const payloads = await attempt(
+                            () => distinctPayloadsCheck(th1, th2),
+                            () => "",
+                        );
+                        return payloads.ok ? payloads.value : payloads.check;
+                    },
                     what: "The two THs advertise different discriminators",
                 },
                 {

@@ -17,8 +17,9 @@ import type {
     DeviceExitInfo,
     LogExpectPatterns,
 } from "@matter/testing";
-import { LogFollower, PicsFile } from "@matter/testing";
+import { LogFollower, PicsFile, UnsupportedByControllerError } from "@matter/testing";
 import {
+    attempt,
     attributePathIBSequence,
     CertCheckFailedError,
     CertCleanupError,
@@ -1627,6 +1628,30 @@ describe("expectCommandInvoke", () => {
     });
 });
 
+describe("attempt", () => {
+    it("lets a controller's refusal through, so the harness can skip the step", async () => {
+        await expect(
+            attempt(
+                async () => {
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool", "no per-path status");
+                },
+                () => "",
+            ),
+        ).rejectedWith(UnsupportedByControllerError);
+    });
+
+    it("judges any other error as a failing check", async () => {
+        const result = await attempt(
+            async () => {
+                throw new InternalError("read failed");
+            },
+            () => "",
+        );
+        expect(result.ok).equal(false);
+        expect(result.check.verdict).equal("fail");
+    });
+});
+
 describe("invokeCommand", () => {
     const GROUPS = Matter.clusters.require("Groups");
     const GROUPS_ENDPOINT = 1;
@@ -1749,7 +1774,7 @@ describe("invokeCommand", () => {
     });
 
     it("passes the status check when a response carrying Status answers 0", async () => {
-        const { checks } = await invoke(
+        const { result, checks } = await invoke(
             GROUPS,
             GROUPS_ENDPOINT,
             "addGroup",
@@ -1761,10 +1786,11 @@ describe("invokeCommand", () => {
         const status = checks.find(check => check.what === "Groups.addGroup response status");
         expect(status?.verdict).equal("pass");
         expect(status?.detail).equal("addGroup response status=0");
+        expect(result.accepted).equal(true);
     });
 
     it("fails the status check when a response carrying Status answers a nonzero status", async () => {
-        const { checks } = await invoke(
+        const { result, checks } = await invoke(
             GROUPS,
             GROUPS_ENDPOINT,
             "addGroup",
@@ -1776,6 +1802,7 @@ describe("invokeCommand", () => {
         const status = checks.find(check => check.what === "Groups.addGroup response status");
         expect(status?.verdict).equal("fail");
         expect(status?.detail).equal("addGroup response status=139");
+        expect(result.accepted).equal(false);
     });
 
     it("fails the status check, naming what it answered, when a response that should carry Status has none", async () => {
@@ -1801,7 +1828,7 @@ describe("invokeCommand", () => {
             "1.groups.addGroup",
             { groupId: 5, groupName: "g5" },
             async () => {
-                throw new Error("group table full");
+                throw new InternalError("group table full");
             },
         );
 
@@ -1811,7 +1838,7 @@ describe("invokeCommand", () => {
             "CommandDataIB log for Groups.addGroup",
         ]);
         expect(checks[0].verdict).equal("fail");
-        expect(checks[0].detail).equal("addGroup: Error: group table full");
+        expect(checks[0].detail).equal("addGroup: InternalError: group table full");
         expect(checks[1].verdict).equal("pass");
     });
 });

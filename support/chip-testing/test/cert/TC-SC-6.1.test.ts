@@ -84,7 +84,7 @@ certTest("TC-SC-6.1", {
         5,
         "DUT sends ViewGroup command with the GroupID 1 to the Groups cluster on the TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            const { response, checks } = await invokeCommand(cx, ref, {
+            const { response, accepted, checks } = await invokeCommand(cx, ref, {
                 cluster: GROUPS,
                 endpoint: GROUPS_ENDPOINT,
                 command: "viewGroup",
@@ -92,7 +92,7 @@ certTest("TC-SC-6.1", {
                 fields: [{ id: 0, value: GROUP.id }],
             });
 
-            if (response.ok) {
+            if (response.ok && accepted) {
                 // The plan allows an empty name only from a TH without the GroupNames feature, so which
                 // answer is acceptable is read from the TH rather than allowed unconditionally — both THs
                 // configured here keep names, and an unconditional allowance could not fail for either.
@@ -143,7 +143,7 @@ certTest("TC-SC-6.1", {
         8,
         "DUT sends KeySetRead Command to TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            const { response, checks } = await invokeCommand(cx, ref, {
+            const { response, accepted, checks } = await invokeCommand(cx, ref, {
                 cluster: GROUP_KEY_MANAGEMENT,
                 endpoint: ROOT_ENDPOINT,
                 command: "keySetRead",
@@ -151,7 +151,7 @@ certTest("TC-SC-6.1", {
                 fields: [{ id: 0, value: GROUP_KEY_SET_ID }],
             });
 
-            if (response.ok) {
+            if (response.ok && accepted) {
                 const answer = response.value;
                 const read =
                     typeof answer === "object" && answer !== null && "groupKeySet" in answer
@@ -198,7 +198,7 @@ certTest("TC-SC-6.1", {
         10,
         "DUT sends KeySetReadAllIndices Command to TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            const { response, checks } = await invokeCommand(cx, ref, {
+            const { response, accepted, checks } = await invokeCommand(cx, ref, {
                 cluster: GROUP_KEY_MANAGEMENT,
                 endpoint: ROOT_ENDPOINT,
                 command: "keySetReadAllIndices",
@@ -206,7 +206,7 @@ certTest("TC-SC-6.1", {
                 fields: [],
             });
 
-            if (response.ok) {
+            if (response.ok && accepted) {
                 // The set removed in step 9 must be gone from the indices, which is what tells that command
                 // apart from one the TH merely answered.
                 const answer = response.value;

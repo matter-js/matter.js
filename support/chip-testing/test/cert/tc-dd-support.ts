@@ -24,6 +24,7 @@ import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.j
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import {
+    attempt,
     CertCleanupError,
     CommissionedRefs,
     expectDeviceLog,
@@ -374,8 +375,14 @@ export async function recordDiscoveryCapabilityAbsent(
         },
         {
             check: async () => {
-                const parsed = await cx.controllers.dut.parseQrPayload(payload);
-                const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
+                const parsed = await attempt(
+                    () => cx.controllers.dut.parseQrPayload(payload),
+                    () => "",
+                );
+                if (!parsed.ok) {
+                    return parsed.check;
+                }
+                const offered = DiscoveryCapabilitiesSchema.decode(parsed.value.discoveryCapabilities);
                 const names = Object.entries(offered)
                     .filter(([, set]) => set)
                     .map(([name]) => name);
@@ -384,7 +391,7 @@ export async function recordDiscoveryCapabilityAbsent(
                     verdict: offered[capability] ? "fail" : "pass",
                     detail:
                         `DUT read ${payload} as offering discovery over ${names.join(", ") || "nothing"} ` +
-                        `(bitmask 0b${parsed.discoveryCapabilities.toString(2).padStart(8, "0")}), so ${capability} is ` +
+                        `(bitmask 0b${parsed.value.discoveryCapabilities.toString(2).padStart(8, "0")}), so ${capability} is ` +
                         `${offered[capability] ? "offered" : "not offered"}`,
                 };
             },

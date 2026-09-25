@@ -31,7 +31,7 @@ import type {
     LogLine,
     TimedInteractionOptions,
 } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, forFlavor, UnsupportedByControllerError } from "@matter/testing";
 
 /**
  * Bounds a device-log check's wait for a line the step has already caused — one the device writes
@@ -84,6 +84,10 @@ export async function attempt<T>(
     try {
         value = await action();
     } catch (e) {
+        // The harness turns this refusal into a skipped step; judged as a failure it would fail the step instead
+        if (e instanceof UnsupportedByControllerError) {
+            throw e;
+        }
         return { ok: false, check: { type: "response", verdict: "fail", detail: describeError(e) } };
     }
     return { ok: true, value, check: { type: "response", verdict: "pass", detail: describe(value) } };
@@ -1191,6 +1195,12 @@ export interface InvokedCommand {
     /** The command's answer, where the invoke resolved. */
     response: { ok: true; value: unknown } | { ok: false };
 
+    /**
+     * Whether the TH accepted the command: the invoke resolved and, where the response carries a status, it is
+     * success. A check whose expected values assume the command took effect belongs behind this.
+     */
+    accepted: boolean;
+
     /** Every check the invoke settled, in the order a step records them. */
     checks: RecordedCheck[];
 
@@ -1229,8 +1239,10 @@ export async function invokeCommand(
         : { ...response.check, detail: `${command}: ${response.check.detail}` };
     const checks: RecordedCheck[] = [{ what: `${name} response`, check: () => responseCheck }];
 
+    let accepted = response.ok;
     if (response.ok && answersWithStatus(cluster, command)) {
         const status = responseStatusOf(response.value);
+        accepted = status === 0;
         const statusCheck: CheckRecord = {
             type: "response",
             verdict: status === 0 ? "pass" : "fail",
@@ -1254,7 +1266,7 @@ export async function invokeCommand(
     );
     checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
 
-    return { response: response.ok ? { ok: true, value: response.value } : { ok: false }, checks, from };
+    return { response: response.ok ? { ok: true, value: response.value } : { ok: false }, accepted, checks, from };
 }
 
 function describeInvokeResponse(response: unknown): string {
