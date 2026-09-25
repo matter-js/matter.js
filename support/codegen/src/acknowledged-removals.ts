@@ -49,4 +49,20 @@ export const AcknowledgedRemovals: AcknowledgedRemoval[] = [
             "NoUpstreamSubscription. Matter 1.6.1 deletes status code 0xc5 from the interaction model status " +
             "table. It remains in the 1.6.0 model because 1.6.0 defines it.",
     },
+    {
+        key: "deviceType#11/serverCluster#29/attribute:DeviceTypeList",
+        kind: "default",
+        revision: "1.6.1",
+        reason:
+            "Door Lock Controller revision 3 -> 4. Matter 1.6.1 adds revision 4 (Added Groupcast condition " +
+            "requirement), so the Descriptor DeviceTypeList default names the new revision.",
+    },
+    {
+        key: "deviceType#22/serverCluster#29/attribute:DeviceTypeList",
+        kind: "default",
+        revision: "1.6.1",
+        reason:
+            "Root Node revision 4 -> 5. Matter 1.6.1 adds revision 5 (Added conditions and cluster requirements " +
+            "for the Groupcast cluster), so the Descriptor DeviceTypeList default names the new revision.",
+    },
 ];

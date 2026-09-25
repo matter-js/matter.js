@@ -236,7 +236,7 @@ export declare namespace ContentLauncher {
 
         /**
          * This field shall indicate the URL of content to launch. The syntax of this field shall follow the syntax as
-         * specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme.
+         * specified in RFC1738 and shall use the https scheme.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.7.7.2.1
          */
@@ -665,8 +665,8 @@ export declare namespace ContentLauncher {
 
         /**
          * This field shall indicate the URL of image used for Styling different Video Player sections like Logo,
-         * Watermark etc. The syntax of this field shall follow the syntax as specified in [[RFC1738]](#ref_Rfc1738) and
-         * shall use the https scheme.
+         * Watermark etc. The syntax of this field shall follow the syntax as specified in RFC1738 and shall use the
+         * https scheme.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.7.5.9.1
          */
@@ -798,8 +798,8 @@ export declare namespace ContentLauncher {
         constructor(values?: Partial<TrackPreference>);
 
         /**
-         * This field shall contain one of the standard Tags for Identifying Languages [[RFC5646]](#ref_Rfc5646), which
-         * identifies the primary language used in the Track.
+         * This field shall contain one of the standard Tags for Identifying Languages RFC5646, which identifies the
+         * primary language used in the Track.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.7.5.12.1
          */

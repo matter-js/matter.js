@@ -17,7 +17,7 @@ export const DimmableLightDt = DeviceType(
     ),
     Requirement({
         name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "Rev >= v4",
-        element: "condition"
+        element: "condition", location: "Root"
     }),
     Requirement(
         { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" },

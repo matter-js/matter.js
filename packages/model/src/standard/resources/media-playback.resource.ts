@@ -632,8 +632,8 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "LanguageCode", xref: "cluster§6.10.5.6.1",
-                    details: "The value is a String containing one of the standard Tags for Identifying Languages " +
-                        "[[RFC5646]](#ref_Rfc5646), which identifies the primary language used in the Track."
+                    details: "The value is a String containing one of the standard Tags for Identifying Languages RFC5646, which " +
+                        "identifies the primary language used in the Track."
                 },
 
                 {

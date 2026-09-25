@@ -418,8 +418,8 @@ Resource.add({
                 {
                     tag: "field", name: "AudioLanguages", xref: "cluster§6.6.5.7.8",
                     details: "This field shall indicate the audio language for the specific program. The value is a string " +
-                        "containing one of the standard Tags for Identifying Languages [[RFC5646]](#ref_Rfc5646). This field " +
-                        "is optional but shall be provided if known."
+                        "containing one of the standard Tags for Identifying Languages RFC5646. This field is optional but " +
+                        "shall be provided if known."
                 },
 
                 {
@@ -434,21 +434,21 @@ Resource.add({
                 {
                     tag: "field", name: "ThumbnailUrl", xref: "cluster§6.6.5.7.10",
                     details: "This field shall represent a URL of a thumbnail that clients can use to render an image for the " +
-                        "program. The syntax of this field shall follow the syntax as specified in [[RFC1738]](#ref_Rfc1738) " +
-                        "and shall use the https scheme."
+                        "program. The syntax of this field shall follow the syntax as specified in RFC1738 and shall use the " +
+                        "https scheme."
                 },
 
                 {
                     tag: "field", name: "PosterArtUrl", xref: "cluster§6.6.5.7.11",
                     details: "This field shall represent a URL of a poster that clients can use to render an image for the program " +
-                        "on the detail view. The syntax of this field shall follow the syntax as specified in " +
-                        "[[RFC1738]](#ref_Rfc1738) and shall use the https scheme."
+                        "on the detail view. The syntax of this field shall follow the syntax as specified in RFC1738 and " +
+                        "shall use the https scheme."
                 },
 
                 {
                     tag: "field", name: "DvbiUrl", xref: "cluster§6.6.5.7.12",
                     details: "This field shall represent the DVB-I URL associated to the program. The syntax of this field shall " +
-                        "follow the syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme."
+                        "follow the syntax as specified in RFC1738 and shall use the https scheme."
                 },
 
                 {

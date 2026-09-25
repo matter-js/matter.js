@@ -65,8 +65,8 @@ Resource.add(
                 tag: "attribute", name: "SetupUrl", xref: "core§9.14.5.3",
 
                 details: "The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as " +
-                    "specified in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https scheme. " +
-                    "The location referenced by this URL shall provide additional information for the actions provided:" +
+                    "specified in RFC1738, max. 512 ASCII characters and shall use the https scheme. The location " +
+                    "referenced by this URL shall provide additional information for the actions provided:" +
                     "\n" +
                     "  - When used without suffix, it shall provide information about the various actions which the " +
                     "cluster provides." +

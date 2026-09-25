@@ -130,8 +130,8 @@ export namespace ThermostatRequirements {
     export const OccupancySensingClient = BaseOccupancySensingClient;
 
     /**
-     * The AmbientContextSensing cluster is provisional per the Matter specification (conformance P, O), so it is
-     * treated as optional.
+     * The AmbientContextSensing cluster is provisional per the Matter specification (conformance P, [Rev >= v6]), so it
+     * is treated as optional.
      *
      * We provide this alias to the default implementation {@link AmbientContextSensingClient} for convenience.
      */

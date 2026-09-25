@@ -17,7 +17,7 @@ export const ThermostatDt = DeviceType(
     ),
     Requirement({
         name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "Active",
-        element: "condition"
+        element: "condition", location: "Root"
     }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "Active", element: "serverCluster" }),

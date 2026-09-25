@@ -15,9 +15,10 @@ export const ThermostatControllerDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 778, revision: 2 } ], element: "attribute" })
     ),
-    Requirement(
-        { name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O", element: "condition" }
-    ),
+    Requirement({
+        name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+        element: "condition", location: "Root"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "ScenesManagement", id: 0x62, conformance: "O", element: "clientCluster" }),

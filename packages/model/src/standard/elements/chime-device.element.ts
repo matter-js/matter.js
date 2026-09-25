@@ -17,7 +17,7 @@ export const ChimeDt = DeviceType(
     ),
     Requirement({ name: "Chime", id: 0x556, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "Speaker", id: 0x22, conformance: "O", element: "deviceType" })
+    Requirement({ name: "Speaker", id: 0x22, conformance: "O", constraint: "max 1", element: "deviceType" })
 );
 
 MatterDefinition.children.push(ChimeDt);

@@ -1218,8 +1218,8 @@ export declare namespace MediaPlayback {
         constructor(values?: Partial<TrackAttributes>);
 
         /**
-         * The value is a String containing one of the standard Tags for Identifying Languages
-         * [[RFC5646]](#ref_Rfc5646), which identifies the primary language used in the Track.
+         * The value is a String containing one of the standard Tags for Identifying Languages RFC5646, which identifies
+         * the primary language used in the Track.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 6.10.5.6.1
          */

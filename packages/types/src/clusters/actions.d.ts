@@ -96,8 +96,8 @@ export declare namespace Actions {
 
         /**
          * The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as specified
-         * in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https scheme. The location
-         * referenced by this URL shall provide additional information for the actions provided:
+         * in RFC1738, max. 512 ASCII characters and shall use the https scheme. The location referenced by this URL
+         * shall provide additional information for the actions provided:
          *
          *   - When used without suffix, it shall provide information about the various actions which the cluster
          *     provides.
@@ -144,8 +144,8 @@ export declare namespace Actions {
 
         /**
          * The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as specified
-         * in [[RFC1738]](#ref_Rfc1738), max. 512 ASCII characters and shall use the https scheme. The location
-         * referenced by this URL shall provide additional information for the actions provided:
+         * in RFC1738, max. 512 ASCII characters and shall use the https scheme. The location referenced by this URL
+         * shall provide additional information for the actions provided:
          *
          *   - When used without suffix, it shall provide information about the various actions which the cluster
          *     provides.

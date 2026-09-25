@@ -12,7 +12,7 @@ describe("DeviceTypeModel", () => {
             const deviceType = MatterModel.standard.deviceTypes.require("OnOffLight", DeviceTypeModel);
 
             expect(deviceType.declaredRevision).undefined;
-            expect(deviceType.revision).equals(3);
+            expect(deviceType.revision).equals(4);
         });
 
         it("answers the revision Base states, having no DeviceTypeList entry of its own", () => {

@@ -15,9 +15,10 @@ export const ColorDimmerSwitchDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 261, revision: 4 } ], element: "attribute" })
     ),
-    Requirement(
-        { name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O", element: "condition" }
-    ),
+    Requirement({
+        name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+        element: "condition", location: "Root"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster" }),

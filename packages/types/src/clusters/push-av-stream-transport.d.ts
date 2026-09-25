@@ -1117,8 +1117,8 @@ export declare namespace PushAvStreamTransport {
         tlsEndpointId: number;
 
         /**
-         * This field shall be a valid string in [[RFC3986]](#ref_Rfc3986) format representing the upload location. The
-         * field shall use the https scheme which will be validated by the underlying TLSEndpointID.
+         * This field shall be a valid string in RFC3986 format representing the upload location. The field shall use
+         * the https scheme which will be validated by the underlying TLSEndpointID.
          *
          * When the IngestMethod is CMAFIngest, this shall be the CMAF publishing_point_URL to transport the AV Stream
          * to. The URL length does not need to include space for the full CMAF POST_URL fields which specify the

@@ -1032,8 +1032,8 @@ export declare namespace AccessControl {
 
         /**
          * This field shall indicate the URL for the service associated with the device maker which the user can visit
-         * to manage fabric limitations. The syntax of this field shall follow the syntax as specified in
-         * [[RFC1738]](#ref_Rfc1738) and shall use the https scheme for internet-hosted URLs.
+         * to manage fabric limitations. The syntax of this field shall follow the syntax as specified in RFC1738 and
+         * shall use the https scheme for internet-hosted URLs.
          *
          *   - The URL may embed the token, fabric index, fabric vendor, or other information transparently in order to
          *     pass context about the originating ReviewFabricRestrictions command to the service associated with the

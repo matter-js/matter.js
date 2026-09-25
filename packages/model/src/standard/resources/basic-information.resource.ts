@@ -116,8 +116,8 @@ Resource.add({
             tag: "attribute", name: "ProductUrl", xref: "core§11.1.5.14",
             details: "This attribute shall specify a link to a product specific web page. The specified URL SHOULD resolve " +
                 "to a maintained web page available for the lifetime of the product. The syntax of this attribute " +
-                "shall follow the syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme. " +
-                "The maximum length of this attribute is 256 ASCII characters."
+                "shall follow the syntax as specified in RFC1738 and shall use the https scheme. The maximum length " +
+                "of this attribute is 256 ASCII characters."
         },
 
         {

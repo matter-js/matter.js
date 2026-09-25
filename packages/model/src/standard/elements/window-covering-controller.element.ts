@@ -17,7 +17,7 @@ export const WindowCoveringControllerDt = DeviceType(
     ),
     Requirement({
         name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "Active, O",
-        element: "condition"
+        element: "condition", location: "Root"
     }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster" }),

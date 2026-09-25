@@ -49,6 +49,7 @@ Resource.add({
             tag: "requirement", name: "AccessControl", xref: "device§2.1.5",
             children: [
                 { tag: "requirement", name: "MANAGEDDEVICE", xref: "device§2.1.6" },
+                { tag: "requirement", name: "AUXILIARY", xref: "device§2.1.6" },
                 { tag: "requirement", name: "Extension", xref: "device§2.1.6" }
             ]
         },
@@ -90,11 +91,23 @@ Resource.add({
 
         { tag: "requirement", name: "AdministratorCommissioning", xref: "device§2.1.5" },
         { tag: "requirement", name: "OperationalCredentials", xref: "device§2.1.5" },
-        { tag: "requirement", name: "GroupKeyManagement", xref: "device§2.1.5" },
+        {
+            tag: "requirement", name: "GroupKeyManagement", xref: "device§2.1.5",
+            children: [{ tag: "requirement", name: "GROUPCAST", xref: "device§2.1.6" }]
+        },
         {
             tag: "requirement", name: "IcdManagement", xref: "device§2.1.5",
             children: [{ tag: "requirement", name: "LONGIDLETIMESUPPORT", xref: "device§2.1.6" }]
         },
+
+        {
+            tag: "requirement", name: "Groupcast", xref: "device§2.1.5",
+            children: [
+                { tag: "requirement", name: "LISTENER", xref: "device§2.1.6" },
+                { tag: "requirement", name: "SENDER", xref: "device§2.1.6" }
+            ]
+        },
+
         { tag: "requirement", name: "TlsCertificateManagement", xref: "device§2.1.5" },
         { tag: "requirement", name: "TlsClientManagement", xref: "device§2.1.5" },
         { tag: "requirement", name: "PowerSource", xref: "device§2.1.4" },
@@ -146,6 +159,16 @@ Resource.add({
         {
             tag: "condition", name: "AclExtensionCond",
             description: "The node has at least one endpoint where some Device Type present on the endpoint needs the Access Control instance to have the Extension attribute.",
+            xref: "device§2.1.3"
+        },
+        {
+            tag: "condition", name: "GroupcastListenerCond",
+            description: "The node has at least one endpoint where some Device Type present on the endpoint needs the Groupcast Server cluster instance with the Listener feature. This condition SHALL be supported if any endpoint implements the Groups cluster server on an endpoint.",
+            xref: "device§2.1.3"
+        },
+        {
+            tag: "condition", name: "GroupcastSenderCond",
+            description: "The node has at least one endpoint where some Device Type present on the endpoint needs the Groupcast Server cluster instance with the Sender feature. This condition SHALL be supported if any endpoint implements the Bindings cluster server on an endpoint.",
             xref: "device§2.1.3"
         }
     ]

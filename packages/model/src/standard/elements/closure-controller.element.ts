@@ -15,9 +15,10 @@ export const ClosureControllerDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 574, revision: 2 } ], element: "attribute" })
     ),
-    Requirement(
-        { name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O", element: "condition" }
-    ),
+    Requirement({
+        name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+        element: "condition", location: "Root"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "ClosureControl", id: 0x104, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "ClosureDimension", id: 0x105, conformance: "O", element: "clientCluster" })

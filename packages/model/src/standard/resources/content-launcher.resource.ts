@@ -129,7 +129,7 @@ Resource.add({
                 {
                     tag: "field", name: "ContentUrl", xref: "cluster§6.7.7.2.1",
                     details: "This field shall indicate the URL of content to launch. The syntax of this field shall follow the " +
-                        "syntax as specified in [[RFC1738]](#ref_Rfc1738) and shall use the https scheme."
+                        "syntax as specified in RFC1738 and shall use the https scheme."
                 },
                 {
                     tag: "field", name: "DisplayString", xref: "cluster§6.7.7.2.2",
@@ -384,8 +384,8 @@ Resource.add({
                 {
                     tag: "field", name: "ImageUrl", xref: "cluster§6.7.5.9.1",
                     details: "This field shall indicate the URL of image used for Styling different Video Player sections like " +
-                        "Logo, Watermark etc. The syntax of this field shall follow the syntax as specified in " +
-                        "[[RFC1738]](#ref_Rfc1738) and shall use the https scheme."
+                        "Logo, Watermark etc. The syntax of this field shall follow the syntax as specified in RFC1738 and " +
+                        "shall use the https scheme."
                 },
 
                 {
@@ -488,8 +488,8 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "LanguageCode", xref: "cluster§6.7.5.12.1",
-                    details: "This field shall contain one of the standard Tags for Identifying Languages " +
-                        "[[RFC5646]](#ref_Rfc5646), which identifies the primary language used in the Track."
+                    details: "This field shall contain one of the standard Tags for Identifying Languages RFC5646, which " +
+                        "identifies the primary language used in the Track."
                 },
 
                 {

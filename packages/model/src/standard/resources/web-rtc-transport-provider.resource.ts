@@ -25,8 +25,8 @@ Resource.add({
                     "name urn:csa:matter:av-metadata shall be used for transmitting the metadata. The ability to include " +
                     "metadata is supported on a per session basis." +
                     "\n" +
-                    "This feature is designed to be JSEP [[RFC9429]](#ref_Rfc9429) compliant with the RTCDataChannel " +
-                    "object interface and consists of AVMetadataStruct content."
+                    "This feature is designed to be JSEP RFC9429 compliant with the RTCDataChannel object interface and " +
+                    "consists of AVMetadataStruct content."
             }]
         },
 
@@ -186,8 +186,8 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Sdp", xref: "cluster§11.5.6.3.2",
-                    details: "This field shall contain the string based SDP Offer [[RFC8866]](#ref_Rfc8866). See WebRTC Transport " +
-                        "for further details on SDP and Offer/Answer semantics."
+                    details: "This field shall contain the string based SDP Offer RFC8866. See WebRTC Transport for further " +
+                        "details on SDP and Offer/Answer semantics."
                 },
                 {
                     tag: "field", name: "StreamUsage", xref: "cluster§11.5.6.3.3",
@@ -309,8 +309,8 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "Sdp", xref: "cluster§11.5.6.5.2",
-                    details: "This field shall contain the string based SDP Answer [[RFC8866]](#ref_Rfc8866). See WebRTC Transport " +
-                        "for further details on SDP and Offer/Answer semantics."
+                    details: "This field shall contain the string based SDP Answer RFC8866. See WebRTC Transport for further " +
+                        "details on SDP and Offer/Answer semantics."
                 }
             ]
         },
@@ -318,11 +318,11 @@ Resource.add({
         {
             tag: "command", name: "ProvideIceCandidates", xref: "cluster§11.5.6.6",
 
-            details: "This command allows for string based ICE candidates [[RFC8839]](#ref_Rfc8839), Section 5.1, " +
-                "generated after the initial Offer / Answer exchange, via a JSEP onicecandidate event " +
-                "[[RFC9429]](#ref_Rfc9429), Section 4.1.20, a DOM rtcpeerconnectioniceevent event, or other WebRTC " +
-                "compliant implementations, to be added to a session during the gathering phase. This is typically " +
-                "used for STUN or TURN discovered candidates, or to indicate the end of gathering state." +
+            details: "This command allows for string based ICE candidates RFC8839, Section 5.1, generated after the " +
+                "initial Offer / Answer exchange, via a JSEP onicecandidate event RFC9429, Section 4.1.20, a DOM " +
+                "rtcpeerconnectioniceevent event, or other WebRTC compliant implementations, to be added to a session " +
+                "during the gathering phase. This is typically used for STUN or TURN discovered candidates, or to " +
+                "indicate the end of gathering state." +
                 "\n" +
                 "This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match " +
                 "an entry in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not " +
@@ -336,8 +336,8 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "IceCandidates", xref: "cluster§11.5.6.6.2",
-                    details: "This field shall contain a list of JSEP [[RFC9429]](#ref_Rfc9429) compliant ICE Candidate Format " +
-                        "objects per [[RFC9429]](#ref_Rfc9429), Section 3.5.2.1."
+                    details: "This field shall contain a list of JSEP RFC9429 compliant ICE Candidate Format objects per RFC9429, " +
+                        "Section 3.5.2.1."
                 }
             ]
         },
