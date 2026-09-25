@@ -384,9 +384,14 @@ describe("DescriptorServer", () => {
 
         for (const [name, parentType, delay, expectStillPresent] of [
             ["a composed parent while the closed child is still a part", OnOffLightDevice, 20, true],
-            ["a composed parent after the closed child is gone", OnOffLightDevice, 40, false],
+            [
+                "a composed parent whose replacement is listed before the closed child's removal is",
+                OnOffLightDevice,
+                16,
+                true,
+            ],
             ["an aggregator while the closed child is still a part", AggregatorEndpoint, 29, true],
-            ["an aggregator after the closed child is gone", AggregatorEndpoint, 40, false],
+            ["an aggregator after the closed child is gone (characterization)", AggregatorEndpoint, 40, false],
         ] as const) {
             it(`updates ${name}`, async () => {
                 const { partsList, closedChildStillPresent } = await replaceChild(parentType, delay);

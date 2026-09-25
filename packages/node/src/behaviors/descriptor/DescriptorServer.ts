@@ -205,6 +205,25 @@ export class DescriptorServer extends DescriptorBehavior {
      * Update the parts list.
      */
     async #updatePartsList() {
+        // Skip the lock when nothing changed; beginning the transaction during synchronous initialization would
+        // suspend and collide with a sibling behavior's write on the shared transaction
+        if (isDeepEqual(this.state.partsList, this.#currentPartsListNumbers())) {
+            return;
+        }
+
+        await this.context.transaction.addResources(this);
+        await this.context.transaction.begin();
+
+        // Recompute under the lock so the write reflects membership at write time, not at reactor start
+        const numbers = this.#currentPartsListNumbers();
+        if (isDeepEqual(this.state.partsList, numbers)) {
+            return;
+        }
+
+        this.state.partsList = numbers as EndpointNumber[];
+    }
+
+    #currentPartsListNumbers(): number[] {
         const endpoint = this.endpoint;
 
         let numbers: number[];
@@ -229,16 +248,7 @@ export class DescriptorServer extends DescriptorBehavior {
         }
 
         numbers.sort((a, b) => a - b);
-
-        // Avoid updating state since the filtering on events that trigger this function is rather lazy
-        if (isDeepEqual(this.state.partsList, numbers)) {
-            return;
-        }
-
-        await this.context.transaction.addResources(this);
-        await this.context.transaction.begin();
-
-        this.state.partsList = numbers as EndpointNumber[];
+        return numbers;
     }
 
     /**
