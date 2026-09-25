@@ -361,6 +361,9 @@ Object.defineProperties(Behavior.prototype, {
 Object.defineProperty(Behavior, "schema", {
     ...Object.getOwnPropertyDescriptor(Behavior, "schema"),
     set(this: Behavior.Type, schema: Schema) {
+        if (ClassSemantics.hasOwnSemantics(this) && Semantics.classOf(this).isFinal) {
+            throw new ImplementationError(`Cannot set schema of behavior ${this.name} because its schema is resolved`);
+        }
         Object.defineProperty(this, "schema", { value: schema, writable: true, enumerable: true, configurable: true });
     },
 });
@@ -371,8 +374,7 @@ Object.defineProperty(Behavior, "schema", {
 Object.defineProperties(Behavior, {
     [ClassSemantics.extend]: {
         value(this: Behavior.Type, decoration: ClassSemantics) {
-            // Behavior's own accessor derives schema from these semantics, so Behavior declares no model and a
-            // subclass cannot use an accessor as an override
+            // Behavior's own accessor derives schema from these semantics, so Behavior declares no model
             if (decoration.new === Behavior) {
                 return;
             }

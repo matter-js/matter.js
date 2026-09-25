@@ -642,12 +642,15 @@ In some cases you need to store additional state values in your cluster implemen
 ```typescript
 import { field, int16, nonvolatile } from "@matter/main/model";
 
-export class MyLevelControlServer extends LevelControlServer {
+// The features the dimmable light device type uses for its level control
+const MyLevelControlBase = LevelControlServer.with("Lighting", "OnOff");
+
+export class MyLevelControlServer extends MyLevelControlBase {
     declare state: MyLevelControlServer.State;
 }
 
 export namespace MyLevelControlServer {
-    export class State extends LevelControlServer.State {
+    export class State extends MyLevelControlBase.State {
         @field(int16, nonvolatile)
         mySpecialDeviceAttribute = 0;
     }

@@ -136,10 +136,11 @@ const schema = OtaSoftwareUpdateRequestorBehavior.schema.extend(
  *
  * * {@link applyUpdate}: The method is called with the new SoftwareVersion and the PersistedFileDescriptor where a downloaded
  *     update is placed and needs to trigger the update process including shutdown and restart of the node and also
- *     sending "bootReason" event after the update!  The record of the update is stored before it is called.  It owns
- *     the downloaded file and deletes it once the update is applied or has failed: a file left behind is applied again
- *     at the next query without asking the provider, so no `NotifyUpdateApplied` follows.  If it throws, the requestor
- *     logs the error, forgets the update and returns to idle.
+ *     sending "bootReason" event after the update!  It runs in its own transaction after the record of the update is
+ *     stored.  If the update fails, or the node keeps running the old version, it deletes the downloaded file: a file
+ *     left behind is applied again at the next query without asking the provider, so no `NotifyUpdateApplied`
+ *     follows.  After a restart into the new version the requestor discards the file itself.  If it throws, the
+ *     requestor logs the error, forgets the update and returns to idle.
  *
  * * {@link validateUpdateFile}: This method in default implementation reads the received OTA file and validates header and
  *     checksums and basic details. Override this method and use this.getDownloadLocation() for access if any custom
@@ -544,6 +545,12 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
     /** Perform an actual update query */
     async #performUpdateQuery() {
+        // Every query passes here, so none starts while applyUpdate runs outside the query's transaction
+        if (this.state.updateState === OtaSoftwareUpdateRequestor.UpdateState.Applying) {
+            logger.info("OTA update is being applied, skipping update query");
+            return;
+        }
+
         const downloadLocation = await this.getDownloadLocation();
         if (await downloadLocation.exists()) {
             let otaHeader: OtaImageHeader | undefined;
@@ -846,6 +853,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                 logger.warn(`Failed to request user consent:`, error);
                 this.#markActiveOtaProviderNoUpdate(providerLocation);
                 this.#resetStateToIdle(OtaSoftwareUpdateRequestor.ChangeReason.Failure);
+                return false;
             }
         }
 
@@ -1211,11 +1219,13 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
     }
 
     async #applyPreparedUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) {
-        // onFinalize also runs after a roll back, which leaves nothing prepared
+        // onFinalize also runs after a roll back, which leaves nothing prepared and no query scheduled
         if (
             this.state.updateState !== OtaSoftwareUpdateRequestor.UpdateState.Applying ||
             this.state.updateInProgressDetails?.newSoftwareVersion !== newSoftwareVersion
         ) {
+            logger.info(`OTA update to software version ${newSoftwareVersion} was not prepared, not applying it`);
+            this.#scheduleUpdateQuery();
             return;
         }
 
@@ -1307,7 +1317,7 @@ export namespace OtaSoftwareUpdateRequestorServer {
          * Details of an upgrade in progress, set when the update is applied and consumed on the next start: if the node
          * then runs {@link UpdateInProgressDetails.newSoftwareVersion} it emits `VersionApplied` and, where the update
          * came from a provider with a token, reports it applied to that provider; otherwise it reports a failure and
-         * queries again.  This value is persisted.
+         * queries again.  A failing `applyUpdate` clears it.  This value is persisted.
          */
         updateInProgressDetails: UpdateInProgressDetails | null = null;
 

@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { MqttServer } from "#behavior/system/mqtt/MqttServer.js";
 import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
@@ -153,16 +154,18 @@ describe("Behavior", () => {
     });
 });
 
-const KEPT_SCHEMA = new DatatypeModel(
-    { name: "KeptState", type: "struct" },
-    FieldElement({ name: "kept", type: "uint32", quality: "N" }),
-);
+function keptSchema() {
+    return new DatatypeModel(
+        { name: "KeptState", type: "struct" },
+        FieldElement({ name: "kept", type: "uint32", quality: "N" }),
+    );
+}
 
 // Two identical pairs, one per resolution order, because a behavior's schema resolves once and is cached
 class ParentResolvedLast extends Behavior {
     static override readonly id = "parentResolvedLast";
     declare state: ParentResolvedLast.State;
-    static override readonly schema = KEPT_SCHEMA;
+    static override readonly schema = keptSchema();
 }
 
 namespace ParentResolvedLast {
@@ -176,7 +179,7 @@ class ChildResolvedFirst extends ParentResolvedLast {}
 class ParentResolvedFirst extends Behavior {
     static override readonly id = "parentResolvedFirst";
     declare state: ParentResolvedFirst.State;
-    static override readonly schema = KEPT_SCHEMA;
+    static override readonly schema = keptSchema();
 }
 
 namespace ParentResolvedFirst {
@@ -388,7 +391,7 @@ class AccessorOverride extends Behavior {
     static override readonly id = "accessorOverride";
 
     static override get schema() {
-        return KEPT_SCHEMA;
+        return keptSchema();
     }
 }
 
@@ -461,6 +464,12 @@ describe("schema isolation", () => {
         expect(Reflect.set(AssignedChild, "schema", assigned)).true;
         expect([...AssignedChild.supervisor.persistentKeys()]).deep.equals(["other"]);
         expect([...AssignedParent.supervisor.persistentKeys()]).deep.equals(["kept"]);
+
+        expect(() => Reflect.set(AssignedChild, "schema", assigned)).throws(ImplementationError, /AssignedChild/);
+    });
+
+    it("rejects deriving a cluster variant of a behavior without a cluster schema", () => {
+        expect(() => ClusterBehavior.enable({})).throws(ImplementationError, /enable behavior ClusterBehavior/);
     });
 
     it("gives the base behavior an empty schema", () => {
