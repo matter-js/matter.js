@@ -12,8 +12,7 @@ LocalMatter.children.push({
 
     children: [
         // The spec erroneously marks IsCommissioningWithoutPower as provisional ("P, O") since 1.6.0 and still does in
-        // 1.6.1.  Drop the provisional flag until upstream corrects the conformance.  asOf is "1.6" not "1.6.0" because
-        // the generated revision has its trailing ".0" trimmed and must match by string comparison.
+        // 1.6.1.  Drop the provisional flag until upstream corrects the conformance.
         {
             tag: "attribute",
             id: 0xc,
