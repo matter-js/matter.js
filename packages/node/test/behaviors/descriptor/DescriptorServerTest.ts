@@ -10,6 +10,7 @@ import { OnOffServer } from "#behaviors/on-off";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { OnOffLightSwitchDevice } from "#devices/on-off-light-switch";
+import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
@@ -346,5 +347,66 @@ describe("DescriptorServer", () => {
 
             await expectFullPartsLists(node, secondChild);
         });
+    });
+
+    describe("membership changes that keep the count", () => {
+        async function settledPartsListOf(endpoint: Endpoint) {
+            await endpoint.env.get(NodeActivity).inactive;
+            await MockTime.yield3();
+            return [...endpoint.stateOf(DescriptorBehavior).partsList];
+        }
+
+        /**
+         * Close one of two children, then add a replacement after {@link delay} microtasks. Returns the settled
+         * parts list together with whether the closed child was still a part of {@link parentType} at the moment
+         * the replacement was added, so a caller can assert the timing window it means to exercise.
+         */
+        async function replaceChild(parentType: typeof OnOffLightDevice | typeof AggregatorEndpoint, delay: number) {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const parent = await node.add(parentType, { id: "parent", number: 1 });
+            await parent.add(TemperatureSensorDevice, { id: "c1", number: 2 });
+            const closing = await parent.add(TemperatureSensorDevice, { id: "c2", number: 3 });
+            expect(await settledPartsListOf(parent)).deep.equals([2, 3]);
+
+            const closed = closing.close();
+            for (let i = 0; i < delay; i++) {
+                await Promise.resolve();
+            }
+            const closedChildStillPresent = parent.parts.has(closing);
+
+            await parent.add(TemperatureSensorDevice, { id: "c3", number: 4 });
+            await closed;
+
+            const partsList = await settledPartsListOf(parent);
+            await node.close();
+            return { partsList, closedChildStillPresent };
+        }
+
+        for (const [name, parentType, delay, expectStillPresent] of [
+            ["a composed parent while the closed child is still a part", OnOffLightDevice, 20, true],
+            ["a composed parent after the closed child is gone", OnOffLightDevice, 40, false],
+            ["an aggregator while the closed child is still a part", AggregatorEndpoint, 29, true],
+            ["an aggregator after the closed child is gone", AggregatorEndpoint, 40, false],
+        ] as const) {
+            it(`updates ${name}`, async () => {
+                const { partsList, closedChildStillPresent } = await replaceChild(parentType, delay);
+                expect(closedChildStillPresent).equals(expectStillPresent);
+                expect(partsList).deep.equals([2, 4]);
+            });
+        }
+    });
+
+    it("orders PartsList numerically", async () => {
+        const numbers = [1, 2, 4, 6, 8, 9, 10];
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        for (const number of [10, 9, 8, 6, 4, 2, 1]) {
+            await node.add(OnOffLightDevice, { id: `light${number}`, number });
+        }
+        await node.env.get(NodeActivity).inactive;
+        await MockTime.yield3();
+
+        expect(node.stateOf(DescriptorBehavior).partsList).deep.equals(numbers);
+
+        await node.close();
     });
 });

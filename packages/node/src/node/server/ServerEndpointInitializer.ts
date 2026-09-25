@@ -42,7 +42,7 @@ export class ServerEndpointInitializer extends EndpointInitializer {
     }
 
     async eraseDescendant(endpoint: Endpoint) {
-        if (!endpoint.lifecycle.hasId) {
+        if (!endpoint.lifecycle.hasId || endpoint.maybeNumber === undefined) {
             return;
         }
 
@@ -50,7 +50,12 @@ export class ServerEndpointInitializer extends EndpointInitializer {
     }
 
     async deactivateDescendant(endpoint: Endpoint) {
-        if (!endpoint.lifecycle.hasId || endpoint.number === 0) {
+        if (!endpoint.lifecycle.hasId) {
+            return;
+        }
+
+        const number = endpoint.maybeNumber;
+        if (number === undefined || number === 0) {
             return;
         }
 
