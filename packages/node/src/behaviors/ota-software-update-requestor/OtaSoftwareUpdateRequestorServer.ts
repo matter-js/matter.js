@@ -378,7 +378,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         // real delays under load) a chance to fire the old timer prematurely.
         if (announcementReason !== OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement) {
             // If Urgent or UpdateAvailable, we schedule an update query earlier as we would have done before
-            const delay = Seconds(Math.floor(Math.random() * 599) + 1); // random delay 1..600s as per spec
+            const delay = this.state.announcedUpdateQueryDelay ?? Seconds(Math.floor(Math.random() * 600) + 1);
             logger.info(`Scheduling urgent update query in`, delay);
             this.#scheduleUpdateQuery(delay, ScheduleReason.Announced, provider);
         } else {
@@ -622,7 +622,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                         OtaSoftwareUpdateRequestor.ChangeReason.DelayByProvider,
                     );
                     this.#scheduleUpdateQuery(
-                        Seconds(Math.max(delayedActionTime, 120)),
+                        Millis(Math.max(Seconds(delayedActionTime), this.state.minimumQueryInterval)),
                         ScheduleReason.Busy,
                         providerLocation,
                     );
@@ -749,7 +749,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             );
             this.internal.updateDelayPromise = Time.sleep(
                 "OTAUpdateApply-AwaitNextAction",
-                Millis(Math.min(Math.max(Seconds(applyDelayedActionTime), Minutes(2)), Hours(24))),
+                Millis(Math.min(Math.max(Seconds(applyDelayedActionTime), this.state.minimumApplyDelay), Hours(24))),
             );
             await this.internal.updateDelayPromise;
             this.internal.updateDelayPromise = undefined;
@@ -1211,6 +1211,40 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
 export namespace OtaSoftwareUpdateRequestorServer {
     export class State extends OtaSoftwareUpdateRequestorBehavior.State {
+        /**
+         * How long to wait before querying a provider that announced an update other than a simple one.
+         *
+         * Unset draws the specified random window, so that the nodes of a fabric announced to together do
+         * not query at once. A node that knows it is alone with its provider may name a shorter wait; the
+         * specification states a preference rather than a requirement, so a fixed value still conforms.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.7.4.1.3
+         */
+        announcedUpdateQueryDelay?: Duration = undefined;
+
+        /**
+         * Shortest interval this requestor leaves between two `QueryImage` commands to one provider,
+         * which also floors the `DelayedActionTime` a `Busy` answer names.
+         *
+         * The specification requires two minutes, which is the default. It is settable so a test
+         * harness can observe the exchange that follows a delayed answer without waiting the delay
+         * out; a product that lowers it does not conform.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.3.2
+         */
+        minimumQueryInterval: Duration = Seconds(120);
+
+        /**
+         * Shortest interval this requestor leaves before re-sending an `ApplyUpdateRequest` a provider
+         * answered `AwaitNextAction`, which also floors the `DelayedActionTime` that answer names.
+         *
+         * As {@link minimumQueryInterval}: the specification requires two minutes, and lowering it is
+         * for a harness rather than for a product.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.6.10
+         */
+        minimumApplyDelay: Duration = Minutes(2);
+
         /**
          * The list of OTA providers that were recently active (by announcement or by being used).
          * The error counter is increased when a provider could not be reached or returned an unexpected error.

@@ -41,6 +41,18 @@ import { Identity } from "@matter/general";
  * A Pump device is a pump that may have variable speed. It may have optional built-in sensors and a regulation
  * mechanism. It is typically used for pumping fluids like water.
  *
+ * ### Cluster Restrictions
+ *
+ * #### On/Off Cluster (Server) Clarifications
+ *
+ * The actions carried out by a Pump device on receipt of commands are shown in the following.
+ *
+ * #### Level Control Cluster (Server) Clarifications
+ *
+ * The Level Control cluster shall allow controlling the pump setpoints. However, the transition time is always ignored.
+ *
+ * The setpoint of the pump is a percentage related to the level according to the following table.
+ *
  * PumpDevice requires PumpConfigurationAndControl cluster but PumpConfigurationAndControl is not added by default
  * because you must select the features your device supports. You can add manually using PumpDevice.with().
  *
@@ -169,9 +181,7 @@ export namespace PumpRequirements {
             PressureMeasurement: PressureMeasurementClient,
             FlowMeasurement: FlowMeasurementClient,
             OccupancySensing: OccupancySensingClient
-        },
-
-        mandatory: {}
+        }
     };
 }
 

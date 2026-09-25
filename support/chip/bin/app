@@ -13,7 +13,7 @@ fi
 
 case "$APP" in
     icd)
-        APP=lit-icd-app
+        APP=lit-icd-app-nopersist
         ;;
 
     network-manager)

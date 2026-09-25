@@ -53,7 +53,7 @@ export namespace WindowCoveringControllerRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { optional: { Identify: IdentifyServer }, mandatory: {} };
+    export const server = { optional: { Identify: IdentifyServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.

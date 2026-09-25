@@ -125,6 +125,18 @@ export interface SubscribeEventOptions extends ReadEventOptions {
     minIntervalFloorSeconds: number;
     maxIntervalCeilingSeconds: number;
     onUpdate?: (event: EventReadEntry) => void;
+
+    /**
+     * Marks every path of the subscription urgent, which a step operating the device and then waiting
+     * for the event needs: without it the publisher holds queued events until the subscription's
+     * maximum interval elapses.
+     *
+     * Off by default because it is visible on the wire, and a step asserting the subscribe request it
+     * sent describes the request it asked for.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 8.5
+     */
+    urgent?: boolean;
 }
 
 /**
@@ -156,6 +168,29 @@ export interface AttributeReadEntry {
     value: unknown;
     /** The cluster's data version, which a version-conditional write sends back (TC-IDM-3.1 step 15). */
     version?: number;
+}
+
+/**
+ * A concrete attribute path, spelled out rather than derived from {@link AttributePathSpec}: an
+ * optional field added there later would silently become mandatory at every call site.
+ */
+export interface ClientAttributePath {
+    endpoint: number;
+    cluster: number;
+    attribute: number;
+}
+
+/**
+ * One endpoint of a node as a controller holds it.
+ *
+ * This is not what a read answers. A read reports what the node exposes now; this reports what the
+ * controller believes, which is the only way to tell whether a controller noticed a bridge adding or
+ * removing a device rather than merely being able to see it.
+ */
+export interface ClientEndpointEntry {
+    endpoint: number;
+    deviceTypes: number[];
+    parts: number[];
 }
 
 /**
@@ -224,6 +259,490 @@ export interface ReadAttributeOptions {
      * didn't itself create.
      */
     fabricFiltered?: boolean;
+
+    /**
+     * Whether the read requires a session that permits payloads larger than the IPv6 MTU, which is a
+     * session over TCP (Matter Core § 4.15.1).
+     *
+     * A hard requirement, not a preference: a controller that cannot establish such a session fails
+     * the read, or refuses it with {@link UnsupportedByControllerError}, rather than reading over MRP
+     * — so a step asking for one cannot pass on a transport it did not use. A broad read is the case
+     * for it: the peer answers in a single report where MRP would have made it chunk.
+     */
+    largeMessage?: boolean;
+}
+
+/**
+ * The transfer an initiator proposed in the `*Init` message a responder answered.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.22.5.1
+ */
+export interface BdxTransferProposal {
+    /** Protocol version the initiator proposed, from the Transfer Control field's low nibble. */
+    version: number;
+
+    /** Driver modes the initiator offered; a responder chooses exactly one of those it set. */
+    senderDrive: boolean;
+    receiverDrive: boolean;
+    asynchronousTransfer: boolean;
+
+    /** Largest block, in bytes, the initiator said it can take. */
+    maxBlockSize: number;
+
+    /** Offset into the file the transfer is to start at, absent where the initiator named none. */
+    startOffset?: number;
+
+    /** The definite length proposed, absent where the initiator proposed an indefinite transfer. */
+    definiteLength?: number;
+
+    /**
+     * File designator the initiator named, as the text its bytes carry. For an OTA download it is the
+     * path out of the image URI the provider answered `QueryImage` with, `ota/<filename>`.
+     */
+    fileDesignator: string;
+
+    /** Length of that designator in bytes, which is the message's own File Designator Length field. */
+    fileDesignatorLength: number;
+}
+
+/**
+ * What a responder granted in the `*Accept` message it answered a {@link BdxTransferProposal} with.
+ *
+ * Read back from the responder's own session rather than decoded from the wire, so a case whose DUT
+ * *is* the responder states what the DUT sent rather than what the peer reports having received.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.22.5.2, § 11.22.5.3
+ */
+export interface BdxTransferAccept {
+    /** Protocol version the responder chose, which may not be newer than the proposed one. */
+    version: number;
+
+    /** The one driver mode chosen, named as the proposal names them. */
+    mode: "senderDrive" | "receiverDrive";
+
+    /** Whether the responder granted asynchronous transfer. */
+    asynchronousTransfer: boolean;
+
+    /** Block size granted, which may not exceed the proposed maximum. */
+    maxBlockSize: number;
+
+    /**
+     * The definite length granted, absent where the accept carried none.
+     *
+     * A `ReceiveAccept` carries no Range Control field of its own on the API surface: the flag is
+     * derived from this length, so its presence *is* the definite-length bit the peer reads.
+     */
+    definiteLength?: number;
+}
+
+/**
+ * The `QueryImage` a requestor sent this provider, as the provider received it (Matter Core
+ * § 11.20.6.5).
+ *
+ * `protocolsSupported` and the optional fields are reported as the requestor set them, because a case
+ * asserting on the DUT's answer has to be able to say what the answer was to.
+ */
+export interface OtaQueryImageRequestRecord {
+    vendorId: number;
+    productId: number;
+    softwareVersion: number;
+    protocolsSupported: number[];
+    hardwareVersion?: number;
+    location?: string;
+    requestorCanConsent?: boolean;
+
+    /** `MetadataForProvider` as hex, absent where the requestor sent none. */
+    metadataForProvider?: string;
+}
+
+/** The `QueryImageResponse` this provider answered with (Matter Core § 11.20.6.6). */
+export interface OtaQueryImageResponseRecord {
+    /** `QueryStatus`, as the cluster enumerates it: 0 UpdateAvailable, 1 Busy, 2 NotAvailable, 3 DownloadProtocolNotSupported. */
+    status: number;
+    delayedActionTime?: number;
+    imageUri?: string;
+    softwareVersion?: number;
+    softwareVersionString?: string;
+
+    /** `UpdateToken` as hex, whose byte length is what the plan's 8–32 byte rule is about. */
+    updateToken?: string;
+    userConsentNeeded?: boolean;
+
+    /** `MetadataForRequestor` as hex, absent where the provider sent none. */
+    metadataForRequestor?: string;
+}
+
+/** One `QueryImage` a requestor sent this provider, with the answer it got. */
+export interface OtaQueryImageExchange {
+    request: OtaQueryImageRequestRecord;
+    response: OtaQueryImageResponseRecord;
+
+    /**
+     * When the provider received the command, in milliseconds on the controller's monotonic clock.
+     *
+     * Only the difference between two exchanges means anything: it is how far apart the requestor
+     * queried, measured on the side that received the queries (Matter Core § 11.20.3.2).
+     */
+    receivedAtMs: number;
+}
+
+/** One `ApplyUpdateRequest` a requestor sent this provider, with the answer it got (§ 11.20.6.9–10). */
+export interface OtaApplyUpdateExchange {
+    request: {
+        /** `UpdateToken` as hex, which the plan compares with the one the `QueryImageResponse` carried. */
+        updateToken: string;
+        newVersion: number;
+    };
+    response: {
+        /** `Action`: 0 Proceed, 1 AwaitNextAction, 2 Discontinue. */
+        action: number;
+        delayedActionTime: number;
+    };
+}
+
+/** One `NotifyUpdateApplied` a requestor sent this provider (§ 11.20.6.11). */
+export interface OtaNotifyUpdateAppliedRecord {
+    /** `UpdateToken` as hex. */
+    updateToken: string;
+    softwareVersion: number;
+}
+
+/**
+ * Every OTA command the controller's provider answered during one served update, in the order it
+ * answered them.
+ *
+ * A provider's own answer is not observable from outside it: the requestor's log says what it
+ * received, and nothing says what the fields of the response were. So the cases whose DUT is the
+ * provider read them here, and the requestor's log is what corroborates that they reached it.
+ */
+export interface OtaProviderExchanges {
+    queryImage: OtaQueryImageExchange[];
+    applyUpdate: OtaApplyUpdateExchange[];
+    notifyUpdateApplied: OtaNotifyUpdateAppliedRecord[];
+}
+
+/**
+ * One OTA image the controller served over BDX, and what its BDX session negotiated and moved.
+ *
+ * The controller answers a requestor's `ReceiveInit` here, so this is the sender's and responder's
+ * own account: what it was asked for, what it granted, and how much it then sent.
+ */
+export interface OtaBdxTransfer {
+    /** Endpoint on the controller that hosts the OTA provider which served the image. */
+    providerEndpoint: number;
+
+    /**
+     * Operational node id the controller holds on the node's fabric, in the form
+     * {@link ControllerAdapter.commission} answers with.
+     *
+     * A BDX image URI names this node as its authority, and the controller is the only side that can
+     * state it: the requestor reads it out of the URI, so checking the URI against it there would be
+     * checking the URI against itself. The URI's own rendering of it is the URI's business.
+     */
+    providerNodeId: CertNodeRef;
+
+    /** Software version of the image staged and announced, one newer than the node reported. */
+    softwareVersion: number;
+
+    /** Size of the staged OTA file in bytes, which is the definite length the transfer carries. */
+    fileSize: number;
+
+    /** What the node proposed in the `ReceiveInit` that opened the transfer. */
+    proposal: BdxTransferProposal;
+
+    /** What the controller granted in the `ReceiveAccept` it answered with. */
+    accept: BdxTransferAccept;
+
+    /** Bytes the controller's BDX sender moved, counted by the sending flow itself. */
+    transferredBytes: number;
+
+    /**
+     * Whether the node asked to apply what it downloaded and this provider allowed it, which is the
+     * end of the OTA exchange as far as the node is concerned.
+     *
+     * A transfer can complete without it — a node may decide the image is not for it after all — so
+     * this is reported rather than being a condition of serving.
+     */
+    applyAcknowledged: boolean;
+
+    /**
+     * The OTA commands the controller's own provider answered while serving this image.
+     *
+     * A copy taken when this resolved, covering this served update alone: the record is opened afresh
+     * for each call, and an answer the provider gives afterwards cannot reach a case still holding
+     * this one.
+     */
+    exchanges: OtaProviderExchanges;
+}
+
+/**
+ * An answer the controller's OTA provider gives in place of the one it would compute.
+ *
+ * A plan step may be about a status the provider reaches only in a state the harness cannot arrange —
+ * `Busy` while consent is outstanding, an `ApplyUpdateResponse` deferring the apply. The provider is
+ * the DUT here, and a vendor's provider is likewise free to answer these; what the case proves is that
+ * the cluster server states them the way the specification requires, and that the requestor acts on
+ * them. An absent field leaves the provider's own answer standing.
+ */
+export interface OtaScriptedQueryAnswer {
+    /** `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.6). */
+    status?: number;
+
+    /** `DelayedActionTime` in seconds, which a `Busy` answer carries. */
+    delayedActionTime?: number;
+
+    /** `UserConsentNeeded` to set on the answer the provider computed. */
+    userConsentNeeded?: boolean;
+}
+
+/**
+ * An `ApplyUpdateResponse` the provider is to give (§ 11.20.6.10).
+ *
+ * Two actions are meaningful. `AwaitNextAction` (1) the provider has no path of its own to, so it is
+ * stated directly and its side effects are suppressed — the requestor's next attempt needs the image
+ * it already downloaded. `Discontinue` (2) it does have a path to, so the controller withdraws the
+ * update's consent and lets the provider refuse for itself, which keeps the state it is left in
+ * agreeing with the answer the requestor received. Anything else leaves the provider's own answer.
+ */
+export interface OtaScriptedApplyAnswer {
+    /** `Action`: 1 AwaitNextAction, 2 Discontinue. */
+    action?: number;
+
+    /** `DelayedActionTime` in seconds, which only a stated `AwaitNextAction` carries. */
+    delayedActionTime?: number;
+}
+
+/**
+ * Answers the controller's provider gives to the next commands it receives, in order.
+ *
+ * One entry per command; once a list is spent the provider answers for itself again, which is how a
+ * case scripts the first answer and lets the real one follow.
+ */
+export interface OtaProviderScript {
+    queryImage?: OtaScriptedQueryAnswer[];
+    applyUpdate?: OtaScriptedApplyAnswer[];
+}
+
+/** Options for {@link CertNodeApi.announceOtaProvider}. */
+export interface AnnounceOtaProviderOptions {
+    /** How long to wait for the node's own `QueryImage` once it has been announced to. */
+    timeoutMs?: number;
+
+    /**
+     * Whether the node is expected to query the announced provider. Absent, it is.
+     *
+     * Only the controller's own provider can be waited for, so this has no effect at all where
+     * {@link provider} names another node: that node answers the query, and nothing of the exchange
+     * passes through this controller. A node that never queries rejects rather than leaving the step
+     * to assert over an empty record.
+     */
+    expectQuery?: boolean;
+
+    /**
+     * Another commissioned node to name as the provider, rather than the controller itself.
+     *
+     * This is the administrator's role: the controller tells a requestor where to update from, and the
+     * two nodes deal with each other afterwards. The provider's endpoint is resolved from what the
+     * controller holds for that node.
+     */
+    provider?: CertNodeRef;
+
+    /**
+     * `AnnouncementReason` to send: 0 SimpleAnnouncement, 1 UpdateAvailable, 2 UrgentUpdateAvailable.
+     *
+     * Absent, `UpdateAvailable`, which asks the requestor to query now. A simple announcement leaves it
+     * free to wait out its own query interval, so a case waiting on the query has to say it means that.
+     */
+    announcementReason?: number;
+
+    /**
+     * How long to keep recording, in milliseconds, for a case asserting what the node did *not* send in
+     * that window. It starts once the node's `QueryImage` was answered, or at the announcement where
+     * {@link expectQuery} is `false`.
+     *
+     * Absent, the record is read at once. Where {@link provider} names another node there is no record
+     * to keep, so nothing is waited for.
+     */
+    observeMs?: number;
+}
+
+/** The `AnnounceOTAProvider` a controller sent, as the fields it put on the wire (§ 11.20.7.6). */
+export interface OtaAnnouncementRecord {
+    /** `ProviderNodeID`, in the form {@link ControllerAdapter.commission} answers with. */
+    providerNodeId: CertNodeRef;
+
+    /** `VendorID`, which is the announcing controller's own `BasicInformation` value. */
+    vendorId: number;
+
+    /** `AnnouncementReason`: 0 SimpleAnnouncement, 1 UpdateAvailable, 2 UrgentUpdateAvailable. */
+    announcementReason: number;
+
+    /** `Endpoint` on the provider node that carries the OTA provider cluster. */
+    endpoint: number;
+}
+
+/** What {@link CertNodeApi.announceOtaProvider} sent, and what the announced provider then answered. */
+export interface OtaAnnouncement {
+    announcement: OtaAnnouncementRecord;
+
+    /**
+     * What the controller's own provider answered afterwards, empty where another node was announced:
+     * the requestor deals with that node directly, and nothing of the exchange passes through here.
+     */
+    exchanges: OtaProviderExchanges;
+
+    /**
+     * How long the record was kept open after the point {@link AnnounceOtaProviderOptions.observeMs}
+     * counts from, in milliseconds: at least what was asked for, and zero where nothing was observed —
+     * no `observeMs`, or another node announced as the provider. A claim that nothing arrived in a
+     * window holds only for the window this covers.
+     */
+    observedMs: number;
+}
+
+/** Options for {@link CertNodeApi.serveOtaUpdate}. */
+export interface ServeOtaUpdateOptions {
+    /**
+     * How long the whole exchange may take — the announcement, the node's `QueryImage`, and the BDX
+     * transfer that follows. Expiry rejects; there is no partial result, because a transfer that did
+     * not happen is the failure a BDX case exists to catch.
+     */
+    timeoutMs?: number;
+
+    /**
+     * Whether the node is expected to ask to apply what it downloaded, which is the last thing it
+     * needs from the provider.
+     *
+     * Where it will not ask, waiting for it only delays the caller: chip's `ota-requestor-app` treats
+     * the download as the end of the update unless started with `--autoApplyImage`, and chip's own
+     * certification material starts it without that flag for the download cases (`Test_TC_SU_3_3`).
+     * Absent, the node is expected to ask.
+     */
+    expectApply?: boolean;
+
+    /**
+     * How long to wait for the node's `ApplyUpdateRequest` once the transfer is complete.
+     *
+     * The request follows the last block immediately, so the default covers the two rather than a
+     * node that decided against applying. A case whose provider defers the apply names the delay it
+     * asked for plus room for the exchange that follows.
+     */
+    applyTimeoutMs?: number;
+}
+
+/**
+ * One live session a controller holds with a node.
+ *
+ * Held state, like {@link ClientEndpointEntry}: the controller's own view of a session it
+ * established, which is the only side that can say whether the session *permits* a large payload —
+ * a peer can only be observed carrying one.
+ *
+ * A controller may hold several sessions with one node at once, one per transport, so every claim
+ * here is about the session {@link id} names. A case that reasoned about "the session" instead would
+ * be answered by whichever session happened to be newest: a check for a severed session's absence
+ * would pass on a sibling that was never severed, and a check for a large-payload session would fail
+ * on a sibling that never claimed to be one.
+ */
+export interface CertSessionInfo {
+    /**
+     * The controller's own id for this session, unique among the sessions it holds with this node.
+     *
+     * This is the handle every other session operation takes: a step captures it once and names it
+     * afterwards, rather than re-deriving which session it meant.
+     */
+    id: number;
+
+    /** Transport beneath the session, as the controller's own channel reports it. */
+    transport: "tcp" | "udp" | "ble";
+
+    /**
+     * Whether the session permits payloads larger than the IPv6 MTU — the property a case asserting
+     * "the session allows large payloads" is about.
+     */
+    largePayload: boolean;
+
+    /**
+     * The session channel's payload ceiling, in bytes.
+     *
+     * A frame's own header counts against it, so the largest message a channel accepts is this less
+     * that header — four bytes for TCP.
+     */
+    maxPayloadSize: number;
+}
+
+/**
+ * What the controller's ICD Check-In client accepted from one node, in arrival order.
+ *
+ * A Check-In the client drops leaves no entry, so a step asserting a refusal checks that none arrived beside the
+ * controller's own log.
+ */
+export type CertIcdEvent =
+    | { kind: "checkIn"; counter: number }
+    | {
+          kind: "keyRefresh";
+
+          /** The key the client re-registered with. */
+          key: Uint8Array;
+
+          /** The `ICDCounter` the node answered the re-registration with, the new key's starting value. */
+          counterStart: number;
+      };
+
+/** What {@link CertIcdClientApi.register} sent, and what the node answered. */
+export interface CertIcdRegistration {
+    key: Uint8Array;
+
+    /** The controller's own node id, which it sends as both `CheckInNodeID` and `MonitoredSubject`. */
+    nodeId: bigint;
+
+    icdCounter: number;
+}
+
+/**
+ * The controller as the ICD Check-In client of one node.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.22
+ * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16
+ */
+export interface CertIcdClientApi {
+    /**
+     * Sends `RegisterClient` with this controller as Check-In target and monitored subject, and resolves with what it
+     * sent (the key, and its own node id as `CheckInNodeID` and `MonitoredSubject`) and the `ICDCounter` the node
+     * answered.
+     */
+    register(options?: { allowMultiAdmin?: boolean }): Promise<CertIcdRegistration>;
+
+    /**
+     * Sends `UnregisterClient` with the controller's node id as `CheckInNodeID` and its current key as
+     * `VerificationKey`. Rejects without sending anything when the controller holds no registration with the node.
+     */
+    unregister(): Promise<void>;
+
+    /**
+     * Sends `StayActiveRequest` asking the node to stay active for `durationMs`, and resolves with the
+     * `PromisedActiveDuration` in milliseconds the node answered.
+     */
+    stayActive(durationMs: number): Promise<number>;
+
+    /**
+     * Ends the controller's own subscription to the node and keeps it from subscribing again. An ICD sends Check-In
+     * messages only to a registered client without an active subscription, so a step waiting for one has to drop it
+     * first; and a controller auto-registers with a LIT node only while subscribed.
+     */
+    stopSubscription(): Promise<void>;
+
+    /** Everything recorded since the controller first handed out this client for the node. */
+    events(): CertIcdEvent[];
+
+    /**
+     * Resolves with the first event of `kind` at index `from` or later in {@link events}, and that index, and rejects
+     * once `timeoutMs` passes without one.
+     */
+    waitFor<K extends CertIcdEvent["kind"]>(
+        kind: K,
+        from: number,
+        timeoutMs: number,
+    ): Promise<{ event: Extract<CertIcdEvent, { kind: K }>; index: number }>;
 }
 
 /**
@@ -328,6 +847,98 @@ export interface CertNodeApi {
      * Rejects on a concrete path's status for the same reason {@link subscribe} does.
      */
     subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
+
+    /**
+     * The endpoints the controller holds for this node, from its own state rather than from a read.
+     *
+     * See {@link ClientEndpointEntry} for why the distinction matters. A controller that keeps no
+     * device list of its own refuses with {@link UnsupportedByControllerError}.
+     */
+    clientEndpoints(): Promise<ClientEndpointEntry[]>;
+
+    /**
+     * The value the controller holds for `path`, from its own state rather than from a read, and
+     * `undefined` where it holds none.
+     *
+     * As {@link clientEndpoints}, and refused the same way.
+     */
+    clientAttribute(path: ClientAttributePath): Promise<unknown>;
+
+    /**
+     * Every live session the controller holds with this node, in no particular order, and empty when
+     * it holds none.
+     *
+     * As {@link clientEndpoints}, and refused the same way — a controller that does not expose its own
+     * session state throws {@link UnsupportedByControllerError}. A session the controller can no longer
+     * describe (its channel already detached) is omitted rather than reported half-known.
+     */
+    sessions(): Promise<CertSessionInfo[]>;
+
+    /**
+     * The controller as this node's ICD Check-In client. The same object is returned for the node every time, so
+     * what it recorded survives from one step to the next, until the node is commissioned anew.
+     *
+     * A controller that cannot act as a Check-In client throws {@link UnsupportedByControllerError}.
+     */
+    icdClient(): CertIcdClientApi;
+
+    /**
+     * Drop the transport connection beneath the session {@link CertSessionInfo.id} names, without
+     * closing the session first, so the peer sees the connection go rather than a `CloseSession`.
+     *
+     * This is what "the TH closes the TCP connection" asks for: a session close would tell the peer
+     * to forget the session, which is the case's own expected *outcome* and so cannot be its stimulus.
+     *
+     * Naming the session is what makes the operation unambiguous when the controller holds more than
+     * one. A controller that cannot reach into its own sessions at all refuses with
+     * {@link UnsupportedByControllerError}; being handed an id it does not hold, or one whose transport
+     * has no connection to sever, is a *state* error and fails rather than refusing — a step that
+     * reached either has already established something untrue about the session it captured.
+     *
+     * The session names the target; the *connection* is what goes. Where a transport shares one
+     * connection between sessions, every session on it drops — so a case needing one session to
+     * survive the sever must not assume this touches only the one it named.
+     */
+    severTransportConnection(sessionId: number): Promise<void>;
+
+    /**
+     * Stages an OTA image applicable to this node, announces the controller to it as an OTA provider,
+     * and resolves once the node has pulled the image over BDX.
+     *
+     * This is what puts the controller in the BDX **sender and responder** role the BDX plans give
+     * their DUT: the node opens the transfer with a `ReceiveInit` and the controller answers it. The
+     * image is derived from what the controller already holds about the node — its vendor, product
+     * and software version — so it is applicable by construction rather than by a constant a test
+     * would have to keep in step with the subject.
+     *
+     * Resolves only for a transfer that completed. A node that never asked, one answered
+     * `NotAvailable`, and one whose transfer stalled all reject, so a case cannot pass on an OTA
+     * flow that never moved a byte.
+     *
+     * A controller with no OTA provider of its own refuses with {@link UnsupportedByControllerError}
+     * (see {@link CertNodeApi}'s own doc for the general contract).
+     */
+    serveOtaUpdate(options?: ServeOtaUpdateOptions): Promise<OtaBdxTransfer>;
+
+    /**
+     * Invokes `AnnounceOTAProvider` on this node, naming the controller's own OTA provider, and
+     * reports what that provider then answered.
+     *
+     * Unlike {@link serveOtaUpdate} this stages nothing, which is what makes it the way to observe a
+     * provider with no image to offer: the node queries, and the provider answers `NotAvailable` out
+     * of its own catalog rather than out of a state the case arranged.
+     */
+    announceOtaProvider(options?: AnnounceOtaProviderOptions): Promise<OtaAnnouncement>;
+
+    /**
+     * Has the controller's own OTA provider answer the next commands as `script` says.
+     *
+     * Replaces whatever a previous call installed, and an empty script clears it. The answers the
+     * provider then gave are reported the same way its own are, so a step asserts on what went on the
+     * wire rather than on what it asked for.
+     */
+    scriptOtaProvider(script: OtaProviderScript): Promise<void>;
+
     openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;
@@ -405,7 +1016,66 @@ export interface ControllerAdapter {
     parseManualPairingCode(code: string): Promise<ManualPairingCodeFields>;
 
     node(ref: CertNodeRef): CertNodeApi;
+
+    /**
+     * Addresses a group rather than a node, for a case whose subject is the groupcast itself
+     * (TC-SC-5.3 step 5). The fabric's group key set and the group's membership are established by
+     * ordinary unicast commands first; this only decides how the command that follows is addressed.
+     */
+    group(groupId: number): CertGroupApi;
+
+    /**
+     * Present only where the adapter was built with {@link ControllerAdapterOptions.webRtcRequestor}
+     * and the controller can host the cluster.
+     */
+    webRtcRequestor?: WebRtcRequestorApi;
+
+    /**
+     * Device attestation as this controller judges it.
+     *
+     * Present only where the adapter was built with {@link ControllerAdapterOptions.attestation}.
+     */
+    attestation?: AttestationApi;
+
     log: LogFollower;
+}
+
+/**
+ * Controller-side view of a group, which is a destination rather than a node: a groupcast is
+ * unacknowledged and carries no response, so there is nothing to read back and no status to await.
+ * What a step proves about one is proved from the sender's log and from the receiver's later state.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.15.3
+ */
+export interface CertGroupApi {
+    /**
+     * Installs the key material the sender needs, which is the other half of the key set a step writes
+     * to the device: a groupcast is encrypted with the group key, so a controller that only told the
+     * device about the key cannot send one (Matter Core § 4.16.2).
+     *
+     * The plan has the controller *generate* this key, so a case provisions itself here with the same
+     * key set it writes to the device.
+     */
+    defineKeySet(keySet: GroupKeySetSpec): Promise<void>;
+
+    /**
+     * No endpoint: a group command's path names only the cluster and command, and the endpoints it
+     * reaches are the ones the group's own membership names (Matter Core § 8.2.5.1).
+     */
+    invoke(cluster: string | number, command: string, args?: object): Promise<void>;
+}
+
+/**
+ * The fields of a `GroupKeySetStruct` a cert test provisions on both sides.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.2.4.1
+ */
+export interface GroupKeySetSpec {
+    groupKeySetId: number;
+    groupKeySecurityPolicy: number;
+    /** The 16-byte epoch key, as the caller's own byte type renders it. */
+    epochKey0: AllowSharedBufferSource;
+    epochStartTime0: bigint;
 }
 
 /**
@@ -458,6 +1128,149 @@ export type ControllerTransport = "tcp";
 /** What a test asks of the controller before it starts. */
 export interface ControllerAdapterOptions {
     transport?: ControllerTransport;
+
+    /**
+     * Hosts a WebRTC transport requestor cluster on the controller, which a case whose peer initiates
+     * signaling needs: a provider answers a solicited offer by invoking `Offer` back on the
+     * controller, and a controller with no requestor cluster has nowhere for that command to land.
+     *
+     * Off by default. The cluster accepts signaling only for sessions the case registered through
+     * {@link WebRtcRequestorApi.upsertSession}, so a controller that hosts it still refuses everything
+     * until a case says otherwise.
+     *
+     * @see {@link MatterSpecification.v16.Device} § 16.8
+     */
+    webRtcRequestor?: boolean;
+
+    /**
+     * Judges device attestation against a trust store and whatever revocation information the case
+     * installs, rather than accepting what a test device presents.
+     *
+     * Off by default, because a cert device presents test certificates that a commissioner holding a
+     * production trust policy has to refuse. With it on, the controller trusts the chip test roots and
+     * nothing else, so an attestation a case expects to be refused is refused for the reason the case
+     * is about.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 6.2.3.1
+     */
+    attestation?: boolean;
+}
+
+/** What a case can tell a controller about the certificates it will be shown. */
+export interface AttestationApi {
+    /**
+     * Gives the controller revocation information, as a revocation set in the format the CHIP SDK's
+     * revocation-set tool writes.
+     *
+     * A commissioner normally reads revocation from the DCL. A certification run is against a PKI the
+     * DCL does not publish, so the set has to come from the case.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 6.2.6.2
+     */
+    installRevocations(revocationSet: string): Promise<void>;
+}
+
+/**
+ * A WebRTC session as the requestor cluster tracks it. A session's id is minted by the provider, so a
+ * case learns it from the provider's own `SolicitOffer`/`ProvideOffer` response and registers it here
+ * before the provider signals against it.
+ *
+ * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5
+ */
+export interface WebRtcSessionSpec {
+    id: number;
+
+    /** The provider, as {@link ControllerAdapter.commission} named it. */
+    peer: CertNodeRef;
+
+    /** The endpoint of the provider cluster the session was solicited from. */
+    peerEndpointId: number;
+
+    streamUsage: number;
+    videoStreamId?: number | null;
+    audioStreamId?: number | null;
+
+    /** Defaults to false, which is what a session carrying no metadata stream states. */
+    metadataEnabled?: boolean;
+}
+
+/** A session the requestor cluster tracks, as it holds it. */
+export interface WebRtcSessionRecord {
+    id: number;
+    videoStreamId: number | null;
+    audioStreamId: number | null;
+}
+
+/**
+ * An ICE candidate as the provider stated it, per RFC 8839's candidate-attribute.
+ *
+ * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+ */
+export interface WebRtcIceCandidate {
+    candidate: string;
+    sdpMid: string | null;
+    sdpmLineIndex: number | null;
+}
+
+/** One signaling command the provider addressed at the controller's requestor cluster. */
+export interface WebRtcSignalRecord {
+    kind: "offer" | "answer" | "iceCandidates" | "end";
+
+    /** The session id the provider named, which for a refusal is an id the controller does not track. */
+    sessionId: number;
+
+    /**
+     * `"refused"` where the controller answered `NotFound` because it tracks no such session for this
+     * peer and fabric. A case proving that refusal reads the id off this record rather than off the
+     * peer's own log, which states the status without the id.
+     *
+     * Signaling refused before it reaches the cluster — a command whose fields break their own
+     * constraints — is not recorded at all, so a case about one reads the controller's log instead.
+     */
+    outcome: "accepted" | "refused";
+
+    /** Monotonic, for ordering records against each other rather than against wall-clock time. */
+    at: number;
+
+    /** The session description an accepted `offer` or `answer` carried, which a case feeds to its own peer connection. */
+    sdp?: string;
+
+    /** What an accepted `iceCandidates` carried. */
+    candidates?: readonly WebRtcIceCandidate[];
+}
+
+/**
+ * The controller's requestor-side view of WebRTC signaling, present when the adapter was built with
+ * {@link ControllerAdapterOptions.webRtcRequestor}.
+ */
+export interface WebRtcRequestorApi {
+    /** Endpoint the requestor cluster lives on, which a solicitation states as its originating endpoint. */
+    readonly endpoint: number;
+
+    /**
+     * Registers a session the case has established with a provider, so the provider's later signaling
+     * for that id is accepted. Re-registering an id replaces the entry.
+     */
+    upsertSession(session: WebRtcSessionSpec): Promise<void>;
+
+    /** Stops tracking a session. No-op where the id is unknown. */
+    removeSession(id: number): Promise<void>;
+
+    /** The sessions the cluster tracks, which is what a refusal was judged against. */
+    sessions(): Promise<readonly WebRtcSessionRecord[]>;
+
+    /** Every signaling command the provider addressed here since {@link ControllerAdapter.start}, in arrival order. */
+    signals(): readonly WebRtcSignalRecord[];
+
+    /**
+     * Resolves with the first signal matching `predicate`, or `undefined` where none arrives within
+     * `timeoutMs`. Signals already recorded are matched too, so a case that registers a session and
+     * then waits does not race the provider.
+     */
+    nextSignal(
+        predicate: (signal: WebRtcSignalRecord) => boolean,
+        timeoutMs: number,
+    ): Promise<WebRtcSignalRecord | undefined>;
 }
 
 /**

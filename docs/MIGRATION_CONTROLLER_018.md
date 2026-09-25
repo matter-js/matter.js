@@ -544,11 +544,13 @@ which changes flow to the node-wide listener above.
 Available on both `ClientNode` and its `CommissioningClient` behavior:
 
 - `openBasicCommissioningWindow(commissioningTimeout?: Duration): Promise<void>` (default `Seconds(900)`)
-- `openEnhancedCommissioningWindow(commissioningTimeout?: Duration): Promise<{ manualPairingCode: string; qrPairingCode: string }>`
+- `openEnhancedCommissioningWindow(commissioningTimeout?: Duration): Promise<CommissioningClient.EnhancedCommissioningWindow>`
 
 Both revoke any stale window first (tolerating `WindowNotOpen`). The enhanced window generates the
-discriminator/passcode/salt/iterations and PAKE verifier and returns the pairing codes; basic throws
-`ImplementationError` if the peer's `AdministratorCommissioning` cluster lacks the `Basic` feature.
+discriminator/passcode/salt/iterations and PAKE verifier and returns the pairing codes together with the
+`passcode`, long `discriminator`, `vendorId` and `productId` they encode and the `commissioningTimeout` sent to
+the device; basic throws `ImplementationError` if the peer's `AdministratorCommissioning` cluster lacks the
+`Basic` feature.
 
 ---
 

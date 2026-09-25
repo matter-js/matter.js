@@ -104,8 +104,10 @@ Both mismatch cases above are checked directly (not just documented): `configure
 spawning. Either way you get an explicit, actionable error rather than a binary that silently fails
 to start.
 
-A cert-bins-sourced `chip-local` run's evidence `chipRef` (see "Evidence" below) is populated
-automatically from the extraction's own stamp file — no separate wiring needed.
+A cert-bins-sourced `chip-local` run populates the evidence `chipRef` (see "Evidence" below)
+automatically from the extraction's own stamp file — no separate wiring needed. That stamp describes
+the directory, not a single binary, so every device of a `chip-local` run reports the same revision;
+`chip-docker` is the only flavor whose `chipRef` distinguishes one role's binary from another's.
 
 ## Certification controller tests (`test/cert/`)
 
@@ -139,6 +141,10 @@ Which TH implementation a run uses is chosen by `MATTER_CERT_DEVICE`:
     reusing `chip/state.ts`'s harness sidecars — is resolved; publishing the per-app images is what
     remains.
 
+A fourth flavor, **`python-wrapped`**, appears in evidence but cannot be selected: a TC that lets a
+python script spawn its own TH (`TC-SC-3.5`) records its device that way, since the harness neither
+built nor started it and can state no more than the path the run was pointed at.
+
 `MATTER_CERT_DEVICE` unset defaults to `matterjs` (`resolveDeviceFlavor` in
 `packages/testing/src/chip/cert/device-config.ts`) — the only flavor that works without further
 configuration; the other two need `MATTER_CERT_APP_DIR`/`MATTER_CHIP_BINS_SOURCE` (`chip-local`)
@@ -166,10 +172,11 @@ directory of symlinks to each app's own build output).
 | Variable                     | Meaning                                                                                   | Default                        |
 | ----------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------- |
 | `MATTER_CERT_DEVICE`          | Flavor: `matterjs`, `chip-local`, or `chip-docker`.                                        | `matterjs`                      |
-| `MATTER_CERT_APP_DIR`         | Directory containing `chip-<app>-app` binaries (`chip-local` only, ignored when `MATTER_CHIP_BINS_SOURCE=cert-bins` — see "Choosing a CHIP binary source" above). | none (required for `chip-local`) |
+| `MATTER_CERT_APP_DIR`         | Directory containing the CHIP app binaries (`chip-<app>-app`, or CHIP's own name where it differs) (`chip-local` only, ignored when `MATTER_CHIP_BINS_SOURCE=cert-bins` — see "Choosing a CHIP binary source" above). | none (required for `chip-local`) |
 | `MATTER_CERT_CHIP_IMAGE_BASE` | Docker image base name for `chip-docker` (image pulled is `<base>-<app>:latest`).          | `ghcr.io/matter-js/chip`        |
 | `MATTER_CERT_EVIDENCE_DIR`    | Where `result.json`/`*.log` evidence bundles are written.                                  | `<package cwd>/cert-evidence`   |
 | `MATTER_CERT_TH_SERVER_APP_PATH` | Container-side path to a TH_SERVER binary for python-wrapped TCs (e.g. `TC-SC-3.5`); unset means the TC self-skips. | none |
+| `MATTER_CERT_CAMERA_APP_PATH` | Container-side path to `chip-camera-app`, the TH_SERVER of the WebRTC TCs (e.g. `TC-WEBRTCR-2.1`); unset means the TC self-skips. | none |
 
 ### Running
 
@@ -216,9 +223,8 @@ attached log stream (`device-<role>.log`, `controller-<name>.log`). Sketch of `r
     "run": {
         "timestamp": "2026-08-08T07:37:17.811Z",
         "controller": "dut",
-        "device": "chip-local:all-clusters",
-        "matterJsCommit": "25dd21a01533bd9434b0e8a42e6f96d9ba1ad878",
-        "chipRef": "..."
+        "devices": [{ "role": "th", "app": "all-clusters", "flavor": "chip-local", "chipRef": "..." }],
+        "matterJsCommit": "25dd21a01533bd9434b0e8a42e6f96d9ba1ad878"
     },
     "steps": [
         {

@@ -66,6 +66,25 @@ describe("SecureSession", () => {
         });
     }
 
+    describe("session parameters", () => {
+        it("assumes one path per invoke for a peer that reports zero", () => {
+            const session = new NodeSession({
+                crypto,
+                id: 1,
+                fabric: undefined,
+                peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                peerSessionId: 0x8d4b,
+                decryptKey: DECRYPT_KEY,
+                encryptKey: ENCRYPT_KEY,
+                attestationKey: new Uint8Array(),
+                isInitiator: true,
+                sessionParameters: { maxPathsPerInvoke: 0 },
+            });
+
+            expect(session.parameters.maxPathsPerInvoke).equals(1);
+        });
+    });
+
     describe("peer loss", () => {
         it("conveys the initiating exchange to its subscriptions", async () => {
             const session = secureSession();
@@ -203,6 +222,23 @@ describe("SecureSession", () => {
             expect(result.sourceNodeId).equals(fabric.nodeId);
             expect(result.message.packetHeader.destGroupId).equals(groupId);
             expect(result.message.packetHeader.messageId).equals(0x12345679);
+        });
+        it("names where it sends, address and port together", async () => {
+            const { fabric } = await groupFabric();
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const groupId = 2;
+            const session = new GroupSession({
+                id: current.sessionId!,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId(0xffffffffffff0000n | BigInt(groupId)),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(groupId)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+
+            expect(session.destination).equal("[ff35:40:fd45:6789:abcd:ef12:3400:2]:5540");
         });
 
         it("matches a cached session by fabric, session id and operational key, not by id alone", async () => {

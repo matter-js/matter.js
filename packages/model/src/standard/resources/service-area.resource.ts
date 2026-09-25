@@ -384,8 +384,9 @@ Resource.add({
                 "\n" +
                 "OR" +
                 "\n" +
-                "  - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag) The normative " +
-                "text from the remainder of this section describes these constraints." +
+                "  - some semantic data (one or more of these: FloorNumber, AreaType or LandmarkTag)" +
+                "\n" +
+                "The normative text from the remainder of this section describes these constraints." +
                 "\n" +
                 "If the LocationInfo field is null, the LandmarkInfo field shall NOT be null." +
                 "\n" +

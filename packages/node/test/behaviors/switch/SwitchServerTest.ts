@@ -2432,4 +2432,92 @@ describe("SwitchServer", () => {
             ]);
         });
     });
+    describe("Test resetState", () => {
+        let device: Awaited<ReturnType<typeof createMsMsrMslMsmSwitch>>;
+
+        beforeEach(async () => {
+            device = await createMsMsrMslMsmSwitch();
+            await device.set({
+                switch: { longPressDelay: Millis(100), multiPressDelay: Millis(150), multiPressMax: 3 },
+            });
+        });
+
+        async function press() {
+            await device.set({ switch: { currentPosition: 1 } });
+            await MockTime.advance(50);
+            await device.set({ switch: { currentPosition: 0 } });
+        }
+
+        it("drops a multi-press cycle in progress, so the next press counts from one", async () => {
+            // Two presses, so the reset has a press count above one to drop
+            await press();
+            await MockTime.advance(50);
+            await press();
+
+            await device.act(agent => agent.get(SwitchServer).resetState());
+
+            const events = createEventCatcher(device);
+
+            await press();
+            await MockTime.advance(160);
+            await MockTime.yield3();
+
+            expect(events).deep.equals([
+                {
+                    name: "initialPress",
+                    value: { newPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    oldValue: 0,
+                    newValue: 1,
+                },
+                {
+                    name: "shortRelease",
+                    value: { previousPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    oldValue: 1,
+                    newValue: 0,
+                },
+                {
+                    name: "multiPressComplete",
+                    value: { previousPosition: 1, totalNumberOfPressesCounted: 1 },
+                },
+            ]);
+        });
+
+        it("drops a press still being timed, so no long press is reported after the reset", async () => {
+            // Held, but not yet long enough to have been reported as a long press
+            await device.set({ switch: { currentPosition: 1 } });
+            await MockTime.advance(50);
+
+            await device.act(agent => agent.get(SwitchServer).resetState());
+
+            const events = createEventCatcher(device);
+
+            await MockTime.advance(200);
+            await MockTime.yield3();
+
+            expect(events).deep.equals([]);
+        });
+
+        it("reports the long press this one would have suppressed, when no reset intervenes", async () => {
+            await device.set({ switch: { currentPosition: 1 } });
+            await MockTime.advance(50);
+
+            const events = createEventCatcher(device);
+
+            await MockTime.advance(200);
+            await MockTime.yield3();
+
+            expect(events).deep.equals([
+                {
+                    name: "longPress",
+                    value: { newPosition: 1 },
+                },
+            ]);
+        });
+    });
 });

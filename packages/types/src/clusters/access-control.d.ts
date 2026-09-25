@@ -640,8 +640,6 @@ export declare namespace AccessControl {
          * levels as well. The following diagram illustrates how the higher privilege levels subsume the lower privilege
          * levels:
          *
-         * !Diagram
-         *
          * Individual clusters shall define whether attributes are readable, writable, or both readable and writable.
          * Clusters also shall define which privilege is minimally required to be able to perform a particular read or
          * write action on those attributes, or invoke particular commands. Device type specifications may further

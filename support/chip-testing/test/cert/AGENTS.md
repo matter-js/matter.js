@@ -46,36 +46,43 @@ commands → a smaller invoke-only variant → multi-controller → the python-w
 ## App → chip binary mapping
 
 `certTest()`'s `app` option (and `devices`' per-role app names) is the string chip's own example
-app binaries are named after: the flavor layer spawns/pulls `chip-<app>-app` (`chip-app-subject.ts`)
-or looks up a `registerMatterJsCertSubject(<app>, ...)` registration
+app binaries are named after: the flavor layer spawns/pulls `chip-<app>-app`, or CHIP's own name where it
+differs (`appBinaryName` in `chip-app-subject.ts`), or looks up a `registerMatterJsCertSubject(<app>, ...)` registration
 (`support/chip-testing/src/cert/index.ts`) for the matterjs flavor. Map a new TC's plan-doc prefix
 to an app this way:
 
 | TC prefix (examples)              | app          | chip binary               | matterjs registered today? |
 | ---------------------------------- | ------------ | -------------------------- | --------------------------- |
 | `IDM`, `CADMIN`, most generic/core  | `all-clusters` | `chip-all-clusters-app`   | yes (`AllClustersTestInstance`) |
-| `ACT`                               | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
+| `ACT`, `BR`                         | `bridge`     | `chip-bridge-app`          | yes (`BridgeTestInstance`) |
 | Media Playback/App-cluster TCs      | `tv`         | `chip-tv-app`               | no — `TvTestInstance` exists but isn't wired into `registerMatterJsCertSubject` yet |
 | `DRLK`                              | `lock`       | `chip-lock-app`             | no — no matterjs lock `TestInstance` exists in this package yet |
 | `WEBRTCR`                           | `camera`     | `chip-camera-app`           | no — no matterjs camera `TestInstance` exists in this package yet |
-| `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | no — no matterjs OTA provider/requestor `TestInstance` in this package yet |
+| `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
+| `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
+| `ICDB`, `ICDM`                      | `lit-icd`    | `lit-icd-app-nopersist` (variant) | yes (`IcdTestInstance`); chip binaries own-built only |
 
-The three "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
+A single TC may name two of these at once through `devices` — see "More than one device in a run".
+
+The "no" rows aren't blocked on chip-local/chip-docker — those flavors only need the binary to
 exist (verify with `MATTER_CERT_APP_DIR`/an app-specific image, or `MATTER_CHIP_BINS_SOURCE=cert-bins`
 for the official binaries — see the root `README.md`'s "Choosing a CHIP binary source"), same as any
 pilot. They're blocked
 on **matterjs** only: either restrict every step to `flavors: ["chip-local", "chip-docker"]` (see
 "Declaring a device-flavor capability gap" below) so the TC still registers and runs on the flavors
 it can, or add the missing `TestInstance` + `registerMatterJsCertSubject(...)` call first if
-matterjs coverage is actually wanted. Skipping the registration entirely is not an option: every
-`app` any cert TC's `certTest()` names must have a `registerMatterJsCertSubject` entry, even one
-whose matterjs implementation is capability-incomplete for that TC, or the whole
-`test/cert/**/*.test.ts` file set throws at load time under the matterjs flavor (see "Declaring a
-device-flavor capability gap").
+matterjs coverage is actually wanted. A step-level restriction does not skip the registration: every
+`app` such a TC's `certTest()` names must have a `registerMatterJsCertSubject` entry, even one whose
+matterjs implementation is capability-incomplete for that TC, or the whole `test/cert/**/*.test.ts`
+file set throws at load time under the matterjs flavor (see "Declaring a device-flavor capability
+gap"). The one way around it is a test-level `certTest({ flavors })` that leaves `matterjs` out, which
+skips the case before any subject is built (`TC-TBRM-3.1`).
 
 ## Flavor policy: chip is the pass/fail bar, matterjs is optional
 
-Three flavors exist (`DeviceFlavor` in `cert-context.ts`): `chip-local`, `chip-docker`, `matterjs`.
+Three flavors can be selected (`SelectableDeviceFlavor` in `cert-context.ts`): `chip-local`,
+`chip-docker`, `matterjs`. `DeviceFlavor` adds `python-wrapped`, which only ever appears in evidence,
+for a device a wrapped python script spawns for itself.
 The convention this series has followed, worth stating explicitly for the next TC:
 
 - **At least one chip flavor (`chip-local` or `chip-docker`) passing is the actual certification
@@ -146,10 +153,13 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
   (`MATTERJS_CONTROLLER_PICS`/`CHIP_TOOL_CONTROLLER_PICS`, overlaid by `controllerPicsOverridesFor`).
   Gating a step on a `.C` key the adapter has not declared is how a step comes to skip on every leg
   without anyone noticing, so declare it there rather than expecting the device file to carry it.
-  The overlay is for what the *controller* is, never for what the TH advertises: `certPicsFile()` feeds
-  every cert test's report, so a device-scoped key declared there would make every run's evidence claim
-  something about its TH that the TH never said. `MCORE.DD.DISCOVERY_BLE`/`DISCOVERY_PAF` are the
-  device's, and a test in `controller-adapter.test.ts` holds the adapters to it.
+  The *controller* overlay is for what the controller is, never for what the TH advertises:
+  `certPicsFile()` feeds every cert test's report, so a device-scoped key declared there would make
+  every run's evidence claim something about its TH that the TH never said.
+  `MCORE.DD.DISCOVERY_BLE`/`DISCOVERY_PAF` are the device's, and a test in
+  `controller-adapter.test.ts` holds the adapters to it. A key that *is* the device's belongs in the
+  cert app's own declaration instead (`registerCertAppPics`, see "A case whose DUT is a device
+  declares its own PICS"), which is scoped to the app and flavor that answer it.
 - **`RunRecord.picsSkips` counts what the gate excluded**, which is the instrument for exactly that
   mistake: a count that moves without the plan moving means a PICS value is wrong, not that the run
   had less to test.
@@ -501,7 +511,7 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
 A TC's TH app can exist for some flavors but not support the cluster/commands the plan needs on others
 — `TC-ACT-3.2` needs an Actions cluster on the bridge app, which the real `chip-bridge-app` has (even if
 most of its commands aren't implemented) but matter.js's own `BridgeTestInstance` doesn't have at all. The DSL had no way to express "this step/TC only makes sense on
-some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: DeviceFlavor[]`
+some flavors" before this TC, so it gained one: `CertStepOptions.flavors?: SelectableDeviceFlavor[]`
 (`cert-dsl.ts`), threaded through to `CertStepDefinition.flavors` (`cert-context.ts`) and checked in
 `CertTest.invoke()` (`cert-test.ts`) via `currentFlavor()` (every device in one run shares the same
 flavor, so any one's `.flavor` speaks for the whole run) — a step whose `flavors` doesn't include the
@@ -537,6 +547,9 @@ steps still run — rather than a wrong answer, and today that means:
   Matter Core § 8.9.2.8 requires one per concrete path.
 - **A value whose encoded form contains `;`** — chip-tool splits its `attribute-values` argument on it.
 - **More than 64 paths in one read or write** — chip-tool's own `kMaxAllowedPaths`.
+- **What the controller itself holds** — `clientEndpoints()` and `clientAttribute()` (`TC-BR-4`).
+  chip-tool answers each command straight from the device and keeps nothing between them, so it has
+  no device list and no attribute state of its own to report.
 
 Multi-cluster reads and multi-attribute writes *are* supported: chip-tool zips its cluster/attribute/
 endpoint id lists element-wise when their lengths match (`InteractionModelConfig::GetAttributePaths`),
@@ -645,9 +658,9 @@ three (`{dut: "dut", th_cr2: "helper", th_cr3: "helper"}`), all commissioning th
 (TH_CE). It worked as-is — `WiredCertTest.#buildContext` (`cert-dsl.ts`) already iterates
 `Object.keys(controllerRoles)` and constructs one `InProcessControllerAdapter` per name, each with its
 own `Environment`/`CommissioningController`/storage (see `InProcessControllerAdapter`'s class doc) — no
-cert-dsl.ts changes were needed. The `"dut" | "helper"` role *kind* itself is still inert (nothing reads
-it; only the role *name* is used as the adapter id and as the per-controller `adminFabricLabel`) — worth
-knowing if a future TC's design assumes the kind changes behavior.
+cert-dsl.ts changes were needed. The role *name* is the adapter id and the per-controller
+`adminFabricLabel`; the `"dut" | "helper"` *kind* says which side is under test, which decides whose
+self-declared PICS win (see "A case whose DUT is a device declares its own PICS" below).
 
 **Each controller's fabric gets the device's own `Label` field set to its role name**, because
 `ControllerCommissioningFlow`'s `#updateFabricLabel()` step sends `label: this.fabric.label`, and
@@ -743,7 +756,7 @@ handler after it fires). A matched handler's returned string is written straight
 This TC is registered as a **bare `describe`/`it`**, not a `certTest()`, because there's no `CertDevice`
 in the picture at all — TH_SERVER lives entirely inside the container, spawned by the script itself, and
 the thing under test is `InProcessControllerAdapter`'s own commissioning stack acting as DUT_Commissioner
-against it. Building a `CertStepContext` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
+against it. Building a `CertStepWiring` by hand (`{controllers: {dut: new InProcessControllerAdapter("dut")}, devices: {}, recorder}`)
 and calling `PromptDrivenPythonTest.invoke()` directly was simpler and more honest than forcing this
 shape through `certTest()`'s device-flavor machinery just to obtain a `Subject` it doesn't need.
 
@@ -1543,7 +1556,8 @@ flavor answers it from the same file: CHIP's `ci-pics-values` says `DISCOVERY_PA
 PICS skip everywhere and the run reports `picsSkips: 2`. Do **not** answer these from a controller
 overlay to force a skip — a test asserts that neither adapter declares them, because `certPicsFile()`
 feeds every cert test's report, so a device-scoped key set there makes every other run's evidence claim
-something false about its TH. And note `notApplicable` is evaluated *before* both the `flavors` and
+something false about its TH. A device-scoped key with a real answer goes in the cert app's own
+declaration (`registerCertAppPics`), which says it only for the app and flavor it is true of. And note `notApplicable` is evaluated *before* both the `flavors` and
 the PICS gate in `cert-test.ts`, so a step carrying both never evaluates its PICS on any flavor —
 combining them documents nothing and hides the gate that would otherwise fire.
 
@@ -1803,12 +1817,25 @@ deciding a `.b` step's parse is redundant: it usually is, and there it is not.
 own onboarding identity — discriminator, passcode, and operational port — from `identityFor(index)`
 in `cert-dsl.ts`. This used to throw.
 
+**Roles may name different apps** — an OTA requestor as `th` and an OTA provider as `th2` in one run.
+One of them must name the test's own `app` option, which is the device the harness activates itself;
+the rest are started by `WiredCertTest` in declaration order. The evidence bundle carries
+`run.devices`, one `RunDeviceRecord` per role naming the role, the binary, its variant, the flavor, the
+arguments it was started with and the chip revision that binary came from, so a reader of a finished
+bundle can say what every device in the run actually was. Nothing in the bundle states a single app any more; a consumer that read
+`run.device` or `run.chipRef` reads the array instead.
+
+**A device crash names its role.** `deviceExit` in the record, the `deviceExited(role, info)` recorder
+hook and the run's own failure text all carry the role of the first device to exit — with several
+devices in a run, "a device exited unexpectedly" sends the reader to the wrong log. Only the first
+exit is recorded: one device dying commonly takes the rest with it.
+
 **Why it had to.** Every discovery instrument in this directory matches on the long discriminator
 alone, and every flavor defaulted to 3840 / 20202021 / 5540. Two subjects sharing that would have the
 commissioner reach whichever the scanner found first, and the run would pass having proven nothing
 about which device it talked to. The chip flavors would not even get that far: two apps contend for
-port 5540 and the second exits, which surfaces as "a cert-test device exited unexpectedly while a
-step was running" rather than as a port collision.
+port 5540 and the second exits, which surfaces as `Cert-test device "<role>" exited unexpectedly while
+a step was running` rather than as a port collision.
 
 **The primary keeps chip's defaults, deliberately.** Index 0 is 3840 / 20202021 / 5540, so all
 fifteen existing single-device TCs record exactly what they recorded before — same discriminator in
@@ -2186,74 +2213,20 @@ group the fabric's key map must already carry. What it adds:
   `AttributeValueList` the plan actually names. Sending an empty list would have been the quieter
   mistake: the step would pass while exercising none of the shape it is about.
 
-## The group-messaging block splits in two (`TC-SC-6.1` runnable, `TC-SC-5.3` not)
+## The group-messaging block, and what its two cases share (`TC-SC-6.1`, `TC-SC-5.3`)
 
-`TC-SC-6.1` ("adding member to a group") is entirely **unicast** — KeySetWrite, a GroupKeyMap write,
-AddGroup, ViewGroup, KeySetRead, KeySetRemove, KeySetReadAllIndices — so it needed no new capability
-at all, only three more client PICS declarations (`G.C.C01.Tx`, `GRPKEY.C.C03.Tx`, `GRPKEY.C.C04.Tx`;
-the last two are absent from the device file entirely, and an absent key evaluates false). `TC-SC-5.3`
-is the one that needs the DUT to *send* a groupcast, and it is blocked on evidence rather than on
-sending — see the note below.
+Both cases open the same way — an access-control entry admitting the group, a key set, the GroupKeyMap
+binding, AddGroup — and that opening lives in `tc-group-support.ts` rather than in either file.
+`TC-SC-6.1` then reads the state back over unicast; `TC-SC-5.3` sends a group message through it. See
+"what sending one actually needed" below for the four things that are not in the plan.
 
-What the steps rest on, beyond the log:
+`TC-SC-6.1` needed no new capability at all, only three more client PICS declarations (`G.C.C01.Tx`,
+`GRPKEY.C.C03.Tx`, `GRPKEY.C.C04.Tx`; the last two are absent from the device file entirely, and an
+absent key evaluates false).
 
-- **Step 1a writes an ACL entry, and the read-modify-write is load-bearing.** The entry the plan wants
-  is `AuthMode: Group` with the group id as its subject, but the ACL also carries the DUT's own
-  administer entry — writing the group entry alone revokes the access every later step needs. Read,
-  append, write.
-- **An ACL subject is a `uint64`, so it comes back as a `bigint`** from one controller and a `number`
-  from another. Compare the value, not the type: a `subjects.includes(1)` against `[1n]` is false, and
-  reads as "the write did not take" rather than as a decoding difference.
-- **`JSON.stringify` throws on a `bigint`.** A key set's epoch start times are `epoch-us`, so a step
-  reporting what the TH answered fails on its own evidence — the run error is
-  `Do not know how to serialize a BigInt`, and it names no field. Evidence text for a response that
-  may carry one goes through a replacer.
-- **KeySetRemove then KeySetReadAllIndices is what makes the removal checkable**: the indices must no
-  longer list the removed set (only the IPK's 0 remains). Without that, both steps would rest on the
-  TH having logged a command it could equally have ignored.
-- **Steps 6 and 7 are declared `notApplicable`, not omitted.** The plan skips them where the TH's root
-  endpoint has no Groupcast cluster, and neither TH has one — matter.js's all-clusters device
-  registers none, and chip's all-clusters ZAP enables none. Declaring them keeps the plan's own
-  numbering in the evidence and states why the run jumps from 5 to 8.
-
-## `TC-SC-5.3` is blocked on what the receiver can show, not on sending (assessed 2026-08-29)
-
-Sending a group command is **available on both controllers** and simply unexercised:
-
-- matter.js: `NodeId.fromGroupId(GroupId(id))` addresses a group, `Peers.forAddress` then yields a
-  `ClientGroup` rather than a `ClientNode`, and `ClientGroupInteraction` supports `invoke` and `write`
-  (it forces `suppressResponse` and refuses reads, subscriptions and timed requests). Nothing in the
-  repository drives this over a real socket today — `BindingIntegrationTest` says so in its own comment,
-  because the mock network has no multicast loopback.
-- chip-tool: a destination id of `0xFFFF'FFFF'FFFF'0000 | groupId` *is* the group form
-  (`ModelCommand::RunCommand` → `SendGroupCommand`), and `any command-by-id` inherits it. The mask
-  matches matter.js's `GroupId.isGroupNodeId` exactly.
-
-What is missing is a **witness** for the receiver's side of the plan's step 5, which asks to validate
-four things about the message. Only the first reaches a log line:
-
-- **DSIZ is group** — visible: a group session renders as `group#<id>` in `exchange.via`, so every
-  inbound invoke line says it.
-- **The destination group id** — not logged, though matter.js does use it: `GroupSession.subjectFor`
-  resolves it into the subject access control checks against, and `SessionManager.onGroupMessage`
-  emits it for every group invoke.
-- **The IPv6 destination `FF35:0040:FD<fabric-id>00:<group-id>`** — not captured from the received
-  packet at all. The UDP layer surfaces only the *sender's* address and port (`UdpTransport`'s
-  `onData` takes `rinfo`), with no `IP_PKTINFO`-style destination capture; the `destIp` on that event
-  is filled by the sending path.
-- **UDP port 5540** — implicit in the bound socket, never stated in a log line.
-
-So the open question is which witness to build, and it is a decision rather than a work item:
-
-- **Log the destination.** The receiving path holds the group id already; the multicast address it
-  would first have to capture.
-- **Observe `SessionManager.onGroupMessage` in-process.** A matterjs-flavor device runs inside the
-  test process, so a check could listen to it directly — stronger about the group id than any log
-  line, but a different kind of evidence from a device log, and unavailable on the chip flavors, so
-  the TC would prove different things on different legs.
-
-Until one of those exists, a TC written here could claim "the TH received this on a group session"
-and nothing about the addressing the step is actually about.
+Note the endpoint: `Groups` is not a root-node cluster, so both cases send `AddGroup`/`ViewGroup` to
+the on/off light rather than to endpoint 0, whatever the plan's own step text says. A step's text names
+the endpoint it exercises, because that is what the certification report describes.
 
 ## The TCP cases invert the topology, and a controller must be asked for TCP before it starts
 
@@ -2261,7 +2234,34 @@ and nothing about the addressing the step is actually about.
 TCP server, TH is a TCP client" — so these tests name their roles the plan's way
 (`controllers: { th: … }`, `devices: { dut: … }`) and read `cx.devices.dut`'s log. Nothing else in the
 DSL changes: the controller still commissions the device, which is the same direction as always. The
-role *kind* (`"dut"`/`"helper"`) is only a label; nothing consumes it.
+role *kind* (`"dut"`/`"helper"`) says which side is under test: a declaration giving no controller the
+`"dut"` kind is what `CertTestDefinition.dutIsDevice` reads, and that decides whose self-declared PICS
+win where the device's and the controller's disagree.
+
+## A case whose DUT is a device declares its own PICS
+
+The PICS file a run loads describes a generic device, and both sides state what they are on top of it:
+a controller through `controllerPicsOverridesFor` and a cert app through `registerCertAppPics`. Where
+the two disagree the DUT's own side wins, because the claim a step makes is about the DUT.
+`MCORE.BDX.BlockQueryWithSkip` is the case in point: the controller answers for its own sending, which
+says nothing about a device the plan puts in the sender's place.
+
+**An app's declaration is per flavor**, because one app name is two implementations. `ota-requestor`
+is `chip-ota-requestor-app` on a chip leg and matter.js's own requestor on a matterjs one, and they
+answer differently — matter.js sends no `BlockQueryWithSkip` at all, where CHIP's PICS file answers
+that key `1`. Only what was observed is declared: the BDX receiver roles were read off both flavors by
+TC-BDX-1.4 and TC-BDX-2.1, which watch this exchange from the other side.
+
+**Both PICS gates apply the overlays the same way** (`cert-app-pics.ts`'s `picsWithOverrides`): the one
+that runs before a device is started (`cert-dsl.ts`, over `chip.defaultPics`) and the one that gates
+each step (`cert-test.ts`, over the subject's own file). The bases still differ, so the two can still
+disagree about a key the files themselves answer differently — what is shared is which side's
+declaration wins. The overlays were applied in only one of the two once, and that is worth knowing
+because the symptom is silent: a PICS-skipped cert test writes no evidence bundle and the suite still
+reports green.
+
+**A declaration answers what an app *is*, never what a case would like it to be.** A case that could
+answer its own PICS could never be skipped by them.
 
 **A transport is a property of the session, so it is requested before the controller starts.**
 `certTest`'s `transport: "tcp"` reaches the adapter through the factory (`ControllerAdapterOptions`),
@@ -2271,10 +2271,12 @@ for it — every other test keeps the transport its evidence and timing were wri
 What each side does with the request:
 
 - **matter.js controller** gets `network: { tcp: true, transportPreference: "tcp" }`, a *soft*
-  preference: it uses TCP where the peer's `SUPPORTED_TRANSPORTS.tcpServer` says it can, and silently
-  falls back to UDP otherwise. The hard `requiredTransport` lever exists in the protocol layer but is
-  not surfaced, so a test cannot yet assert "TCP or fail" — which is why the evidence below is the
-  device's, not the controller's.
+  preference: it uses TCP where the peer's `SUPPORTED_TRANSPORTS.tcpServer` says it can, and falls back
+  to UDP otherwise. The block does not rest on that preference, because a preference that fell back
+  would leave a case claiming a transport nobody used: `commissionOverTcp`'s read carries
+  `largeMessage: true`, which is the *hard* requirement — `ClientRequest.largeMessage` becomes
+  `requiredTransport: ChannelType.TCP`, and a peer that cannot serve TCP fails the read with
+  `TcpUnsupportedError` instead of answering over MRP.
 - **chip-tool** gets `--allow-large-payload 1` on every model command it builds — read, write, invoke,
   event read and both subscribes, since it decides a session's transport when it establishes one and a
   test may begin with any of them — and it is **not enough**: chip-tool
@@ -2293,12 +2295,121 @@ does not advertise TCP support, so even a TCP-preferring controller falls back t
 the case would claim a transport nobody used. `flavors: ["matterjs"]` states that, and the test skips
 before activation on the chip flavors.
 
-**What is not yet written, and why.** `TC-SC-8.2` ("the session allows large payloads") has no witness
-distinct from 8.1's on this stack: nothing logs a session's maximum payload, and a TCP-backed session
-is large-payload-capable by construction, so the two cases would rest on the same line. Its real
-witness is behavioural, and `TC-SC-8.6` below now carries it — a wildcard read arriving in a single
-`ReportData`, which UDP's ~1232-byte budget could not carry. `TC-SC-8.3`/`8.4` additionally need a way
-to sever just the TCP connection mid-test.
+**Two of the block's claims are the controller's to make, not the device's.** Nothing a device logs
+says what a session *permits* — only what it was observed carrying — so `CertNodeApi.sessions()`
+reports every live session the controller holds with a node: its id, the transport beneath it, whether
+it permits large payloads, and the payload ceiling. That is held state in the sense `clientEndpoints()`
+is, and chip-tool refuses it: a session there lives inside the process it spawns per command, and
+nothing it prints names the transport beneath one.
+
+**Every session claim names a session, and that is the load-bearing decision here.** A controller may
+hold more than one session with a peer at once — `Peer.connect` keeps one per transport — so an API
+answering about "the session" answers about whichever is newest, and a case built on it does not
+assert what it reads as asserting. Concretely, with a newest-session API: a check for a severed
+session's absence passes on a UDP sibling that was never severed; a check that a session permits large
+payloads fails on a sibling that never claimed to; and a sever aimed at "the session" can close the
+wrong one. So `sessions()` returns a list, `severTransportConnection(sessionId)` takes the session to
+sever, and `sessionGoneCheck`/`largePayloadSessionCheck` take the id the case captured in step 1 via
+`tcpSessionIdOf` — which also refuses a controller holding two TCP sessions, not a state this
+framework produces, so meeting it means the case is no longer about what it was written for.
+
+The id is also what the block needs beyond the DUT's tag. A device may reuse the id of a session it has
+closed, so an identical tag is not proof the old session survived and a differing one is not proof the
+controller established a new one — the controller's own id decides both, which is why `TcpSessionRef`
+keeps `{ tag, channel, controllerSessionId }` rather than the tag alone.
+
+**A session operation naming a session the controller does not hold is a state error, not a refusal.**
+`UnsupportedByControllerError` means "this controller cannot do this kind of thing" and the step runner
+records it as *skipped*; using it for a runtime state would turn the precise defect step 1 exists to
+rule out into a clean-looking run. The in-process adapter throws `SessionStateError` for an unknown id,
+a detached channel, or a transport with no connection to sever, so such a step fails.
+
+## The claim only the controller can make (`TC-SC-8.2`)
+
+`TC-SC-8.2` asks whether the session *allows* large payloads, which is not the same question as
+`TC-SC-8.1`'s (is the connection underneath TCP) or `TC-SC-8.6`'s (did a large payload actually
+cross). A device carrying one proves the permission after the fact; nothing it logs states the
+permission itself. So this case's own evidence is `sessions()`, and it requires all three of
+`transport: "tcp"`, `largePayload`, and a ceiling above 1280 bytes — a session claiming to permit a
+large payload with an MTU-sized ceiling permits nothing the peer could receive, and one claiming it
+over UDP is reporting something no transport it has can do.
+
+The check is a pure function of the held record (`largePayloadSessionCheck`), so each way it can be
+satisfied by the wrong thing is covered without a device.
+
+## Severing the connection, and why not the session (`TC-SC-8.3`)
+
+The stimulus is `severTransportConnection()`, which closes the session's own
+`MessageChannel.transportChannel` and nothing else. Closing the *session* would send `CloseSession`
+and the DUT would forget the session — which is this case's expected **outcome**, so it cannot also
+be its stimulus. `MessageChannel.close()` deliberately leaves a TCP channel alone (the transport owns
+it, 1:1 with the session), which is what makes reaching for the transport channel the honest way to
+express "the TH closes the TCP connection".
+
+**The claim rests on the controller, and the device half is not readable from a run.**
+`sessionGoneCheck` asks whether the *severed id* is still among the sessions the controller holds and
+passes when it is not — whatever else it holds, since a controller may reconnect on its own. What the
+plan's "the secure session with DUT is inactive" forbids is the severed session remaining usable.
+
+**The absence is waited for, not read once.** Severing closes the channel; the eviction that follows
+runs on a worker nothing a step can await (`ExchangeManager` adds it to its own multiplex), and with
+an exchange still open it suspends before marking the session closed. `recordSeveredSession` polls the
+controller's sessions until the severed id is gone or `EVICTION_TIMEOUT` expires — a single immediate
+read passes only by luck of the synchronous prefix.
+
+**The device half reads from the DUT's own log.** `sessionEvictionCheck` matches an ordered pair —
+the DUT naming the connection that dropped, then the session it dropped with it — because either line
+alone is ambiguous: a device may reuse a session tag it has closed, and it may drop a connection of
+its own accord. The check returns its record rather than recording it, so `recordSeveredSession` puts
+both halves of the step in the evidence whichever one fails. `sessionGoneCheck` remains the gating
+claim, because it is the controller's held state the plan speaks about.
+
+**Which lines a device-log check may rest on.** A device's eviction lines are written from its
+socket's close callback, and a socket's `'close'` handler runs with no `AsyncLocalStorage` store at
+all — even when the close is initiated synchronously inside `als.run()`. Attribution keyed on the
+device whose `initialize()`/`start()`/`stop()`/`close()` is on the stack therefore loses them to the
+run's console, which is why this check could not be written before.
+
+`ExchangeManager` and `SessionManager` — and only those two so far — log through
+`Environment.logger()`, so their messages name the environment they originate from and
+`src/cert/log-origins.ts` routes them whatever the call stack says. A device-log check for something
+one of those two does from a socket or timer callback is therefore ordinary. Every other component
+still logs through a module-level `Logger.get()`, keeps the old attribution, and keeps the old
+limitation: do not rest a check on a callback-written line from a component that has not been
+converted.
+
+**What `TC-SC-8.2`'s controller-side check does and does not prove.** `CertSessionInfo`'s three
+payload fields are not independent evidence: all come from the session's channel, and the channel type
+fixes them (`TcpChannel` declares `supportsLargeMessages = true` with a 64000-byte ceiling; `UdpTransport`
+and `Ble` declare `false`). Requiring all three is a consistency guard against a channel reporting a
+combination no transport should produce — not three separate findings. What makes 8.2 a distinct case
+is *who* asserts: the controller states what the session permits, where 8.1 has the device state what
+the connection is and 8.6 observes a large payload actually crossing.
+
+## Re-establishing, and what makes it a different session (`TC-SC-8.4`)
+
+Steps 1 and 2 are `TC-SC-8.3`'s. Step 3 drives a read carrying `largeMessage: true`, so the session it
+re-establishes is one the peer must serve over TCP — a step that read without it could be answered
+over MRP and still find a session to report.
+
+**Its claim is not attributable from the device's log, and trying was a dead end worth recording.**
+The cert adapter leaves sustained subscriptions on, so a controller re-establishes a session on its
+own schedule — a lost subscription reconnects by establishing one. A check that matches a
+CASE-establishment line and calls it this step's therefore races either way around whatever mark it
+takes: a mark before the reconnect matches a line the step's read did not cause, and a mark after it
+finds no line at all, because the read reused the session the reconnect had already made — failing a
+case whose outcome actually held. Both were found in review, one per round, on the same construct.
+
+Session ids carry no such window, so the step gates on them: a TCP session exists, it is not the
+severed id, and it permits large payloads — which is the whole of what the plan asks, all from
+`sessions()`. `sessionGoneCheck` is the same comparison step 2 uses, so one covered comparison
+carries both claims.
+
+The device's own line is still recorded, by `furtherSessionCheck`, as corroboration that does **not**
+gate the step: `unverified` with a reason when absent, which leaves the step passing. It is searched
+from a mark taken *before* the sever, so a reconnect that beat the read is found rather than missed,
+and it accepts `New` or `Resumed` because resumption is a CASE session establishment and a step
+demanding a full handshake would fail a DUT doing the spec-preferred thing.
 
 ## An interaction over the TCP session, bound to that session (`TC-SC-8.5`)
 
@@ -2331,9 +2442,10 @@ extraction, and each way `recordTcpInvoke`'s patterns can be satisfied by the wr
 session, another command, another endpoint, a response carrying more commands, no answer at all) —
 so a regex regression surfaces without docker and without a chip binary.
 
-Step 1's expected outcome here is the plan's "the session allows large payloads", which nothing logs —
-a TCP-backed session is large-payload-capable by construction, so this step's evidence is 8.1's and the
-distinct witness belongs to `TC-SC-8.6`, as the note above records for `TC-SC-8.2`.
+Step 1's expected outcome here is the plan's "the session allows large payloads", which nothing the
+*device* logs states: a TCP-backed session is large-payload-capable by construction, so this step's
+device evidence is 8.1's. The two distinct witnesses live elsewhere — `TC-SC-8.2` asks the controller
+what the session permits, and `TC-SC-8.6` observes a large payload actually crossing.
 
 ## The large-payload witness the earlier TCP cases lack (`TC-SC-8.6`)
 
@@ -2393,7 +2505,672 @@ invoke, no large payload — and the step's evidence is what distinguishes the c
   reject would read as a session it accepted, and an attempt inside the span whose session forms after
   it would be counted though its establishment falls outside the window this check bounds.
 
-Nothing in the controller expresses "either transport is usable" as a request flag: matter.js's
-`transportPreference` is set once, for the session, and the protocol layer's hard `requiredTransport`
-lever is not surfaced. So the plan's step text describes what an ordinary invoke already is on this
-stack, and the case's substance lives entirely in the three checks above.
+Nothing in the controller expresses "either transport is usable" as a request flag. `largeMessage`
+expresses the opposite — TCP or fail — and `transportPreference` is a per-session preference, so an
+invoke that sets neither is exactly the plan's "either is usable". The case's substance therefore
+lives entirely in the three checks above.
+
+## The group-messaging block, and what sending one actually needed (`TC-SC-5.3`)
+
+`TC-SC-5.3` is the mirror of `TC-SC-6.1`: the same four setup steps — an ACL entry admitting the
+group, a key set, the GroupKeyMap binding, AddGroup — and then, where 6.1 reads that state back over
+unicast, 5.3 sends a **groupcast** through it. The setup is one module (`tc-group-support.ts`) both
+cases use, so the two cannot drift.
+
+**The controller gained a group destination.** `cx.controllers.dut.group(id)` returns a `CertGroupApi`
+with `defineKeySet` and an `invoke` that takes **no endpoint** — a group command's path names only the
+cluster and command, and matter.js refuses a group invoke that names an endpoint. matter.js resolves
+the group as a peer whose node id encodes it (`NodeId.fromGroupId`); chip-tool takes the same thing as
+a destination id of `0xFFFF'FFFF'FFFF'0000 | groupId`.
+
+Four things the plan does not say, each of which failed silently until found:
+
+- **The sender needs the key too.** Writing the key set to the device is half of it; the controller
+  encrypts the groupcast, so it must hold the key as well — which is what the plan's "DUT generates a
+  random key" means in practice. `defineKeySet` does that, and `keySetWriteStep` takes a flag for it:
+  provisioning also makes the controller join the group's multicast address, so a case that never sends
+  a groupcast (TC-SC-6.1) does not take on that failure surface.
+- **On the fabric the sender resolves.** The adapter's own `Fabric` handle is a *different object* for
+  the same fabric index than the one `SessionManager.fabricFor` returns, and group state written on the
+  adapter's copy is invisible to the sending path. The symptom is `No group key set found for groupId`
+  from a controller that provably just provisioned one.
+- **The ACL entry needs Manage, not Operate.** `Groups.AddGroup` is a Manage command. With Operate the
+  message arrives, decrypts and dispatches — and does nothing, because a group message is
+  unacknowledged and nothing reports the refusal. It reads exactly like a multicast that never arrived.
+  `aclAdmitsGroupStep` therefore takes the privilege the case's own later steps need.
+- **Both groups must be in the GroupKeyMap.** `AddGroup` answers `UNSUPPORTED_ACCESS` for a group the
+  fabric's map does not name (Application Clusters § 1.3.7.1), so a case that adds group 2 *through*
+  group 1 binds both in the GroupKeyMap step.
+
+**What step 5 proves, and on which controller.** The plan asks for four things, and a **matter.js**
+sender's log carries all four. The multicast address is not shape-matched: the DUT's membership line
+names the group, the fabric and the address together, so the address is recomputed from that fabric id
+and group id and compared byte for byte — which also establishes the destination is GroupID 1. The port
+and address are read from the invoke's `dest:` field, and the session tag renders `•group#…`. That last
+one is the sender saying which *kind* of session it used, not a read of the packet's own DSIZ field —
+which is what makes it evidence for the claim rather than the claim itself, and the step's expected
+outcome says so.
+
+**chip-tool shows less, and says so.** Its log names the group it sent to (`Sending command to group
+0x1`) and nothing about where the message went, so on that controller the address-and-port half is
+recorded `unverified` with that reason rather than passing. The arrival evidence below runs on both.
+
+The arrival is proved three ways, because the first is what makes the last mean anything: the TH does
+not hold group 2 beforehand, the TH's own log shows it dispatching the AddGroup with the group and name
+the message carried, and only then does a unicast `ViewGroup(2)` answer with them. The dispatch line is
+also the step's synchronisation — an unacknowledged multicast orders nothing against the unicast read
+that follows it, so without that wait the read races the device.
+
+A group command's path is endpoint-wildcarded on the wire (`invokes: *.0x4.0x0`), so the dispatch is
+identified by the endpoint it *reached*: matter.js names endpoint, cluster, command and fields on its
+`ProtocolService Invoke «` line, and chip prints `Received Groupcast Message with GroupId 0x0001`
+followed by `Processing group command for Endpoint=1 Cluster=0x0000_0004 Command=0x0000_0000`. chip's
+first line is worth knowing about — it names the group id read off the *packet*, which is the
+receiver's own view of the destination, and the only place in this suite where that appears.
+
+**A production change came with it.** The group invoke's diagnostic printed the address alone;
+`GroupSession.destination` now renders `[<address>]:<port>` so the log says where a message actually
+went. Steps 6 and 7 stay not-applicable: they need the Groupcast cluster, which neither TH has.
+
+## Operating a device, and observing the events it sends (`TC-SWTCH-3.2`)
+
+Three mechanics this TC needed, all reusable.
+
+**An event subscription that does not ask for urgency sees almost nothing.** A publisher may hold
+queued events until the subscription's maximum interval elapses, so a step that operates the device and
+then waits a few seconds for the event sees one report and then silence — this TC's first run saw one
+of four switch events, the rest arriving when the subscription closed. `SubscribeEventOptions.urgent`
+asks for urgent paths (`isUrgent` on each `EventPathIB`, `--is-urgent` on chip-tool). It is off by
+default because it is visible on the wire: chip's decode dump prints an `isUrgent = true` line inside
+the `EventPathIB`, which breaks a log check that matches the subscribe envelope as adjacent lines
+(`TC-IDM-6.4` does exactly that).
+
+**Count events above a boundary, and take the boundary from the subscription, not from a read.** Events
+an earlier step provoked can still be in flight when the next step starts, so a step that counts "the
+events named X" counts the step before it too. Wait until the subscription has been quiet for a moment,
+take the highest event number received, and count only above it — and fail the step if it never goes
+quiet, since then the boundary separates nothing. Do not take the boundary from `readEvents`: chip-tool
+folds a subscription report that arrives while a read is in flight into that read's reply, so the
+step's own first event lands *below* a boundary read this way. That was observed in a captured run —
+the read returned event numbers 4..8 where the subscription had delivered 4..7, and the step then
+counted three of its four events.
+
+**A backchannel command returning does not mean the device has acted.** The matter.js test device
+awaits the state change before answering; a chip app reads the command from its named pipe on its own
+thread and posts it to its event loop, so a read taken immediately afterwards can still see the old
+state. A step that operates a device and then reads should poll to a deadline rather than assert once.
+
+Beware also that a device's own idea of "idle" differs: `simulateSwitchIdle` resets the switch state on
+the matter.js device but only moves the position on a chip app, so a step that presses needs its own
+wait for the previous press cycle to close, not just the command.
+
+## The bridge block, and what "the DUT contains the device" can rest on (`TC-BR-4`)
+
+The first case whose claims are about the **controller's own state** rather than about what the TH
+answers. Its section 1 asks whether the DUT gathered the bridge's endpoints, section 3 whether it
+followed a rename, an added endpoint and a removed one. A read cannot answer any of that: it reports
+what the bridge exposes now, so it passes whether or not the controller ever noticed.
+
+`CertNodeApi` therefore gained `clientEndpoints()` and `clientAttribute()`, which report what the
+controller holds without issuing an interaction — the matter.js adapter walks the `ClientNode`'s
+endpoint tree and its behaviors' state. chip-tool keeps nothing between commands, so it refuses both,
+and its overlay answers 0 for `MCORE.BRIDGECLIENT` and every `MCORE.DEVLIST.*` flag: **the whole case
+is not applicable on a chip-tool controller**, which is the honest declaration, not a gap. The device
+file answers 1 for the `DEVLIST` flags because it describes a device, so the overlay has to override
+them rather than only add to them.
+
+Each step still makes both claims where it can — the read says the TH answered, the held value says
+the DUT took the answer in — because only the second can fail once a subscription is delivering.
+
+**The DUT notices through the node-level subscription, which this suite deliberately leaves on** (see
+"Subscription policy" above). A step that changes something at the TH waits for the controller's own
+value to change rather than sleeping: `until()` polls `clientAttribute`/`clientEndpoints` against a
+monotonic deadline.
+
+### chip's `bridge-app` is driven by keystrokes, and drops the ones that arrive together
+
+Its named pipe answers exactly one unrelated command and calls `VerifyOrDie` on any other name, so a
+forwarded command does not no-op there — it aborts the TH. The simulation commands are single
+characters on standard input instead (`c` toggle, `t` warm, `b` rename, `2` add, `4` remove), which
+`ChipLocalDevice`/`ChipDockerDevice` now deliver, gated per app exactly as the pipe is.
+
+**One character per poll interval, or the app loses the rest.** The app polls with
+`ioctl(FIONREAD)` and reads with `getchar`: FIONREAD reports what the kernel holds while `getchar`
+drains all of it into stdio's own buffer, so of several characters written together the app acts on
+the first and never polls for the others again. Measured against the real binary: three toggles
+written back to back produced one. `StdinPacer` serializes the writes and leaves 250ms between them.
+
+A container's standard input also closes as soon as the first attached client detaches (Docker's
+`StdinOnce`), and every later command then has nothing to arrive on — so a subject we write to for
+its whole life is created with `stdinOnce: false`.
+
+### The case runs on the matterjs flavor only, until chip's bridge-app is fixed
+
+`chip-bridge-app` cannot encode `PowerSource.GeneratedCommandList` (0x2F/0xFFF8) on the composed
+endpoint: its read handler fails with `TLVWriter.cpp:697: CHIP Error 0x00000024: Invalid TLV tag` and
+moves to `AwaitingDestruction` **in the middle of a chunked report**, having already told the
+controller more chunks are coming. The controller's wildcard bootstrap read is then orphaned — the
+session stays healthy and later reads succeed, but that read never completes, so no node-level
+subscription is ever established and every "the DUT took the value in" claim in this case fails on
+what the controller never learned. Reported upstream as
+<https://github.com/project-chip/connectedhomeip/issues/73561>, unfixed.
+
+So `certTest("TC-BR-4")` declares `flavors: ["matterjs"]`. This is the one place in the suite where
+the flavor policy above ("at least one chip flavor passing is the actual certification claim") is
+knowingly unmet: the case currently proves the controller against `BridgeTestInstance` only, and is
+not a certification claim until the chip flavors are restored. Restoring them is a one-line change
+once the upstream defect lands — nothing else in the case is flavor-specific.
+
+### The plan's endpoint list does not match the app the plan names
+
+The plan puts five lights at 3 and 10-13 and a power source at 9. `bridge-app` puts its lights at 3
+and 9-12 (one, plus the four the Actions plan uses), its power source **on the composed endpoint 6
+itself** — declared as both a bridged node and a power source — and nothing at 13 until step 3c adds
+it. This case follows the app.
+
+`BridgeTestInstance` mirrors that layout for the matterjs flavor, and takes the same commands through
+the backchannel. Note that an aggregator uses the full-family pattern (Matter Core § 9.2.3), so its
+own `PartsList` names every descendant including the composed device's sensors; the composed
+endpoint's own list is what says which sensors belong to it.
+
+**A `chip-bridge-app` built with the default dynamic-endpoint table cannot run this case.** The app's
+own configuration asks for 16 (`bridge-common`'s `CHIPProjectAppConfig.h`); a build that does not pick
+that up stops after four bridged devices with `Failed to add dynamic endpoint: No endpoints
+available!`, and step 1a fails naming the endpoints the TH answered for. That is the TH being the
+wrong device, not the case being wrong.
+
+## When the DUT must start the signaling (`TC-WEBRTCR-2.1`)
+
+The first case whose peer invokes commands *on the controller*. A WebRTC provider answers a
+solicitation by invoking `Offer` back on the requestor cluster, so a controller that hosts no such
+cluster gives the command nowhere to land and the case cannot run at all. Three things follow, and
+none of them is visible from the plan document:
+
+- **The controller has to be a node with an endpoint.** `ControllerAdapterOptions.webRtcRequestor`
+  adds a camera-controller endpoint to the in-process controller; chip-tool's adapter refuses the
+  option, since a commissioner process is not a node. A case wanting this must therefore skip on any
+  other controller implementation, which is what makes it matter.js-only rather than a flavor gap.
+- **The provider's Offer beats a registration made after the solicitation's response.** chip's camera
+  invokes `Offer` from inside its own handling of `SolicitOffer`, so where controller and provider
+  share a host the Offer lands first and a session registered on the response is refused — a failure
+  that looks exactly like the defect the case hunts. Register the id the provider is about to mint
+  *before* soliciting (ids are sequential, `WebRTCTransportProviderCluster::GenerateSessionId`) and
+  confirm it against the answer. A local run over a Docker bridge is slow enough to hide this; CI is
+  not.
+- **A refusal is only evidence once something comparable was accepted.** The requestor refuses
+  signaling for every id it does not track, so "it answered `NOT_FOUND`" is satisfied by an
+  implementation that looked at nothing. Registering the id the provider minted
+  (`ControllerAdapter.webRtcRequestor.upsertSession`) is necessary but not sufficient: the case also
+  solicits a second session once the injected fault is spent — it is armed for one call — and
+  requires *that* Offer to be accepted. Only the pair separates "refuses by session id" from
+  "refuses everything".
+- **A python-wrapped case names its own TH_SERVER variable.** `MATTER_CERT_TH_SERVER_APP_PATH` is
+  the CASE cases' all-clusters build; the WebRTC cases read `MATTER_CERT_CAMERA_APP_PATH` instead.
+  Sharing one variable would hand a case the wrong app rather than letting it skip.
+- **Judge the refusal from the controller, not from the peer's log.** chip's provider logs the status
+  it received and never the session id, so its `NOT_FOUND` line cannot say which id was refused. The
+  controller's own record can, and does (`WebRtcRequestorApi.signals()`). A prompt handler cannot read
+  the script's log while it runs, either: the loop reading that output is suspended for as long as the
+  handler is, so its line array is frozen and polling it waits forever.
+- **`webrtc establish-session` in a plan's prompt is two commands, not one.** chip's
+  camera-controller expands it to `VideoStreamAllocate` on the provider's
+  `CameraAvStreamManagement`, then `SolicitOffer` on its `WebRtcTransportProvider` — a case driving
+  the DUT by hand has to send both, in that order, and pass the allocated video stream id on.
+
+Two more things the first live run settled, neither of which is visible from the plan or the script:
+
+- **Every WebRTC signaling command carries the specification's Large Message quality, so the
+  controller needs a TCP client.** matter.js requires a TCP session for such a command
+  (`ClientInteraction`'s `requiredTransport`) and its own server refuses one arriving on an MRP
+  session with `InvalidTransportType`, which is what the specification's "Large Message Quality"
+  section states. An adapter built without `transport: "tcp"` has no TCP interface at all, so the
+  solicitation stalls and then fails as `Peer has been unreachable for 15s` — a message that names
+  neither the transport nor the command. Ask for `transport: "tcp"` alongside `webRtcRequestor`.
+- **On macOS the harness container advertises on the Docker bridge, not on the LAN interface.** The
+  usual `MATTER_MDNS_NETWORKINTERFACE=en0` pins the controller to an interface the container's
+  records never reach, and the case fails in commissioning with nothing discovered. Name the bridge
+  the container's records arrive on (`bridge100` here; `dns-sd -B _matterc._udp local.` prints the
+  interface index, and `python3 -c "import socket;print(socket.if_indextoname(N))"` names it).
+
+The rest of the block (`TC-WEBRTCR-2.2` … `2.7`) shares all of that through
+`tc-webrtcr-support.ts`: `certCameraCase()` owns the adapter, the recorder, the commissioning prompt
+and the teardown, and a case supplies its commissioning shape and a step per prompt it answers. Four more things
+those cases settled:
+
+- **Where the plan says `webrtc establish-session` without `--offer-type`, the DUT offers rather than
+  solicits.** `ProvideOffer` takes an SDP, and the provider only checks that it carries the
+  session-level lines plus the ICE and DTLS attributes (`ValidateSdpFields` in chip's
+  `webrtc-provider-manager.cpp`). A static offer describing a connection nobody builds is therefore
+  enough for every case that ends in a refusal — the provider answers it, which is what those cases
+  put to the DUT.
+- **A provider sends its own ICE candidates only after the requestor has sent some.** chip's provider
+  moves to `SendingICECandidates` when it handles `ProvideICECandidates`, so a case about incoming
+  `ICECandidates` has to send one first.
+- **A constraint violation never reaches the cluster.** Schema validation answers `ConstraintError`
+  for a command field that breaks its own constraint before the behavior runs, so the requestor's
+  `refused` event never fires for it and no refusal reaches `signals()`. `TC-WEBRTCR-2.7` reads that
+  refusal from the controller's own log instead — take the mark with `markSettled()`, not `mark()`: a
+  line already in the pump can otherwise sit at an index the mark does not exclude, and satisfy the
+  check without the fault ever firing.
+- **`2.3`, `2.4` and `2.5` need the controller to be a real WebRTC endpoint**, because each asks the
+  provider to report `PeerConnection State: Connected`. `webrtc-peer.ts` is that endpoint, over
+  `node-datachannel` — a dependency of this package alone, since the WebRTC media plane belongs to the
+  application driving matter.js, not to the library. Three things that flow had to settle:
+  - An offer needs something to negotiate: a peer connection with no data channel and no track cannot
+    describe itself at all (`No DataChannel or Track to negotiate`).
+  - The connection lives in a **child process**, and that is not incidental. `node-datachannel` keeps a
+    process alive once a connection has run, and its only release is a process-wide `cleanup()` that
+    kills a process still doing work. The certification specs share one process and report at the end
+    of it, so in-process there is no safe option: without `cleanup()` the run never exits (`did not
+    exit cleanly`, exit 101), and with it — from a test hook or from the harness shutdown alike — the
+    process dies before the runner reports and a whole leg's summary goes with it. Both were observed
+    in CI with every case passing. A child process holds one connection and nothing else.
+  - chip's camera answers `a=setup:actpass`. RFC 8842 § 5.3 sends the answerer to RFC 4145 § 4.1,
+    whose table leaves it `active` or `passive` and never `actpass`. libdatachannel refuses such an
+    answer, so `WebRtcPeer.accept` settles the role and the case records that it did, rather than
+    certifying a connection built on an answer the harness altered. Reported upstream as
+    [connectedhomeip#74310](https://github.com/project-chip/connectedhomeip/issues/74310); both the
+    substitution and the check that records it go when the camera app answers with a settled role.
+  - Ending a session is two things: `EndSession` tells the provider, and `removeSession` stops the
+    requestor reporting it. The cluster drops a session by itself only when the *peer* ends it (chip's
+    camera answers `EndSession` by cleaning up its own side and sends no `End` back), so a controller
+    that skips the second half keeps a session it ended in `CurrentSessions`. Read `TC-WEBRTCR-2.5`'s
+    last read for what it is: the harness performs the removal, so that read states the controller
+    stopped reporting the session, not that the cluster decided to.
+
+A prompt-driven script's multi-line prompt is one more trap of its own: each line arrives separately,
+so a `PromptHandler` pattern that matches a hint line inside the prompt writes a second answer, which
+the *next* `input()` consumes. Match the prompt's first line only.
+
+## The BDX block, where the DUT is asked to send a file (`TC-BDX-1.4`, `TC-BDX-2.1`)
+
+The BDX plans give their DUT the **sender** role, which in Matter means an OTA provider: nothing else
+in the protocol hands a file to a peer. So these cases invert nothing — the DUT is still the
+controller — but the controller has to become a provider, which no other case asks of it.
+
+**`CertNodeApi.serveOtaUpdate()` is the whole capability, and it is one call for a reason.** It reads
+the vendor, product and software version the controller *already holds* for the node, builds an image
+one version newer, stages it, adds an OTA provider endpoint to the controller's own `ServerNode`,
+announces itself through `SoftwareUpdateManager.forceUpdate()`, and resolves only once the BDX
+transfer the node opens in response has completed. Splitting it would put a race between the stages:
+the transfer can finish before a separate "now wait for it" call is made.
+
+Three things in it are load-bearing:
+
+- **The identity comes from held client state, not from a read.** `SoftwareUpdateManager` validates a
+  `QueryImage`'s claimed vendor/product/version against what the controller holds
+  (`#validatePeerDetails`), so an image staged from a fresh read could be applicable to what the node
+  says and inapplicable to what the controller believes. The answer to that is `NotAvailable`, with
+  nothing in any log to point at.
+- **It rejects rather than reporting a partial result.** A node that never queried, one answered
+  `NotAvailable`, and one whose transfer stalled all reach the budget and throw. That is the failure
+  these cases exist to catch, so there is no shape of success it can return without a transfer.
+- **The adapter's environment needs a `MockFilesystem`.** `MockStorageService` covers KV storage only;
+  `openBlobStorage` still resolves a driver through the `Filesystem` service, which otherwise reaches
+  the developer's own `~/.matter`. The symptom is not a stray file but a crashed behavior —
+  `No blob storage driver registered for "dir"` — because a real `driver.json` there names a driver
+  the in-memory service does not have.
+
+**matter.js's OTA requestor waits a random 1–600 s before querying an announced provider, and chip's
+does not.** Matter Core § 11.20.3.6.1 asks for that window so a fabric's nodes do not all query at
+once; chip's `DefaultOTARequestorDriver` leaves it at `mOtaStartDelaySec`, which its Linux app
+defaults to zero. A cert run cannot wait out ten minutes, so
+`OtaSoftwareUpdateRequestorServer.State.announcedUpdateQueryDelay` names a fixed wait and
+`OtaRequestorTestInstance` sets it to 250 ms — the harness subject only, not the library default,
+which still draws the window. The specification states a preference rather than a requirement here.
+Without that the precondition step times out having done everything right.
+
+**The negotiated transfer is receiver-driven, so there are no `BlockAck` messages at all.** The
+requestor proposes `receiverDrive` alone (`OtaSoftwareUpdateRequestorServer.#handleBdxDownload`), and
+under it the receiver's `BlockQuery` for the next block is what acknowledges the last one. Both plans'
+step text says "TH sends a BlockAck message back to DUT", which describes the sender-drive form of the
+same exchange; TC-BDX-2.1 step 1 records the `BlockQuery` and says so in the check's own detail rather
+than asserting a message the negotiated mode never produces.
+
+**Neither side names a definite length, and the plans' rules are conditional on one.** A receiver's
+`ReceiveInit` carries no `maxLength` (`bdxSessionInitiator.buildInitMessage` only sets it for a
+sender), and matter.js's `ReceiveAccept` then derives its own Length from that proposal rather than
+from the file it is about to send — so the accept carries none either, and its Range Control's
+definite-length bit is clear. TC-BDX-1.4's Length check is written the way the plan writes it ("if
+this field is present, **and** the Initiator indicated a definite length"), so it passes on the
+consistency rather than on a comparison it cannot make. Whether a sender ought to announce the size it
+knows is a question for the library, not for the case.
+
+**The evidence is the wire, not a rendering of it.** For TC-BDX-1.4 the accept's four mandatory fields
+are checked against the bytes the TH's own log prints for the message it received
+(`receiveAcceptPayload` builds them from what the DUT reports having granted), and the proposal
+likewise against the `ReceiveInit`'s payload prefix. That is what makes "exactly one mode shall be
+chosen" a real check: a transfer control naming two modes is a different byte. chip's TH gets the
+structured `[ATM]` decode instead, whose values are computed from the same record.
+
+**chip's BDX receiver logs a `BlockEOF` and nothing for a `Block`.** `TransferSession::HandleBlock`
+records the block and returns; `HandleBlockEOF` beside it calls `LogMessage`, and so do the
+`ReceiveInit`, `ReceiveAccept` and `BlockAckEOF` paths (`BdxMessages.cpp`). So on a chip leg
+TC-BDX-2.1's steps 1 and 2 carry a device-log check that is `unverified` with an `accepted` reason
+naming that source, while step 3 and the whole of TC-BDX-1.4 are fully evidenced. Do not reach for
+`flavors: ["matterjs"]` there: the response checks are the DUT's own account and run on every leg, and
+a step restricted to one flavor would drop them too. Every chip pattern in this block is derived from
+`connectedhomeip`'s source rather than from a run — `ChipLogAutomation` prints under the module short
+name `ATM`, `%X` renders a byte without padding (`0x0`, not `0x00`), and `ChipLogFormatX64` is sixteen
+zero-padded uppercase digits — so a chip leg is what would confirm them.
+
+**One transfer, read by every step.** Both cases run their transfer in a precondition step `0` and
+hand the later steps the TH log cursor taken before it, because the whole exchange is over by the time
+step 1 runs. Step 0 also waits for the TH's own last line of the transfer (`BlockAckEOF`), which is
+what lets the numbered steps scan the buffer instead of waiting on it — a scan of a log that is still
+arriving is the mistake that rule exists to prevent. A step taking its own `mark()` would search a
+window every line it wants is already behind.
+
+**`npm run --workspace support/chip-testing test-cert -- --spec "…"` runs the whole cert suite.** The
+`test-cert` script already carries `--spec=test/cert/**/*.test.ts`, and a second `--spec` adds to it
+rather than replacing it. To iterate on one case use the direct form with the shutdown timeout set by
+hand:
+
+```bash
+MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 MATTER_MDNS_NETWORKINTERFACE=en0 \
+    npx matter-test esm -p support/chip-testing --spec "./test/cert/TC-BDX-*.test.ts"
+```
+
+## Revocation is something the controller has to be told (`TC-DA-1.9`)
+
+The case commissions seven devices, six of which present a DAC or PAI the test PKI has revoked, and
+the DUT has to refuse exactly those six. Three things about it are not obvious.
+
+**The revocation information reaches the controller from the case, not from the DCL.** A commissioner
+normally reads revocation distribution points from the ledger and downloads the CRL behind one. The
+PKI this case uses is published in neither ledger — `/dcl/pki/revocation-points/<akid>` answers
+`{"code":5,"message":"not found"}` on both `on.dcl.csa-iot.org` and `on.test-net.dcl.csa-iot.org` for
+every issuer in the set. The test plan allows for exactly this: its setup says revocation information
+may be "generated out of band and made available to the DUT". So the case reads the revocation set out
+of the container and installs it through `ControllerAdapter.attestation`.
+
+**A controller only judges attestation when asked, and asking changes two things.**
+`createControllerAdapter("dut", { attestation: true })` gives it a certificate service seeded with the
+chip test roots, constructed `offline` so it reaches no network — without that the service fetches
+every production PAA from the live DCL while it starts, which both trusts more than the case says and
+makes the case depend on ledger reachability. It also changes the commissioning policy: a cert
+controller's `onAttestationFailure` accepts everything, because a cert device presents test
+certificates and refusing those would stop every other case from running. A controller built to judge
+refuses an error-level finding instead, and names the findings in the refusal, so a case can require
+the refusal it asked about rather than any refusal at all — a controller that never found the device
+refuses too.
+
+A judging controller will not commission a matter.js test device at all: that device generates its own
+PAA at runtime, which is in no trust store, so attestation fails with `PaaNotTrusted` before revocation
+is ever considered. The TH for a case like this has to be a chip app presenting the chip test PKI.
+
+The service lives in a root environment of its own rather than the shared default, so one controller
+judging attestation does not change what any other controller in the run sees. A related landmine:
+`DclBehavior.certificateService` resolves through `env.root`, which walks past the adapter's
+environment to the shared default, so a case that ever touches it would create a second, differently
+configured service and register it globally. Nothing in the harness does today.
+
+**A serial number reads differently on the two sides.** A certificate states its serial as the content
+octets of a DER INTEGER, which carry a leading zero whenever the top bit is set; a revocation set
+states the number. `00E1234567` and `E1234567` are the same serial. Both sides are compared by their
+significant bytes — see `canonicalSerial` in `DclCertificateService`. Every serial in chip's own test
+set has a leading byte below `0x80`, so a fixture drawn from it will not show this.
+
+**A refusal alone proves nothing.** Six vectors expect refusal and one expects success; without the
+seventh, a controller that refused everything would score a full pass. The case also requires each
+refusal to name `CertificateRevoked`, and fails the vector where a refusal came from anything else —
+a timeout or a missing device answers `"N"` too, which is exactly what the script wanted to hear.
+
+Also worth knowing: the script states the pairing code and the revocation set path on separate lines
+of one prompt, and a handler answers on the line it matched. `statedInPrompt` (in `tc-support.ts`)
+reads the earlier lines back out of what the script has printed, because a handler cannot wait for
+more output — the loop reading it is suspended for the handler's whole duration.
+
+## The SU block, where the DUT is the OTA provider (`TC-SU-3.1`–`TC-SU-3.4`)
+
+The Software Update plans give their 3.x cases a provider DUT, which here is the controller — the
+same topology TC-BDX-1.4 and TC-BDX-2.1 use, and the same `serveOtaTransfer` precondition drives it.
+What the SU cases need beyond the BDX ones is the **provider's own account of what it answered**.
+
+**A provider's answer is not observable from outside it.** The requestor's log states what it
+received, and neither requestor this suite runs as the TH renders the update token's length or the
+image URI's exact text. `CertNodeApi.serveOtaUpdate()` therefore reports `exchanges`: every
+`QueryImage`, `ApplyUpdateRequest` and `NotifyUpdateApplied` the controller's provider answered
+during that update, with the fields of both sides. The requestor's log is what corroborates that the
+answer reached it — chip's `DefaultOTARequestor` prints the whole response field by field under
+`[SWU]`, matter.js's requestor prints none of it and its own account is the download it then ran.
+
+The record comes from `CertOtaProviderServer` (`InProcessControllerAdapter.ts`), a subclass whose
+overrides call `super` and record: every answer is the provider matter.js ships, not one shaped for
+a case. The record is cleared before each announcement rather than filtered afterwards, so a case
+serving two updates reads each one's own.
+
+**`announceOtaProvider()` is how a case reaches a provider with nothing to offer.** It stages no
+image, announces the controller to the node and resolves once the node's `QueryImage` has been
+answered. TC-SU-3.2 step 2 needs exactly that — "there should not be any new software update
+available" — and it runs **before** the staging precondition, because a staged image cannot be
+un-staged. It announces `UpdateAvailable` rather than `SimpleAnnouncement`, which is what makes matter.js's
+requestor query at once (`OtaSoftwareUpdateRequestorServer` schedules on any reason but
+`SimpleAnnouncement`). chip's `DefaultOTARequestorDriver` treats the two alike and queries immediately
+either way, because its Linux app leaves `mOtaStartDelaySec` at zero.
+
+**A case may pass its app arguments, per role.** `certTest`'s `appArgs` is a role → arguments map
+threaded to the chip binary's command line and to a matter.js subject's `TestInstanceConfig.appArgs`.
+TC-SU-3.4 needs it: chip's `ota-requestor-app` ends the update at the download unless started with
+`--autoApplyImage`, so the `ApplyUpdateRequest` that case is about would never be sent. `serveOtaTransfer`
+takes an `expectApply` override for the same reason — its flavor default assumes the flag is absent.
+The evidence bundle records each role's arguments (`run.devices[].appArgs`), which is what lets a
+reader tell a flag that took effect from one that meant nothing on the flavor that ran.
+
+**A plan step about an answer the provider reaches only in a state the harness cannot arrange is
+driven, not skipped.** `CertNodeApi.scriptOtaProvider({ queryImage, applyUpdate })` queues answers the
+provider gives in place of its own, one per command, falling back to its real answer once a queue is
+spent. That is how TC-SU-3.2 step 5 gets a `Busy` with a `DelayedActionTime`, TC-SU-3.4 steps 2 and 3
+an `AwaitNextAction` and a `Discontinue`, and TC-SU-3.3 steps 2 and 3 a `UserConsentNeeded`. A
+scripted *status* or *action* is answered without asking `super` at all: its answer is a side effect
+as much as a value — it stages an in-progress entry, registers the peer for BDX, closes that
+registration on the way to an apply — and writing a status over the top afterwards would leave the
+provider expecting a transfer the requestor was just told not to start. A scripted `UserConsentNeeded`
+does overlay the real answer, because the step is about the field, not about the answer.
+
+**The provider is one endpoint serving every node, so everything it holds is keyed by peer.** Its
+record of what it answered and its queue of scripted answers both live in a `Map` keyed on the
+`PeerAddress` the command arrived from, and `OtaExchangeRecording` waits only for its own peer's
+query. Without that, a second requestor's periodic query settles another node's wait, consumes the
+answer scripted for it, and lands in its evidence — and every SU case whose plan names more than one
+device is one step away from that.
+
+**The delay is the TH's to wait out, not the DUT's to be judged on.** In every one of those steps the
+DUT is the provider and the claim is about the fields it sent; the minutes that follow are the
+requestor's own. So the wait is shortened where it can be: `OtaRequestorTestInstance` lowers
+`minimumQueryInterval` and `minimumApplyDelay` — the requestor's two-minute floors, overridable in the
+library for exactly this and never lowered by a product — when `MATTER_CERT_OTA_FAST_RETRY` is set,
+and the case then scripts a one-second `DelayedActionTime` and says so in the check's own detail.
+chip's requestor floors the same waits at compile time, so there the step costs the plan's three
+minutes and carries `longRunning`, which skips it unless `MATTER_CERT_LONG_RUNNING` is set. The daily
+schedule sets it; a push does not.
+
+What a shortened run gives up is stated rather than hidden, and it takes two checks to state it. A
+single check whose verdict changed with an environment variable could not fail at all, which is how a
+dropped field once stopped being a defect. So `delayedActionTimeCheck` asks only whether the DUT
+echoed the value the case scripted — a pass or a fail on every run — and `planDelayCoverageCheck`
+separately records whether that value was the plan's three minutes, reporting `unverified` with an
+`accepted` reason where it was not. Every other claim in those steps — the status answered, the second
+command, the download that followed — holds either way. `RunRecord.longRunningSkips` counts what a run left out, so a
+bundle without it covers the plan and one with it covers the plan minus what its reasons name.
+
+**A subject driven more than once has to leave nothing behind.** `CertOtaRequestorServer.applyUpdate`
+deletes the file it verified. A real device reboots into the new image; this one does not, and a
+downloaded file that outlives its update short-circuits every later query — the requestor applies what
+it already holds instead of asking the provider — so without the delete a case could drive exactly one
+update. The same subject declares `canConsent`, since it implements `requestUserConsent`; without the
+declaration it sends no `RequestorCanConsent` and refuses any update whose provider asks for consent.
+
+**What the DUT genuinely cannot do is still declared.** `MCORE.OTA.HTTPS` is `0`:
+`SoftwareUpdateManager` serves from its own catalog over BDX and answers no https URI. Steps the
+*harness* cannot stage — failing a transfer part way, resuming one — carry `notApplicable`, because
+the capability is the harness's to lack rather than the DUT's.
+
+**The image URI is checked against the controller's own node id**, which `OtaBdxTransfer.providerNodeId`
+reports in the form `commission()` answers with. Reading the id out of the URI and then checking the
+URI against it would be checking the URI against itself. A node id appears in three renderings across
+this block — decimal on the API, sixteen uppercase hex in a BDX URI and in chip's log, decimal again
+in matter.js's — and the API carries one of them; `bdxImageUriFindings` and `announcementLines` render
+the others where they are needed.
+
+**`OtaExchangeRecording` owns the record's lifetime, and that is the load-bearing decision.** The
+provider's record is behavior state that keeps growing, so a call handing it back directly would give
+a case an array the requestor is still appending to: a `NotifyUpdateApplied` or a periodic
+`QueryImage` arriving after the call turns "the provider answered one QueryImage" into an
+intermittent failure. Opening a recording clears the record and attaches its observer inside one
+`act`, so no answer falls between the two, and reading it copies. Nothing else clears the record or
+reads it live.
+
+**Two reasons keep a step from running, and each has exactly one spelling.** A capability the *DUT*
+lacks is a `pics` gate, whose body is `unsupportedByDut(...)` — a PICS-gated step still needs a body,
+because a run whose PICS answer `1` must fail loudly rather than report a pass having checked nothing
+(`cert-test.ts` passes any step that runs without throwing, so an empty body is the worst of the
+three). A scenario the *harness* cannot stage is `notApplicable`. An empty body is neither.
+
+**A check written against a value the harness itself produced proves nothing.** TC-SU-1.1's endpoint
+check reads the OTA-P/TH2's own published device types rather than asking whether the announced
+endpoint is a number, and its VendorID claim rests on the requestor's log line rather than on a check
+of a field the controller filled in moments earlier. Where no independent account exists — matter.js's
+requestor logs nothing for a `QueryImageResponse` — the check says so with `accepted` instead of
+matching a line the precondition already guaranteed.
+
+## The SU block, where the DUT is the OTA requestor (`TC-SU-2.1`, `TC-SU-2.4`)
+
+The 2.x cases put the DUT in the requestor's role, so it is the device and the controller is the TH —
+`BDX_RECEIVER_ROLES`, as TC-BDX-1.2 and TC-BDX-2.2 use. The TH is also the plan's TH2/Administrator:
+one controller commissions, announces and answers as the OTA-P, and `exchanges` is the provider's own
+account of what the DUT sent it.
+
+**A requestor field is compared with a fresh read of the DUT, not with what the TH holds.** TC-SU-2.1
+step 1 reads `BasicInformation` over the wire after the query. The TH's held client state is what its
+provider validated the query against, so comparing the two would be comparing the query with itself.
+
+**An outcome that depends on a PICS answer asks for it with `cx.picsMet(expression)`.** It reads the
+same PICS a step's `pics` gate does, but where a gate runs a step with no active PICS, `picsMet`
+fails it: the step would otherwise be owed both outcomes. The plan's "IF (MCORE.OTA.RequestorConsent) True. Otherwise
+False" is then one check that holds both ways, rather than two steps of which one is always skipped.
+The HTTPS check is written both ways on the same grounds, although the plan states only the positive
+half: a DUT listing a protocol its PICS deny is as wrong as one leaving out a protocol they declare.
+
+**The requestor's OTA keys are declared per flavor, because CHIP's PICS file does not describe chip's
+app as this suite starts it.** The file describes a generic device and answers `MCORE.OTA.HTTPS` and
+`MCORE.OTA.RequestorConsent` `1`. `chip-ota-requestor-app` lists BDX synchronous alone and, started
+without `--requestorCanConsent` or `--userConsentState`, sends `RequestorCanConsent` false — chip's own
+`Test_TC_SU_2_1.yaml` sample log shows `RequestorCanConsent: 0`. Both declarations live in
+`src/cert/index.ts`. `MCORE.OTA.HTTPS` is one key for both roles, so in a case whose DUT is the
+provider the requestor app's `0` answers wherever the controller declares nothing. chip-tool declares
+nothing for it, so on a chip-tool leg the app's answer gates TC-SU-3.2 step 4; no verdict changes,
+because chip-tool's `MCORE.OTA.Provider` `0` skips every provider case first.
+
+**A case whose DUT is the requestor gates on the TH's provider keys too.** `MCORE.OTA.Provider` and
+`OTAR.C.M.AnnounceOTAProvider` are answered by the controller there, since the requestor app declares
+neither. chip-tool answers both `0`, so its leg skips before commissioning instead of passing on the
+precondition alone.
+
+**Step 2 is a `Busy` answer and a two-minute watch, as chip's own `Test_TC_SU_2_1.yaml` runs it.**
+That script starts its provider with `-q busy`: `Busy` invites a retry, and § 11.20.3.2.4 requires the
+requestor to hold it back for two minutes whatever `DelayedActionTime` says. A `NotAvailable` answer
+invites nothing — the next query is a day away — so a step built on it passes whatever the DUT's
+spacing is. The provider stamps every `QueryImage` with `receivedAtMs` on the controller's monotonic
+clock, and the step fails a retry closer than 120 s to the `Busy` answer. It keeps recording a
+margin past the window, so the conformant retry lands in step 2's own record and not in step 3's.
+
+**A check that something did *not* happen has to prove the window was watched.** A record read at
+once holds one query whatever the DUT does next, so step 2 also checks `OtaAnnouncement.observedMs`,
+which the adapter measures from the answered query to the read and never reports short of the window
+asked for. Removing the wait fails the step; the framework test in
+`test/cert-framework/ota-requestor-test-instance.test.ts` fails the same way.
+
+**A requestor DUT keeps the specification's floors.** `MATTER_CERT_OTA_FAST_RETRY` lowers the matter.js
+requestor's two-minute floors for cases where it is the TH, whose wait is only the TH's. Where it is the
+DUT, those floors are what is under test, so TC-SU-2.x start it with `SPEC_INTERVALS_ARG`, which keeps
+them whatever the run shortens. The flag goes under the `matterjs` key of `appArgs`: chip's requestor
+refuses to start on an argument it does not know.
+
+**Step 3 announces the provider the DUT already uses.** The harness has one provider, so it cannot
+tell "queried the indicated provider" apart from "queried its last provider". chip's own
+`Test_TC_SU_2_1.yaml` step 3 announces the same provider too. What the step shows is that the DUT
+received the announcement and then queried the provider it named.
+
+**Neither requestor honors the 120-second spacing on an announced query.** Matter Core § 11.20.3.2:
+"An OTA Requestor SHALL NOT query more frequently than once every 120 seconds". matter.js schedules
+the query `announcedUpdateQueryDelay` after the announcement, and chip after `mOtaStartDelaySec`, with
+no reference to the last query. The plan never asks this directly — its step 3 follows step 2's
+two-minute wait — so a later announcement's budget (`SPACED_QUERY_TIMEOUT`) covers a DUT that does
+honor it, and the case passes against both behaviours.
+
+**TC-SU-2.4 is matterjs-only, for TC-SU-3.4's reason.** chip's requestor sends `ApplyUpdateRequest` only
+under `--autoApplyImage`, and then exits, which the harness reads as the DUT dying mid-run.
+
+**TC-SU-2.6 is not reachable yet.** A requestor sends `NotifyUpdateApplied` when it starts up running
+the version it was updating to (`OtaSoftwareUpdateRequestorServer.#handlePreviousUpdateOnStart`).
+`OtaRequestorTestInstance` never restarts and never advances its `softwareVersion`, and chip's app
+cannot restart into the image this harness stages. Step 2's `BootReason` needs the same reboot.
+
+## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
+
+Four "DUT sends *command* to TH" steps against chip's network-manager app, the same shape as the
+cluster-client block. What it adds:
+
+- **A test-level `flavors` skips a case before any subject is built.** `defineCertTest` checks it
+  before `subjectFactoryFor` runs, so an app with no `registerMatterJsCertSubject` entry is fine
+  there. The load-time throw described under "Declaring a device-flavor capability gap" applies only
+  to step-level `flavors`. chip-docker is left out as well, since no per-app image exists for it.
+- **Not every CHIP binary is `chip-<app>-app`.** This one is `matter-network-manager-app`, in
+  chip-cert-bins and in this project's image alike. `appBinaryName` maps an app to CHIP's full name
+  where it differs, so add the name there rather than renaming the binary.
+- **`SetActiveDatasetRequest` needs an armed fail-safe.** CHIP's server answers `FAILSAFE_REQUIRED`
+  otherwise. The step arms it, sets the dataset and sends `CommissioningComplete`, as CHIP's own
+  TC-TBRM-2.2 does. The app only accepts an active dataset while it has none, so the case works on a
+  fresh TH only.
+- **The TH makes a pending dataset active once its delay timer runs out**, and clears the pending one.
+  Steps 3 and 4 read both back, so the case raises the timer in CHIP's
+  `PIXIT.TBRM.THREAD_PENDING_DATASET` from 20 to 300 seconds rather than race it.
+- **chip prints an octet-string field over three lines**: `0x0 = [`, every byte as `0x0e, ` on the
+  next line, then `] (107 bytes)`. A `CommandFieldValue` may carry bytes: `expectCommandInvoke` matches those
+  three lines together on chip and the hex value on matter.js's single field line. The byte line fits
+  only because CHIP's Linux and macOS builds with detail logging allow 1708 characters per log line
+  (`chip_log_message_max_size`); the 256-character default in `CHIPConfig.h` would cut it after about
+  40 bytes.
+- **Building the app on macOS needs the zap version the CHIP checkout names.** An older `zap-cli`
+  fails codegen with "Version validation failed". `scripts/tools/zap/zap_download.py --zap RELEASE`
+  fetches the right one, and `ZAP_INSTALL_PATH` points the build at it.
+
+## The ICD client case, and what it takes for a TH to send a Check-In (`TC-ICDB-1.3`)
+
+The DUT registers as TH1's Check-In client, TH2 (a helper controller on TH1's second fabric) sends CHIP's ICD test
+event triggers, and the DUT must refresh its key after half the counter range and drop a Check-In whose counter
+repeats. `CertNodeApi.icdClient()` is the controller side: `register()`, `unregister()`, `stayActive()`,
+`stopSubscription()`, and the Check-Ins and key refreshes it accepted (`events()`, `waitFor()`). TC-ICDM-6.1 uses
+the first three against the same `lit-icd` TH and needs none of the Check-In conditions below. Four things had to line up before any Check-In arrived:
+
+- **An ICD sends no Check-In to a client that holds a subscription, active or persisted.** CHIP's
+  `ICDManager::ShouldCheckInMsgsBeSentAtActiveModeFunction` checks both. With subscription timeout resumption
+  (stock `lit-icd-app`), the persisted entry lives until every resumption attempt is spent, and a retry after a
+  failed attempt waits at least 300 seconds. With persistence but no resumption, `mIsBootUpResumeSubscriptionExecuted` is only set after a
+  boot-time resumption, so on a freshly started app a persisted subscription blocks Check-Ins for good. The case
+  therefore runs `lit-icd-app-nopersist`, built with neither, which only this project's image carries. The matter.js
+  TH (`IcdTestInstance`) checks active subscriptions only and needs no variant. It implements the counter triggers
+  (`…03`, `…04`) through `IcdCounter.advance()`, by the amounts CHIP uses.
+- **TH2 must not become a Check-In client too.** `IcdClient` auto-registers with a LIT peer while subscribed, and
+  TH1 turns LIT when the DUT registers, so step 0 ends TH2's subscription first.
+- **The DUT has to drop its own subscription.** `IcdClient.register()` requires an active subscription (it reads
+  the peer's operating mode), and a registration makes matter.js recreate that subscription for the new operating
+  mode. `stopSubscription()` turns the peer's `autoSubscribe` off; the TH tears the subscription down when its next
+  report goes unanswered, and sends a Check-In at its next active mode.
+- **The controller has to advertise operationally**, or the TH fails with "Node Address resolution failed for ICD
+  Check-In". A node advertises when it starts with a fabric, or when `FabricManager` `added` fires after it is
+  online — a fabric created before `start()` on a fresh node does neither. The adapter therefore creates its
+  fabric after starting the controller, and every in-process cert controller now advertises `_matter._tcp`.
+
+Two more traps:
+
+- **`IcdClient.keyRefreshed` fires inside the refresh transaction**, so state read in the listener is still the
+  old key and counter. The recorder listens to `counterStart$Changed`, which fires after commit.
+- **The step-3 trigger invalidates exactly one Check-In.** It advances the counter by 2^32 − 1, so the next
+  Check-In repeats the last counter and the one after is valid again. The trigger's own exchange can also wake TH1
+  into a Check-In that is still valid, so step 3 does not count Check-Ins: it requires the drop line and that no
+  counter was accepted twice.
+
+The TH's active mode came every 10–20 seconds rather than the configured 5, so every wait is 90 seconds.
+

@@ -21,8 +21,60 @@ import { Identity } from "@matter/general";
 /**
  * A water heater is a device that is generally installed in properties to heat water for showers, baths etc.
  *
- * WaterHeaterDevice requires Thermostat cluster but Thermostat is not added by default because you must select the
- * features your device supports. You can add manually using WaterHeaterDevice.with().
+ * ### Water Heater Architecture
+ *
+ * A Water Heater is always defined via endpoint composition.
+ *
+ * If a Water Heater supports multiple temperature measurement sensors as child elements, it shall include a separate
+ * endpoint for each sensor. Each endpoint shall include a semantic tag in the TagList attribute of the Descriptor
+ * cluster to describe the relevant position of the sensor. Such a semantic tag shall be from the defined Common
+ * Position namespace (i.e. Top, Middle, Bottom etc).
+ *
+ * For basic control features the Water Heater re-uses the Thermostat cluster with the HEAT and SCH features. This
+ * allows it to have daily schedules set as to when the hot water heating is enabled, as well as setting the desired
+ * setpoint of the hot water.
+ *
+ * Additional features of the Water Heater (such as reporting estimated hot water content, and smart reheating
+ * functions) are provided by the Water Heater application cluster.
+ *
+ * In order to add energy management capability, the Device Energy Management cluster may be optionally supported, and
+ * if so, the Electrical Power Measurement and Electrical Energy Measurement clusters are supported via the Electrical
+ * Sensor device type.
+ *
+ * An example of a Water Heater device is illustrated below.
+ *
+ * ### Element Requirements
+ *
+ * The Energy Management feature of the Water Heater cluster shall be supported if the Device Energy Management device
+ * type is included.
+ *
+ * If Off is a supported SystemMode in the Thermostat cluster, setting the SystemMode of the Thermostat cluster to Off
+ * shall set the CurrentMode attribute of the Water Heater Mode cluster to a mode having the Off mode tag value and vice
+ * versa.
+ *
+ * At least one entry in the SupportedModes attribute of the Water Heater Mode cluster shall include the Timed mode tag
+ * in the ModeTags field list.
+ *
+ * ### Device Type Requirements
+ *
+ * A Water Heater shall be composed of at least one endpoint with device types as defined by the conformance below.
+ * There may be more endpoints with other device types existing in the Water Heater.
+ *
+ * #### Electrical Sensor Device Type
+ *
+ * If a Device Energy Management device type is included as part of a composition, the Electrical Sensor device type
+ * shall also be included.
+ *
+ * #### Cluster Requirements on Component Device Types
+ *
+ * If an Electrical Sensor device is included as part of a composition, it shall include both the Electrical Energy
+ * Measurement and Electrical Power Measurement clusters, measuring the total energy and power of the Water Heater.
+ *
+ * #### Element Requirements on Component Device Types
+ *
+ * If a Device Energy Management device type is included on a separate endpoint as part of a composition and the Device
+ * Energy Management cluster is supported on the same endpoint, the PowerForecastReporting feature of the Device Energy
+ * Management cluster shall also be supported.
  *
  * @see {@link MatterSpecification.v16.Device} § 14.2
  */
@@ -77,7 +129,8 @@ export const WaterHeaterDeviceDefinition = MutableEndpoint({
     requirements: WaterHeaterRequirements,
     behaviors: SupportedBehaviors(
         WaterHeaterRequirements.server.mandatory.WaterHeaterManagement,
-        WaterHeaterRequirements.server.mandatory.WaterHeaterMode
+        WaterHeaterRequirements.server.mandatory.WaterHeaterMode,
+        WaterHeaterRequirements.server.mandatory.Thermostat
     )
 });
 

@@ -87,6 +87,10 @@ export class CertLogClosedError extends Error {
  * Cert plans express expectations per implementation family, not per concrete DeviceFlavor
  * ("chip-docker"/"chip-local" both speak for "chip"), and they express them as single patterns
  * ({@link LogExpectPatterns}) or as sequences ({@link LogExpectSequences}) — hence the generic.
+ *
+ * "python-wrapped" belongs to no family, deliberately: those lines come from the wrapping script's
+ * own output rather than from a device this harness started, so a check against them resolves
+ * `"unverified"` instead of matching a family whose format nothing here controls.
  */
 export function forFlavor<T>(variants: { chip?: T; matterjs?: T }, flavor: string): T | undefined {
     if (flavor.startsWith("chip")) {

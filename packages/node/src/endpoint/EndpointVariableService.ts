@@ -97,6 +97,16 @@ export class EndpointVariableService {
     }
 
     /**
+     * Discard resolved configuration so the next access reads {@link VariableService} again.
+     *
+     * The service outlives a factory reset, and so do the endpoints and behavior types its maps are keyed on.
+     */
+    invalidate() {
+        this.#varsForEndpoint = new WeakMap();
+        this.#varsForBehavior = new WeakMap();
+    }
+
+    /**
      * Access the variable map for an instance of a behavior.
      */
     forBehaviorInstance(endpoint: Endpoint, type: Behavior.Type) {

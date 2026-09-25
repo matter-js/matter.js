@@ -34,5 +34,5 @@ jobs:
           MERGE_DELETE_BRANCH: "false"
           UPDATE_LABELS: "automated-chip-image-release"
           MERGE_METHOD: "squash"
-          MERGE_RETRIES: "30"
+          MERGE_RETRIES: "60"
           MERGE_RETRY_SLEEP: "180000"

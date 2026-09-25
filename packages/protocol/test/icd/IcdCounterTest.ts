@@ -5,6 +5,7 @@
  */
 
 import { IcdCounter } from "#icd/IcdCounter.js";
+import { ImplementationError } from "@matter/general";
 
 /** The boot bump is an internal constant; derive it from a zero seed so tests stay agnostic of its value. */
 function bootBump(): number {
@@ -36,5 +37,24 @@ describe("IcdCounter", () => {
         const counter = new IcdCounter(0xffffffff - bootBump());
         expect(counter.value).equals(0xffffffff);
         expect(counter.increment()).equals(0);
+    });
+
+    it("advances by an arbitrary amount with wrap-around and emits the new value", () => {
+        const counter = new IcdCounter(0);
+        const base = counter.value;
+        const seen = new Array<number>();
+        counter.changed.on(value => {
+            seen.push(value);
+        });
+        expect(counter.advance(0x7fffffff)).equals((base + 0x7fffffff) >>> 0);
+        expect(counter.advance(0xffffffff)).equals((base + 0x7fffffff - 1) >>> 0);
+        expect(seen).deep.equals([(base + 0x7fffffff) >>> 0, (base + 0x7fffffff - 1) >>> 0]);
+    });
+
+    it("refuses an advance that is not an integer from 0 to 0xffffffff", () => {
+        const counter = new IcdCounter(0);
+        for (const by of [-1, 0.5, Number.NaN, 0x100000000]) {
+            expect(() => counter.advance(by), `${by}`).throws(ImplementationError);
+        }
     });
 });

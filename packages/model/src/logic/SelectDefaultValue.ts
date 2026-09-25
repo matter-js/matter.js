@@ -27,6 +27,37 @@ export function SelectDefaultValue(scope: Scope, member: ValueModel): unknown {
 }
 
 /**
+ * Select the value storage holds for a member absent an explicit value.
+ *
+ * Diverges from {@link SelectDefaultValue} by omitting the datatype-level fallbacks: a mandatory member the writer
+ * left out must fail validation naming the member, not read as a silent zero.  What storage omits a read still
+ * supplies, because {@link MandatoryDefaultValue} synthesizes the specification's fallback for a mandatory member
+ * that holds no value.
+ *
+ * The return may be model-owned shared state (an explicit default), so callers copy it before mutation or hand-out.
+ */
+export function StoredDefaultValue(scope: Scope, member: ValueModel): unknown {
+    if (!scope.hasOperationalSupport(member)) {
+        return undefined;
+    }
+
+    if (member.default !== undefined) {
+        const value = DefaultValue(scope, member);
+        if (value !== undefined) {
+            return value;
+        }
+    }
+
+    // An optional member the implementation opted into keeps the default it states, but we invent no null for it:
+    // absence is how an implementation says it holds no value
+    if (member.nullable && scope.isMandatory(member)) {
+        return null;
+    }
+
+    return undefined;
+}
+
+/**
  * Recursively compute the default a mandatory member assumes absent an explicit value, following the Data Model
  * specification's "Fallback Column" rules (null when nullable, 0/false for analog and boolean, empty for strings
  * and lists, structs composited recursively; an enumeration's fallback is manufacturer-specific and stays

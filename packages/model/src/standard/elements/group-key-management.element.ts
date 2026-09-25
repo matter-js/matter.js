@@ -87,7 +87,7 @@ export const GroupKeyManagement = Cluster(
     Command(
         { name: "KeySetReadAllIndicesResponse", id: 0x5, conformance: "M", direction: "response" },
         Field(
-            { name: "GroupKeySetIDs", id: 0x0, type: "list", conformance: "M" },
+            { name: "GroupKeySetIds", id: 0x0, type: "list", conformance: "M" },
             Field({ name: "entry", type: "uint16" })
         )
     ),

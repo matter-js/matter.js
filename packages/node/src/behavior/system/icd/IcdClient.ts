@@ -702,6 +702,13 @@ export namespace IcdClient {
         keyRefreshed = Observable();
         available$Changed = new Observable<[value: boolean, oldValue: boolean]>();
 
+        /**
+         * Emits after commit whenever {@link State.counterStart} changes: set by a registration, replaced by a key
+         * refresh, cleared when the registration is. Unlike {@link keyRefreshed}, a listener reads the new key from
+         * state.
+         */
+        counterStart$Changed = new Observable<[value: number | undefined, oldValue: number | undefined]>();
+
         /** Emits when a registered LIT peer misses its expected Check-In (its availability window lapsed). */
         checkInMissed = Observable();
     }

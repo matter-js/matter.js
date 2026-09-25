@@ -66,6 +66,7 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                 ) {
                     break;
                 }
+
                 ast = Parser.parse(this, definition);
                 break;
 
@@ -219,21 +220,23 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
                     }
 
                     case ".": {
-                        const object = valueOf(value.lhs);
-                        if (!isObject(object)) {
+                        // The rhs names a member of the lhs, so it stays a name rather than resolving in the scope
+                        // the lhs resolves in
+                        const rhs = FieldValue.referenced(value.rhs);
+                        if (rhs === undefined) {
                             return undefined;
                         }
 
-                        // rhs may only legally be a name reference
-                        const rhs = FieldValue.referenced(valueOf(value.rhs));
-                        if (rhs === undefined) {
+                        const object = FieldValue.objectValue(valueOf(value.lhs));
+                        if (object === undefined) {
                             return undefined;
                         }
 
                         // Resolve name in context of object.  We aren't using schema here but Object.hasOwn is
                         // sufficient
-                        if (Object.hasOwn(object, rhs)) {
-                            return (object as Record<string, FieldValue>)[rhs];
+                        const name = camelize(rhs);
+                        if (Object.hasOwn(object, name)) {
+                            return object[name];
                         }
 
                         return undefined;
@@ -320,6 +323,183 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
 
 export namespace Constraint {
     export type NumberOrIdentifier = number | string;
+
+    /**
+     * What a constraint does with the value a name denotes.
+     *
+     * The position decides what may answer the name.  A bound is compared against the value, so a single name in one
+     * may denote a value of the constrained type as well as an element of the record.  The operand of "in" names the
+     * element holding the values allowed, so a value of the constrained type never answers it.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3
+     */
+    export type NamePosition = "bound" | "set";
+
+    /** A name a constraint states, and what the constraint does with the value it denotes */
+    export interface Reference {
+        path: string[];
+        position: NamePosition;
+    }
+
+    /**
+     * The path an expression names: the segments of a complete member access, the one segment of a bare name, or
+     * undefined for an expression that computes a value.
+     *
+     * Both operands of "." name elements: the lhs names one the scope resolves and the rhs a member of it.  An access
+     * to a computed value states no path, because the rhs then names a member of whatever the expression evaluates to
+     * and no scope resolves it.  Each operand of an access is judged by this in turn, so a bare name answering it is
+     * what lets a named operand be told from a computed one.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     */
+    export function accessPathOf(expression: Expression): string[] | undefined {
+        if (expression === null || typeof expression !== "object" || Array.isArray(expression)) {
+            return;
+        }
+
+        if ("lhs" in expression) {
+            if (expression.type !== ".") {
+                return;
+            }
+
+            const lhs = accessPathOf(expression.lhs);
+            const rhs = accessPathOf(expression.rhs);
+            if (lhs === undefined || rhs === undefined) {
+                return;
+            }
+
+            return [...lhs, ...rhs];
+        }
+
+        const name = FieldValue.referenced(expression);
+        return name === undefined ? undefined : [name];
+    }
+
+    /**
+     * Whether the constraint states a member access no evaluation can take.
+     *
+     * A member access evaluates only where the value before "." is a record and the name after it a member of one.
+     * Where either operand is computed, or the path reaches a member of a member, the access denotes nothing and the
+     * bound holding it admits every value.  The specification states no such constraint; the grammar permits one.
+     *
+     * The entry constraint of a list bounds the entries and is judged in the entry's own scope, so an access it holds
+     * is not among these.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     */
+    export function hasUnevaluableAccess(constraint: Ast): boolean {
+        function inExpression(expression: Expression | undefined): boolean {
+            if (expression === null || typeof expression !== "object") {
+                return false;
+            }
+
+            if (Array.isArray(expression)) {
+                return expression.some(inExpression);
+            }
+
+            if ("args" in expression) {
+                return expression.args.some(inExpression);
+            }
+
+            if ("lhs" in expression) {
+                if (expression.type === ".") {
+                    // An access takes one member of one element.  A deeper path states a member of a member, which
+                    // the specification does not define and no evaluation takes
+                    return accessPathOf(expression)?.length !== 2;
+                }
+                return inExpression(expression.lhs) || inExpression(expression.rhs);
+            }
+
+            return false;
+        }
+
+        function inAst(ast: Ast): boolean {
+            return (
+                inExpression(ast.value) ||
+                inExpression(ast.min) ||
+                inExpression(ast.max) ||
+                inExpression(ast.in) ||
+                (ast.parts ?? []).some(inAst)
+            );
+        }
+
+        return inAst(constraint);
+    }
+
+    /**
+     * Every name a constraint states that a scope resolves, in definition order, with what the constraint does with
+     * it.
+     *
+     * A name the constraint qualifies with "." states the path to a member rather than a name of the surrounding
+     * scope, so it arrives as the segments of that path.  The member an access names is not among these: it belongs
+     * to whatever the access is taken from rather than to any scope.  A path resolves only if every segment does: a bound naming
+     * a member its type does not define states no bound, just as an unknown element does.
+     *
+     * The entry constraint of a list bounds the entries, so the names it states belong to the type of the entry.  They
+     * are not among these; {@link Ast.entry} states them and resolves in the entry's own scope.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     */
+    export function referencesOf(constraint: Ast): Reference[] {
+        const references = new Array<Reference>();
+
+        function addExpression(expression: Expression | undefined, position: NamePosition) {
+            if (expression === null || typeof expression !== "object") {
+                return;
+            }
+
+            if (Array.isArray(expression)) {
+                for (const member of expression) {
+                    addExpression(member, position);
+                }
+                return;
+            }
+
+            if ("args" in expression) {
+                for (const arg of expression.args) {
+                    addExpression(arg, position);
+                }
+                return;
+            }
+
+            if ("lhs" in expression) {
+                if (expression.type !== ".") {
+                    addExpression(expression.lhs, position);
+                    addExpression(expression.rhs, position);
+                    return;
+                }
+
+                const path = accessPathOf(expression);
+                if (path !== undefined) {
+                    references.push({ path, position });
+                }
+
+                // An access no evaluation can take states no name either: {@link hasUnevaluableAccess} reports the
+                // access itself rather than the names inside one
+                return;
+            }
+
+            const name = FieldValue.referenced(expression);
+            if (name !== undefined) {
+                references.push({ path: [name], position });
+            }
+        }
+
+        function addAst(ast: Ast) {
+            addExpression(ast.value, "bound");
+            addExpression(ast.min, "bound");
+            addExpression(ast.max, "bound");
+            addExpression(ast.in, "set");
+
+            for (const part of ast.parts ?? []) {
+                addAst(part);
+            }
+        }
+
+        addAst(constraint);
+
+        return references;
+    }
 
     export const KEYWORDS = ["in", "min", "max", "to", "all", "none", "desc", "true", "false"] as const;
 
@@ -627,7 +807,7 @@ namespace Parser {
                     if (tokens.token?.type === "word") {
                         const name = tokens.token.value;
                         tokens.next();
-                        return { in: FieldValue.Reference(name) };
+                        return { in: FieldValue.Reference(camelize(name)) };
                     }
                     constraint.error("MISSING_IN_FIELD", 'Expected field name to follow "in"');
                     break;

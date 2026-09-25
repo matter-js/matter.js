@@ -18,13 +18,11 @@ export function repairConstraint(record: { constraint?: string }) {
         .replace(/ to(\d|max)/i, " to $1")
         .replace(/ValuetoMax/, "Value to Max")
         .replace(/Sup ported/, "Supported")
-        .replace(/N\/A/, "")
+        .replace(/N\/A/, "");
 
-        // Window covering decided to use " " as binary separator which spec does not support
-        .replace(/(0b[01]{4}) ([01]{4})/, "$1$2");
-
-    // Ignore window covering's bitmap constraints
-    if (constraint.match(/^[0x]{4} [0x]{4}$/)) {
+    // Neither word is part of the constraint language: the constraint column reads "any" for an unbounded field, and
+    // "MS" arrives from the neighbouring fallback column where it marks a manufacturer-specific value
+    if (record.constraint.match(/^\s*(any|ms)\s*$/i)) {
         delete record.constraint;
     }
 }

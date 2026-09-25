@@ -21,6 +21,7 @@ export type BackchannelCommand =
     | BackchannelCommand.RvcRemoveArea
     | BackchannelCommand.RvcAddArea
     | BackchannelCommand.SetBooleanState
+    | BackchannelCommand.BridgeSimulation
     | BackchannelCommand.NoParameters;
 
 export namespace BackchannelCommand {
@@ -34,6 +35,14 @@ export namespace BackchannelCommand {
         buttonId: number;
         longPressDelayMillis: number;
         longPressDurationMillis: number;
+
+        /**
+         * The switch's own FeatureMap. A chip app requires it and simulates the events it implies; a
+         * matter.js test device derives them from the switch's own state and ignores it.
+         *
+         * @see {@link MatterSpecification.v16.Cluster} § 1.13.4
+         */
+        featureMap: number;
     };
 
     export type SimulateMultiPress = {
@@ -119,6 +128,24 @@ export namespace BackchannelCommand {
         name: "setBooleanState";
         endpointId: number;
         newState: boolean;
+    };
+
+    /**
+     * State a bridge simulates on the devices behind it.
+     *
+     * Each command names the devices it acts on rather than a count, because chip's `bridge-app`
+     * offers no way to choose: one keystroke acts on every light it currently exposes, another on
+     * every temperature sensor. `addBridgedLight` and `removeBridgedLight` are **not inverses** —
+     * the app adds a second light and removes its first, and each is a no-op once the light it names
+     * is already in that state.
+     */
+    export type BridgeSimulation = {
+        name:
+            | "toggleBridgedLights"
+            | "warmBridgedTemperatureSensors"
+            | "renameBridgedLights"
+            | "addBridgedLight"
+            | "removeBridgedLight";
     };
 
     export type NoParameters = {

@@ -7,7 +7,8 @@
 import { Diagnostic, Logger } from "#general";
 import { ConditionElement, DeviceClassification, DeviceTypeElement, RequirementElement } from "#model";
 import { camelize } from "../../util/string.js";
-import { addDocumentation } from "./add-documentation.js";
+import { addDeviceDocumentation } from "./add-documentation.js";
+import { repairConstraint } from "./repairs/aspect-repairs.js";
 import { DeviceReference, SpecReference } from "./spec-types.js";
 import { Alias, Constant, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 import {
@@ -40,7 +41,7 @@ export function* translateDevice(deviceRef: DeviceReference) {
         return;
     }
 
-    addDocumentation(device, deviceRef);
+    addDeviceDocumentation(device, deviceRef);
     addConditions(device, deviceRef);
     addConditionRequirements(device, deviceRef);
     addClusters(device, deviceRef);
@@ -49,11 +50,20 @@ export function* translateDevice(deviceRef: DeviceReference) {
     yield device;
 }
 
+function revisionOf(deviceRef: DeviceReference) {
+    const revisions = translateTable("deviceType", deviceRef.revisions, {
+        revision: Alias(Integer, "rev"),
+    });
+    return revisions[revisions.length - 1]?.revision;
+}
+
 function createDevice(deviceRef: DeviceReference) {
     if (deviceRef.name === "Base") {
+        // Base has no device type id, so no Descriptor DeviceTypeList entry carries its revision
         return DeviceTypeElement({
             name: "Base",
             classification: DeviceClassification.Base,
+            revision: revisionOf(deviceRef),
             xref: deviceRef.xref,
         });
     }
@@ -87,10 +97,7 @@ function createDevice(deviceRef: DeviceReference) {
         return;
     }
 
-    const revisions = translateTable("deviceType", deviceRef.revisions, {
-        revision: Alias(Integer, "rev"),
-    });
-    let revision = revisions[revisions.length - 1]?.revision;
+    let revision = revisionOf(deviceRef);
     if (revision === undefined) {
         logger.error(`No revision for device ${deviceRef.name}, assuming 1`);
         revision = 1;
@@ -134,7 +141,7 @@ function addConditions(device: DeviceTypeElement, deviceRef: DeviceReference) {
         return;
     }
 
-    const records = Array<{ name: string; description?: string; xref?: any }>();
+    const records = Array<{ name: string; description?: string; details?: string; xref?: any }>();
     deviceRef.conditionSets.forEach(conditionRef => {
         const definitions = translateTable("condition", conditionRef, {
             name: Alias(
@@ -150,7 +157,7 @@ function addConditions(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 "capabilitytag",
                 "classtag",
             ),
-            description: Optional(StrWithSuperscripts),
+            description: Optional(Alias(StrWithSuperscripts, "summary")),
         });
 
         if (definitions) {
@@ -167,6 +174,7 @@ function addConditions(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 ConditionElement({
                     name: r.name,
                     description: r.description,
+                    details: r.details,
                     xref: r.xref,
                 }),
             );
@@ -187,6 +195,7 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
         deviceTypeName: Optional(Alias(Identifier, "devicetypename")),
         name: Alias(Identifier, "condition"),
         conformance: Optional(ConformanceCode),
+        constraint: Optional(ConstraintStr),
     });
 
     if (!records.length) {
@@ -204,11 +213,33 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
             type: qualifiedType,
             element: RequirementElement.ElementType.Condition,
             conformance: r.conformance,
+            constraint: r.constraint,
+            location: locationOf(r.location, device.name, r.name),
             xref: r.xref,
             details: r.details,
         });
 
         device.children.push(element);
+    }
+}
+
+// The specification spells the three locations more than one way: "Root Node" means Root, and "Child" means
+// Descendant, an endpoint below the asserting one
+function locationOf(location: string | undefined, deviceName: string, name: string) {
+    switch (location?.toLowerCase()) {
+        case undefined:
+            return undefined;
+        case "root":
+        case "root node":
+            return RequirementElement.Location.Root;
+        case "self":
+            return RequirementElement.Location.Self;
+        case "child":
+        case "descendant":
+            return RequirementElement.Location.Descendant;
+        default:
+            logger.warn(`${deviceName} condition requirement ${name} states unknown location "${location}"`);
+            return undefined;
     }
 }
 
@@ -272,6 +303,8 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
     });
 
     for (const record of elementRecords) {
+        repairConstraint(record);
+
         const clusters = clusterIndex.get(record.cluster.toLowerCase());
         if (!clusters) {
             logger.error(`No cluster ${record.cluster} for ${record.element} requirement ${record.name}`);
@@ -293,6 +326,7 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
                     constraint: record.constraint,
                     access: record.access,
                     conformance: record.conformance,
+                    xref: record.xref,
                 }),
             );
         }
@@ -305,6 +339,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
         name: Alias(Identifier, "devicename", "devicetypename", "devicetype"),
         element: Constant("deviceType"),
         quality: Optional(Str),
+        constraint: Optional(ConstraintStr),
         conformance: Optional(ConformanceCode),
     });
 
@@ -372,12 +407,15 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
             return base;
         }
 
-        // Create an instance-specific RequirementElement copied from the base
+        // Every property the base states, or the instance silently loses what the specification said about it
         const instanceType = RequirementElement({
             id: base.id,
             name: base.name,
             element: RequirementElement.ElementType.DeviceType,
             conformance: base.conformance,
+            constraint: base.constraint,
+            quality: base.quality,
+            access: base.access,
             instance,
         });
         instanceMap.set(key, instanceType);
@@ -415,7 +453,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const composingClusters = deviceRef.composingClusters;
     const composingClusterRecords = translateTable("composingClusters", composingClusters, {
         deviceid: Alias(Integer, "devicetypeid"),
-        device: Alias(Identifier, "devicetypename"),
+        device: Alias(Identifier, "devicetypename", "devicename"),
         clusterid: Integer,
         cluster: Alias(ClusterName, "clustername"),
         element: Alias((text: string) => {
@@ -443,7 +481,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const composingElements = deviceRef.composingElements;
     const composingElementRecords = translateTable("composingElements", composingElements, {
         deviceid: Alias(Integer, "devicetypeid"),
-        device: Alias(Identifier, "devicetypename"),
+        device: Alias(Identifier, "devicetypename", "devicename"),
         clusterid: Integer,
         cluster: Alias(ClusterName, "clustername"),
         element: LowerIdentifier,
@@ -456,6 +494,8 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const elementNotes = composingElements?.tables?.[0]?.notes ?? [];
     for (let i = 0; i < composingElementRecords.length; i++) {
         const record = composingElementRecords[i];
+        repairConstraint(record);
+
         const instance = rowInstance(i, elementNotes);
         const composingType = getOrCreateComposingType(record.deviceid, instance);
         if (!composingType) {
@@ -480,6 +520,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 constraint: record.constraint,
                 access: record.access,
                 conformance: record.conformance,
+                xref: record.xref,
             }),
         );
     }

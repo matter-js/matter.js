@@ -466,13 +466,13 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         const fabric = this.context.session.associatedFabric;
         const fabricIndex = fabric.fabricIndex;
 
-        const groupKeySetIDs = this.state.groupKeySets
+        const groupKeySetIds = this.state.groupKeySets
             .filter(({ fabricIndex: entryIndex }) => entryIndex === fabricIndex)
             .map(({ groupKeySetId }) => groupKeySetId);
-        groupKeySetIDs.unshift(0); // Always include the group key set 0
+        groupKeySetIds.unshift(0); // Always include the group key set 0
 
         return {
-            groupKeySetIDs,
+            groupKeySetIds,
         };
     }
 

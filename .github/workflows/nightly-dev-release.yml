@@ -3,7 +3,7 @@ name: Publish nightly dev releases
 
 on:
   schedule:
-    - cron: 30 2 * * * # Every day at 02:30
+    - cron: 0 3 * * * # Every day at 03:00
   workflow_dispatch: # Manually on demand
     inputs:
       versionBump:

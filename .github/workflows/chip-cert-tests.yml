@@ -6,7 +6,8 @@
 # suite, test/cert/**/*.test.ts) — a controller stack driving real Matter certification test plan
 # steps against a TH (test harness) implementation. It is triggered by:
 #
-#   * A daily schedule
+#   * A daily schedule, which is also the only trigger that runs the steps costing minutes of real
+#     time against a device whose retry intervals cannot be shortened (MATTER_CERT_LONG_RUNNING)
 #
 #   * A manual trigger (workflow_dispatch), with inputs for the ref to test, which device binary
 #     source(s) to exercise, and a chip-cert-bins tag override
@@ -37,8 +38,10 @@
 #
 #   * "own-built" — the app binaries matter.js builds itself (support/chip/Dockerfile), taken from
 #     the published ghcr.io/matter-js/chip image: chip-all-clusters-app,
-#     chip-all-clusters-app-nlfaultinject and chip-bridge-app. Published as a multi-arch manifest,
-#     so each leg pulls the variant matching its runner. Runs when run-own-built is selected
+#     chip-all-clusters-app-nlfaultinject, chip-bridge-app, chip-camera-app, the
+#     chip-ota-provider-app/chip-ota-requestor-app pair, matter-network-manager-app and
+#     lit-icd-app-nopersist. Published as a multi-arch manifest, so each leg pulls the variant matching
+#     its runner. Runs when run-own-built is selected
 #
 #   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published
 #     linux/arm64 only, so any leg touching it runs on an arm64 runner (ubuntu-24.04-arm) with the
@@ -49,8 +52,10 @@
 # matter.js protocol code in the path. A failure there is a defect in the test step definitions or
 # in the CHIP binaries themselves, not an interop finding about matter.js.
 #
-# TC-SC-3.5 runs only where MATTER_CERT_TH_SERVER_APP_PATH names a TH_SERVER binary, so it
-# self-skips on the matterjs device.
+# TC-SC-3.5 and TC-DA-1.9 run only where MATTER_CERT_TH_SERVER_APP_PATH names an all-clusters binary
+# their script spawns for itself, and the TC-WEBRTCR cases only where MATTER_CERT_CAMERA_APP_PATH names
+# one, so each self-skips elsewhere. TC-DA-1.9 also skips wherever the controller is chip-tool, which
+# cannot be told what is revoked while it runs.
 
 name: Chip Certification Controller Tests
 
@@ -91,9 +96,12 @@ on:
 # A concurrency expression cannot see which files a push touched, so a push that runs the matrix
 # because it changed the cert suite lands in that same per-run group: two such pushes in a row run
 # their matrices side by side rather than the second cancelling the first.
+#
+# The trigger is part of the group as well, so a push carrying the marker cannot cancel a manual or
+# scheduled run on the same ref, and those two queue rather than cancel each other.
 concurrency:
-  group: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[execute-certtests]') && github.run_id || format('{0}-cert-tests', github.ref) }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[execute-certtests]') && github.run_id || format('{0}-{1}-cert-tests', github.ref, github.event_name) }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
 jobs:
   # Resolve the four trigger paths into a single set of inputs the rest of the workflow consumes.
@@ -107,6 +115,7 @@ jobs:
       run-cert-bins: ${{ steps.flags.outputs.cert-bins }}
       run-own-built: ${{ steps.flags.outputs.own-built }}
       chip-bins-tag: ${{ steps.resolve.outputs.chip-bins-tag }}
+      long-running: ${{ steps.resolve.outputs.long-running }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       # Only for the change filter below, which needs the pushed tree and enough history to diff it
@@ -129,7 +138,7 @@ jobs:
               - ".github/workflows/chip-cert-tests.yml"
               - "packages/testing/src/chip/cert/**"
               - "packages/testing/src/chip/pics/**"
-              - "support/chip-testing/src/cert/**"
+              - "support/chip-testing/src/**"
               - "support/chip-testing/test/cert/**"
               - "support/chip-testing/test/cert-framework/**"
 
@@ -160,19 +169,24 @@ jobs:
               echo "ref=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
               echo "binaries-source=both" >> "$GITHUB_OUTPUT"
               echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
+              echo "long-running=" >> "$GITHUB_OUTPUT"
               ;;
             workflow_dispatch)
               echo "should-run=true" >> "$GITHUB_OUTPUT"
               echo "ref=${DISPATCH_REF:-$DEFAULT_REF}" >> "$GITHUB_OUTPUT"
               echo "binaries-source=$DISPATCH_SOURCE" >> "$GITHUB_OUTPUT"
               echo "chip-bins-tag=$DISPATCH_TAG" >> "$GITHUB_OUTPUT"
+              echo "long-running=" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              # schedule
+              # schedule. The only trigger that runs the steps costing minutes of real time on a
+              # device whose own retry intervals cannot be shortened — every other leg covers them
+              # against the matter.js device, which can.
               echo "should-run=true" >> "$GITHUB_OUTPUT"
               echo "ref=$DEFAULT_REF" >> "$GITHUB_OUTPUT"
               echo "binaries-source=both" >> "$GITHUB_OUTPUT"
               echo "chip-bins-tag=" >> "$GITHUB_OUTPUT"
+              echo "long-running=1" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
@@ -201,7 +215,8 @@ jobs:
       #   cert-controller          MATTER_CERT_CONTROLLER
       #   cert-device              MATTER_CERT_DEVICE
       #   app-dir                  MATTER_CERT_APP_DIR, empty where no host binaries are needed
-      #   th-server-app-path       MATTER_CERT_TH_SERVER_APP_PATH, empty where TC-SC-3.5 self-skips
+      #   th-server-app-path       MATTER_CERT_TH_SERVER_APP_PATH, empty where TC-SC-3.5 and TC-DA-1.9 self-skip
+      #   camera-app-path          MATTER_CERT_CAMERA_APP_PATH, empty where the TC-WEBRTCR cases self-skip
       #   apt-packages             host packages to install, empty to skip that step entirely
       - name: Build the controller/device matrix
         id: matrix
@@ -215,7 +230,7 @@ jobs:
                 "controller": "matterjs", "device": "matterjs",
                 "runner": "ubuntu-latest", "chip-platform": "linux/amd64",
                 "chip-bins-source": "", "cert-controller": "matterjs", "cert-device": "matterjs",
-                "app-dir": "", "th-server-app-path": "",
+                "app-dir": "", "th-server-app-path": "", "camera-app-path": "",
                 "apt-packages": ""
               },
               {
@@ -223,6 +238,7 @@ jobs:
                 "runner": "ubuntu-latest", "chip-platform": "linux/amd64",
                 "chip-bins-source": "", "cert-controller": "matterjs", "cert-device": "chip-local",
                 "app-dir": "/tmp/cert-app-dir", "th-server-app-path": "/bin/chip-all-clusters-app-nlfaultinject",
+                "camera-app-path": "/bin/chip-camera-app",
                 "apt-packages": "avahi-daemon"
               },
               {
@@ -230,13 +246,14 @@ jobs:
                 "runner": "ubuntu-24.04-arm", "chip-platform": "linux/arm64",
                 "chip-bins-source": "cert-bins", "cert-controller": "matterjs", "cert-device": "chip-local",
                 "app-dir": "", "th-server-app-path": "/official-chip-bins/chip-all-clusters-app-nlfaultinject",
+                "camera-app-path": "",
                 "apt-packages": "avahi-daemon"
               },
               {
                 "controller": "chiptool", "device": "matterjs",
                 "runner": "ubuntu-24.04-arm", "chip-platform": "linux/arm64",
                 "chip-bins-source": "cert-bins", "cert-controller": "chip-tool", "cert-device": "matterjs",
-                "app-dir": "", "th-server-app-path": "",
+                "app-dir": "", "th-server-app-path": "", "camera-app-path": "",
                 "apt-packages": "avahi-daemon libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev"
               },
               {
@@ -244,6 +261,7 @@ jobs:
                 "runner": "ubuntu-24.04-arm", "chip-platform": "linux/arm64",
                 "chip-bins-source": "cert-bins", "cert-controller": "chip-tool", "cert-device": "chip-local",
                 "app-dir": "", "th-server-app-path": "/official-chip-bins/chip-all-clusters-app-nlfaultinject",
+                "camera-app-path": "",
                 "apt-packages": "avahi-daemon libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev"
               },
               {
@@ -251,6 +269,7 @@ jobs:
                 "runner": "ubuntu-24.04-arm", "chip-platform": "linux/arm64",
                 "chip-bins-source": "", "cert-controller": "chip-tool", "cert-device": "chip-local",
                 "app-dir": "/tmp/cert-app-dir", "th-server-app-path": "/bin/chip-all-clusters-app-nlfaultinject",
+                "camera-app-path": "",
                 "apt-packages": "avahi-daemon libavahi-client3 libglib2.0-0 libpcsclite1 libevent-dev"
               }
             ]
@@ -360,12 +379,17 @@ jobs:
 
       # Only the own-built device needs binaries placed on the host: cert-bins extracts its own
       # lazily at test time (chip-bins.ts's prepareChipBins) and the matterjs device runs in-process.
+      #
+      # chip-camera-app is deliberately absent: unlike the OTA pair it needs GStreamer and FFmpeg
+      # runtime packages on the runner, and the cases that use it take it as a container-side path.
       - name: Extract chip-local app binaries from the published image
         if: matrix.device == 'own-built'
         run: |
           mkdir -p /tmp/cert-app-dir
           docker run --rm -v /tmp/cert-app-dir:/out ghcr.io/matter-js/chip:latest \
-            bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app /out/"
+            bash -c "cp -a /bin/chip-all-clusters-app* /bin/chip-bridge-app \
+                           /bin/chip-ota-provider-app /bin/chip-ota-requestor-app \
+                           /bin/matter-network-manager-app /bin/lit-icd-app-nopersist /out/"
           # cert-dsl.ts's chipLocalMarkerRevision() reads this to populate evidence's chipRef; the
           # image carries the same connectedhomeip commit in its org.opencontainers.image.revision
           # label (baked by docker-bake.hcl from CHIP_COMMIT).
@@ -375,7 +399,10 @@ jobs:
       - name: Verify TH_SERVER/DUT binaries were extracted
         if: matrix.device == 'own-built'
         run: |
-          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject chip-bridge-app; do
+          for bin in chip-all-clusters-app chip-all-clusters-app-nlfaultinject \
+                     chip-all-clusters-app-nogroupcast chip-bridge-app \
+                     chip-ota-provider-app chip-ota-requestor-app matter-network-manager-app \
+                     lit-icd-app-nopersist; do
             if [ ! -x "/tmp/cert-app-dir/$bin" ]; then
               echo "::error::$bin is missing from the published ghcr.io/matter-js/chip image." \
                 "support/chip/Dockerfile's own-built binaries changed shape, or the image pipeline" \
@@ -432,7 +459,14 @@ jobs:
           MATTER_CERT_DEVICE: ${{ matrix.cert-device }}
           MATTER_CERT_APP_DIR: ${{ matrix.app-dir }}
           MATTER_CERT_TH_SERVER_APP_PATH: ${{ matrix.th-server-app-path }}
+          MATTER_CERT_CAMERA_APP_PATH: ${{ matrix.camera-app-path }}
           MATTER_TEST_SHUTDOWN_TIMEOUT_MS: 15000
+
+          # The matter.js device shortens the intervals a delayed OTA answer imposes, so the SU steps
+          # about one cost this leg nothing. A chip device cannot, so those steps run there only on
+          # the daily schedule.
+          MATTER_CERT_OTA_FAST_RETRY: 1
+          MATTER_CERT_LONG_RUNNING: ${{ needs.prepare.outputs.long-running }}
           MATTER_WTF: 1
         run: |
           cd support/chip-testing

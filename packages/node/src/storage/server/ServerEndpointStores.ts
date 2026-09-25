@@ -66,6 +66,7 @@ export class ServerEndpointStores {
         await storage.clearAll();
 
         this.#allocatedNumbers = new Set();
+        this.#preAllocatedNumbers = new Set();
         this.#nextNumber = 1;
         this.#persistedNextNumber = undefined;
 

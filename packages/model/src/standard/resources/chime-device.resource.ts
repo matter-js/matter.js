@@ -10,8 +10,14 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "deviceType", name: "Chime", xref: "device§16.7",
+
     details: "A Chime device is a device which can play from a range of pre installed sounds and is typically used " +
-        "with a Doorbell, Audio Doorbell, or Video Doorbell.",
+        "with a Doorbell, Audio Doorbell, or Video Doorbell." +
+        "\n" +
+        "### Element Requirements" +
+        "\n" +
+        "There are no cluster element overrides.",
+
     children: [
         { tag: "requirement", name: "Chime", xref: "device§16.7.5" },
         { tag: "requirement", name: "Identify", xref: "device§16.7.5" },

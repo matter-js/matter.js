@@ -21,6 +21,7 @@ import { env } from "node:process";
 import type { SubscribeAndModifyTimeouts } from "../cert/tc-idm-4.1-support.js";
 import { subscribeAndModify } from "../cert/tc-idm-4.1-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 const SUBSCRIPTION_ID = 0x2a;
 
@@ -95,18 +96,7 @@ class Fixture {
     ) {
         this.#log = new LogFollower(this.#source, "th");
 
-        const unused = () => Promise.reject(new InternalError("not used by these tests"));
-        const node: CertNodeApi = {
-            invoke: unused,
-            invokeBatch: unused,
-            readAttribute: unused,
-            readAttributes: unused,
-            writeAttributes: unused,
-            readEvents: unused,
-            subscribeEvents: unused,
-            openCommissioningWindow: unused,
-            operationalMdnsInstanceName: unused,
-            decommission: unused,
+        const node: CertNodeApi = fakeCertNode({
             subscribe: async (_path, opts) => {
                 this.#onUpdate = opts.onUpdate;
                 this.push(...subscribeRequestLines(PATH), ...subscribeResponseLines(SUBSCRIPTION_ID));
@@ -124,7 +114,7 @@ class Fixture {
             writeAttribute: async (_path, value) => {
                 this.onWrite(this, this.#writes++, value);
             },
-        };
+        });
 
         const device: CertDevice = {
             ...stubSubject(),
@@ -147,12 +137,18 @@ class Fixture {
             async parseManualPairingCode(): Promise<never> {
                 throw new InternalError("not used in this test");
             },
+            group: (): never => {
+                throw new InternalError("not used by these tests");
+            },
             node: () => node,
         };
 
         this.cx = {
             devices: { th: device },
             controllers: { dut: controller },
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep: () => {},
                 check: record => void this.checks.push(record),

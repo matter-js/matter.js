@@ -5,9 +5,8 @@
  */
 
 import { type Model } from "#models/Model.js";
-import { type ValueModel } from "#models/ValueModel.js";
-import { asError, camelize, InternalError } from "@matter/general";
-import { FeatureSet, FieldValue, Metatype } from "../common/index.js";
+import { asError, InternalError } from "@matter/general";
+import { FeatureSet, FieldValue } from "../common/index.js";
 import { BasicToken, Lexer, TokenStream } from "../parser/index.js";
 import { Aspect } from "./Aspect.js";
 
@@ -100,6 +99,26 @@ export class Conformance extends Aspect<Conformance.Definition> {
     }
 
     /**
+     * Is the associated element provisional?
+     *
+     * A provisional element reads as optional so an application can exercise it and still certify, so this is the only
+     * way to tell "the specification says this is optional" from "the specification has not finished it yet".
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.3
+     */
+    get isProvisional() {
+        const conformance = this.ast;
+        if (conformance.type === Conformance.Flag.Provisional) {
+            return true;
+        }
+        if (conformance.type === Conformance.Special.Otherwise) {
+            // The whole list: a provisional term states the element is unfinished wherever it appears
+            return conformance.param.some(c => c.type === Conformance.Flag.Provisional);
+        }
+        return false;
+    }
+
+    /**
      * Is the associated element disallowed?
      */
     get isDisallowed() {
@@ -134,9 +153,16 @@ export namespace Conformance {
     }
 
     export enum Applicability {
+        /** The element may not appear */
         None = 0,
+
+        /** The implementation decides whether the element appears */
         Optional = 1,
+
+        /** Features alone do not decide; the record's own contents or the revision do */
         Conditional = 2,
+
+        /** The element must appear */
         Mandatory = 3,
     }
 
@@ -340,19 +366,16 @@ export namespace Conformance {
                 validateReferences(conformance, ast.param.lhs, errorTarget, resolver);
 
                 // Special case for comparison operators -- if LHS references an enum (or a field whose type is an enum),
-                // RHS may reference enum values using unqualified names.  Also handle boolean literals (True/False)
+                // RHS may reference enum values using unqualified names
                 let operatorResolver = resolver;
                 if (ast.param.lhs.type === "name") {
-                    const referenced = resolver(ast.param.lhs.param) as ValueModel | undefined;
-                    if (referenced?.effectiveMetatype === Metatype.enum) {
-                        // Find the actual enum definition with children (may be the referenced model itself,
-                        // or its defining type for fields typed as enums)
-                        const enumDef = referenced.definingModel ?? referenced;
+                    const referenced = resolver(ast.param.lhs.param);
+                    if (referenced !== undefined) {
                         operatorResolver = (name: string | string[]) => {
                             if (typeof name === "string") {
-                                const enumValue = enumDef.member(name) ?? enumDef.member(camelize(name, true));
+                                const enumValue = referenced.memberNamed(name);
                                 if (enumValue) {
-                                    return enumValue as ValueModel;
+                                    return enumValue;
                                 }
                             }
                             return resolver(name);
@@ -371,6 +394,14 @@ export namespace Conformance {
                 for (const a of ast.param) {
                     validateReferences(conformance, a, errorTarget, resolver);
                 }
+                break;
+
+            case Special.OptionalIf:
+                validateReferences(conformance, ast.param, errorTarget, resolver);
+                break;
+
+            case Special.Choice:
+                validateReferences(conformance, ast.param.expr, errorTarget, resolver);
                 break;
 
             case Operator.DOT: {
@@ -934,7 +965,9 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
 
             default:
                 if (operators.has(ast.type)) {
-                    return Optional;
+                    // A comparison names a value this computation does not have, so its applicability is decidable
+                    // only once the record is known
+                    return Conditional;
                 }
         }
 

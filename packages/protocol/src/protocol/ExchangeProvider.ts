@@ -75,6 +75,7 @@ export abstract class ExchangeProvider {
     abstract initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange>;
     abstract readonly channelType: ChannelType;
     abstract readonly peerAddress?: PeerAddress;
+    /** The peer's invoke path limit, or undefined where there is no peer to report one. Never below one. */
     abstract readonly maxPathsPerInvoke?: number;
 
     /**

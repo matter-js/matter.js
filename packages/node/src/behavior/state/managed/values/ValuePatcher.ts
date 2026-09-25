@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, isObject } from "@matter/general";
+import { deepCopy, ImplementationError, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { DataModelPath, Metatype, ValueModel } from "@matter/model";
+import { DataModelPath, Metatype, StoredDefaultValue, ValueModel } from "@matter/model";
 import { SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
@@ -30,32 +30,36 @@ export function ValuePatcher(schema: Schema, supervisor: RootSupervisor) {
     }
 }
 
-const defaultsCache = new WeakMap<Schema, Val.Struct>();
+// Defaults depend on the features active in the supervisor's scope, and supervisors with different features share
+// nested schema identity, so schema alone is not a safe key
+const defaultsCache = new WeakMap<RootSupervisor, WeakMap<Schema, Val.Struct>>();
 
 /**
- * Obtain default values for a struct.
+ * Obtain the values storage holds for a struct absent an explicit value.
+ *
+ * The result is cached and shared, so callers copy before handing it to a mutable value.
  */
 function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
-    if (defaultsCache.has(schema)) {
-        return defaultsCache.get(schema) as Val.Struct;
+    let schemaDefaults = defaultsCache.get(supervisor);
+    if (schemaDefaults === undefined) {
+        defaultsCache.set(supervisor, (schemaDefaults = new WeakMap()));
     }
 
+    const cached = schemaDefaults.get(schema);
+    if (cached !== undefined) {
+        return cached;
+    }
+
+    const { scope } = supervisor;
     const defaults = {} as Val.Struct;
     for (const member of supervisor.membersOf(schema)) {
-        if (member.default !== undefined) {
-            defaults[member.propertyName] = member.default;
-            continue;
+        const value = StoredDefaultValue(scope, member);
+        if (value !== undefined) {
+            defaults[member.propertyName] = value;
         }
-
-        if (member.mandatory && member.nullable) {
-            defaults[member.propertyName] = null;
-            continue;
-        }
-
-        // No default
     }
 
-    defaultsCache.set(schema, defaults);
+    schemaDefaults.set(schema, defaults);
 
     return defaults;
 }
@@ -64,17 +68,20 @@ function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
  * Create a function that takes a patch object and applies it to a target object.
  */
 function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Patch {
+    // Membership of these maps decides whether a patch names a member, so they carry no prototype: an inherited key
+    // such as "toString" would otherwise pass for a member the schema never declared
+    //
     // An object mapping name to a patch function for sub-collections and undefined otherwise
-    const memberPatchers = {} as Record<string, ValueSupervisor.Patch | undefined>;
+    const memberPatchers: Record<string, ValueSupervisor.Patch | undefined> = Object.create(null);
 
     // An object mapping name to default value (if any) for sub-structs
-    const memberDefaults = {} as Record<string, Val.Struct>;
+    const memberDefaults: Record<string, Val.Struct> = Object.create(null);
 
     // An object mapping name to true if member is an array
-    const memberArrays = {} as Record<string, boolean>;
+    const memberArrays: Record<string, boolean> = Object.create(null);
 
     // An object mapping alt keys (numeric IDs) to member names, if numeric IDs are defined
-    const memberAltKeys = {} as Record<string, string>;
+    const memberAltKeys: Record<string, string> = Object.create(null);
 
     for (const member of supervisor.membersOf(schema)) {
         const metatype = member.effectiveMetatype;
@@ -141,7 +148,7 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
 
             // If the field is a struct but currently empty, create by patching over defaults
             if (target[key] === undefined || target[key] === null) {
-                newValue = subpatch(newValue as Val.Collection, { ...memberDefaults[key] }, path.at(key));
+                newValue = subpatch(newValue as Val.Collection, deepCopy(memberDefaults[key]) ?? {}, path.at(key));
                 target[key] = newValue;
                 continue;
             }
@@ -205,7 +212,7 @@ function ListPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSuper
                 if (newValue === undefined || newValue === null || oldValue === undefined || oldValue === null) {
                     // If creating a new object, apply as a patch to the object's defaults before insertion
                     if (entryDefaults && isObject(newValue)) {
-                        newValue = patchEntry(newValue as Val.Collection, { ...entryDefaults }, path.at(index));
+                        newValue = patchEntry(newValue as Val.Collection, deepCopy(entryDefaults), path.at(index));
                     }
 
                     target[index] = newValue;

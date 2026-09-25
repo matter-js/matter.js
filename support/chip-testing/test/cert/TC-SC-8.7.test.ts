@@ -40,7 +40,7 @@ const session = new TcpSessionRef();
  */
 async function invokeOverExistingSession(cx: CertStepContext) {
     const node = cx.controllers.th.node(commissioned.require("th"));
-    const tag = session.require();
+    const { tag } = session.require();
 
     const dut = cx.devices.dut;
     const from = await dut.log.markSettled();
@@ -58,7 +58,7 @@ async function invokeOverExistingSession(cx: CertStepContext) {
         invoked.exchange === undefined ? undefined : await regularSizedRequestCheck(cx, tag, invoked.exchange, from);
     const alone = invoked.lastLine === undefined ? undefined : await noFurtherSessionCheck(cx, from, invoked.lastLine);
 
-    recordAll(cx, [
+    await recordAll(cx, [
         { check: () => timeSnapshotResponseCheck(response, refusal), what: "the TH received the command response" },
         { check: () => invoked.check, what: "the DUT answered it on the session step 1 established" },
         // Both of the remaining claims are about the interaction the invoke check identified, so

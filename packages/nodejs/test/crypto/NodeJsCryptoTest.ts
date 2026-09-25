@@ -45,6 +45,13 @@ const cryptoNode = new NodeJsCrypto();
 
 describe("NodeJsCrypto", () => {
     describe("encrypt", () => {
+        // Some runtimes emulate Node.js without an aes-128-ccm cipher, so these cannot run there
+        before(function () {
+            if (NodeJsCrypto.defect !== undefined) {
+                this.skip();
+            }
+        });
+
         it("encrypts data", () => {
             const result = cryptoNode.encrypt(KEY_2, PLAIN_DATA_2, NONCE_2, ADDITIONAL_AUTH_DATA_2);
 
@@ -53,6 +60,12 @@ describe("NodeJsCrypto", () => {
     });
 
     describe("decrypt", () => {
+        before(function () {
+            if (NodeJsCrypto.defect !== undefined) {
+                this.skip();
+            }
+        });
+
         it("decrypts data", () => {
             const result = cryptoNode.decrypt(KEY, ENCRYPTED_DATA, NONCE, ADDITIONAL_AUTH_DATA);
 
@@ -61,6 +74,12 @@ describe("NodeJsCrypto", () => {
     });
 
     describe("AES-CCM-8", () => {
+        before(function () {
+            if (NodeJsCrypto.defect !== undefined) {
+                this.skip();
+            }
+        });
+
         it("tag-8 L=3 output matches StandardCrypto byte-for-byte", () => {
             const std = new StandardCrypto();
             const key = new Uint8Array(16).fill(0x42);

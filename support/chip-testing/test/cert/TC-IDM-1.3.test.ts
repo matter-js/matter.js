@@ -7,7 +7,7 @@
 import { InternalError } from "@matter/main";
 import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import type { BatchCommandResult, BatchCommandSpec, CertStepContext, DeviceFlavor } from "@matter/testing";
+import type { BatchCommandResult, BatchCommandSpec, CertStepContext, SelectableDeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipFault, FAULT_TYPE_CHIP, FaultInjectionCluster } from "./fault-injection.js";
@@ -53,7 +53,7 @@ const BATCH_PATHS: BatchPath[] = [
  * fault fires on whatever invoke reaches the TH next, so a run that armed the faults must also run the
  * steps that consume them.
  */
-const FLAVORS: DeviceFlavor[] = ["chip-local"];
+const FLAVORS: SelectableDeviceFlavor[] = ["chip-local"];
 
 const CW_TIMEOUT_SECONDS = 180;
 

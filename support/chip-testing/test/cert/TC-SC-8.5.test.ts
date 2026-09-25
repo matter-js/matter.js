@@ -39,7 +39,7 @@ const session = new TcpSessionRef();
  */
 async function invokeOverTcp(cx: CertStepContext) {
     const node = cx.controllers.th.node(commissioned.require("th"));
-    const tag = session.require();
+    const { tag } = session.require();
 
     const dut = cx.devices.dut;
     const from = await dut.log.markSettled();
@@ -54,7 +54,7 @@ async function invokeOverTcp(cx: CertStepContext) {
 
     const invoked = await tcpInvokeCheck(cx, tag, ROOT_ENDPOINT, GENERAL_DIAGNOSTICS_ID, TIME_SNAPSHOT_ID, from);
 
-    recordAll(cx, [
+    await recordAll(cx, [
         { check: () => timeSnapshotResponseCheck(response, refusal), what: "the TH received the command response" },
         {
             check: () => invoked,

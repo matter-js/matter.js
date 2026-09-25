@@ -8,7 +8,7 @@ import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { ImplementationError, isDeepEqual, Logger } from "@matter/general";
-import { Matter } from "@matter/model";
+import { EndpointComposition, Matter } from "@matter/model";
 import { ClusterId, DeviceTypeId, EndpointNumber, Semtag } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { DescriptorBehavior } from "./DescriptorBehavior.js";
@@ -209,9 +209,7 @@ export class DescriptorServer extends DescriptorBehavior {
 
         let numbers: number[];
 
-        // The presence of IndexBehavior indicates a flat namespace as required by Matter standard for root and
-        // aggregator endpoints
-        if (this.agent.has(IndexBehavior)) {
+        if (this.#composesFullFamily && this.agent.has(IndexBehavior)) {
             const index = this.agent.get(IndexBehavior);
             numbers = Object.keys(index.partsByNumber).map(n => Number.parseInt(n));
 
@@ -250,6 +248,23 @@ export class DescriptorServer extends DescriptorBehavior {
         await this.context.transaction.begin();
 
         this.state.partsList = numbers as EndpointNumber[];
+    }
+
+    /**
+     * Whether this endpoint's device type composes its `PartsList` of every descendant rather than of
+     * its own children (Matter Core § 9.2.3).
+     *
+     * {@link IndexBehavior} is how the flat list is obtained, not what decides it is wanted: the
+     * behavior is installed on bridged nodes too, which compose a tree.
+     */
+    get #composesFullFamily() {
+        const deviceTypes = this.state.deviceTypeList.length
+            ? this.state.deviceTypeList.map(entry => entry.deviceType)
+            : [this.endpoint.type.deviceType];
+
+        return deviceTypes.some(
+            deviceType => Matter.deviceTypes(deviceType)?.effectiveComposition === EndpointComposition.FullFamily,
+        );
     }
 
     /**

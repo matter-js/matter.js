@@ -22,6 +22,8 @@ import {
     Github,
     hashAlgorithmForId,
     Hours,
+    ImplementationError,
+    isObject,
     Logger,
     LogLevel,
     Pem,
@@ -42,6 +44,89 @@ import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
 import type { CertSeedEntry, SeedSource } from "./SeedTypes.js";
 
 const logger = Logger.get("DclCertificateService");
+
+function statedString(value: unknown, field: string, index: number) {
+    if (typeof value !== "string") {
+        throw new ImplementationError(`Revocation set entry ${index} states ${field} as something other than a string`);
+    }
+    return value;
+}
+
+/**
+ * A hex field, as the entry states it.
+ *
+ * An identifier or serial that is not hex matches no certificate, so a set that states one would be
+ * installed, reported as installed, and then answer "not revoked" for everything it names. It is
+ * refused instead.
+ */
+function statedHex(value: unknown, field: string, index: number) {
+    const stated = statedString(value, field, index).replace(/:/g, "");
+    if (stated === "" || stated.length % 2 !== 0 || !/^[0-9A-Fa-f]+$/.test(stated)) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states ${field} as "${stated}", which is not an even number of hex digits`,
+        );
+    }
+    return stated;
+}
+
+function statedSerials(value: unknown, index: number) {
+    if (!Array.isArray(value)) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states revoked_serial_numbers as something other than a list`,
+        );
+    }
+    return value.map((serial, position) => statedHex(serial, `revoked_serial_numbers[${position}]`, index));
+}
+
+/**
+ * The issuer name an entry states, as base64 of the DER it encodes. An entry that states none, or
+ * states an empty one, is matched on its key identifier alone.
+ */
+function statedIssuerName(value: unknown, index: number) {
+    if (value === undefined || value === "") {
+        return undefined;
+    }
+
+    const stated = statedString(value, "issuer_name", index);
+    try {
+        Bytes.fromBase64(stated);
+    } catch (error) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states an issuer_name that is not base64: ${asError(error).message}`,
+        );
+    }
+    return stated;
+}
+
+/** What the DCL's revocation sets state as their type, and the only kind of entry this reads. */
+const REVOCATION_SET_TYPE = "revocation_set";
+
+function statedType(value: unknown, index: number) {
+    if (value !== undefined && value !== REVOCATION_SET_TYPE) {
+        throw new ImplementationError(
+            `Revocation set entry ${index} states type "${String(value)}" rather than "${REVOCATION_SET_TYPE}"`,
+        );
+    }
+}
+
+/** The issuer name an entry states, as hex of the DER it encodes. */
+function issuerDnOf(issuerName: string | undefined) {
+    return issuerName === undefined ? undefined : Bytes.toHex(Bytes.fromBase64(issuerName)).toUpperCase();
+}
+
+/**
+ * A serial number as both sides of a revocation lookup can agree on it.
+ *
+ * A certificate states its serial as the content octets of a DER INTEGER, which carry a leading zero
+ * whenever the number's top bit is set, so the same serial reads as `00E1…` from a certificate and
+ * `E1…` in a revocation set, which states the number itself. Dropping leading zero bytes leaves one
+ * form both arrive at.
+ */
+function canonicalSerial(serial: Bytes | string) {
+    const hex = (typeof serial === "string" ? serial.replace(/:/g, "") : Bytes.toHex(serial)).toUpperCase();
+    const significant = hex.replace(/^(?:00)+/, "");
+    return significant === "" ? "00" : significant;
+}
 
 /**
  * Implements a service to manage DCL root certificates as a singleton in the environment and so will be shared by
@@ -64,6 +149,9 @@ export class DclCertificateService {
     /** Lazy CRL revocation cache: keyed by normalized AKID, fetches on-demand from DCL */
     #revocationCache: AsyncCache<DclCertificateService.RevocationEntry>;
 
+    /** Revocation information supplied out of band rather than fetched, keyed by normalized AKID */
+    #installedRevocations = new Map<string, DclCertificateService.RevocationEntry[]>();
+
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
         environment.root.set(DclCertificateService, this);
         this.#crypto = environment.get(Crypto);
@@ -84,6 +172,10 @@ export class DclCertificateService {
             Hours(1),
         );
 
+        if (options.revocations !== undefined) {
+            this.installRevocations(options.revocations);
+        }
+
         this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("certificates");
             this.#storage = this.#storageManager.createContext("root");
@@ -94,9 +186,10 @@ export class DclCertificateService {
             if (options.seed?.cdSigners) {
                 await this.#consumeCertSeed(options.seed.cdSigners, "CDSigner");
             }
+            // `update()` answers an offline service by doing nothing, so this needs no condition
             await this.update();
 
-            if (options.updateInterval !== null) {
+            if (!options.offline && options.updateInterval !== null) {
                 // Start periodic update timer
                 const updateInterval = options.updateInterval ?? Days.one;
                 this.#updateTimer = Time.getPeriodicTimer("DCL Certificate Update", updateInterval, () =>
@@ -245,6 +338,10 @@ export class DclCertificateService {
         isProduction: boolean,
         options?: DclCertificateService.GetCertificateOptions,
     ): Promise<Bytes | undefined> {
+        if (this.#options.offline) {
+            return undefined;
+        }
+
         if (this.#fetchPromise !== undefined) {
             await this.#fetchPromise;
         }
@@ -325,11 +422,81 @@ export class DclCertificateService {
     }
 
     /**
+     * Install revocation information that did not come from the DCL.
+     *
+     * The DCL is the authority on revocation: it publishes distribution points, and {@link isRevoked}
+     * downloads and validates the CRL behind one the first time an authority is asked about. A set
+     * installed here is trusted as it stands — no signer chain, no CRL signature — because it is
+     * already the validated product of that process rather than an input to it. So this is for a
+     * deployment that cannot reach the DCL, and for certification against a PKI the DCL does not
+     * publish. Ordinary commissioning needs none of it.
+     *
+     * The entries live in memory for the life of this service and are never stored. A serial listed
+     * here is revoked; every other serial still goes to the DCL, so an installed set can only add
+     * revocations, never hide one. Installing the same set twice changes nothing.
+     *
+     * An entry that names no issuer is matched on its key identifier alone, which the specification's
+     * composite key does not license and chip's own reading refuses. A key identifier is a hash of the
+     * issuer's public key, so the widening is small, and it errs toward refusing a device rather than
+     * admitting one.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 6.2.6.2
+     */
+    installRevocations(entries: DclCertificateService.RevocationSetEntry[]) {
+        // Nothing is installed until every entry has been read, so a set with a bad entry in the middle
+        // does not leave half of itself in force
+        const read = entries.map((entry, index) => ({
+            akid: this.#normalizeSubjectKeyId(statedHex(entry.issuerSubjectKeyId, "issuerSubjectKeyId", index)),
+            issuerDnDerHex: issuerDnOf(statedIssuerName(entry.issuerName, index)),
+            serials: entry.revokedSerialNumbers.map((serial, position) =>
+                canonicalSerial(statedHex(serial, `revokedSerialNumbers[${position}]`, index)),
+            ),
+        }));
+
+        for (const { akid, issuerDnDerHex, serials } of read) {
+            let installed = this.#installedRevocations.get(akid);
+            if (installed === undefined) {
+                this.#installedRevocations.set(akid, (installed = new Array<DclCertificateService.RevocationEntry>()));
+            }
+
+            let entry = installed.find(candidate => candidate.issuerDnDerHex === issuerDnDerHex);
+            if (entry === undefined) {
+                installed.push((entry = { serials: new Set(), issuerDnDerHex }));
+            }
+
+            for (const serial of serials) {
+                entry.serials.add(serial);
+            }
+        }
+
+        if (read.length) {
+            logger.info(
+                "Installed revocation information from outside the DCL",
+                Diagnostic.dict({ entries: read.length, authorities: this.#installedRevocations.size }),
+            );
+        }
+    }
+
+    /**
+     * Revocation information installed from outside the DCL, by the key identifier it was stated for.
+     *
+     * A copy: what this service holds can only be added to, through {@link installRevocations}.
+     */
+    get installedRevocations(): ReadonlyMap<string, readonly DclCertificateService.InstalledRevocation[]> {
+        return new Map(
+            [...this.#installedRevocations].map(([akid, entries]) => [
+                akid,
+                entries.map(({ serials, issuerDnDerHex }) => ({ serials: new Set(serials), issuerDnDerHex })),
+            ]),
+        );
+    }
+
+    /**
      * Check if a certificate is revoked by looking up its serial number in the revocation set
      * for the given authority key identifier.
      *
      * Lazily fetches revocation data from DCL on first access per AKID, then caches for 1 hour.
-     * Per spec Section 6.2.4.2, the revocation set is indexed by (AuthorityKeyIdentifier, IssuerDN).
+     * Per spec Section 6.2.6.2, the revocation set is indexed by (AuthorityKeyIdentifier, IssuerDN).
      *
      * Returns true if the certificate is revoked, false otherwise.
      * If revocation data is not available for the given authority, returns false.
@@ -342,6 +509,28 @@ export class DclCertificateService {
         this.construction.assert();
 
         const akid = this.#normalizeSubjectKeyId(authorityKeyIdentifier);
+        const serialHex =
+            typeof serialNumber === "string"
+                ? serialNumber.replace(/:/g, "").toUpperCase()
+                : Bytes.toHex(serialNumber).toUpperCase();
+
+        const installedSerial = canonicalSerial(serialHex);
+        for (const installed of this.#installedRevocations.get(akid) ?? []) {
+            if (
+                issuerDnDerHex !== undefined &&
+                installed.issuerDnDerHex !== undefined &&
+                installed.issuerDnDerHex !== issuerDnDerHex
+            ) {
+                continue;
+            }
+            if (installed.serials.has(installedSerial)) {
+                return true;
+            }
+        }
+
+        if (this.#options.offline) {
+            return false;
+        }
 
         let entry: DclCertificateService.RevocationEntry;
         try {
@@ -363,11 +552,6 @@ export class DclCertificateService {
         ) {
             return false;
         }
-
-        const serialHex =
-            typeof serialNumber === "string"
-                ? serialNumber.replace(/:/g, "").toUpperCase()
-                : Bytes.toHex(serialNumber).toUpperCase();
 
         return entry.serials.has(serialHex);
     }
@@ -508,6 +692,10 @@ export class DclCertificateService {
             return { publicKey: cert.ellipticCurvePublicKey, isProduction: existing.isProduction };
         }
 
+        if (this.#options.offline) {
+            return undefined;
+        }
+
         // DCL fallback
         try {
             const config = this.#options.dclConfig ?? DclConfig.production;
@@ -589,7 +777,7 @@ export class DclCertificateService {
      * Update certificates from DCL and GitHub. Returns true if update succeeded, false if it failed.
      */
     async update(force = false) {
-        if (this.#closed || !this.#storage) {
+        if (this.#closed || !this.#storage || this.#options.offline) {
             return;
         }
         if (this.#fetchPromise !== undefined) {
@@ -1108,20 +1296,20 @@ export class DclCertificateService {
 
     /**
      * Process a single revocation distribution point: download the CRL, validate the signer chain
-     * and CRL signature per spec Section 6.2.4.1, then extract revoked serial numbers.
+     * and CRL signature per spec Section 6.2.6.1, then extract revoked serial numbers.
      */
     async #processRevocationPoint(
         point: DeviceAttestationPkiRevocationDclSchema,
         timeout: Duration,
     ): Promise<DclCertificateService.RevocationEntry> {
         // Steps 2-5: Parse and validate CRLSignerCertificate chain
-        // Per spec 6.2.4.1, the signer chain should be validated before trusting the CRL.
+        // Per spec 6.2.6.1, the signer chain should be validated before trusting the CRL.
         // If validation fails, we still process the CRL but skip signature verification.
         let signerPublicKey: Bytes | undefined;
         try {
             signerPublicKey = await this.#validateCrlSigner(point);
         } catch (error) {
-            // Per spec 6.2.4.1: validation failure means skip the signer check for this entry.
+            // Per spec 6.2.6.1: validation failure means skip the signer check for this entry.
             // This is expected for entries with delegated signers or chains we can't verify.
             logger.info(
                 `CRL signer validation failed for ${point.issuerSubjectKeyId}, skipping CRL signature check:`,
@@ -1186,7 +1374,7 @@ export class DclCertificateService {
     }
 
     /**
-     * Validate the CRL signer certificate chain per spec Section 6.2.4.1 steps 2-5.
+     * Validate the CRL signer certificate chain per spec Section 6.2.6.1 steps 2-5.
      * Returns the signer's public key for CRL signature verification, or throws on failure.
      */
     async #validateCrlSigner(point: DeviceAttestationPkiRevocationDclSchema): Promise<Bytes> {
@@ -1270,6 +1458,41 @@ export class DclCertificateService {
         }
 
         return signerCert.cert.ellipticCurvePublicKey;
+    }
+
+    /**
+     * Read a revocation set: the per-issuer list of revoked serial numbers that the CHIP SDK's
+     * `generate_revocation_set.py` writes by walking the DCL's revocation distribution points and the
+     * CRLs behind them. It is that tool's own format, not a DCL wire format. Fields beyond the ones
+     * {@link installRevocations} needs are ignored.
+     */
+    static parseRevocationSet(json: string): DclCertificateService.RevocationSetEntry[] {
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(json);
+        } catch (error) {
+            throw new ImplementationError(`Revocation set is not JSON: ${asError(error).message}`);
+        }
+
+        if (!Array.isArray(parsed)) {
+            throw new ImplementationError("Revocation set must be an array of entries");
+        }
+
+        const stated: unknown[] = parsed;
+
+        return stated.map((entry, index) => {
+            if (!isObject(entry)) {
+                throw new ImplementationError(`Revocation set entry ${index} is not an object`);
+            }
+
+            statedType(entry.type, index);
+
+            return {
+                issuerSubjectKeyId: statedHex(entry.issuer_subject_key_id, "issuer_subject_key_id", index),
+                issuerName: statedIssuerName(entry.issuer_name, index),
+                revokedSerialNumbers: statedSerials(entry.revoked_serial_numbers, index),
+            };
+        });
     }
 
     /** Result of parsing a CRL. */
@@ -1472,6 +1695,35 @@ export namespace DclCertificateService {
             paaRoots?: SeedSource<CertSeedEntry>;
             cdSigners?: SeedSource<CertSeedEntry>;
         };
+
+        /** Revocation information from outside the DCL — see {@link DclCertificateService.installRevocations}. */
+        revocations?: RevocationSetEntry[];
+
+        /**
+         * Reaches no network at all: no update, no CRL, no certificate fetched on demand and no
+         * re-fetch of one that would not parse. The trust store is whatever `seed` carried, revocation
+         * is whatever {@link DclCertificateService.installRevocations} was given, and a certificate
+         * neither of those holds reads as absent.
+         *
+         * For a deployment with no route to the ledger, and for a test that must judge attestation
+         * against a stated PKI rather than against whatever the ledger holds today.
+         */
+        offline?: boolean;
+    }
+
+    /** One authority's revoked serial numbers, as a DCL revocation set states them. */
+    export interface RevocationSetEntry {
+        /** Subject key identifier of the certificate that issued the revoked ones, as hex. */
+        issuerSubjectKeyId: string;
+
+        /**
+         * Base64 of the DER-encoded issuer Name. With the key identifier this forms the composite key
+         * revocation is indexed by; an entry without one matches on the key identifier alone.
+         */
+        issuerName?: string;
+
+        /** The revoked serial numbers, as hex. */
+        revokedSerialNumbers: string[];
     }
 
     /** Kind of certificate stored in the trust store. */
@@ -1495,6 +1747,12 @@ export namespace DclCertificateService {
         /** Epoch timestamp (ms) when this certificate was first fetched and added to the local trust store. */
         fetchedAt?: number;
     };
+
+    /** Revocation information installed from outside the DCL, as {@link installedRevocations} reports it. */
+    export interface InstalledRevocation {
+        readonly serials: ReadonlySet<string>;
+        readonly issuerDnDerHex?: string;
+    }
 
     /** Cached revocation data for a single AKID. */
     export interface RevocationEntry {

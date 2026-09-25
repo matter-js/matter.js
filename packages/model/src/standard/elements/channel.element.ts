@@ -51,7 +51,7 @@ export const Channel = Cluster(
     Command(
         { name: "ChangeChannelResponse", id: 0x1, conformance: "CL | LI", direction: "response" },
         Field({ name: "Status", id: 0x0, type: "StatusEnum", conformance: "M", constraint: "desc" }),
-        Field({ name: "Data", id: 0x1, type: "string", conformance: "O", constraint: "any" })
+        Field({ name: "Data", id: 0x1, type: "string", conformance: "O" })
     ),
 
     Command(

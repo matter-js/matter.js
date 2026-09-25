@@ -60,14 +60,8 @@ export const ContentLauncher = Cluster(
         },
         Field({ name: "ContentUrl", id: 0x0, type: "string", conformance: "M", constraint: "max 8192" }),
         Field({ name: "DisplayString", id: 0x1, type: "string", conformance: "O", constraint: "max 256" }),
-        Field({
-            name: "BrandingInformation", id: 0x2, type: "BrandingInformationStruct", conformance: "O",
-            constraint: "any"
-        }),
-        Field({
-            name: "PlaybackPreferences", id: 0x3, type: "PlaybackPreferencesStruct", conformance: "O",
-            constraint: "any"
-        })
+        Field({ name: "BrandingInformation", id: 0x2, type: "BrandingInformationStruct", conformance: "O" }),
+        Field({ name: "PlaybackPreferences", id: 0x3, type: "PlaybackPreferencesStruct", conformance: "O" })
     ),
 
     Command(

@@ -33,6 +33,7 @@ import {
     ObserverGroup,
     Time,
     Transport,
+    TransportClosedError,
     TransportSet,
     UdpTransport,
     UnexpectedDataError,
@@ -43,8 +44,6 @@ import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
 import { MRP } from "./MRP.js";
 import { ProtocolHandler } from "./ProtocolHandler.js";
-
-const logger = Logger.get("ExchangeManager");
 
 /**
  * Maximum number of concurrent outgoing exchanges per session.
@@ -59,12 +58,20 @@ const MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION = 30;
  */
 export interface ExchangeManagerContext {
     lifetime: Lifetime.Owner;
+
+    /**
+     * Where this manager's log messages come from, so a destination can attribute the ones it emits from a transport
+     * callback, which carries no call stack of its own.
+     */
+    origin?: Diagnostic.Origin;
+
     entropy: Entropy;
     transports: TransportSet;
     sessions: SessionManager;
 }
 
 export class ExchangeManager implements Transport.Provider {
+    readonly #logger: Logger;
     readonly #lifetime: Lifetime;
     readonly #transports: TransportSet;
     readonly #sessions: SessionManager;
@@ -79,6 +86,7 @@ export class ExchangeManager implements Transport.Provider {
     #isClosing = false;
 
     constructor(context: ExchangeManagerContext) {
+        this.#logger = Logger.get("ExchangeManager", context.origin);
         this.#lifetime = context.lifetime.join("exchanges");
         this.#workers = new BasicMultiplex();
         this.#transports = context.transports;
@@ -98,6 +106,7 @@ export class ExchangeManager implements Transport.Provider {
     static [Environmental.create](env: Environment) {
         const instance = new ExchangeManager({
             lifetime: env,
+            origin: env.logOrigin,
             entropy: env.get(Entropy),
             transports: env.get(TransportSet),
             sessions: env.get(SessionManager),
@@ -220,7 +229,7 @@ export class ExchangeManager implements Transport.Provider {
         // Privacy enhancements are only defined for group messages; a unicast message with the privacy flag is invalid
         // and dropped, matching the CHIP SDK.
         if (packet.header.hasPrivacyEnhancements && packet.header.sessionType !== SessionType.Group) {
-            logger.info("Dropping unicast message with privacy flag set");
+            this.#logger.info("Dropping unicast message with privacy flag set");
             return;
         }
 
@@ -240,7 +249,7 @@ export class ExchangeManager implements Transport.Provider {
                     if (packet.header.destNodeId !== undefined) {
                         // This is a response to a session that no longer exists (e.g. a late retransmission
                         // after PASE completed).  Drop it rather than creating an orphan session.
-                        logger.debug(
+                        this.#logger.debug(
                             Diagnostic.via(
                                 `${packet.header.sourceNodeId === undefined ? "" : `@${hex(packet.header.sourceNodeId)}:`}${Mark.SESSION}unsecured#${hex.word(initiatorNodeId)}`,
                             ),
@@ -258,7 +267,7 @@ export class ExchangeManager implements Transport.Provider {
             }
 
             if (session === undefined) {
-                logger.warn(
+                this.#logger.warn(
                     Diagnostic.via(
                         `@${packet.header.sourceNodeId === undefined ? "?" : hex(packet.header.sourceNodeId)}:?${Mark.SESSION}${Session.idStrOf(packet)}`,
                     ),
@@ -336,7 +345,7 @@ export class ExchangeManager implements Transport.Provider {
             try {
                 this.#lifetime.details.exchange = exchange.idStr;
                 if (exchange.session.id !== packet.header.sessionId || (exchange.considerClosed && !isStandaloneAck)) {
-                    logger.debug(
+                    this.#logger.debug(
                         exchange.via,
                         "Ignore",
                         Mark.INBOUND,
@@ -363,7 +372,7 @@ export class ExchangeManager implements Transport.Provider {
         } else {
             if (this.#isClosing) return;
             if (session.isClosing) {
-                logger.debug(`Declining new exchange because session ${Session.idStrOf(packet)} is closing`);
+                this.#logger.debug(`Declining new exchange because session ${Session.idStrOf(packet)} is closing`);
                 return;
             }
 
@@ -375,7 +384,7 @@ export class ExchangeManager implements Transport.Provider {
             // Having a "Secure Session" means it is encrypted in our internal working
             // TODO When adding Group sessions, we need to check how to adjust that handling
             if (handlerSecurityMismatch) {
-                logger.debug(
+                this.#logger.debug(
                     "Ignore",
                     Mark.INBOUND,
                     `message because not matching the security requirements (${protocolHandler.requiresSecureSession} vs. ${session.isSecure})`,
@@ -390,7 +399,12 @@ export class ExchangeManager implements Transport.Provider {
                 !handlerSecurityMismatch
             ) {
                 if (isStandaloneAck && !message.payloadHeader.requiresAck) {
-                    logger.debug("Ignore", Mark.INBOUND, "unsolicited standalone ack message", messageDiagnostics);
+                    this.#logger.debug(
+                        "Ignore",
+                        Mark.INBOUND,
+                        "unsolicited standalone ack message",
+                        messageDiagnostics,
+                    );
                     return;
                 }
 
@@ -420,7 +434,7 @@ export class ExchangeManager implements Transport.Provider {
                 try {
                     await exchange.sendStandaloneAckForMessage(message);
                     await exchange.close();
-                    logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
+                    this.#logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
                 } catch (error) {
                     this.#handleIncomingMessageError("unsolicited message", error, exchange, message);
                 }
@@ -431,12 +445,12 @@ export class ExchangeManager implements Transport.Provider {
                 if (isDuplicate) {
                     if (message.packetHeader.destGroupId === undefined) {
                         // Duplicate Non-Group messages are still interesting to log to know them
-                        logger.debug("Ignore", Mark.INBOUND, "duplicate message", messageDiagnostics);
+                        this.#logger.debug("Ignore", Mark.INBOUND, "duplicate message", messageDiagnostics);
                     }
                     return;
                 }
                 if (!isStandaloneAck) {
-                    logger.info(
+                    this.#logger.info(
                         "Discard",
                         Mark.INBOUND,
                         "unexpected message",
@@ -450,7 +464,7 @@ export class ExchangeManager implements Transport.Provider {
 
     #handleIncomingMessageError(what: string, error: unknown, exchange: MessageExchange, message: Message) {
         if (causedBy(error, ShutdownError)) {
-            logger.info(
+            this.#logger.info(
                 Message.via(exchange, message),
                 `Rejected incoming ${what}:`,
                 Diagnostic.errorMessage(asError(error)),
@@ -458,7 +472,7 @@ export class ExchangeManager implements Transport.Provider {
             return;
         }
 
-        logger.warn(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
+        this.#logger.warn(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
     }
 
     deleteExchange(exchangeIndex: number) {
@@ -496,11 +510,11 @@ export class ExchangeManager implements Transport.Provider {
         const exchangeToClose = sessionExchanges.reduce((leastRecentlyActive, exchange) =>
             exchange.lastActive < leastRecentlyActive.lastActive ? exchange : leastRecentlyActive,
         );
-        logger.info(
+        this.#logger.info(
             exchangeToClose.via,
             `Closing least-recently-active exchange for session because of too many concurrent exchanges. Ensure to not send that many parallel messages to one peer.`,
         );
-        logger.debug(exchangeToClose.via, "Closing least-recently-active exchange");
+        this.#logger.debug(exchangeToClose.via, "Closing least-recently-active exchange");
         this.#workers.add(exchangeToClose.close());
     }
 
@@ -562,7 +576,7 @@ export class ExchangeManager implements Transport.Provider {
             netInterface,
             netInterface.onData((socket, data) => {
                 if (udpInterface && data.byteLength > socket.maxPayloadSize) {
-                    logger.warn(
+                    this.#logger.warn(
                         `Received UDP message from ${socket.name} with size ${data.byteLength}, which is larger than the maximum allowed size of ${socket.maxPayloadSize}`,
                     );
                 }
@@ -622,17 +636,20 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     async #onConnectionDisconnect(channel: Channel<Bytes>) {
-        logger.info("TCP connection dropped, evicting bound sessions:", channel.name);
+        this.#logger.info("TCP connection dropped, evicting bound sessions:", channel.name);
 
         // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
         for (const session of this.#sessionsOnChannel(channel)) {
-            logger.debug("Evicting session due to TCP disconnect:", session.via);
+            this.#logger.debug("Evicting session due to TCP disconnect:", session.via);
 
+            // An in-flight subscription update has to be settled before initiateForceClose's
+            // subscription teardown awaits it; on a dead connection only closing its exchange settles
+            // it, and nothing else would for the peer's full response time
             for (const exchange of [...session.exchanges]) {
-                await exchange.close(new Error("TCP connection dropped"));
+                await exchange.close(new TransportClosedError("TCP connection dropped"));
             }
 
-            await session.initiateForceClose({ cause: new Error("TCP connection dropped") });
+            await session.initiateForceClose({ cause: new TransportClosedError("TCP connection dropped") });
         }
     }
 
@@ -647,7 +664,7 @@ export class ExchangeManager implements Transport.Provider {
             return;
         }
 
-        logger.info("Last session on TCP connection removed, closing connection:", tcpChannel.name);
+        this.#logger.info("Last session on TCP connection removed, closing connection:", tcpChannel.name);
         await tcpChannel.close();
     }
 
@@ -686,13 +703,13 @@ export class ExchangeManager implements Transport.Provider {
 
     async #sendCloseSession(session: NodeSession) {
         await using exchange = this.initiateExchangeForSession(session, SECURE_CHANNEL_PROTOCOL_ID);
-        logger.debug(exchange.via, "Closing session");
+        this.#logger.debug(exchange.via, "Closing session");
         try {
             const messenger = new SecureChannelMessenger(exchange);
             await messenger.sendCloseSession();
             await messenger.close();
         } catch (error) {
-            logger.warn(exchange.via, "Error closing session:", error);
+            this.#logger.warn(exchange.via, "Error closing session:", error);
         }
     }
 }

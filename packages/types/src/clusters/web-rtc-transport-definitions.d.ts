@@ -137,7 +137,7 @@ export declare namespace WebRtcTransportDefinitions {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.3.1
          */
-        urLs: string[];
+        urls: string[];
 
         /**
          * (Optional for STUN, usually required for TURN) The [[RFC8489]](#ref_Rfc8489) compliant UTF-8 encoded username
@@ -159,10 +159,9 @@ export declare namespace WebRtcTransportDefinitions {
 
         /**
          * This field represents the TLSRCAC via its assigned TLSCAID (see Chapter 14, Certificate Authority ID (CAID)
-         * Mapping and TLS Certificate Management Commands sections in [[MatterCore]](#ref_MatterCore)) that will
-         * validate the certificate chain presented by the entries in the urls field. It shall be set to a valid value
-         * if a turns: or stuns: url is present in the urls field and shall be used to validate those servers' presented
-         * TLS root certificates.
+         * Mapping and TLS Certificate Management Commands sections in MatterCore) that will validate the certificate
+         * chain presented by the entries in the urls field. It shall be set to a valid value if a turns: or stuns: url
+         * is present in the urls field and shall be used to validate those servers' presented TLS root certificates.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.3.4
          */

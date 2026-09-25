@@ -11,17 +11,167 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/types
+    - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
+- @matter/protocol
+    - Enhancement: `IcdCounter.advance()` moves the ICD counter by up to 2^32 − 1, for test event triggers that invalidate counter values
+    - Fix: A commissioner rejects a `PBKDFParamResponse` whose PBKDF iteration count is outside 1000..100000 and answers `InvalidParam`, instead of deriving the PASE key with whatever count the device sent. A PASE message that fails schema validation is reported as an `UnexpectedDataError` naming the message and field, and ends only the commissioning candidate that sent it, instead of cancelling every other candidate. The commissioner passes each address of a device as a separate candidate, so its other addresses are still tried
+    - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
+- @matter/node
+    - Fix: A node whose fabric was created before it started (a controller calling `FabricAuthority.defaultFabric()` before `start()` on first run) now counts as commissioned once online and advertises operationally, as it already did after a restart, so an ICD can resolve such a controller to send it Check-Ins
+    - Fix: Decommissioning a peer whose structure read never finished no longer reports an unhandled `uninitialized-dependency` error: the observer watching for that read now detaches when the node goes away, instead of reading state from a node that is closing
+    - Enhancement: `IcdClient` emits `counterStart$Changed` after a registration, a key refresh or a cleared registration has committed, so a listener can read the new key from state; `keyRefreshed` fires before that
+    - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
 - @matter/testing
+    - Enhancement: A certification step can have its controller act as a node's ICD Check-In client via `CertNodeApi.icdClient()`: register, end its own subscription so the node sends Check-Ins, and read the Check-Ins and key refreshes it accepted. chip-tool refuses it. Every `CertNodeApi` implementation must provide the new method
+    - Enhancement: A certification controller's ICD client can also unregister from a node and ask it to stay active (`CertIcdClientApi.unregister()`, `.stayActive()`); every `CertIcdClientApi` implementation must provide both
+    - Enhancement: The certification app `lit-icd` maps to CHIP's `lit-icd-app` binary
+    - Enhancement: A certification controller can judge device attestation against the chip test roots and revocation information a case installs, via `ControllerAdapterOptions.attestation` and `ControllerAdapter.attestation`. Such a controller refuses an error-level attestation finding and names it, where a controller without the option accepts whatever a test device presents; chip-tool refuses the option, since it reads revocation from a file its process was started with
+    - Enhancement: A certification controller's WebRTC signal records carry what the signaling stated — an offer's or answer's session description, and the ICE candidates a peer sent — via `WebRtcSignalRecord.sdp` and `.candidates`, so a case can drive a peer connection of its own
+    - Enhancement: A certification step can have its controller stage an OTA image for a node and serve it over BDX, via `CertNodeApi.serveOtaUpdate()`, which reports what the resulting transfer negotiated and moved
+    - Enhancement: `CertNodeApi.serveOtaUpdate()` also reports the OTA commands the controller's own provider answered, and the new `CertNodeApi.announceOtaProvider()` announces a provider to a node without staging anything. Every `CertNodeApi` implementation must provide the new method
+    - Enhancement: A certification test can give each of its devices its own app arguments, via `certTest`'s `appArgs`, and the evidence bundle records what each role was started with. A role's arguments may be given per implementation (`{ chip, matterjs }`), for a flag only one of them understands
+    - Fix: A chip `ota-provider` certification device starts without a case naming an image: the app exits at startup unless given one, and the harness supplies a placeholder where the case named none
+    - Enhancement: `CertNodeApi.scriptOtaProvider()` has the controller's own OTA provider answer a case's next commands, so a plan step about a `Busy`, a deferred apply or a `UserConsentNeeded` can be driven
+    - Breaking: A certification step can ask whether a PICS expression holds for its run, via `CertStepContext.picsMet()`, so a plan outcome that depends on a PICS answer is checked either way. Code building a `CertStepContext` must provide it, and a run with no active PICS fails a step that asks, with `PicsUnansweredError`. `CertTest.contextFor()` returns the new `CertStepWiring`, which leaves it out, and `PromptDrivenPythonTest` and `PromptHandler.action` take one
+    - Breaking: `CertNodeApi.announceOtaProvider()` can keep recording after the node's query via `observeMs`, and reports the window it covered as `OtaAnnouncement.observedMs`, so a case can assert what the node did not send in it; every recorded `QueryImage` carries its receipt time as `OtaQueryImageExchange.receivedAtMs`. Every implementation must report both
+    - Enhancement: A certification step costing minutes of real time declares `longRunning`, and runs only where the run asked for it (`MATTER_CERT_LONG_RUNNING`); `RunRecord.longRunningSkips` counts what a run left out
+    - Breaking: `BackchannelCommand.SimulateLongPress` carries the switch's `featureMap`, which a chip test app requires to decide which events a press produces
+    - Enhancement: A certification step can ask which sessions a controller holds with a node, and can drop the connection beneath a named one, via `CertNodeApi.sessions()` and `CertNodeApi.severTransportConnection()`
+    - Enhancement: A certification step's read may require a session that permits large payloads via `ReadAttributeOptions.largeMessage`
+    - Enhancement: Chip certification test devices take simulation commands through the named pipe their app opens, so a step that operates the device runs against a chip app rather than skipping
+    - Enhancement: Chip certification test devices also take simulation commands through their app's standard input, one character per poll interval, which is how chip's bridge app is operated
+    - Enhancement: The matter.js bridge test device exposes the devices chip's bridge app does, on the same endpoints, and takes the same simulation commands
+    - Enhancement: A certification run's evidence names every device it ran, each with its role, app, app variant, flavor and image revision, through `RunRecord.run.devices`; the single `run.device` and `run.chipRef` fields are gone, and a device that exits names its role. A device a wrapped python script spawns for itself is recorded as the new `python-wrapped` flavor, which no run can select
+    - Enhancement: A certification run may declare devices running different apps, so a case can drive two device roles at once
+    - Enhancement: A certification step can ask what a controller holds for a node — its endpoints, or one attribute's value — rather than only what a read returns, via `CertNodeApi.clientEndpoints()` and `CertNodeApi.clientAttribute()`
+    - Enhancement: A certification step subscribing to events may ask for them urgently via `SubscribeEventOptions.urgent`, so a device reports them as they occur rather than at the subscription's maximum interval
+    - Enhancement: A certification controller can host a WebRTC transport requestor cluster via `ControllerAdapterOptions.webRtcRequestor`, so a case whose peer initiates signaling has somewhere for the peer's `Offer` to land; `ControllerAdapter.webRtcRequestor` registers the sessions signaling is accepted for and reports each signal the peer sent, accepted or refused
     - Enhancement: A certification test requests a transport preference for its controllers via `certTest`'s `transport` option; `"tcp"` asks for a TCP-backed session where the peer supports one, and adapters receive the request through `ControllerAdapterOptions`
     - Enhancement: A certification step whose check could not be evaluated ends `"unverified"` and fails the run, unless the check states why the claim cannot be observed
     - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
 
-- @matter/node
-    - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
+- @matter/general
+    - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
+    - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
+    - Enhancement: Log output names a message's origin in brackets ahead of the facility, for the environments below the outermost one
+    - Enhancement: `TransportClosedError` reports an operation that needs a transport connection which is already closed. It sits outside `NetworkError` and `TransientPeerCommunicationError`, so a closed connection is not classified as an unreachable or lost peer
+    - Enhancement: `StorageService.isBlobConfigured` reports whether blob drivers are registered
+    - Fix: `NodeJsStyleCrypto.computeHash` names a digest the way Node.js's crypto API does. It passed the Web Crypto spelling, which Node.js accepts as an alias while stricter emulations of its API reject it
+    - Fix: `NodeJsStyleCrypto.computeHash` reports `CryptoInputError` naming an algorithm it does not support, where an untyped caller previously reached the underlying API with it
+    - Fix: Crypto auto-detection claims the default `Crypto` only where the detected API offers the SHA-256 digest and the `aes-128-ccm` cipher and decipher, so `StandardCrypto` serves a runtime whose emulation lacks them rather than being shut out by load order. The detected API is claimed regardless where the runtime offers no Web Crypto, and where the process restricts its cryptographic provider as FIPS mode does, so nothing is left without crypto and no deliberate restriction is evaded
+    - Enhancement: `nodeCryptoDefect` reports which of those primitives a Node.js-style crypto API cannot offer, and `NodeJsCryptoApiLike` gains an optional `getFips()` for runtimes that report a restricted provider
+    - Fix: Crypto auto-detection no longer aborts the import of this package where the runtime offers neither a usable Node.js-style API nor a usable Web Crypto. It reports that it found none and leaves `Crypto` unset
+    - Fix: `MockCrypto` defaults to the standard implementation where the detected Node.js-style API cannot serve Matter, via the new `NodeJsStyleCrypto.providesDefault`. It keyed on a Node.js-style API merely being present, which an incomplete emulation also satisfies
+
+- @matter/nodejs
+    - Fix: The Node.js environment uses standard crypto where Node.js's crypto module offers no SHA-256 digest, or no `aes-128-ccm` cipher or decipher, which is the case on Bun and Deno, and says which was missing. It previously made that choice by runtime name, so it covered Bun alone and left Deno on an implementation that fails commissioning. Where the process restricts its cryptographic provider it keeps Node.js crypto rather than evading the restriction, and reports that Matter will fail where it needs the missing primitive
+    - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
 
 - @matter/protocol
+    - Enhancement: `DclCertificateService` can be constructed `offline`, where it reaches no network and answers from what it was seeded and told about revocation
+    - Enhancement: A commissioner can be given revocation information the DCL does not publish, through `DclCertificateService.installRevocations()` or the new `revocations` option. `DclCertificateService.parseRevocationSet()` reads such a set in the format the CHIP SDK's revocation-set tool writes. The entries stay in memory and only add revocations — a serial they do not name is still checked against the DCL
+    - Enhancement: A BDX message the node sends names its block counter on the log line the exchange already writes for it, with a Block's or BlockEof's data length, a BlockQueryWithSkip's skip offset, and the counter and length of the block an ack or a driving receiver's next query reports having received. A transfer flow also names the negotiated maximum block size and the start offset when it starts
+    - Enhancement: `BdxSession` reports the `*Init` a responder received and what its transfer settled on, so a responder's own account of what it granted is readable without decoding the wire
+    - Enhancement: `ExchangeManager` and `SessionManager` take a log origin through their context and are given their node's, so their log lines name the node that wrote them. Other components still log without one
+    - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
+    - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone
+    - Fix: A running BLE discovery is woken by any advertisement of a device matching its query, not only by an address it has never seen, so a device that becomes a candidate again during the discovery is handed to it. Each device is still offered once per discovery
+    - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
+    - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
+
+- @matter/model
+    - Fix: The Base device type records the revision its specification section states, which is 3. It has no device type id, so no Descriptor `DeviceTypeList` entry carried one and `DeviceTypeModel.revision` answered 1
+    - Enhancement: `DeviceTypeModel.declaredRevision` states the revision a device type records for itself, or `undefined` where it records none, which `revision` cannot express because it answers 1 for both
+    - Fix: A device type's documentation carries the prose its specification chapter states below a subsection heading. Sixty-two device types gain text, and the Base device type is documented at all for the first time. Each subsection appears under a heading of its own depth, so a chapter that repeats a subsection name states which operation each one belongs to
+    - Fix: A condition carries the prose of the section that describes it, and an element requirement carries the section its table came from, so a section such as `device§8.5.6` has a cross reference
+    - Fix: Scraping says which device library chapter it ignores and how many sections below it go with it, rather than dropping them without a word
+    - Fix: Generated documentation drops an image's alt text and a table or figure caption, which name the artifact rather than describing the subject, and resolves a reference link such as `[[Aliro]](#ref_Aliro)` to the name it refers to
+    - Fix: The Heat Pump device type carries the eight element requirements its specification section states; the column heading that section uses discarded every row
+    - Fix: The Base device type's conditions carry their descriptions; nine of twenty-three were discarded because their table heads the column `Summary`
+    - Fix: A device type requirement carries the instance-count constraint the specification states, such as `min 1`
+    - Fix: `AnnounceOtaProvider` is fabric-scoped, which its command's field table states and its Access column omits
+    - Breaking: Eleven model elements whose names contain a pluralised acronym are renamed for consistency with the singular form, such as `TariffComponentIDs` to `TariffComponentIds`
+    - Enhancement: `Conformance.isProvisional` states whether the specification has not finished an element, which reads as optional and so cannot be told from a plain optional otherwise
+    - Enhancement: `DeviceTypeModel.effectiveComposition` states whether a device type composes its endpoint's `PartsList` of every descendant or of its own children
+    - Fix: The constraint parser no longer reads `any` or `MS` as stating no bound. Both are artifacts of the specification's tables and are now removed while scraping, so a hand-written cluster definition may state a bound naming a value spelled `Any` or `MS`, and one that states neither name reports `UNRESOLVED_CONSTRAINT_NAME`
+    - Enhancement: `Constraint.referencesOf` states each name a constraint holds along with what the constraint does with it — compare a bound against it, take the values allowed from it, or take a member of it — where it previously stated the name alone. `Constraint.validateReferences` is replaced by it
+    - Enhancement: `Metatype.boundKind` states what a constraint on a value of a metatype states, and `Metatype.holdsNumber` and `Metatype.holdsRecord` how such a value is held, which decides what a bound may compare against and what a member access may take. `Metatype.native` now reports a bitmap as an object, agreeing with `Metatype.Native`, and `Metatype.Native` covers durations
+    - Enhancement: `ValueModel.memberNamed` resolves the name a constraint or conformance states for a value of an enumerated type. Constraint encoding, definition validation, the conformance aspect and the conformance compiler now share it; the compiler previously read a member's `id` rather than its effective id, so a member whose definition omits one resolved to nothing
+    - Fix: The operand of `in` states its name in the case every other name a constraint holds uses, so `Constraint.referencesOf` reports one spelling
+    - Fix: The operand of `in` names an element holding the values allowed, so a value of the constrained type no longer answers it
+    - Fix: A constraint taking a member of a computed value, such as `min minOf(A, B).C` or `min A.minOf(B, C)`, reports `UNEVALUABLE_MEMBER_ACCESS` rather than reporting its member as an unresolved name. An access evaluates only where the value before `.` is a record and the name after it a member of one, so such a bound admits every value
+    - Fix: A name a constraint states that resolves to a value the constraint cannot use — a bound comparing against a record, a membership set naming a single value, an access taking a member of a value held as a number — reports `UNUSABLE_CONSTRAINT_NAME`. It reports that alone, where before a name could be reported both unusable and unresolved
+    - Fix: A constraint bounding a value with neither a magnitude nor a length reports `UNBOUNDABLE_TYPE`
+    - Fix: A constraint bounding the entries of a list in one of its alternatives reports `UNENFORCEABLE_ENTRY_BOUND`, as nothing enforces such a bound
+    - Fix: `TlsClientManagement.FindEndpointResponse.Endpoint` states no bound. The specification bounds it by `0 to 65534`, which is the bound of the endpoint ID rather than of the struct the field holds
+    - Enhancement: A condition requirement records where it asserts its condition via `RequirementModel.location` (`Root`, `Self` or `Descendant`), and carries the constraint the specification states for it
+    - Enhancement: `RequirementModel.componentCountRange` gives the range of endpoint counts that a component device type requirement's constraint allows
+    - Enhancement: New `RequirementResolver` resolves the condition and feature names a device type requirement's conformance references, the endpoint scope they resolve in, and the cluster, feature, attribute, command, event or component device type a requirement names; new `requirementApplicability()` evaluates a requirement's conformance against the names true for an endpoint
+    - Fix: A condition reference in a device type requirement's conformance is spelled as the model declares the condition, such as `Sit | Lit` rather than `SIT | LIT`, so evaluating the conformance matches the condition
+    - Breaking: `Conformance.validateReferences` checks a name inside optional conformance or a choice, such as `[X]` or `[X].a+`, so a model whose bracketed conformance names something undefined no longer validates
+    - Breaking: Model validation checks device type requirements and reports a conformance name that does not resolve (`UNRESOLVED_CONFORMANCE_NAME`) or is spelled other than as declared (`NONCANONICAL_CONFORMANCE_NAME`), a condition requirement naming no condition (`UNRESOLVED_CONDITION`), a location on a requirement that is not a condition requirement (`LOCATION_NOT_APPLICABLE`), a component requirement naming no defined device type (`UNRESOLVED_DEVICE_TYPE`), a cluster requirement naming no defined cluster (`UNRESOLVED_CLUSTER`), and a required feature, element or command field its cluster does not define (`UNSATISFIABLE_REQUIREMENT`)
+    - Breaking: A feature, attribute, command, event or command field requirement must be parented by a server or client cluster requirement (`ILLEGAL_REQUIREMENT_PARENT`); any parent previously passed. A command field requirement is now also checked against its cluster's commands
+
+- @matter/node
+    - Documentation: `ClientNode`, `Peers.get` and `ClientNodeStores.allocateId` say how long a `PeerAddress` names the same device, and `ControllerBehavior.allocatePeerAddress` states when an address of a removed peer can be issued to another one
+    - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
+    - Enhancement: (@RaHehl) `ClientNode.openEnhancedCommissioningWindow` (and `CommissioningClient`) also returns the passcode, long discriminator, vendor and product ID it encodes into the pairing codes, and the commissioning timeout sent to the device
+    - Enhancement: A device type that relaxes a cluster's mandatory element to optional is honoured. Temperature Sensor and Room Air Conditioner required `KeypadLockout`, which the specification makes optional for them
+    - Enhancement: A device type feature gated on `Rev >= vN` is enabled when the device type's revision satisfies it, which enables `ChangeEvent` on Water Freeze Detector, Water Leak Detector and Rain Sensor
+    - Enhancement: A generated requirement's documentation says when the specification states a cluster is provisional, rather than reporting it as plainly optional
+    - Fix: A generated device type no longer emits an empty `mandatory: {}`, and states `mandatory` before `optional` regardless of which it has
+    - Enhancement: An OTA requestor's wait before querying a provider that announced an update can be set through `announcedUpdateQueryDelay`, so a node alone with its provider can shorten the random window the specification prefers
+    - Enhancement: `WebRtcTransportRequestorServer` reports signaling it answered `NotFound` via its new `refused` event, which names the session id the peer asked about
+    - Fix: `WebRtcTransportRequestorServer.iceCandidates` reports `ConstraintError` for an empty candidate list, which is what the field's `min 1` constraint states and what a peer already receives from schema validation. It reported `InvalidCommand`
+    - Fix: A constraint error naming an entry of a list states the position of that entry, where an entry holding no value previously shifted every position after it
+    - Fix: A bound the specification states on a bitmap is enforced. An upper bound states what the reserved-bit check already enforces, but a lower bound such as `FanControl.RockSupport`'s `min 1` states a flag that must be set, which nothing checked. A cluster implementation that supports rocking or wind and leaves the corresponding attribute with no flag set now fails validation where it previously passed
+    - Fix: A bound on a duration is enforced rather than ignored. A duration is held as a number of milliseconds, and a constraint bounding one states milliseconds too
+    - Fix: A constraint on a value no bound can be checked against, such as a struct or a date, no longer fails behavior creation with `Cannot define constraint for unsupported metatype`. A list whose entries are of such a type reaches this when the constraint bounds its entries
+    - Fix: A value of an enumerated type whose definition states no ID is judged by its effective ID, which is its position among its siblings. Such a value was refused as undefined in the enumeration, and a conformance naming it resolved to nothing
+    - Fix: A node that factory resets keeps the services it already opened, rather than installing a second set over them. Closing the node then releases its share of the mDNS service, so a process that resets a node can exit, and releases its storage handle and directory lock
+    - Fix: A holder of `ChangeNotificationService.change` keeps receiving updates after a node factory resets
+    - Fix: A node whose construction fails releases the storage its store had already opened
+    - Fix: A factory reset erases the blobs a BDX transfer left behind
+    - Fix: `Endpoint.behaviors.has()` answers `false` rather than `undefined` for a behavior the endpoint does not support at all
+    - Fix: A peer's endpoint tree follows the `PartsList` of the endpoint each part belongs to, so a bridged composed device's own endpoints are no longer attached to the aggregator
+    - Fix: A peer's endpoint whose device types are all utility types, as a bridge's composed device is, reports those device types rather than remaining of unknown type
+    - Fix: A peer endpoint that no `PartsList` names is left out of the node rather than taking the endpoints it claims out of the tree with it; a root composes its list of every descendant, so an endpoint absent from it is not part of the node
+    - Fix: A peer endpoint the root stops naming while it still holds endpoints the root does name is kept rather than erased, which would have closed those endpoints with it
+    - Fix: `DoorLockServer` reserves credential index 0 for the programming PIN, refusing it for any other credential type and refusing any other index for the programming PIN. The programming PIN counts as one credential rather than one of the PIN credentials, and reports no next index
+    - Fix: (@Luligu) Corrects status codes returned by `DoorLockServer.setCredential` for duplicating another credential of the same type and adding an occupied credential index
+    - Fix: `DoorLockServer.setCredential` creates the user alongside the credential when the request carries no user index
+    - Fix: `DoorLockServer.setCredential` reports `NextCredentialIndex` on a failing response as well as a successful one
+    - Fix: `DoorLockServer.setCredential` reports `OCCUPIED` when no user slot remains for a new credential
+    - Fix: `DoorLockServer.setCredential` answers `INVALID_COMMAND` when the user fields a request carries do not match the use case it states
+    - Fix: `DoorLockServer` stores each enumerated field of a user or credential record as its Matter enumeration, so a value the enumeration does not define is refused rather than kept
+    - Fix: A bridged node's `PartsList` names its own children rather than every endpoint below it
+    - Fix: A constraint that bounds an enumerated value to named values of its own type, such as the `add, modify` of a door lock's operation type, is now applied. A cluster that refuses a payload it cannot validate, as `DoorLock` does, answers a client naming another value with `INVALID_COMMAND` instead of acting on it
+    - Fix: Creating a struct fills in a default only for a field the cluster supports, so a field a device does not set stays absent instead of carrying the fallback its schema states. A write of a list entry that omits a feature-gated field is accepted, where it previously failed validation against the field it had filled in. Affects `Thermostat` preset names and setpoints, `Descriptor` tag labels, `MediaPlayback` track attributes and the feature-gated members of `ClosureControl`, `ClosureDimension`, `ElectricalEnergyMeasurement`, `CommodityPrice` and `CommodityTariff`
+    - Fix: A struct field's default is stored in the units and shape of its datatype: a preset created without a cooling setpoint reads `2600` rather than the schema's `26°C` notation, and a bitmap default arrives decoded
+    - Fix: Each struct created by a write receives its own copy of a list or bitmap default instead of sharing one instance
+    - Fix: A nullable field the active features make mandatory holds `null` when a write omits it, where a field made mandatory by a feature expression previously stayed absent
+    - Fix: A write that names an inherited property, such as `__proto__` or `toString`, is refused like any other property the cluster does not declare; `__proto__` previously replaced the prototype of the value being written
+    - Fix: `ClientStructure.applyWireChanges` applies the change it is given. A client node keys each member of a cluster by attribute ID, and a change from the remote API addresses members by property name, so values landed under a key reads were never served from: the update was invisible and never persisted. Values now convert as the change is applied
+    - Fix: `ClientStructure.applyWireChanges` regenerates a behavior whose cluster definition changed and prunes attributes the cluster dropped, as the Matter protocol path already did
+    - Fix: Validation honors the conformance and quality an element inherits, so an element overridden by an operational extension is no longer judged as if it stated neither
+    - Fix: A write from local code that adds an entry to a fabric-scoped list without a `fabricIndex` now fails validation instead of storing an entry that belongs to no fabric. Writes from a peer are unaffected — the accessing fabric is supplied for them
+    - Fix: Assigning a whole list to a fabric-scoped attribute that held none merges through the managed list, so its entries are fabric-filtered and carry the accessing fabric; it previously bypassed both
+    - Fix: A `ConformanceError` names the conformance the decision was made on rather than the element's own
+    - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
+    - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
+
+- @matter/types
+    - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there
+    - Breaking: A property whose name contains a pluralised acronym is now camelised the way the singular already was, so `tariffComponentIDs` is `tariffComponentIds`. Eight properties are renamed: `tariffComponentIDs`, `dayEntryIDs`, `dayPatternIDs`, `uniqueLocationIDs`, `uniqueLocationIDsLastEdit`, `groupKeySetIDs`, `messageIDs` and `activeMessageIDs`
+    - Fix: A `status` field in a cluster that defines its own status codes is now `Status | <Cluster>.StatusCode`, so producing a cluster-specific code needs no cast and consuming one needs narrowing. This affects `DoorLock.SetCredentialResponse` and the DoorLock schedule responses
+
+- @matter/protocol
+    - Fix: A peer that negotiates zero paths per invoke is treated as accepting one path; invoking a command on such a peer previously exhausted the heap and crashed the process
+    - Enhancement: `SessionManager` refuses a local `maxPathsPerInvoke` below one, on construction and via `sessionParameters`
+    - Enhancement: A group message's log line names the port beside the multicast address it went to, in the usual IPv6 form (`dest: [ff35:40:…]:5540`)
     - Fix: A command whose payload does not match the command's schema is answered with `INVALID_COMMAND` instead of `FAILURE`
     - Fix: `UpdateFabricLabel` accepts an empty label, as the specification's `max 32` constraint sets no minimum; it previously failed the command
     - Enhancement: An interaction can be abandoned by the caller: `ClientRequest.abort` takes an `AbortSignal`, honored for read, write, invoke and subscribe
@@ -33,6 +183,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
 
 - @matter/general
+    - Fix: A worker cancelled while it was still starting is no longer closed once the runtime has taken on work again
+    - Fix: A worker cancelled more than once while it was still starting is closed once rather than once per cancellation
+    - Fix: `deepCopy` copies a `Date` as a `Date` rather than an empty object
     - Fix: A log destination that throws no longer propagates the failure into the code that logged; the remaining destinations still receive the message and the broken destination is reported once
     - Fix: `DataReader` throws `DataReadError` when a read would pass the end of the buffer; `readByteArray` and `readUtf8String` no longer return short data
     - Fix: `DerCodec.decode` reports truncated input as `DerError` instead of a `RangeError`, and rejects a length that overflows or uses the indefinite-length encoding instead of decoding a value as present and empty
@@ -54,6 +207,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The `Symbol.metadata` polyfill no longer conflicts with `lib.esnext.decorators` in the published declarations
 
 - @matter/model
+    - Fix: A constraint that names a bound held by another element, written `<Element>.<Field>`, now applies that bound instead of accepting every value. This enforces `OccupancySensing.HoldTime`, `AmbientContextSensing.HoldTime` and `SoilMeasurement.SoilMoistureMeasuredValue` against their declared limits, on client writes, on assignment and on the stored value at startup
+    - Fix: A constraint that bounds a value to named values of its own enumeration, such as the `add, modify` of a door lock's operation type, states those values rather than names that resolve to nothing, so `EncodedConstraint()` now reports the bound the specification states. Validating such a field does not yet apply the bound
+    - Enhancement: Model validation reports a constraint that names an element which does not resolve, since such a bound is silently skipped and the value accepted unchecked
+    - Fix: A constraint of `any` or `MS`, neither of which the constraint language defines, states no bound rather than a bound naming a value that does not exist, and the fields that carried one no longer state a constraint at all
+    - Fix: `JointFabricDatastore.DatastoreAccessControlEntryStruct` states its `Subjects` and `Targets` as unbounded; they were bounded by attributes of the `AccessControl` cluster, which a constraint cannot reach, so the bound never applied
+    - Enhancement: `StoredDefaultValue()` states the default a value store holds for a member, beside the existing `SelectDefaultValue()` and `MandatoryDefaultValue()`
+    - Fix: Conformance applicability reports a term that compares a value as conditional rather than optional, so an element the record's own contents decide is no longer treated as mandatory when the features around the comparison are supported
+    - Enhancement: `ClusterModel.statusCodes` gives the cluster's own status code definition, inherited by a derived cluster like the other member accessors
     - Fix: TemperatureMeasurement's MinMeasuredValue and MaxMeasuredValue now default to `null` ("range unavailable"), like the other measurement clusters, instead of -27315 and 32767, and carry the constraints the specification states rather than hand-written ones
     - Fix: A device type requiring several instances of one component, such as `BatteryStorage` with two electrical sensors and two power sources, no longer reports each instance as a duplicate of the others
     - Enhancement: The model build reports an instance number stated on a requirement other than a component device type, where the specification numbers nothing
@@ -195,6 +356,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
     - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
     - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
+    - Fix: Shutdown no longer hangs when Bluetooth is enabled but no adapter is usable; the Bluetooth driver is now always stopped, which releases the handle that kept the process alive
 
 - @matter/nodejs-shell
     - Fix: A cluster whose ID lies outside the ranges the specification allows is addressable instead of raising an error
