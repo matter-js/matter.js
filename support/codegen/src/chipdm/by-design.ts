@@ -291,6 +291,20 @@ export const KNOWN_DIFFERENCES: KnownDifference[] = [
         matter: "max900",
         reason: "We resolve the RESP_MAX constant the specification defines; CHIP keeps the name",
     },
+    {
+        path: "OtaSoftwareUpdateRequestor.AnnounceOtaProvider",
+        property: "access fabric",
+        chip: "absent",
+        matter: "F",
+        reason: "The specification scopes the command to the accessing fabric; CHIP's data model XML does not record it",
+    },
+    {
+        path: "*.Uncertainty",
+        property: "constraint",
+        chip: "ms",
+        matter: "all",
+        reason: "CHIP keeps the MS the specification states as the constraint; our scraper reads MS as no constraint",
+    },
 ];
 
 function matches(pattern: string, path: string) {

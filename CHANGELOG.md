@@ -12,7 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/\*:
-    - Upgraded to Matter specification version 1.6.1. The Groupcast cluster and the Access Control auxiliary ACL are no longer provisional, and the device types that gained a Groupcast condition report their new revision
+    - Upgraded to Matter specification version 1.6.1. The Groupcast cluster and the Access Control auxiliary ACL are no longer provisional, and the device types that gained a Groupcast condition report their new revision. `BasicInformation.specificationVersion` defaults to 1.6.1 (`0x01060100`)
     - Breaking: `Status.UnreportableAttribute` (0x8c) and `Status.NoUpstreamSubscription` (0xc5) are removed, as Matter 1.6.1 deletes both status codes
 
 - @matter/types
