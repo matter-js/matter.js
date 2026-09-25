@@ -75,8 +75,7 @@ export namespace DeviceTypeConformance {
             ConditionAssertions.nodeEndpointOf(endpoint, pass) ?? treeRootOf(endpoint),
             pass,
         );
-        const assertions = collection.conditions;
-        const conditions = assertions.get(endpoint) ?? new Set<string>();
+        const conditions = collection.conditionsOf(endpoint);
 
         for (const { name, suggestion } of ConditionAssertions.unknownNames(endpoint, pass)) {
             violations.push({
@@ -106,11 +105,11 @@ export namespace DeviceTypeConformance {
             const waived = deviceType.classification === DeviceClassification.Base ? baseWaiversOf(facts, pass) : NONE;
             const context = { violations, facts, deviceType, conditions, pass, waived };
             checkClusters(context, deviceType.requirements);
-            checkComposition(context, assertions);
+            checkComposition(context, collection);
         }
 
-        checkComponentOf(violations, facts, assertions, pass);
-        checkDescendantCounts(violations, endpoint, collection.descendantAssertions);
+        checkComponentOf(violations, facts, collection, pass);
+        checkDescendantCounts(violations, endpoint, collection.descendantAssertionsOf(endpoint));
         checkSingletons(violations, facts, pass);
 
         // Base and a device type may state the same requirement; the device type's own report is kept
@@ -486,14 +485,14 @@ function failuresOf(
     candidate: EndpointFacts,
     instance: RequirementModel,
     composing: DeviceTypeModel,
-    assertions: Map<Endpoint, Set<string>>,
+    collection: ConditionAssertions.Collection,
     pass: ValidationPass,
 ) {
     const byInstance = failureMemo.get(pass, candidate.endpoint, () => new Map());
     let violations = byInstance.get(instance);
     if (violations === undefined) {
         violations = new Array<Violation>();
-        const conditions = assertions.get(candidate.endpoint) ?? new Set<string>();
+        const conditions = collection.conditionsOf(candidate.endpoint);
         checkClusters(
             { violations, facts: candidate, deviceType: composing, conditions, pass, waived: NONE },
             instance.requirements,
@@ -513,7 +512,7 @@ function failuresOf(
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.3
  */
-function checkComposition(context: Context, assertions: Map<Endpoint, Set<string>>) {
+function checkComposition(context: Context, collection: ConditionAssertions.Collection) {
     const { violations, facts, deviceType, conditions, pass } = context;
     const components = componentsOf(facts.endpoint, deviceType, conditions, pass);
     const candidates = new Map<Component, EndpointFacts[]>();
@@ -545,7 +544,7 @@ function checkComposition(context: Context, assertions: Map<Endpoint, Set<string
             case Conformance.Applicability.Mandatory:
                 checkCount(context, component, found.length, { min: 1 });
                 if (found.length) {
-                    checkInstances(context, component, found, assertions);
+                    checkInstances(context, component, found, collection);
                 }
                 continue;
         }
@@ -588,10 +587,10 @@ function checkInstances(
     { violations, facts, deviceType, pass }: Context,
     component: Component,
     candidates: EndpointFacts[],
-    assertions: Map<Endpoint, Set<string>>,
+    collection: ConditionAssertions.Collection,
 ) {
     const failures = component.requirements.map(instance =>
-        candidates.map(candidate => failuresOf(candidate, instance, deviceType, assertions, pass)),
+        candidates.map(candidate => failuresOf(candidate, instance, deviceType, collection, pass)),
     );
     const matched = matchInstances(failures.map(row => row.map(failed => !failed.length)));
 
@@ -743,7 +742,7 @@ function checkChoices(
 function checkComponentOf(
     violations: Violation[],
     facts: EndpointFacts,
-    assertions: Map<Endpoint, Set<string>>,
+    collection: ConditionAssertions.Collection,
     pass: ValidationPass,
 ) {
     const own = new Set(facts.deviceTypes.map(deviceType => deviceType.id));
@@ -753,7 +752,7 @@ function checkComponentOf(
 
     for (let composer = facts.endpoint.owner; composer !== undefined; composer = composer.owner) {
         const composerFacts = EndpointFacts.of(composer, pass);
-        const conditions = assertions.get(composer) ?? new Set<string>();
+        const conditions = collection.conditionsOf(composer);
 
         const filled = composerFacts.deviceTypes.flatMap(deviceType =>
             componentsOf(composer, deviceType, conditions, pass)
@@ -770,7 +769,7 @@ function checkComponentOf(
         if (filled.length && composerFacts.composes(facts.endpoint)) {
             for (const { deviceType, component } of filled) {
                 const failures = component.requirements.map(instance =>
-                    failuresOf(facts, instance, deviceType, assertions, pass),
+                    failuresOf(facts, instance, deviceType, collection, pass),
                 );
                 if (failures.some(failed => !failed.length)) {
                     continue;
@@ -807,8 +806,8 @@ function checkComponentOf(
 }
 
 /**
- * Report each `Descendant` condition {@link endpoint} asserts whose number of endpoints lies outside the range its
- * constraint states.
+ * Report each of {@link descendantAssertions}, the `Descendant` conditions {@link endpoint} asserts, whose number of
+ * endpoints lies outside the range its constraint states.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
@@ -817,9 +816,9 @@ function checkDescendantCounts(
     endpoint: Endpoint,
     descendantAssertions: ConditionAssertions.DescendantAssertion[],
 ) {
-    for (const { endpoint: asserting, requirement, matches } of descendantAssertions) {
+    for (const { requirement, matches } of descendantAssertions) {
         const range = requirement.componentCountRange;
-        if (asserting !== endpoint || range === undefined || isWithin(range, matches.length)) {
+        if (range === undefined || isWithin(range, matches.length)) {
             continue;
         }
 
@@ -875,7 +874,7 @@ function checkSingletons(violations: Violation[], facts: EndpointFacts, pass: Va
     }
 
     const singletons = singletonMemo.get(pass, nodeEndpoint, () =>
-        singletonsOf(ConditionAssertions.nodeScopeOf(nodeEndpoint, pass), pass),
+        singletonsOf(ConditionAssertions.reachingEndpointsOf(nodeEndpoint, pass), pass),
     );
     reportMisplaced(violations, facts, singletons);
 }

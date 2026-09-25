@@ -272,7 +272,7 @@ describe("DeviceTypeConformance", () => {
 
         expect(String(requirementOf("RootNode", "AccessControl", "Extension").conformance)).equals("AclExtensionCond");
         expect(EndpointFacts.of(node).features("AccessControl").has("EXTS")).true;
-        expect(ConditionAssertions.collect(node).conditions.get(node)?.has("AclExtensionCond")).false;
+        expect(ConditionAssertions.collect(node).conditionsOf(node).has("AclExtensionCond")).false;
 
         expect(violationsOf(node).map(v => v.requirement)).not.includes("AccessControl.Extension");
 
@@ -495,7 +495,7 @@ describe("DeviceTypeConformance", () => {
                     .filter(v => v.requirement === "Descriptor.TAGLIST")
                     .map(v => v.deviceType);
             for (const endpoint of bridged) {
-                expect(ConditionAssertions.collect(node).conditions.get(endpoint)?.has("Duplicate")).true;
+                expect(ConditionAssertions.collect(node).conditionsOf(endpoint).has("Duplicate")).true;
                 expect(tagList(endpoint)).deep.equals([]);
             }
             for (const endpoint of composed) {

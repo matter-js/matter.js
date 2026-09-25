@@ -64,6 +64,11 @@ logged, as above.
 A misplaced singleton is refused at construction even without strict mode, because the placement is unambiguous —
 a singleton cluster is allowed only on the endpoints that declare it.
 
+A refused construction logs nothing and records nothing. The `DeviceTypeConformanceError` it throws names the first
+refused endpoint with its new violations and carries each other refused endpoint as a nested
+`DeviceTypeConformanceError`. New violations of endpoints the same check does not refuse are dropped, because they
+were found in a tree the refused endpoint then leaves: it is rolled back, or left crashed if it is not essential.
+
 ## Declaring conditions an endpoint asserts
 
 A device type's requirements can depend on named conditions (`Cooler`, `PhysicalInputs`, …). Most follow from the
@@ -100,6 +105,9 @@ A name matter.js does not recognize is reported rather than silently ignored.
 - The initial check of a node scope covers only that scope; a node scope nested inside the initial tree (only
   `RootNode` is classified a node, so this does not occur in a standard tree) is checked only by later changes
   within it.
+- A construction is refused after the endpoint's `ready` and `partsReady` lifecycle events. Listeners of these
+  events may already have run for an endpoint that is then refused, such as the node initialization of
+  `CommissioningServer` or application logic started from `partsReady`.
 - A refused essential endpoint is rolled back, but its number stays allocated in its ancestors' `PartsList`s and in
   storage until a separate fix lands, so a retry with the same ID gets a different number — a pre-existing gap in
   endpoint rollback that strict-mode refusal now reaches more often. A refused non-essential endpoint is not rolled

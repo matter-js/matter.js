@@ -170,13 +170,10 @@ class NodeServices {
             env.set(EndpointInitializer, new ServerEndpointInitializer(env));
             env.set(IdentityService, new IdentityService(node));
             env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, env));
-            const followDestruction = (change: EndpointLifecycle.Change, endpoint: Endpoint) => {
-                if (change === EndpointLifecycle.Change.Destroyed) {
-                    env.get(DeviceTypeConformanceService).endpointDestroyed(endpoint);
-                }
-            };
-            node.lifecycle.changed.on(followDestruction);
-            release.push({ on: "close", run: () => node.lifecycle.changed.off(followDestruction) });
+            const followLifecycle = (change: EndpointLifecycle.Change, endpoint: Endpoint) =>
+                env.get(DeviceTypeConformanceService).lifecycleChanged(change, endpoint);
+            node.lifecycle.changed.on(followLifecycle);
+            release.push({ on: "close", run: () => node.lifecycle.changed.off(followLifecycle) });
 
             const notifications = new ChangeNotificationService(node);
             env.set(ChangeNotificationService, notifications);

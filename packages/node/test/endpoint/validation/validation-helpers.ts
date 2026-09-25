@@ -15,6 +15,7 @@ import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
+import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
 import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
@@ -296,6 +297,27 @@ export function recordingChecks() {
 
         [Symbol.dispose]() {
             DeviceTypeConformance.check = check;
+        },
+    };
+}
+
+/**
+ * Records every endpoint whose {@link EndpointFacts} a pass asks for until disposed.
+ */
+export function recordingReads() {
+    const { of } = EndpointFacts;
+    const read = new Set<Endpoint>();
+
+    EndpointFacts.of = (endpoint, pass) => {
+        read.add(endpoint);
+        return of.call(EndpointFacts, endpoint, pass);
+    };
+
+    return {
+        read,
+
+        [Symbol.dispose]() {
+            EndpointFacts.of = of;
         },
     };
 }

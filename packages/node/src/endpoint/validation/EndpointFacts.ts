@@ -62,6 +62,18 @@ export class EndpointFacts {
         return facts.get(pass, endpoint, () => new EndpointFacts(endpoint, pass));
     }
 
+    /**
+     * Whether {@link endpoint}'s behaviors have initialized and it is neither crashed nor closing, so its facts can be
+     * read and it counts as a child of its owner.
+     */
+    static isReadable(endpoint: Endpoint) {
+        if (!endpoint.lifecycle.isReady) {
+            return false;
+        }
+        const { status } = endpoint.construction;
+        return status === Lifecycle.Status.Active || status === Lifecycle.Status.Initializing;
+    }
+
     private constructor(endpoint: Endpoint, pass: ValidationPass) {
         this.#endpoint = endpoint;
         this.#pass = pass;
@@ -174,7 +186,7 @@ export class EndpointFacts {
      * The endpoint's direct children.
      */
     get children(): Endpoint[] {
-        return this.#endpoint.hasParts ? [...this.#endpoint.parts].filter(isReadable) : [];
+        return this.#endpoint.hasParts ? [...this.#endpoint.parts].filter(EndpointFacts.isReadable) : [];
     }
 
     /**
@@ -263,14 +275,6 @@ function deviceTypeIdsOf(endpoint: Endpoint): number[] {
         }
     }
     return configured.length ? configured : [endpoint.type.deviceType];
-}
-
-function isReadable(endpoint: Endpoint) {
-    if (!endpoint.lifecycle.isReady) {
-        return false;
-    }
-    const { status } = endpoint.construction;
-    return status === Lifecycle.Status.Active || status === Lifecycle.Status.Initializing;
 }
 
 function clusterTypesOf(types: Behavior.Type[]) {

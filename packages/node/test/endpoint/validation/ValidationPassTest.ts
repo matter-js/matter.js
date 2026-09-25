@@ -101,3 +101,71 @@ describe("ValidationPass.ModelMemo", () => {
         await node.close();
     });
 });
+
+describe("ValidationPass.Memory", () => {
+    it("weighs only the changes noted while it holds a value", async () => {
+        const node = await createNode();
+        const memory = new ValidationPass.Memory();
+
+        memory.changed(node);
+        memory.hold([]);
+        memory.revise(() => true);
+        expect(memory.generation).equals(0);
+
+        memory.changed(node);
+        memory.revise(() => true);
+        expect(memory.generation).equals(1);
+
+        await node.close();
+    });
+
+    it("weighs each noted change once", async () => {
+        const node = await createNode();
+        const memory = new ValidationPass.Memory();
+        memory.hold([]);
+
+        memory.changed(node);
+        memory.revise(() => false);
+        memory.revise(() => true);
+        expect(memory.generation).equals(0);
+
+        await node.close();
+    });
+
+    it("forgets what it noted and watched once it discards", async () => {
+        const node = await createNode();
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+        const memory = new ValidationPass.Memory();
+        memory.hold([light]);
+        memory.changed(light);
+        memory.changed(node);
+        memory.revise(() => true);
+        expect(memory.generation).equals(1);
+
+        memory.changed(node);
+        memory.hold([]);
+        memory.revise(() => true);
+        memory.changed(light);
+        memory.revise(() => false);
+        expect(memory.generation).equals(1);
+
+        await node.close();
+    });
+
+    it("discards what it holds on a change to a watched endpoint whatever the test says", async () => {
+        const node = await createNode();
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+        const memory = new ValidationPass.Memory();
+        memory.hold([light]);
+
+        memory.changed(node);
+        memory.revise(() => false);
+        expect(memory.generation).equals(0);
+
+        memory.changed(light);
+        memory.revise(() => false);
+        expect(memory.generation).equals(1);
+
+        await node.close();
+    });
+});

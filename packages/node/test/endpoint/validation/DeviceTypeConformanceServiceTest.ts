@@ -235,7 +235,7 @@ describe("DeviceTypeConformanceService", () => {
         await node.close();
     });
 
-    it("throws the first refused endpoint and logs the others", async () => {
+    it("throws the first refused endpoint carrying the others and logs none", async () => {
         const node = await createUnjudgedNode();
         const first = await node.add(lightWithoutIdentify, { id: "first" });
         const second = await node.add(lightWithoutIdentify, { id: "second" });
@@ -251,15 +251,21 @@ describe("DeviceTypeConformanceService", () => {
         });
 
         expect(error).instanceOf(DeviceTypeConformanceError);
-        expect(error instanceof DeviceTypeConformanceError && error.message).contains("first");
-        expect(logged.length).equals(1);
-        expect(logged[0].text).contains("second");
+        if (error instanceof DeviceTypeConformanceError) {
+            expect(error.message).contains("first");
+            const nested = error.errors.filter(cause => cause instanceof DeviceTypeConformanceError);
+            expect(nested.map(({ message }) => message)).deep.equals([
+                `Endpoint ${second} violates device type requirements`,
+            ]);
+            expect(nested[0].errors.map(({ message }: Error) => message)).contains(
+                "OnOffLight Identify: Mandatory server cluster Identify is missing",
+            );
+        }
+        expect(logged).deep.equals([]);
 
-        // The logged endpoint counts as reported, the thrown one does not
-        expect(service.knows(first)).false;
-        expect(service.knows(second)).true;
-        expect(() => service.validate(second)).not.throws();
-        expect(() => service.validate(first)).throws(DeviceTypeConformanceError);
+        // Neither counts as reported, so both are refused again
+        expect(service.knows(first) || service.knows(second)).false;
+        expect(() => service.validate(second)).throws(DeviceTypeConformanceError);
 
         await node.close();
     });

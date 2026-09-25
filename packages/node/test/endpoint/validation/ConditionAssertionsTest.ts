@@ -33,6 +33,8 @@ const DescribedSwitch = OnOffLightSwitchDevice.with(DescriptorServer);
 const SELF_ASSERTER_ID = 0xfff10001;
 const DYNAMIC_ID = 0xfff10002;
 const APPLICATION_ID = 0xfff10003;
+const HOLDER_ID = 0xfff10004;
+const SELF_HOLDER_ID = 0xfff10005;
 
 /** Device types the standard model lacks: a Self assertion and the classifications no standard device type uses */
 function fixtureModel() {
@@ -43,6 +45,20 @@ function fixtureModel() {
             { name: "SelfAsserter", id: SELF_ASSERTER_ID, classification: "simple" },
             new ConditionModel({ name: "Selfish" }),
             new RequirementModel({ name: "Selfish", element: "condition", conformance: "M", location: "Self" }),
+        ),
+        new DeviceTypeModel(
+            { name: "Holder", id: HOLDER_ID, classification: "simple" },
+            new ConditionModel({ name: "Held" }),
+        ),
+        new DeviceTypeModel(
+            { name: "SelfHolder", id: SELF_HOLDER_ID, classification: "simple" },
+            new RequirementModel({
+                name: "Held",
+                type: "Holder.Held",
+                element: "condition",
+                conformance: "M",
+                location: "Self",
+            }),
         ),
         new DeviceTypeModel({ name: "Dynamo", id: DYNAMIC_ID, classification: "dynamic" }),
         new DeviceTypeModel({ name: "Applied", id: APPLICATION_ID, classification: "application" }),
@@ -73,10 +89,11 @@ describe("ConditionAssertions", () => {
             const node = await createNode();
             const camera = await addCamera(node);
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(node)?.has("PowerSourceCond")).true;
-            expect(conditions.get(camera)?.has("PowerSourceCond")).false;
+            expect(collection.conditionsOf(node).has("PowerSourceCond")).true;
+            expect(collection.conditionsOf(camera).has("PowerSourceCond")).false;
+            expect(collection.descendantAssertionsOf(camera)).deep.equals([]);
 
             await node.close();
         });
@@ -86,9 +103,9 @@ describe("ConditionAssertions", () => {
             await node.add(DescribedLight, { id: "lock", descriptor: { deviceTypeList: deviceTypeList("DoorLock") } });
 
             // DoorLock states AclExtensionCond "M" and TimeSyncCond "O"
-            const conditions = ConditionAssertions.collect(node).conditions.get(node);
-            expect(conditions?.has("AclExtensionCond")).true;
-            expect(conditions?.has("TimeSyncCond")).false;
+            const conditions = ConditionAssertions.collect(node).conditionsOf(node);
+            expect(conditions.has("AclExtensionCond")).true;
+            expect(conditions.has("TimeSyncCond")).false;
 
             await node.close();
         });
@@ -100,10 +117,30 @@ describe("ConditionAssertions", () => {
                 descriptor: { deviceTypeList: deviceTypeList(SELF_ASSERTER_ID) },
             });
 
-            const { conditions } = ConditionAssertions.collect(node, new ValidationPass(fixtureModel()));
+            const collection = ConditionAssertions.collect(node, new ValidationPass(fixtureModel()));
 
-            expect(conditions.get(endpoint)?.has("Selfish")).true;
-            expect(conditions.get(node)?.has("Selfish")).false;
+            expect(collection.conditionsOf(endpoint).has("Selfish")).true;
+            expect(collection.conditionsOf(node).has("Selfish")).false;
+            expect(collection.descendantAssertionsOf(endpoint)).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("asserts a Self condition on no child that lists its declaring device type", async () => {
+            const node = await createNode();
+            const holder = await node.add(DescribedLight, {
+                id: "holder",
+                descriptor: { deviceTypeList: deviceTypeList(SELF_HOLDER_ID) },
+            });
+            const child = await holder.add(DescribedLight, {
+                id: "child",
+                descriptor: { deviceTypeList: deviceTypeList(HOLDER_ID) },
+            });
+
+            const collection = ConditionAssertions.collect(node, new ValidationPass(fixtureModel()));
+
+            expect(collection.conditionsOf(holder).has("Held")).true;
+            expect(collection.conditionsOf(child).has("Held")).false;
 
             await node.close();
         });
@@ -115,12 +152,13 @@ describe("ConditionAssertions", () => {
                 cabinets: [first, second],
             } = await addRefrigerator(node);
 
-            const { conditions, descendantAssertions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(first)?.has("Cooler")).true;
-            expect(conditions.get(second)?.has("Cooler")).true;
-            expect(conditions.get(fridge)?.has("Cooler")).false;
+            expect(collection.conditionsOf(first).has("Cooler")).true;
+            expect(collection.conditionsOf(second).has("Cooler")).true;
+            expect(collection.conditionsOf(fridge).has("Cooler")).false;
 
+            const descendantAssertions = collection.descendantAssertionsOf(fridge);
             expect(descendantAssertions).length(1);
             const [assertion] = descendantAssertions;
             expect(assertion.endpoint).equals(fridge);
@@ -134,7 +172,7 @@ describe("ConditionAssertions", () => {
             const node = await createNode();
             const { fridge } = await addRefrigerator(node, { cabinets: 0 });
 
-            const { descendantAssertions } = ConditionAssertions.collect(node);
+            const descendantAssertions = ConditionAssertions.collect(node).descendantAssertionsOf(fridge);
 
             expect(descendantAssertions.map(({ endpoint, matches }) => ({ endpoint, matches }))).deep.equals([
                 { endpoint: fridge, matches: [] },
@@ -149,7 +187,9 @@ describe("ConditionAssertions", () => {
             const shelf = await fridge.add(OnOffLightDevice, { id: "shelf" });
             const grandchild = await addCabinet(shelf, "grandchild");
 
-            expect(ConditionAssertions.collect(node).conditions.get(grandchild)?.has("Cooler")).false;
+            const collection = ConditionAssertions.collect(node);
+            expect(collection.conditionsOf(grandchild).has("Cooler")).false;
+            expect(collection.conditionsOf(shelf).has("Cooler")).false;
 
             await node.close();
         });
@@ -167,13 +207,15 @@ describe("ConditionAssertions", () => {
                 descriptor: { deviceTypeList: deviceTypeList("RootNode") },
             });
             const beyond = await addCabinet(nested, "beyond");
+            const { fridge: nestedFridge } = await addRefrigerator(nested, { cabinets: 0 });
 
-            const { conditions, descendantAssertions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(child)?.has("Cooler")).true;
-            expect(conditions.get(grandchild)?.has("Cooler")).true;
-            expect(descendantAssertions[0].matches).deep.equals([child, grandchild]);
-            expect(conditions.has(beyond)).false;
+            expect(collection.conditionsOf(child).has("Cooler")).true;
+            expect(collection.conditionsOf(grandchild).has("Cooler")).true;
+            expect(collection.descendantAssertionsOf(fridge)[0].matches).deep.equals([child, grandchild]);
+            expect(collection.conditionsOf(beyond).size).equals(0);
+            expect(collection.descendantAssertionsOf(nestedFridge)).deep.equals([]);
 
             await node.close();
         });
@@ -187,12 +229,12 @@ describe("ConditionAssertions", () => {
             const camera = await addCamera(nested);
 
             const outer = ConditionAssertions.collect(node);
-            expect(outer.conditions.has(nested)).false;
-            expect(outer.conditions.has(camera)).false;
-            expect(outer.conditions.get(node)?.has("PowerSourceCond")).false;
+            expect(outer.conditionsOf(nested).size).equals(0);
+            expect(outer.conditionsOf(camera).size).equals(0);
+            expect(outer.conditionsOf(node).has("PowerSourceCond")).false;
 
             const inner = ConditionAssertions.collect(nested);
-            expect(inner.conditions.get(nested)?.has("PowerSourceCond")).true;
+            expect(inner.conditionsOf(nested).has("PowerSourceCond")).true;
 
             await node.close();
         });
@@ -204,13 +246,13 @@ describe("ConditionAssertions", () => {
                 deviceConditions: ["BridgedPowerSourceInfo", "RootNode.PowerSourceCond", "sit"],
             });
 
-            const conditions = ConditionAssertions.collect(node).conditions.get(light);
+            const conditions = ConditionAssertions.collect(node).conditionsOf(light);
 
-            expect(conditions?.has("BridgedPowerSourceInfo")).true;
-            expect(conditions?.has("PowerSourceCond")).true;
-            expect(conditions?.has("RootNode.PowerSourceCond")).false;
-            expect(conditions?.has("sit")).false;
-            expect(conditions?.has("Sit")).false;
+            expect(conditions.has("BridgedPowerSourceInfo")).true;
+            expect(conditions.has("PowerSourceCond")).true;
+            expect(conditions.has("RootNode.PowerSourceCond")).false;
+            expect(conditions.has("sit")).false;
+            expect(conditions.has("Sit")).false;
 
             await node.close();
         });
@@ -230,10 +272,10 @@ describe("ConditionAssertions", () => {
             const node = await createNode();
             const light = await node.add(OnOffLightDevice, { id: "light" });
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(node)?.has("Node")).true;
-            expect(conditions.get(light)?.has("Node")).false;
+            expect(collection.conditionsOf(node).has("Node")).true;
+            expect(collection.conditionsOf(light).has("Node")).false;
 
             await node.close();
         });
@@ -242,13 +284,13 @@ describe("ConditionAssertions", () => {
             const node = await createNode();
             const light = await node.add(OnOffLightDevice, { id: "light" });
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(light)?.has("App")).true;
-            expect(conditions.get(light)?.has("Simple")).true;
-            expect(conditions.get(light)?.has("Dynamic")).false;
-            expect(conditions.get(node)?.has("App")).false;
-            expect(conditions.get(node)?.has("Simple")).false;
+            expect(collection.conditionsOf(light).has("App")).true;
+            expect(collection.conditionsOf(light).has("Simple")).true;
+            expect(collection.conditionsOf(light).has("Dynamic")).false;
+            expect(collection.conditionsOf(node).has("App")).false;
+            expect(collection.conditionsOf(node).has("Simple")).false;
 
             await node.close();
         });
@@ -260,13 +302,13 @@ describe("ConditionAssertions", () => {
                 descriptor: { deviceTypeList: deviceTypeList(DYNAMIC_ID) },
             });
 
-            const conditions = ConditionAssertions.collect(node, new ValidationPass(fixtureModel())).conditions.get(
+            const conditions = ConditionAssertions.collect(node, new ValidationPass(fixtureModel())).conditionsOf(
                 endpoint,
             );
 
-            expect(conditions?.has("App")).true;
-            expect(conditions?.has("Dynamic")).true;
-            expect(conditions?.has("Simple")).false;
+            expect(conditions.has("App")).true;
+            expect(conditions.has("Dynamic")).true;
+            expect(conditions.has("Simple")).false;
 
             await node.close();
         });
@@ -278,13 +320,13 @@ describe("ConditionAssertions", () => {
                 descriptor: { deviceTypeList: deviceTypeList(APPLICATION_ID) },
             });
 
-            const conditions = ConditionAssertions.collect(node, new ValidationPass(fixtureModel())).conditions.get(
+            const conditions = ConditionAssertions.collect(node, new ValidationPass(fixtureModel())).conditionsOf(
                 endpoint,
             );
 
-            expect(conditions?.has("App")).true;
-            expect(conditions?.has("Simple")).false;
-            expect(conditions?.has("Dynamic")).false;
+            expect(conditions.has("App")).true;
+            expect(conditions.has("Simple")).false;
+            expect(conditions.has("Dynamic")).false;
 
             await node.close();
         });
@@ -296,10 +338,10 @@ describe("ConditionAssertions", () => {
                 cabinets: [cabinet],
             } = await addRefrigerator(node, { cabinets: 1 });
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(fridge)?.has("Composed")).true;
-            expect(conditions.get(cabinet)?.has("Composed")).false;
+            expect(collection.conditionsOf(fridge).has("Composed")).true;
+            expect(collection.conditionsOf(cabinet).has("Composed")).false;
 
             await node.close();
         });
@@ -309,12 +351,12 @@ describe("ConditionAssertions", () => {
             const light = await node.add(OnOffLightDevice, { id: "light" });
             const lightSwitch = await node.add(OnOffLightSwitchDevice, { id: "switch" });
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(light)?.has("Server")).true;
+            expect(collection.conditionsOf(light).has("Server")).true;
 
             // The switch serves only Identify and Descriptor, which are utility clusters
-            expect(conditions.get(lightSwitch)?.has("Server")).false;
+            expect(collection.conditionsOf(lightSwitch).has("Server")).false;
 
             await node.close();
         });
@@ -324,10 +366,10 @@ describe("ConditionAssertions", () => {
             const light = await node.add(OnOffLightDevice, { id: "light" });
             const lightSwitch = await node.add(OnOffLightSwitchDevice, { id: "switch" });
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(lightSwitch)?.has("Client")).true;
-            expect(conditions.get(light)?.has("Client")).false;
+            expect(collection.conditionsOf(lightSwitch).has("Client")).true;
+            expect(collection.conditionsOf(light).has("Client")).false;
 
             await node.close();
         });
@@ -338,12 +380,12 @@ describe("ConditionAssertions", () => {
             const second = await node.add(OnOffLightDevice, { id: "second" });
             const lightSwitch = await node.add(OnOffLightSwitchDevice, { id: "switch" });
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(first)?.has("Duplicate")).true;
-            expect(conditions.get(second)?.has("Duplicate")).true;
-            expect(conditions.get(lightSwitch)?.has("Duplicate")).false;
-            expect(conditions.get(node)?.has("Duplicate")).false;
+            expect(collection.conditionsOf(first).has("Duplicate")).true;
+            expect(collection.conditionsOf(second).has("Duplicate")).true;
+            expect(collection.conditionsOf(lightSwitch).has("Duplicate")).false;
+            expect(collection.conditionsOf(node).has("Duplicate")).false;
 
             await node.close();
         });
@@ -359,7 +401,7 @@ describe("ConditionAssertions", () => {
                 descriptor: { deviceTypeList: deviceTypeList("OnOffLightSwitch", "PowerSource") },
             });
 
-            expect(ConditionAssertions.collect(node).conditions.get(first)?.has("Duplicate")).false;
+            expect(ConditionAssertions.collect(node).conditionsOf(first).has("Duplicate")).false;
 
             await node.close();
         });
@@ -370,10 +412,10 @@ describe("ConditionAssertions", () => {
             const node = await createNode();
             const light = await node.add(DescribedLight, { id: "light" });
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(node)?.has(NodeCondition.CustomNetworkConfig)).true;
-            expect(conditions.get(light)?.has(NodeCondition.CustomNetworkConfig)).true;
+            expect(collection.conditionsOf(node).has(NodeCondition.CustomNetworkConfig)).true;
+            expect(collection.conditionsOf(light).has(NodeCondition.CustomNetworkConfig)).true;
 
             await node.close();
         });
@@ -381,9 +423,9 @@ describe("ConditionAssertions", () => {
         it("does not hold CustomNetworkConfig for a node that commissions over BLE", async () => {
             const node = await createBleNode();
 
-            const { conditions } = ConditionAssertions.collect(node);
+            const collection = ConditionAssertions.collect(node);
 
-            expect(conditions.get(node)?.has(NodeCondition.CustomNetworkConfig)).false;
+            expect(collection.conditionsOf(node).has(NodeCondition.CustomNetworkConfig)).false;
 
             await node.close();
         });
@@ -399,11 +441,11 @@ describe("ConditionAssertions", () => {
                 });
                 const light = await node.add(DescribedLight, { id: "light" });
 
-                const { conditions } = ConditionAssertions.collect(node);
+                const collection = ConditionAssertions.collect(node);
 
                 const interfaces = [NodeCondition.WiFi, NodeCondition.Thread, NodeCondition.Ethernet];
-                expect(interfaces.filter(name => conditions.get(node)?.has(name))).deep.equals([condition]);
-                expect(interfaces.filter(name => conditions.get(light)?.has(name))).deep.equals([condition]);
+                expect(interfaces.filter(name => collection.conditionsOf(node).has(name))).deep.equals([condition]);
+                expect(interfaces.filter(name => collection.conditionsOf(light).has(name))).deep.equals([condition]);
 
                 await node.close();
             });
@@ -413,9 +455,9 @@ describe("ConditionAssertions", () => {
             const node = await createNode();
             await node.add(SecondaryNetworkInterfaceEndpoint.with(ThreadCommissioningServer), { id: "thread" });
 
-            const conditions = ConditionAssertions.collect(node).conditions.get(node);
+            const conditions = ConditionAssertions.collect(node).conditionsOf(node);
 
-            expect(conditions?.has(NodeCondition.Thread)).true;
+            expect(conditions.has(NodeCondition.Thread)).true;
 
             await node.close();
         });
@@ -423,11 +465,11 @@ describe("ConditionAssertions", () => {
         it("holds no network interface condition without NetworkCommissioning", async () => {
             const node = await createNode();
 
-            const conditions = ConditionAssertions.collect(node).conditions.get(node);
+            const conditions = ConditionAssertions.collect(node).conditionsOf(node);
 
-            expect(conditions?.has(NodeCondition.WiFi)).false;
-            expect(conditions?.has(NodeCondition.Thread)).false;
-            expect(conditions?.has(NodeCondition.Ethernet)).false;
+            expect(conditions.has(NodeCondition.WiFi)).false;
+            expect(conditions.has(NodeCondition.Thread)).false;
+            expect(conditions.has(NodeCondition.Ethernet)).false;
 
             await node.close();
         });
@@ -435,10 +477,10 @@ describe("ConditionAssertions", () => {
         it("holds a stated condition the node does not answer", async () => {
             const node = await createBleNode({ deviceConditions: ["CustomNetworkConfig", "Sit"] });
 
-            const conditions = ConditionAssertions.collect(node).conditions.get(node);
+            const conditions = ConditionAssertions.collect(node).conditionsOf(node);
 
-            expect(conditions?.has(NodeCondition.CustomNetworkConfig)).true;
-            expect(conditions?.has("Sit")).true;
+            expect(conditions.has(NodeCondition.CustomNetworkConfig)).true;
+            expect(conditions.has("Sit")).true;
 
             await node.close();
         });
@@ -498,7 +540,7 @@ describe("ConditionAssertions", () => {
             });
 
             expect(ConditionAssertions.unknownNames(player)).deep.equals([]);
-            expect(ConditionAssertions.collect(node).conditions.get(player)?.has("PhysicalInputs")).true;
+            expect(ConditionAssertions.collect(node).conditionsOf(player).has("PhysicalInputs")).true;
 
             await node.close();
         });

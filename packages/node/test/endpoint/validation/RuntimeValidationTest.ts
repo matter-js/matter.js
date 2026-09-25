@@ -24,11 +24,13 @@ import {
     addCabinet,
     addRefrigerator,
     captureErrorsOf,
+    captureLog,
     captureLogOf,
     createNode,
     deviceTypeList,
     lightWithGroupKeyManagement,
     recordingChecks,
+    recordingReads,
     WiFiCommissioningServer,
 } from "./validation-helpers.js";
 
@@ -129,6 +131,50 @@ function guardedRootModel() {
 }
 
 const unguardedWidget = "missing device:RootNode/Widget";
+
+const NEEDY_ID = 0xfff1_0035;
+
+/**
+ * A model whose Declarer declares OnOff a singleton and whose Needy requires ColorControl, which the stand-ins lack.
+ */
+function onOffSingletonModel() {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }),
+        new DeviceTypeModel({ name: "RootNode", id: 0x16, classification: "node" }),
+        new DeviceTypeModel(
+            { name: "Declarer", id: DECLARER_ID, classification: "simple" },
+            new RequirementModel({ name: "OnOff", id: 6, element: "serverCluster", conformance: "O", quality: "I" }),
+        ),
+        new DeviceTypeModel(
+            { name: "Needy", id: NEEDY_ID, classification: "simple" },
+            new RequirementModel({ name: "ColorControl", id: 0x300, element: "serverCluster", conformance: "M" }),
+        ),
+        new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+        new ClusterModel({ name: "OnOff", id: 6 }),
+        new ClusterModel({ name: "ColorControl", id: 0x300 }),
+    );
+    model.finalize();
+    return model;
+}
+
+/**
+ * A model whose OnOffLight requires ColorControl, which the stand-ins lack, only when the node supports Wi-Fi.
+ */
+function wiFiGatedModel() {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }, new ConditionModel({ name: "WiFi" })),
+        new DeviceTypeModel({ name: "RootNode", id: 0x16, classification: "node" }),
+        new DeviceTypeModel(
+            { name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" },
+            new RequirementModel({ name: "ColorControl", id: 0x300, element: "serverCluster", conformance: "WiFi" }),
+        ),
+        new ClusterModel({ name: "ColorControl", id: 0x300 }),
+    );
+    model.finalize();
+    return model;
+}
 
 /**
  * A node judged in {@link guardedRootModel}, with a Widget child.
@@ -698,6 +744,147 @@ describe("device type validation after construction", () => {
             await captureLogOf(() => aggregator.close());
 
             expect(requirementsOf(node, widget)).deep.equals([]);
+
+            await node.close();
+        });
+    });
+
+    describe("what passes keep of a node scope", () => {
+        it("reads nothing outside the judged endpoints when an addition adds nothing that reaches the node scope", async () => {
+            const node = await createNode();
+            node.env.set(
+                DeviceTypeConformanceService,
+                new DeviceTypeConformanceService(node, node.env, onOffSingletonModel()),
+            );
+            const shelf = await addStandIn(node, "shelf", "OnOffLight");
+            const stored = [
+                await addStandIn(shelf, "stored1", "OnOffLight"),
+                await addStandIn(shelf, "stored2", "OnOffLight"),
+            ];
+            const bay = await addStandIn(node, "bay", "OnOffLight");
+
+            // Needy states a server cluster requirement that is no singleton
+            using reads = recordingReads();
+            await captureLogOf(() => addStandIn(bay, "needy", NEEDY_ID));
+
+            expect(stored.filter(endpoint => reads.read.has(endpoint))).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("reads the node scope again once a nested node endpoint stops being one", async () => {
+            const { node, widget } = await createGuardedNode();
+            const nested = await captureLogOf(() =>
+                node.add(DescribedLight, {
+                    id: "nested",
+                    descriptor: { deviceTypeList: deviceTypeList("RootNode") },
+                    parts: [
+                        new Endpoint(DescribedLight, {
+                            id: "asserter",
+                            descriptor: { deviceTypeList: deviceTypeList(ASSERTER_ID) },
+                        }),
+                    ],
+                }),
+            ).then(() => node.parts.require("nested"));
+            expect(requirementsOf(node, widget)).deep.equals([]);
+
+            await captureLogOf(() => nested.set({ descriptor: { deviceTypeList: deviceTypeList("OnOffLight") } }));
+
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await node.close();
+        });
+
+        it("reads a network interface of a server cluster added at runtime", async () => {
+            const node = await createNode();
+            node.env.set(
+                DeviceTypeConformanceService,
+                new DeviceTypeConformanceService(node, node.env, wiFiGatedModel()),
+            );
+            const light = await addStandIn(node, "light", "OnOffLight");
+            const other = await addStandIn(node, "other", "OnOffLight");
+            expect(requirementsOf(node, light)).deep.equals([]);
+
+            other.behaviors.require(WiFiCommissioningServer);
+
+            expect(captureLog(() => serviceOf(node).validate(light)).length).equals(1);
+            expect(requirementsOf(node, light)).deep.equals(["missing ColorControl"]);
+
+            await node.close();
+        });
+
+        for (const isEssential of [true, false]) {
+            it(`drops an endpoint whose addition it refused, ${isEssential ? "rolled back" : "left crashed"}`, async () => {
+                const node = await createStrictNode();
+                node.env.set(
+                    DeviceTypeConformanceService,
+                    new DeviceTypeConformanceService(node, strictEnvironment(), guardedRootModel()),
+                );
+                const widget = await addStandIn(node, "widget", WIDGET_ID);
+
+                await expect(
+                    node.add(DescribedLight, {
+                        id: "asserter",
+                        isEssential,
+                        descriptor: { deviceTypeList: deviceTypeList(ASSERTER_ID) },
+                    }),
+                ).rejected;
+                expect(node.parts.has("asserter")).equals(!isEssential);
+
+                expect(() => serviceOf(node).validate(widget)).not.throws();
+                expect(requirementsOf(node, widget)).deep.equals([]);
+
+                await node.close();
+            });
+        }
+    });
+
+    describe("a refused addition", () => {
+        it("logs nothing and throws every endpoint strict mode refuses", async () => {
+            const node = await createStrictNode();
+            const first = await node.add(OnOffLightDevice, { id: "first" });
+
+            let error: unknown;
+            const logged = await captureLogOf(() =>
+                node.add(OnOffLightDevice, { id: "second" }).catch(e => {
+                    error = e;
+                }),
+            );
+
+            expect(logged).deep.equals([]);
+            expect(node.parts.has("second")).false;
+            expect(requirementsOf(node, first)).deep.equals([]);
+            expect(error).instanceOf(DeviceTypeConformanceError);
+            if (error instanceof DeviceTypeConformanceError) {
+                expect(error.message).contains("second");
+                const nested = error.errors.filter(cause => cause instanceof DeviceTypeConformanceError);
+                expect(nested.map(({ message }) => message)).deep.equals([
+                    `Endpoint ${first} violates device type requirements`,
+                ]);
+            }
+
+            await node.close();
+        });
+
+        it("logs nothing for an endpoint judged in the pass that it does not refuse", async () => {
+            const node = await createNode();
+            node.env.set(
+                DeviceTypeConformanceService,
+                new DeviceTypeConformanceService(node, node.env, onOffSingletonModel()),
+            );
+            await addStandIn(node, "light", "OnOffLight");
+
+            let error: unknown;
+            const logged = await captureLogOf(() =>
+                addStandIn(node, "declarer", DECLARER_ID, NEEDY_ID).catch(e => {
+                    error = e;
+                }),
+            );
+
+            expect(error).instanceOf(DeviceTypeConformanceError);
+            expect(error instanceof DeviceTypeConformanceError && error.message).contains("light");
+            expect(node.parts.has("declarer")).false;
+            expect(logged).deep.equals([]);
 
             await node.close();
         });

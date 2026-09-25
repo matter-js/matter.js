@@ -78,9 +78,13 @@ export namespace Violation {
 /**
  * Thrown when an endpoint's structure departs from a device type requirement that applies to it: at construction, for
  * a new misplaced singleton always, and for any other new violation when validation is strict.
+ *
+ * Its errors are the endpoint's departures, followed by one such error for each other endpoint the same check refuses
+ * for a new violation. Such an endpoint need not be the one being constructed, such as a sibling the new endpoint makes
+ * a duplicate.
  */
 export class DeviceTypeConformanceError extends MatterAggregateError {
-    constructor(endpoint: string, errors: DeviceTypeViolationError[]) {
+    constructor(endpoint: string, errors: (DeviceTypeViolationError | DeviceTypeConformanceError)[]) {
         super(
             errors,
             Diagnostic.upgrade(

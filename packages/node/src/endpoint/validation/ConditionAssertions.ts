@@ -20,7 +20,10 @@ import { EndpointFacts } from "./EndpointFacts.js";
 import { ValidationPass } from "./ValidationPass.js";
 
 const collections = new ValidationPass.Memo<Endpoint, ConditionAssertions.Collection>();
+const reachingPerPass = new ValidationPass.Memo<Endpoint, Endpoint[]>();
 const applicationDeviceTypeCounts = new ValidationPass.Memo<Endpoint, Map<number, number>>();
+
+const kept = new WeakMap<ValidationPass.Memory, { generation: number; reaching: Map<Endpoint, Endpoint[]> }>();
 
 const conditionScopes = new ValidationPass.ModelMemo<DeviceTypeModel, Map<string, ConditionModel>>();
 const assertedConditions = new ValidationPass.ModelMemo<RequirementModel, ConditionModel | undefined>();
@@ -61,18 +64,19 @@ export namespace ConditionAssertions {
     }
 
     /**
-     * The result of {@link collect}.
+     * The result of {@link collect}. Each endpoint's conditions are derived on first request.
      */
     export interface Collection {
         /**
-         * The declared names of the conditions true for each endpoint of the node scope.
+         * The declared names of the conditions true for {@link endpoint}; empty for an endpoint outside the node scope.
          */
-        conditions: Map<Endpoint, Set<string>>;
+        conditionsOf(endpoint: Endpoint): Set<string>;
 
         /**
-         * Every asserted `Descendant` condition requirement in the node scope.
+         * The asserted `Descendant` condition requirements of {@link endpoint}; empty for an endpoint outside the node
+         * scope.
          */
-        descendantAssertions: DescendantAssertion[];
+        descendantAssertionsOf(endpoint: Endpoint): DescendantAssertion[];
     }
 
     /**
@@ -88,69 +92,58 @@ export namespace ConditionAssertions {
     }
 
     /**
-     * Collect the conditions true for every endpoint in the node scope of {@link nodeEndpoint}.
+     * Collect the conditions true for the endpoints in the node scope of {@link nodeEndpoint}.
      *
-     * A condition requirement asserts its condition rather than testing it, and it may assert on another endpoint, so
-     * the whole scope is collected before any requirement is judged. A requirement asserts when its conformance is
-     * mandatory for the structural, node and stated conditions of the asserting endpoint.
+     * A condition requirement asserts its condition rather than testing it, and it may assert on another endpoint:
+     * on the asserting endpoint itself, on the node endpoint, or on endpoints of the asserting endpoint's composition
+     * scope. So an endpoint's conditions are those its own requirements, its ancestors' and, for the node endpoint,
+     * those of the {@link reachingEndpointsOf reaching endpoints} assert on it. A requirement asserts when its
+     * conformance is mandatory for the structural, node and stated conditions of the asserting endpoint.
      *
      * One {@link pass} collects each node scope once.
      *
      * @see {@link MatterSpecification.v16.Core} § 9.2.6
      */
     export function collect(nodeEndpoint: Endpoint, pass = new ValidationPass()): Collection {
-        return collections.get(pass, nodeEndpoint, () => collectScope(nodeEndpoint, pass));
+        return collections.get(pass, nodeEndpoint, () => new ScopeConditions(nodeEndpoint, pass));
     }
 
-    function collectScope(nodeEndpoint: Endpoint, pass: ValidationPass): Collection {
-        const scope = nodeScopeOf(nodeEndpoint, pass);
-
-        const nodeConditions = nodeConditionsOf(nodeEndpoint, scope, pass);
-
-        const underived = new Map<Endpoint, Set<string>>();
-        const conditions = new Map<Endpoint, Set<string>>();
-        for (const endpoint of scope) {
-            const names = new Set([
-                ...structuralConditionsOf(endpoint, pass),
-                ...nodeConditions,
-                ...statedConditionsOf(endpoint, pass),
-            ]);
-            underived.set(endpoint, names);
-            conditions.set(endpoint, new Set(names));
-        }
-
-        const descendantAssertions = new Array<DescendantAssertion>();
-        for (const [endpoint, names] of underived) {
-            const facts = EndpointFacts.of(endpoint, pass);
-            for (const deviceType of facts.deviceTypes) {
-                const knownNames = new Set([...conditionScopeOf(deviceType, pass).values()].map(c => c.name));
-
-                for (const requirement of deviceType.requirements) {
-                    const condition = assertedConditions.get(pass.model, requirement, () =>
-                        RequirementResolver.conditionOf(requirement),
-                    );
-                    if (condition === undefined) {
-                        continue;
-                    }
-
-                    // An asserted condition never triggers another condition requirement; chains are not followed
-                    const applicability = requirementApplicability(requirement, names, knownNames);
-                    if (applicability !== Conformance.Applicability.Mandatory) {
-                        continue;
-                    }
-
-                    const targets = targetsOf(facts, nodeEndpoint, requirement, condition, pass);
-                    if (requirement.location === RequirementElement.Location.Descendant) {
-                        descendantAssertions.push({ endpoint, requirement, matches: targets });
-                    }
-                    for (const target of targets) {
-                        conditions.get(target)?.add(condition.name);
-                    }
-                }
+    /**
+     * The endpoints of the node scope of {@link nodeEndpoint} whose facts enter the judgement of endpoints beyond their
+     * own subtree, their ancestors and their siblings: those that {@link reachesNodeScope support a network interface},
+     * {@link assertsOnNodeEndpoint assert a condition on the node endpoint} or state a server cluster requirement that
+     * declares a singleton. In the order of {@link nodeScopeOf}.
+     *
+     * A pass with a {@link ValidationPass.memory memory} derives them from the whole node scope only when the memory
+     * holds none or a change it noted since may add one: a change to an endpoint that is now one of them, or to a node
+     * endpoint below {@link nodeEndpoint} whose subtree may join the scope. An endpoint that has left the scope since
+     * is dropped by every pass, and what each one contributes is read again by every pass.
+     */
+    export function reachingEndpointsOf(nodeEndpoint: Endpoint, pass = new ValidationPass()): Endpoint[] {
+        return reachingPerPass.get(pass, nodeEndpoint, () => {
+            const { memory } = pass;
+            if (memory === undefined) {
+                return reachingIn(nodeEndpoint, pass).reaching;
             }
-        }
 
-        return { conditions, descendantAssertions };
+            memory.revise(endpoint => EndpointFacts.isReadable(endpoint) && reaches(endpoint, pass));
+
+            let held = kept.get(memory);
+            if (held === undefined || held.generation !== memory.generation) {
+                held = { generation: memory.generation, reaching: new Map() };
+                kept.set(memory, held);
+            }
+
+            let reaching = held.reaching.get(nodeEndpoint);
+            if (reaching === undefined) {
+                const walked = reachingIn(nodeEndpoint, pass);
+                memory.hold(walked.boundaries);
+                reaching = walked.reaching;
+                held.reaching.set(nodeEndpoint, reaching);
+            }
+
+            return reaching.filter(endpoint => isInScope(endpoint, nodeEndpoint, pass));
+        });
     }
 
     /**
@@ -288,36 +281,238 @@ const interfaceConditions = new Map<string, NodeCondition>([
     ["ET", NodeCondition.Ethernet],
 ]);
 
-function targetsOf(
-    facts: EndpointFacts,
-    nodeEndpoint: Endpoint,
-    requirement: RequirementModel,
-    condition: ConditionModel,
-    pass: ValidationPass,
-): Endpoint[] {
-    switch (requirement.location) {
-        case RequirementElement.Location.Root:
-            // Within one node scope the closest node endpoint above any endpoint is the scope's own
-            return [nodeEndpoint];
+/**
+ * A condition requirement of an endpoint's device type that asserts its condition, because its conformance is
+ * mandatory for the endpoint's underived conditions.
+ */
+interface Assertion {
+    requirement: RequirementModel;
+    condition: ConditionModel;
+}
 
-        case RequirementElement.Location.Self:
-            return [facts.endpoint];
+/**
+ * The conditions of the endpoints of one node scope in one pass, derived per endpoint on first request.
+ */
+class ScopeConditions implements ConditionAssertions.Collection {
+    readonly #nodeEndpoint: Endpoint;
+    readonly #pass: ValidationPass;
+    #nodeConditions?: Set<string>;
+    readonly #underived = new Map<Endpoint, Set<string>>();
+    readonly #assertions = new Map<Endpoint, Assertion[]>();
+    readonly #conditions = new Map<Endpoint, Set<string>>();
+    readonly #descendantAssertions = new Map<Endpoint, ConditionAssertions.DescendantAssertion[]>();
 
-        case RequirementElement.Location.Descendant: {
-            // Interpretation: the specification does not say which descendants the assertion covers when there are
-            // several, so it covers every one
-            const declarer = condition.parent;
-            if (!(declarer instanceof DeviceTypeModel)) {
-                return [];
+    constructor(nodeEndpoint: Endpoint, pass: ValidationPass) {
+        this.#nodeEndpoint = nodeEndpoint;
+        this.#pass = pass;
+    }
+
+    conditionsOf(endpoint: Endpoint) {
+        let conditions = this.#conditions.get(endpoint);
+        if (conditions === undefined) {
+            conditions = this.#isInScope(endpoint) ? this.#assertedOn(endpoint) : new Set<string>();
+            this.#conditions.set(endpoint, conditions);
+        }
+        return conditions;
+    }
+
+    descendantAssertionsOf(endpoint: Endpoint) {
+        let assertions = this.#descendantAssertions.get(endpoint);
+        if (assertions === undefined) {
+            assertions = new Array<ConditionAssertions.DescendantAssertion>();
+            if (this.#isInScope(endpoint)) {
+                const facts = EndpointFacts.of(endpoint, this.#pass);
+                for (const { requirement, condition } of this.#assertionsOf(endpoint)) {
+                    if (requirement.location === RequirementElement.Location.Descendant) {
+                        assertions.push({ endpoint, requirement, matches: matchesOf(facts, condition, this.#pass) });
+                    }
+                }
             }
-            return facts.compositionScope.filter(endpoint =>
-                EndpointFacts.of(endpoint, pass).deviceTypes.some(deviceType => deviceType.id === declarer.id),
-            );
+            this.#descendantAssertions.set(endpoint, assertions);
+        }
+        return assertions;
+    }
+
+    #isInScope(endpoint: Endpoint) {
+        return isInScope(endpoint, this.#nodeEndpoint, this.#pass);
+    }
+
+    /**
+     * The underived conditions of {@link endpoint} with those asserted on it: by itself at its own location, by the
+     * ancestors whose composition scope covers it at their descendants, and, for the node endpoint, by any reaching
+     * endpoint at the node endpoint. An asserted condition never triggers another condition requirement; chains are not
+     * followed.
+     */
+    #assertedOn(endpoint: Endpoint) {
+        const pass = this.#pass;
+        const conditions = new Set(this.#underivedOf(endpoint));
+
+        for (const { requirement, condition } of this.#assertionsOf(endpoint)) {
+            if (requirement.location === RequirementElement.Location.Self) {
+                conditions.add(condition.name);
+            }
         }
 
-        default:
-            return [];
+        if (endpoint === this.#nodeEndpoint) {
+            for (const asserting of ConditionAssertions.reachingEndpointsOf(endpoint, pass)) {
+                for (const { requirement, condition } of this.#assertionsOf(asserting)) {
+                    if (requirement.location === RequirementElement.Location.Root) {
+                        conditions.add(condition.name);
+                    }
+                }
+            }
+        }
+
+        // Walking past the node endpoint is harmless: a composition scope never enters a node endpoint
+        const own = new Set(EndpointFacts.of(endpoint, pass).deviceTypes.map(({ id }) => id));
+        for (let composer = endpoint.owner; composer !== undefined; composer = composer.owner) {
+            for (const { requirement, condition } of this.#assertionsOf(composer)) {
+                // Interpretation: the specification does not say which descendants the assertion covers when there are
+                // several, so it covers every one
+                const declarer = condition.parent;
+                if (
+                    requirement.location === RequirementElement.Location.Descendant &&
+                    declarer instanceof DeviceTypeModel &&
+                    own.has(declarer.id) &&
+                    EndpointFacts.of(composer, pass).composes(endpoint)
+                ) {
+                    conditions.add(condition.name);
+                }
+            }
+        }
+
+        return conditions;
     }
+
+    #assertionsOf(endpoint: Endpoint) {
+        let assertions = this.#assertions.get(endpoint);
+        if (assertions !== undefined) {
+            return assertions;
+        }
+
+        const pass = this.#pass;
+        assertions = new Array<Assertion>();
+        const names = this.#underivedOf(endpoint);
+        for (const deviceType of EndpointFacts.of(endpoint, pass).deviceTypes) {
+            const knownNames = new Set([...conditionScopeOf(deviceType, pass).values()].map(c => c.name));
+
+            for (const requirement of deviceType.requirements) {
+                const condition = assertedConditions.get(pass.model, requirement, () =>
+                    RequirementResolver.conditionOf(requirement),
+                );
+                if (
+                    condition !== undefined &&
+                    requirementApplicability(requirement, names, knownNames) === Conformance.Applicability.Mandatory
+                ) {
+                    assertions.push({ requirement, condition });
+                }
+            }
+        }
+
+        this.#assertions.set(endpoint, assertions);
+        return assertions;
+    }
+
+    #underivedOf(endpoint: Endpoint) {
+        let names = this.#underived.get(endpoint);
+        if (names === undefined) {
+            this.#nodeConditions ??= nodeConditionsOf(
+                this.#nodeEndpoint,
+                ConditionAssertions.reachingEndpointsOf(this.#nodeEndpoint, this.#pass),
+                this.#pass,
+            );
+            names = new Set([
+                ...structuralConditionsOf(endpoint, this.#pass),
+                ...this.#nodeConditions,
+                ...statedConditionsOf(endpoint, this.#pass),
+            ]);
+            this.#underived.set(endpoint, names);
+        }
+        return names;
+    }
+}
+
+/**
+ * The endpoints of the composition scope of the endpoint {@link facts} describe that list the device type declaring
+ * {@link condition}, each of which a `Descendant` assertion of the condition holds for.
+ */
+function matchesOf(facts: EndpointFacts, condition: ConditionModel, pass: ValidationPass): Endpoint[] {
+    const declarer = condition.parent;
+    if (!(declarer instanceof DeviceTypeModel)) {
+        return [];
+    }
+    return facts.compositionScope.filter(endpoint =>
+        EndpointFacts.of(endpoint, pass).deviceTypes.some(deviceType => deviceType.id === declarer.id),
+    );
+}
+
+/**
+ * The {@link ConditionAssertions.reachingEndpointsOf reaching endpoints} of the node scope of {@link nodeEndpoint},
+ * and the node endpoints below it that bound the scope.
+ */
+function reachingIn(nodeEndpoint: Endpoint, pass: ValidationPass) {
+    const reaching = new Array<Endpoint>();
+    const boundaries = new Array<Endpoint>();
+
+    const visit = (endpoint: Endpoint) => {
+        if (reaches(endpoint, pass)) {
+            reaching.push(endpoint);
+        }
+        for (const child of EndpointFacts.of(endpoint, pass).children) {
+            if (EndpointFacts.of(child, pass).isNodeEndpoint) {
+                boundaries.push(child);
+            } else {
+                visit(child);
+            }
+        }
+    };
+    visit(nodeEndpoint);
+
+    return { reaching, boundaries };
+}
+
+/**
+ * Whether {@link endpoint} is a {@link ConditionAssertions.reachingEndpointsOf reaching endpoint} of its node scope.
+ * A server cluster requirement that declares a singleton counts whether or not the cluster resolves, so the caller
+ * that reads the declarations decides.
+ *
+ * Reads only device types and server clusters, whose changes the service notes as `DeviceTypeList` and lifecycle
+ * changes; a kept list stays correct only while that holds.
+ */
+function reaches(endpoint: Endpoint, pass: ValidationPass) {
+    return (
+        ConditionAssertions.reachesNodeScope(endpoint, pass) ||
+        ConditionAssertions.assertsOnNodeEndpoint(endpoint, pass) ||
+        EndpointFacts.of(endpoint, pass).deviceTypes.some(deviceType =>
+            deviceType.requirements.some(
+                requirement =>
+                    requirement.element === RequirementElement.ElementType.ServerCluster &&
+                    requirement.quality.singleton,
+            ),
+        )
+    );
+}
+
+/**
+ * Whether {@link endpoint} is in the node scope of {@link nodeEndpoint}, as {@link ConditionAssertions.nodeScopeOf}
+ * lists it.
+ *
+ * An owner lists every endpoint it owns as a part until the endpoint is destroyed, except a peer's node, which is a
+ * node endpoint.
+ */
+function isInScope(endpoint: Endpoint, nodeEndpoint: Endpoint, pass: ValidationPass) {
+    for (let current = endpoint; current !== nodeEndpoint;) {
+        const { owner } = current;
+        if (
+            owner === undefined ||
+            !EndpointFacts.isReadable(current) ||
+            EndpointFacts.of(current, pass).isNodeEndpoint
+        ) {
+            return false;
+        }
+        current = owner;
+    }
+    return true;
 }
 
 /**
@@ -383,14 +578,14 @@ function structuralConditionsOf(endpoint: Endpoint, pass: ValidationPass) {
  * @see {@link MatterSpecification.v16.Device} § 1.1.3.1
  * @see {@link MatterSpecification.v16.Device} § 2.1.3
  */
-function nodeConditionsOf(nodeEndpoint: Endpoint, scope: Endpoint[], pass: ValidationPass) {
+function nodeConditionsOf(nodeEndpoint: Endpoint, reaching: Endpoint[], pass: ValidationPass) {
     const conditions = new Set<string>();
 
     if (nodeEndpoint.behaviors.isActive(NetworkServer) && nodeEndpoint.stateOf(NetworkServer).ble === false) {
         conditions.add(NodeCondition.CustomNetworkConfig);
     }
 
-    for (const endpoint of scope) {
+    for (const endpoint of reaching) {
         for (const feature of EndpointFacts.of(endpoint, pass).features("NetworkCommissioning")) {
             const condition = interfaceConditions.get(feature);
             if (condition !== undefined) {

@@ -5,6 +5,7 @@
  */
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { Diagnostic, Environment, Lifecycle, Logger } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { ConditionAssertions } from "./ConditionAssertions.js";
@@ -25,8 +26,9 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  * recorded. A violation that disappears and returns is logged again, because it is a new departure.
  *
  * Refusing is possible only while an endpoint is constructed, because only a construction error rolls the endpoint
- * back. A server node's endpoint initializer calls {@link assertPlacement} before an endpoint's behaviors initialize.
- * Once the endpoint's parts have initialized it calls {@link validateNodeScope} for the node endpoint, which judges the
+ * back. A refused construction logs and records nothing, because every endpoint of its pass was judged in a tree the
+ * refused endpoint then leaves, rolled back or crashed. A server node's endpoint initializer calls
+ * {@link assertPlacement} before an endpoint's behaviors initialize. Once the endpoint's parts have initialized it calls {@link validateNodeScope} for the node endpoint, which judges the
  * initial tree, or {@link validateAddition} for an endpoint added to a constructed tree, which judges what the addition
  * may change. A refusal fails the endpoint's construction; {@link Endpoint.add} then rolls back an essential endpoint,
  * while a non-essential one stays in its parent, crashed.
@@ -37,6 +39,9 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  * Neither judges anything while the changed endpoint's owner or any endpoint above it is being constructed or
  * destroyed, or has crashed: construction judges the tree itself, and a tree being destroyed has nothing left to
  * report.
+ *
+ * The passes of a service share what they derive from a whole node scope until a change the node reports through
+ * {@link lifecycleChanged} or {@link deviceTypesChanged} may alter it; see {@link ValidationPass.Memory}.
  *
  * An addition, a `DeviceTypeList` change and a removal each judge, in one pass, the endpoints whose judgement the
  * change can alter. A judgement of an endpoint reads the endpoint, its composition, its ancestors, its siblings only
@@ -75,6 +80,9 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  * - {@link validateNodeScope} judges only the node scope the endpoint it is called for belongs to, so a node scope
  *   nested in the initial tree is judged only by later changes in it. Only RootNode is classified a node,
  *   so no standard tree nests one.
+ * - A construction is refused after the endpoint's `ready` and `partsReady` lifecycle events, so their listeners, such
+ *   as the node initialization of `CommissioningServer`, may already have run for an endpoint that is then refused.
+ *   A refused endpoint's number stays in its parent's `PartsList`.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
@@ -85,6 +93,7 @@ export class DeviceTypeConformanceService {
     readonly #logger: Logger;
     readonly #reported = new Map<Endpoint, Map<string, Violation>>();
     readonly #footprints = new Map<Endpoint, Footprint>();
+    readonly #memory = new ValidationPass.Memory();
 
     /**
      * @param node the node whose endpoints are validated
@@ -113,27 +122,23 @@ export class DeviceTypeConformanceService {
      * endpoints, which validating them in separate calls repeats per call. An endpoint in no node scope is not judged.
      *
      * With {@link DeviceTypeConformanceService.ValidateOptions.refuse} (the default) an endpoint with a new misplaced
-     * singleton, or with any new violation when {@link strict}, throws. When several endpoints are refused, the first
-     * is thrown and the others are logged. Every other endpoint with new violations logs one warning listing them.
+     * singleton, or with any new violation when {@link strict}, throws. The error names the first refused endpoint and
+     * carries the others; none of them is logged or recorded. Every other endpoint with new violations logs one warning
+     * listing them.
      *
      * @throws {DeviceTypeConformanceError} when an endpoint is refused
      */
     validate(endpoints: Endpoint | Iterable<Endpoint>, options?: DeviceTypeConformanceService.ValidateOptions) {
-        this.#validate(
-            isEndpoint(endpoints) ? [endpoints] : endpoints,
-            new ValidationPass(this.#model),
-            options,
-            false,
-        );
+        this.#validate(isEndpoint(endpoints) ? [endpoints] : endpoints, this.#pass(), options, false);
     }
 
     /**
      * {@link validate} every endpoint of the node scope {@link endpoint} belongs to, in one pass.
      *
-     * A pass that refuses an endpoint records nothing as reported, because the construction it refuses fails.
+     * A pass that refuses an endpoint records and logs nothing, because the construction it refuses fails.
      */
     validateNodeScope(endpoint: Endpoint, options?: DeviceTypeConformanceService.ValidateOptions) {
-        const pass = new ValidationPass(this.#model);
+        const pass = this.#pass();
         const nodeEndpoint = ConditionAssertions.nodeEndpointOf(endpoint, pass);
         if (nodeEndpoint === undefined) {
             return;
@@ -148,10 +153,10 @@ export class DeviceTypeConformanceService {
      * An endpoint is refused only for a violation not recorded before, so an addition is refused only for what it
      * causes, as long as every earlier change was reported through {@link deviceTypesChanged} or
      * {@link endpointDestroyed} and was judged there. A child crashing after construction is not. A pass that refuses
-     * an endpoint records nothing as reported, because the addition it refuses fails.
+     * an endpoint records and logs nothing, because the addition it refuses fails.
      */
     validateAddition(endpoint: Endpoint, options?: DeviceTypeConformanceService.ValidateOptions) {
-        const pass = new ValidationPass(this.#model);
+        const pass = this.#pass();
         this.#validate(this.#affectedBy({ kind: "added", endpoint }, pass), pass, options, true);
     }
 
@@ -163,11 +168,12 @@ export class DeviceTypeConformanceService {
      * {@link endpoint} or an ancestor is not constructed, has crashed or is being destroyed.
      */
     deviceTypesChanged(endpoint: Endpoint) {
+        this.#memory.changed(endpoint);
         if (!this.#isSettled(endpoint)) {
             return;
         }
 
-        const pass = new ValidationPass(this.#model);
+        const pass = this.#pass();
         const change: Change = { kind: "changed", endpoint, previous: this.#footprints.get(endpoint) };
         this.#validate(this.#affectedBy(change, pass), pass, { refuse: false }, false);
     }
@@ -204,7 +210,7 @@ export class DeviceTypeConformanceService {
 
         // The owner lists the endpoint until the endpoint's destruction completes
         endpoint.lifecycle.destroyed.once(() => {
-            const pass = new ValidationPass(this.#model);
+            const pass = this.#pass();
             this.#validate(
                 this.#affectedBy({ kind: "removed", owner, previous }, pass),
                 pass,
@@ -212,6 +218,21 @@ export class DeviceTypeConformanceService {
                 false,
             );
         });
+    }
+
+    /**
+     * Take note of a lifecycle {@link change} of {@link endpoint}, which the node reports for each of its endpoints,
+     * and follow a destruction with {@link endpointDestroyed}.
+     *
+     * Passes keep what they derive from a whole node scope until a noted change may alter it; see
+     * {@link ValidationPass.Memory}. A change that emits no lifecycle change and no `DeviceTypeList` change is not
+     * noted.
+     */
+    lifecycleChanged(change: EndpointLifecycle.Change, endpoint: Endpoint) {
+        this.#memory.changed(endpoint);
+        if (change === EndpointLifecycle.Change.Destroyed) {
+            this.endpointDestroyed(endpoint);
+        }
     }
 
     /**
@@ -225,7 +246,7 @@ export class DeviceTypeConformanceService {
      * @throws {DeviceTypeConformanceError} when a singleton is misplaced
      */
     assertPlacement(endpoint: Endpoint) {
-        const violations = DeviceTypeConformance.misplacedSingletons(endpoint, new ValidationPass(this.#model));
+        const violations = DeviceTypeConformance.misplacedSingletons(endpoint, this.#pass());
         if (!violations.length) {
             return;
         }
@@ -246,8 +267,8 @@ export class DeviceTypeConformanceService {
         atomic: boolean,
     ) {
         const refuse = options?.refuse ?? true;
-        let refusal: DeviceTypeConformanceError | undefined;
-        const judged = new Array<{ endpoint: Endpoint; current: Map<string, Violation> }>();
+        const refused = new Array<Judged>();
+        const judged = new Array<Judged & { current: Map<string, Violation> }>();
 
         for (const endpoint of endpoints) {
             const judgement = this.#judge(endpoint, pass);
@@ -256,50 +277,42 @@ export class DeviceTypeConformanceService {
             }
 
             const { fresh, current } = judgement;
-            if (
-                refuse &&
-                refusal === undefined &&
-                fresh.length &&
-                (this.#strict || fresh.some(({ kind }) => kind === "singletonMisplaced"))
-            ) {
+            if (refuse && fresh.length && (this.#strict || fresh.some(({ kind }) => kind === "singletonMisplaced"))) {
                 // Left as it was, so the endpoint is refused again until it conforms
-                refusal = new DeviceTypeConformanceError(
-                    endpoint.toString(),
-                    fresh.map(violation => new DeviceTypeViolationError(violation)),
-                );
-                continue;
+                refused.push({ endpoint, fresh });
+            } else {
+                judged.push({ endpoint, fresh, current });
+            }
+        }
+
+        // Each verdict of the pass counted the refused endpoint, so none of them may be logged or recorded
+        if (atomic && refused.length) {
+            throw refusalOf(refused);
+        }
+
+        for (const { endpoint, fresh, current } of judged) {
+            this.#footprints.set(endpoint, footprintOf(endpoint, pass));
+            if (current.size) {
+                this.#reported.set(endpoint, current);
+            } else {
+                this.#reported.delete(endpoint);
             }
 
-            judged.push({ endpoint, current });
-
-            if (!fresh.length) {
-                continue;
-            }
-
-            this.#logger.warn(
-                `Endpoint ${endpoint} violates device type requirements:`,
-                Diagnostic.list(
-                    fresh.map(
-                        ({ kind, deviceType, requirement, detail }) =>
-                            `${kind} ${deviceType} ${requirement}: ${detail}`,
+            if (fresh.length) {
+                this.#logger.warn(
+                    `Endpoint ${endpoint} violates device type requirements:`,
+                    Diagnostic.list(
+                        fresh.map(
+                            ({ kind, deviceType, requirement, detail }) =>
+                                `${kind} ${deviceType} ${requirement}: ${detail}`,
+                        ),
                     ),
-                ),
-            );
-        }
-
-        if (refusal === undefined || !atomic) {
-            for (const { endpoint, current } of judged) {
-                this.#footprints.set(endpoint, footprintOf(endpoint, pass));
-                if (current.size) {
-                    this.#reported.set(endpoint, current);
-                } else {
-                    this.#reported.delete(endpoint);
-                }
+                );
             }
         }
 
-        if (refusal !== undefined) {
-            throw refusal;
+        if (refused.length) {
+            throw refusalOf(refused);
         }
     }
 
@@ -461,6 +474,10 @@ export class DeviceTypeConformanceService {
         }
     }
 
+    #pass() {
+        return new ValidationPass(this.#model, this.#memory);
+    }
+
     /**
      * Textual description of the node, for diagnostics.
      */
@@ -559,6 +576,28 @@ function subtreeReachOf(endpoint: Endpoint, pass: ValidationPass): Reach {
         (reach, child) => widerOf(reach, subtreeReachOf(child, pass)),
         reachOf(endpoint, pass),
     );
+}
+
+/**
+ * An endpoint a pass judged, with the violations not reported for it before.
+ */
+interface Judged {
+    endpoint: Endpoint;
+    fresh: Violation[];
+}
+
+/**
+ * The error refusing the first of {@link refused}, which carries each other refused endpoint as an error of its own.
+ */
+function refusalOf([first, ...others]: Judged[]) {
+    return new DeviceTypeConformanceError(first.endpoint.toString(), [
+        ...violationErrorsOf(first),
+        ...others.map(other => new DeviceTypeConformanceError(other.endpoint.toString(), violationErrorsOf(other))),
+    ]);
+}
+
+function violationErrorsOf({ fresh }: Judged) {
+    return fresh.map(violation => new DeviceTypeViolationError(violation));
 }
 
 function keyOf({ kind, requirement }: Violation) {
