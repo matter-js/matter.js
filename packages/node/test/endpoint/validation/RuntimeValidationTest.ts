@@ -750,7 +750,7 @@ describe("device type validation after construction", () => {
     });
 
     describe("what passes keep of a node scope", () => {
-        it("reads nothing outside the judged endpoints when an addition adds nothing that reaches the node scope", async () => {
+        it("leaves an unrelated sibling's descendants unread when an addition adds nothing that reaches the node scope", async () => {
             const node = await createNode();
             node.env.set(
                 DeviceTypeConformanceService,
@@ -768,6 +768,29 @@ describe("device type validation after construction", () => {
             await captureLogOf(() => addStandIn(bay, "needy", NEEDY_ID));
 
             expect(stored.filter(endpoint => reads.read.has(endpoint))).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("walks the node scope again after a reset instead of reusing what an earlier pass kept", async () => {
+            const node = await createNode();
+            node.env.set(
+                DeviceTypeConformanceService,
+                new DeviceTypeConformanceService(node, node.env, onOffSingletonModel()),
+            );
+            const shelf = await addStandIn(node, "shelf", "OnOffLight");
+            const stored = [
+                await addStandIn(shelf, "stored1", "OnOffLight"),
+                await addStandIn(shelf, "stored2", "OnOffLight"),
+            ];
+            const bay = await addStandIn(node, "bay", "OnOffLight");
+
+            serviceOf(node).reset();
+
+            using reads = recordingReads();
+            await captureLogOf(() => addStandIn(bay, "needy", NEEDY_ID));
+
+            expect(stored.every(endpoint => reads.read.has(endpoint))).true;
 
             await node.close();
         });

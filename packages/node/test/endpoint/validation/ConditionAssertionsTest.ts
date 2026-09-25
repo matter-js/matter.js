@@ -21,6 +21,7 @@ import {
     createBleNode,
     createNode,
     deviceTypeList,
+    recordingReads,
     RootWithEthernet,
     RootWithThread,
     RootWithWiFi,
@@ -235,6 +236,22 @@ describe("ConditionAssertions", () => {
 
             const inner = ConditionAssertions.collect(nested);
             expect(inner.conditionsOf(nested).has("PowerSourceCond")).true;
+
+            await node.close();
+        });
+
+        it("does not read past the collection's node endpoint for a Descendant assertion of a nested scope", async () => {
+            const node = await createNode();
+            const nested = await node.add(DescribedLight, {
+                id: "nested",
+                descriptor: { deviceTypeList: deviceTypeList("RootNode") },
+            });
+            const camera = await addCamera(nested);
+
+            using reads = recordingReads();
+            ConditionAssertions.collect(nested).conditionsOf(camera);
+
+            expect(reads.read.has(node)).false;
 
             await node.close();
         });

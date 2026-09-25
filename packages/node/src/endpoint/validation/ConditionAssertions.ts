@@ -142,7 +142,12 @@ export namespace ConditionAssertions {
                 held.reaching.set(nodeEndpoint, reaching);
             }
 
-            return reaching.filter(endpoint => isInScope(endpoint, nodeEndpoint, pass));
+            const inScope = reaching.filter(endpoint => isInScope(endpoint, nodeEndpoint, pass));
+            if (inScope.length !== reaching.length) {
+                // An endpoint that left the scope never returns to it, so the entry can drop it for good
+                held.reaching.set(nodeEndpoint, inScope);
+            }
+            return inScope;
         });
     }
 
@@ -363,20 +368,25 @@ class ScopeConditions implements ConditionAssertions.Collection {
             }
         }
 
-        // Walking past the node endpoint is harmless: a composition scope never enters a node endpoint
+        // A composition scope never enters a node endpoint, so the walk stops at the collection's own
         const own = new Set(EndpointFacts.of(endpoint, pass).deviceTypes.map(({ id }) => id));
-        for (let composer = endpoint.owner; composer !== undefined; composer = composer.owner) {
-            for (const { requirement, condition } of this.#assertionsOf(composer)) {
-                // Interpretation: the specification does not say which descendants the assertion covers when there are
-                // several, so it covers every one
-                const declarer = condition.parent;
-                if (
-                    requirement.location === RequirementElement.Location.Descendant &&
-                    declarer instanceof DeviceTypeModel &&
-                    own.has(declarer.id) &&
-                    EndpointFacts.of(composer, pass).composes(endpoint)
-                ) {
-                    conditions.add(condition.name);
+        if (endpoint !== this.#nodeEndpoint) {
+            for (let composer = endpoint.owner; composer !== undefined; composer = composer.owner) {
+                for (const { requirement, condition } of this.#assertionsOf(composer)) {
+                    // Interpretation: the specification does not say which descendants the assertion covers when
+                    // there are several, so it covers every one
+                    const declarer = condition.parent;
+                    if (
+                        requirement.location === RequirementElement.Location.Descendant &&
+                        declarer instanceof DeviceTypeModel &&
+                        own.has(declarer.id) &&
+                        EndpointFacts.of(composer, pass).composes(endpoint)
+                    ) {
+                        conditions.add(condition.name);
+                    }
+                }
+                if (composer === this.#nodeEndpoint) {
+                    break;
                 }
             }
         }

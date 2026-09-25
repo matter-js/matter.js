@@ -265,6 +265,7 @@ describe("DeviceTypeConformanceService", () => {
 
         // Neither counts as reported, so both are refused again
         expect(service.knows(first) || service.knows(second)).false;
+        expect(() => service.validate(first)).throws(DeviceTypeConformanceError);
         expect(() => service.validate(second)).throws(DeviceTypeConformanceError);
 
         await node.close();

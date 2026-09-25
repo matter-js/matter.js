@@ -28,9 +28,10 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  * Refusing is possible only while an endpoint is constructed, because only a construction error rolls the endpoint
  * back. A refused construction logs and records nothing, because every endpoint of its pass was judged in a tree the
  * refused endpoint then leaves, rolled back or crashed. A server node's endpoint initializer calls
- * {@link assertPlacement} before an endpoint's behaviors initialize. Once the endpoint's parts have initialized it calls {@link validateNodeScope} for the node endpoint, which judges the
- * initial tree, or {@link validateAddition} for an endpoint added to a constructed tree, which judges what the addition
- * may change. A refusal fails the endpoint's construction; {@link Endpoint.add} then rolls back an essential endpoint,
+ * {@link assertPlacement} before an endpoint's behaviors initialize. Once the endpoint's parts have initialized it
+ * calls {@link validateNodeScope} for the node endpoint, which judges the initial tree, or {@link validateAddition}
+ * for an endpoint added to a constructed tree, which judges what the addition may change. A refusal fails the
+ * endpoint's construction; {@link Endpoint.add} then rolls back an essential endpoint,
  * while a non-essential one stays in its parent, crashed.
  *
  * After construction the node reports two changes: {@link deviceTypesChanged} when an endpoint's `DeviceTypeList`
@@ -345,6 +346,7 @@ export class DeviceTypeConformanceService {
     reset() {
         this.#reported.clear();
         this.#footprints.clear();
+        this.#memory.clear();
     }
 
     /**
