@@ -734,6 +734,18 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands).deep.equal([]);
     });
 
+    it("reports what the controller itself holds as unsupported, without issuing anything", async () => {
+        const { node } = await commissioned();
+
+        expect(await rejectionOf(node.clientEndpoints())).instanceOf(UnsupportedByControllerError);
+        expect(
+            await rejectionOf(
+                node.clientAttribute({ endpoint: 1, cluster: requireId(ON_OFF.id, "OnOff"), attribute: 0 }),
+            ),
+        ).instanceOf(UnsupportedByControllerError);
+        expect(fake.commands).deep.equal([]);
+    });
+
     it("writes two attributes of two clusters, with their data versions, in one command", async () => {
         const { ref, node } = await commissioned();
 
@@ -1293,6 +1305,17 @@ describe("ChipToolControllerAdapter", function () {
                     eventNumber: 5n,
                     value: { softwareVersion: 2 },
                 },
+            ]);
+        });
+
+        it("asks for urgent event paths only when the step asks for them", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({ results: [] });
+            await node.subscribeEvents([EVENT_PATH], { ...INTERVALS, urgent: true });
+
+            expect(fake.commands).deep.equal([
+                `any subscribe-event-by-id 0x28 0x0 1 10 ${ref} 0 --keepSubscriptions true --is-urgent true`,
             ]);
         });
 

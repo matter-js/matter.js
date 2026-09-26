@@ -10,8 +10,13 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "deviceType", name: "CameraController", xref: "device§16.8",
+
     details: "A Camera controller device is a device that provides interfaces for controlling and managing camera " +
-        "devices.",
+        "devices." +
+        "\n" +
+        "### Cluster Requirements" +
+        "\n" +
+        "A node shall only ever have, at most, one instance of the Camera Controller's required clusters.",
 
     children: [
         { tag: "requirement", name: "Identify", xref: "device§16.8.3" },

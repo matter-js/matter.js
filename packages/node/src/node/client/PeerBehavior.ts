@@ -11,6 +11,7 @@ import { camelize, InternalError } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
+    ClusterRevision,
     CommandModel,
     Conformance,
     EncodedBitmap,
@@ -72,7 +73,11 @@ export namespace PeerBehavior {
     export interface DiscoveredClusterShape {
         kind: "discovered";
         id: ClusterId;
-        revision: number;
+
+        /**
+         * The cluster revision the peer reports.  Undefined if the peer did not report {@link ClusterRevision}.
+         */
+        revision?: number;
         features?: FeatureBitmap | number;
         attributes?: AttributeId[];
         commands?: CommandId[];
@@ -150,7 +155,6 @@ function instrumentKnownShape(shape: PeerBehavior.KnownClusterShape) {
     type = ClusterBehaviorType({
         base,
         namespace: base.cluster,
-        schema: base.schema,
         name: `${base.schema.name}Client`,
         forClient: true,
         commandFactory: factory,
@@ -220,14 +224,23 @@ function generateDiscoveredType(
 
     // If the schema does not match what the device actually returned, further augment the schema
     // with unknown attributes and/or commands
+    const { revisionOverride } = analysis;
     if (
-        schema.revision !== analysis.shape.revision ||
+        revisionOverride !== undefined ||
         extraAttrs.size ||
         extraCommands.size ||
         attrSupportOverrides.size ||
         commandSupportOverrides.size
     ) {
         extendSchema();
+
+        if (revisionOverride !== undefined) {
+            const base = schema.attributes(ClusterRevision.id);
+            if (base === undefined) {
+                throw new InternalError(`Cluster ${schema.name} states no ClusterRevision to override`);
+            }
+            schema.children.push(base.extend({ default: revisionOverride }));
+        }
 
         if (attrSupportOverrides.size) {
             for (const [attr, isSupported] of attrSupportOverrides.entries()) {
@@ -275,6 +288,10 @@ function generateDiscoveredType(
  */
 function createFingerprint(analysis: DiscoveredShapeAnalysis) {
     const fingerprint = [analysis.shape.id] as (number | string | bigint)[];
+
+    if (analysis.revisionOverride !== undefined) {
+        fingerprint.push("r", analysis.revisionOverride);
+    }
 
     if (analysis.featureBitmap) {
         fingerprint.push("f", analysis.featureBitmap);
@@ -367,6 +384,12 @@ interface DiscoveredShapeAnalysis {
     schema: ClusterModel & { id: ClusterId };
     featureBitmap: number | bigint;
     shape: PeerBehavior.DiscoveredClusterShape;
+
+    /**
+     * The revision to record on the schema, present only where it differs from the revision the schema already states.
+     */
+    revisionOverride?: number;
+
     attrSupportOverrides: Map<AttributeModel, boolean>;
     extraAttrs: Set<number>;
     commandSupportOverrides: Map<CommandModel, boolean>;
@@ -381,9 +404,14 @@ function DiscoveredShapeAnalysis(
     matter: MatterModel = Matter,
 ): DiscoveredShapeAnalysis {
     const standardCluster = matter.clusters(shape.id);
-    const schema =
-        standardCluster ??
-        new ClusterModel({ id: shape.id, name: createUnknownName("Cluster", shape.id), revision: shape.revision });
+    const schema = standardCluster ?? new ClusterModel({ id: shape.id, name: createUnknownName("Cluster", shape.id) });
+
+    // The specification constrains ClusterRevision to "min 1", so anything else is not a revision the peer holds
+    const { revision } = shape;
+    const revisionOverride =
+        typeof revision === "number" && Number.isInteger(revision) && revision >= 1 && revision !== schema.revision
+            ? revision
+            : undefined;
 
     let featureBitmap: bigint | number;
     if (typeof shape.features === "number") {
@@ -410,6 +438,7 @@ function DiscoveredShapeAnalysis(
         schema: schema as ClusterModel & { id: ClusterId },
         featureBitmap,
         shape,
+        revisionOverride,
         attrSupportOverrides,
         extraAttrs,
         commandSupportOverrides,

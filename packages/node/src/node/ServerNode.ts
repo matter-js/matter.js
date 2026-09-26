@@ -13,6 +13,7 @@ import { ProductDescriptionServer } from "#behavior/system/product-description/P
 import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js";
 import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import type { Environment } from "@matter/general";
 import {
@@ -36,6 +37,7 @@ import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
 import { Plugins } from "./Plugins.js";
+import { IdentityService } from "./server/IdentityService.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
 
 /**
@@ -165,6 +167,10 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
             // Reset persistent state
             await this.resetStorage();
 
+            // The node's services outlive the reset, so what they hold for the state it discarded does not.  This is
+            // deliberately not part of resetStorage(), which an application may override
+            await this.resetServiceState();
+
             // Reset reverts node to inactive state; now reinitialize
             this.construction.start();
 
@@ -234,6 +240,14 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
             ],
             `Error erasing storage of ${this}`,
         );
+    }
+
+    /**
+     * Discard the in-memory state the node's services hold for what a factory reset erases.
+     */
+    private async resetServiceState() {
+        this.env.get(IdentityService).releaseReservedPeerAddresses();
+        this.env.get(EndpointInitializer).variableService?.invalidate();
     }
 
     /**

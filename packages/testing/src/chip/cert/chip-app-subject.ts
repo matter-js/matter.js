@@ -5,7 +5,7 @@
  */
 
 import { ChildProcess, spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { constants, lstat, mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env, platform as hostPlatform } from "node:process";
@@ -35,6 +35,11 @@ const DEFAULT_PASSCODE = 20202021;
 const STOP_TIMEOUT_MS = 5_000;
 const DRAIN_TIMEOUT_MS = 5_000;
 
+// A chip app creates its command pipe as it starts, so a pipe still absent by now belongs to an app
+// that is not running or was started without one.
+const PIPE_TIMEOUT_MS = 5_000;
+const PIPE_POLL_MS = 50;
+
 // Killing a container and seeing it gone goes through the Docker daemon, so it is nothing like as
 // prompt as a SIGTERM to a local child.
 const CONTAINER_STOP_TIMEOUT_MS = 30_000;
@@ -43,6 +48,165 @@ const CONTAINER_STOP_TIMEOUT_MS = 30_000;
 // `CHIP:DMG: ReadRequestMessage = { AttributePathIB = ... }` decode dumps cert-test log checks match
 // against (see TC-IDM-2.1's AGENTS.md section) never appear at all, on any platform build.
 const TRACE_ARGS = ["--trace_log", "1", "--trace_decode", "1"];
+
+/**
+ * The simulation commands a chip app takes on the named pipe it opens for `--app-pipe`, by the app
+ * that answers them. A pipe accepts a write whatever the app makes of it, so a command an app does
+ * not implement would become a silent no-op; only what the named app's own command delegate handles
+ * is forwarded, and everything else stays unsupported.
+ */
+const PIPE_COMMANDS: Record<string, ReadonlySet<BackchannelCommand["name"]>> = {
+    "all-clusters": new Set(["simulateLatchPosition", "simulateLongPress", "simulateMultiPress", "simulateSwitchIdle"]),
+};
+
+/** Where a chip app is told to open its command pipe inside a container. */
+const CONTAINER_APP_PIPE = "/tmp/app-pipe";
+
+/** Whether `app` reads simulation commands from a pipe at all, which is what naming one is for. */
+function hasCommandPipe(app: string) {
+    return PIPE_COMMANDS[app] !== undefined;
+}
+
+/** Directory a chip app's generated files are mounted at inside a container. */
+const CONTAINER_APP_DIR = "/tmp/cert-app";
+
+/** Name of the placeholder image {@link otaProviderArgs} points a provider at. */
+const OTA_PLACEHOLDER_IMAGE = "ota-placeholder.bin";
+
+/**
+ * The arguments `app` cannot start without, which the harness supplies where a case named none.
+ *
+ * chip's `ota-provider-app` exits at startup unless it is given `-f` or `-o` ("Either an OTA file or
+ * image list file must be specified", then `chipDie`), and `-f` is checked for readability as it is
+ * parsed. A case that only needs the node to exist — TC-SU-1.1 announces it and never downloads from
+ * it — would otherwise have to skip the whole flavor. A case that does serve from this app names its
+ * own `-f`, which is left alone.
+ */
+export function requiredAppArgs(app: string, appArgs: string[], imagePath: string): string[] {
+    if (app !== "ota-provider" || appArgs.some(arg => OTA_IMAGE_ARGS.has(arg))) {
+        return [];
+    }
+    return ["-f", imagePath];
+}
+
+/** The arguments by which a case names the image a provider serves, either of which satisfies it. */
+const OTA_IMAGE_ARGS = new Set(["-f", "--filepath", "-o", "--otaImageList"]);
+
+/**
+ * The simulation commands a chip app takes on its standard input, by the app that answers them.
+ *
+ * chip's `bridge-app` polls stdin one character at a time (`bridge_polling_thread` in
+ * `examples/bridge-app/linux/main.cpp`), and its named pipe answers only one unrelated command —
+ * writing any other name there aborts the app through `VerifyOrDie`. The characters are therefore
+ * the only way to operate it, and, exactly as for the pipe, they are gated per app: a character an
+ * app does not read looks no different from one it does.
+ */
+const STDIN_COMMANDS: Record<string, ReadonlyMap<BackchannelCommand["name"], string>> = {
+    bridge: new Map<BackchannelCommand["name"], string>([
+        ["toggleBridgedLights", "c"],
+        ["warmBridgedTemperatureSensors", "t"],
+        ["renameBridgedLights", "b"],
+        ["addBridgedLight", "2"],
+        ["removeBridgedLight", "4"],
+    ]),
+};
+
+/**
+ * How long a command character waits before the next one is written.
+ *
+ * chip's bridge app polls standard input with `kbhit`, which asks the kernel how many bytes are
+ * pending (`ioctl(FIONREAD)`), and then reads one with `getchar`, which fills stdio's own buffer from
+ * the descriptor. Characters written together therefore leave the kernel on the first `getchar` and
+ * sit in a buffer the poll cannot see, so the app acts on one and only reaches the rest when later
+ * input makes the poll true again — by then it is running behind by whatever it buffered.
+ *
+ * Delivering one character per poll interval is what the loop consumes, and this is comfortably
+ * longer than the 100ms it sleeps for between polls.
+ */
+const STDIN_COMMAND_GAP_MS = 250;
+
+/** Whether `app` reads simulation commands from its standard input, which is what attaching one is for. */
+function hasStdinCommands(app: string) {
+    return STDIN_COMMANDS[app] !== undefined;
+}
+
+/** The character `app` reads for `command`, or `undefined` for a command it does not take that way. */
+function stdinCommandFor(app: string, command: BackchannelCommand): string | undefined {
+    return STDIN_COMMANDS[app]?.get(command.name);
+}
+
+/** How a chip app takes a simulation command, for the app that answers it. */
+type CommandDelivery = { via: "stdin"; char: string } | { via: "pipe"; json: string };
+
+/**
+ * The channel `app` takes `command` on, or `undefined` for a command it does not take at all.
+ *
+ * An app reads its commands one way or the other, never both, so the first channel that answers is
+ * the only one offered anything.
+ */
+function deliveryFor(app: string, command: BackchannelCommand): CommandDelivery | undefined {
+    const char = stdinCommandFor(app, command);
+    if (char !== undefined) {
+        return { via: "stdin", char };
+    }
+
+    const json = namedPipeCommandFor(app, command);
+    if (json !== undefined) {
+        return { via: "pipe", json };
+    }
+
+    return undefined;
+}
+
+/**
+ * A backchannel command as the JSON a chip app's `NamedPipeCommandDelegate` parses, or `undefined` for
+ * a command `app` does not take that way. The delegate keys off `Name` and reads each argument by its
+ * capitalized name (`examples/all-clusters-app/linux/AllClustersCommandDelegate.cpp`).
+ */
+function namedPipeCommandFor(app: string, command: BackchannelCommand): string | undefined {
+    if (!PIPE_COMMANDS[app]?.has(command.name)) {
+        return undefined;
+    }
+
+    const fields: Record<string, unknown> = {};
+    for (const [name, value] of Object.entries(command)) {
+        if (name !== "name") {
+            fields[`${name[0].toUpperCase()}${name.slice(1)}`] = value;
+        }
+    }
+
+    return JSON.stringify({ Name: `${command.name[0].toUpperCase()}${command.name.slice(1)}`, ...fields });
+}
+
+/**
+ * Serializes standard-input writes and leaves {@link STDIN_COMMAND_GAP_MS} between them.
+ *
+ * @internal Test seam — not API. Exported so its spacing can be asserted where it is decided; the
+ * arrival of a character says nothing about when it was written, because a reader that has not
+ * reached its poll yet reads a whole batch at once.
+ *
+ * The gap belongs to the delivery, not to the caller: a step that operates a device twice in a row
+ * must not have to know how the app reads its input.
+ */
+export class StdinPacer {
+    #ready: Promise<void> = Promise.resolve();
+
+    async send(write: () => Promise<void>): Promise<void> {
+        const previous = this.#ready;
+        let release!: () => void;
+        this.#ready = new Promise<void>(resolve => (release = resolve));
+
+        await previous;
+        try {
+            await write();
+        } finally {
+            // Left whether or not the write succeeded: a write that failed part-way still may have
+            // put a character in front of the app
+            await new Promise(resolve => setTimeout(resolve, STDIN_COMMAND_GAP_MS));
+            release();
+        }
+    }
+}
 
 function commissioningFor(identity?: Subject.Identity): Subject.CommissioningParameters {
     return {
@@ -68,11 +232,21 @@ function portArgs(identity?: Subject.Identity): string[] {
 }
 
 /**
+ * The apps whose CHIP executable is not named `chip-<app>-app`. These are CHIP's own names, which both the
+ * chip-cert-bins image and this project's image keep.
+ */
+const APP_BINARY_NAMES = new Map([
+    ["lit-icd", "lit-icd-app"],
+    ["network-manager", "matter-network-manager-app"],
+]);
+
+/**
  * CHIP builds a variant of an app as its own binary beside the plain one — `nlfaultinject` adds the
  * fault-injection hooks TC-IDM-1.3 arms — so a variant selects a filename, not a different app.
  */
 export function appBinaryName(app: string, appVariant?: string) {
-    return `chip-${app}-app${appVariant === undefined ? "" : `-${appVariant}`}`;
+    const name = APP_BINARY_NAMES.get(app) ?? `chip-${app}-app`;
+    return appVariant === undefined ? name : `${name}-${appVariant}`;
 }
 
 function throwUnsupported(flavor: DeviceFlavor, capability: string): never {
@@ -101,10 +275,24 @@ interface Generation {
 
 interface LocalGeneration extends Generation {
     child: ChildProcess;
+
+    /**
+     * What went wrong on this generation's standard input, kept so the next command reports it
+     * rather than the process dying: an unhandled `error` on a stream terminates the test run, and a
+     * write racing the app's exit produces one asynchronously, outside any write callback.
+     */
+    stdinError?: Error;
 }
 
 interface DockerGeneration extends Generation {
     composition: CompositionHandle;
+
+    /**
+     * The attached terminal for an app driven through its standard input, kept for this generation's
+     * whole life: the container's input closes when the last client attached to it detaches.
+     */
+    stdin?: Terminal<string>;
+
     /** Absent until the app container has been added, which `start()` may fail before. */
     container?: Container;
     /** Set when this generation never came up, so a later `start()` replaces it rather than joining it. */
@@ -124,7 +312,7 @@ function createExitDeferred(): ExitDeferred {
 }
 
 /**
- * Resolve the directory `chip-local` subjects spawn `chip-<app>-app` binaries from. When
+ * Resolve the directory `chip-local` subjects spawn their binaries ({@link appBinaryName}) from. When
  * `MATTER_CHIP_BINS_SOURCE=cert-bins`, this extracts (if not already cached — see
  * {@link prepareChipBins}) the official `connectedhomeip/chip-cert-bins` image and returns its own
  * directory, ignoring `MATTER_CERT_APP_DIR` entirely; otherwise it requires `MATTER_CERT_APP_DIR` as
@@ -151,7 +339,7 @@ export async function resolveChipLocalAppDir(): Promise<string> {
 
     const dir = env.MATTER_CERT_APP_DIR;
     if (!dir) {
-        throw new Error("MATTER_CERT_APP_DIR is not set; ChipLocalSubject needs it to find chip-<app>-app binaries");
+        throw new Error("MATTER_CERT_APP_DIR is not set; ChipLocalSubject needs it to find the CHIP app binaries");
     }
     return dir;
 }
@@ -169,8 +357,16 @@ class ChipLocalDevice implements CertDevice {
     readonly log: LogFollower;
 
     #appArgs: string[];
+
+    /** What the app was last spawned with, which is what the evidence bundle reports. */
+    #effectiveAppArgs?: string[];
+
+    get appArgs(): string[] | undefined {
+        return this.#effectiveAppArgs;
+    }
     #hub = new LineQueue();
     #storageDir?: string;
+    #stdin = new StdinPacer();
     #generation?: LocalGeneration;
     #starting?: Promise<void>;
     #exit: ExitDeferred = createExitDeferred();
@@ -224,6 +420,20 @@ class ChipLocalDevice implements CertDevice {
         const binPath = join(dir, appBinaryName(this.app, this.appVariant));
         const kvsPath = join(this.#storageDir, "chip_kvs");
 
+        // A stop leaves the storage directory, and an app killed before it could unlink its own fifo
+        // leaves that too. Chip treats a failing `mkfifo` as fatal, so a restart would report a device
+        // that will not initialize rather than one whose previous generation ended abruptly.
+        if (hasCommandPipe(this.app)) {
+            await rm(this.#pipePath(), { force: true });
+        }
+
+        const imagePath = join(this.#storageDir, OTA_PLACEHOLDER_IMAGE);
+        const required = requiredAppArgs(this.app, this.#appArgs, imagePath);
+        if (required.length) {
+            await writeFile(imagePath, "");
+        }
+        this.#effectiveAppArgs = [...required, ...this.#appArgs];
+
         const args = [
             "--discriminator",
             String(this.commissioning.discriminator),
@@ -231,11 +441,15 @@ class ChipLocalDevice implements CertDevice {
             String(this.commissioning.passcode),
             "--KVS",
             kvsPath,
+            ...(hasCommandPipe(this.app) ? ["--app-pipe", this.#pipePath()] : []),
+            ...required,
             ...TRACE_ARGS,
             ...this.#appArgs,
         ];
 
-        const child = spawn(binPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+        const child = spawn(binPath, args, {
+            stdio: [hasStdinCommands(this.app) ? "pipe" : "ignore", "pipe", "pipe"],
+        });
         const { stdout, stderr } = child;
         if (!stdout || !stderr) {
             throw new Error("Spawned process has no stdout/stderr streams");
@@ -245,6 +459,7 @@ class ChipLocalDevice implements CertDevice {
             child,
             ...newGeneration([this.#hub.pump(asyncLinesOf(stdout)), this.#hub.pump(asyncLinesOf(stderr))]),
         };
+        child.stdin?.on("error", error => (generation.stdinError = error));
         this.#generation = generation;
 
         let failSpawn: ((error: Error) => void) | undefined;
@@ -395,6 +610,142 @@ class ChipLocalDevice implements CertDevice {
         throwUnsupported(this.flavor, "snapshot/restore");
     }
 
+    /** The app's command pipe, which it creates itself once `--app-pipe` names it. */
+    #pipePath(): string {
+        if (this.#storageDir === undefined) {
+            throw new Error(`Cert device ${this.id} has no storage directory, so it has no command pipe`);
+        }
+        return join(this.#storageDir, "app-pipe");
+    }
+
+    /**
+     * Hands one command to the running app.
+     *
+     * Three properties this needs, none of which a plain write to the path has:
+     *
+     * The open is non-blocking, so a pipe with no reader fails with `ENXIO` here rather than waiting
+     * for one. A blocking open of a fifo waits until a reader attaches, and nothing can cancel it —
+     * an app that died holding its fifo would hang the step, and the run, with no diagnosis.
+     *
+     * It carries no `O_CREAT`, and the path is confirmed to be a fifo first: a write to a path the app
+     * has not made a fifo would leave a regular file there, which the app's own `mkfifo` then accepts
+     * as already existing, so its reader sees one stale command and ends — silently discarding every
+     * command for the rest of that app's life.
+     *
+     * And it waits for the app to create the fifo, which it does as it starts: a command sent just
+     * after `start()` would otherwise be refused for a pipe that is merely not there yet. Only a
+     * running app is waited for; there is nothing to wait for otherwise.
+     */
+    async #sendToPipe(json: string): Promise<void> {
+        const generation = this.#requireRunning();
+
+        const path = this.#pipePath();
+        await this.#awaitPipe(path);
+
+        // The wait can span a restart, and the successor generation creates its fifo at the same path,
+        // so a command that set out for one app must not be delivered to the next.
+        if (this.#requireRunning() !== generation) {
+            throw new Error(
+                `Cert device ${this.id} restarted while its command was waiting for the app's pipe, so the ` +
+                    "command was not sent",
+            );
+        }
+
+        const pipe = await open(path, constants.O_WRONLY | constants.O_NONBLOCK).catch(cause => {
+            throw new Error(
+                `Cert device ${this.id} could not open its command pipe at ${path}, so the app cannot be ` +
+                    `operated; it is running but has stopped reading the pipe (${cause})`,
+            );
+        });
+        try {
+            await pipe.write(`${json}\n`);
+        } finally {
+            await pipe.close();
+        }
+    }
+
+    /**
+     * Delivers one command character to the running app's standard input.
+     *
+     * The app the command is for is the one running when it was accepted, and it waits its turn behind
+     * whatever the pacer holds, so the generation is taken before queueing and checked on both sides of
+     * the write. A restart anywhere in between would otherwise credit the command to an app that never
+     * saw it, or send it to a successor it was never meant for.
+     */
+    async #sendToStdin(char: string): Promise<void> {
+        const generation = this.#requireRunning();
+        return this.#stdin.send(() => this.#writeToStdin(char, generation));
+    }
+
+    async #writeToStdin(char: string, generation: LocalGeneration): Promise<void> {
+        if (this.#generation !== generation || generation.exited) {
+            throw new Error(
+                `Cert device ${this.id} restarted while a command waited its turn, so the command was not sent ` +
+                    "to the app it was meant for",
+            );
+        }
+
+        const stdin = generation.child.stdin;
+        if (stdin === null) {
+            throw new Error(
+                `Cert device ${this.id} was started without a writable standard input, so the app cannot be ` +
+                    "operated that way",
+            );
+        }
+
+        await new Promise<void>((resolve, reject) => stdin.write(char, error => (error ? reject(error) : resolve())));
+
+        if (generation.stdinError !== undefined) {
+            throw generation.stdinError;
+        }
+        if (this.#generation !== generation) {
+            throw new Error(
+                `Cert device ${this.id} restarted while a command was being delivered, so the command reached ` +
+                    "an app that is no longer the one under test",
+            );
+        }
+    }
+
+    /** The generation currently running, or a failure naming that there is none. */
+    #requireRunning(): LocalGeneration {
+        const generation = this.#generation;
+        if (generation === undefined || generation.exited) {
+            throw new Error(
+                `Cert device ${this.id} cannot be operated while it is not running, so there is no app to ` +
+                    "send the command to",
+            );
+        }
+        return generation;
+    }
+
+    /** Waits for the app to create its fifo, refusing a path that is there but is not one. */
+    async #awaitPipe(path: string): Promise<void> {
+        const deadline = performance.now() + PIPE_TIMEOUT_MS;
+        for (;;) {
+            const target = await lstat(path).catch(() => undefined);
+            if (target?.isFIFO()) {
+                return;
+            }
+
+            if (target !== undefined) {
+                throw new Error(
+                    `Cert device ${this.id} has a file at ${path} that the app did not create as its command ` +
+                        "pipe, so the app cannot be operated",
+                );
+            }
+
+            if (performance.now() >= deadline) {
+                throw new Error(
+                    `Cert device ${this.id} has no command pipe at ${path} after ` +
+                        `${PIPE_TIMEOUT_MS}ms, so the app cannot be operated; it is not running, or was ` +
+                        "started without one",
+                );
+            }
+
+            await new Promise(resolve => setTimeout(resolve, PIPE_POLL_MS));
+        }
+    }
+
     async backchannel(command: BackchannelCommand): Promise<void> {
         switch (command.name) {
             case "factoryReset":
@@ -423,8 +774,19 @@ class ChipLocalDevice implements CertDevice {
                 await this.start();
                 break;
 
-            default:
-                throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+            default: {
+                const delivery = deliveryFor(this.app, command);
+                if (delivery === undefined) {
+                    throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+                }
+
+                if (delivery.via === "stdin") {
+                    await this.#sendToStdin(delivery.char);
+                } else {
+                    await this.#sendToPipe(delivery.json);
+                }
+                break;
+            }
         }
     }
 }
@@ -491,8 +853,16 @@ export class ChipDockerDevice implements CertDevice {
     readonly log: LogFollower;
 
     #appArgs: string[];
+
+    /** What the app was last spawned with, which is what the evidence bundle reports. */
+    #effectiveAppArgs?: string[];
+
+    get appArgs(): string[] | undefined {
+        return this.#effectiveAppArgs;
+    }
     #hub = new LineQueue();
     #docker: DockerHandle;
+    #stdin = new StdinPacer();
     #generation?: DockerGeneration;
     #starting?: Promise<void>;
     #exit: ExitDeferred = createExitDeferred();
@@ -544,6 +914,17 @@ export class ChipDockerDevice implements CertDevice {
         this.#assertNoVariant();
     }
 
+    /** Host directory holding files this app needs to read, mounted at {@link CONTAINER_APP_DIR}. */
+    #storageDir?: string;
+
+    /** Volumes the app container gets: the harness's dbus socket, plus this app's own files. */
+    #binds(volumeName: string): Record<string, string> {
+        return {
+            [volumeName]: "/run/dbus",
+            ...(this.#storageDir === undefined ? {} : { [this.#storageDir]: CONTAINER_APP_DIR }),
+        };
+    }
+
     async start(): Promise<void> {
         // One container per device, even when two callers start it at once
         this.#starting ??= this.#launch().finally(() => (this.#starting = undefined));
@@ -580,11 +961,18 @@ export class ChipDockerDevice implements CertDevice {
 
         await this.#docker.ensureVolume(volumeName);
 
+        const required = requiredAppArgs(this.app, this.#appArgs, join(CONTAINER_APP_DIR, OTA_PLACEHOLDER_IMAGE));
+        if (required.length) {
+            this.#storageDir ??= await mkdtemp(join(tmpdir(), "matter-cert-docker-"));
+            await writeFile(join(this.#storageDir, OTA_PLACEHOLDER_IMAGE), "");
+        }
+        this.#effectiveAppArgs = [...required, ...this.#appArgs];
+
         // Installed before the container is added: a failing add() otherwise leaves the composition
         // (and its network) behind with nothing holding a reference to close it.
         const composition = this.#docker.compose(`cert-${this.app}-${this.id}`, {
             platform,
-            binds: { [volumeName]: "/run/dbus" },
+            binds: this.#binds(volumeName),
             network: "host",
             autoRemove: true,
         });
@@ -596,6 +984,8 @@ export class ChipDockerDevice implements CertDevice {
             String(this.commissioning.discriminator),
             "--passcode",
             String(this.commissioning.passcode),
+            ...(hasCommandPipe(this.app) ? ["--app-pipe", CONTAINER_APP_PIPE] : []),
+            ...required,
             ...TRACE_ARGS,
             ...this.#appArgs,
         ];
@@ -605,8 +995,10 @@ export class ChipDockerDevice implements CertDevice {
                 name: "app",
                 image: appImage,
                 recreate: true,
-                binds: { [volumeName]: "/run/dbus" },
+                binds: this.#binds(volumeName),
                 command: args,
+
+                stdinOnce: !hasStdinCommands(this.app),
             });
 
             generation.container = container;
@@ -619,8 +1011,11 @@ export class ChipDockerDevice implements CertDevice {
 
             // Attaching immediately after the container starts still risks losing whatever it printed
             // in that gap — Docker doesn't let us attach before start.
-            const terminal = await container.attach(Terminal.Line);
+            const terminal = await container.attach(Terminal.Line, hasStdinCommands(this.app));
             generation.pumps.push(this.#hub.pump(terminal));
+            if (hasStdinCommands(this.app)) {
+                generation.stdin = terminal;
+            }
         } catch (e) {
             // Marked rather than dropped: stop() still has to reap what this attempt created, and a
             // later start() must not take this generation for a device that came up.
@@ -753,6 +1148,11 @@ export class ChipDockerDevice implements CertDevice {
     async close(): Promise<void> {
         await this.stop();
 
+        if (this.#storageDir !== undefined) {
+            await rm(this.#storageDir, { recursive: true, force: true });
+            this.#storageDir = undefined;
+        }
+
         this.#hub.close();
     }
 
@@ -789,14 +1189,82 @@ export class ChipDockerDevice implements CertDevice {
                 await this.start();
                 break;
 
-            default:
-                throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+            default: {
+                const delivery = deliveryFor(this.app, command);
+                if (delivery === undefined) {
+                    throwUnsupported(this.flavor, `the "${command.name}" backchannel command`);
+                }
+
+                const generation = this.#generation;
+                if (generation === undefined || generation.exited || generation.container === undefined) {
+                    throw new Error(
+                        `Cert device ${this.id} received the "${command.name}" backchannel command while it was ` +
+                            "not running, so there is no app to send it to",
+                    );
+                }
+
+                if (delivery.via === "stdin") {
+                    const stdin = generation.stdin;
+                    if (stdin === undefined) {
+                        throw new Error(
+                            `Cert device ${this.id} has no attached standard input, so the app cannot be operated ` +
+                                "that way",
+                        );
+                    }
+
+                    await this.#stdin.send(async () => {
+                        // The command waited its turn behind the pacer, and the stream it holds is the
+                        // one this generation was started with
+                        if (this.#generation !== generation || generation.exited) {
+                            throw new Error(
+                                `Cert device ${this.id} restarted while a command waited its turn, so the ` +
+                                    "command was not sent to the app it was meant for",
+                            );
+                        }
+
+                        await stdin.write(delivery.char);
+
+                        // A restart between the write and here would credit the command to an app
+                        // that never saw it
+                        if (this.#generation !== generation) {
+                            throw new Error(
+                                `Cert device ${this.id} restarted while a command was being delivered, so the ` +
+                                    "command reached an app that is no longer the one under test",
+                            );
+                        }
+                    });
+                    break;
+                }
+
+                // The command travels as an argument rather than as part of the script, so nothing in
+                // it can be read as shell syntax. `test -p` refuses a path the app has not made a fifo,
+                // for the reason ChipLocalDevice's own send documents; a shell that exits non-zero
+                // fails the step rather than reporting a command nothing received.
+                //
+                // The app creates its fifo as it starts, so a command sent just after start() waits
+                // for it rather than being refused for a pipe that is merely not there yet; a path
+                // that is there but is not a fifo is still refused at once.
+                //
+                // Opening a fifo for writing waits for a reader, so the write is bounded from outside:
+                // an app that has stopped reading ends this as a non-zero exit rather than holding the
+                // exec for as long as the container lives.
+                await generation.container.exec([
+                    "timeout",
+                    String(PIPE_TIMEOUT_MS / 1000),
+                    "sh",
+                    "-c",
+                    `while [ ! -e ${CONTAINER_APP_PIPE} ]; do sleep 0.1; done; test -p ${CONTAINER_APP_PIPE} && printf '%s\\n' "$0" > ${CONTAINER_APP_PIPE}`,
+                    delivery.json,
+                ]);
+                break;
+            }
         }
     }
 }
 
 /**
- * Spawns `${MATTER_CERT_APP_DIR}/chip-<app>-app` as a local child process for cert tests.
+ * Spawns the app's CHIP binary ({@link appBinaryName}) from `MATTER_CERT_APP_DIR` as a local child process for
+ * cert tests.
  */
 export function ChipLocalSubject(app: string, appVariant?: string): CertDeviceFactory {
     return (domain: string, options?: Subject.Options) => new ChipLocalDevice(app, domain, options, appVariant);

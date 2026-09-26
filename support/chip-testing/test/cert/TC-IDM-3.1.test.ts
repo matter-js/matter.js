@@ -6,7 +6,13 @@
 
 import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import type { AttributePathSpec, CertNodeApi, CertNodeRef, CertStepContext, DeviceFlavor } from "@matter/testing";
+import type {
+    AttributePathSpec,
+    CertNodeApi,
+    CertNodeRef,
+    CertStepContext,
+    SelectableDeviceFlavor,
+} from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
     CertCheckFailedError,
@@ -48,7 +54,7 @@ const IDENTIFY_TIME_VALUE = 5;
  * `InvalidAction` after failing to decode the path ("TLVReader.cpp:656: End of TLV"), so the step can
  * only run against a matter.js TH.
  */
-const STEP_2_FLAVORS: DeviceFlavor[] = ["matterjs"];
+const STEP_2_FLAVORS: SelectableDeviceFlavor[] = ["matterjs"];
 
 const ENDPOINT_0 = 0;
 const ENDPOINT_1 = 1;

@@ -6,7 +6,7 @@
 
 import { OperationalCredentials } from "@matter/main/clusters";
 import { PeerCommunicationError } from "@matter/main/protocol";
-import { StatusResponseError, ValidationError } from "@matter/main/types";
+import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import type { LogExpectPatterns } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { NoCommissionedPeerError } from "../../src/cert/InProcessControllerAdapter.js";
@@ -41,16 +41,24 @@ export const WINDOW_OPEN: LogExpectPatterns = {
  * ({@link StatusResponseError}). {@link ValidationError} is a {@link StatusResponseError} but is the
  * client's own encode-time rejection before anything goes on the wire, so it proves nothing here.
  * Anything else says nothing about the removal and must not pass the step.
+ *
+ * A status the device answered has to be one the removal explains. Once the fabric is gone the
+ * controller's own access is gone with it, so `UnsupportedAccess` is that status (Matter Core
+ * § 8.4.3.2); a device that answered `ConstraintError` or `InvalidCommand` processed the interaction
+ * on a fabric it still honours and refused it for a reason of its own, which is the opposite of what
+ * this step claims.
  */
 export function isPostRemovalRefusal(error: unknown): boolean {
     if (error instanceof ValidationError) {
         return false;
     }
+    if (error instanceof StatusResponseError) {
+        return error.code === Status.UnsupportedAccess;
+    }
     return (
         error instanceof NoCommissionedPeerError ||
         error instanceof PeerCommunicationError ||
-        error instanceof ChipToolCommandError ||
-        error instanceof StatusResponseError
+        error instanceof ChipToolCommandError
     );
 }
 

@@ -5,9 +5,10 @@
  */
 
 import { ImplementationError, InternalError } from "@matter/main";
+import { DeviceAttestationCheck } from "@matter/main/protocol";
 import { QrPairingCodeCodec, Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import { PicsExpression, PicsFile } from "@matter/testing";
+import { PicsExpression, PicsFile, UnsupportedByControllerError } from "@matter/testing";
 import {
     controllerPicsOverridesFor,
     createControllerAdapter,
@@ -16,13 +17,21 @@ import {
     registerControllerAdapterFactory,
     resetControllerAdapterFactoryForTesting,
 } from "@matter/testing";
-import type { AttributePathSpec, CertNodeApi, ControllerAdapter, EventReadEntry } from "@matter/testing";
+import type { AttributePathSpec, CertNodeApi, CertNodeRef, ControllerAdapter, EventReadEntry } from "@matter/testing";
+import { StreamUsage } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { expect } from "chai";
 import { env } from "node:process";
 import { AllClustersTestInstance } from "../../src/AllClustersTestInstance.js";
 import { CHIP_TOOL_CONTROLLER_PICS, ChipToolControllerAdapter } from "../../src/cert/ChipToolControllerAdapter.js";
-import { InProcessControllerAdapter, MATTERJS_CONTROLLER_PICS } from "../../src/cert/InProcessControllerAdapter.js";
+import {
+    InProcessControllerAdapter,
+    MATTERJS_CONTROLLER_PICS,
+    NoCommissionedPeerError,
+    SessionStateError,
+} from "../../src/cert/InProcessControllerAdapter.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
+import { IcdTestInstance } from "../../src/IcdTestInstance.js";
 import { manualPairingCode } from "../cert/tc-dd-support.js";
 
 function fakeControllerAdapter(id: string): ControllerAdapter {
@@ -39,6 +48,9 @@ function fakeControllerAdapter(id: string): ControllerAdapter {
         },
         async parseManualPairingCode(): Promise<never> {
             throw new InternalError("not used in this test");
+        },
+        group(): never {
+            throw new InternalError("not used by these tests");
         },
         node() {
             throw new InternalError("not used in this test");
@@ -132,6 +144,122 @@ describe("InProcessControllerAdapter", () => {
         });
 
         await adapter.node(ref).decommission();
+    });
+
+    // Held state is read through the behavior the endpoint actually carries, not through a concrete
+    // type or the certification model, because a discovered peer's behaviors are generated from what
+    // the peer reports
+    it("reports the endpoints and attribute values the controller holds for a commissioned peer", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({
+            passcode: 20202021,
+            discriminator: 3840,
+        });
+
+        try {
+            const node = adapter.node(ref);
+            const endpoints = await node.clientEndpoints();
+
+            const root = endpoints.find(entry => entry.endpoint === 0);
+            expect(root, "the controller holds the peer's root endpoint").not.undefined;
+            expect(root!.deviceTypes, "the root's device types come from what it reported").not.empty;
+            expect(root!.parts, "the root names the endpoints below it").not.empty;
+
+            // Every endpoint the root names is held, with its own device types
+            for (const number of root!.parts) {
+                const part = endpoints.find(entry => entry.endpoint === number);
+                expect(part, `the controller holds endpoint ${number}`).not.undefined;
+                expect(part!.deviceTypes, `endpoint ${number} reported its device types`).not.empty;
+            }
+
+            const vendorName = await node.clientAttribute({
+                endpoint: 0,
+                cluster: BasicInformation.Cluster.id,
+                attribute: BasicInformation.Cluster.attributes.vendorName.id,
+            });
+            expect(vendorName, "an attribute the controller holds reads its value").a("string");
+        } finally {
+            await adapter.node(ref).decommission();
+        }
+    });
+
+    // The certification cases read these through `fakeCertNode` in the hermetic suite, which cannot
+    // catch the projection itself being wrong — the session's transport, what it reports about large
+    // payloads, or which sessions it omits
+    it("reports the session it holds with a commissioned peer, and what that session permits", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+
+        try {
+            const sessions = await adapter.node(ref).sessions();
+
+            expect(sessions, "the controller holds a session with the peer it commissioned").length.greaterThan(0);
+            for (const session of sessions) {
+                expect(session.id, "a session reports the controller's own id for it").a("number");
+                expect(["tcp", "udp", "ble"], "a session names its transport").contains(session.transport);
+                expect(session.maxPayloadSize, "a session reports its payload ceiling").greaterThan(0);
+                // This adapter asked for no transport, so its session is an MRP one, and MRP does not
+                // carry a large payload
+                expect(session.largePayload, `${session.transport} session permits a large payload`).equal(
+                    session.transport === "tcp",
+                );
+            }
+        } finally {
+            await adapter.node(ref).decommission();
+        }
+    });
+
+    // Naming a session the controller does not hold is a statement about runtime state, so it fails
+    // the step rather than being recorded as a controller that cannot do this at all
+    it("refuses to sever a session it does not hold", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+
+        try {
+            const held = await adapter.node(ref).sessions();
+            const unknown = Math.max(0, ...held.map(session => session.id)) + 1;
+
+            await expect(adapter.node(ref).severTransportConnection(unknown)).rejectedWith(
+                SessionStateError,
+                /holds no session/,
+            );
+        } finally {
+            await adapter.node(ref).decommission();
+        }
+    });
+
+    it("refuses to sever a session whose transport holds no connection", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+
+        try {
+            const sessions = await adapter.node(ref).sessions();
+            const mrp = sessions.find(session => session.transport !== "tcp");
+            expect(mrp, "this adapter asked for no transport, so its session is an MRP one").not.undefined;
+
+            await expect(adapter.node(ref).severTransportConnection(mrp!.id)).rejectedWith(
+                SessionStateError,
+                /holds no connection to sever/,
+            );
+        } finally {
+            await adapter.node(ref).decommission();
+        }
+    });
+
+    it("refuses to report sessions once the peer is gone", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+        await node.decommission();
+
+        // A vanished peer is not an empty session set: a check reading "no sessions held" as "the
+        // session went away" would otherwise pass on the peer having been removed instead
+        await expect(node.sessions()).rejectedWith(NoCommissionedPeerError);
     });
 
     it("commissions from the device's own QR onboarding payload", async function () {
@@ -558,6 +686,218 @@ describe("InProcessControllerAdapter", () => {
     });
 });
 
+describe("InProcessControllerAdapter attestation", () => {
+    let adapter: InProcessControllerAdapter;
+
+    afterEach(async function () {
+        this.timeout(30_000);
+        await adapter?.close();
+    });
+
+    it("judges no attestation unless asked", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-off");
+        await adapter.start();
+
+        expect(adapter.attestation).equal(undefined);
+    });
+
+    it("takes revocation information a case installs", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-on", { attestation: true });
+        await adapter.start();
+
+        expect(adapter.attestation).not.equal(undefined);
+        await adapter.attestation!.installRevocations(
+            JSON.stringify([
+                {
+                    type: "revocation_set",
+                    issuer_subject_key_id: "63540E47F64B1C38D13884A462D16C195D8FFB3C",
+                    issuer_name: "MD0xJTAjBgNVBAMMHE1hdHRlciBEZXYgUEFJIDB4RkZGMSBubyBQSUQxFDASBgorBgEEAYKifAIBDARGRkYx",
+                    revoked_serial_numbers: ["19367D978EAC533A"],
+                },
+            ]),
+        );
+    });
+
+    it("accepts what a test device presents until something is wrong with it", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-accepts", { attestation: true });
+        await adapter.start();
+
+        expect(adapter.judgeAttestation([])).equal(true);
+        expect(
+            adapter.judgeAttestation([
+                { level: "warning", type: DeviceAttestationCheck.CdSignerVerificationSkipped, message: "no signer" },
+            ]),
+        ).equal(true);
+    });
+
+    it("refuses an error-level finding, and says which one", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-refuses", { attestation: true });
+        await adapter.start();
+
+        const refusal = adapter.judgeAttestation([
+            { level: "error", type: DeviceAttestationCheck.CertificateRevoked, message: "DAC has been revoked" },
+        ]);
+
+        // The case reads the reason back off the commissioning error, so a refusal that named no
+        // reason would leave it unable to tell revocation from anything else that refuses
+        expect(refusal).not.equal(true);
+        expect(refusal).contains(DeviceAttestationCheck.CertificateRevoked);
+    });
+
+    it("accepts everything where the controller was not built to judge", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-unjudged");
+        await adapter.start();
+
+        expect(
+            adapter.judgeAttestation([
+                { level: "error", type: DeviceAttestationCheck.CertificateRevoked, message: "DAC has been revoked" },
+            ]),
+        ).equal(true);
+    });
+
+    it("chip-tool refuses to judge attestation rather than running a case that proves nothing", () => {
+        expect(() => new ChipToolControllerAdapter("attestation-chip-tool", { attestation: true })).to.throw(
+            UnsupportedByControllerError,
+        );
+    });
+
+    it("refuses a revocation set it cannot read rather than commissioning as if nothing was revoked", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("attestation-malformed", { attestation: true });
+        await adapter.start();
+
+        await expect(adapter.attestation!.installRevocations("{ not a revocation set }")).to.be.rejectedWith(
+            ImplementationError,
+        );
+    });
+});
+
+describe("InProcessControllerAdapter WebRTC requestor", () => {
+    let adapter: InProcessControllerAdapter;
+    let device: AllClustersTestInstance | undefined;
+
+    afterEach(async function () {
+        this.timeout(30_000);
+        await adapter?.close();
+        await device?.close();
+        device = undefined;
+    });
+
+    /**
+     * A session names the peer it belongs to, and the adapter resolves that against the peers it
+     * commissioned, so a test registering one needs a real peer to name.
+     */
+    async function commissionPeer(): Promise<CertNodeRef> {
+        device = new AllClustersTestInstance({
+            domain: `webrtc-requestor-test-${Math.random().toString(36).slice(2)}`,
+            commandPipeFactory: async () => {},
+            discriminator: 3840,
+            passcode: 20202021,
+        });
+        await device.initialize();
+        await device.start();
+
+        return adapter.commission({ passcode: 20202021, discriminator: 3840 });
+    }
+
+    it("hosts no requestor cluster unless asked", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-off");
+        await adapter.start();
+
+        expect(adapter.webRtcRequestor).to.equal(undefined);
+    });
+
+    it("tracks the sessions a case registers, and drops the ones it removes", async function () {
+        this.timeout(60_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-on", { webRtcRequestor: true });
+        await adapter.start();
+        const peer = await commissionPeer();
+
+        const requestor = adapter.webRtcRequestor;
+        expect(requestor).to.not.equal(undefined);
+        expect(requestor!.endpoint).to.equal(1);
+        expect(await requestor!.sessions()).to.deep.equal([]);
+
+        await requestor!.upsertSession({
+            id: 7,
+            peer,
+            peerEndpointId: 1,
+            streamUsage: StreamUsage.Recording,
+            videoStreamId: 42,
+        });
+
+        expect(await requestor!.sessions()).to.deep.equal([{ id: 7, videoStreamId: 42, audioStreamId: null }]);
+
+        await requestor!.removeSession(7);
+        expect(await requestor!.sessions()).to.deep.equal([]);
+    });
+
+    it("refuses a node reference it did not mint rather than registering a session against a wrong peer", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-ref", { webRtcRequestor: true });
+        await adapter.start();
+
+        await expect(
+            adapter.webRtcRequestor!.upsertSession({
+                id: 1,
+                peer: "not-a-node-id",
+                peerEndpointId: 1,
+                streamUsage: StreamUsage.Recording,
+            }),
+        ).rejectedWith(ImplementationError, /not one this adapter minted/);
+    });
+
+    it("refuses a node reference naming a peer it never commissioned", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-stranger", { webRtcRequestor: true });
+        await adapter.start();
+
+        await expect(
+            adapter.webRtcRequestor!.upsertSession({
+                id: 1,
+                peer: "123",
+                peerEndpointId: 1,
+                streamUsage: StreamUsage.Recording,
+            }),
+        ).rejectedWith(NoCommissionedPeerError, /no commissioned peer with node id 123/);
+    });
+
+    it("chip-tool refuses to host the cluster rather than claiming an identity for a controller it cannot be", () => {
+        expect(() => new ChipToolControllerAdapter("webrtc-chip-tool", { webRtcRequestor: true })).to.throw(
+            UnsupportedByControllerError,
+            /WebRTC transport requestor/,
+        );
+    });
+
+    it("settles a pending signal wait when the adapter closes", async function () {
+        this.timeout(20_000);
+
+        adapter = new InProcessControllerAdapter("webrtc-wait", { webRtcRequestor: true });
+        await adapter.start();
+
+        const pending = adapter.webRtcRequestor!.nextSignal(() => true, 60_000);
+        await adapter.close();
+
+        expect(await pending).to.equal(undefined);
+    });
+});
+
 describe("ControllerAdapter registry", () => {
     const originalController = env.MATTER_CERT_CONTROLLER;
 
@@ -673,6 +1013,21 @@ describe("ControllerAdapter registry", () => {
         }
     });
 
+    it("declares the ThreadBorderRouterManagement client commands TC-TBRM-3.1 sends, and the cluster itself", () => {
+        // The device file answers only the server side, and an absent key evaluates false, so an undeclared
+        // TBRM.C would leave the whole test pending.
+        const keys = ["TBRM.C", ...["00", "01", "03", "04"].map(id => `TBRM.C.C${id}.Tx`)];
+        const asDevice = new PicsFile(["TBRM.S=1"]);
+
+        for (const implementation of ["matterjs", "chip-tool"] as const) {
+            const forRun = asDevice.with(controllerPicsOverridesFor(implementation));
+
+            for (const key of keys) {
+                expect(new PicsExpression(key).evaluate(forRun), `${implementation} ${key}`).equal(true);
+            }
+        }
+    });
+
     it("declares the group-administration client commands TC-SC-6.1 sends", () => {
         // ViewGroup is 0 in the device file; the two GroupKeyManagement keys are absent from it
         // entirely, and an absent key evaluates false, so either omission skips a step silently.
@@ -760,5 +1115,75 @@ describe("ControllerAdapter registry", () => {
                 CHIP_TOOL_CONTROLLER_PICS,
             );
         }
+    });
+});
+
+describe("InProcessControllerAdapter ICD client", () => {
+    let device: IcdTestInstance;
+    let adapter: InProcessControllerAdapter;
+
+    beforeEach(async function () {
+        this.timeout(20_000);
+
+        device = new IcdTestInstance({
+            domain: `controller-adapter-icd-test-${Math.random().toString(36).slice(2)}`,
+            commandPipeFactory: async () => {},
+            discriminator: 3840,
+            passcode: 20202021,
+            appArgs: ["--icdIdleModeDuration", "1", "--icdActiveModeDurationMs", "500"],
+        });
+        await device.initialize();
+        await device.start();
+
+        adapter = new InProcessControllerAdapter("icd-dut");
+        await adapter.start();
+    });
+
+    afterEach(async function () {
+        this.timeout(20_000);
+
+        await adapter?.close();
+        await device?.close();
+    });
+
+    it("records Check-Ins once unsubscribed, and does not count its own registration as a key refresh", async function () {
+        this.timeout(60_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const icd = adapter.node(ref).icdClient();
+
+        await icd.register();
+
+        // Several of the device's one-second idle periods: subscribed, it sends none
+        await new Promise(resolve => setTimeout(resolve, 3_000));
+        expect(icd.events()).deep.equal([]);
+
+        await icd.stopSubscription();
+        const { event, index } = await icd.waitFor("checkIn", 0, 30_000);
+        expect(icd.events()[index]).deep.equal(event);
+        expect(adapter.node(ref).icdClient()).equal(icd);
+
+        await adapter.node(ref).decommission();
+    });
+
+    it("unregisters, refuses without a registration, and requests stay-active", async function () {
+        this.timeout(60_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+        const icd = node.icdClient();
+
+        await icd.register();
+        await icd.unregister();
+
+        // IcdManagement.RegisteredClients
+        const clients = await node.readAttribute({ endpoint: 0, cluster: 0x46, attribute: 0x3 });
+        expect(clients).deep.equal([]);
+
+        await expect(icd.unregister()).rejectedWith(ImplementationError);
+
+        expect(await icd.stayActive(5_000)).greaterThan(0);
+
+        await node.decommission();
     });
 });

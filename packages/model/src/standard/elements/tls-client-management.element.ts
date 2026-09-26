@@ -58,7 +58,7 @@ export const TlsClientManagement = Cluster(
 
     Command(
         { name: "FindEndpointResponse", id: 0x3, conformance: "M", direction: "response", quality: "L" },
-        Field({ name: "Endpoint", id: 0x0, type: "TLSEndpointStruct", conformance: "M", constraint: "0 to 65534" })
+        Field({ name: "Endpoint", id: 0x0, type: "TLSEndpointStruct", conformance: "M", constraint: "none" })
     ),
     Command(
         { name: "RemoveEndpoint", id: 0x4, access: "F A", conformance: "M", direction: "request", quality: "L" },

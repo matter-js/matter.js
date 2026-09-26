@@ -13,6 +13,7 @@ import { Flow } from "./Flow.js";
  * Base class for inbound BDX transfer flows where data is received from the peer and written to our node.
  */
 export abstract class InboundFlow extends Flow {
+    #lastDataLength?: number;
     #closeStreams?: (error?: unknown) => Promise<void>;
     #writeController?: ReadableStreamDefaultController<Bytes>;
     #writePromise?: MaybePromise<void>;
@@ -65,7 +66,7 @@ export abstract class InboundFlow extends Flow {
         const { writePromise } = this.stream;
         const blockCounter = this.finalBlockCounter;
         await writePromise;
-        await this.messenger.sendBlockAckEof({ blockCounter });
+        await this.messenger.sendBlockAckEof({ blockCounter }, this.#lastDataLength);
     }
 
     protected writeDataChunk(
@@ -75,6 +76,7 @@ export abstract class InboundFlow extends Flow {
     ) {
         // Enqueue the received data chunk into the writing stream
         writeController.enqueue(data);
+        this.#lastDataLength = data.byteLength;
         if (this.bytesLeft !== undefined) {
             this.bytesLeft -= data.byteLength;
         }

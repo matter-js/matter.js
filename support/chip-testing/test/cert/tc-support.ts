@@ -5,6 +5,7 @@
  */
 
 import {
+    Bytes,
     camelize,
     Duration,
     InternalError,
@@ -64,6 +65,29 @@ export function record(cx: CertStepContext, check: CheckRecord, what: string) {
     }
 }
 
+/** One check {@link recordAll} records, named for the failure message. */
+export interface RecordedCheck {
+    check: () => CheckRecord | Promise<CheckRecord>;
+    what: string;
+}
+
+/**
+ * Runs `action` as a response check that does not throw for the action: a pass with `describe`'s text and the
+ * action's `value`, or a fail with the error the action threw.
+ */
+export async function attempt<T>(
+    action: () => Promise<T>,
+    describe: (value: T) => string,
+): Promise<{ ok: true; value: T; check: CheckRecord } | { ok: false; check: CheckRecord }> {
+    let value: T;
+    try {
+        value = await action();
+    } catch (e) {
+        return { ok: false, check: { type: "response", verdict: "fail", detail: describeError(e) } };
+    }
+    return { ok: true, value, check: { type: "response", verdict: "pass", detail: describe(value) } };
+}
+
 /**
  * Records every check and fails the step once at the end, so a step asserting several artifacts puts
  * all of them in the evidence — {@link record} in a loop stops at the first failure and leaves the
@@ -71,11 +95,15 @@ export function record(cx: CertStepContext, check: CheckRecord, what: string) {
  *
  * Each check is built on demand rather than taken as a list, so a builder that throws on the fifth
  * artifact leaves the first four recorded; its error carries the step, as {@link record}'s does.
+ *
+ * A builder may be asynchronous, which is what lets a step that waits on a device log put that wait
+ * in the same call as its response checks: a wait held outside the call is a check the step claims
+ * and never records once an earlier one fails.
  */
-export function recordAll(cx: CertStepContext, checks: readonly { check: () => CheckRecord; what: string }[]): void {
+export async function recordAll(cx: CertStepContext, checks: readonly RecordedCheck[]): Promise<void> {
     const failed = new Array<string>();
     for (const { check, what } of checks) {
-        const record = check();
+        const record = await check();
         cx.recorder.check(record);
         if (record.verdict === "fail") {
             failed.push(`${what}: ${JSON.stringify(record)}`);
@@ -124,6 +152,24 @@ export async function runCleanups(...cleanups: (() => Promise<void>)[]): Promise
     if (failures.length) {
         throw new CertCleanupErrors(failures);
     }
+}
+
+/**
+ * Reads a value a script stated on one line of a multi-line prompt.
+ *
+ * A prompt reaches the harness one line at a time, and a handler answers on the line it matched, so a
+ * value stated on an earlier line is read back out of the lines the script has printed so far. The
+ * last statement wins: a script that prompts repeatedly restates the value each time.
+ */
+export function statedInPrompt(lines: readonly string[], pattern: RegExp, what: string): string {
+    for (let index = lines.length - 1; index >= 0; index--) {
+        const match = lines[index].match(pattern);
+        if (match?.[1] !== undefined) {
+            return match[1];
+        }
+    }
+    // The harness could not read the script's own output; nothing here is a statement about the DUT
+    throw new InternalError(`No line of the prompt stated ${what}`);
 }
 
 /** An error as evidence text, naming its class as well as its message. */
@@ -731,7 +777,10 @@ export function matterjsCommandPath(endpoint: number, cluster: number, command: 
  * mid-value. A value matter.js cannot write on one line, or writes indistinguishably from an absent
  * one, has no pattern at all and is refused here rather than waiting for a line that cannot come.
  */
-function matterjsFieldValue(value: number | bigint | string): string {
+function matterjsFieldValue(value: CommandFieldValue["value"]): string {
+    if (typeof value === "object") {
+        return `${Bytes.toHex(value)}(?![0-9a-f])`;
+    }
     if (typeof value !== "string") {
         return `${value}(?!\\d)`;
     }
@@ -894,7 +943,14 @@ export function answersWithStatus(cluster: ClusterModel, commandName: string): b
  */
 export interface CommandFieldValue {
     id: number;
-    value: number | bigint | string;
+    value: number | bigint | string | Bytes;
+}
+
+/** `fields` as evidence text, with byte values as hex. */
+function describeFields(fields: CommandFieldValue[]) {
+    return fields
+        .map(({ id, value }) => `0x${id.toString(16)}=${typeof value === "object" ? Bytes.toHex(value) : value}`)
+        .join(", ");
 }
 
 /**
@@ -917,7 +973,7 @@ export function literally(value: string): string {
  * The trailing type name is load-bearing: without it `0x0 = 2,` also matches the first two digits of
  * `0x0 = 20,`.
  */
-function chipCommandField({ id, value }: CommandFieldValue): RegExp {
+function chipCommandField({ id, value }: { id: number; value: number | bigint | string }): RegExp {
     const rendered =
         typeof value === "string"
             ? `"${literally(value)}" \\(${new TextEncoder().encode(value).length} chars\\)`
@@ -1037,9 +1093,24 @@ export async function expectCommandInvoke(
         last = block.last;
         cursor = block.last.index + 1;
 
-        for (const field of fields) {
+        for (const { id, value } of fields) {
+            if (typeof value === "object") {
+                const bytes = await expectAdjacentLines(
+                    log,
+                    flavor,
+                    { chip: chipOctetStringField(id, value) },
+                    cursor,
+                    remaining(),
+                );
+                if (bytes.verdict === "unverified") {
+                    return { type: "device-log", verdict: "unverified" };
+                }
+                last = bytes.last;
+                cursor = bytes.last.index + 1;
+                continue;
+            }
             const result = await log.expect(
-                { chip: chipCommandField(field) },
+                { chip: chipCommandField({ id, value }) },
                 { flavor, timeoutMs: remaining(), from: cursor },
             );
             if (result.verdict === "unverified") {
@@ -1065,10 +1136,43 @@ export async function expectCommandInvoke(
     return {
         type: "device-log",
         verdict: "pass",
-        pattern: `CommandDataIB CommandId=0x${command.toString(16)}, fields=${JSON.stringify(fields)}`,
+        pattern: `CommandDataIB CommandId=0x${command.toString(16)}, fields=[${describeFields(fields)}]`,
         matched: last?.text,
         logLine: last?.index,
     };
+}
+
+/**
+ * The lines chip prints for an octet-string command field: its id opening a list, every byte on the next line,
+ * and the byte count closing it. The byte line fits because CHIP's Linux and macOS builds with detail logging
+ * allow a 1708-character log line (`chip_log_message_max_size` in `src/lib/core/core.gni`).
+ */
+export function chipOctetStringField(id: number, bytes: Bytes): RegExp[] {
+    const rendered = Array.from(Bytes.of(bytes), byte => `0x${byte.toString(16).padStart(2, "0")}, `).join("");
+    return [
+        new RegExp(`0x${id.toString(16)} = \\[\\s*$`),
+        new RegExp(`\\s${rendered}\\s*$`),
+        new RegExp(`\\] \\(${Bytes.of(bytes).byteLength} bytes\\),?\\s*$`),
+    ];
+}
+
+/**
+ * An IcdManagement `RegisterClient`'s fields in id order, as a cert controller's ICD client sends them, with
+ * `VerificationKey` where one was sent. It names itself as both CheckInNodeID and MonitoredSubject, and registers as a
+ * permanent client.
+ */
+export function icdRegisterClientFields(
+    nodeId: bigint,
+    key: Uint8Array,
+    verificationKey?: Uint8Array,
+): CommandFieldValue[] {
+    return [
+        { id: 0, value: nodeId },
+        { id: 1, value: nodeId },
+        { id: 2, value: key },
+        ...(verificationKey === undefined ? [] : [{ id: 3, value: verificationKey }]),
+        { id: 4, value: 0 },
+    ];
 }
 
 // How long a further report chunk may take to surface before the transfer counts as finished. The
@@ -1520,6 +1624,13 @@ const REPORT_SENT_LINE = /\[DMG\] >> to UDP:.*\/ Report Data \(0x05\) \/ Session
 const READ_REQUEST_RECEIVED_LINE =
     /\[DMG\] << from UDP:.*\/ Read Request \(0x02\) \/ Session = \d+ \/ Exchange = (\d+)\]\s*$/;
 
+/**
+ * chip prints the *peer's* session id on a message it sends and its own on one it receives — a real
+ * capture has one interaction's outbound Report Data on `Session = 56179` and the inbound ack for it
+ * on `Session = 13606` — so an ack cannot be matched to the report it answers by session, only by
+ * exchange. Session scoping applies between two messages travelling the same way, which is what the
+ * timed-interaction checks compare (`tc-idm-5.1-support.ts`).
+ */
 function reportAckedOnExchange(exchange: string): RegExp {
     return new RegExp(
         `\\[DMG\\] << from UDP:.*/ Status Response \\(0x01\\) / Session = \\d+ / Exchange = ${exchange}\\]\\s*$`,

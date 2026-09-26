@@ -158,7 +158,18 @@ async function expectPayloadLines(cx: CertStepContext, from: number, label: stri
     record(cx, await expectSequence(th.log, th.flavor, label, claim, from, LOG_TIMEOUT), label);
 }
 
-certTest("TC-S-3.1", { plan: "scenes.adoc", pics: ["S.C"], app: "all-clusters" })
+certTest("TC-S-3.1", {
+    plan: "scenes.adoc",
+    pics: ["S.C"],
+    app: "all-clusters",
+
+    // Binds a group key through GroupKeyMap, which an all-clusters build with Groupcast on refuses once Groups
+    // reaches cluster revision 5.  Only this project's own build offers the variant with Groupcast off; the released
+    // binaries predate the change and run the ordinary app.  A chip-docker image runs its own binary and can offer
+    // neither, so it is left out
+    appVariant: { matterjs: "nogroupcast" },
+    flavors: ["chip-local", "matterjs"],
+})
     .step(
         "0",
         "Preconditions: the DUT commissions the TH, writes the plan's group key set, binds G1 to it in " +

@@ -24,7 +24,7 @@ export const TimeFormatLocalization = Cluster(
     Attribute({ name: "HourFormat", id: 0x0, type: "HourFormatEnum", access: "RW VM", conformance: "M", quality: "N" }),
     Attribute({
         name: "ActiveCalendarType", id: 0x1, type: "CalendarTypeEnum", access: "RW VM",
-        conformance: "CALFMT", constraint: "in SupportedCalendarTypes", quality: "N"
+        conformance: "CALFMT", constraint: "in supportedCalendarTypes", quality: "N"
     }),
 
     Attribute(

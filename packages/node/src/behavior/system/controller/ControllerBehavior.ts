@@ -123,6 +123,18 @@ export class ControllerBehavior extends Behavior {
 
     /**
      * Allocate a new node address in the given fabric.
+     *
+     * How long an allocated address goes on naming the same device, which anything persisting one has to know:
+     *
+     * - While the peer is commissioned, the address is its own. Every candidate is checked against
+     *   {@link IdentityService.peerAddressInUse}, which covers commissioned peers, the controller's own node
+     *   IDs, and addresses reserved for a commissioning under way.
+     * - Once the peer is removed, that check no longer holds the address, so a random draw or a node ID the
+     *   caller supplies may be the one a removed peer had.
+     * - The `"sequential"` counter only counts up and is stored, so it never hands out a value it has already
+     *   handed out. It skips a value that is in use when it arrives at it, and moves past it for good. A
+     *   caller-supplied ID does not advance the counter, so the counter reaches that value later: it skips it
+     *   while that peer is commissioned, and issues it to another device if the peer is gone by then.
      */
     async allocatePeerAddress(fabricIndex: FabricIndex, nodeId?: NodeId) {
         const identity = this.env.get(IdentityService);

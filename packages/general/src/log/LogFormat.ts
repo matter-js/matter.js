@@ -132,6 +132,35 @@ function statusIcon(status: Lifecycle.Status) {
     return LifecycleIcons[status] ?? LifecycleIcons[Lifecycle.Status.Unknown];
 }
 
+/**
+ * A message's origin, bracketed for display, or nothing for an origin that identifies no particular node.
+ *
+ * The outermost environment is the one every process has, so naming it would label every message of a single-node
+ * process without distinguishing anything.
+ */
+function originLabel(origin: Diagnostic.Origin | undefined, width?: number) {
+    if (origin?.parent === undefined) {
+        return "";
+    }
+
+    const label = `[${origin.name}]`;
+    if (width === undefined) {
+        return `${label} `;
+    }
+
+    if (label.length > width) {
+        // Elided in the middle, as an over-long facility is: the names this distinguishes are siblings, and siblings
+        // share their leading characters
+        const tail = Math.floor((width - 3) / 2);
+        return `${label.slice(0, width - tail - 2)}~${label.slice(label.length - tail - 1)} `;
+    }
+
+    // Padded so the facility column survives in a process logging for several nodes, which is what the label is for
+    return `${label.padEnd(width)} `;
+}
+
+const ORIGIN_WIDTH = 12;
+
 LogFormat.formats.plain = function plain(diagnostic: unknown, indents = 0) {
     const creator = plaintextCreator(indents);
 
@@ -140,9 +169,9 @@ LogFormat.formats.plain = function plain(diagnostic: unknown, indents = 0) {
         message: message => {
             const formattedValues = ensureIndented(renderDiagnostic(message.values, formatter));
 
-            return `${formatTime(message.now)} ${LogLevel[
-                message.level
-            ].toUpperCase()} ${message.facility} ${message.prefix}${formattedValues}`;
+            return `${formatTime(message.now)} ${LogLevel[message.level].toUpperCase()} ${originLabel(
+                message.origin,
+            )}${message.facility} ${message.prefix}${formattedValues}`;
         },
         key: text => creator.text(`${text}: `),
         keylike: text => creator.text(`${text}`),
@@ -204,6 +233,7 @@ const Styles = {
     default: { color: "default" },
     prefix: { color: "default", dim: true },
     facility: { color: "gray", bold: true },
+    origin: { color: "cyan" },
     debug: { color: "gray" },
     info: { color: "default" },
     notice: { color: "green" },
@@ -245,11 +275,14 @@ LogFormat.formats.ansi = function ansi(diagnostic: unknown, indents = 0) {
     }
 
     const formatter = {
-        message: ({ now, level, facility, prefix: nestPrefix, values }) => {
+        message: ({ now, level, facility, prefix: nestPrefix, values, origin }) => {
             baseStyleChanged = true;
             styles[0] = (LogLevel[level] ?? "default").toLowerCase() as StyleName;
 
             const prefix = style("prefix", `${formatTime(now)} ${LogLevel[level].toUpperCase().padEnd(6)}`);
+
+            const originText = originLabel(origin, ORIGIN_WIDTH);
+            const originPart = originText === "" ? "" : style("origin", originText);
 
             facility = style(
                 "facility",
@@ -264,7 +297,7 @@ LogFormat.formats.ansi = function ansi(diagnostic: unknown, indents = 0) {
 
             const formattedValues = ensureIndented(renderDiagnostic(values, formatter));
 
-            return `${prefix} ${facility} ${nestPrefix}${formattedValues}`;
+            return `${prefix} ${originPart}${facility} ${nestPrefix}${formattedValues}`;
         },
 
         text: text => creator.text(normal(text)),
@@ -432,16 +465,17 @@ LogFormat.formats.html = function html(diagnostic: unknown) {
     }
 
     const formatter = {
-        message: ({ now, level, facility, prefix, values }) => {
+        message: ({ now, level, facility, prefix, values, origin }) => {
             prefix = prefix.replace(/ /g, "&nbsp;");
             const formattedValues = renderDiagnostic(values, formatter);
+            const originSpan = origin?.parent === undefined ? "" : `${htmlSpan("origin", escape(`[${origin.name}]`))} `;
 
             return htmlSpan(
                 `line ${LogLevel[level].toLowerCase()}`,
-                `${htmlSpan("time", formatTime(now))} ${htmlSpan("level", LogLevel[level].toUpperCase())} ${htmlSpan(
-                    "facility",
-                    facility,
-                )} ${prefix}${formattedValues}`,
+                `${htmlSpan("time", formatTime(now))} ${htmlSpan(
+                    "level",
+                    LogLevel[level].toUpperCase(),
+                )} ${originSpan}${htmlSpan("facility", facility)} ${prefix}${formattedValues}`,
             );
         },
         text: escape,

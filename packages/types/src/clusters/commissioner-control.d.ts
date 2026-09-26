@@ -24,8 +24,6 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  *
  * The generalized flow supported by the Commissioner Control Cluster can be seen in the following diagram.
  *
- * !commissioner control cluster general flow
- *
  * @see {@link MatterSpecification.v16.Core} § 11.26
  */
 export declare namespace CommissionerControl {

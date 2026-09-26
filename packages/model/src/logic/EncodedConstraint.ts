@@ -10,7 +10,7 @@ import type { ValueModel } from "../models/ValueModel.js";
 import { EncodedValue } from "./EncodedValue.js";
 
 /**
- * Restate the bounds of a constraint in the units the value is encoded in.
+ * Restate the bounds of a constraint in the terms the value is encoded in.
  *
  * The specification writes a bound of a temperature or percentage with its unit, such as the "Min to 100.00%" of a
  * percent100ths field.  Values are encoded in the units of their type, so a bound that keeps its unit never constrains
@@ -21,6 +21,8 @@ import { EncodedValue } from "./EncodedValue.js";
  *
  * A bound whose unit does not apply to the type that carries it is left as stated, and a comparison against it then
  * has no numeric meaning.
+ *
+ * A bound naming a value of an enumerated type states that value, so "add, modify" becomes "0, 2".
  *
  * @see {@link MatterSpecification.v16.Core} § 7.19.2
  */
@@ -76,7 +78,7 @@ function convertAst(ast: Constraint.Ast, model: ValueModel, bounds?: EncodedCons
     const value = convertExpression(ast.value, model, bounds);
     const min = convertExpression(ast.min, model, bounds);
     const max = convertExpression(ast.max, model, bounds);
-    const set = convertValue(ast.in, model, bounds);
+    const set = convertValue(ast.in, model, bounds, "set");
 
     // Only what the constraint states as a bound in its own right.  An operand of an arithmetic bound is a scalar of
     // the expression, not a value the type must hold: "max Duration / 2" says nothing about holding 2
@@ -126,27 +128,83 @@ function convertExpression(
     }
 
     if ("lhs" in expression) {
+        if (expression.type !== ".") {
+            return {
+                ...expression,
+                lhs: convertExpression(expression.lhs, model, bounds),
+                rhs: convertExpression(expression.rhs, model, bounds),
+            };
+        }
+
+        // Neither operand of a member access states a value of the constrained type, but an operand that is computed
+        // rather than a name states values of its own, in the units of the type
         return {
             ...expression,
-            lhs: convertExpression(expression.lhs, model, bounds),
-            rhs: convertExpression(expression.rhs, model, bounds),
+            lhs:
+                Constraint.accessPathOf(expression.lhs) === undefined
+                    ? convertExpression(expression.lhs, model, bounds)
+                    : expression.lhs,
+            rhs:
+                Constraint.accessPathOf(expression.rhs) === undefined
+                    ? convertExpression(expression.rhs, model, bounds)
+                    : expression.rhs,
         };
     }
 
     return convertValue(expression, model, bounds);
 }
 
-function convertValue(value: FieldValue, model: ValueModel, bounds?: EncodedConstraint.Bounds): FieldValue;
+/**
+ * The value of a member the constrained type defines, for a bound that names one.
+ *
+ * An enumerated type states a bound as the names of its own values, such as the "add, modify" of a door lock's
+ * operation type.  Those names belong to the type rather than to the surrounding record, so no resolver reaches them.
+ * A member's value is its id, or its position among its siblings where the definition omits one, as
+ * {@link Model.effectiveId} reports.
+ *
+ * A bitmap states the position of a flag in its constraint rather than as a member id, so a name it defines denotes a
+ * mask this does not compute.  Such a name is left as stated, which model validation then reports.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.18.3
+ */
+function enumValueOf(value: FieldValue | undefined, model: ValueModel) {
+    const name = FieldValue.referenced(value);
+    if (name === undefined) {
+        return;
+    }
+
+    return model.memberNamed(name)?.effectiveId;
+}
+
+function convertValue(
+    value: FieldValue,
+    model: ValueModel,
+    bounds?: EncodedConstraint.Bounds,
+    position?: Constraint.NamePosition,
+): FieldValue;
 function convertValue(
     value: FieldValue | undefined,
     model: ValueModel,
     bounds?: EncodedConstraint.Bounds,
+    position?: Constraint.NamePosition,
 ): FieldValue | undefined;
 
-function convertValue(value: FieldValue | undefined, model: ValueModel, bounds?: EncodedConstraint.Bounds) {
+function convertValue(
+    value: FieldValue | undefined,
+    model: ValueModel,
+    bounds?: EncodedConstraint.Bounds,
+    position: Constraint.NamePosition = "bound",
+) {
     // A membership set states one bound per member
     if (Array.isArray(value)) {
-        return value.map(member => convertValue(member, model, bounds));
+        return value.map(member => convertValue(member, model, bounds, position));
+    }
+
+    if (position === "bound") {
+        const member = enumValueOf(value, model);
+        if (member !== undefined) {
+            return member;
+        }
     }
 
     if (

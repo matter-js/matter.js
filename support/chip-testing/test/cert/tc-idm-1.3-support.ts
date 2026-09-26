@@ -89,13 +89,17 @@ export function expectInjectedFault(
  * Records that the TH answered the invoke at or after `from` itself, with no fault substituting the
  * response — the evidence for a step the plan expects to behave normally.
  *
- * Synchronous, unlike its positive counterpart: there is no line to wait for, and the invoke whose
- * absence of a fault this asserts has already been answered by the time a step can call this.
+ * There is no line to wait for, unlike its positive counterpart — but the buffer still has to be
+ * settled first. `count` sees only what the pump has ingested, so a fault the TH announced while
+ * answering the invoke is invisible for a turn or two afterwards, and counting without settling
+ * records "no fault fired" against a window the fault line has not reached yet.
  */
-export function expectNoInjectedFault(log: LogFollower, flavor: string, from: number): CheckRecord {
+export async function expectNoInjectedFault(log: LogFollower, flavor: string, from: number): Promise<CheckRecord> {
     if (!flavor.startsWith("chip")) {
         return { type: "device-log", verdict: "unverified" };
     }
+
+    await log.settled();
 
     const count = log.count(FAULT_INJECTED_LINE, from);
     return {
@@ -115,10 +119,17 @@ export function expectNoInjectedFault(log: LogFollower, flavor: string, from: nu
  * every later step onto the wrong fault. This check is what turns that into a legible failure instead
  * of an inexplicable one, and it is why the plan forbids any other command in this window.
  */
-export function expectInvokeCount(log: LogFollower, flavor: string, from: number, expected: number): CheckRecord {
+export async function expectInvokeCount(
+    log: LogFollower,
+    flavor: string,
+    from: number,
+    expected: number,
+): Promise<CheckRecord> {
     if (!flavor.startsWith("chip")) {
         return { type: "device-log", verdict: "unverified" };
     }
+
+    await log.settled();
 
     const count = log.count(INVOKE_REQUEST_MESSAGE, from);
     return {

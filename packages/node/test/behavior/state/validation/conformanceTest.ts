@@ -561,6 +561,29 @@ const AllTests = Tests({
             ),
         }),
 
+        // A conformance naming a value of an enumerated type resolves it by the value's effective ID, which is its
+        // position among its siblings where the definition states none
+        "enum value whose definition states no ID": Tests(
+            Fields(
+                { name: "Test", type: "uint8", conformance: "Mode == Second" },
+                {
+                    name: "Mode",
+                    type: "enum8",
+                    children: [FieldElement({ name: "First" }), FieldElement({ name: "Second" })],
+                },
+            ),
+            {
+                "requires the field where the enum holds the value named": {
+                    record: { mode: 1 },
+                    error: missing("Mode == Second"),
+                },
+
+                "allows omission where it does not": {
+                    record: { mode: 0 },
+                },
+            },
+        ),
+
         "enum values": Tests(
             Features({ FT: "Feature" }),
             Fields({
@@ -1154,6 +1177,56 @@ describe("conformance", () => {
 
         it("requires field when conformance references cluster element", () => {
             expect(() => validate({})).throw(ConformanceError);
+        });
+    });
+
+    describe("operational extension", () => {
+        // An extension carries only id, name and the properties it overrides, so its conformance is the base's
+        function managerFor(extend: boolean) {
+            const gated = new FieldModel({ name: "Gated", type: "uint8", conformance: "X" });
+            const cluster = new ClusterModel({ name: "Test", children: [FeatureMap.clone(), gated] });
+            const schema = extend ? cluster.extend({}, gated.extend({ description: "overridden" })) : cluster;
+            return RootSupervisor.for(schema).get(schema);
+        }
+
+        function validate(manager: ReturnType<typeof managerFor>, record: Record<string, unknown>) {
+            manager.validate?.(record, LocalActorContext.ReadOnly, { path: new DataModelPath("Test") });
+        }
+
+        it("disallows a field its base disallows", () => {
+            expect(() => validate(managerFor(false), { gated: 42 })).throw(ConformanceError);
+        });
+
+        it("disallows a field its base disallows when the field is overridden", () => {
+            expect(() => validate(managerFor(true), { gated: 42 })).throw(ConformanceError);
+        });
+
+        it("disallows an enum value its base disallows when the member is overridden", () => {
+            const member = new FieldModel({ id: 3, name: "Disallowed", conformance: "X" });
+            const gated = new FieldModel(
+                { name: "Gated", type: "enum8" },
+                new FieldModel({ id: 1, name: "Allowed" }),
+                member,
+            );
+            const cluster = new ClusterModel({ name: "Test", children: [FeatureMap.clone(), gated] });
+            const schema = cluster.extend({}, gated.extend({}, member.extend({ description: "overridden" })));
+            const manager = RootSupervisor.for(schema).get(schema);
+
+            expect(() => validate(manager, { gated: 3 })).throw(EnumValueConformanceError);
+            expect(() => validate(manager, { gated: 1 })).not.throw();
+        });
+
+        it("treats a field its base declares nullable as nullable", () => {
+            const gated = new FieldModel({ name: "Gated", type: "uint8", conformance: "M", quality: "X" });
+            const cluster = new ClusterModel({ name: "Test", children: [FeatureMap.clone(), gated] });
+            const schema = cluster.extend({}, gated.extend({ description: "overridden" }));
+            const manager = RootSupervisor.for(schema).get(schema);
+
+            expect(() => validate(manager, {})).not.throw();
+        });
+
+        it("names the conformance it judged", () => {
+            expect(() => validate(managerFor(true), { gated: 42 })).throw('Conformance "X"');
         });
     });
 

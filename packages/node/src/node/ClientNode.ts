@@ -45,6 +45,12 @@ const logger = Logger.get("ClientNode");
  *
  * Client nodes may be peers (commissioned into a shared fabric) or commissionable, in which they are not usable until
  * you invoke {@link commissioned}.
+ *
+ * A node's `id` names it locally and may be reissued after the node is removed. Persist a {@link PeerAddress} when you
+ * need to refer to the same logical fabric/node identity across local restarts. That address names one device for as
+ * long as the device stays commissioned. Once the node is removed the address may be handed to another
+ * device — `ControllerBehavior.allocatePeerAddress` documents when — so a reference kept for longer must cope
+ * both with finding nothing and with finding someone else.
  */
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #matter?: MatterModel;
@@ -175,7 +181,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Open an Enhanced Commissioning Window on this peer using a freshly generated random passcode.
      *
-     * @returns the manual and QR pairing codes encoding the generated passcode.
+     * @returns the pairing codes and the values they encode.
      */
     async openEnhancedCommissioningWindow(commissioningTimeout?: Duration) {
         return await this.act(agent => agent.commissioning.openEnhancedCommissioningWindow(commissioningTimeout));

@@ -403,6 +403,22 @@ describe("ValidatedElements", () => {
             expect(result.attributes.has("attrB")).true;
         });
 
+        it("keeps an attribute whose conformance names the revision, implemented or not", () => {
+            const schema = makeCluster({
+                attributes: {
+                    AttrA: { id: 1, conformance: "Rev >= v3" },
+                },
+            });
+
+            const implemented = validate(makeBehaviorType({ schema, implementedAttributes: { attrA: 1 } }));
+            expect(implemented.attributes.has("attrA")).true;
+            expect(implemented.errors?.some(e => e.fatal)).not.ok;
+
+            const unimplemented = validate(makeBehaviorType({ schema }));
+            expect(unimplemented.attributes.has("attrA")).false;
+            expect(unimplemented.errors?.some(e => e.fatal)).not.ok;
+        });
+
         it("handles feature-gated elements correctly", () => {
             const schema = makeCluster({
                 features: { FT: { bit: 0, name: "Feature" } },

@@ -44,8 +44,10 @@ import {
     removeFabricSucceeded,
     requireId,
     runCleanups,
+    statedInPrompt,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 const EXCHANGE = 26481;
 const CHUNK = "[DMG] ReportDataMessage =";
@@ -1207,6 +1209,73 @@ describe("command, event and subscribe checks against a matter.js TH", () => {
     });
 });
 
+describe("expectReportAck against a chip TH", () => {
+    // One subscription's report going out on its own exchange, and the acks that come back. chip
+    // prints a trace line naming the exchange, then the message's decode dump.
+    const SUBSCRIPTION_ID = 0x54c99e7e;
+
+    function reportLines(exchange: string) {
+        return [
+            `[DMG] >> to UDP:[fe80::1]:5540 | 1234 | [Interaction Model  (1) / Report Data (0x05) / Session = 2 / Exchange = ${exchange}]`,
+            "[DMG] ReportDataMessage =",
+            "[DMG] {",
+            `[DMG] \tSubscriptionId = 0x${SUBSCRIPTION_ID.toString(16)},`,
+            "[DMG] \tAttributeReportIBs =",
+        ];
+    }
+
+    function ackLines(exchange: string, status: string) {
+        return [
+            `[DMG] << from UDP:[fe80::1]:5540 | 1235 | [Interaction Model  (1) / Status Response (0x01) / Session = 2 / Exchange = ${exchange}]`,
+            "[DMG] StatusResponseMessage =",
+            "[DMG] {",
+            `[DMG] \tStatus = ${status},`,
+        ];
+    }
+
+    async function ack(lines: string[]) {
+        return withFollower(
+            lines,
+            follower =>
+                expectReportAck(
+                    follower,
+                    "chip-local",
+                    {
+                        outcome: "found",
+                        subscriptionId: SUBSCRIPTION_ID,
+                        check: { type: "device-log", verdict: "pass" },
+                    },
+                    0,
+                    Millis(200),
+                ),
+            { endSource: true },
+        );
+    }
+
+    it("reads the status out of the ack sent on the report's own exchange", async () => {
+        // A run acks one report per write per live subscription, so another subscription's rejection
+        // can sit between our report and our own ack
+        const check = await ack([
+            ...reportLines("9000"),
+            ...ackLines("9001", "0x01 (FAILURE)"),
+            ...ackLines("9000", "0x00 (SUCCESS)"),
+        ]);
+
+        expect(check.verdict).equal("pass");
+    });
+
+    it("fails on the status of our own ack, though another exchange succeeded first", async () => {
+        const check = await ack([
+            ...reportLines("9000"),
+            ...ackLines("9001", "0x00 (SUCCESS)"),
+            ...ackLines("9000", "0x01 (FAILURE)"),
+        ]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("FAILURE");
+    });
+});
+
 describe("expectSubscriptionId and expectReportAck against a matter.js TH", () => {
     // Lines a matter.js TH writes for one subscription: the response naming the id it minted, the
     // report it then sends on that subscription, and the DUT's answer to that very report — the
@@ -1371,21 +1440,7 @@ describe("requireId", () => {
 
 describe("readOwnFabricIndex", () => {
     function nodeReporting(value: unknown): CertNodeApi {
-        const unused = () => Promise.reject(new InternalError("not used by these tests"));
-        return {
-            invoke: unused,
-            invokeBatch: unused,
-            readAttributes: unused,
-            writeAttribute: unused,
-            writeAttributes: unused,
-            subscribe: unused,
-            readEvents: unused,
-            subscribeEvents: unused,
-            openCommissioningWindow: unused,
-            operationalMdnsInstanceName: unused,
-            decommission: unused,
-            readAttribute: async () => value,
-        };
+        return fakeCertNode({ readAttribute: async () => value });
     }
 
     it("returns the index the device reported", async () => {
@@ -1625,21 +1680,7 @@ describe("runCleanups", () => {
 describe("CommissionedRefs", () => {
     function contextWith(decommission: (role: string) => Promise<void>): CertStepContext {
         function nodeFor(role: string): CertNodeApi {
-            const unused = () => Promise.reject(new Error("not used by these tests"));
-            return {
-                invoke: unused,
-                invokeBatch: unused,
-                readAttribute: unused,
-                readAttributes: unused,
-                writeAttribute: unused,
-                writeAttributes: unused,
-                subscribe: unused,
-                readEvents: unused,
-                subscribeEvents: unused,
-                openCommissioningWindow: unused,
-                operationalMdnsInstanceName: unused,
-                decommission: () => decommission(role),
-            };
+            return fakeCertNode({ decommission: () => decommission(role) });
         }
 
         // An ended source lets the follower close itself; this file's OpenSource would leave one
@@ -1660,12 +1701,18 @@ describe("CommissionedRefs", () => {
             async parseManualPairingCode(): Promise<never> {
                 throw new InternalError("not used in this test");
             },
+            group: (): never => {
+                throw new InternalError("not used by these tests");
+            },
             node: () => nodeFor(role),
         });
 
         return {
             controllers: { dut: controllerFor("dut"), th_cr2: controllerFor("th_cr2") },
             devices: {},
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check() {},
@@ -1785,6 +1832,9 @@ describe("recordAll", () => {
         const cx = {
             controllers: {},
             devices: {},
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check(check: CheckRecord) {
@@ -1805,10 +1855,10 @@ describe("recordAll", () => {
     const pass = (detail: string): CheckRecord => ({ type: "response", verdict: "pass", detail });
     const fail = (detail: string): CheckRecord => ({ type: "response", verdict: "fail", detail });
 
-    it("records every check when they all pass", () => {
+    it("records every check when they all pass", async () => {
         const { checks, cx } = recordingContext();
 
-        recordAll(cx, [
+        await recordAll(cx, [
             { check: () => pass("first"), what: "one" },
             { check: () => pass("second"), what: "two" },
         ]);
@@ -1816,35 +1866,48 @@ describe("recordAll", () => {
         expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
     });
 
-    it("records the checks after a failing one rather than stopping at it", () => {
+    it("records the checks after a failing one rather than stopping at it", async () => {
         const { checks, cx } = recordingContext();
 
-        expect(() =>
+        await expect(
             recordAll(cx, [
                 { check: () => fail("first"), what: "one" },
                 { check: () => pass("second"), what: "two" },
                 { check: () => fail("third"), what: "three" },
             ]),
-        ).throw(CertCheckFailedError, /2 of 3 checks failed/);
+        ).rejectedWith(CertCheckFailedError, /2 of 3 checks failed/);
 
         expect(checks.map(check => check.detail)).deep.equal(["first", "second", "third"]);
     });
 
-    it("names every failure in the error it throws", () => {
+    it("names every failure in the error it throws", async () => {
         const { cx } = recordingContext();
 
-        expect(() =>
+        await expect(
             recordAll(cx, [
                 { check: () => fail("first"), what: "one" },
                 { check: () => fail("third"), what: "three" },
             ]),
-        ).throw(CertCheckFailedError, /one:.*three:/);
+        ).rejectedWith(CertCheckFailedError, /one:.*three:/);
     });
 
-    it("keeps the checks recorded before a builder threw", () => {
+    it("awaits an asynchronous builder and records what follows a failing check", async () => {
         const { checks, cx } = recordingContext();
 
-        expect(() =>
+        await expect(
+            recordAll(cx, [
+                { check: () => fail("first"), what: "one" },
+                { check: async () => pass("second"), what: "two" },
+            ]),
+        ).rejectedWith(CertCheckFailedError, /1 of 2 checks failed/);
+
+        expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
+    });
+
+    it("keeps the checks recorded before a builder threw", async () => {
+        const { checks, cx } = recordingContext();
+
+        await expect(
             recordAll(cx, [
                 { check: () => pass("first"), what: "one" },
                 {
@@ -1854,18 +1917,61 @@ describe("recordAll", () => {
                     what: "two",
                 },
             ]),
-        ).throw(InternalError);
+        ).rejectedWith(InternalError);
 
         expect(checks.map(check => check.detail)).deep.equal(["first"]);
     });
 
-    it("passes an unverified check through, as record does", () => {
+    it("passes an unverified check through, as record does", async () => {
         const { checks, cx } = recordingContext();
 
-        recordAll(cx, [
+        await recordAll(cx, [
             { check: () => ({ type: "device-log", verdict: "unverified" }), what: "matterjs has no pattern" },
         ]);
 
         expect(checks).length(1);
+    });
+});
+
+describe("statedInPrompt()", () => {
+    const prompt = [
+        ">>> Please commission the DUT with:",
+        "  Manual Pairing Code: '14970112338'",
+        "  Revocation Set: /credentials/test/revoked-attestation-certificates/revocation-sets/revocation-set.json",
+        "Input 'Y' if DUT successfully commissions without any warnings",
+        "Input 'N' if commissioner warns about commissioning the non-genuine device (press enter to confirm)",
+    ];
+
+    it("reads a value the prompt stated on an earlier line", () => {
+        expect(statedInPrompt(prompt, /Manual Pairing Code: '(\d+)'/, "a pairing code")).equal("14970112338");
+        expect(statedInPrompt(prompt, /Revocation Set: (\S+)/, "a revocation set")).equal(
+            "/credentials/test/revoked-attestation-certificates/revocation-sets/revocation-set.json",
+        );
+    });
+
+    it("reads the last statement, which is the one the current prompt made", () => {
+        expect(
+            statedInPrompt(
+                [...prompt, "  Manual Pairing Code: '20054912334'"],
+                /Manual Pairing Code: '(\d+)'/,
+                "a pairing code",
+            ),
+        ).equal("20054912334");
+    });
+
+    it("refuses a pattern that matches a line without stating a value", () => {
+        // A pattern with no capture group matches, and reading match[1] off it would hand the caller
+        // undefined where it asked for a string
+        expect(() => statedInPrompt(prompt, /press enter to confirm/, "a pairing code")).throws(
+            InternalError,
+            "a pairing code",
+        );
+    });
+
+    it("refuses to guess where no line stated the value", () => {
+        expect(() => statedInPrompt(prompt, /Discriminator: (\d+)/, "a discriminator")).throws(
+            InternalError,
+            "a discriminator",
+        );
     });
 });

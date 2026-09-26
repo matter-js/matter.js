@@ -184,6 +184,15 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
         }
     }
 
+    /**
+     * Supply the parts of an entry the manager owns rather than the caller.
+     *
+     * Invoked before the entry is validated, because validation judges the entry as a whole.
+     */
+    protected prepareEntry(value: Val): Val {
+        return value;
+    }
+
     protected writeEntry(index: number, value: Val, location: AccessControl.Location) {
         this.config.authorizeWrite(this.session, location);
 
@@ -237,6 +246,7 @@ class ListProxyHandler implements ProxyHandler<Val.List> {
     set(_target: Val.List, property: PropertyKey, newValue: Val, receiver: Val.List) {
         if (typeof property === "string" && property.match(/^\d+/)) {
             this.#sublocation.path.id = property;
+            newValue = this.prepareEntry(newValue);
             this.config.validateEntry?.(newValue, this.session, this.#sublocation);
             this.writeEntry(Number.parseInt(property), newValue, this.#sublocation);
             return true;
@@ -326,6 +336,13 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
         return super.readEntry(this.#mapScopedToActual(index, true), location);
     }
 
+    protected override prepareEntry(value: Val) {
+        if (isObject(value)) {
+            (value as { fabricIndex?: number }).fabricIndex ??= this.session.fabric;
+        }
+        return value;
+    }
+
     protected override writeEntry(index: number, value: Val, location: AccessControl.Location) {
         if (value === undefined) {
             const valueIndex = this.#mapScopedToActual(index, false);
@@ -334,7 +351,6 @@ class FabricFilteredListProxyHandler extends ListProxyHandler {
             if (!isObject(value)) {
                 throw new WriteError(location, `Fabric scoped list value is not an object`, Status.Failure);
             }
-            (value as { fabricIndex?: number }).fabricIndex ??= this.session.fabric;
             super.writeEntry(this.#mapScopedToActual(index, false), value, location);
         }
     }

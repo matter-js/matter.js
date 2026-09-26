@@ -5,6 +5,7 @@
  */
 
 import { Environment } from "#environment/Environment.js";
+import { Logger } from "#log/Logger.js";
 import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Entropy } from "#util/Entropy.js";
@@ -21,12 +22,67 @@ import {
     ec,
     HashAlgorithm,
 } from "./Crypto.js";
+import { CRYPTO_AEAD_NONCE_LENGTH_BYTES } from "./CryptoConstants.js";
 import { CryptoDecryptError, CryptoInputError, CryptoVerifyError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { PrivateKey, PublicKey } from "./Key.js";
 
+const logger = Logger.get("NodeJsStyleCrypto");
+
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
+
+/**
+ * Node's crypto API names digests the way OpenSSL does, while {@link HashAlgorithm} uses the Web Crypto spelling.
+ * Node accepts the Web Crypto spelling as an alias but stricter emulations of its API do not.
+ */
+const NODE_HASH_ALGORITHMS: Record<HashAlgorithm, string> = {
+    "SHA-1": "sha1",
+    "SHA-256": "sha256",
+    "SHA-384": "sha384",
+    "SHA-512": "sha512",
+    "SHA-512/224": "sha512-224",
+    "SHA-512/256": "sha512-256",
+    "SHA3-256": "sha3-256",
+};
+
+// Only the names above may resolve, which an object literal cannot promise: it answers for Object.prototype too
+const nodeHashAlgorithms = new Map(Object.entries(NODE_HASH_ALGORITHMS));
+
+/**
+ * Report the first primitive a Node.js-style crypto API cannot offer Matter, or undefined if it offers both of the
+ * primitives probed here: the SHA-256 digest, and the "aes-128-ccm" cipher and decipher Matter encrypts and
+ * decrypts every message with.
+ *
+ * This is not a conformance test.  It covers the two gaps that stop a runtime dead — Bun and Deno offer no
+ * "aes-128-ccm" — and leaves any other divergence to surface where it occurs.  Probing beats identifying individual
+ * runtimes because an emulation that gains a primitive then needs no change here.
+ */
+export function nodeCryptoDefect(api: NodeJsCryptoApiLike): string | undefined {
+    try {
+        api.createHash(CRYPTO_HASH_ALGORITHM).digest();
+    } catch (error) {
+        return `no ${CRYPTO_HASH_ALGORITHM} digest: ${asError(error).message}`;
+    }
+
+    const key = new Uint8Array(CRYPTO_SYMMETRIC_KEY_LENGTH);
+    const nonce = new Uint8Array(CRYPTO_AEAD_NONCE_LENGTH_BYTES);
+    const options = { authTagLength: CRYPTO_AUTH_TAG_LENGTH };
+
+    try {
+        api.createCipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
+    } catch (error) {
+        return `no ${CRYPTO_ENCRYPT_ALGORITHM} cipher: ${asError(error).message}`;
+    }
+
+    try {
+        api.createDecipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
+    } catch (error) {
+        return `no ${CRYPTO_ENCRYPT_ALGORITHM} decipher: ${asError(error).message}`;
+    }
+
+    return undefined;
+}
 
 /** Matches the tag length range NIST SP 800-38C permits, enforced identically in aes/Ccm.ts. */
 function assertValidTagLength(tagLength: number) {
@@ -84,6 +140,9 @@ export interface NodeJsCryptoApiLike {
     createSign(algo: string): NodeJsCryptoApiLike.Sign;
 
     createVerify(algo: string): NodeJsCryptoApiLike.Verify;
+
+    /** Node.js reports a restricted cryptographic provider here; absent from most emulations. */
+    getFips?(): number | boolean;
 }
 
 export namespace NodeJsCryptoApiLike {
@@ -152,6 +211,14 @@ export class NodeJsStyleCrypto extends Crypto {
      * The auto-detected Node.js crypto module, set at module load time if available.
      */
     static detectedCrypto?: NodeJsCryptoApiLike;
+
+    /**
+     * Whether this implementation serves as {@link Environment.default}'s {@link Crypto}.
+     *
+     * {@link detectedCrypto} says only that a Node.js-style API is present, which an incomplete emulation also
+     * satisfies, so anything choosing an implementation for itself consults this instead.
+     */
+    static providesDefault = false;
 
     #crypto: NodeJsCryptoApiLike;
 
@@ -231,7 +298,11 @@ export class NodeJsStyleCrypto extends Crypto {
         data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
         algorithm: HashAlgorithm = "SHA-256",
     ): MaybePromise<Bytes> {
-        const hasher = this.#crypto.createHash(algorithm);
+        const nodeAlgorithm = nodeHashAlgorithms.get(algorithm);
+        if (nodeAlgorithm === undefined) {
+            throw new CryptoInputError(`Unsupported hash algorithm ${algorithm}`);
+        }
+        const hasher = this.#crypto.createHash(nodeAlgorithm);
 
         // Handle different data types with full streaming support
         if (Array.isArray(data)) {
@@ -404,7 +475,36 @@ export class NodeJsStyleCrypto extends Crypto {
 const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.("crypto");
 if (nodeCrypto?.createECDH) {
     NodeJsStyleCrypto.detectedCrypto = nodeCrypto;
-    const nodeJsStyleCrypto = new NodeJsStyleCrypto();
-    Environment.default.set(Entropy, nodeJsStyleCrypto);
-    Environment.default.set(Crypto, nodeJsStyleCrypto);
+
+    const defect = nodeCryptoDefect(nodeCrypto);
+    const noWebCrypto = globalThis.crypto?.subtle === undefined;
+
+    // A restricted provider is an operator's deliberate choice, so substituting our own implementation would evade it
+    const providerIsRestricted = Boolean(nodeCrypto.getFips?.());
+
+    // Claim the default only where this API serves Matter, so StandardCrypto installs itself instead where it does
+    // not.  Where nothing better exists, or substitution is not ours to make, claim it regardless
+    const claimDefault = defect === undefined || noWebCrypto || providerIsRestricted;
+
+    if (claimDefault && defect !== undefined) {
+        const reason = providerIsRestricted
+            ? "this process restricts its cryptographic provider"
+            : "no standard crypto implementation is available";
+        logger.error(
+            `Node.js crypto offers ${defect} and remains the default because ${reason}.` +
+                " Matter will fail wherever it needs the missing primitive.",
+        );
+    }
+
+    NodeJsStyleCrypto.providesDefault = claimDefault;
+
+    if (!claimDefault) {
+        logger.notice(`Leaving crypto to a standard implementation because Node.js-style crypto offers ${defect}`);
+    }
+
+    if (claimDefault) {
+        const nodeJsStyleCrypto = new NodeJsStyleCrypto();
+        Environment.default.set(Entropy, nodeJsStyleCrypto);
+        Environment.default.set(Crypto, nodeJsStyleCrypto);
+    }
 }

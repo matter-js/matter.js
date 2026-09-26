@@ -181,6 +181,23 @@ describe("Supervision", () => {
             expect(() => validateWith(supervisor, { value: 200 }, config)).not.throws();
         });
 
+        // A bitmap states its bound in the number its flags encode to, which is the same bound every other value
+        // states in itself
+        it("skips constraint validation of a bitmap when constraint is disabled", () => {
+            const supervisor = createValidator([
+                new FieldModel(
+                    { name: "value", type: "map8", constraint: "min 1" },
+                    new FieldModel({ name: "Flag", constraint: "0" }),
+                ),
+            ]);
+
+            expect(() => validateWith(supervisor, { value: { flag: false } })).throws(ConstraintError);
+
+            const config = new GlobalConfig();
+            config.child("value").supervision = { constraint: false };
+            expect(() => validateWith(supervisor, { value: { flag: false } }, config)).not.throws();
+        });
+
         it("skips conformance validation when conformance is disabled", () => {
             const supervisor = createValidator([new FieldModel({ name: "required", type: "uint8", conformance: "M" })]);
 

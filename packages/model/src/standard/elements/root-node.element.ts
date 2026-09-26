@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const RootNodeDt = DeviceType(
-    { name: "RootNode", id: 0x16, classification: "node" },
+    { name: "RootNode", id: 0x16, classification: "node", composition: "full-family" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 22, revision: 4 } ], element: "attribute" })
@@ -22,7 +22,7 @@ export const RootNodeDt = DeviceType(
     Requirement(
         { name: "AccessControl", id: 0x1f, conformance: "M", element: "serverCluster", quality: "I" },
         Requirement({ name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" }),
-        Requirement({ name: "Extension", conformance: "ACLExtensionCond", element: "attribute" })
+        Requirement({ name: "Extension", conformance: "AclExtensionCond", element: "attribute" })
     ),
     Requirement({ name: "BasicInformation", id: 0x28, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement({
@@ -48,19 +48,19 @@ export const RootNodeDt = DeviceType(
     Requirement(
         {
             name: "TimeSynchronization", id: 0x38,
-            conformance: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNTPCCond, TimeSyncWithTZCond, TLSClientCond, TLSCertificatesCond, O",
+            conformance: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNtpcCond, TimeSyncWithTzCond, TlsClientCond, TlsCertificatesCond, O",
             element: "serverCluster", quality: "I"
         },
         Requirement({
             name: "TIMESYNCCLIENT",
-            conformance: "TimeSyncWithClientCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+            conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
             element: "feature"
         }),
         Requirement({
-            name: "NTPCLIENT", conformance: "TimeSyncWithNTPCCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+            name: "NTPCLIENT", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
             element: "feature"
         }),
-        Requirement({ name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature" })
+        Requirement({ name: "TIMEZONE", conformance: "TimeSyncWithTzCond, O", element: "feature" })
     ),
 
     Requirement(
@@ -70,28 +70,28 @@ export const RootNodeDt = DeviceType(
         },
         Requirement({
             name: "TIMESYNCCLIENT",
-            conformance: "TimeSyncWithClientCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+            conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
             element: "feature"
         }),
         Requirement({
-            name: "NTPCLIENT", conformance: "TimeSyncWithNTPCCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+            name: "NTPCLIENT", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
             element: "feature"
         }),
-        Requirement({ name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature" })
+        Requirement({ name: "TIMEZONE", conformance: "TimeSyncWithTzCond, O", element: "feature" })
     ),
 
     Requirement({ name: "AdministratorCommissioning", id: 0x3c, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement({ name: "OperationalCredentials", id: 0x3e, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement({ name: "GroupKeyManagement", id: 0x3f, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement(
-        { name: "IcdManagement", id: 0x46, conformance: "SIT | LIT", element: "serverCluster", quality: "I" },
-        Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature" })
+        { name: "IcdManagement", id: 0x46, conformance: "Sit | Lit", element: "serverCluster", quality: "I" },
+        Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "Lit", element: "feature" })
     ),
     Requirement({
-        name: "TlsCertificateManagement", id: 0x801, conformance: "TLSCertificatesCond, O",
+        name: "TlsCertificateManagement", id: 0x801, conformance: "TlsCertificatesCond, O",
         element: "serverCluster", quality: "I"
     }),
-    Requirement({ name: "TlsClientManagement", id: 0x802, conformance: "TLSClientCond, O", element: "serverCluster", quality: "I" }),
+    Requirement({ name: "TlsClientManagement", id: 0x802, conformance: "TlsClientCond, O", element: "serverCluster", quality: "I" }),
     Requirement({ name: "PowerSource", id: 0x11, conformance: "PowerSourceCond, O", element: "deviceType" }),
     Condition({ name: "CustomNetworkConfig" }),
     Condition({ name: "ManagedAclAllowed" }),

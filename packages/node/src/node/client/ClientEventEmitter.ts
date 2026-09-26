@@ -101,7 +101,7 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
 
         const event = events[eventName];
         if (event) {
-            logger.info(
+            logger.debug(
                 "Received event",
                 Diagnostic.strong(`${clusterName}.${eventName}`),
                 " on ",

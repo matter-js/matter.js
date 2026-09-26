@@ -15,10 +15,14 @@ export const SnapshotCameraDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 325, revision: 1 } ], element: "attribute" })
     ),
-    Requirement({ name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition" }),
-    Requirement(
-        { name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M", element: "condition" }
-    ),
+    Requirement({
+        name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
+        location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster" }),
     Requirement(

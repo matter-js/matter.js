@@ -30,11 +30,32 @@ Resource.add({
         "listed).",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§5.2.4" },
+        {
+            tag: "requirement", name: "Identify", xref: "device§5.2.4",
+            children: [{ tag: "requirement", name: "TriggerEffect", xref: "device§5.2.5" }]
+        },
         { tag: "requirement", name: "Groups", xref: "device§5.2.4" },
-        { tag: "requirement", name: "OnOff", xref: "device§5.2.4" },
-        { tag: "requirement", name: "LevelControl", xref: "device§5.2.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§5.2.4" },
+        {
+            tag: "requirement", name: "OnOff", xref: "device§5.2.4",
+            children: [{ tag: "requirement", name: "LIGHTING", xref: "device§5.2.5" }]
+        },
+
+        {
+            tag: "requirement", name: "LevelControl", xref: "device§5.2.4",
+
+            children: [
+                { tag: "requirement", name: "ONOFF", xref: "device§5.2.5" },
+                { tag: "requirement", name: "LIGHTING", xref: "device§5.2.5" },
+                { tag: "requirement", name: "CurrentLevel", xref: "device§5.2.5" },
+                { tag: "requirement", name: "MinLevel", xref: "device§5.2.5" },
+                { tag: "requirement", name: "MaxLevel", xref: "device§5.2.5" }
+            ]
+        },
+
+        {
+            tag: "requirement", name: "ScenesManagement", xref: "device§5.2.4",
+            children: [{ tag: "requirement", name: "CopyScene", xref: "device§5.2.5" }]
+        },
         { tag: "requirement", name: "OccupancySensing", xref: "device§5.2.4" }
     ]
 });
