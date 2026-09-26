@@ -40,8 +40,20 @@ import { Identity } from "@matter/general";
  * A Camera device is a camera that provides interfaces for controlling and transporting captured media, such as Audio,
  * Video or Snapshots.
  *
- * CameraDevice requires CameraAvStreamManagement cluster but CameraAvStreamManagement is not added by default because
- * you must select the features your device supports. You can add manually using CameraDevice.with().
+ * ### Device Type Requirements
+ *
+ * A Camera may expose elements of its functionality through one or more additional device types on different endpoints.
+ * All devices used in compositions shall adhere to the disambiguation requirements of the System Model. Other device
+ * types, not explicitly listed in the table, may also be included in device compositions but are not considered part of
+ * the core functionality of the device.
+ *
+ * Cameras which implement occupancy detection based on the signals from the optical sensor, may expose this
+ * functionality using an Occupancy Sensing cluster on the primary camera endpoint along with the other camera
+ * functionality. The device type Occupancy Sensor shall NOT be added to the DeviceTypeList of this endpoint.
+ *
+ * Cameras may have an Occupancy Sensor of a different type for occupancy detection independent of the optical sensor.
+ * If this sensor is exposed, it shall be placed on a child endpoint of the primary camera endpoint, with the
+ * corresponding device type Occupancy Sensor, as indicated in the following table:
  *
  * @see {@link MatterSpecification.v16.Device} § 16.1
  */
@@ -152,7 +164,10 @@ export const CameraDeviceDefinition = MutableEndpoint({
     deviceType: 0x142,
     deviceRevision: 1,
     requirements: CameraRequirements,
-    behaviors: SupportedBehaviors(CameraRequirements.server.mandatory.WebRtcTransportProvider)
+    behaviors: SupportedBehaviors(
+        CameraRequirements.server.mandatory.CameraAvStreamManagement,
+        CameraRequirements.server.mandatory.WebRtcTransportProvider
+    )
 });
 
 Object.freeze(CameraDeviceDefinition);

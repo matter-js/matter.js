@@ -424,7 +424,7 @@ certTest("TC-CADMIN-1.17", {
                     { timeoutMs: 10_000, operationalInstanceName: cr2OperationalInstanceName },
                 ),
             ]);
-            recordAll(cx, [
+            await recordAll(cx, [
                 { check: () => survivors, what: "Exactly 2 operational mDNS records (dut + th_cr3)" },
                 { check: () => removedGone, what: "No operational mDNS record for the removed fabric (th_cr2)" },
             ]);

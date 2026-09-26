@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Millis, Seconds, Time, Timer } from "@matter/general";
+import { ImplementationError, Millis, Seconds, Time, Timer } from "@matter/general";
 import { NodeLifecycle } from "@matter/main";
 import { GeneralDiagnosticsServer } from "@matter/main/behaviors/general-diagnostics";
 import { IcdManagementServer } from "@matter/main/behaviors/icd-management";
@@ -14,6 +14,8 @@ import { TestGeneralDiagnosticsServer } from "./TestGeneralDiagnosticsServer.js"
 // ICD Management cluster test-event-trigger codes (cluster id 0x46 in the high 16 bits).
 const ICD_ADD_ACTIVE_MODE = 0x0046000000000001n;
 const ICD_REMOVE_ACTIVE_MODE = 0x0046000000000002n;
+const ICD_INVALIDATE_HALF_COUNTER_VALUES = 0x0046000000000003n;
+const ICD_INVALIDATE_ALL_COUNTER_VALUES = 0x0046000000000004n;
 const ICD_DSLS_FORCE_SIT = 0x0046000000000006n;
 const ICD_DSLS_WITHDRAW_SIT = 0x0046000000000007n;
 
@@ -51,6 +53,14 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
             case ICD_REMOVE_ACTIVE_MODE:
                 this.internal.keepActive = false;
                 return;
+            // The amounts CHIP's CheckInCounter advances by: the next Check-In shows half the range used, or repeats
+            // the counter of the one before
+            case ICD_INVALIDATE_HALF_COUNTER_VALUES:
+                this.#advanceCounter(0x7fffffff);
+                return;
+            case ICD_INVALIDATE_ALL_COUNTER_VALUES:
+                this.#advanceCounter(0xffffffff);
+                return;
             case ICD_DSLS_FORCE_SIT:
                 this.agent.get(IcdManagementServer).setOperatingMode(IcdManagement.OperatingMode.Sit);
                 return;
@@ -58,10 +68,18 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
                 this.agent.get(IcdManagementServer).withdrawForcedOperatingMode();
                 return;
             default:
-                // Counter/back-off triggers (…03/…04/…05) are out of v1 scope; delegate the rest to
-                // TestGeneralDiagnosticsServer (which handles the reboot trigger and rejects anything unknown).
+                // The back-off trigger (…05) is out of scope; delegate the rest to TestGeneralDiagnosticsServer (which
+                // handles the reboot trigger and rejects anything unknown).
                 super.triggerTestEvent(eventTrigger);
         }
+    }
+
+    #advanceCounter(by: number) {
+        const counter = this.agent.get(IcdManagementServer).internal.icdCounter;
+        if (counter === undefined) {
+            throw new ImplementationError("ICD counter triggers need the Check-In Protocol feature");
+        }
+        counter.advance(by);
     }
 
     #onActiveEntered() {

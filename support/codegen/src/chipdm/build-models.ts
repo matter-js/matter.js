@@ -7,6 +7,7 @@
 import { Logger } from "#general";
 import { LocalMatter } from "#intermediate-models";
 import { MatterElement, MatterModel, MergedModel, Specification, TraverseMap } from "#model";
+import { canonicalizeConditionReferences } from "../util/canonicalize-condition-references.js";
 import { finalizeModel } from "../util/finalize-model.js";
 
 const logger = Logger.get("build-models");
@@ -40,7 +41,8 @@ function build(revision: string, inputs: TraverseMap, what: string) {
     const merged = MergedModel(revision as Specification.Revision, inputs);
     const model = new MatterModel(merged as MatterElement);
 
-    // Codegen applies the same fixups before writing the model, so validation must see them too
+    // Must match the steps generate-model applies, or this validates a model other than the one we ship
+    canonicalizeConditionReferences(model);
     const validation = Logger.nest(() => finalizeModel(model));
     if (validation.errors.length) {
         logger.warn(`${what} has ${validation.errors.length} validation errors of its own:`);

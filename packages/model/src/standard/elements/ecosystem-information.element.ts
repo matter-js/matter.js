@@ -47,13 +47,13 @@ export const EcosystemInformation = Cluster(
 
         Field(
             {
-                name: "UniqueLocationIDs", id: 0x5, type: "list", access: "S", conformance: "M",
+                name: "UniqueLocationIds", id: 0x5, type: "list", access: "S", conformance: "M",
                 constraint: "max 64[max 64]"
             },
             Field({ name: "entry", type: "string" })
         ),
 
-        Field({ name: "UniqueLocationIDsLastEdit", id: 0x6, type: "epoch-us", access: "S", conformance: "M", default: 0 }),
+        Field({ name: "UniqueLocationIdsLastEdit", id: 0x6, type: "epoch-us", access: "S", conformance: "M", default: 0 }),
         Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     ),
 

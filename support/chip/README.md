@@ -10,8 +10,11 @@ Besides `chip-tool`, the image ships app binaries used as TH_SERVER/DUT for cert
 `chip-all-clusters-app` and `chip-all-clusters-app-nlfaultinject` (built with CHIP's
 `chip_with_nlfaultinjection=true` GN arg so its FaultInjection cluster is present, as required by
 tests such as TC-SC-3.5), `chip-bridge-app` (TC-ACT-3.2's TH), `chip-camera-app` (the WEBRTCR
-cases' TH, whose own build arguments already enable fault injection) and the
-`chip-ota-provider-app`/`chip-ota-requestor-app` pair for the BDX and software-update cases.
+cases' TH, whose own build arguments already enable fault injection), the
+`chip-ota-provider-app`/`chip-ota-requestor-app` pair for the BDX and software-update cases,
+`matter-network-manager-app` (TC-TBRM-3.1's TH, under CHIP's own name) and
+`lit-icd-app-nopersist` (TC-ICDB-1.3's TH, built without subscription persistence so it sends Check-In
+messages once a client's subscription ends).
 
 The [bin](./bin) directory contains additional helper scripts you can use on the host:
 

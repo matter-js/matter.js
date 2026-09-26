@@ -86,7 +86,7 @@
     },
     "devDependencies": {
         "c8": "^12.0.0",
-        "oxfmt": "^0.67.0",
+        "oxfmt": "^0.68.0",
         "oxlint": "^1.82.0",
         "oxlint-tsgolint": "^7.0.2001",
         "semver": "^7.8.5",

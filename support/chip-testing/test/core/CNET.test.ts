@@ -19,5 +19,9 @@ describe("CNET", () => {
             "CNET/4.25",
             "CNET/4.26",
             "CNET/4.27",
+
+            // Also per-device credentials, but it does not even reach the skip: the runner passes no
+            // --endpoint, which its own endpoint matcher requires
+            "CNET/4.29",
         );
 });

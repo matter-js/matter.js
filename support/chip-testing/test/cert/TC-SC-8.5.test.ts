@@ -54,7 +54,7 @@ async function invokeOverTcp(cx: CertStepContext) {
 
     const invoked = await tcpInvokeCheck(cx, tag, ROOT_ENDPOINT, GENERAL_DIAGNOSTICS_ID, TIME_SNAPSHOT_ID, from);
 
-    recordAll(cx, [
+    await recordAll(cx, [
         { check: () => timeSnapshotResponseCheck(response, refusal), what: "the TH received the command response" },
         {
             check: () => invoked,

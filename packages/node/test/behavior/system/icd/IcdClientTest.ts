@@ -480,6 +480,37 @@ describe("IcdClient", () => {
             expect(again.counter).greaterThan(peer1.stateOf(IcdClient).counterStart!);
             expect(peer1.stateOf(IcdClient).lastOffset).greaterThan(0);
         });
+
+        it("reports the refreshed starting counter once it is committed", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: RootWithIcd },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await peer1.act(agent => agent.get(IcdClient).register({ monitoredSubject: SubjectId(NodeId(0xabcdn)) }));
+            const originalCounterStart = peer1.stateOf(IcdClient).counterStart!;
+
+            const fabricIndex = peer1.stateOf(CommissioningClient).peerAddress!.fabricIndex;
+            const fabric = controller.env.get(FabricManager).for(fabricIndex);
+            const peerNodeId = peer1.stateOf(CommissioningClient).peerAddress!.nodeId;
+            fabric.icd.peerFor(peerNodeId)!.counterStart = (originalCounterStart - 0x80000000) >>> 0;
+
+            const changed = new Promise<{ value?: number; previous?: number; committed?: number }>(resolve =>
+                peer1
+                    .eventsOf(IcdClient)
+                    .counterStart$Changed.once((value, previous) =>
+                        resolve({ value, previous, committed: peer1.stateOf(IcdClient).counterStart }),
+                    ),
+            );
+
+            await wakeDevice(device);
+            const { value, previous, committed } = await MockTime.resolve(changed, { macrotasks: true });
+
+            expect(previous).equals(originalCounterStart);
+            expect(value).not.equals(originalCounterStart);
+            expect(committed).equals(value);
+        });
     });
 
     describe("unregister", () => {

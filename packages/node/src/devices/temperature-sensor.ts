@@ -20,6 +20,13 @@ import { Identity } from "@matter/general";
 /**
  * A Temperature Sensor device reports measurements of temperature.
  *
+ * ### Cluster Requirements
+ *
+ * #### Thermostat User Interface Configuration Cluster
+ *
+ * This cluster provides an interface to allow configuration of the user interface for a temperature sensor that
+ * supports keypad or screen.
+ *
  * @see {@link MatterSpecification.v16.Device} § 7.4
  */
 export interface TemperatureSensorDevice extends Identity<typeof TemperatureSensorDeviceDefinition> {}
@@ -42,10 +49,10 @@ export namespace TemperatureSensorRequirements {
     /**
      * The ThermostatUserInterfaceConfiguration cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ThermostatUserInterfaceConfigurationServer} for
-     * convenience.
+     * This version of {@link ThermostatUserInterfaceConfigurationServer} is specialized per the specification.
      */
-    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer;
+    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer
+        .alter({ attributes: { keypadLockout: { optional: true } } });
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.

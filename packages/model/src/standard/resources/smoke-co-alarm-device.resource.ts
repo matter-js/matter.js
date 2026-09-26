@@ -21,7 +21,12 @@ Resource.add({
         "safety alarm indications." +
         "\n" +
         "Some smoke alarms may be capable of adjusting sensitivity. Smoke CO Alarm may have the ability to " +
-        "detect and report humidity levels, temperature levels, and contamination levels.",
+        "detect and report humidity levels, temperature levels, and contamination levels." +
+        "\n" +
+        "### Device Type Requirements" +
+        "\n" +
+        "A Smoke CO Alarm device type shall support an instance of a Power Source device type on some " +
+        "endpoint. See the Power Source cluster for more information.",
 
     children: [
         { tag: "requirement", name: "Identify", xref: "device§7.9.5" },

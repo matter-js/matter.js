@@ -73,9 +73,7 @@ Resource.add({
                 "the first trigger has expired; this results in a single period of the bit in the Occupancy attribute " +
                 "being 1. The bit in the Occupancy attribute will be set to 1 from the start of the first period " +
                 "where the PIR signal exceeds the threshold until HoldTime after the last moment where the PIR " +
-                "exceeded the threshold." +
-                "\n" +
-                "!HoldTime"
+                "exceeded the threshold."
         },
 
         {
