@@ -13,7 +13,7 @@ import { REBOOT_AFTER_APPLY_ARG } from "../../src/OtaRequestorTestInstance.js";
 import type { BdxTransferEvidence } from "./tc-bdx-support.js";
 import { BDX_RECEIVER_ROLES, serveOtaTransfer, transferOrFail } from "./tc-bdx-support.js";
 import { recordRequestorIdle, singleQueryImage } from "./tc-su-support.js";
-import { CertCheckFailedError, CommissionedRefs, recordAll, requireId } from "./tc-support.js";
+import { attempt, CertCheckFailedError, CommissionedRefs, recordAll, requireId } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs<"th">();
 
@@ -51,12 +51,17 @@ async function recordNotifyUpdateApplied(cx: CertStepContext) {
     const notifications = transfer.exchanges.notifyUpdateApplied;
     const [notification] = notifications;
 
-    // Read after the notification, so it answers for the boot that sent it
-    const running = await cx.controllers.th.node(ref).readAttribute({
-        endpoint: 0,
-        cluster: BASIC_INFORMATION_ID,
-        attribute: SOFTWARE_VERSION_ID,
-    });
+    // Read after the notification, so it answers for the boot that sent it; a DUT that did not come back still
+    // leaves the notification checks recorded
+    const running = await attempt(
+        () =>
+            cx.controllers.th.node(ref).readAttribute({
+                endpoint: 0,
+                cluster: BASIC_INFORMATION_ID,
+                attribute: SOFTWARE_VERSION_ID,
+            }),
+        value => `the DUT reports SoftwareVersion ${value} in Basic Information`,
+    );
 
     const aboutNotification = (build: (sent: { updateToken: string; softwareVersion: number }) => CheckRecord) => () =>
         notification === undefined
@@ -69,13 +74,14 @@ async function recordNotifyUpdateApplied(cx: CertStepContext) {
 
     await recordAll(cx, [
         {
-            what: "the DUT sent one NotifyUpdateApplied after installing the update",
+            // The wait ends at the first notification, so this cannot speak for duplicates after it
+            what: "the DUT sent NotifyUpdateApplied after installing the update",
             check: () => ({
                 type: "response",
-                verdict: notifications.length === 1 ? "pass" : "fail",
+                verdict: notifications.length > 0 ? "pass" : "fail",
                 detail:
-                    `the TH received ${notifications.length} NotifyUpdateApplied command(s) within ` +
-                    `${Duration.format(NOTIFY_APPLIED_TIMEOUT)} of allowing the apply`,
+                    `the TH received ${notifications.length} NotifyUpdateApplied command(s), waiting up to ` +
+                    `${Duration.format(NOTIFY_APPLIED_TIMEOUT)} after allowing the apply for the first`,
             }),
         },
         {
@@ -105,20 +111,25 @@ async function recordNotifyUpdateApplied(cx: CertStepContext) {
             // The plan's "verify the software version on the DUT": what it runs, read from it rather than
             // taken from the command that claims it
             what: "the DUT runs the version it downloaded",
-            check: () => ({
-                type: "response",
-                verdict: running === transfer.softwareVersion ? "pass" : "fail",
-                detail: `the DUT reports SoftwareVersion ${running} in Basic Information, against the downloaded ${transfer.softwareVersion}`,
-            }),
+            check: () =>
+                running.ok
+                    ? {
+                          type: "response",
+                          verdict: running.value === transfer.softwareVersion ? "pass" : "fail",
+                          detail: `${running.check.detail}, against the downloaded ${transfer.softwareVersion}`,
+                      }
+                    : running.check,
         },
     ]);
 }
 
 async function recordBootReason(cx: CertStepContext) {
-    // The boot this reads is the one step 1's update caused, so without that update there is nothing to
-    // ask about
-    if (transferOrFail(served).transfer.exchanges.notifyUpdateApplied.length !== 1) {
-        throw new CertCheckFailedError("step 1 observed no restart into the new version for this step to read");
+    // The boot this reads is the one step 1's update caused, so without an apply the TH allowed there is
+    // nothing to ask about.  Whether the DUT then notified is step 1's claim, not this one's
+    if (!transferOrFail(served).transfer.applyAcknowledged) {
+        throw new CertCheckFailedError(
+            "step 1's update never reached an apply the TH allowed, so no boot follows from it",
+        );
     }
 
     const bootReason = await cx.controllers.th.node(commissioned.require("th", "the DUT")).readAttribute({
