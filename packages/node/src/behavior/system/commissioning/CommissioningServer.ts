@@ -221,6 +221,10 @@ export class CommissioningServer extends Behavior {
             this.#syncCommissioned();
         }
 
+        // SubscriptionsServer persists only subscriptions established while it is active, so activate it before the
+        // node can be commissioned
+        await this.endpoint.act(agent => agent.load(SubscriptionsServer));
+
         // If already commissioned, trigger operational announcement
         if (lifecycle.isCommissioned) {
             // Restore subscriptions if we have some persisted
