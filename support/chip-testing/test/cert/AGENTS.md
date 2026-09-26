@@ -3167,9 +3167,9 @@ the first three against the same `lit-icd` TH and needs none of the Check-In con
   mode. `stopSubscription()` turns the peer's `autoSubscribe` off; the TH tears the subscription down when its next
   report goes unanswered, and sends a Check-In at its next active mode.
 - **The controller has to advertise operationally**, or the TH fails with "Node Address resolution failed for ICD
-  Check-In". A node advertises when it starts with a fabric, or when `FabricManager` `added` fires after it is
-  online — a fabric created before `start()` on a fresh node does neither. The adapter therefore creates its
-  fabric after starting the controller, and every in-process cert controller now advertises `_matter._tcp`.
+  Check-In". Every in-process cert controller advertises `_matter._tcp`: it creates its fabric before `start()`,
+  and `CommissioningServer` counts such a fabric as commissioned once the node is online. TC-ICDB-1.3 is the case
+  that breaks if that stops holding.
 
 Two more traps:
 
