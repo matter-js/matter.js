@@ -15,8 +15,8 @@ import { RootSupervisor } from "./RootSupervisor.js";
  *
  * {@link Behavior} uses this internally for its {@link Behavior.supervisor}.
  *
- * BehaviorSupervisor derives operational schema from a "logical" schema.  If the {@link Behavior} implementation has a
- * static schema property this defines the logical schema.  Otherwise the logical schema is {@link Schema.empty}.
+ * BehaviorSupervisor derives operational schema from a "logical" schema, the {@link BehaviorSupervisor.Options.schema}
+ * it receives or else {@link Schema.empty}.
  *
  * This function loads the logical schema and mutates as required.  This includes addition of fields for any
  * programmatic extensions of state.  This allows schema-driven logic to process state fields added in pure JS.

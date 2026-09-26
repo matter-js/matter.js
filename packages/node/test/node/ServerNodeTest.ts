@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
 import { DescriptorBehavior } from "#behaviors/descriptor";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
@@ -1021,6 +1022,21 @@ describe("ServerNode", () => {
                 },
             });
 
+            await node.close();
+        }
+    });
+
+    it("validates the event buffers of a subclass of the events behavior", async () => {
+        class CustomEvents extends EventsBehavior {}
+
+        const node = new MockServerNode(MockServerNode.RootEndpoint.with(CustomEvents));
+        try {
+            await node.construction.ready;
+            const { buffers } = node.stateOf(CustomEvents);
+            await expect(
+                node.setStateOf(CustomEvents, { buffers: { ...buffers, minEventAllowance: -1 } }),
+            ).rejectedWith("state.buffers");
+        } finally {
             await node.close();
         }
     });
