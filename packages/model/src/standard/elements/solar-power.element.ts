@@ -18,7 +18,7 @@ export const SolarPowerDt = DeviceType(
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
 
     Requirement(
-        { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType" },
+        { name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 1", element: "deviceType" },
         Requirement(
             { name: "PowerSource", id: 0x2f, element: "serverCluster" },
             Requirement({ name: "WIRED", conformance: "M", element: "feature" })
@@ -46,7 +46,7 @@ export const SolarPowerDt = DeviceType(
     ),
 
     Requirement(
-        { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType" },
+        { name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 1", element: "deviceType" },
         Requirement({ name: "UserLabel", id: 0x41, conformance: "desc", element: "serverCluster" }),
         Requirement(
             { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },

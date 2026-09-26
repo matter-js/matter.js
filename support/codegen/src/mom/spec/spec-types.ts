@@ -78,4 +78,10 @@ export interface DeviceReference extends SpecReference {
     composingTypes?: SpecReference;
     composingClusters?: SpecReference;
     composingElements?: SpecReference;
+
+    /**
+     * Subsections that document the device rather than one of its elements, in document order, whether or not they
+     * carry prose
+     */
+    subsections?: SpecReference[];
 }

@@ -5,7 +5,7 @@
  */
 
 import { ChildProcess, spawn } from "node:child_process";
-import { constants, lstat, mkdtemp, open, rm } from "node:fs/promises";
+import { constants, lstat, mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env, platform as hostPlatform } from "node:process";
@@ -66,6 +66,31 @@ const CONTAINER_APP_PIPE = "/tmp/app-pipe";
 function hasCommandPipe(app: string) {
     return PIPE_COMMANDS[app] !== undefined;
 }
+
+/** Directory a chip app's generated files are mounted at inside a container. */
+const CONTAINER_APP_DIR = "/tmp/cert-app";
+
+/** Name of the placeholder image {@link otaProviderArgs} points a provider at. */
+const OTA_PLACEHOLDER_IMAGE = "ota-placeholder.bin";
+
+/**
+ * The arguments `app` cannot start without, which the harness supplies where a case named none.
+ *
+ * chip's `ota-provider-app` exits at startup unless it is given `-f` or `-o` ("Either an OTA file or
+ * image list file must be specified", then `chipDie`), and `-f` is checked for readability as it is
+ * parsed. A case that only needs the node to exist — TC-SU-1.1 announces it and never downloads from
+ * it — would otherwise have to skip the whole flavor. A case that does serve from this app names its
+ * own `-f`, which is left alone.
+ */
+export function requiredAppArgs(app: string, appArgs: string[], imagePath: string): string[] {
+    if (app !== "ota-provider" || appArgs.some(arg => OTA_IMAGE_ARGS.has(arg))) {
+        return [];
+    }
+    return ["-f", imagePath];
+}
+
+/** The arguments by which a case names the image a provider serves, either of which satisfies it. */
+const OTA_IMAGE_ARGS = new Set(["-f", "--filepath", "-o", "--otaImageList"]);
 
 /**
  * The simulation commands a chip app takes on its standard input, by the app that answers them.
@@ -207,11 +232,21 @@ function portArgs(identity?: Subject.Identity): string[] {
 }
 
 /**
+ * The apps whose CHIP executable is not named `chip-<app>-app`. These are CHIP's own names, which both the
+ * chip-cert-bins image and this project's image keep.
+ */
+const APP_BINARY_NAMES = new Map([
+    ["lit-icd", "lit-icd-app"],
+    ["network-manager", "matter-network-manager-app"],
+]);
+
+/**
  * CHIP builds a variant of an app as its own binary beside the plain one — `nlfaultinject` adds the
  * fault-injection hooks TC-IDM-1.3 arms — so a variant selects a filename, not a different app.
  */
 export function appBinaryName(app: string, appVariant?: string) {
-    return `chip-${app}-app${appVariant === undefined ? "" : `-${appVariant}`}`;
+    const name = APP_BINARY_NAMES.get(app) ?? `chip-${app}-app`;
+    return appVariant === undefined ? name : `${name}-${appVariant}`;
 }
 
 function throwUnsupported(flavor: DeviceFlavor, capability: string): never {
@@ -277,7 +312,7 @@ function createExitDeferred(): ExitDeferred {
 }
 
 /**
- * Resolve the directory `chip-local` subjects spawn `chip-<app>-app` binaries from. When
+ * Resolve the directory `chip-local` subjects spawn their binaries ({@link appBinaryName}) from. When
  * `MATTER_CHIP_BINS_SOURCE=cert-bins`, this extracts (if not already cached — see
  * {@link prepareChipBins}) the official `connectedhomeip/chip-cert-bins` image and returns its own
  * directory, ignoring `MATTER_CERT_APP_DIR` entirely; otherwise it requires `MATTER_CERT_APP_DIR` as
@@ -304,7 +339,7 @@ export async function resolveChipLocalAppDir(): Promise<string> {
 
     const dir = env.MATTER_CERT_APP_DIR;
     if (!dir) {
-        throw new Error("MATTER_CERT_APP_DIR is not set; ChipLocalSubject needs it to find chip-<app>-app binaries");
+        throw new Error("MATTER_CERT_APP_DIR is not set; ChipLocalSubject needs it to find the CHIP app binaries");
     }
     return dir;
 }
@@ -322,6 +357,13 @@ class ChipLocalDevice implements CertDevice {
     readonly log: LogFollower;
 
     #appArgs: string[];
+
+    /** What the app was last spawned with, which is what the evidence bundle reports. */
+    #effectiveAppArgs?: string[];
+
+    get appArgs(): string[] | undefined {
+        return this.#effectiveAppArgs;
+    }
     #hub = new LineQueue();
     #storageDir?: string;
     #stdin = new StdinPacer();
@@ -385,6 +427,13 @@ class ChipLocalDevice implements CertDevice {
             await rm(this.#pipePath(), { force: true });
         }
 
+        const imagePath = join(this.#storageDir, OTA_PLACEHOLDER_IMAGE);
+        const required = requiredAppArgs(this.app, this.#appArgs, imagePath);
+        if (required.length) {
+            await writeFile(imagePath, "");
+        }
+        this.#effectiveAppArgs = [...required, ...this.#appArgs];
+
         const args = [
             "--discriminator",
             String(this.commissioning.discriminator),
@@ -393,6 +442,7 @@ class ChipLocalDevice implements CertDevice {
             "--KVS",
             kvsPath,
             ...(hasCommandPipe(this.app) ? ["--app-pipe", this.#pipePath()] : []),
+            ...required,
             ...TRACE_ARGS,
             ...this.#appArgs,
         ];
@@ -803,6 +853,13 @@ export class ChipDockerDevice implements CertDevice {
     readonly log: LogFollower;
 
     #appArgs: string[];
+
+    /** What the app was last spawned with, which is what the evidence bundle reports. */
+    #effectiveAppArgs?: string[];
+
+    get appArgs(): string[] | undefined {
+        return this.#effectiveAppArgs;
+    }
     #hub = new LineQueue();
     #docker: DockerHandle;
     #stdin = new StdinPacer();
@@ -857,6 +914,17 @@ export class ChipDockerDevice implements CertDevice {
         this.#assertNoVariant();
     }
 
+    /** Host directory holding files this app needs to read, mounted at {@link CONTAINER_APP_DIR}. */
+    #storageDir?: string;
+
+    /** Volumes the app container gets: the harness's dbus socket, plus this app's own files. */
+    #binds(volumeName: string): Record<string, string> {
+        return {
+            [volumeName]: "/run/dbus",
+            ...(this.#storageDir === undefined ? {} : { [this.#storageDir]: CONTAINER_APP_DIR }),
+        };
+    }
+
     async start(): Promise<void> {
         // One container per device, even when two callers start it at once
         this.#starting ??= this.#launch().finally(() => (this.#starting = undefined));
@@ -893,11 +961,18 @@ export class ChipDockerDevice implements CertDevice {
 
         await this.#docker.ensureVolume(volumeName);
 
+        const required = requiredAppArgs(this.app, this.#appArgs, join(CONTAINER_APP_DIR, OTA_PLACEHOLDER_IMAGE));
+        if (required.length) {
+            this.#storageDir ??= await mkdtemp(join(tmpdir(), "matter-cert-docker-"));
+            await writeFile(join(this.#storageDir, OTA_PLACEHOLDER_IMAGE), "");
+        }
+        this.#effectiveAppArgs = [...required, ...this.#appArgs];
+
         // Installed before the container is added: a failing add() otherwise leaves the composition
         // (and its network) behind with nothing holding a reference to close it.
         const composition = this.#docker.compose(`cert-${this.app}-${this.id}`, {
             platform,
-            binds: { [volumeName]: "/run/dbus" },
+            binds: this.#binds(volumeName),
             network: "host",
             autoRemove: true,
         });
@@ -910,6 +985,7 @@ export class ChipDockerDevice implements CertDevice {
             "--passcode",
             String(this.commissioning.passcode),
             ...(hasCommandPipe(this.app) ? ["--app-pipe", CONTAINER_APP_PIPE] : []),
+            ...required,
             ...TRACE_ARGS,
             ...this.#appArgs,
         ];
@@ -919,7 +995,7 @@ export class ChipDockerDevice implements CertDevice {
                 name: "app",
                 image: appImage,
                 recreate: true,
-                binds: { [volumeName]: "/run/dbus" },
+                binds: this.#binds(volumeName),
                 command: args,
 
                 stdinOnce: !hasStdinCommands(this.app),
@@ -1072,6 +1148,11 @@ export class ChipDockerDevice implements CertDevice {
     async close(): Promise<void> {
         await this.stop();
 
+        if (this.#storageDir !== undefined) {
+            await rm(this.#storageDir, { recursive: true, force: true });
+            this.#storageDir = undefined;
+        }
+
         this.#hub.close();
     }
 
@@ -1182,7 +1263,8 @@ export class ChipDockerDevice implements CertDevice {
 }
 
 /**
- * Spawns `${MATTER_CERT_APP_DIR}/chip-<app>-app` as a local child process for cert tests.
+ * Spawns the app's CHIP binary ({@link appBinaryName}) from `MATTER_CERT_APP_DIR` as a local child process for
+ * cert tests.
  */
 export function ChipLocalSubject(app: string, appVariant?: string): CertDeviceFactory {
     return (domain: string, options?: Subject.Options) => new ChipLocalDevice(app, domain, options, appVariant);

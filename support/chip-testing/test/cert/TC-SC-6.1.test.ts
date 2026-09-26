@@ -206,8 +206,8 @@ certTest("TC-SC-6.1", {
             // The set removed in step 9 must be gone from the indices, which is what tells that command
             // apart from one the TH merely answered.
             const indices =
-                typeof response === "object" && response !== null && "groupKeySetIDs" in response
-                    ? (response as { groupKeySetIDs?: unknown }).groupKeySetIDs
+                typeof response === "object" && response !== null && "groupKeySetIds" in response
+                    ? (response as { groupKeySetIds?: unknown }).groupKeySetIds
                     : undefined;
             // Exactly the IPK, not merely "without the removed set": an empty list, or one naming a set
             // nobody wrote, would satisfy the weaker claim while saying the TH lost track of its keys.

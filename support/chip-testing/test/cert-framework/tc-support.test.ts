@@ -44,6 +44,7 @@ import {
     removeFabricSucceeded,
     requireId,
     runCleanups,
+    statedInPrompt,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
 import { fakeCertNode } from "./fake-cert-node.js";
@@ -1709,6 +1710,9 @@ describe("CommissionedRefs", () => {
         return {
             controllers: { dut: controllerFor("dut"), th_cr2: controllerFor("th_cr2") },
             devices: {},
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check() {},
@@ -1828,6 +1832,9 @@ describe("recordAll", () => {
         const cx = {
             controllers: {},
             devices: {},
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check(check: CheckRecord) {
@@ -1848,10 +1855,10 @@ describe("recordAll", () => {
     const pass = (detail: string): CheckRecord => ({ type: "response", verdict: "pass", detail });
     const fail = (detail: string): CheckRecord => ({ type: "response", verdict: "fail", detail });
 
-    it("records every check when they all pass", () => {
+    it("records every check when they all pass", async () => {
         const { checks, cx } = recordingContext();
 
-        recordAll(cx, [
+        await recordAll(cx, [
             { check: () => pass("first"), what: "one" },
             { check: () => pass("second"), what: "two" },
         ]);
@@ -1859,35 +1866,48 @@ describe("recordAll", () => {
         expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
     });
 
-    it("records the checks after a failing one rather than stopping at it", () => {
+    it("records the checks after a failing one rather than stopping at it", async () => {
         const { checks, cx } = recordingContext();
 
-        expect(() =>
+        await expect(
             recordAll(cx, [
                 { check: () => fail("first"), what: "one" },
                 { check: () => pass("second"), what: "two" },
                 { check: () => fail("third"), what: "three" },
             ]),
-        ).throw(CertCheckFailedError, /2 of 3 checks failed/);
+        ).rejectedWith(CertCheckFailedError, /2 of 3 checks failed/);
 
         expect(checks.map(check => check.detail)).deep.equal(["first", "second", "third"]);
     });
 
-    it("names every failure in the error it throws", () => {
+    it("names every failure in the error it throws", async () => {
         const { cx } = recordingContext();
 
-        expect(() =>
+        await expect(
             recordAll(cx, [
                 { check: () => fail("first"), what: "one" },
                 { check: () => fail("third"), what: "three" },
             ]),
-        ).throw(CertCheckFailedError, /one:.*three:/);
+        ).rejectedWith(CertCheckFailedError, /one:.*three:/);
     });
 
-    it("keeps the checks recorded before a builder threw", () => {
+    it("awaits an asynchronous builder and records what follows a failing check", async () => {
         const { checks, cx } = recordingContext();
 
-        expect(() =>
+        await expect(
+            recordAll(cx, [
+                { check: () => fail("first"), what: "one" },
+                { check: async () => pass("second"), what: "two" },
+            ]),
+        ).rejectedWith(CertCheckFailedError, /1 of 2 checks failed/);
+
+        expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
+    });
+
+    it("keeps the checks recorded before a builder threw", async () => {
+        const { checks, cx } = recordingContext();
+
+        await expect(
             recordAll(cx, [
                 { check: () => pass("first"), what: "one" },
                 {
@@ -1897,18 +1917,61 @@ describe("recordAll", () => {
                     what: "two",
                 },
             ]),
-        ).throw(InternalError);
+        ).rejectedWith(InternalError);
 
         expect(checks.map(check => check.detail)).deep.equal(["first"]);
     });
 
-    it("passes an unverified check through, as record does", () => {
+    it("passes an unverified check through, as record does", async () => {
         const { checks, cx } = recordingContext();
 
-        recordAll(cx, [
+        await recordAll(cx, [
             { check: () => ({ type: "device-log", verdict: "unverified" }), what: "matterjs has no pattern" },
         ]);
 
         expect(checks).length(1);
+    });
+});
+
+describe("statedInPrompt()", () => {
+    const prompt = [
+        ">>> Please commission the DUT with:",
+        "  Manual Pairing Code: '14970112338'",
+        "  Revocation Set: /credentials/test/revoked-attestation-certificates/revocation-sets/revocation-set.json",
+        "Input 'Y' if DUT successfully commissions without any warnings",
+        "Input 'N' if commissioner warns about commissioning the non-genuine device (press enter to confirm)",
+    ];
+
+    it("reads a value the prompt stated on an earlier line", () => {
+        expect(statedInPrompt(prompt, /Manual Pairing Code: '(\d+)'/, "a pairing code")).equal("14970112338");
+        expect(statedInPrompt(prompt, /Revocation Set: (\S+)/, "a revocation set")).equal(
+            "/credentials/test/revoked-attestation-certificates/revocation-sets/revocation-set.json",
+        );
+    });
+
+    it("reads the last statement, which is the one the current prompt made", () => {
+        expect(
+            statedInPrompt(
+                [...prompt, "  Manual Pairing Code: '20054912334'"],
+                /Manual Pairing Code: '(\d+)'/,
+                "a pairing code",
+            ),
+        ).equal("20054912334");
+    });
+
+    it("refuses a pattern that matches a line without stating a value", () => {
+        // A pattern with no capture group matches, and reading match[1] off it would hand the caller
+        // undefined where it asked for a string
+        expect(() => statedInPrompt(prompt, /press enter to confirm/, "a pairing code")).throws(
+            InternalError,
+            "a pairing code",
+        );
+    });
+
+    it("refuses to guess where no line stated the value", () => {
+        expect(() => statedInPrompt(prompt, /Discriminator: (\d+)/, "a discriminator")).throws(
+            InternalError,
+            "a discriminator",
+        );
     });
 });

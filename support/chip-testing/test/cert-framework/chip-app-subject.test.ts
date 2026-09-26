@@ -10,6 +10,7 @@ import {
     ChipDockerSubject,
     ChipLocalSubject,
     HARNESS_DBUS_CONTAINER,
+    requiredAppArgs,
     StdinPacer,
 } from "@matter/testing";
 import { existsSync } from "node:fs";
@@ -455,6 +456,29 @@ describe("ChipLocalSubject", () => {
 
         try {
             expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["variant-line"]);
+        } finally {
+            await device.stop();
+            await device.close();
+        }
+    });
+
+    it("spawns an app whose CHIP binary does not carry the chip- prefix", async function () {
+        this.timeout(15_000);
+
+        await writeFile(join(appDir, "matter-network-manager-app"), "#!/bin/sh\necho nm-line\nexec sleep 300\n", {
+            mode: 0o755,
+        });
+
+        const device = ChipLocalSubject("network-manager")("cert");
+        if (!isCertDevice(device)) {
+            throw new Error("Expected a CertDevice");
+        }
+
+        await device.initialize();
+        await device.start();
+
+        try {
+            expect(await collectLines(device.log.follow(), 1, 5_000)).deep.equal(["nm-line"]);
         } finally {
             await device.stop();
             await device.close();
@@ -1238,5 +1262,28 @@ describe("ChipDockerSubject", () => {
 
         expect(killed).equal(true);
         expect(closed).equal(1);
+    });
+});
+
+describe("requiredAppArgs", () => {
+    const image = "/tmp/cert-app/ota-placeholder.bin";
+
+    // chip's ota-provider-app exits at startup without one of these ("Either an OTA file or image
+    // list file must be specified", then chipDie), and -f is checked for readability as it is parsed
+    it("gives an OTA provider the image argument it cannot start without", () => {
+        expect(requiredAppArgs("ota-provider", [], image)).deep.equal(["-f", image]);
+    });
+
+    // A case that serves from the app names the image itself, and two such arguments are refused by
+    // the app's own parser
+    it("leaves a case's own image argument alone", () => {
+        for (const named of ["-f", "--filepath", "-o", "--otaImageList"]) {
+            expect(requiredAppArgs("ota-provider", [named, "/images/real.ota"], image)).deep.equal([]);
+        }
+    });
+
+    it("gives no other app anything", () => {
+        expect(requiredAppArgs("ota-requestor", [], image)).deep.equal([]);
+        expect(requiredAppArgs("all-clusters", [], image)).deep.equal([]);
     });
 });

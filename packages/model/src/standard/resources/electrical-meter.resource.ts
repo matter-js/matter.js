@@ -10,8 +10,14 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "deviceType", name: "ElectricalMeter", xref: "device§14.8",
+
     details: "An Electrical Meter device meters the electrical energy being imported and/or exported for billing " +
-        "purposes.",
+        "purposes." +
+        "\n" +
+        "### Device Type Requirements" +
+        "\n" +
+        "An Electrical Meter shall be composed of at least one endpoint with device types as defined by the " +
+        "conformance below.",
 
     children: [
         { tag: "requirement", name: "CommodityMetering", xref: "device§14.8.4" },

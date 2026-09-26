@@ -49,7 +49,7 @@ async function readEverything(cx: CertStepContext) {
     const clusters = new Set(entries.map(entry => `${entry.endpoint}/${entry.cluster}`));
     const answered = await wildcardReadInOneReportCheck(cx, tag, from);
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => ({
                 type: "response",

@@ -637,26 +637,26 @@ Using this way you can abstract the dynamic dependencies to a own class and add 
 
 ### How can I store some additional state values in my own Cluster implementation?
 
-In some cases you need to store additional state values in your cluster implementation that are not directly related to the cluster attributes. For this you need to extend the state of the cluster implementation with the relevant attributes and then extend the cluster storage schema to store these values.
+In some cases you need to store additional state values in your cluster implementation that are not directly related to the cluster attributes. For this you extend the state of the cluster implementation with the relevant fields and declare their type and persistence with the `@field` decorator.
 
-```javascript
-export class MyLevelControlServer extends LevelControlServer {
-    declare state: LevelControlServerLogic.State;
+```typescript
+import { field, int16, nonvolatile } from "@matter/main/model";
 
-    static {
-        MyLevelControlServer.schema.children.push(
-            FieldElement({ name: "mySpecialDeviceAttribute", type: "int16", quality: "N" }),
-        );
-    }
+// The features the dimmable light device type uses for its level control
+const MyLevelControlBase = LevelControlServer.with("Lighting", "OnOff");
+
+export class MyLevelControlServer extends MyLevelControlBase {
+    declare state: MyLevelControlServer.State;
 }
 
 export namespace MyLevelControlServer {
-    export class State extends LevelControlServer.State {
-        mySpecialDeviceAttribute: number;
+    export class State extends MyLevelControlBase.State {
+        @field(int16, nonvolatile)
+        mySpecialDeviceAttribute = 0;
     }
 }
 
-const endpoint = new Endpoint(DimmableLightDeviec.with(MyLevelControlServer), {
+const endpoint = new Endpoint(DimmableLightDevice.with(MyLevelControlServer), {
     levelControl: {
         currentLevel: 0,
         remainingTime: 0,
@@ -665,31 +665,31 @@ const endpoint = new Endpoint(DimmableLightDeviec.with(MyLevelControlServer), {
 });
 ```
 
-The above example defines an own state value `mySpecialDeviceAttribute` and also defines the storage schema for this attribute as "int16" (16 Bit Signed Integer). Important is the "N" in the quality field because this defined that the value is "non-volatile" and will be persisted and also restored on new initialization.
+The above example defines an own state value `mySpecialDeviceAttribute` with the type "int16" (16 Bit Signed Integer). Important is `nonvolatile`, which marks the value as persisted and restored on new initialization. The field also carries over to variants such as `MyLevelControlServer.with(...)`.
 
-The same also is possible for own Behavior classes, with the main different that the schema can be defined completely there and not extended:
+For own Behavior classes you can instead define the schema completely as a static value. A subclass inherits it:
 
-```javascript
+```typescript
+import { Behavior } from "@matter/main";
+import { DatatypeModel, FieldElement } from "@matter/main/model";
+
 export class MyBehavior extends Behavior {
     static override readonly id = "myBehavior"; // give the Behavior a unique name
 
-    declare state: MyDeviceBehavior.State;
+    declare state: MyBehavior.State;
 
     /**
-     * Define logical schema to make passcode and discriminator persistent.
+     * Define logical schema to make mySpecialDeviceAttribute persistent.
      */
-    static override readonly schema = new DatatypeModel({
-        name: "MyBehaviorState",
-        children: [
-            FieldElement({ name: "mySpecialDeviceAttribute", type: "int16", quality: "N" }),
-        ],
-    });
+    static override readonly schema = new DatatypeModel(
+        { name: "MyBehaviorState", type: "struct" },
+        FieldElement({ name: "mySpecialDeviceAttribute", type: "int16", quality: "N" }),
+    );
 }
 
 export namespace MyBehavior {
     export class State {
-        mySpecialDeviceAttribute: number;
+        mySpecialDeviceAttribute = 0;
     }
 }
-
 ```

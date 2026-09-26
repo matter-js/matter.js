@@ -31,6 +31,13 @@ import { Identity } from "@matter/general";
  * with secondary interfaces on other endpoints. The priorities of these network interfaces are determined by the order
  * of their endpoints, where interfaces with smaller endpoint numbers are higher priority.
  *
+ * ### Cluster Requirements
+ *
+ * > [!NOTE]
+ *
+ * > NOTE: The Network Diagnostics cluster present in this device type shall serve the secondary network interface as
+ *   specified in the Network Commissioning cluster.
+ *
  * SecondaryNetworkInterfaceEndpoint requires NetworkCommissioning cluster but NetworkCommissioning is not added by
  * default because you must select the features your device supports. You can add manually using
  * SecondaryNetworkInterfaceEndpoint.with().

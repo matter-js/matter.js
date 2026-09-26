@@ -20,8 +20,8 @@ import {
 
 export class CaseServerMessenger extends SecureChannelMessenger {
     async readSigma1() {
-        const { payload } = await this.nextMessage({ type: SecureMessageType.Sigma1 });
-        return { sigma1Bytes: payload, sigma1: TlvCaseSigma1.decode(payload) as CaseSigma1 };
+        const message = await this.nextMessage({ type: SecureMessageType.Sigma1 });
+        return { sigma1Bytes: message.payload, sigma1: this.decode(TlvCaseSigma1, message) as CaseSigma1 };
     }
 
     sendSigma2(sigma2: TypeFromSchema<typeof TlvCaseSigma2>) {
@@ -33,8 +33,8 @@ export class CaseServerMessenger extends SecureChannelMessenger {
     }
 
     async readSigma3() {
-        const { payload } = await this.nextMessage({ type: SecureMessageType.Sigma3 });
-        return { sigma3Bytes: payload, sigma3: TlvCaseSigma3.decode(payload) };
+        const message = await this.nextMessage({ type: SecureMessageType.Sigma3 });
+        return { sigma3Bytes: message.payload, sigma3: this.decode(TlvCaseSigma3, message) };
     }
 }
 
@@ -44,16 +44,14 @@ export class CaseClientMessenger extends SecureChannelMessenger {
     }
 
     async readSigma2(abort?: AbortSignal) {
-        const {
-            payload,
-            payloadHeader: { messageType },
-        } = await this.nextMessage({ description: "Sigma2(Resume)", abort });
+        const message = await this.nextMessage({ description: "Sigma2(Resume)", abort });
+        const { messageType } = message.payloadHeader;
 
         switch (messageType) {
             case SecureMessageType.Sigma2:
-                return { sigma2Bytes: payload, sigma2: TlvCaseSigma2.decode(payload) as CaseSigma2 };
+                return { sigma2Bytes: message.payload, sigma2: this.decode(TlvCaseSigma2, message) as CaseSigma2 };
             case SecureMessageType.Sigma2Resume:
-                return { sigma2Resume: TlvCaseSigma2Resume.decode(payload) as CaseSigma2Resume };
+                return { sigma2Resume: this.decode(TlvCaseSigma2Resume, message) as CaseSigma2Resume };
             default:
                 throw new MatterFlowError(
                     `Received unexpected message type while expecting CASE Sigma2(Resume): ${messageType}, expected: ${SecureMessageType.Sigma2} or ${SecureMessageType.Sigma2Resume}`,
