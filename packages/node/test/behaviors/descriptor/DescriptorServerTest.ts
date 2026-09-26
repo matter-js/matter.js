@@ -143,7 +143,7 @@ describe("DescriptorServer", () => {
     describe("composition", () => {
         it("lists every descendant for an aggregator and only children for a bridged node", async () => {
             // A bridged node carries IndexBehavior as root and aggregator do, but composes a tree
-            // (Matter Core § 9.2.3), so only its own children belong in its list
+            // (Matter Core § 9.2.8), so only its own children belong in its list
             const node = await MockServerNode.create({
                 number: 0,
                 parts: [
@@ -459,7 +459,7 @@ describe("DescriptorServer", () => {
 
                 expect(partsList, `settled PartsList for "${name}"`).deep.equals([2, 4]);
 
-                // The root's Index-backed PartsList includes the parent and its children (Matter Core § 9.2.3).
+                // The root's Index-backed PartsList includes the parent and its children (Matter Core § 9.2.8).
                 expect(rootPartsList, `settled root PartsList for "${name}"`).deep.equals([1, 2, 4]);
             });
         }
