@@ -1913,7 +1913,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
 
             const effectiveSystemMode = transition.systemMode ?? schedule.systemMode;
-            const usesPreset = transition.presetHandle !== undefined || schedule.presetHandle !== undefined;
+            const usesPreset = transition.presetHandle !== undefined;
             if (
                 !usesPreset &&
                 (effectiveSystemMode === Thermostat.SystemMode.Heat ||
