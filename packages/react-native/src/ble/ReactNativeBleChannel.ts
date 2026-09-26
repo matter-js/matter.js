@@ -269,6 +269,7 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
                     bleChannel.#pushMessage(data);
                     onMatterMessageListener(bleChannel, data);
                 },
+                mtu,
             );
 
             const bleChannel = new ReactNativeBleChannel(peripheral, btpSession);
