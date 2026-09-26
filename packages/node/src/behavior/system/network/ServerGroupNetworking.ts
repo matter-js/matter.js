@@ -95,10 +95,8 @@ export class ServerGroupNetworking {
             return;
         }
         const address = fabric.groups.multicastAddressFor(groupId);
-        // Only join the multicast group if no other group in this fabric already uses the same address
-        // (multiple IanaAddr groups all share ff05::fa).  Reserve the address before awaiting so concurrent adds
-        // in the same synchronous batch do not double-join.
-        const needsJoin = !this.#otherGroupUsesAddress(memberships, address, groupId);
+        // Reserve the address before awaiting so concurrent adds in the same synchronous batch do not double-join
+        const needsJoin = !this.#addressUsedElsewhere(address, fabricIndex, groupId);
         memberships.set(groupId, address);
         this.#activeGroupMemberships.set(fabricIndex, memberships);
         if (needsJoin) {
@@ -117,10 +115,8 @@ export class ServerGroupNetworking {
         }
         // Use the stored address (safer than re-deriving, policy may have changed)
         const address = memberships.get(groupId) ?? fabric.groups.multicastAddressFor(groupId);
-        const stillUsed = this.#otherGroupUsesAddress(memberships, address, groupId);
+        const stillUsed = this.#addressUsedElsewhere(address, fabricIndex, groupId);
         memberships.delete(groupId);
-        // Only leave the multicast group if no other group in this fabric still uses the same address
-        // (multiple IanaAddr groups all share ff05::fa)
         if (!stillUsed) {
             logger.debug(
                 `Dropping membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
@@ -153,8 +149,8 @@ export class ServerGroupNetworking {
             return;
         }
 
-        const stillUsedOld = this.#otherGroupUsesAddress(memberships, oldAddress, groupId);
-        const alreadyJoinedNew = this.#otherGroupUsesAddress(memberships, newAddress, groupId);
+        const stillUsedOld = this.#addressUsedElsewhere(oldAddress, fabricIndex, groupId);
+        const alreadyJoinedNew = this.#addressUsedElsewhere(newAddress, fabricIndex, groupId);
         memberships.set(groupId, newAddress);
 
         logger.debug(
@@ -168,11 +164,18 @@ export class ServerGroupNetworking {
         }
     }
 
-    /** Whether any group other than {@link excludeGroupId} in {@link memberships} still resolves to {@link address}. */
-    #otherGroupUsesAddress(memberships: Map<GroupId, string>, address: string, excludeGroupId: GroupId) {
-        for (const [id, mappedAddress] of memberships) {
-            if (id !== excludeGroupId && mappedAddress === address) {
-                return true;
+    /**
+     * Whether any group other than {@link groupId} of {@link fabricIndex} is joined to {@link address}.
+     *
+     * The UDP socket is shared by all fabrics and IanaAddr groups of every fabric use ff05::fa, so a membership may
+     * only be joined once and left when the last group of any fabric stops using it.
+     */
+    #addressUsedElsewhere(address: string, fabricIndex: FabricIndex, groupId: GroupId) {
+        for (const [index, memberships] of this.#activeGroupMemberships) {
+            for (const [id, mappedAddress] of memberships) {
+                if (mappedAddress === address && (index !== fabricIndex || id !== groupId)) {
+                    return true;
+                }
             }
         }
         return false;

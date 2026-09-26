@@ -1310,6 +1310,47 @@ describe("GroupcastServer", () => {
         });
     });
 
+    describe("multicast membership across fabrics", () => {
+        it("keeps a shared IANA address joined while another fabric still uses it", async () => {
+            const environment = new Environment("test");
+            await using node = await MockServerNode.createOnline(IanaOnlyRootEndpoint, {
+                id: "groupcast-cross-fabric-iana",
+                device: undefined,
+                environment,
+            });
+            const network = node.env.get(Network) as MockNetwork;
+
+            const join = async (fabricIndex: FabricIndex) =>
+                node.online({ exchange: fabricExchange(fabricIndex, AccessLevel.Administer), command: true }, agent =>
+                    agent.get(GroupcastServer).joinGroup({
+                        groupId: GroupId(0x0001),
+                        endpoints: [EndpointNumber(1)],
+                        keySetId: 1,
+                        key: TEST_KEY,
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    }),
+                );
+
+            const fabric1 = await node.addFabric();
+            const fabric2 = await node.addFabric();
+            await join(fabric1.fabricIndex);
+            await join(fabric2.fabricIndex);
+            expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+
+            await node.online(
+                { exchange: fabricExchange(fabric2.fabricIndex, AccessLevel.Administer), command: true },
+                agent => agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0x0001) }),
+            );
+            expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+
+            await node.online(
+                { exchange: fabricExchange(fabric1.fabricIndex, AccessLevel.Administer), command: true },
+                agent => agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0x0001) }),
+            );
+            expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(false);
+        });
+    });
+
     describe("groupcastTesting events", () => {
         it("derives multicast destination and source addresses for testing events", async () => {
             await using node = await createGroupcastNode();
