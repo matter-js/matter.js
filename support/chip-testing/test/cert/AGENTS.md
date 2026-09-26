@@ -2976,6 +2976,19 @@ registration on the way to an apply — and writing a status over the top afterw
 provider expecting a transfer the requestor was just told not to start. A scripted `UserConsentNeeded`
 does overlay the real answer, because the step is about the field, not about the answer.
 
+**A scripted `UpdateAvailable` offers an image the provider does not hold.** The harness fills the
+mandatory fields for a conformant offer unless the script names `softwareVersion` or `imageUri`, and a
+node that starts the transfer is refused. TC-SU-2.2 steps 6 and 7 offer the DUT's own version and an
+invalid URI this way. Two consequences for a case whose TH is the controller's provider:
+
+- An image an earlier step staged stays in the catalog, so the provider's own answer offers it again.
+  Every query a step's window can see needs a scripted answer; TC-SU-2.2 scripts the answer each step
+  is about and one more for a conformant retry.
+- That a requestor did *not* start a transfer is read from its own `StateTransition` events
+  (`requestorStateChanges` in `tc-su-support.ts`). Starting one enters `Downloading`, whatever becomes
+  of the transfer after, and a transition whose state cannot be read fails the check rather than
+  passing it.
+
 **The provider is one endpoint serving every node, so everything it holds is keyed by peer.** Its
 record of what it answered and its queue of scripted answers both live in a `Map` keyed on the
 `PeerAddress` the command arrived from, and `OtaExchangeRecording` waits only for its own peer's

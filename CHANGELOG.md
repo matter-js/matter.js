@@ -30,6 +30,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `IcdClient` emits `counterStart$Changed` after a registration, a key refresh or a cleared registration has committed, so a listener can read the new key from state; `keyRefreshed` fires before that
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
 - @matter/testing
+    - Enhancement: `CertNodeApi.scriptOtaProvider()` can have the controller's provider answer `UpdateAvailable` for an image it does not hold, with the `softwareVersion` and `imageUri` the case names, so a case can offer an update a node must refuse
     - Enhancement: `CertNodeApi.serveOtaUpdate()` can wait for the node's `NotifyUpdateApplied` after allowing the apply, via `ServeOtaUpdateOptions.notifyAppliedTimeoutMs`
     - Enhancement: A certification step can have its controller act as a node's ICD Check-In client via `CertNodeApi.icdClient()`: register, end its own subscription so the node sends Check-Ins, and read the Check-Ins and key refreshes it accepted. chip-tool refuses it. Every `CertNodeApi` implementation must provide the new method
     - Enhancement: A certification controller's ICD client can also unregister from a node and ask it to stay active (`CertIcdClientApi.unregister()`, `.stayActive()`); every `CertIcdClientApi` implementation must provide both
