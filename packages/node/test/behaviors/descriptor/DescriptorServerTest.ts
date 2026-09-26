@@ -358,9 +358,10 @@ describe("DescriptorServer", () => {
 
         /**
          * Close one of two children, then add a replacement after {@link delay} microtasks. Returns the settled
-         * parts list, whether the closed child was still a part of {@link parentType} at the moment the
-         * replacement was added, and every value the parent's PartsList was written to in between, so a caller
-         * can assert the timing window it means to exercise instead of just the precondition.
+         * parts list of the parent and of the root, whether the closed child was still a part of
+         * {@link parentType} at the moment the replacement was added, and every value the parent's PartsList was
+         * written to in between, so a caller can assert the timing window it means to exercise instead of just the
+         * precondition.
          */
         async function replaceChild(parentType: typeof OnOffLightDevice | typeof AggregatorEndpoint, delay: number) {
             const node = await MockServerNode.createOnline(undefined, { device: undefined });
@@ -385,9 +386,10 @@ describe("DescriptorServer", () => {
             await closed;
 
             const partsList = await settledPartsListOf(parent);
+            const rootPartsList = await settledPartsListOf(node);
             parent.eventsOf(DescriptorBehavior).partsList$Changed.off(onPartsListChanged);
             await node.close();
-            return { partsList, closedChildStillPresent, partsListWrites };
+            return { partsList, rootPartsList, closedChildStillPresent, partsListWrites };
         }
 
         interface ReplaceChildCase {
@@ -436,7 +438,10 @@ describe("DescriptorServer", () => {
 
         for (const { name, parentType, delay, expectStillPresent, expectedWrites } of cases) {
             it(`updates ${name}`, async () => {
-                const { partsList, closedChildStillPresent, partsListWrites } = await replaceChild(parentType, delay);
+                const { partsList, rootPartsList, closedChildStillPresent, partsListWrites } = await replaceChild(
+                    parentType,
+                    delay,
+                );
 
                 expect(
                     closedChildStillPresent,
@@ -453,6 +458,9 @@ describe("DescriptorServer", () => {
                 }
 
                 expect(partsList, `settled PartsList for "${name}"`).deep.equals([2, 4]);
+
+                // The root's Index-backed PartsList includes the parent and its children (Matter Core § 9.2.3).
+                expect(rootPartsList, `settled root PartsList for "${name}"`).deep.equals([1, 2, 4]);
             });
         }
     });
