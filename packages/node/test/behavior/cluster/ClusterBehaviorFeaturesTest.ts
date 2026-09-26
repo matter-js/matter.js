@@ -159,6 +159,7 @@ describe("cluster behavior feature selection", () => {
                 "autoMode",
                 "cooling",
                 "heating",
+                "matterScheduleConfiguration",
                 "occupancy",
                 "presets",
             ]);

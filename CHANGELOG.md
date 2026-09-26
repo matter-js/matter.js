@@ -123,6 +123,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A feature, attribute, command, event or command field requirement must be parented by a server or client cluster requirement (`ILLEGAL_REQUIREMENT_PARENT`); any parent previously passed. A command field requirement is now also checked against its cluster's commands
 
 - @matter/node
+    - Feature: The default `ThermostatServer` implementation supports the `MatterScheduleConfiguration` (MSCH) feature — the `Schedules`/`ActiveScheduleHandle` attributes with atomic-write handling, and the `SetActiveScheduleRequest` command — mirroring the existing `Presets` implementation
     - Documentation: `ClientNode`, `Peers.get` and `ClientNodeStores.allocateId` say how long a `PeerAddress` names the same device, and `ControllerBehavior.allocatePeerAddress` states when an address of a removed peer can be issued to another one
     - Breaking: A device type requirement that states an exact value emits that value as both bounds. `MinLevel` accepted 2 and `MaxLevel` accepted 255 on eight device types, where the specification mandates exactly 1 and exactly 254
     - Enhancement: (@RaHehl) `ClientNode.openEnhancedCommissioningWindow` (and `CommissioningClient`) also returns the passcode, long discriminator, vendor and product ID it encodes into the pairing codes, and the commissioning timeout sent to the device
