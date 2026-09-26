@@ -304,7 +304,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
               )
             : // No-groupcast variant (all-clusters-no-groupcast app): drop Groupcast + the Auxiliary ACL
               // it needs, so is_groupcast_on_root_node() is false and the DUT exercises the legacy Groups path.
-              ServerNode.RootEndpoint.with(
+              ServerNode.RootEndpointWithoutGroupcast.with(
                   AccessControlServer.with("Extension"),
                   AdministratorCommissioningServer.with("Basic"),
                   TestGeneralDiagnosticsServer.enable({

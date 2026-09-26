@@ -970,9 +970,10 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
             const session = exchange.session;
             const fabric = session.associatedFabric;
-            // Inbound group sessions have no channel, so source/destination come from the session itself
+            // Inbound group sessions have no channel, so the source comes from the session itself.  The destination
+            // is left to the listener, which derives it from the message's group id: one session serves every group
+            // that shares its key set
             const groupSession = GroupSession.is(session) ? session : undefined;
-            const destIp = groupSession?.multicastAddress;
             const sourceIp = groupSession?.receivedFrom;
             // The event's ClusterID/ElementID reflect the request; cmd-response paths carry the response command id
             const requestPath = invokeRequests[0]?.commandPath;
@@ -989,7 +990,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         fabric,
                         groupId,
                         sourceIp,
-                        destIp,
                         endpointId: data.path.endpointId,
                         clusterId: requestPath?.clusterId ?? data.path.clusterId,
                         elementId: requestPath?.commandId ?? data.path.commandId,
@@ -1007,7 +1007,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                         result: Groupcast.GroupcastTestResult.FailedAuth,
                         fabric,
                         sourceIp,
-                        destIp,
                     });
                 } else {
                     // Wildcard expansion produced no dispatches.  Still emit one event per requested invoke path so
@@ -1024,7 +1023,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                             fabric,
                             groupId,
                             sourceIp,
-                            destIp,
                             endpointId: commandPath.endpointId,
                             clusterId: commandPath.clusterId,
                             elementId: commandPath.commandId,

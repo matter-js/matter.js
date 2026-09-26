@@ -41,9 +41,16 @@ export class GroupSessionNoKeyError extends MatterFlowError {
      */
     readonly groupId?: GroupId;
 
-    constructor(message = "No key candidate found for group session decryption", groupId?: GroupId) {
+    /** The fabric of the key set that authenticated the message, set together with {@link groupId} */
+    readonly fabric?: Fabric;
+
+    constructor(
+        message = "No key candidate found for group session decryption",
+        authenticated?: { groupId: GroupId; fabric: Fabric },
+    ) {
         super(message);
-        this.groupId = groupId;
+        this.groupId = authenticated?.groupId;
+        this.fabric = authenticated?.fabric;
     }
 }
 
@@ -379,12 +386,12 @@ export class GroupSession extends SecureSession {
             }
         };
 
-        /** Group id of the message when an unusable key set authenticates it, for Groupcast testing reporting. */
-        const unmappedGroupId = () => {
+        /** Group id and fabric of the message when an unusable key set authenticates it, for Groupcast testing. */
+        const unmappedAuthentication = () => {
             for (const candidate of unmappedKeys) {
                 const decrypted = tryDecrypt(candidate);
                 if (decrypted?.packetHeader.destGroupId !== undefined) {
-                    return GroupId(decrypted.packetHeader.destGroupId);
+                    return { groupId: GroupId(decrypted.packetHeader.destGroupId), fabric: candidate.fabric };
                 }
             }
         };
@@ -392,7 +399,7 @@ export class GroupSession extends SecureSession {
         // Matching the CHIP SDK, only mapped key sets count as available: without any, the result is "no key found",
         // even if an unmapped key set could authenticate the message
         if (mappedKeys.length === 0) {
-            throw new GroupSessionNoKeyError(undefined, unmappedGroupId());
+            throw new GroupSessionNoKeyError(undefined, unmappedAuthentication());
         }
 
         let message: DecodedMessage | undefined;

@@ -318,7 +318,6 @@ export class ExchangeManager implements Transport.Provider {
                             ? GroupId(message.packetHeader.destGroupId)
                             : undefined,
                     sourceIp,
-                    destIp: groupSession.multicastAddress,
                 });
             }
         } else {

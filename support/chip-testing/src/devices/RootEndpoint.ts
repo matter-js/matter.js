@@ -93,7 +93,7 @@ export async function buildRootNode(opts: RootNodeOptions): Promise<ServerNode> 
               GroupcastServer.with("Listener", "Sender", "PerGroup"),
               ...commonBehaviors,
           )
-        : ServerNode.RootEndpoint.with(...commonBehaviors);
+        : ServerNode.RootEndpointWithoutGroupcast.with(AccessControlServer.with("Extension"), ...commonBehaviors);
 
     return ServerNode.create(rootEndpoint, {
         id: opts.id,

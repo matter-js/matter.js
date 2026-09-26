@@ -27,6 +27,7 @@ const INTENTIONALLY_ENABLED: Record<string, string[]> = {
     AccessControlServer: ["extension"],
     BooleanStateServer: ["changeEvent"],
     GeneralDiagnosticsServer: ["dataModelTest"],
+    GroupcastServer: ["listener", "sender", "perGroup"],
     GroupsServer: ["groupNames"],
     IcdManagementServer: ["checkInProtocolSupport"],
     ScenesManagementServer: ["sceneNames"],

@@ -72,7 +72,12 @@ const groupPropertiesStructFS = DatatypeElement(
     FieldElement({ name: "HasAuxiliaryAcl", id: 0x2, type: "bool", access: "F", conformance: "M" }),
     FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
 );
-const schema = GroupcastBehavior.schema.extend(
+// All features are on by default.  Listener and Sender meet the Root Node GroupcastListenerCond/GroupcastSenderCond
+// of Matter 1.6.1, and PerGroup keeps groups created through the Groups cluster on their per-group address as the
+// migration to Groupcast requires.  Select fewer with GroupcastServer.with(...)
+const GroupcastBase = GroupcastBehavior.with("Listener", "Sender", "PerGroup");
+
+const schema = GroupcastBase.schema.extend(
     {},
     groupPropertiesStructFS,
     FieldElement(
@@ -100,7 +105,7 @@ const schema = GroupcastBehavior.schema.extend(
  * - Registers an {@link AccessControlServer.AuxAclObservable} to supply synthetic ACL entries for groups
  *   with `hasAuxiliaryAcl=true`. AccessControlServer calls back to collect entries when needed.
  */
-export class GroupcastServer extends GroupcastBehavior {
+export class GroupcastServer extends GroupcastBase {
     declare internal: GroupcastServer.Internal;
     declare readonly state: GroupcastServer.State;
     static override readonly schema = schema;
@@ -215,8 +220,6 @@ export class GroupcastServer extends GroupcastBehavior {
             );
         }
 
-        await this.#applyKeySet(fabricIndex, keySetId, key);
-
         const membership = this.state.membership;
         const isNew = !membership.some(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
 
@@ -243,6 +246,10 @@ export class GroupcastServer extends GroupcastBehavior {
                 }
             }
         }
+
+        // Installs key material in the fabric's operational key store, which a failed transaction does not roll back,
+        // so the capacity checks run first
+        await this.#applyKeySet(fabricIndex, keySetId, key);
 
         const gkm = this.agent.get(GroupKeyManagementServer);
         const fabric = this.env.get(FabricManager).for(fabricIndex);
@@ -391,7 +398,7 @@ export class GroupcastServer extends GroupcastBehavior {
         this.#deriveMembership();
     }
 
-    configureAuxiliaryAcl(request: Groupcast.ConfigureAuxiliaryAclRequest) {
+    override configureAuxiliaryAcl(request: Groupcast.ConfigureAuxiliaryAclRequest) {
         assertRemoteActor(this.context);
         const fabricIndex = this.context.session.associatedFabric.fabricIndex;
         const { groupId, useAuxiliaryAcl } = request;
@@ -474,8 +481,9 @@ export class GroupcastServer extends GroupcastBehavior {
             return;
         }
 
-        // Authenticated messages report only for the fabric under test.  Decode failures are unauthenticated
-        // (no fabric) and are reported on the fabric under test per the GroupcastTesting spec.
+        // Messages that name a fabric (authenticated, or authenticated by an unmapped key set) report only for the
+        // fabric under test.  Other decode failures are unauthenticated and are reported on the fabric under test per
+        // the GroupcastTesting spec.
         if (info.fabric !== undefined && info.fabric.fabricIndex !== fabricUnderTest) {
             return;
         }
@@ -484,9 +492,9 @@ export class GroupcastServer extends GroupcastBehavior {
         // message was received on from the group id (the header group id for unauthenticated failures).  An unknown
         // group's datagram can only have arrived via the shared IANA address, since per-group addresses are joined
         // per known group.
-        let destIp = info.destIp;
+        let destIp: string | undefined;
         const groupIdForAddress = info.groupId ?? info.headerGroupId;
-        if (destIp === undefined && groupIdForAddress !== undefined) {
+        if (groupIdForAddress !== undefined) {
             const known = this.state.membership.some(
                 m => m.fabricIndex === fabricUnderTest && m.groupId === groupIdForAddress,
             );
@@ -938,7 +946,7 @@ export namespace GroupcastServer {
     };
 
     /** Default state overrides for GroupcastServer. */
-    export class State extends GroupcastBehavior.State {
+    export class State extends GroupcastBase.State {
         /**
          * Implementation-defined maximum membership count (min 10 per spec).
          * Set to 2 * GKM.maxGroupsPerFabric (44) so per-fabric quota floor(44/2)=22 aligns exactly

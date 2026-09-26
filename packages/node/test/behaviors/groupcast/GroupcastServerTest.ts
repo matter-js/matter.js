@@ -485,13 +485,8 @@ describe("GroupcastServer", () => {
                 }),
             );
 
-            // configureAuxiliaryAcl is a Listener feature command — cast to access it
             await node.online({ exchange, command: true }, agent =>
-                (
-                    agent.get(GroupcastServer) as unknown as {
-                        configureAuxiliaryAcl: (r: Groupcast.ConfigureAuxiliaryAclRequest) => void;
-                    }
-                ).configureAuxiliaryAcl({ groupId: GroupId(0x0001), useAuxiliaryAcl: true }),
+                agent.get(GroupcastServer).configureAuxiliaryAcl({ groupId: GroupId(0x0001), useAuxiliaryAcl: true }),
             );
 
             const membership = node.stateOf(GroupcastServer).membership;
@@ -532,13 +527,8 @@ describe("GroupcastServer", () => {
             await MockTime.yield3();
             expect(node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0400)).equal(undefined);
 
-            // configureAuxiliaryAcl is a Listener feature command — cast to access it
             await node.online({ exchange, command: true }, agent =>
-                (
-                    agent.get(GroupcastServer) as unknown as {
-                        configureAuxiliaryAcl: (r: Groupcast.ConfigureAuxiliaryAclRequest) => void;
-                    }
-                ).configureAuxiliaryAcl({ groupId: GroupId(0x0400), useAuxiliaryAcl: true }),
+                agent.get(GroupcastServer).configureAuxiliaryAcl({ groupId: GroupId(0x0400), useAuxiliaryAcl: true }),
             );
 
             // The newly created groupProperties entry must match the PerGroup-capable derive default, not IanaAddr
@@ -551,6 +541,7 @@ describe("GroupcastServer", () => {
 
         it("rejects the Listener feature when AccessControl lacks the Auxiliary feature", async () => {
             const endpointType = MockServerNode.RootEndpoint.with(
+                AccessControlServer.with("Extension"),
                 GroupcastServer.with("Listener", "Sender", "PerGroup"),
                 GroupKeyManagementServer,
             );
@@ -1133,6 +1124,57 @@ describe("GroupcastServer", () => {
             ).rejectedWith("Per-fabric membership limit reached");
         });
 
+        it("installs no key when the membership limit rejects the join", async () => {
+            await using node = await createGroupcastNode();
+            const f1 = await node.addFabric();
+            await node.addFabric();
+
+            const fi1 = f1.fabricIndex;
+            const exchange = fabricExchange(fi1);
+            const quota = Math.floor(node.stateOf(GroupcastServer).maxMembershipCount / 2);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(1),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            for (let i = 2; i <= quota; i++) {
+                await node.online({ exchange, command: true }, agent =>
+                    agent.get(GroupcastServer).joinGroup({
+                        groupId: GroupId(i),
+                        endpoints: [EndpointNumber(1)],
+                        keySetId: 1,
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    }),
+                );
+            }
+
+            await expect(
+                Promise.resolve().then(() =>
+                    node.online({ exchange, command: true }, agent =>
+                        agent.get(GroupcastServer).joinGroup({
+                            groupId: GroupId(quota + 1),
+                            endpoints: [EndpointNumber(1)],
+                            keySetId: 7,
+                            key: TEST_KEY,
+                            mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                        }),
+                    ),
+                ),
+            ).rejectedWith("Per-fabric membership limit reached");
+
+            expect(
+                node
+                    .stateOf(GroupKeyManagementServer)
+                    .groupKeySets.some(({ fabricIndex, groupKeySetId }) => fabricIndex === fi1 && groupKeySetId === 7),
+            ).equal(false);
+            expect(node.env.get(FabricManager).for(fi1).groups.keySets.forId(7)).undefined;
+        });
+
         it("two fabrics each fill to quota using full M_max (even alignment, no spillover)", async () => {
             await using node = await createGroupcastNode();
             const f1 = await node.addFabric();
@@ -1369,11 +1411,7 @@ describe("GroupcastServer", () => {
             );
 
             await node.online({ exchange, command: true }, agent =>
-                (
-                    agent.get(GroupcastServer) as unknown as {
-                        groupcastTesting: (r: Groupcast.GroupcastTestingRequest) => void;
-                    }
-                ).groupcastTesting({
+                agent.get(GroupcastServer).groupcastTesting({
                     testOperation: Groupcast.GroupcastTesting.EnableListenerTesting,
                     durationSeconds: 60,
                 }),

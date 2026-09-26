@@ -11,8 +11,11 @@ import { MessageCounter } from "#protocol/MessageCounter.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { GroupSession, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
+import { GroupMessageEventInfo, SessionManager } from "#session/SessionManager.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 
 const TEST_ROOT_PUBLIC_KEY = Bytes.fromHex(
     "044a9f42b1ca4840d37292bbc7f6a7e11e22200c976fc900dbc98a7a383a641cb8254a2e56d4e295a847943b4e3897c4a773e930277b4d9fbede8a052686bfacfa",
@@ -238,6 +241,7 @@ describe("SecureSession", () => {
             expect(noKeyError).instanceOf(GroupSessionNoKeyError);
             if (noKeyError instanceof GroupSessionNoKeyError) {
                 expect(noKeyError.groupId).equals(groupId);
+                expect(noKeyError.fabric).equals(fabric);
             }
         });
 
@@ -303,7 +307,26 @@ describe("SecureSession", () => {
             expect(noKeyError).instanceOf(GroupSessionNoKeyError);
             if (noKeyError instanceof GroupSessionNoKeyError) {
                 expect(noKeyError.groupId).equals(groupId);
+                expect(noKeyError.fabric).equals(fabric);
             }
+
+            // The testing event names the fabric that authenticated the message, so only that fabric reports it
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const sessions = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: fabricManager,
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessions.construction.ready;
+            const emitted = new Array<GroupMessageEventInfo>();
+            sessions.onGroupMessage.on(info => {
+                emitted.push(info);
+            });
+            expect(() => sessions.groupSessionFromPacket(decodedPacket, aad)).throws(GroupSessionNoKeyError);
+            expect(emitted.length).equals(1);
+            expect(emitted[0].result).equals(Groupcast.GroupcastTestResult.NoAvailableKey);
+            expect(emitted[0].fabric).equals(fabric);
         });
         it("names where it sends, address and port together", async () => {
             const { fabric } = await groupFabric();
