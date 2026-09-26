@@ -21,10 +21,10 @@ export const Channel = Cluster(
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "CL", constraint: "0", title: "ChannelList" }),
-        Field({ name: "LI", constraint: "1", title: "LineupInfo" }),
-        Field({ name: "EG", constraint: "2", title: "ElectronicGuide" }),
-        Field({ name: "RP", constraint: "3", title: "RecordProgram" })
+        Field({ name: "CL", conformance: "O", constraint: "0", title: "ChannelList" }),
+        Field({ name: "LI", conformance: "O", constraint: "1", title: "LineupInfo" }),
+        Field({ name: "EG", conformance: "O", constraint: "2", title: "ElectronicGuide" }),
+        Field({ name: "RP", conformance: "O", constraint: "3", title: "RecordProgram" })
     ),
 
     Attribute(

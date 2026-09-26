@@ -116,7 +116,7 @@ export namespace ExtendedColorLightRequirements {
 export const ExtendedColorLightDeviceDefinition = MutableEndpoint({
     name: "ExtendedColorLight",
     deviceType: 0x10d,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: ExtendedColorLightRequirements,
 
     behaviors: SupportedBehaviors(

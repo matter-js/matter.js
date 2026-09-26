@@ -13,6 +13,9 @@ LocalMatter.children.push({
     tag: "cluster",
     name: "AdministratorCommissioning",
 
+    // Spec added the PakePasscodeVerifier length constraint in 1.4.2, so this override only applies to earlier revisions
+    until: "1.4.2",
+
     children: [
         // Constrain length of OpenCommissioningWindow.PakePasscodeVerifier using formula defined in specification
         {

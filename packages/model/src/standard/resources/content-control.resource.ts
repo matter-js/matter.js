@@ -27,26 +27,26 @@ Resource.add({
             tag: "attribute", name: "FeatureMap", xref: "cluster§6.13.4",
 
             children: [
-                { tag: "field", name: "ST", details: "Supports managing screen time limits." },
+                { tag: "field", name: "ST", details: "Supports managing screen time limits" },
                 {
                     tag: "field", name: "PM",
-                    details: "Supports managing a PIN code which is used for restricting access to configuration of this feature."
+                    details: "Supports managing a PIN code which is used for restricting access to configuration of this feature"
                 },
-                { tag: "field", name: "BU", details: "Supports managing content controls for unrated content." },
+                { tag: "field", name: "BU", details: "Supports managing content controls for unrated content" },
                 {
                     tag: "field", name: "OCR",
-                    details: "Supports managing content controls based upon rating threshold for on demand content."
+                    details: "Supports managing content controls based upon rating threshold for on demand content"
                 },
                 {
                     tag: "field", name: "SCR",
-                    details: "Supports managing content controls based upon rating threshold for scheduled content."
+                    details: "Supports managing content controls based upon rating threshold for scheduled content"
                 },
-                { tag: "field", name: "BC", details: "Supports managing a set of channels that are prohibited." },
-                { tag: "field", name: "BA", details: "Supports managing a set of applications that are prohibited." },
+                { tag: "field", name: "BC", details: "Supports managing a set of channels that are prohibited" },
+                { tag: "field", name: "BA", details: "Supports managing a set of applications that are prohibited" },
                 {
                     tag: "field", name: "BTW",
                     details: "Supports managing content controls based upon setting time window in which all contents and " +
-                        "applications SHALL be blocked."
+                        "applications SHALL be blocked"
                 }
             ]
         },
@@ -605,37 +605,37 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "InvalidPinCode",
-                    description: "Provided PIN Code does not match the current PIN code."
+                    description: "Provided PIN Code does not match the current PIN code"
                 },
                 {
                     tag: "field", name: "InvalidRating",
-                    description: "Provided Rating is out of scope of the corresponding Rating list."
+                    description: "Provided Rating is out of scope of the corresponding Rating list"
                 },
-                { tag: "field", name: "InvalidChannel", description: "Provided Channel(s) is invalid." },
-                { tag: "field", name: "ChannelAlreadyExist", description: "Provided Channel(s) already exists." },
+                { tag: "field", name: "InvalidChannel", description: "Provided Channel(s) is invalid" },
+                { tag: "field", name: "ChannelAlreadyExist", description: "Provided Channel(s) already exists" },
                 {
                     tag: "field", name: "ChannelNotExist",
-                    description: "Provided Channel(s) doesn't exist in BlockChannelList attribute."
+                    description: "Provided Channel(s) doesn't exist in BlockChannelList attribute"
                 },
                 {
                     tag: "field", name: "UnidentifiableApplication",
-                    description: "Provided Application(s) is not identified."
+                    description: "Provided Application(s) is not identified"
                 },
                 {
                     tag: "field", name: "ApplicationAlreadyExist",
-                    description: "Provided Application(s) already exists."
+                    description: "Provided Application(s) already exists"
                 },
                 {
                     tag: "field", name: "ApplicationNotExist",
-                    description: "Provided Application(s) doesn't exist in BlockApplicationList attribute."
+                    description: "Provided Application(s) doesn't exist in BlockApplicationList attribute"
                 },
                 {
                     tag: "field", name: "TimeWindowAlreadyExist",
-                    description: "Provided time Window already exists in BlockContentTimeWindow attribute."
+                    description: "Provided time Window already exists in BlockContentTimeWindow attribute"
                 },
                 {
                     tag: "field", name: "TimeWindowNotExist",
-                    description: "Provided time window doesn't exist in BlockContentTimeWindow attribute."
+                    description: "Provided time window doesn't exist in BlockContentTimeWindow attribute"
                 }
             ]
         }

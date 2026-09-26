@@ -140,7 +140,7 @@ export declare namespace TimeFormatLocalization {
         /**
          * CalendarFormat (CALFMT)
          *
-         * The Node can be configured to use different calendar formats when conveying values to a user.
+         * The Node can be configured to use different calendar formats when conveying values to a user
          */
         CalendarFormat = "CalendarFormat"
     }

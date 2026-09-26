@@ -19,7 +19,7 @@ export const JointFabricAdministrator = Cluster(
     { name: "JointFabricAdministrator", id: 0x753, classification: "node" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute({
-        name: "AdministratorFabricIndex", id: 0x0, type: "fabric-idx", access: "A", conformance: "M",
+        name: "AdministratorFabricIndex", id: 0x0, type: "fabric-idx", access: "R A", conformance: "M",
         constraint: "1 to 254", quality: "X"
     }),
     Command({
@@ -57,7 +57,7 @@ export const JointFabricAdministrator = Cluster(
         response: "TransferAnchorResponse"
     }),
     Command(
-        { name: "TransferAnchorResponse", id: 0x6, access: "A", conformance: "M", direction: "response" },
+        { name: "TransferAnchorResponse", id: 0x6, conformance: "M", direction: "response" },
         Field({ name: "StatusCode", id: 0x0, type: "TransferAnchorResponseStatusEnum", conformance: "M" })
     ),
     Command({

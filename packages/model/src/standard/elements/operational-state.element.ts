@@ -73,8 +73,8 @@ export const OperationalState = Cluster(
 
     Command(
         {
-            name: "OperationalCommandResponse", id: 0x4, access: "O",
-            conformance: "Pause | Stop | Start | Resume", direction: "response"
+            name: "OperationalCommandResponse", id: 0x4, conformance: "Pause | Stop | Start | Resume",
+            direction: "response"
         },
         Field({ name: "CommandResponseState", id: 0x0, type: "ErrorStateStruct", conformance: "M" })
     ),

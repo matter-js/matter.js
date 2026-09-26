@@ -101,7 +101,7 @@ Resource.add({
                 "attribute to be set to TRUE, such as a standard On command, a MoveToLevel(WithOnOff) command, a " +
                 "RecallScene command or a OnWithRecallGlobalScene command." +
                 "\n" +
-                "This attribute is set to FALSE after reception of a OffWithEffect command."
+                "This attribute is set to FALSE after reception of an OffWithEffect command."
         },
 
         {
@@ -111,8 +111,8 @@ Resource.add({
                 "maintained before automatically transitioning to the Off state when using the OnWithTimedOff " +
                 "command." +
                 "\n" +
-                "This attribute can be written at any time, but writing a value only has effect when in the Timed On " +
-                "state." +
+                "This attribute can be written at any time, but writing a value only has an effect when in the Timed " +
+                "On state." +
                 "\n" +
                 "While in the Timed On state, this attribute shall be decremented every 1/10^th second until it " +
                 "reaches 0. See OnWithTimedOff for more details."

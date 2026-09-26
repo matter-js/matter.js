@@ -14,10 +14,11 @@ Resource.add({
         "On/Off Light, is capable of being used to switch the device on or off.",
 
     children: [
-        { tag: "requirement", name: "Identify", discriminator: "M:serverCluster", xref: "device§6.1.4" },
-        { tag: "requirement", name: "Identify", discriminator: "M:clientCluster", xref: "device§6.1.4" },
-        { tag: "requirement", name: "Groups", xref: "device§6.1.4" },
-        { tag: "requirement", name: "OnOff", xref: "device§6.1.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§6.1.4" }
+        { tag: "requirement", name: "GroupcastSenderCond", xref: "device§6.1.4" },
+        { tag: "requirement", name: "Identify", discriminator: "M:serverCluster", xref: "device§6.1.5" },
+        { tag: "requirement", name: "Identify", discriminator: "M:clientCluster", xref: "device§6.1.5" },
+        { tag: "requirement", name: "Groups", xref: "device§6.1.5" },
+        { tag: "requirement", name: "OnOff", xref: "device§6.1.5" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§6.1.5" }
     ]
 });

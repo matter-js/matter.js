@@ -29,7 +29,7 @@ export enum Priority {
 
     /**
      * Information or notification that impacts safety, a critical function, or ongoing reliable operation of the node
-     * or application supported on an endpoint.
+     * or application supported on an endpoint
      */
     Critical = 2
 }

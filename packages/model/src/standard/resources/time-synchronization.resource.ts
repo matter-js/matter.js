@@ -102,7 +102,7 @@ Resource.add({
                 "server." +
                 "\n" +
                 "If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, " +
-                "in text format, as specified in RFC 5952. The address format shall follow the recommendations in " +
+                "in text format, as specified in RFC5952. The address format shall follow the recommendations in " +
                 "Section 4 and shall NOT contain a port number."
         },
 
@@ -182,7 +182,7 @@ Resource.add({
 
         {
             tag: "attribute", name: "NtpServerAvailable", xref: "core§11.17.8.10",
-            details: "Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be " +
+            details: "Indicates if the node is running an RFC5905 NTPv4 compliant server on port 123, this value shall be " +
                 "True." +
                 "\n" +
                 "If the node is not currently running an NTP server, this value shall be False."

@@ -103,7 +103,7 @@ export namespace DimmableLightRequirements {
 export const DimmableLightDeviceDefinition = MutableEndpoint({
     name: "DimmableLight",
     deviceType: 0x101,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: DimmableLightRequirements,
 
     behaviors: SupportedBehaviors(

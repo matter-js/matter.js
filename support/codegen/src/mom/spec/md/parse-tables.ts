@@ -11,11 +11,13 @@ import { stripMarkdown } from "./md-utils.js";
 /**
  * Split a pipe table line into cell values, trimming whitespace.
  * `| a | b | c |` → `["a", "b", "c"]`
+ *
+ * `\|` is a literal pipe inside a cell (GFM tables), so it neither splits the row nor keeps its backslash.
  */
 function splitPipeLine(line: string): string[] {
-    const parts = line.split("|");
+    const parts = line.split(/(?<!\\)\|/);
     // Drop first and last empty elements from the split
-    return parts.slice(1, -1).map(s => s.trim());
+    return parts.slice(1, -1).map(s => s.replace(/\\\|/g, "|").trim());
 }
 
 /**

@@ -102,8 +102,10 @@ export declare namespace ColorControl {
         /**
          * Indicates which attributes are currently determining the color of the device.
          *
-         * To provide compatibility with clients not supporting EHUE, the original ColorMode attribute shall indicate
-         * CurrentHue and CurrentSaturation when the light uses the EnhancedCurrentHue attribute. If the ColorMode
+         * To provide compatibility with clients not supporting EHUE, the ColorMode attribute shall indicate
+         * CurrentHueAndCurrentSaturation when the EnhancedCurrentHue attribute indicates
+         * EnhancedCurrentHueAndCurrentSaturation. For other values of the EnhancedCurrentHue attribute, the value of
+         * the ColorMode attribute shall be the same as the value of the EnhancedCurrentHue attribute. If the ColorMode
          * attribute is changed, its new value shall be copied to the EnhancedColorMode attribute.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.13
@@ -631,8 +633,10 @@ export declare namespace ColorControl {
         /**
          * Indicates which attributes are currently determining the color of the device.
          *
-         * To provide compatibility with clients not supporting EHUE, the original ColorMode attribute shall indicate
-         * CurrentHue and CurrentSaturation when the light uses the EnhancedCurrentHue attribute. If the ColorMode
+         * To provide compatibility with clients not supporting EHUE, the ColorMode attribute shall indicate
+         * CurrentHueAndCurrentSaturation when the EnhancedCurrentHue attribute indicates
+         * EnhancedCurrentHueAndCurrentSaturation. For other values of the EnhancedCurrentHue attribute, the value of
+         * the ColorMode attribute shall be the same as the value of the EnhancedCurrentHue attribute. If the ColorMode
          * attribute is changed, its new value shall be copied to the EnhancedColorMode attribute.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.13
@@ -1872,7 +1876,7 @@ export declare namespace ColorControl {
         constructor(values?: Partial<EnhancedMoveToHueRequest>);
 
         /**
-         * This field shall indicate the target extended hue for the light.
+         * This field shall indicate the target enhanced hue for the light.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.15.1
          */
@@ -1912,7 +1916,7 @@ export declare namespace ColorControl {
         moveMode: MoveMode;
 
         /**
-         * This field shall indicate the rate of movement in steps per second. A step is a change in the extended hue of
+         * This field shall indicate the rate of movement in steps per second. A step is a change in the enhanced hue of
          * a device by one unit.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.16.2
@@ -1973,7 +1977,7 @@ export declare namespace ColorControl {
         constructor(values?: Partial<EnhancedMoveToHueAndSaturationRequest>);
 
         /**
-         * This field shall indicate the target extended hue for the light.
+         * This field shall indicate the target enhanced hue for the light.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.18.1
          */

@@ -267,7 +267,7 @@ export declare namespace AdministratorCommissioning {
         /**
          * Basic (BC)
          *
-         * Node supports Basic Commissioning Method.
+         * Node supports Basic Commissioning Method
          */
         Basic = "Basic"
     }

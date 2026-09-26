@@ -9,10 +9,13 @@ import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { MessageCounter } from "#protocol/MessageCounter.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
-import { GroupSession } from "#session/GroupSession.js";
+import { GroupSession, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import { NodeSession } from "#session/NodeSession.js";
+import { GroupMessageEventInfo, SessionManager } from "#session/SessionManager.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import { b$, Bytes, Key, MemoryStorageDriver, PrivateKey, StandardCrypto, StorageContext } from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 
 const TEST_ROOT_PUBLIC_KEY = Bytes.fromHex(
     "044a9f42b1ca4840d37292bbc7f6a7e11e22200c976fc900dbc98a7a383a641cb8254a2e56d4e295a847943b4e3897c4a773e930277b4d9fbede8a052686bfacfa",
@@ -168,6 +171,9 @@ describe("SecureSession", () => {
                 groupKeyMulticastPolicy: 0,
             });
 
+            // Decryption only considers keys of mapped key sets
+            fabric.groups.groupKeyIdMap = new Map([[GroupId(2), 1]]);
+
             return { fabric, fabricManager };
         }
 
@@ -222,6 +228,105 @@ describe("SecureSession", () => {
             expect(result.sourceNodeId).equals(fabric.nodeId);
             expect(result.message.packetHeader.destGroupId).equals(groupId);
             expect(result.message.packetHeader.messageId).equals(0x12345679);
+
+            // A key set without a GroupKeyMap link is not usable for decryption, but since the message
+            // authenticated, the group id is reported for Groupcast testing
+            fabric.groups.groupKeyIdMap = new Map();
+            let noKeyError: unknown;
+            try {
+                GroupSession.decode(fabricManager, decodedPacket, aad);
+            } catch (error) {
+                noKeyError = error;
+            }
+            expect(noKeyError).instanceOf(GroupSessionNoKeyError);
+            if (noKeyError instanceof GroupSessionNoKeyError) {
+                expect(noKeyError.groupId).equals(groupId);
+                expect(noKeyError.fabric).equals(fabric);
+            }
+        });
+
+        it("round-trips a group message without privacy and reports the unmapped group id", async () => {
+            const { fabric, fabricManager } = await groupFabric();
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const groupId = 2;
+            const session = new GroupSession({
+                id: current.sessionId!,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId(0xffffffffffff0000n | BigInt(groupId)),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(groupId)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+
+            const message: Message = {
+                packetHeader: {
+                    sessionId: current.sessionId!,
+                    sessionType: SessionType.Group,
+                    messageId: 0x1234567a,
+                    destGroupId: groupId,
+                    sourceNodeId: fabric.nodeId,
+                    hasPrivacyEnhancements: false,
+                    isControlMessage: false,
+                    hasMessageExtensions: false,
+                },
+                payloadHeader: {
+                    isInitiatorMessage: true,
+                    requiresAck: false,
+                    messageType: 0x05,
+                    exchangeId: 0x1234,
+                    protocolId: 0x0001,
+                    ackedMessageId: undefined,
+                    hasSecuredExtension: false,
+                },
+                payload: b$`00112233`,
+            };
+
+            const packet = session.encode(message);
+            const wire = MessageCodec.encodePacket(packet);
+
+            // No privacy flag on the wire
+            expect(Bytes.of(wire)[3] & 0x80).equals(0);
+
+            const decodedPacket = MessageCodec.decodePacket(wire);
+            const aad = Bytes.of(wire).slice(0, wire.byteLength - decodedPacket.applicationPayload.byteLength);
+            const result = GroupSession.decode(fabricManager, decodedPacket, aad);
+
+            expect(Bytes.toHex(result.message.payload)).equals("00112233");
+            expect(result.message.packetHeader.destGroupId).equals(groupId);
+
+            // Unmapped key set reports the group id from the plain header as well
+            fabric.groups.groupKeyIdMap = new Map();
+            let noKeyError: unknown;
+            try {
+                GroupSession.decode(fabricManager, decodedPacket, aad);
+            } catch (error) {
+                noKeyError = error;
+            }
+            expect(noKeyError).instanceOf(GroupSessionNoKeyError);
+            if (noKeyError instanceof GroupSessionNoKeyError) {
+                expect(noKeyError.groupId).equals(groupId);
+                expect(noKeyError.fabric).equals(fabric);
+            }
+
+            // The testing event names the fabric that authenticated the message, so only that fabric reports it
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const sessions = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: fabricManager,
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessions.construction.ready;
+            const emitted = new Array<GroupMessageEventInfo>();
+            sessions.onGroupMessage.on(info => {
+                emitted.push(info);
+            });
+            expect(() => sessions.groupSessionFromPacket(decodedPacket, aad)).throws(GroupSessionNoKeyError);
+            expect(emitted.length).equals(1);
+            expect(emitted[0].result).equals(Groupcast.GroupcastTestResult.NoAvailableKey);
+            expect(emitted[0].fabric).equals(fabric);
         });
         it("names where it sends, address and port together", async () => {
             const { fabric } = await groupFabric();
@@ -264,6 +369,23 @@ describe("SecureSession", () => {
             ).equals(false);
             expect(session.matches(FabricIndex(99), current.sessionId!, Bytes.of(current.key))).equals(false);
             expect(session.matches(fabric.fabricIndex, current.sessionId! ^ 0x1, Bytes.of(current.key))).equals(false);
+        });
+
+        it("always sends group messages with the privacy flag set", async () => {
+            const { fabric } = await groupFabric();
+            const current = fabric.groups.keySets.currentKeyForId(1);
+            const session = new GroupSession({
+                id: current.sessionId!,
+                fabric,
+                keySetId: 1,
+                operationalGroupKey: current.key,
+                operationalPrivacyKey: current.privacyKey,
+                peerNodeId: NodeId(0xffffffffffff0002n),
+                multicastAddress: fabric.groups.multicastAddressFor(GroupId(2)),
+                messageCounter: new MessageCounter(fabric.crypto),
+            });
+
+            expect(session.usePrivacy).equals(true);
         });
     });
 });

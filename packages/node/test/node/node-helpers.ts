@@ -489,3 +489,30 @@ export async function subscribedPeer(controller: ServerNode, id: string) {
 
     return peer!;
 }
+
+/**
+ * The messages of the error a promise rejects with and of all of its causes, including aggregated ones.  Endpoint
+ * construction reports behavior failures as an aggregate.
+ */
+export async function causeMessagesOf(promise: Promise<unknown>) {
+    const messages = new Array<string>();
+    try {
+        await promise;
+    } catch (error) {
+        const pending: unknown[] = [error];
+        while (pending.length) {
+            const next = pending.shift();
+            if (!(next instanceof Error)) {
+                continue;
+            }
+            messages.push(next.message);
+            if (next.cause !== undefined) {
+                pending.push(next.cause);
+            }
+            if ("errors" in next && Array.isArray(next.errors)) {
+                pending.push(...next.errors);
+            }
+        }
+    }
+    return messages.join(" | ");
+}

@@ -452,7 +452,7 @@ export declare namespace TlsCertificateManagement {
         ccdid: number;
 
         /**
-         * This field shall be a DER-encoded octet string of a PKCS #10 format Certificate Signing Request.
+         * This field shall be a DER-encoded octet string of a PKCS #10 RFC2986 format Certificate Signing Request.
          *
          * @see {@link MatterSpecification.v16.Core} § 14.4.6.9.2
          */

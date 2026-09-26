@@ -40,9 +40,9 @@ Resource.add({
         "\n" +
         "> [!NOTE]" +
         "\n" +
-        "> For example: <table> <tbody> <tr> <td>ID</td> <td>Name</td> <td>Type</td> <td>Constraint</td> " +
-        "<td>Quality</td> <td>...</td> </tr> <tr> <td>0</td> <td>MonthNames</td> <td>list[string]</td> " +
-        "<td>12[3]</td> <td>N</td> <td>... .</td> </tr> </tbody> </table>" +
+        "> For example: <table> <thead> <tr> <th>ID</th> <th>Name</th> <th>Type</th> <th>Constraint</th> " +
+        "<th>Quality</th> <th>...</th> </tr> </thead> <tbody> <tr> <td>0</td> <td>MonthNames</td> " +
+        "<td>list[string]</td> <td>12[3]</td> <td>N</td> <td>... .</td> </tr> </tbody> </table>" +
         "\n" +
         "It is recommended to put a maximum constraint on the list and list entry data types." +
         "\n" +

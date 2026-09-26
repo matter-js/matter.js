@@ -20,7 +20,7 @@ export const AudioOutput = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "NU", constraint: "0", title: "NameUpdates" })
+        Field({ name: "NU", conformance: "O", constraint: "0", title: "NameUpdates" })
     ),
     Attribute(
         { name: "OutputList", id: 0x0, type: "list", access: "R V", conformance: "M" },

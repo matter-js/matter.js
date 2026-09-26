@@ -330,9 +330,11 @@ Resource.add(
 
                 details: "Indicates which attributes are currently determining the color of the device." +
                     "\n" +
-                    "To provide compatibility with clients not supporting EHUE, the original ColorMode attribute shall " +
-                    "indicate CurrentHue and CurrentSaturation when the light uses the EnhancedCurrentHue attribute. If " +
-                    "the ColorMode attribute is changed, its new value shall be copied to the EnhancedColorMode " +
+                    "To provide compatibility with clients not supporting EHUE, the ColorMode attribute shall indicate " +
+                    "CurrentHueAndCurrentSaturation when the EnhancedCurrentHue attribute indicates " +
+                    "EnhancedCurrentHueAndCurrentSaturation. For other values of the EnhancedCurrentHue attribute, the " +
+                    "value of the ColorMode attribute shall be the same as the value of the EnhancedCurrentHue attribute. " +
+                    "If the ColorMode attribute is changed, its new value shall be copied to the EnhancedColorMode " +
                     "attribute."
             },
 
@@ -580,7 +582,7 @@ Resource.add(
                 children: [
                     {
                         tag: "field", name: "EnhancedHue", xref: "cluster§3.2.8.15.1",
-                        details: "This field shall indicate the target extended hue for the light."
+                        details: "This field shall indicate the target enhanced hue for the light."
                     },
                     {
                         tag: "field", name: "Direction", xref: "cluster§3.2.8.15.2",
@@ -605,7 +607,7 @@ Resource.add(
                     {
                         tag: "field", name: "Rate", xref: "cluster§3.2.8.16.2",
                         details: "This field shall indicate the rate of movement in steps per second. A step is a change in the " +
-                            "extended hue of a device by one unit."
+                            "enhanced hue of a device by one unit."
                     }
                 ]
             },
@@ -648,7 +650,7 @@ Resource.add(
                 children: [
                     {
                         tag: "field", name: "EnhancedHue", xref: "cluster§3.2.8.18.1",
-                        details: "This field shall indicate the target extended hue for the light."
+                        details: "This field shall indicate the target enhanced hue for the light."
                     },
                     {
                         tag: "field", name: "Saturation", xref: "cluster§3.2.8.18.2",

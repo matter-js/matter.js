@@ -72,7 +72,7 @@ export declare namespace OnOff {
          * set to TRUE, such as a standard On command, a MoveToLevel(WithOnOff) command, a RecallScene command or a
          * OnWithRecallGlobalScene command.
          *
-         * This attribute is set to FALSE after reception of a OffWithEffect command.
+         * This attribute is set to FALSE after reception of an OffWithEffect command.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.3
          */
@@ -82,7 +82,7 @@ export declare namespace OnOff {
          * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
          * automatically transitioning to the Off state when using the OnWithTimedOff command.
          *
-         * This attribute can be written at any time, but writing a value only has effect when in the Timed On state.
+         * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state.
          *
          * While in the Timed On state, this attribute shall be decremented every 1/10^th second until it reaches 0. See
          * OnWithTimedOff for more details.
@@ -149,7 +149,7 @@ export declare namespace OnOff {
          * set to TRUE, such as a standard On command, a MoveToLevel(WithOnOff) command, a RecallScene command or a
          * OnWithRecallGlobalScene command.
          *
-         * This attribute is set to FALSE after reception of a OffWithEffect command.
+         * This attribute is set to FALSE after reception of an OffWithEffect command.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.5.6.3
          */
@@ -159,7 +159,7 @@ export declare namespace OnOff {
          * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
          * automatically transitioning to the Off state when using the OnWithTimedOff command.
          *
-         * This attribute can be written at any time, but writing a value only has effect when in the Timed On state.
+         * This attribute can be written at any time, but writing a value only has an effect when in the Timed On state.
          *
          * While in the Timed On state, this attribute shall be decremented every 1/10^th second until it reaches 0. See
          * OnWithTimedOff for more details.

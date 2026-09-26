@@ -26,7 +26,6 @@ import {
     CommissionedRefs,
     describeValue,
     expectSequence,
-    literally,
     LOG_TIMEOUT,
     recordAll,
 } from "./tc-support.js";
@@ -145,32 +144,29 @@ function statusOf(response: unknown): unknown {
 }
 
 /**
- * The sender's own line for the group it joined, which names the fabric and the address together — so
- * the address the invoke goes to can be tied to *this* group rather than shape-matched.
+ * The sender's line for installing its own operational certificate, which names the fabric the group address is
+ * derived from.
  */
-const MEMBERSHIP_LINE = new RegExp(`Adding membership for group (${GROUP.id}) on fabric (\\d+) .*with address (\\S+)`);
+const FABRIC_LINE = /Installing operational certificate nodeId: \S+ fabricId: (\d+)/;
 
 /** The port group traffic goes to, which the plan's step 5 asks to see (Matter Core § 4.15.3). */
 const MATTER_PORT = 5540;
 
 /**
- * matter.js's line for a group invoke: the session tag says the session is a group one, and `dest:`
- * names where the message went, address and port together in the usual IPv6 form.
+ * matter.js's line for a group invoke: the session tag says the session is a group one, and `dest:` names where
+ * the message went, address and port together in the usual IPv6 form.
  */
-function groupInvokeLine(address: string) {
-    return new RegExp(
-        `ClientInteraction Invoke » •group#[0-9a-f]+⇵[0-9a-f]+ dest: ${literally(`[${address}]:${MATTER_PORT}`)} `,
-    );
-}
+const GROUP_INVOKE_LINE = new RegExp(
+    `ClientInteraction Invoke » •group#[0-9a-f]+⇵[0-9a-f]+ dest: \\[([0-9a-f:]+)\\]:${MATTER_PORT} `,
+);
 
 /**
- * Confirms the message went where a group message must go: to the multicast address this fabric uses
- * for this group, on a session the sender itself renders as a group one.
+ * Confirms the message went where a group message must go: to the multicast address this fabric uses for this
+ * group, on a session the sender itself renders as a group one.
  *
- * The address is not shape-matched. The sender's own membership line names the group, the fabric and
- * the address together, so the address is recomputed from that fabric id and group id and compared
- * byte for byte — which is what the plan's "FF35:0040:FD<Fabric ID>00:<Group ID>" asks for, and what
- * also establishes the destination is GroupID 1 rather than some other group.
+ * The address is not shape-matched. It is recomputed from the sender's fabric id and the group id and compared byte
+ * for byte with the destination the invoke names — which is what the plan's "FF35:0040:FD<Fabric ID>00:<Group ID>"
+ * asks for, and what also establishes the destination is GroupID 1 rather than some other group.
  */
 async function groupcastSentCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
     const dut = cx.controllers.dut;
@@ -198,52 +194,50 @@ async function groupcastSentCheck(cx: CertStepContext, from: number): Promise<Ch
             : sent;
     }
 
-    const membership = await expectSequence(
+    const fabricLine = await expectSequence(
         dut.log,
         "matterjs",
-        MEMBERSHIP_LINE.source,
-        { matterjs: [MEMBERSHIP_LINE] },
+        "the DUT's operational certificate install",
+        { matterjs: [FABRIC_LINE] },
         0,
         LOG_TIMEOUT,
     );
-    if (membership.verdict !== "pass" || membership.matched === undefined) {
-        return membership;
+    if (fabricLine.verdict !== "pass" || fabricLine.matched === undefined) {
+        return fabricLine;
+    }
+    const [, fabric] = FABRIC_LINE.exec(fabricLine.matched) ?? [];
+    if (fabric === undefined) {
+        return { type: "device-log", verdict: "fail", detail: `unreadable certificate line: ${fabricLine.matched}` };
     }
 
-    const [, group, fabric, address] = MEMBERSHIP_LINE.exec(membership.matched) ?? [];
-    if (group === undefined || fabric === undefined || address === undefined) {
-        return { type: "device-log", verdict: "fail", detail: `unreadable membership line: ${membership.matched}` };
+    const invoke = await expectSequence(
+        dut.log,
+        "matterjs",
+        `a group invoke on port ${MATTER_PORT}`,
+        { matterjs: [GROUP_INVOKE_LINE] },
+        from,
+        LOG_TIMEOUT,
+    );
+    if (invoke.verdict !== "pass" || invoke.matched === undefined) {
+        return invoke;
     }
-    if (Number(group) !== GROUP.id) {
-        return {
-            type: "device-log",
-            verdict: "fail",
-            detail: `the DUT joined group ${group}, not the group ${GROUP.id} this case sends on`,
-        };
-    }
+    const [, address] = GROUP_INVOKE_LINE.exec(invoke.matched) ?? [];
 
     const expected = groupMulticastAddress(BigInt(fabric), GROUP.id);
-    const actual = ipv6Bytes(address);
+    const actual = address === undefined ? undefined : ipv6Bytes(address);
     if (actual === undefined || Bytes.toHex(actual) !== Bytes.toHex(expected)) {
         return {
             type: "device-log",
             verdict: "fail",
             detail:
-                `the address for group ${GROUP.id} on fabric ${fabric} is ${address}, and § 4.15.3 makes it ` +
+                `the DUT sent group ${GROUP.id} on fabric ${fabric} to ${address}, and § 4.15.3 makes it ` +
                 `${Bytes.toHex(expected)}`,
-            matched: membership.matched,
-            logLine: membership.logLine,
+            matched: invoke.matched,
+            logLine: invoke.logLine,
         };
     }
 
-    return expectSequence(
-        dut.log,
-        "matterjs",
-        `a group invoke to [${address}]:${MATTER_PORT}`,
-        { matterjs: [groupInvokeLine(address)] },
-        from,
-        LOG_TIMEOUT,
-    );
+    return invoke;
 }
 
 certTest("TC-SC-5.3", {

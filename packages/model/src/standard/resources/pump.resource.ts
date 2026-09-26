@@ -28,18 +28,19 @@ Resource.add({
         "The setpoint of the pump is a percentage related to the level according to the following table.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§5.5.4" },
-        { tag: "requirement", name: "Groups", xref: "device§5.5.4" },
-        { tag: "requirement", name: "OnOff", xref: "device§5.5.4" },
-        { tag: "requirement", name: "LevelControl", xref: "device§5.5.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§5.5.4" },
-        { tag: "requirement", name: "PumpConfigurationAndControl", xref: "device§5.5.4" },
-        { tag: "requirement", name: "TemperatureMeasurement", discriminator: "O:serverCluster", xref: "device§5.5.4" },
-        { tag: "requirement", name: "TemperatureMeasurement", discriminator: "O:clientCluster", xref: "device§5.5.4" },
-        { tag: "requirement", name: "PressureMeasurement", discriminator: "O:serverCluster", xref: "device§5.5.4" },
-        { tag: "requirement", name: "PressureMeasurement", discriminator: "O:clientCluster", xref: "device§5.5.4" },
-        { tag: "requirement", name: "FlowMeasurement", discriminator: "O:serverCluster", xref: "device§5.5.4" },
-        { tag: "requirement", name: "FlowMeasurement", discriminator: "O:clientCluster", xref: "device§5.5.4" },
-        { tag: "requirement", name: "OccupancySensing", xref: "device§5.5.4" }
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§5.5.4" },
+        { tag: "requirement", name: "Identify", xref: "device§5.5.5" },
+        { tag: "requirement", name: "Groups", xref: "device§5.5.5" },
+        { tag: "requirement", name: "OnOff", xref: "device§5.5.5" },
+        { tag: "requirement", name: "LevelControl", xref: "device§5.5.5" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§5.5.5" },
+        { tag: "requirement", name: "PumpConfigurationAndControl", xref: "device§5.5.5" },
+        { tag: "requirement", name: "TemperatureMeasurement", discriminator: "O:serverCluster", xref: "device§5.5.5" },
+        { tag: "requirement", name: "TemperatureMeasurement", discriminator: "O:clientCluster", xref: "device§5.5.5" },
+        { tag: "requirement", name: "PressureMeasurement", discriminator: "O:serverCluster", xref: "device§5.5.5" },
+        { tag: "requirement", name: "PressureMeasurement", discriminator: "O:clientCluster", xref: "device§5.5.5" },
+        { tag: "requirement", name: "FlowMeasurement", discriminator: "O:serverCluster", xref: "device§5.5.5" },
+        { tag: "requirement", name: "FlowMeasurement", discriminator: "O:clientCluster", xref: "device§5.5.5" },
+        { tag: "requirement", name: "OccupancySensing", xref: "device§5.5.5" }
     ]
 });

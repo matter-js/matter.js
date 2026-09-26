@@ -130,7 +130,7 @@ export namespace MountedOnOffControlRequirements {
 export const MountedOnOffControlDeviceDefinition = MutableEndpoint({
     name: "MountedOnOffControl",
     deviceType: 0x10f,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: MountedOnOffControlRequirements,
 
     behaviors: SupportedBehaviors(

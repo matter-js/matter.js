@@ -120,7 +120,7 @@ export declare namespace TimeSynchronization {
          * default IANA assigned NTP port of 123 shall be used to access the NTP server.
          *
          * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in text
-         * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
+         * format, as specified in RFC5952. The address format shall follow the recommendations in Section 4 and shall
          * NOT contain a port number.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.17.8.5
@@ -238,7 +238,7 @@ export declare namespace TimeSynchronization {
      */
     export interface NtpServerAttributes {
         /**
-         * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True.
+         * Indicates if the node is running an RFC5905 NTPv4 compliant server on port 123, this value shall be True.
          *
          * If the node is not currently running an NTP server, this value shall be False.
          *
@@ -307,7 +307,7 @@ export declare namespace TimeSynchronization {
          * default IANA assigned NTP port of 123 shall be used to access the NTP server.
          *
          * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in text
-         * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
+         * format, as specified in RFC5952. The address format shall follow the recommendations in Section 4 and shall
          * NOT contain a port number.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.17.8.5
@@ -415,7 +415,7 @@ export declare namespace TimeSynchronization {
         dstOffsetListMaxSize: number;
 
         /**
-         * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True.
+         * Indicates if the node is running an RFC5905 NTPv4 compliant server on port 123, this value shall be True.
          *
          * If the node is not currently running an NTP server, this value shall be False.
          *

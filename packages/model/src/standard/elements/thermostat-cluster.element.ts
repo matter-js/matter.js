@@ -28,7 +28,7 @@ export const Thermostat = Cluster(
         Field({ name: "SB", conformance: "D", constraint: "4", title: "Setback" }),
         Field({ name: "AUTO", conformance: "O", constraint: "5", title: "AutoMode" }),
         Field({ name: "LTNE", conformance: "O", constraint: "6", title: "LocalTemperatureNotExposed" }),
-        Field({ name: "MSCH", conformance: "O", constraint: "7", title: "MatterScheduleConfiguration" }),
+        Field({ name: "MSCH", conformance: "P, O", constraint: "7", title: "MatterScheduleConfiguration" }),
         Field({ name: "PRES", conformance: "O", constraint: "8", title: "Presets" }),
         Field({ name: "TEVT", conformance: "P, O", constraint: "9", title: "Events" }),
         Field({ name: "TSUGGEST", conformance: "[PRES]", constraint: "10", title: "ThermostatSuggestions" })
@@ -189,7 +189,7 @@ export const Thermostat = Cluster(
 
     Attribute(
         {
-            name: "ScheduleTypes", id: 0x49, type: "list", access: "R V", conformance: "MSCH",
+            name: "ScheduleTypes", id: 0x49, type: "list", access: "R V", conformance: "P, MSCH",
             constraint: "1 to 3", quality: "F"
         },
         Field({ name: "entry", type: "ScheduleTypeStruct" })
@@ -200,23 +200,23 @@ export const Thermostat = Cluster(
         constraint: "min 1", quality: "F"
     }),
     Attribute({
-        name: "NumberOfSchedules", id: 0x4b, type: "uint8", access: "R V", conformance: "MSCH",
+        name: "NumberOfSchedules", id: 0x4b, type: "uint8", access: "R V", conformance: "P, MSCH",
         constraint: "min 1", quality: "F"
     }),
     Attribute({
-        name: "NumberOfScheduleTransitions", id: 0x4c, type: "uint8", access: "R V", conformance: "MSCH",
+        name: "NumberOfScheduleTransitions", id: 0x4c, type: "uint8", access: "R V", conformance: "P, MSCH",
         constraint: "min 1", quality: "F"
     }),
     Attribute({
         name: "NumberOfScheduleTransitionPerDay", id: 0x4d, type: "uint8", access: "R V",
-        conformance: "MSCH", constraint: "min 1", quality: "X F"
+        conformance: "P, MSCH", constraint: "min 1", quality: "X F"
     }),
     Attribute({
         name: "ActivePresetHandle", id: 0x4e, type: "octstr", access: "R V", conformance: "PRES",
         constraint: "max 16", quality: "X N"
     }),
     Attribute({
-        name: "ActiveScheduleHandle", id: 0x4f, type: "octstr", access: "R V", conformance: "MSCH",
+        name: "ActiveScheduleHandle", id: 0x4f, type: "octstr", access: "R V", conformance: "P, MSCH",
         constraint: "max 16", quality: "X N"
     }),
 
@@ -230,7 +230,7 @@ export const Thermostat = Cluster(
 
     Attribute(
         {
-            name: "Schedules", id: 0x51, type: "list", access: "RW VM", conformance: "MSCH",
+            name: "Schedules", id: 0x51, type: "list", access: "RW VM", conformance: "P, MSCH",
             constraint: "max numberOfSchedules", quality: "N T"
         },
         Field({ name: "entry", type: "ScheduleStruct" })
@@ -325,8 +325,8 @@ export const Thermostat = Cluster(
 
     Command(
         {
-            name: "SetActiveScheduleRequest", id: 0x5, access: "O", conformance: "MSCH", direction: "request",
-            response: "status"
+            name: "SetActiveScheduleRequest", id: 0x5, access: "O", conformance: "P, MSCH",
+            direction: "request", response: "status"
         },
         Field({ name: "ScheduleHandle", id: 0x0, type: "octstr", conformance: "M", constraint: "max 16" })
     ),

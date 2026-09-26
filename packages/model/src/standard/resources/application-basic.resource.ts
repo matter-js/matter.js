@@ -101,7 +101,7 @@ Resource.add({
                     details: "This field shall indicate the application identifier, expressed as a string, such as \"123456-5433\", " +
                         "\"PruneVideo\" or \"Company X\". This field shall be unique within a catalog." +
                         "\n" +
-                        "For the DIAL registry catalog, this value shall be the DIAL prefix."
+                        "For the DIAL registry catalog, this value shall be the DIAL prefix (see [DIAL Registry])."
                 }
             ]
         }

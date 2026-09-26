@@ -114,7 +114,7 @@ export namespace DimmablePlugInUnitRequirements {
 export const DimmablePlugInUnitDeviceDefinition = MutableEndpoint({
     name: "DimmablePlugInUnit",
     deviceType: 0x10b,
-    deviceRevision: 5,
+    deviceRevision: 6,
     requirements: DimmablePlugInUnitRequirements,
 
     behaviors: SupportedBehaviors(

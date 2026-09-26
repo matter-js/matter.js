@@ -39,7 +39,7 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "FeatureMap", xref: "core§11.19.4",
-            children: [{ tag: "field", name: "BC", details: "Node supports Basic Commissioning Method." }]
+            children: [{ tag: "field", name: "BC", details: "Node supports Basic Commissioning Method" }]
         },
 
         {

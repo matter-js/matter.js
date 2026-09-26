@@ -114,7 +114,7 @@ export namespace MountedDimmableLoadControlRequirements {
 export const MountedDimmableLoadControlDeviceDefinition = MutableEndpoint({
     name: "MountedDimmableLoadControl",
     deviceType: 0x110,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: MountedDimmableLoadControlRequirements,
 
     behaviors: SupportedBehaviors(

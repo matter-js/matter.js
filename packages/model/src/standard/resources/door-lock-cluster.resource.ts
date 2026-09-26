@@ -1071,7 +1071,7 @@ Resource.add(
                     "\n" +
                     "  - FAILURE, if some unexpected internal error occurred setting User." +
                     "\n" +
-                    "  - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot." +
+                    "  - Occupied, if OperationType is Add and UserIndex points to an occupied slot." +
                     "\n" +
                     "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is " +
                     "Modify and UserIndex points to an available slot.",
@@ -1323,13 +1323,13 @@ Resource.add(
                             "\n" +
                             "  - FAILURE, if some unexpected internal error occurred setting user credential." +
                             "\n" +
-                            "  - OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an " +
+                            "  - Occupied, if OperationType is Add and CredentialIndex in Credential structure points to an " +
                             "occupied slot." +
                             "\n" +
-                            "  - OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match " +
+                            "  - Occupied, if OperationType is Modify and CredentialIndex in Credential structure does not match " +
                             "the CredentialIndex that is already associated with the provided UserIndex." +
                             "\n" +
-                            "  - DUPLICATE, if CredentialData provided is a duplicate of another credential with the same " +
+                            "  - Duplicate, if CredentialData provided is a duplicate of another credential with the same " +
                             "CredentialType (e.g. duplicate PIN code)." +
                             "\n" +
                             "  - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to " +

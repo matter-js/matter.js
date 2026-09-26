@@ -13,8 +13,12 @@ export const MountedOnOffControlDt = DeviceType(
     { name: "MountedOnOffControl", id: 0x10f, type: "OnOffPlugInUnit", classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 271, revision: 2 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 271, revision: 3 } ], element: "attribute" })
     ),
+    Requirement({
+        name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
     Requirement(
         { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" },
         Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })

@@ -64,7 +64,7 @@ export namespace WindowCoveringRequirements {
 export const WindowCoveringDeviceDefinition = MutableEndpoint({
     name: "WindowCovering",
     deviceType: 0x202,
-    deviceRevision: 6,
+    deviceRevision: 7,
     requirements: WindowCoveringRequirements,
     behaviors: SupportedBehaviors(WindowCoveringRequirements.server.mandatory.Identify)
 });

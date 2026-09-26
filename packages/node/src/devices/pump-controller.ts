@@ -132,7 +132,7 @@ export namespace PumpControllerRequirements {
 export const PumpControllerDeviceDefinition = MutableEndpoint({
     name: "PumpController",
     deviceType: 0x304,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: PumpControllerRequirements,
     behaviors: SupportedBehaviors(PumpControllerRequirements.server.mandatory.Identify)
 });

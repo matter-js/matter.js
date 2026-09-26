@@ -9,9 +9,20 @@ import { OnOffServer } from "#behaviors/on-off";
 import { WindowCoveringServer } from "#behaviors/window-covering";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { causeMessagesOf } from "../../node/node-helpers.js";
 import { MockEndpoint } from "../mock-endpoint.js";
 
 describe("Behaviors", () => {
+    it("rejects a second behavior for a cluster the endpoint already serves", async () => {
+        class SecondOnOffServer extends OnOffServer {}
+        // The id type is the literal "onOff", so a behavior serving OnOff under another id is only reachable at runtime
+        Object.defineProperty(SecondOnOffServer, "id", { value: "secondOnOff" });
+
+        expect(await causeMessagesOf(MockEndpoint.create(OnOffLightDevice.with(SecondOnOffServer)))).contains(
+            'two behaviors for cluster OnOff: "onOff" and "secondOnOff"',
+        );
+    });
+
     describe("has", () => {
         it("answers true for a behavior the endpoint supports", async () => {
             const light = await MockEndpoint.create(OnOffLightDevice);

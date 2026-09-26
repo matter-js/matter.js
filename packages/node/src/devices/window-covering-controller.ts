@@ -67,7 +67,7 @@ export namespace WindowCoveringControllerRequirements {
 export const WindowCoveringControllerDeviceDefinition = MutableEndpoint({
     name: "WindowCoveringController",
     deviceType: 0x203,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: WindowCoveringControllerRequirements,
     behaviors: SupportedBehaviors()
 });

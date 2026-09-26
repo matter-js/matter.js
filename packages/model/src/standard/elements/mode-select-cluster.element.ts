@@ -20,7 +20,7 @@ export const ModeSelect = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "DEPONOFF", constraint: "0", title: "OnOff" })
+        Field({ name: "DEPONOFF", conformance: "O", constraint: "0", title: "OnOff" })
     ),
     Attribute({
         name: "Description", id: 0x0, type: "string", access: "R V", conformance: "M", constraint: "max 64",

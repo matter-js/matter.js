@@ -696,7 +696,7 @@ Resource.add(
                     { tag: "field", name: "DischargingEnabled", description: "The EV is currently allowed to discharge" },
                     {
                         tag: "field", name: "DisabledError",
-                        description: "The EV is not currently allowed to charge or discharge due to an error. The error must be cleared before operation can continue."
+                        description: "The EV is not currently allowed to charge or discharge due to an error, the error must be cleared before operation can continue"
                     },
                     {
                         tag: "field", name: "DisabledDiagnostics",

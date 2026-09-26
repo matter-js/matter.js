@@ -22,6 +22,7 @@ const GlobalTypeSections: Partial<Record<Specification, Record<string, GlobalRef
         "Global Elements": "elements",
         "Time of Day": "standalone",
         "Status Code Table": "statusCodes",
+        "Interaction Model Status Code Table": "statusCodes",
     },
 };
 

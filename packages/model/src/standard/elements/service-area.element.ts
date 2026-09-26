@@ -21,9 +21,9 @@ export const ServiceArea = Cluster(
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "SELRUN", constraint: "0", title: "SelectWhileRunning" }),
-        Field({ name: "PROG", constraint: "1", title: "ProgressReporting" }),
-        Field({ name: "MAPS", constraint: "2", title: "Maps" })
+        Field({ name: "SELRUN", conformance: "O", constraint: "0", title: "SelectWhileRunning" }),
+        Field({ name: "PROG", conformance: "O", constraint: "1", title: "ProgressReporting" }),
+        Field({ name: "MAPS", conformance: "O", constraint: "2", title: "Maps" })
     ),
 
     Attribute(
@@ -72,7 +72,7 @@ export const ServiceArea = Cluster(
     ),
 
     Command(
-        { name: "SelectAreasResponse", id: 0x1, access: "O", conformance: "M", direction: "response" },
+        { name: "SelectAreasResponse", id: 0x1, conformance: "M", direction: "response" },
         Field({ name: "Status", id: 0x0, type: "SelectAreasStatus", conformance: "M" }),
         Field({ name: "StatusText", id: 0x1, type: "string", conformance: "M", constraint: "max 256" })
     ),
@@ -86,7 +86,7 @@ export const ServiceArea = Cluster(
     ),
 
     Command(
-        { name: "SkipAreaResponse", id: 0x3, access: "O", conformance: "SkipArea", direction: "response" },
+        { name: "SkipAreaResponse", id: 0x3, conformance: "SkipArea", direction: "response" },
         Field({ name: "Status", id: 0x0, type: "SkipAreaStatus", conformance: "M" }),
         Field({ name: "StatusText", id: 0x1, type: "string", conformance: "M", constraint: "max 256" })
     ),

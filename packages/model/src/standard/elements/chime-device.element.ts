@@ -13,10 +13,11 @@ export const ChimeDt = DeviceType(
     { name: "Chime", id: 0x146, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 326, revision: 1 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 326, revision: 2 } ], element: "attribute" })
     ),
     Requirement({ name: "Chime", id: 0x556, conformance: "M", element: "serverCluster" }),
-    Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" })
+    Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
+    Requirement({ name: "Speaker", id: 0x22, conformance: "O", constraint: "max 1", element: "deviceType" })
 );
 
 MatterDefinition.children.push(ChimeDt);

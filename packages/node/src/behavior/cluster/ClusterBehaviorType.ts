@@ -129,7 +129,7 @@ export function ClusterBehaviorType({
 
         staticDescriptors: {
             id: {
-                value: schema.propertyName as Uncapitalize<string>,
+                value: idOf(base, schema),
                 enumerable: true,
             },
 
@@ -612,4 +612,21 @@ function createEventDescriptor(
         },
         enumerable: true,
     };
+}
+
+/**
+ * A variant of a behavior for the same cluster keeps the behavior's id, so it replaces that behavior on an endpoint
+ * rather than joining it.  A decorated subclass names its schema after the class, so the schema's name is not the id.
+ */
+function idOf(base: Behavior.Type, schema: ClusterModel) {
+    if (
+        "cluster" in base &&
+        typeof base.cluster === "object" &&
+        base.cluster !== null &&
+        "id" in base.cluster &&
+        base.cluster.id === schema.id
+    ) {
+        return base.id;
+    }
+    return schema.propertyName as Uncapitalize<string>;
 }

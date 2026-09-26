@@ -188,7 +188,7 @@ export declare namespace SoftwareDiagnostics {
         /**
          * Watermarks (WTRMRK)
          *
-         * Node makes available the metrics for high watermark related to memory consumption.
+         * Node makes available the metrics for high watermark related to memory consumption
          */
         Watermarks = "Watermarks"
     }

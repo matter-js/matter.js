@@ -33,6 +33,8 @@ import {
     ServerInteraction,
     SessionManager,
 } from "@matter/protocol";
+import { AccessControlServer } from "../behaviors/access-control/AccessControlServer.js";
+import { GroupcastServer } from "../behaviors/groupcast/GroupcastServer.js";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
@@ -258,7 +260,13 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
 }
 
 export namespace ServerNode {
-    export const RootEndpoint = BaseRootEndpoint.with(
+    /**
+     * The root endpoint of a server node without the Groupcast cluster.
+     *
+     * A node with a Groups server on any endpoint does not conform to Matter 1.6.1 without Groupcast on its root, so
+     * use this only for nodes without Groups or that deliberately model a pre-Groupcast device.
+     */
+    export const RootEndpointWithoutGroupcast = BaseRootEndpoint.with(
         CommissioningServer,
         NetworkServer,
         ProductDescriptionServer,
@@ -267,7 +275,25 @@ export namespace ServerNode {
         EventsBehavior,
     );
 
-    export interface RootEndpoint extends Identity<typeof RootEndpoint> {}
+    export interface RootEndpointWithoutGroupcast extends Identity<typeof RootEndpointWithoutGroupcast> {}
+
+    /**
+     * The default root endpoint of a server node.
+     *
+     * @see {@link MatterSpecification.v16.Device} § 2.1
+     */
+    export const RootEndpoint: RootEndpoint = RootEndpointWithoutGroupcast.with(
+        // Groupcast Listener requires the Auxiliary ACL feature
+        AccessControlServer.with("Extension", "Auxiliary"),
+        GroupcastServer,
+    );
+
+    /**
+     * Typed without Groupcast so a node type may select any Groupcast features, or leave the cluster out, and still
+     * satisfy this type.  Use `node.stateOf(GroupcastServer)` for the Groupcast state of a default node.
+     */
+    export interface RootEndpoint extends Identity<typeof RootEndpointWithoutGroupcast> {}
 }
 
+Object.freeze(ServerNode.RootEndpointWithoutGroupcast);
 Object.freeze(ServerNode.RootEndpoint);

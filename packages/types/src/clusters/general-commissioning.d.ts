@@ -870,7 +870,7 @@ export declare namespace GeneralCommissioning {
 
         /**
          * This field shall contain the user responses to the Enhanced Setup Flow Terms & Conditions as a map where each
-         * bit set in the bitmap corresponds to an accepted term in the file located at Section 11.23.6.23,
+         * bit set in the bitmap corresponds to an accepted term in the file located at Section 11.23.7.23,
          * "EnhancedSetupFlowTCUrl".
          *
          * @see {@link MatterSpecification.v16.Core} § 11.10.7.8.2

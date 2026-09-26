@@ -20,7 +20,7 @@ export const AdministratorCommissioning = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "BC", constraint: "0", title: "Basic" })
+        Field({ name: "BC", conformance: "O", constraint: "0", title: "Basic" })
     ),
     Attribute({ name: "WindowStatus", id: 0x0, type: "CommissioningWindowStatusEnum", access: "R V", conformance: "M" }),
     Attribute({ name: "AdminFabricIndex", id: 0x1, type: "fabric-idx", access: "R V", conformance: "M", quality: "X" }),

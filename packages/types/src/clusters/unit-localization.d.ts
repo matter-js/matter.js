@@ -111,7 +111,7 @@ export declare namespace UnitLocalization {
         /**
          * TemperatureUnit (TEMP)
          *
-         * The Node can be configured to use different units of temperature when conveying values to a user.
+         * The Node can be configured to use different units of temperature when conveying values to a user
          */
         TemperatureUnit = "TemperatureUnit"
     }

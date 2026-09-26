@@ -23,20 +23,20 @@ Resource.add({
                 {
                     tag: "field", name: "PKTCNT",
                     details: "Server supports the counts for the number of received and transmitted packets on the Thread " +
-                        "interface."
+                        "interface"
                 },
                 {
                     tag: "field", name: "ERRCNT",
                     details: "Server supports the counts for the number of errors that have occurred during the reception and " +
-                        "transmission of packets on the Thread interface."
+                        "transmission of packets on the Thread interface"
                 },
                 {
                     tag: "field", name: "MLECNT",
-                    details: "Server supports the counts for various MLE layer happenings."
+                    details: "Server supports the counts for various MLE layer happenings"
                 },
                 {
                     tag: "field", name: "MACCNT",
-                    details: "Server supports the counts for various MAC layer happenings."
+                    details: "Server supports the counts for various MAC layer happenings"
                 }
             ]
         },
