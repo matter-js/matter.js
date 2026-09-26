@@ -6,7 +6,7 @@
 
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertNodeRef, CertStepContext } from "@matter/testing";
+import type { CertDevice, CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import {
@@ -19,7 +19,7 @@ import {
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, record, requireId, runCleanups } from "./tc-support.js";
+import { attempt, CommissionedRefs, record, recordAll, requireId, runCleanups } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation cluster");
@@ -50,8 +50,7 @@ async function distinctSubjects(cx: CertStepContext) {
     return { th1, th2 };
 }
 
-async function recordDistinctPayloads(cx: CertStepContext) {
-    const { th1, th2 } = await distinctSubjects(cx);
+async function distinctPayloadsCheck(th1: CertDevice, th2: CertDevice): Promise<CheckRecord> {
     const [first, second] = await Promise.all([thQrPayload(th1), thQrPayload(th2)]);
 
     // The discriminator specifically, not the payload as a whole: two payloads differing only in
@@ -59,19 +58,13 @@ async function recordDistinctPayloads(cx: CertStepContext) {
     // long discriminator alone.
     const [firstFields, secondFields] = [qrPayloadFields(first), qrPayloadFields(second)];
 
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: firstFields.discriminator !== secondFields.discriminator ? "pass" : "fail",
-            detail:
-                `TH1 published ${first} (discriminator ${firstFields.discriminator}), ` +
-                `TH2 published ${second} (discriminator ${secondFields.discriminator})`,
-        },
-        "The two THs advertise different discriminators",
-    );
-
-    return { th1, th2 };
+    return {
+        type: "response",
+        verdict: firstFields.discriminator !== secondFields.discriminator ? "pass" : "fail",
+        detail:
+            `TH1 published ${first} (discriminator ${firstFields.discriminator}), ` +
+            `TH2 published ${second} (discriminator ${secondFields.discriminator})`,
+    };
 }
 
 /**
@@ -121,8 +114,23 @@ certTest("TC-DD-3.18", {
         "1.a",
         "Place TH1 into commissioning mode using the TH manufacturer's means to be discovered by a commissioner",
         async cx => {
-            const { th1 } = await recordDistinctPayloads(cx);
-            record(cx, await expectMdns(th1, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }), "TH1 advertising");
+            const { th1, th2 } = await distinctSubjects(cx);
+            await recordAll(cx, [
+                {
+                    check: async () => {
+                        const payloads = await attempt(
+                            () => distinctPayloadsCheck(th1, th2),
+                            () => "",
+                        );
+                        return payloads.ok ? payloads.value : payloads.check;
+                    },
+                    what: "The two THs advertise different discriminators",
+                },
+                {
+                    check: () => expectMdns(th1, { commissionable: true }, { timeoutMs: MDNS_TIMEOUT }),
+                    what: "TH1 advertising",
+                },
+            ]);
         },
         { expected: "Verify that TH1 is advertising and able to be discovered by a commissioner." },
     )

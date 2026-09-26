@@ -6,23 +6,13 @@
 
 import { Bytes } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertNodeRef, CertStepContext } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import type { CommandFieldValue } from "./tc-support.js";
-import {
-    answersWithStatus,
-    CommissionedRefs,
-    expectCommandInvoke,
-    LOG_TIMEOUT,
-    record,
-    requireId,
-    responseStatusOf,
-} from "./tc-support.js";
+import type { CommandFieldValue, InvokedCommand } from "./tc-support.js";
+import { CommissionedRefs, invokeCommand, recordAll, requireId, withChecks } from "./tc-support.js";
 
 const GROUPS = Matter.clusters.require("Groups");
 const GROUP_KEY_MANAGEMENT = Matter.clusters.require("GroupKeyManagement");
-
-const GROUPS_ID = requireId(GROUPS.id, "Groups cluster");
 
 /** The endpoint the plan calls `PIXIT.G.ENDPOINT`. Both THs host Groups and Identify on endpoint 1. */
 const ENDPOINT = 1;
@@ -44,76 +34,22 @@ const IDENTIFY_TIME = 0x0078;
 
 const commissioned = new CommissionedRefs();
 
-function commandId(commandName: string): number {
-    return requireId(GROUPS.commands.require(commandName).id, `Groups.${commandName}`);
-}
-
 /**
- * Invokes `commandName` on the TH's Groups cluster and verifies the TH's own log recorded the command
- * it received, with the fields the step sent.
+ * Has the DUT invoke `command` on the TH's Groups cluster; see {@link invokeCommand}.
  *
  * Unlike TC-ACT-3.2's bridge, this TH implements every command this TC sends, so a non-success status
- * is a failure of the test rather than tolerated evidence: the throw propagates and fails the step.
- * A Groups response carries its own status *inside the payload* — an invoke the cluster refused still
- * resolves — so that status is a second, separate claim: `AddGroup` answering `UnsupportedAccess` is
+ * is a failure of the test rather than tolerated evidence. `AddGroup` answering `UnsupportedAccess` is
  * how a group the fabric's key map does not name is refused, which is what the preconditions exist to
  * rule out.
  */
-async function invokeAndCheck(
+function invokeGroups(
     cx: CertStepContext,
     ref: CertNodeRef,
-    commandName: string,
+    command: string,
     args: object,
     fields: CommandFieldValue[],
-): Promise<unknown> {
-    const th = cx.devices.th;
-    const from = th.log.mark();
-
-    let response: unknown;
-    try {
-        response = await cx.controllers.dut.node(ref).invoke("Groups", commandName, args, ENDPOINT);
-    } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
-        throw e;
-    }
-    cx.recorder.check({
-        type: "response",
-        verdict: "pass",
-        detail: response === undefined ? "status=Success" : `status=Success, response=${JSON.stringify(response)}`,
-    });
-
-    if (answersWithStatus(GROUPS, commandName)) {
-        // An absent or malformed status is a failure, not a check to skip: skipping it would leave the
-        // command resting on the TH's log alone, which says the request arrived and nothing about
-        // whether the cluster accepted it.
-        const payloadStatus = responseStatusOf(response);
-        record(
-            cx,
-            {
-                type: "response",
-                verdict: payloadStatus === 0 ? "pass" : "fail",
-                detail:
-                    payloadStatus === undefined
-                        ? `${commandName} answered ${JSON.stringify(response)}, which carries no status`
-                        : `${commandName} response status=${payloadStatus}`,
-            },
-            `Groups.${commandName} response status`,
-        );
-    }
-
-    const logCheck = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        ENDPOINT,
-        GROUPS_ID,
-        commandId(commandName),
-        fields,
-        from,
-        LOG_TIMEOUT,
-    );
-    record(cx, logCheck, `CommandDataIB log for Groups.${commandName}`);
-
-    return response;
+): Promise<InvokedCommand> {
+    return invokeCommand(cx, ref, { cluster: GROUPS, endpoint: ENDPOINT, command, args, fields });
 }
 
 /**
@@ -200,12 +136,21 @@ certTest("TC-G-3.2", {
 
             // A group the fabric's GroupKeyMap does not name is refused, so these also prove the
             // binding above took: every later step rests on both groups existing on the TH.
-            for (const group of [REMOVED_GROUP, IDENTIFYING_GROUP]) {
-                await invokeAndCheck(cx, ref, "addGroup", { groupId: group.id, groupName: group.name }, [
-                    { id: 0, value: group.id },
-                    { id: 1, value: group.name },
-                ]);
-            }
+            await withChecks(cx, async checks => {
+                for (const group of [REMOVED_GROUP, IDENTIFYING_GROUP]) {
+                    const added = await invokeGroups(
+                        cx,
+                        ref,
+                        "addGroup",
+                        { groupId: group.id, groupName: group.name },
+                        [
+                            { id: 0, value: group.id },
+                            { id: 1, value: group.name },
+                        ],
+                    );
+                    checks.push(...added.checks);
+                }
+            });
         },
         {
             expected:
@@ -219,13 +164,12 @@ certTest("TC-G-3.2", {
         commissioned.withRef("dut", async (cx, ref) => {
             // An empty GroupList asks for every group the endpoint has for this fabric, which is what
             // makes the response name the two the preconditions added.
-            const response = await invokeAndCheck(cx, ref, "getGroupMembership", { groupList: [] }, []);
+            const { response, checks } = await invokeGroups(cx, ref, "getGroupMembership", { groupList: [] }, []);
 
-            const reported = groupsIn(response);
-            const missing = [REMOVED_GROUP, IDENTIFYING_GROUP].filter(group => !reported.includes(group.id));
-            record(
-                cx,
-                {
+            if (response.ok) {
+                const reported = groupsIn(response.value);
+                const missing = [REMOVED_GROUP, IDENTIFYING_GROUP].filter(group => !reported.includes(group.id));
+                const content: CheckRecord = {
                     type: "response",
                     verdict: missing.length === 0 ? "pass" : "fail",
                     detail:
@@ -233,9 +177,11 @@ certTest("TC-G-3.2", {
                             ? `GetGroupMembershipResponse names groups ${reported.join(", ")}`
                             : `GetGroupMembershipResponse names groups ${reported.join(", ") || "none"}, ` +
                               `without ${missing.map(group => group.id).join(", ")}`,
-                },
-                "GetGroupMembershipResponse content",
-            );
+                };
+                checks.push({ what: "GetGroupMembershipResponse content", check: () => content });
+            }
+
+            await recordAll(cx, checks);
         }),
         { pics: "G.C.C02.Tx", expected: "Test Harness receives the GetGroupMembership command from the DUT." },
     )
@@ -243,9 +189,10 @@ certTest("TC-G-3.2", {
         2,
         "DUT sends RemoveGroup command to TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            await invokeAndCheck(cx, ref, "removeGroup", { groupId: REMOVED_GROUP.id }, [
+            const { checks } = await invokeGroups(cx, ref, "removeGroup", { groupId: REMOVED_GROUP.id }, [
                 { id: 0, value: REMOVED_GROUP.id },
             ]);
+            await recordAll(cx, checks);
         }),
         { pics: "G.C.C03.Tx", expected: "Test Harness receives the RemoveGroup command from the DUT." },
     )
@@ -253,7 +200,8 @@ certTest("TC-G-3.2", {
         3,
         "DUT sends RemoveAllGroups command to TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            await invokeAndCheck(cx, ref, "removeAllGroups", {}, []);
+            const { checks } = await invokeGroups(cx, ref, "removeAllGroups", {}, []);
+            await recordAll(cx, checks);
         }),
         { pics: "G.C.C04.Tx", expected: "Test Harness receives the RemoveAllGroups command from the DUT." },
     )
@@ -272,7 +220,7 @@ certTest("TC-G-3.2", {
                 detail: `Identify.identify identifyTime=${IDENTIFY_TIME} accepted`,
             });
 
-            await invokeAndCheck(
+            const { checks } = await invokeGroups(
                 cx,
                 ref,
                 "addGroupIfIdentifying",
@@ -282,6 +230,7 @@ certTest("TC-G-3.2", {
                     { id: 1, value: IDENTIFYING_GROUP.name },
                 ],
             );
+            await recordAll(cx, checks);
         }),
         { pics: "G.C.C05.Tx", expected: "Test Harness receives the AddGroupIfIdentifying command from the DUT." },
     )

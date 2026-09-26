@@ -6,14 +6,22 @@
 
 import { Duration, Millis, Time } from "@matter/general";
 import { Matter } from "@matter/model";
-import type { CertNodeRef, CertStepContext, EventReadEntry, PicsValues } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CheckRecord, EventReadEntry, PicsValues } from "@matter/testing";
 import {
     certTest,
     controllerPicsOverridesFor,
     PicsUnavailableError,
     resolveControllerImplementation,
 } from "@matter/testing";
-import { CertCheckFailedError, CommissionedRefs, describeValue, record, recordAll, requireId } from "./tc-support.js";
+import {
+    CertCheckFailedError,
+    CommissionedRefs,
+    describeValue,
+    record,
+    recordAll,
+    requireId,
+    withChecks,
+} from "./tc-support.js";
 
 const SWITCH = Matter.clusters.require("Switch");
 const SWITCH_ID = requireId(SWITCH.id, "Switch cluster");
@@ -156,9 +164,6 @@ function consistencyStep(rule: (pics: PicsValues) => boolean, violation: string)
             },
             "the DUT's switch-client declaration",
         );
-        if (violated) {
-            throw new CertCheckFailedError(`the DUT declares ${violation}`);
-        }
     };
 }
 
@@ -219,16 +224,14 @@ async function readAndCheck(
         },
         what,
     );
-    if (!accept(value)) {
-        throw new CertCheckFailedError(`${what}: the TH answers ${value}`);
-    }
     return value;
 }
 
 /**
- * Reads `attribute` until it holds `expected`, and records what it last saw. A backchannel command
- * returning proves the device was told, not that it has acted: a chip app reads the command from its
- * pipe on its own thread, so the state a read finds immediately afterwards can still be the old one.
+ * Reads `attribute` until it holds `expected`, and returns the check of what it last saw. A backchannel
+ * command returning proves the device was told, not that it has acted: a chip app reads the command
+ * from its pipe on its own thread, so the state a read finds immediately afterwards can still be the
+ * old one.
  */
 async function readUntil(
     cx: CertStepContext,
@@ -237,7 +240,7 @@ async function readUntil(
     attribute: number,
     expected: number,
     what: string,
-) {
+): Promise<CheckRecord> {
     const deadline = Time.nowUs + Millis(EVENT_WAIT_MS);
     let value: number | undefined;
     let failure: unknown;
@@ -261,18 +264,11 @@ async function readUntil(
     }
 
     const answer = failure === undefined ? `the TH answers ${value}` : `the read failed: ${failure}`;
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: value === expected ? "pass" : "fail",
-            detail: `${what}: ${answer}`,
-        },
-        what,
-    );
-    if (value !== expected) {
-        throw new CertCheckFailedError(`${what}: ${answer}`);
-    }
+    return {
+        type: "response",
+        verdict: value === expected ? "pass" : "fail",
+        detail: `${what}: ${answer}`,
+    };
 }
 
 /**
@@ -356,15 +352,11 @@ async function quietEventBoundary(cx: CertStepContext): Promise<bigint> {
     if (seen !== received.length) {
         // Events still arriving means the boundary cannot separate this step's from the previous one's,
         // so what the step goes on to count would say nothing about what it simulated.
-        record(
-            cx,
-            {
-                type: "response",
-                verdict: "fail",
-                detail: `events were still arriving after ${Duration.format(Millis(EVENT_WAIT_MS))}`,
-            },
-            "the previous step's events had all arrived",
-        );
+        cx.recorder.check({
+            type: "response",
+            verdict: "fail",
+            detail: `events were still arriving after ${Duration.format(Millis(EVENT_WAIT_MS))}`,
+        });
         throw new CertCheckFailedError("the DUT was still receiving events when this step began");
     }
 
@@ -539,23 +531,20 @@ certTest("TC-SWTCH-3.2", {
         "TH simulates operation of the switch by changing CurrentPosition, and the DUT reads it regularly",
         commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
-            for (let operation = 0; operation < OPERATIONS; operation++) {
-                for (const position of [1, 0]) {
-                    await th.backchannel({
-                        name: "simulateLatchPosition",
-                        endpointId: LATCHING_ENDPOINT,
-                        positionId: position,
-                    });
-                    await readUntil(
-                        cx,
-                        ref,
-                        LATCHING_ENDPOINT,
-                        CURRENT_POSITION,
-                        position,
-                        `CurrentPosition after the switch was moved to ${position}`,
-                    );
+            await withChecks(cx, async checks => {
+                for (let operation = 0; operation < OPERATIONS; operation++) {
+                    for (const position of [1, 0]) {
+                        await th.backchannel({
+                            name: "simulateLatchPosition",
+                            endpointId: LATCHING_ENDPOINT,
+                            positionId: position,
+                        });
+                        const what = `CurrentPosition after the switch was moved to ${position}`;
+                        const check = await readUntil(cx, ref, LATCHING_ENDPOINT, CURRENT_POSITION, position, what);
+                        checks.push({ check: () => check, what });
+                    }
                 }
-            }
+            });
         }),
         {
             pics: `${PICS_LS} & ${PICS_POLLING}`,
@@ -668,23 +657,20 @@ certTest("TC-SWTCH-3.2", {
         "TH simulates operation of the momentary switch while the DUT reads CurrentPosition regularly",
         commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
-            for (let operation = 0; operation < OPERATIONS; operation++) {
-                for (const position of [1, 0]) {
-                    await th.backchannel({
-                        name: "simulateLatchPosition",
-                        endpointId: MOMENTARY_ENDPOINT,
-                        positionId: position,
-                    });
-                    await readUntil(
-                        cx,
-                        ref,
-                        MOMENTARY_ENDPOINT,
-                        CURRENT_POSITION,
-                        position,
-                        `CurrentPosition while the button was ${position === PRESSED_POSITION ? "pressed" : "released"}`,
-                    );
+            await withChecks(cx, async checks => {
+                for (let operation = 0; operation < OPERATIONS; operation++) {
+                    for (const position of [1, 0]) {
+                        await th.backchannel({
+                            name: "simulateLatchPosition",
+                            endpointId: MOMENTARY_ENDPOINT,
+                            positionId: position,
+                        });
+                        const what = `CurrentPosition while the button was ${position === PRESSED_POSITION ? "pressed" : "released"}`;
+                        const check = await readUntil(cx, ref, MOMENTARY_ENDPOINT, CURRENT_POSITION, position, what);
+                        checks.push({ check: () => check, what });
+                    }
                 }
-            }
+            });
         }),
         {
             pics: `${PICS_MS} & ${PICS_POLLING}`,
