@@ -8,7 +8,7 @@ import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { BleChannel, BleChannelClosedError } from "#ble/Ble.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { DeviceAttestationValidator } from "#certificate/DeviceAttestationValidator.js";
-import { CommissionableDevice, DiscoveryData, DiscoveryDataDiagnostics } from "#common/Scanner.js";
+import { CommissionableDevice, DiscoveryData, DiscoveryDataDiagnostics, ScannerSet } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { CommissioningError, PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
@@ -120,6 +120,7 @@ export const DEFAULT_CASE_CONNECTION_TIMEOUT = Seconds(255);
  * Configuration for commissioning a previously discovered node.
  */
 export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
+    /** Addresses of the one node to commission, which are raced against each other. */
     addresses: ServerAddress[];
     discoveryData?: DiscoveryData;
 
@@ -285,6 +286,25 @@ export class ControllerCommissioner {
         }
 
         return await this.#commissionConnectedNode(session, { ...options, nodeId: assignedNodeId }, discoveryData);
+    }
+
+    /**
+     * A commissioned device closes its commissioning window, but a scanner may still hold the advertisement that
+     * opened it, and a later discovery by short discriminator matches many devices.
+     */
+    #forgetCommissionedDevice(addresses: ServerAddress[]) {
+        const environment = this.#context.environment;
+        if (!environment.has(ScannerSet)) {
+            return;
+        }
+        for (const scanner of environment.get(ScannerSet)) {
+            try {
+                scanner.forgetCommissionedDevice?.(addresses);
+            } catch (error) {
+                // The device is commissioned either way, so a scanner's bookkeeping must not fail the commissioning
+                logger.warn(`Error forgetting commissioned device in ${scanner.type} scanner:`, error);
+            }
+        }
     }
 
     /**
@@ -506,7 +526,7 @@ export class ControllerCommissioner {
      */
     async #commissionConnectedNode(
         ephemeralSession: NodeSession,
-        options: CommissioningOptions,
+        options: LocatedNodeCommissioningOptions,
         discoveryData?: DiscoveryData,
     ): Promise<CommissionResult> {
         const {
@@ -656,6 +676,8 @@ export class ControllerCommissioner {
         let fabricIndexOnPeer: FabricIndex | undefined;
         try {
             await commissioner.executeCommissioning();
+            // The device closed its commissioning window here, and the cleanup below may still fail
+            this.#forgetCommissionedDevice(options.addresses);
             const captured = commissioner.fabricIndexOnPeer;
             // Treat the spec-invalid NO_FABRIC (0) as "unknown" so callers don't have to filter it again.
             fabricIndexOnPeer = captured === FabricIndex.NO_FABRIC ? undefined : captured;
