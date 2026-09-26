@@ -603,23 +603,17 @@ class OtaExchangeRecording {
     #provider: Endpoint;
     #peer: string;
     #observers = new ObserverGroup();
-    #queried: Promise<void>;
-    #queryResolver: () => void;
+    #queried = createPromise<void>();
+    #notified = createPromise<void>();
 
-    private constructor(provider: Endpoint, peer: string, queried: Promise<void>, queryResolver: () => void) {
+    private constructor(provider: Endpoint, peer: string) {
         this.#provider = provider;
         this.#peer = peer;
-        this.#queried = queried;
-        this.#queryResolver = queryResolver;
-
-        // The race in `awaitQueryImage` stops awaiting when the budget expires first
-        queried.catch(() => {});
     }
 
     static async open(provider: Endpoint, peer: PeerAddress): Promise<OtaExchangeRecording> {
-        const { promise, resolver } = createPromise<void>();
         const key = peer.toString();
-        const recording = new OtaExchangeRecording(provider, key, promise, resolver);
+        const recording = new OtaExchangeRecording(provider, key);
 
         await provider.act(agent => {
             const behavior = agent.get(RecordingOtaProviderServer);
@@ -628,8 +622,15 @@ class OtaExchangeRecording {
             // Only this peer's answers: one provider endpoint serves every node the controller holds,
             // so another requestor's periodic query would otherwise settle this wait.
             recording.#observers.on(behavior.internal.recorded, recorded => {
-                if (recorded === key && (behavior.internal.exchanges.get(key)?.queryImage.length ?? 0) > 0) {
-                    recording.#queryResolver();
+                const exchanges = recorded === key ? behavior.internal.exchanges.get(key) : undefined;
+                if (exchanges === undefined) {
+                    return;
+                }
+                if (exchanges.queryImage.length > 0) {
+                    recording.#queried.resolver();
+                }
+                if (exchanges.notifyUpdateApplied.length > 0) {
+                    recording.#notified.resolver();
                 }
             });
         });
@@ -637,12 +638,22 @@ class OtaExchangeRecording {
         return recording;
     }
 
+    /** Resolves once the provider has recorded a `NotifyUpdateApplied`, or once `timeout` has passed. */
+    async awaitNotifyApplied(timeout: Duration) {
+        const expiry = Time.sleep("cert OTA notify applied", timeout);
+        try {
+            await Promise.race([this.#notified.promise, expiry]);
+        } finally {
+            expiry.cancel();
+        }
+    }
+
     /** Resolves once the provider has answered a `QueryImage`, rejecting where it never does. */
     async awaitQueryImage(nodeId: NodeId, timeout: Duration) {
         const expiry = Time.sleep("cert OTA query", timeout);
         try {
             await Promise.race([
-                this.#queried,
+                this.#queried.promise,
                 expiry.then(() => {
                     throw new OtaTransferError(
                         `Node id ${nodeId} did not query the announced OTA provider within ${timeout}`,
@@ -1767,6 +1778,10 @@ class InProcessCertNodeApi implements CertNodeApi {
         // out its own unreachable-peer budget. The caller tears this controller down when the case
         // ends, so the exchange has to be over before this resolves.
         const applyAcknowledged = applied === undefined ? false : await applied.settled();
+
+        if (applyAcknowledged && options?.notifyAppliedTimeoutMs !== undefined) {
+            await recording.awaitNotifyApplied(Millis(options.notifyAppliedTimeoutMs));
+        }
 
         // After the apply wait, so a provider that answered an ApplyUpdateRequest while this was
         // waiting reports that answer rather than the state before it.

@@ -173,6 +173,18 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
         log.directive(`======> ${this.appName}: Instance stopped`);
     }
 
+    /**
+     * Starts the node again on the storage it wrote, as a device does when it reboots.  The caller closes it first.
+     */
+    protected async restartNode() {
+        await this.initialize();
+
+        // Some tests (BINFO_2_2 at least) are unhappy if events persist
+        await this.node.env.get(OccurrenceManager).clear();
+
+        await this.start();
+    }
+
     async snapshot() {
         const storage = this.storage;
         if (!storage) {
@@ -186,12 +198,7 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
         switch (command.name) {
             case "reboot":
                 await this.close();
-                await this.initialize();
-
-                // Some tests (BINFO_2_2 at least) are unhappy if events persist
-                await this.node.env.get(OccurrenceManager).clear();
-
-                await this.start();
+                await this.restartNode();
                 break;
 
             case "factoryReset":

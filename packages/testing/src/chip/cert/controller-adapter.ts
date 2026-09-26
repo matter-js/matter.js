@@ -628,6 +628,17 @@ export interface ServeOtaUpdateOptions {
      * asked for plus room for the exchange that follows.
      */
     applyTimeoutMs?: number;
+
+    /**
+     * How long to wait, once the apply was allowed, for the node's `NotifyUpdateApplied`, in
+     * milliseconds.
+     *
+     * A node sends it once it runs the new version, so the wait covers the node restarting and
+     * connecting back to the provider. Absent, the update ends at the apply. A node that never sends it
+     * leaves {@link OtaProviderExchanges.notifyUpdateApplied} empty rather than rejecting, so a case can
+     * record that as its own failure.
+     */
+    notifyAppliedTimeoutMs?: number;
 }
 
 /**

@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Millis } from "@matter/general";
+import { Bytes, Crypto, InternalError, Millis } from "@matter/general";
 import { Endpoint, ServerNode } from "@matter/main";
 import { AdministratorCommissioningServer } from "@matter/main/behaviors/administrator-commissioning";
 import { NetworkCommissioningServer } from "@matter/main/behaviors/network-commissioning";
 import { OtaSoftwareUpdateRequestorServer } from "@matter/main/behaviors/ota-software-update-requestor";
-import { AdministratorCommissioning, NetworkCommissioning } from "@matter/main/clusters";
+import { AdministratorCommissioning, GeneralDiagnostics, NetworkCommissioning } from "@matter/main/clusters";
 import { OtaRequestorEndpoint } from "@matter/main/endpoints/ota-requestor";
 import type { OtaImageHeader, PersistedFileDesignator } from "@matter/main/protocol";
 import { OtaImageError, OtaImageReader } from "@matter/main/protocol";
 import { DeviceTypeId } from "@matter/main/types";
-import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
+import { DeviceTestInstanceConfig, log } from "./GenericTestApp.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
 import {
     isOtaTestSoftwareVersionString,
@@ -38,6 +38,28 @@ const ENDPOINT = {
  * the TH and the wait is only the TH's.
  */
 export const SPEC_INTERVALS_ARG = "--specIntervals";
+
+/**
+ * App argument that has the subject restart into the version it applied, as a real device reboots into
+ * its new image. Off by default: a restart is a new boot, and a case driving several updates against the
+ * same subject counts on its version staying where the controller last read it.
+ */
+export const REBOOT_AFTER_APPLY_ARG = "--rebootAfterApply";
+
+/** Where the subject keeps what it booted into, beside the node's own storage. */
+const BOOT_CONTEXT = ["certOtaRequestor"];
+const RUNNING_VERSION_KEY = "runningSoftwareVersion";
+const RUNNING_VERSION_STRING_KEY = "runningSoftwareVersionString";
+const BOOTING_AFTER_UPDATE_KEY = "bootingAfterUpdate";
+
+/**
+ * How the requestor behavior asks its subject to restart into an applied image.
+ *
+ * Registered in the subject's environment only where {@link REBOOT_AFTER_APPLY_ARG} was passed.
+ */
+export class CertOtaReboot {
+    constructor(readonly rebootInto: (header: OtaImageHeader) => Promise<void>) {}
+}
 
 /** See {@link CertOtaRequestorServer.announcedUpdateQueryDelay}. */
 const ANNOUNCED_QUERY_DELAY = Millis(250);
@@ -121,17 +143,23 @@ export async function verifyOtaTestTransfer(
  * Accepts an update the way a real device's firmware would, after establishing that what BDX delivered is
  * what was staged (see {@link verifyOtaTestTransfer}); a mismatch throws rather than reporting success.
  *
- * A cert run never actually reboots this process, so unlike a real device this does not advance
- * `BasicInformation.softwareVersion`. The cluster's own `updateState` and its `StateTransition` event are
- * what an observer reads to see that the update was applied.
+ * Unless the subject was started with {@link REBOOT_AFTER_APPLY_ARG}, this does not advance
+ * `BasicInformation.softwareVersion`: the cluster's own `updateState` and its `StateTransition` event are
+ * what an observer reads to see that the update was applied. With it, the subject restarts running the
+ * new version, which is what makes the requestor send `NotifyUpdateApplied`.
  */
 class CertOtaRequestorServer extends OtaSoftwareUpdateRequestorServer {
     protected override async applyUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) {
+        let header: OtaImageHeader;
         try {
             const blob = await fileDesignator.openBlob();
-            await verifyOtaTestTransfer(this.env.get(Crypto), blob, newSoftwareVersion);
+            header = await verifyOtaTestTransfer(this.env.get(Crypto), blob, newSoftwareVersion);
         } finally {
             await fileDesignator.delete();
+        }
+
+        if (this.env.has(CertOtaReboot)) {
+            await this.env.get(CertOtaReboot).rebootInto(header);
         }
     }
 
@@ -149,14 +177,91 @@ export class OtaRequestorTestInstance extends NodeTestInstance {
     static override id = "ota-requestor-6100";
 
     #fastRetry: boolean;
+    #rebootAfterApply: boolean;
+    #rebooting?: Promise<void>;
+    #closed = false;
 
     constructor(config: DeviceTestInstanceConfig) {
         super(config);
-        this.#fastRetry = otaFastRetryEnabled() && !(config.appArgs ?? []).includes(SPEC_INTERVALS_ARG);
+        const appArgs = config.appArgs ?? [];
+        this.#fastRetry = otaFastRetryEnabled() && !appArgs.includes(SPEC_INTERVALS_ARG);
+        this.#rebootAfterApply = appArgs.includes(REBOOT_AFTER_APPLY_ARG);
+    }
+
+    override async initialize() {
+        this.#closed = false;
+        await super.initialize();
+    }
+
+    override async close() {
+        // An apply the node is still finishing must not restart it once this returns, and a restart in progress
+        // completes before this closes the node it starts
+        this.#closed = true;
+        const rebooting = this.#rebooting;
+        this.#rebooting = undefined;
+        await rebooting;
+        await super.close();
+    }
+
+    /**
+     * Records that the next boot runs the image `header` describes because of an update, then restarts.
+     * Closing the node waits for the requestor's apply, which called this, to finish.
+     */
+    async #rebootInto({ softwareVersion, softwareVersionString }: OtaImageHeader) {
+        if (this.#closed) {
+            return;
+        }
+        const storage = this.storage;
+        if (storage === undefined) {
+            throw new InternalError("OTA requestor subject rebooting without storage");
+        }
+        await storage.set(BOOT_CONTEXT, {
+            [RUNNING_VERSION_KEY]: softwareVersion,
+            [RUNNING_VERSION_STRING_KEY]: softwareVersionString,
+            [BOOTING_AFTER_UPDATE_KEY]: true,
+        });
+
+        this.#rebooting = this.#restart().catch(error => log.error("OTA requestor subject failed to restart", error));
+    }
+
+    async #restart() {
+        await super.close();
+        if (!this.#closed) {
+            await this.restartNode();
+        }
+    }
+
+    /**
+     * The version this boot runs and whether an update is why it booted, which this boot consumes;
+     * `undefined` where no update was ever applied.
+     */
+    async #bootState() {
+        const storage = this.storage;
+        if (storage === undefined) {
+            return undefined;
+        }
+        const running = await storage.get(BOOT_CONTEXT, RUNNING_VERSION_KEY);
+        if (typeof running !== "number") {
+            return undefined;
+        }
+        const runningString = await storage.get(BOOT_CONTEXT, RUNNING_VERSION_STRING_KEY);
+        const afterUpdate = (await storage.get(BOOT_CONTEXT, BOOTING_AFTER_UPDATE_KEY)) === true;
+        if (afterUpdate) {
+            await storage.set(BOOT_CONTEXT, BOOTING_AFTER_UPDATE_KEY, false);
+        }
+        return {
+            softwareVersion: running,
+            softwareVersionString: typeof runningString === "string" ? runningString : `${running}.0.0`,
+            afterUpdate,
+        };
     }
 
     async setupServer(): Promise<ServerNode> {
         const networkId = new Uint8Array(32);
+
+        if (this.#rebootAfterApply) {
+            this.env.set(CertOtaReboot, new CertOtaReboot(header => this.#rebootInto(header)));
+        }
 
         const serverNode = await ServerNode.create(
             ServerNode.RootEndpoint.with(
@@ -201,6 +306,11 @@ export class OtaRequestorTestInstance extends NodeTestInstance {
                 groupKeyManagement: {
                     maxGroupsPerFabric: 50,
                 },
+
+                // Declared from the first boot so the attribute exists when a restart into an update sets it
+                generalDiagnostics: {
+                    bootReason: GeneralDiagnostics.BootReason.Unspecified,
+                },
                 networkCommissioning: {
                     maxNetworks: 1,
                     interfaceEnabled: true,
@@ -234,6 +344,20 @@ export class OtaRequestorTestInstance extends NodeTestInstance {
                 },
             }),
         );
+
+        // After create, not before: the node's storage service is what opens the subject's storage
+        const boot = await this.#bootState();
+        if (boot !== undefined) {
+            await serverNode.set({
+                basicInformation: {
+                    softwareVersion: boot.softwareVersion,
+                    softwareVersionString: boot.softwareVersionString,
+                },
+                ...(boot.afterUpdate
+                    ? { generalDiagnostics: { bootReason: GeneralDiagnostics.BootReason.SoftwareUpdateCompleted } }
+                    : {}),
+            });
+        }
 
         return serverNode;
     }
