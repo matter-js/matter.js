@@ -3110,10 +3110,20 @@ honor it, and the case passes against both behaviours.
 **TC-SU-2.4 is matterjs-only, for TC-SU-3.4's reason.** chip's requestor sends `ApplyUpdateRequest` only
 under `--autoApplyImage`, and then exits, which the harness reads as the DUT dying mid-run.
 
-**TC-SU-2.6 is not reachable yet.** A requestor sends `NotifyUpdateApplied` when it starts up running
-the version it was updating to (`OtaSoftwareUpdateRequestorServer.#handlePreviousUpdateOnStart`).
-`OtaRequestorTestInstance` never restarts and never advances its `softwareVersion`, and chip's app
-cannot restart into the image this harness stages. Step 2's `BootReason` needs the same reboot.
+**TC-SU-2.6 is matterjs-only, and its subject restarts on request.** A requestor sends
+`NotifyUpdateApplied` when it starts up running the version it was updating to
+(`OtaSoftwareUpdateRequestorServer.#handlePreviousUpdateOnStart`). chip's app cannot restart into the
+image this harness stages. `OtaRequestorTestInstance` restarts in process into the applied version only
+when started with `REBOOT_AFTER_APPLY_ARG`, under `appArgs`' `matterjs` key. It keeps what it booted into
+under storage context `certOtaRequestor` and sets `BootReason` `SoftwareUpdateCompleted` on that boot.
+
+- The subject declares `BootReason` from its first boot. matter.js exposes an optional attribute only
+  when the state gives it a value, so setting it only after the restart would target an attribute the
+  node does not have.
+- `DGGEN.S.A0004` is declared in the app's PICS, because `matter-js-pics.properties` answers
+  `DGGEN.S.A0003..7=0` for every matter.js app.
+- Without the restart, both steps fail rather than pass: no `NotifyUpdateApplied` arrives, and
+  `BootReason` stays `Unspecified`.
 
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 

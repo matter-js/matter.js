@@ -256,6 +256,12 @@ registerCertAppPics("matterjs", "ota-requestor", {
     // `CertOtaRequestorServer` implements `requestUserConsent`, and the subject declares `canConsent`.
     "MCORE.OTA.RequestorConsent": 1,
 
+    // Sent on the first boot into the applied version; the controller's own `0` would otherwise answer.
+    "OTAR.C.M.NotifyUpdateApplied": 1,
+
+    // The subject declares BootReason, which the generic matter.js overlay answers `0` for every app.
+    "DGGEN.S.A0004": 1,
+
     // Asynchronous transfer is refused outright, whichever side proposes it (`bdxSessionInitiator`).
     "MCORE.BDX.AsynchronousReceiver": 0,
 
@@ -279,6 +285,7 @@ const CHIP_OTA_REQUESTOR = {
     "MCORE.OTA.Requestor": 1,
     "MCORE.OTA.HTTPS": 0,
     "MCORE.OTA.RequestorConsent": 0,
+    "OTAR.C.M.NotifyUpdateApplied": 1,
 } as const;
 
 registerCertAppPics("chip-local", "ota-requestor", CHIP_OTA_REQUESTOR);
