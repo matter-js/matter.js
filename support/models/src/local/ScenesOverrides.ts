@@ -18,7 +18,9 @@ LocalMatter.children.push({
             tag: "attribute",
             id: FeatureMap.id,
             name: FeatureMap.name,
-            children: [{ tag: "field", name: "SN", default: true }],
+            // Feature fields merge by bit (the constraint), which needs the bitmap type and the bit
+            type: "FeatureMap",
+            children: [{ tag: "field", name: "SN", constraint: "0", default: true }],
         },
 
         // Set NameSupport default to match feature default per the specification
