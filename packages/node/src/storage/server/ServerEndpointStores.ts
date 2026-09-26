@@ -196,8 +196,11 @@ export class ServerEndpointStores {
 
         await this.storeForEndpoint(endpoint.owner).eraseChildStoreFor(endpoint);
 
-        this.#allocatedNumbers.delete(endpoint.number);
-        this.#preAllocatedNumbers.delete(endpoint.number);
+        const number = endpoint.maybeNumber;
+        if (number !== undefined) {
+            this.#allocatedNumbers.delete(number);
+            this.#preAllocatedNumbers.delete(number);
+        }
     }
 
     /**

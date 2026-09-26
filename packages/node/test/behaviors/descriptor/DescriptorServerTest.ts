@@ -10,6 +10,7 @@ import { OnOffServer } from "#behaviors/on-off";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { OnOffLightSwitchDevice } from "#devices/on-off-light-switch";
+import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
@@ -346,5 +347,135 @@ describe("DescriptorServer", () => {
 
             await expectFullPartsLists(node, secondChild);
         });
+    });
+
+    describe("membership changes that keep the count", () => {
+        async function settledPartsListOf(endpoint: Endpoint) {
+            await endpoint.env.get(NodeActivity).inactive;
+            await MockTime.yield3();
+            return [...endpoint.stateOf(DescriptorBehavior).partsList];
+        }
+
+        /**
+         * Close one of two children, then add a replacement after {@link delay} microtasks. Returns the settled
+         * parts list of the parent and of the root, whether the closed child was still a part of
+         * {@link parentType} at the moment the replacement was added, and every value the parent's PartsList was
+         * written to in between, so a caller can assert the timing window it means to exercise instead of just the
+         * precondition.
+         */
+        async function replaceChild(parentType: typeof OnOffLightDevice | typeof AggregatorEndpoint, delay: number) {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const parent = await node.add(parentType, { id: "parent", number: 1 });
+            await parent.add(TemperatureSensorDevice, { id: "c1", number: 2 });
+            const closing = await parent.add(TemperatureSensorDevice, { id: "c2", number: 3 });
+            expect(await settledPartsListOf(parent)).deep.equals([2, 3]);
+
+            const partsListWrites = new Array<number[]>();
+            const onPartsListChanged = (value: EndpointNumber[]) => {
+                partsListWrites.push([...value]);
+            };
+            parent.eventsOf(DescriptorBehavior).partsList$Changed.on(onPartsListChanged);
+
+            const closed = closing.close();
+            for (let i = 0; i < delay; i++) {
+                await Promise.resolve();
+            }
+            const closedChildStillPresent = parent.parts.has(closing);
+
+            await parent.add(TemperatureSensorDevice, { id: "c3", number: 4 });
+            await closed;
+
+            const partsList = await settledPartsListOf(parent);
+            const rootPartsList = await settledPartsListOf(node);
+            parent.eventsOf(DescriptorBehavior).partsList$Changed.off(onPartsListChanged);
+            await node.close();
+            return { partsList, rootPartsList, closedChildStillPresent, partsListWrites };
+        }
+
+        interface ReplaceChildCase {
+            name: string;
+            parentType: typeof OnOffLightDevice | typeof AggregatorEndpoint;
+            delay: number;
+            expectStillPresent: boolean;
+            /**
+             * The exact PartsList write sequence that proves this case reaches the timing window it claims.
+             * Omitted where HEAD writes the final list directly and no intermediate write distinguishes the
+             * window from any other delay that also leaves the closed child present.
+             */
+            expectedWrites?: number[][];
+        }
+
+        const cases: ReplaceChildCase[] = [
+            {
+                name: "a composed parent while the closed child is still a part",
+                parentType: OnOffLightDevice,
+                delay: 20,
+                expectStillPresent: true,
+            },
+            {
+                name: "a composed parent whose replacement is listed before the closed child's removal is",
+                parentType: OnOffLightDevice,
+                delay: 14,
+                expectStillPresent: true,
+                expectedWrites: [
+                    [2, 3, 4],
+                    [2, 4],
+                ],
+            },
+            {
+                name: "an aggregator while the closed child is still a part",
+                parentType: AggregatorEndpoint,
+                delay: 29,
+                expectStillPresent: true,
+            },
+            {
+                name: "an aggregator after the closed child is gone (characterization)",
+                parentType: AggregatorEndpoint,
+                delay: 40,
+                expectStillPresent: false,
+            },
+        ];
+
+        for (const { name, parentType, delay, expectStillPresent, expectedWrites } of cases) {
+            it(`updates ${name}`, async () => {
+                const { partsList, rootPartsList, closedChildStillPresent, partsListWrites } = await replaceChild(
+                    parentType,
+                    delay,
+                );
+
+                expect(
+                    closedChildStillPresent,
+                    `window precondition for "${name}": closed child present at the delay checkpoint`,
+                ).equals(expectStillPresent);
+
+                if (expectedWrites) {
+                    expect(
+                        partsListWrites,
+                        `PartsList write sequence for "${name}" must show the stale intermediate list before the ` +
+                            "corrected final write; if this fails after a scheduling change, retune the delay " +
+                            "rather than treat it as a regression",
+                    ).deep.equals(expectedWrites);
+                }
+
+                expect(partsList, `settled PartsList for "${name}"`).deep.equals([2, 4]);
+
+                // The root's Index-backed PartsList includes the parent and its children (Matter Core § 9.2.8).
+                expect(rootPartsList, `settled root PartsList for "${name}"`).deep.equals([1, 2, 4]);
+            });
+        }
+    });
+
+    it("orders PartsList numerically", async () => {
+        const numbers = [1, 2, 4, 6, 8, 9, 10];
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        for (const number of [10, 9, 8, 6, 4, 2, 1]) {
+            await node.add(OnOffLightDevice, { id: `light${number}`, number });
+        }
+        await node.env.get(NodeActivity).inactive;
+        await MockTime.yield3();
+
+        expect(node.stateOf(DescriptorBehavior).partsList).deep.equals(numbers);
+
+        await node.close();
     });
 });

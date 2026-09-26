@@ -29,6 +29,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `RemoteServer` declares `certificate` and `key` as PEM strings
     - Enhancement: `IcdClient` emits `counterStart$Changed` after a registration, a key refresh or a cleared registration has committed, so a listener can read the new key from state; `keyRefreshed` fires before that
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
+    - Fix: The Descriptor `PartsList` now reports a replacement of an endpoint that leaves the number of parts unchanged, and lists parts in numeric order
+    - Fix: Closing or erasing an endpoint whose parts never received a number, such as the parts of a non-essential endpoint that failed to initialize, no longer logs `uninitialized-dependency` errors, and erasing removes their persisted state
 - @matter/testing
     - Enhancement: `CertNodeApi.serveOtaUpdate()` can wait for the node's `NotifyUpdateApplied` after allowing the apply, via `ServeOtaUpdateOptions.notifyAppliedTimeoutMs`
     - Enhancement: A certification step can have its controller act as a node's ICD Check-In client via `CertNodeApi.icdClient()`: register, end its own subscription so the node sends Check-Ins, and read the Check-Ins and key refreshes it accepted. chip-tool refuses it. Every `CertNodeApi` implementation must provide the new method

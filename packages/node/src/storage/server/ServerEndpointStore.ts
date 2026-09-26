@@ -93,6 +93,9 @@ export class ServerEndpointStore extends EndpointStore {
     async eraseChildStoreFor(endpoint: Endpoint) {
         const partId = endpoint.id;
         const store = this.#childStores[partId];
+        if (store === undefined) {
+            return;
+        }
         await store.erase();
         delete this.#childStores[partId];
     }
