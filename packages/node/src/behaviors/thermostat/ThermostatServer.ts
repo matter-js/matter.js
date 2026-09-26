@@ -1912,6 +1912,29 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 }
             }
 
+            const effectiveSystemMode = transition.systemMode ?? schedule.systemMode;
+            const usesPreset = transition.presetHandle !== undefined || schedule.presetHandle !== undefined;
+            if (
+                !usesPreset &&
+                (effectiveSystemMode === Thermostat.SystemMode.Heat ||
+                    effectiveSystemMode === Thermostat.SystemMode.Auto) &&
+                transition.heatingSetpoint === undefined
+            ) {
+                throw new StatusResponse.ConstraintErrorError(
+                    "A Heat or Auto schedule transition must specify a heatingSetpoint or presetHandle",
+                );
+            }
+            if (
+                !usesPreset &&
+                (effectiveSystemMode === Thermostat.SystemMode.Cool ||
+                    effectiveSystemMode === Thermostat.SystemMode.Auto) &&
+                transition.coolingSetpoint === undefined
+            ) {
+                throw new StatusResponse.ConstraintErrorError(
+                    "A Cool or Auto schedule transition must specify a coolingSetpoint or presetHandle",
+                );
+            }
+
             if (transition.systemMode !== undefined) {
                 if (!scheduleTypeFeatures.supportsSetpoints) {
                     throw new StatusResponse.ConstraintErrorError(
