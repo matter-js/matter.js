@@ -65,4 +65,60 @@ export const AcknowledgedRemovals: AcknowledgedRemoval[] = [
             "Root Node revision 4 -> 5. Matter 1.6.1 adds revision 5 (Added conditions and cluster requirements " +
             "for the Groupcast cluster), so the Descriptor DeviceTypeList default names the new revision.",
     },
+    {
+        key: "cluster#513/attribute#65532/field:MSCH",
+        kind: "conformance",
+        revision: "1.6.1",
+        reason:
+            "Thermostat MatterScheduleConfiguration feature: the ThermostatOverrides mark it provisional (P, O), " +
+            "because the feature is provisional in fact.",
+    },
+    {
+        key: "cluster#513/attribute#73",
+        kind: "conformance",
+        revision: "1.6.1",
+        reason:
+            "Thermostat ScheduleTypes: the ThermostatOverrides mark the MatterScheduleConfiguration feature and the attributes " +
+            "it makes mandatory as provisional (P, MSCH), because the feature is provisional in fact.",
+    },
+    {
+        key: "cluster#513/attribute#75",
+        kind: "conformance",
+        revision: "1.6.1",
+        reason:
+            "Thermostat NumberOfSchedules: the ThermostatOverrides mark the MatterScheduleConfiguration feature and the attributes " +
+            "it makes mandatory as provisional (P, MSCH), because the feature is provisional in fact.",
+    },
+    {
+        key: "cluster#513/attribute#76",
+        kind: "conformance",
+        revision: "1.6.1",
+        reason:
+            "Thermostat NumberOfScheduleTransitions: the ThermostatOverrides mark the MatterScheduleConfiguration feature and the attributes " +
+            "it makes mandatory as provisional (P, MSCH), because the feature is provisional in fact.",
+    },
+    {
+        key: "cluster#513/attribute#77",
+        kind: "conformance",
+        revision: "1.6.1",
+        reason:
+            "Thermostat NumberOfScheduleTransitionPerDay: the ThermostatOverrides mark the MatterScheduleConfiguration feature and the attributes " +
+            "it makes mandatory as provisional (P, MSCH), because the feature is provisional in fact.",
+    },
+    {
+        key: "cluster#513/attribute#79",
+        kind: "conformance",
+        revision: "1.6.1",
+        reason:
+            "Thermostat ActiveScheduleHandle: the ThermostatOverrides mark the MatterScheduleConfiguration feature and the attributes " +
+            "it makes mandatory as provisional (P, MSCH), because the feature is provisional in fact.",
+    },
+    {
+        key: "cluster#513/attribute#81",
+        kind: "conformance",
+        revision: "1.6.1",
+        reason:
+            "Thermostat Schedules: the ThermostatOverrides mark the MatterScheduleConfiguration feature and the attributes " +
+            "it makes mandatory as provisional (P, MSCH), because the feature is provisional in fact.",
+    },
 ];
