@@ -164,6 +164,37 @@ function singleLightModel() {
     return model;
 }
 
+const MIXED_COMPOSER_ID = 0xfff10030;
+
+/**
+ * A model whose MixedComposer requires one OnOffLight component with {@link first} conformance and one carrying
+ * ColorControl, which an OnOffLight lacks, with {@link second} conformance.
+ */
+function mixedInstanceModel(first: string, second: string) {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }),
+        new DeviceTypeModel(
+            { name: "MixedComposer", id: MIXED_COMPOSER_ID, classification: "simple" },
+            new ConditionModel({ name: "Wanted" }),
+            new RequirementModel({
+                name: "OnOffLight",
+                id: OnOffLightDevice.deviceType,
+                element: "deviceType",
+                conformance: first,
+            }),
+            new RequirementModel(
+                { name: "OnOffLight", id: OnOffLightDevice.deviceType, element: "deviceType", conformance: second },
+                new RequirementModel({ name: "ColorControl", id: 0x300, element: "serverCluster", conformance: "M" }),
+            ),
+        ),
+        new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+        new ClusterModel({ name: "ColorControl", id: 0x300 }),
+    );
+    model.finalize();
+    return model;
+}
+
 const INNER_NODE_ID = 0xfff10020;
 const CONDITIONAL_COMPOSER_ID = 0xfff10021;
 
@@ -288,6 +319,39 @@ describe("composition", () => {
         await addSensor(storage, "ac", "AlternatingCurrent");
 
         expect(violationsOf(storage)).deep.equals([]);
+
+        await node.close();
+    });
+
+    for (const second of ["O", "Wanted"]) {
+        it(`leaves an instance of conformance ${second} unfilled beside a filled mandatory one`, async () => {
+            const node = await createNode();
+            const composer = await node.add(DescribedLight, {
+                id: "composer",
+                descriptor: { deviceTypeList: deviceTypeList(MIXED_COMPOSER_ID) },
+            });
+            await composer.add(OnOffLightDevice, { id: "light" });
+
+            expect(violationsOf(composer, mixedInstanceModel("M", second))).deep.equals([]);
+
+            await node.close();
+        });
+    }
+
+    it("reports a mandatory instance no child fills beside an optional one it would", async () => {
+        const node = await createNode();
+        const composer = await node.add(DescribedLight, {
+            id: "composer",
+            descriptor: { deviceTypeList: deviceTypeList(MIXED_COMPOSER_ID) },
+        });
+        await composer.add(OnOffLightDevice, { id: "light" });
+
+        const violations = violationsOf(composer, mixedInstanceModel("O", "M"));
+
+        expect(violations.map(({ kind, requirement }) => ({ kind, requirement }))).deep.equals([
+            { kind: "instanceCount", requirement: "device:OnOffLight#2" },
+        ]);
+        expect(violations[0].detail).includes("ColorControl");
 
         await node.close();
     });

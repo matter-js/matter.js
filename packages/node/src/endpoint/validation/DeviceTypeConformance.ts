@@ -54,10 +54,10 @@ export namespace DeviceTypeConformance {
      * disallowed cluster is the one finding for that cluster; its nested requirements are not judged.
      *
      * Composition is judged from both ends. On the composing endpoint: the number of endpoints of each component
-     * device type, one distinct endpoint per instance, and choice conformance across the component requirements that
-     * share a choice. On a component endpoint: that it satisfies the nested requirements of at least one instance of
-     * each component requirement it fills. A `Descendant` condition is judged on the asserting endpoint against the
-     * number of endpoints it reached.
+     * device type, one distinct endpoint per mandatory instance, and choice conformance across the component
+     * requirements that share a choice. On a component endpoint: that it satisfies the nested requirements of at least
+     * one instance of each component requirement it fills. A `Descendant` condition is judged on the asserting endpoint
+     * against the number of endpoints it reached.
      *
      * Conditions are those {@link ConditionAssertions.collect} answers for the endpoint's node scope in {@link pass},
      * so one pass collects each scope once. An endpoint in no node scope takes the conditions of its whole tree.
@@ -406,6 +406,15 @@ function knownNamesIn(requirement: RequirementModel, pass: ValidationPass): Know
 interface Component {
     deviceType: DeviceTypeModel;
     requirements: RequirementModel[];
+
+    /**
+     * The {@link requirements} that are mandatory; each needs an endpoint of its own.
+     */
+    mandatory: RequirementModel[];
+
+    /**
+     * The strongest applicability among {@link requirements}.
+     */
     applicability: Conformance.Applicability;
 }
 
@@ -433,12 +442,16 @@ function componentsOf(
         }
 
         const applicability = applicabilityOf(requirement, conditions, pass);
-        const entry = byId.get(component.id);
+        let entry = byId.get(component.id);
         if (entry === undefined) {
-            byId.set(component.id, { deviceType: component, requirements: [requirement], applicability });
+            entry = { deviceType: component, requirements: [], mandatory: [], applicability };
+            byId.set(component.id, entry);
         } else {
-            entry.requirements.push(requirement);
             entry.applicability = strongerOf(entry.applicability, applicability);
+        }
+        entry.requirements.push(requirement);
+        if (applicability === Conformance.Applicability.Mandatory) {
+            entry.mandatory.push(requirement);
         }
     }
 
@@ -508,8 +521,9 @@ function failuresOf(
  * requires.
  *
  * A mandatory component needs as many endpoints as its constraint states, at least one when it states none, and one
- * distinct endpoint per instance. An optional component needs none, but the constraint applies once there is one. A
- * disallowed component may have none. A component whose conformance depends on something unknown is not judged.
+ * distinct endpoint per mandatory instance. An optional component needs none, but the constraint applies once there
+ * is one. A disallowed component may have none. A component whose conformance depends on something unknown is not
+ * judged.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.3
  */
@@ -581,8 +595,8 @@ function checkCount(
 }
 
 /**
- * Match the instances of {@link component} to distinct {@link candidates} that satisfy them, and report each instance
- * left unmatched with what it requires that no candidate offers.
+ * Match the mandatory instances of {@link component} to distinct {@link candidates} that satisfy them, and report each
+ * one left unmatched with what it requires that no candidate offers. Other instances may go unfilled.
  */
 function checkInstances(
     { violations, facts, deviceType, pass }: Context,
@@ -590,12 +604,13 @@ function checkInstances(
     candidates: EndpointFacts[],
     collection: ConditionAssertions.Collection,
 ) {
-    const failures = component.requirements.map(instance =>
+    const { mandatory } = component;
+    const failures = mandatory.map(instance =>
         candidates.map(candidate => failuresOf(candidate, instance, deviceType, collection, pass)),
     );
     const matched = matchInstances(failures.map(row => row.map(failed => !failed.length)));
 
-    component.requirements.forEach((instance, index) => {
+    mandatory.forEach((instance, index) => {
         if (matched[index] !== undefined) {
             return;
         }
