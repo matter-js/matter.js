@@ -4,26 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
     aclAdmitsGroupStep,
     addGroupStep,
     GROUP,
     GROUP_KEY_MANAGEMENT,
-    GROUP_KEY_MANAGEMENT_ID,
     GROUP_KEY_SET_ID,
     GROUPS,
     GROUPS_ENDPOINT,
-    GROUPS_ID,
     groupKeyMapStep,
-    invokeAndCheck,
     IPK_KEY_SET_ID,
     keepsGroupNames,
     keyMaterialStep,
     keySetWriteStep,
     ROOT_ENDPOINT,
 } from "./tc-group-support.js";
-import { CommissionedRefs, describeValue, record } from "./tc-support.js";
+import { attempt, CommissionedRefs, describeValue, invokeCommand, recordAll } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
@@ -86,38 +84,45 @@ certTest("TC-SC-6.1", {
         5,
         "DUT sends ViewGroup command with the GroupID 1 to the Groups cluster on the TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            const response = await invokeAndCheck(
-                cx,
-                ref,
-                GROUPS,
-                GROUPS_ID,
-                GROUPS_ENDPOINT,
-                "viewGroup",
-                { groupId: GROUP.id },
-                [{ id: 0, value: GROUP.id }],
-            );
+            const { response, accepted, checks } = await invokeCommand(cx, ref, {
+                cluster: GROUPS,
+                endpoint: GROUPS_ENDPOINT,
+                command: "viewGroup",
+                args: { groupId: GROUP.id },
+                fields: [{ id: 0, value: GROUP.id }],
+            });
 
-            // The plan allows an empty name only from a TH without the GroupNames feature, so which
-            // answer is acceptable is read from the TH rather than allowed unconditionally — both THs
-            // configured here keep names, and an unconditional allowance could not fail for either.
-            // The group id is not optional either: a response for another group would otherwise pass.
-            const { groupId, groupName } =
-                typeof response === "object" && response !== null
-                    ? (response as { groupId?: unknown; groupName?: unknown })
-                    : {};
-            const keepsNames = await keepsGroupNames(cx.controllers.dut.node(ref));
-            const named = groupName === GROUP.name || (!keepsNames && groupName === "");
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict: Number(groupId) === GROUP.id && named ? "pass" : "fail",
-                    detail:
-                        `ViewGroupResponse answers for group ${describeValue(groupId)} named ${describeValue(groupName)}; ` +
-                        `the TH ${keepsNames ? "keeps" : "does not keep"} group names`,
-                },
-                "the group the TH reports, and its name",
-            );
+            if (response.ok && accepted) {
+                // The plan allows an empty name only from a TH without the GroupNames feature, so which
+                // answer is acceptable is read from the TH rather than allowed unconditionally — both THs
+                // configured here keep names, and an unconditional allowance could not fail for either.
+                // The group id is not optional either: a response for another group would otherwise pass.
+                const answer = response.value;
+                const groupId =
+                    typeof answer === "object" && answer !== null && "groupId" in answer ? answer.groupId : undefined;
+                const groupName =
+                    typeof answer === "object" && answer !== null && "groupName" in answer
+                        ? answer.groupName
+                        : undefined;
+                const keepsNames = await attempt(
+                    () => keepsGroupNames(cx.controllers.dut.node(ref)),
+                    keeps => `the TH ${keeps ? "keeps" : "does not keep"} group names`,
+                );
+                let reported = keepsNames.check;
+                if (keepsNames.ok) {
+                    const named = groupName === GROUP.name || (!keepsNames.value && groupName === "");
+                    reported = {
+                        type: "response",
+                        verdict: Number(groupId) === GROUP.id && named ? "pass" : "fail",
+                        detail:
+                            `ViewGroupResponse answers for group ${describeValue(groupId)} named ${describeValue(groupName)}; ` +
+                            `the TH ${keepsNames.value ? "keeps" : "does not keep"} group names`,
+                    };
+                }
+                checks.push({ what: "the group the TH reports, and its name", check: () => reported });
+            }
+
+            await recordAll(cx, checks);
         }),
         {
             pics: "G.C.C01.Tx",
@@ -138,30 +143,33 @@ certTest("TC-SC-6.1", {
         8,
         "DUT sends KeySetRead Command to TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            const response = await invokeAndCheck(
-                cx,
-                ref,
-                GROUP_KEY_MANAGEMENT,
-                GROUP_KEY_MANAGEMENT_ID,
-                ROOT_ENDPOINT,
-                "keySetRead",
-                { groupKeySetId: GROUP_KEY_SET_ID },
-                [{ id: 0, value: GROUP_KEY_SET_ID }],
-            );
+            const { response, accepted, checks } = await invokeCommand(cx, ref, {
+                cluster: GROUP_KEY_MANAGEMENT,
+                endpoint: ROOT_ENDPOINT,
+                command: "keySetRead",
+                args: { groupKeySetId: GROUP_KEY_SET_ID },
+                fields: [{ id: 0, value: GROUP_KEY_SET_ID }],
+            });
 
-            const read =
-                typeof response === "object" && response !== null && "groupKeySet" in response
-                    ? (response as { groupKeySet?: { groupKeySetId?: unknown } }).groupKeySet
-                    : undefined;
-            record(
-                cx,
-                {
+            if (response.ok && accepted) {
+                const answer = response.value;
+                const read =
+                    typeof answer === "object" && answer !== null && "groupKeySet" in answer
+                        ? answer.groupKeySet
+                        : undefined;
+                const readId =
+                    typeof read === "object" && read !== null && "groupKeySetId" in read
+                        ? read.groupKeySetId
+                        : undefined;
+                const reported: CheckRecord = {
                     type: "response",
-                    verdict: read?.groupKeySetId === GROUP_KEY_SET_ID ? "pass" : "fail",
-                    detail: `KeySetReadResponse carries key set ${describeValue(read?.groupKeySetId)}`,
-                },
-                "the key set the TH reports back",
-            );
+                    verdict: readId === GROUP_KEY_SET_ID ? "pass" : "fail",
+                    detail: `KeySetReadResponse carries key set ${describeValue(readId)}`,
+                };
+                checks.push({ what: "the key set the TH reports back", check: () => reported });
+            }
+
+            await recordAll(cx, checks);
         }),
         {
             pics: "GRPKEY.C.C01.Tx",
@@ -172,16 +180,14 @@ certTest("TC-SC-6.1", {
         9,
         "DUT sends KeySetRemove Command to TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            await invokeAndCheck(
-                cx,
-                ref,
-                GROUP_KEY_MANAGEMENT,
-                GROUP_KEY_MANAGEMENT_ID,
-                ROOT_ENDPOINT,
-                "keySetRemove",
-                { groupKeySetId: GROUP_KEY_SET_ID },
-                [{ id: 0, value: GROUP_KEY_SET_ID }],
-            );
+            const { checks } = await invokeCommand(cx, ref, {
+                cluster: GROUP_KEY_MANAGEMENT,
+                endpoint: ROOT_ENDPOINT,
+                command: "keySetRemove",
+                args: { groupKeySetId: GROUP_KEY_SET_ID },
+                fields: [{ id: 0, value: GROUP_KEY_SET_ID }],
+            });
+            await recordAll(cx, checks);
         }),
         {
             pics: "GRPKEY.C.C03.Tx",
@@ -192,38 +198,37 @@ certTest("TC-SC-6.1", {
         10,
         "DUT sends KeySetReadAllIndices Command to TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            const response = await invokeAndCheck(
-                cx,
-                ref,
-                GROUP_KEY_MANAGEMENT,
-                GROUP_KEY_MANAGEMENT_ID,
-                ROOT_ENDPOINT,
-                "keySetReadAllIndices",
-                {},
-                [],
-            );
+            const { response, accepted, checks } = await invokeCommand(cx, ref, {
+                cluster: GROUP_KEY_MANAGEMENT,
+                endpoint: ROOT_ENDPOINT,
+                command: "keySetReadAllIndices",
+                args: {},
+                fields: [],
+            });
 
-            // The set removed in step 9 must be gone from the indices, which is what tells that command
-            // apart from one the TH merely answered.
-            const indices =
-                typeof response === "object" && response !== null && "groupKeySetIds" in response
-                    ? (response as { groupKeySetIds?: unknown }).groupKeySetIds
-                    : undefined;
-            // Exactly the IPK, not merely "without the removed set": an empty list, or one naming a set
-            // nobody wrote, would satisfy the weaker claim while saying the TH lost track of its keys.
-            const listed = Array.isArray(indices) ? indices.map(Number) : undefined;
-            const onlyIpk = listed !== undefined && listed.length === 1 && listed[0] === IPK_KEY_SET_ID;
-            record(
-                cx,
-                {
+            if (response.ok && accepted) {
+                // The set removed in step 9 must be gone from the indices, which is what tells that command
+                // apart from one the TH merely answered.
+                const answer = response.value;
+                const indices =
+                    typeof answer === "object" && answer !== null && "groupKeySetIds" in answer
+                        ? answer.groupKeySetIds
+                        : undefined;
+                // Exactly the IPK, not merely "without the removed set": an empty list, or one naming a set
+                // nobody wrote, would satisfy the weaker claim while saying the TH lost track of its keys.
+                const listed = Array.isArray(indices) ? indices.map(Number) : undefined;
+                const onlyIpk = listed !== undefined && listed.length === 1 && listed[0] === IPK_KEY_SET_ID;
+                const reported: CheckRecord = {
                     type: "response",
                     verdict: onlyIpk ? "pass" : "fail",
                     detail:
                         `KeySetReadAllIndicesResponse lists ${describeValue(indices)}; after removing ` +
                         `${GROUP_KEY_SET_ID} only the IPK's ${IPK_KEY_SET_ID} may remain`,
-                },
-                "the indices the TH reports after the removal",
-            );
+                };
+                checks.push({ what: "the indices the TH reports after the removal", check: () => reported });
+            }
+
+            await recordAll(cx, checks);
         }),
         {
             pics: "GRPKEY.C.C04.Tx",
