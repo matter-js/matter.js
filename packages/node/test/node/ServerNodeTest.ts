@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { DescriptorBehavior } from "#behaviors/descriptor";
+import { OnOffServer } from "#behaviors/on-off";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
@@ -563,6 +564,71 @@ describe("ServerNode", () => {
         await rebooted.add(added);
 
         expect(added.number).equals(2);
+    });
+
+    it("erases the persisted store of a part that crashes before number assignment", async () => {
+        await using site = new MockSite();
+        const id = "crash-before-number";
+
+        class FailingOnOffServer extends OnOffServer {
+            override initialize() {
+                throw new ImplementationError("Initialization refused for test");
+            }
+        }
+
+        {
+            const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+            const child = new Endpoint(OnOffLightDevice, { id: "child" });
+            const parent = new Endpoint(OnOffLightDevice, {
+                id: "parent",
+                isEssential: false,
+                parts: [child],
+            });
+            await node.add(parent);
+            await child.set({ onOff: { onOff: true } });
+            await node.close();
+        }
+
+        // The part's storage from the prior session loads at startup independent of the crashed part ever reaching
+        // number assignment
+        {
+            const rebooted = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const crashedChild = new Endpoint(OnOffLightDevice, { id: "child" });
+            const crashedParent = new Endpoint(OnOffLightDevice.with(FailingOnOffServer), {
+                id: "parent",
+                isEssential: false,
+                parts: [crashedChild],
+            });
+            await expect(rebooted.add(crashedParent)).rejectedWith(EndpointBehaviorsError);
+            expect(crashedChild.maybeId).equals("child");
+            expect(crashedChild.lifecycle.hasNumber).equals(false);
+
+            await crashedChild.erase();
+            await rebooted.close();
+        }
+
+        {
+            const healthy = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const child = new Endpoint(OnOffLightDevice, { id: "child" });
+            const parent = new Endpoint(OnOffLightDevice, {
+                id: "parent",
+                isEssential: false,
+                parts: [child],
+            });
+            await healthy.add(parent);
+
+            expect(child.state.onOff.onOff).equals(false);
+
+            await healthy.close();
+        }
     });
 
     it("factory reset erases blobs an earlier session left behind", async () => {

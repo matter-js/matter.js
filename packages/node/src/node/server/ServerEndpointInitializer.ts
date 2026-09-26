@@ -42,7 +42,7 @@ export class ServerEndpointInitializer extends EndpointInitializer {
     }
 
     async eraseDescendant(endpoint: Endpoint) {
-        if (!endpoint.lifecycle.hasId || endpoint.maybeNumber === undefined) {
+        if (!endpoint.lifecycle.hasId) {
             return;
         }
 
