@@ -12,13 +12,16 @@
  * It can be used as CLI script and starting point for your own device node implementation.
  */
 
-import { Endpoint, Environment, Logger, ServerNode, StorageService, Time } from "@matter/main";
+import { CommonNumberTag, Endpoint, Environment, Logger, ServerNode, StorageService, Time } from "@matter/main";
+import { DescriptorServer } from "@matter/main/behaviors/descriptor";
 import { OnOffLightDevice } from "@matter/main/devices/on-off-light";
 import { OnOffPlugInUnitDevice } from "@matter/main/devices/on-off-plug-in-unit";
 import { DeviceTypeId, VendorId } from "@matter/main/types";
 import { execSync } from "node:child_process";
 
 const logger = Logger.get("ComposedDeviceNode");
+
+const TaggedDescriptorServer = DescriptorServer.with("TagList");
 
 /** Initialize configuration values */
 const { isSocket, deviceName, vendorName, passcode, discriminator, vendorId, productName, productId, port, uniqueId } =
@@ -69,7 +72,8 @@ const server = await ServerNode.create({
  * Matter Nodes are a composition of endpoints. Create and add a single multiple endpoint to the node to make it a
  * composed device. This example uses the OnOffLightDevice or OnOffPlugInUnitDevice depending on the value of the type
  * parameter. It also assigns each Endpoint a unique ID to store the endpoint number for it in the storage to restore
- * the device on restart.
+ * the device on restart. Endpoints of the same device type next to each other need a semantic tag that tells them
+ * apart, so each endpoint carries its number as a tag in the Descriptor's TagList.
  *
  * In this case we directly use the default command implementation from matter.js. Check out the DeviceNodeFull example
  * to see how to customize the command handlers.
@@ -78,7 +82,18 @@ const server = await ServerNode.create({
 for (let idx = 0; idx < isSocket.length; idx++) {
     const i = idx + 1;
     const isASocket = isSocket[idx]; // Is the Device we add a Socket or a Light?
-    const endpoint = new Endpoint(isASocket ? OnOffPlugInUnitDevice : OnOffLightDevice, { id: `onoff-${i}` });
+    const id = `onoff-${i}`;
+
+    // The Common Number namespace ends at 30; a TagList must not be empty, so later endpoints go without one
+    const tagList = Object.values(CommonNumberTag).filter(({ tag }) => tag === i);
+    let endpoint;
+    if (!tagList.length) {
+        endpoint = new Endpoint(isASocket ? OnOffPlugInUnitDevice : OnOffLightDevice, { id });
+    } else if (isASocket) {
+        endpoint = new Endpoint(OnOffPlugInUnitDevice.with(TaggedDescriptorServer), { id, descriptor: { tagList } });
+    } else {
+        endpoint = new Endpoint(OnOffLightDevice.with(TaggedDescriptorServer), { id, descriptor: { tagList } });
+    }
     await server.add(endpoint);
 
     /**

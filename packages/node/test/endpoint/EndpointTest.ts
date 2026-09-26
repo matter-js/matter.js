@@ -69,6 +69,23 @@ describe("Endpoint", () => {
         });
     });
 
+    describe("deviceConditions", () => {
+        it("holds what the caller states", () => {
+            const endpoint = new Endpoint(OnOffLightDevice, { deviceConditions: ["PhysicalInputs"] });
+            expect([...endpoint.deviceConditions]).deep.equals(["PhysicalInputs"]);
+        });
+
+        it("is empty when unstated", () => {
+            expect(new Endpoint(OnOffLightDevice).deviceConditions.size).equals(0);
+        });
+
+        it("does not share a set across endpoints that state no conditions", () => {
+            const a = new Endpoint(OnOffLightDevice);
+            const b = new Endpoint(OnOffLightDevice);
+            expect(a.deviceConditions).not.equal(b.deviceConditions);
+        });
+    });
+
     describe("set", () => {
         it("sets", async () => {
             const node = new MockServerNode();

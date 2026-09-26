@@ -75,6 +75,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
     #events = {} as SupportedBehaviors.EventsOf<T["behaviors"]>;
     #commands?: Commands<T>;
     #activity?: NodeActivity;
+    #deviceConditions: Set<string>;
 
     /**
      * A string that uniquely identifies an endpoint.
@@ -126,6 +127,15 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      */
     get owner(): Endpoint | undefined {
         return this.#owner;
+    }
+
+    /**
+     * Conditions this endpoint asserts, as stated at construction.
+     *
+     * @see {@link Endpoint.EndpointOptions.deviceConditions}
+     */
+    get deviceConditions(): ReadonlySet<string> {
+        return this.#deviceConditions;
     }
 
     /**
@@ -611,6 +621,8 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             this.number = config.number;
         }
 
+        this.#deviceConditions = new Set(config.deviceConditions);
+
         this.#behaviors = new Behaviors(this, config as Record<string, object | undefined>);
 
         if (config.owner) {
@@ -1056,8 +1068,10 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * Derivatives may override to perform async construction prior to full initialization.
      */
     protected initialize() {
+        const initializer = this.env.get(EndpointInitializer);
+
         // Configure the endpoint for the appropriate node type
-        this.env.get(EndpointInitializer).initializeDescendant(this);
+        initializer.initializeDescendant(this);
 
         // Initialize behaviors.  Success brings endpoint to "ready" state
         let promise = this.behaviors.initialize();
@@ -1069,7 +1083,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             promise = this.parts.initialize();
         }
 
-        return promise;
+        return MaybePromise.then(promise, () => initializer.partsInitialized(this));
     }
 
     /**
@@ -1402,6 +1416,18 @@ export namespace Endpoint {
          * Endpoints are essential by default but you may disable by setting this to false.
          */
         isEssential?: boolean;
+
+        /**
+         * Conditions this endpoint asserts that its structure does not state.
+         *
+         * A device type's requirements may depend on a condition — a named fact such as `Cooler` or
+         * `PhysicalInputs`.  Most conditions follow from the endpoint tree and matter.js derives those.
+         * State here only the ones that describe the product rather than the structure.  A condition
+         * matter.js does not know about is reported rather than ignored.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 9.2.6
+         */
+        deviceConditions?: string[];
     }
 
     export type Options<

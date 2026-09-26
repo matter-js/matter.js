@@ -12,9 +12,12 @@
 
 import { Endpoint, ServerNode } from "@matter/main";
 import { CarbonDioxideConcentrationMeasurementServer } from "@matter/main/behaviors/carbon-dioxide-concentration-measurement";
+import { PowerSourceServer } from "@matter/main/behaviors/power-source";
 import { SmokeCoAlarmServer } from "@matter/main/behaviors/smoke-co-alarm";
 import { ConcentrationMeasurement } from "@matter/main/clusters/concentration-measurement";
+import { PowerSource } from "@matter/main/clusters/power-source";
 import { SmokeCoAlarmDevice } from "@matter/main/devices/smoke-co-alarm";
+import { PowerSourceEndpoint } from "@matter/main/endpoints/power-source";
 
 // Define the endpoint for the device.  This is the "thing/device" that will appear on the network.
 const smokeCoAlarmEndpoint = new Endpoint(
@@ -41,6 +44,21 @@ const smokeCoAlarmEndpoint = new Endpoint(
             measurementUnit: ConcentrationMeasurement.MeasurementUnit.Ppm,
             measurementMedium: ConcentrationMeasurement.MeasurementMedium.Air,
         },
+
+        // The Smoke CO Alarm device type requires a Power Source device as part of its composition
+        parts: [
+            new Endpoint(PowerSourceEndpoint.with(PowerSourceServer.with("Battery")), {
+                id: "battery",
+                powerSource: {
+                    status: PowerSource.PowerSourceStatus.Active,
+                    order: 0,
+                    description: "Battery",
+                    batChargeLevel: PowerSource.BatChargeLevel.Ok,
+                    batReplacementNeeded: false,
+                    batReplaceability: PowerSource.BatReplaceability.UserReplaceable,
+                },
+            }),
+        ],
     },
 );
 

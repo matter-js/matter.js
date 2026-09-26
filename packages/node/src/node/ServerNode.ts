@@ -14,6 +14,7 @@ import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js"
 import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
+import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import type { Environment } from "@matter/general";
 import {
@@ -247,6 +248,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      */
     private async resetServiceState() {
         this.env.get(IdentityService).releaseReservedPeerAddresses();
+        this.env.get(DeviceTypeConformanceService).reset();
         this.env.get(EndpointInitializer).variableService?.invalidate();
     }
 
