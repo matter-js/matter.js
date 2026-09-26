@@ -392,6 +392,32 @@ const UPDATE_STATE_ID = requireId(OTA_REQUESTOR.attributes.require("updateState"
 /** `UpdateState` Idle (Matter Core § 11.20.7.5.3), the state the plans' Test Setup requires. */
 const UPDATE_STATE_IDLE = 1;
 
+/** `UpdateState` Downloading, which a requestor enters once it starts transferring an image. */
+export const UPDATE_STATE_DOWNLOADING = 4;
+
+const STATE_TRANSITION_ID = requireId(OTA_REQUESTOR.events.require("stateTransition").id, "StateTransition event");
+
+/** One `StateTransition` event of the DUT's requestor: its event number, and the state it entered. */
+export interface RequestorStateChange {
+    eventNumber: bigint;
+    newState: unknown;
+}
+
+/**
+ * The `StateTransition` events the DUT's requestor holds, on every endpoint, with an event number above
+ * `after` where given.
+ */
+export async function requestorStateChanges(node: CertNodeApi, after?: bigint): Promise<RequestorStateChange[]> {
+    const events = await node.readEvents(
+        [{ cluster: OTA_REQUESTOR_ID, event: STATE_TRANSITION_ID }],
+        after === undefined ? undefined : { minEventNumber: after + 1n },
+    );
+    return events.map(({ eventNumber, value }) => ({
+        eventNumber,
+        newState: typeof value === "object" && value !== null && "newState" in value ? value.newState : undefined,
+    }));
+}
+
 /**
  * Records the Test Setup every requestor plan shares: "reading the UpdateState Attribute of the OTA
  * Requestor should return the value as Idle".
