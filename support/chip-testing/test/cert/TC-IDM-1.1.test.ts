@@ -7,7 +7,8 @@
 import { Matter } from "@matter/model";
 import type { CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import { CommissionedRefs, expectCommandInvoke, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
+import type { RecordedCheck } from "./tc-support.js";
+import { attempt, CommissionedRefs, expectCommandInvoke, LOG_TIMEOUT, requireId, withChecks } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -15,24 +16,29 @@ const ENDPOINT = 1;
 
 const commissioned = new CommissionedRefs();
 
-/** Invokes `commandName` on the TH's OnOff cluster, then verifies TH's log captured the matching
- * `CommandPathIB`. `OnOff.on`/`OnOff.off` take no fields, so only the path itself is checked. */
-async function invokeOnOffAndCheck(
+/**
+ * Invokes `commandName` on the TH's OnOff cluster, then looks for the matching `CommandPathIB` in the TH's
+ * log at or after `from`, or leaves that check out where `from` is `undefined`. `OnOff.on`/`OnOff.off`
+ * take no fields, so only the path itself is checked.
+ */
+async function invokeOnOff(
     cx: CertStepContext,
     ref: CertNodeRef,
     commandName: "on" | "off",
-    from: number,
-): Promise<CheckRecord> {
+    from: number | undefined,
+    checks: RecordedCheck[],
+): Promise<{ logCheck?: CheckRecord }> {
     const th = cx.devices.th;
     const commandId = requireId(ON_OFF.commands.require(commandName).id, `OnOff.${commandName}`);
 
-    try {
-        await cx.controllers.dut.node(ref).invoke("OnOff", commandName, {}, ENDPOINT);
-    } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
-        throw e;
+    const response = await attempt(
+        () => cx.controllers.dut.node(ref).invoke("OnOff", commandName, {}, ENDPOINT),
+        () => "status=Success",
+    );
+    checks.push({ what: `OnOff.${commandName} response`, check: () => response.check });
+    if (from === undefined) {
+        return {};
     }
-    cx.recorder.check({ type: "response", verdict: "pass", detail: "status=Success" });
 
     const logCheck = await expectCommandInvoke(
         th.log,
@@ -44,8 +50,8 @@ async function invokeOnOffAndCheck(
         from,
         LOG_TIMEOUT,
     );
-    record(cx, logCheck, `CommandDataIB log for OnOff.${commandName}`);
-    return logCheck;
+    checks.push({ what: `CommandDataIB log for OnOff.${commandName}`, check: () => logCheck });
+    return { logCheck };
 }
 
 certTest("TC-IDM-1.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.InvokeRequest"], app: "all-clusters" })
@@ -63,8 +69,9 @@ certTest("TC-IDM-1.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             });
             commissioned.set("dut", ref);
 
-            const from = th.log.mark();
-            await invokeOnOffAndCheck(cx, ref, "on", from);
+            await withChecks(cx, async checks => {
+                await invokeOnOff(cx, ref, "on", th.log.mark(), checks);
+            });
         },
         { expected: "On the TH verify the received request message has the same paths as provided in the command." },
     )
@@ -81,13 +88,19 @@ certTest("TC-IDM-1.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
             "which has the specific Endpoint, Specific Cluster and Specific Command. Send 2 more Invoke Request " +
             "Messages to the TH.",
         commissioned.withRef("dut", async (cx, ref) => {
-            let from = cx.devices.th.log.mark();
-            for (let i = 0; i < 3; i++) {
-                const logCheck = await invokeOnOffAndCheck(cx, ref, "off", from);
-                if (logCheck.logLine !== undefined) {
-                    from = logCheck.logLine + 1;
+            // Each search starts past the previous invoke's own block, so once one is missing the next
+            // search could match that block arriving late, and the later log checks are left out
+            let from: number | undefined = cx.devices.th.log.mark();
+            await withChecks(cx, async checks => {
+                for (let i = 0; i < 3; i++) {
+                    const invoked = await invokeOnOff(cx, ref, "off", from, checks);
+                    if (invoked.logCheck === undefined || invoked.logCheck.verdict === "fail") {
+                        from = undefined;
+                    } else if (invoked.logCheck.logLine !== undefined) {
+                        from = invoked.logCheck.logLine + 1;
+                    }
                 }
-            }
+            });
         }),
         { expected: "On the TH verify the received request messages have the same paths as provided in the command." },
     )

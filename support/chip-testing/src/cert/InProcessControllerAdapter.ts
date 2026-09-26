@@ -2450,10 +2450,10 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             });
             this.#controller = controller;
 
-            await controller.start();
-
             const fabricAuthority = await controller.env.load(FabricAuthority);
             this.#fabric = await fabricAuthority.defaultFabric({ adminFabricLabel: this.id });
+
+            await controller.start();
 
             if (this.#hostsWebRtcRequestor) {
                 const endpoint = await controller.add(CameraControllerDevice, {

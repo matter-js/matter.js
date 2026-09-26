@@ -8,19 +8,22 @@ import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
+    AttributeWriteStatus,
     CertNodeApi,
     CertNodeRef,
     CertStepContext,
     SelectableDeviceFlavor,
 } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import type { RecordedCheck } from "./tc-support.js";
 import {
+    attempt,
     CertCheckFailedError,
     CommissionedRefs,
     expectMessageWithPath,
     LOG_TIMEOUT,
-    record,
     requireId,
+    withChecks,
 } from "./tc-support.js";
 
 const LEVEL_CONTROL = Matter.clusters.require("LevelControl");
@@ -68,24 +71,19 @@ async function writeAndCheck(
     label: string,
     path: AttributePathSpec,
     value: unknown,
+    checks: RecordedCheck[],
 ): Promise<void> {
     const th = cx.devices.th;
     const from = th.log.mark();
 
-    try {
-        await cx.controllers.dut.node(ref).writeAttribute(path, value);
-    } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
-        throw e;
-    }
-    cx.recorder.check({
-        type: "response",
-        verdict: "pass",
-        detail: `wrote ${JSON.stringify(value)} to ${JSON.stringify(path)}`,
-    });
+    const response = await attempt(
+        () => cx.controllers.dut.node(ref).writeAttribute(path, value),
+        () => `wrote ${JSON.stringify(value)} to ${JSON.stringify(path)}`,
+    );
+    checks.push({ what: `Write response for step ${label}`, check: () => response.check });
 
     const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT);
-    record(cx, logCheck, `WriteRequestMessage log for step ${label}`);
+    checks.push({ what: `WriteRequestMessage log for step ${label}`, check: () => logCheck });
 }
 
 /**
@@ -129,7 +127,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 cluster: LEVEL_CONTROL_ID,
                 attribute: requireId(ON_LEVEL.id, "LevelControl.onLevel"),
             };
-            await writeAndCheck(cx, ref, "1", path, 2);
+            await withChecks(cx, checks => writeAndCheck(cx, ref, "1", path, 2, checks));
         },
         { expected: "Verify on the TH that the correct WriteRequestMessage has been received." },
     )
@@ -144,41 +142,43 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 cluster: IDENTIFY_ID,
                 attribute: requireId(IDENTIFY_TIME.id, "Identify.identifyTime"),
             };
-            const from = th.log.mark();
 
-            const statuses = await dut.node(ref).writeAttributes([{ path, value: IDENTIFY_TIME_VALUE }]);
-            const written = statuses.filter(({ status }) => status === Status.Success);
-            cx.recorder.check({
-                type: "response",
-                verdict: written.length > 1 ? "pass" : "fail",
-                detail:
-                    `wrote ${IDENTIFY_TIME_VALUE} to Identify.identifyTime on ${written.length} endpoint(s): ` +
-                    JSON.stringify(statuses),
-            });
-            if (written.length <= 1) {
-                throw new CertCheckFailedError(
-                    `A wildcard write must reach more than one endpoint, got ${JSON.stringify(statuses)}`,
+            await withChecks(cx, async checks => {
+                const from = th.log.mark();
+
+                const successes = (statuses: AttributeWriteStatus[]) =>
+                    statuses.filter(({ status }) => status === Status.Success);
+                const write = await attempt(
+                    () => dut.node(ref).writeAttributes([{ path, value: IDENTIFY_TIME_VALUE }]),
+                    statuses =>
+                        `wrote ${IDENTIFY_TIME_VALUE} to Identify.identifyTime on ${successes(statuses).length} endpoint(s): ` +
+                        JSON.stringify(statuses),
                 );
-            }
+                const written = write.ok ? successes(write.value) : [];
+                checks.push({
+                    what: "A wildcard write must reach more than one endpoint",
+                    check: () => (write.ok && written.length <= 1 ? { ...write.check, verdict: "fail" } : write.check),
+                });
 
-            const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT);
-            record(cx, logCheck, "WriteRequestMessage log for step 2");
+                const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", path, from, LOG_TIMEOUT);
+                checks.push({ what: "WriteRequestMessage log for step 2", check: () => logCheck });
 
-            for (const { endpoint } of written) {
-                const value = await dut
-                    .node(ref)
-                    .readAttribute({ endpoint, cluster: IDENTIFY_ID, attribute: IDENTIFY_TIME.id });
-                record(
-                    cx,
-                    {
-                        type: "response",
+                for (const { endpoint } of written) {
+                    const read = await attempt(
+                        () =>
+                            dut
+                                .node(ref)
+                                .readAttribute({ endpoint, cluster: IDENTIFY_ID, attribute: IDENTIFY_TIME.id }),
+                        value => `endpoint ${endpoint} reports identifyTime=${JSON.stringify(value)}`,
+                    );
+                    checks.push({
+                        what: `endpoint ${endpoint} identifyTime`,
                         // identifyTime counts down from the written value, so the device may already report less
-                        verdict: typeof value === "number" ? "pass" : "fail",
-                        detail: `endpoint ${endpoint} reports identifyTime=${JSON.stringify(value)}`,
-                    },
-                    `endpoint ${endpoint} identifyTime`,
-                );
-            }
+                        check: () =>
+                            read.ok && typeof read.value !== "number" ? { ...read.check, verdict: "fail" } : read.check,
+                    });
+                }
+            });
         }),
         {
             expected: "Verify on the TH that the correct WriteRequestMessage has been received.",
@@ -188,13 +188,13 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         3,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type bool.",
-        commissioned.withRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_0,
                 cluster: BASIC_INFORMATION_ID,
                 attribute: requireId(LOCAL_CONFIG_DISABLED.id, "BasicInformation.localConfigDisabled"),
             };
-            return writeAndCheck(cx, ref, "3", path, true);
+            return withChecks(cx, checks => writeAndCheck(cx, ref, "3", path, true, checks));
         }),
         {
             pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_Bool",
@@ -204,13 +204,13 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         4,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type string.",
-        commissioned.withRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_0,
                 cluster: BASIC_INFORMATION_ID,
                 attribute: requireId(NODE_LABEL.id, "BasicInformation.nodeLabel"),
             };
-            return writeAndCheck(cx, ref, "4", path, "node");
+            return withChecks(cx, checks => writeAndCheck(cx, ref, "4", path, "node", checks));
         }),
         {
             pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_String",
@@ -220,13 +220,13 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         5,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type unsigned integer.",
-        commissioned.withRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: LEVEL_CONTROL_ID,
                 attribute: requireId(ON_OFF_TRANSITION_TIME.id, "LevelControl.onOffTransitionTime"),
             };
-            return writeAndCheck(cx, ref, "5", path, 1);
+            return withChecks(cx, checks => writeAndCheck(cx, ref, "5", path, 1, checks));
         }),
         {
             pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_UnsignedInteger",
@@ -260,7 +260,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         11,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type enum.",
-        commissioned.withRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: THERMOSTAT_USER_INTERFACE_CONFIGURATION_ID,
@@ -269,7 +269,7 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     "ThermostatUserInterfaceConfiguration.temperatureDisplayMode",
                 ),
             };
-            return writeAndCheck(cx, ref, "11", path, 1);
+            return withChecks(cx, checks => writeAndCheck(cx, ref, "11", path, 1, checks));
         }),
         {
             pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_Enum",
@@ -279,13 +279,13 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
     .step(
         12,
         "DUT sends the WriteRequestMessage to the TH to write an attribute of data type bitmap.",
-        commissioned.withRef("dut", (cx, ref) => {
+        commissioned.withRef("dut", async (cx, ref) => {
             const path: AttributePathSpec = {
                 endpoint: ENDPOINT_1,
                 cluster: COLOR_CONTROL_ID,
                 attribute: requireId(OPTIONS.id, "ColorControl.options"),
             };
-            return writeAndCheck(cx, ref, "12", path, 1);
+            return withChecks(cx, checks => writeAndCheck(cx, ref, "12", path, 1, checks));
         }),
         {
             pics: "MCORE.IDM.C.WriteRequest.Attribute.DataType_Bitmap",
@@ -315,9 +315,11 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                     "ThermostatUserInterfaceConfiguration.temperatureDisplayMode",
                 ),
             };
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                await writeAndCheck(cx, ref, `14 (attempt ${attempt})`, path, 1);
-            }
+            await withChecks(cx, async checks => {
+                for (let repeat = 1; repeat <= 3; repeat++) {
+                    await writeAndCheck(cx, ref, `14 (attempt ${repeat})`, path, 1, checks);
+                }
+            });
         }),
         { expected: "Verify on the TH that the correct WriteRequestMessage has been received. for all the 3 times." },
     )
@@ -343,57 +345,73 @@ certTest("TC-IDM-3.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 attribute: requireId(ON_LEVEL.id, "LevelControl.onLevel"),
             };
 
-            const [labelVersion, levelVersion] = await clusterVersions(node, [labelPath, levelPath]);
-            cx.recorder.check({
-                type: "response",
-                verdict: "pass",
-                detail: `data versions read: BasicInformation=${labelVersion}, LevelControl=${levelVersion}`,
-            });
+            await withChecks(cx, async checks => {
+                const versions = await attempt(
+                    () => clusterVersions(node, [labelPath, levelPath]),
+                    ([labelVersion, levelVersion]) =>
+                        `data versions read: BasicInformation=${labelVersion}, LevelControl=${levelVersion}`,
+                );
+                checks.push({ what: "Data versions", check: () => versions.check });
+                if (!versions.ok) {
+                    return;
+                }
+                const [labelVersion, levelVersion] = versions.value;
 
-            const from = th.log.mark();
-            const statuses = await node.writeAttributes([
-                { path: labelPath, value: "tc-idm-3-1-step-15", dataVersion: labelVersion },
-                { path: levelPath, value: 3, dataVersion: levelVersion },
-            ]);
-            const allSucceeded = statuses.length === 2 && statuses.every(({ status }) => status === Status.Success);
-            cx.recorder.check({
-                type: "response",
-                verdict: allSucceeded ? "pass" : "fail",
-                detail: `version-conditional write answered ${JSON.stringify(statuses)}`,
-            });
-            if (!allSucceeded) {
-                throw new CertCheckFailedError(`Version-conditional write was rejected: ${JSON.stringify(statuses)}`);
-            }
+                const from = th.log.mark();
+                const write = await attempt(
+                    () =>
+                        node.writeAttributes([
+                            { path: labelPath, value: "tc-idm-3-1-step-15", dataVersion: labelVersion },
+                            { path: levelPath, value: 3, dataVersion: levelVersion },
+                        ]),
+                    statuses => `version-conditional write answered ${JSON.stringify(statuses)}`,
+                );
+                const written =
+                    write.ok &&
+                    write.value.length === 2 &&
+                    write.value.every(({ status }) => status === Status.Success);
+                checks.push({
+                    what: "Version-conditional write",
+                    check: () => (write.ok && !written ? { ...write.check, verdict: "fail" } : write.check),
+                });
 
-            const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", labelPath, from, LOG_TIMEOUT);
-            record(cx, logCheck, "WriteRequestMessage log for step 15");
+                const logCheck = await expectMessageWithPath(th.log, th.flavor, "write", labelPath, from, LOG_TIMEOUT);
+                checks.push({ what: "WriteRequestMessage log for step 15", check: () => logCheck });
 
-            const label = await node.readAttribute(labelPath);
-            const level = await node.readAttribute(levelPath);
-            const readBackOk = label === "tc-idm-3-1-step-15" && level === 3;
-            cx.recorder.check({
-                type: "response",
-                verdict: readBackOk ? "pass" : "fail",
-                detail: `read back nodeLabel=${JSON.stringify(label)}, onLevel=${JSON.stringify(level)}`,
-            });
-            if (!readBackOk) {
-                throw new CertCheckFailedError(`Write did not take effect: nodeLabel=${label}, onLevel=${level}`);
-            }
+                if (written) {
+                    const readBack = await attempt(
+                        async () => ({
+                            label: await node.readAttribute(labelPath),
+                            level: await node.readAttribute(levelPath),
+                        }),
+                        ({ label, level }) =>
+                            `read back nodeLabel=${JSON.stringify(label)}, onLevel=${JSON.stringify(level)}`,
+                    );
+                    const tookEffect =
+                        readBack.ok && readBack.value.label === "tc-idm-3-1-step-15" && readBack.value.level === 3;
+                    checks.push({
+                        what: "Write took effect",
+                        check: () =>
+                            readBack.ok && !tookEffect ? { ...readBack.check, verdict: "fail" } : readBack.check,
+                    });
 
-            // The plan stops at the successful write, which a device ignoring the version would also pass.
-            // Repeating it with the now-stale versions is the only evidence the version was honored.
-            const stale = await node.writeAttributes([
-                { path: labelPath, value: "tc-idm-3-1-stale", dataVersion: labelVersion },
-            ]);
-            const rejected = stale.length === 1 && stale[0].status === Status.DataVersionMismatch;
-            cx.recorder.check({
-                type: "response",
-                verdict: rejected ? "pass" : "fail",
-                detail: `write with the stale data version answered ${JSON.stringify(stale)}`,
+                    // The plan stops at the successful write, which a device ignoring the version would also
+                    // pass. Repeating it with the now-stale versions is the only evidence the version was honored.
+                    const stale = await attempt(
+                        () =>
+                            node.writeAttributes([
+                                { path: labelPath, value: "tc-idm-3-1-stale", dataVersion: labelVersion },
+                            ]),
+                        statuses => `write with the stale data version answered ${JSON.stringify(statuses)}`,
+                    );
+                    const rejected =
+                        stale.ok && stale.value.length === 1 && stale.value[0].status === Status.DataVersionMismatch;
+                    checks.push({
+                        what: "Stale data version rejected",
+                        check: () => (stale.ok && !rejected ? { ...stale.check, verdict: "fail" } : stale.check),
+                    });
+                }
             });
-            if (!rejected) {
-                throw new CertCheckFailedError(`A stale data version was accepted: ${JSON.stringify(stale)}`);
-            }
         }),
         {
             expected:

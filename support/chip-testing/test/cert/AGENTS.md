@@ -291,6 +291,14 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
   it is not interop evidence, and the `.b` step that feeds the artifact to the DUT is what carries
   that. A step generating several artifacts records them through `recordAll` (`tc-support.ts`), which
   puts every one in the evidence before failing; `record` in a loop stops at the first bad one.
+- **A step records every check it claims before it fails.** `record()` throws on a fail, so it only
+  fits a step's last check or a check every later one depends on; code after a failing `record()`
+  never runs. Otherwise turn each action's outcome into a check as it happens (`attempt()` for a call
+  that may throw, `invokeCommand()` for an invoke with its response, status and CommandDataIB log
+  checks) and record the list once: `recordAll` when nothing can throw in between, `withChecks` when
+  an action can, so checks collected before a throw still reach the evidence. Take the TH's log check
+  even when the DUT's action failed — it shows whether the request reached the TH. Leave out a check
+  whose expected values depend on a failed action instead of matching it against less.
 - `certTest` registers the mocha `it()` immediately; `.step()` calls append to it and may continue
   after `certTest()` returns (see `cert-dsl.ts`'s `certTest`/`defineCertTest`).
 - Role names: `cx.controllers.dut` / `cx.devices.th` are the defaults (`controllers: { dut: "dut" }`,
@@ -3169,9 +3177,9 @@ the first three against the same `lit-icd` TH and needs none of the Check-In con
   mode. `stopSubscription()` turns the peer's `autoSubscribe` off; the TH tears the subscription down when its next
   report goes unanswered, and sends a Check-In at its next active mode.
 - **The controller has to advertise operationally**, or the TH fails with "Node Address resolution failed for ICD
-  Check-In". A node advertises when it starts with a fabric, or when `FabricManager` `added` fires after it is
-  online — a fabric created before `start()` on a fresh node does neither. The adapter therefore creates its
-  fabric after starting the controller, and every in-process cert controller now advertises `_matter._tcp`.
+  Check-In". Every in-process cert controller advertises `_matter._tcp`: it creates its fabric before `start()`,
+  and `CommissioningServer` counts such a fabric as commissioned once the node is online. TC-ICDB-1.3 is the case
+  that breaks if that stops holding.
 
 Two more traps:
 
