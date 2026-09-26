@@ -42,8 +42,9 @@ const declarationMemo = new ValidationPass.Memo<Endpoint, Map<number, Singleton>
 export namespace DeviceTypeConformance {
     /**
      * The departures of {@link endpoint} from the server and client cluster requirements of its device types and the
-     * feature, attribute, command and event requirements nested in them, from the component device types they
-     * require, plus the names in {@link Endpoint.deviceConditions} that name no condition.
+     * feature, attribute, command and event requirements nested in the server clusters, from the component device
+     * types they require, plus the names in {@link Endpoint.deviceConditions} that name no condition. A client cluster
+     * is judged for presence only, because its declaration does not state which features or elements it uses.
      *
      * A mandatory requirement is violated when its cluster or element is absent, a disallowed one when it is present.
      * Conditions decide what is mandatory but never what is disallowed: only an `X` or a feature term disallows.

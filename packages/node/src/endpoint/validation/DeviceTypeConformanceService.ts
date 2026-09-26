@@ -6,7 +6,7 @@
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
-import { Diagnostic, Environment, Lifecycle, Logger } from "@matter/general";
+import { Diagnostic, Environment, ImplementationError, Lifecycle, Logger } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { ConditionAssertions } from "./ConditionAssertions.js";
 import { DeviceTypeConformance } from "./DeviceTypeConformance.js";
@@ -128,17 +128,25 @@ export class DeviceTypeConformanceService {
      * listing them.
      *
      * @throws {DeviceTypeConformanceError} when an endpoint is refused
+     * @throws {ImplementationError} when an endpoint is not a part of this service's node, such as a peer's
      */
     validate(endpoints: Endpoint | Iterable<Endpoint>, options?: DeviceTypeConformanceService.ValidateOptions) {
-        this.#validate(isEndpoint(endpoints) ? [endpoints] : endpoints, this.#pass(), options, false);
+        const list = isEndpoint(endpoints) ? [endpoints] : [...endpoints];
+        for (const endpoint of list) {
+            this.#assertOwn(endpoint);
+        }
+        this.#validate(list, this.#pass(), options, false);
     }
 
     /**
      * {@link validate} every endpoint of the node scope {@link endpoint} belongs to, in one pass.
      *
      * A pass that refuses an endpoint records and logs nothing, because the construction it refuses fails.
+     *
+     * @throws {ImplementationError} when {@link endpoint} is not a part of this service's node
      */
     validateNodeScope(endpoint: Endpoint, options?: DeviceTypeConformanceService.ValidateOptions) {
+        this.#assertOwn(endpoint);
         const pass = this.#pass();
         const nodeEndpoint = ConditionAssertions.nodeEndpointOf(endpoint, pass);
         if (nodeEndpoint === undefined) {
@@ -155,8 +163,11 @@ export class DeviceTypeConformanceService {
      * causes, as long as every earlier change was reported through {@link deviceTypesChanged} or
      * {@link endpointDestroyed} and was judged there. A child crashing after construction is not. A pass that refuses
      * an endpoint records and logs nothing, because the addition it refuses fails.
+     *
+     * @throws {ImplementationError} when {@link endpoint} is not a part of this service's node
      */
     validateAddition(endpoint: Endpoint, options?: DeviceTypeConformanceService.ValidateOptions) {
+        this.#assertOwn(endpoint);
         const pass = this.#pass();
         this.#validate(this.#affectedBy({ kind: "added", endpoint }, pass), pass, options, true);
     }
@@ -471,6 +482,16 @@ export class DeviceTypeConformanceService {
             const { owner } = current;
             if (owner === undefined || !owner.parts.has(current)) {
                 return false;
+            }
+            current = owner;
+        }
+    }
+
+    #assertOwn(endpoint: Endpoint) {
+        for (let current = endpoint; current !== this.#node;) {
+            const { owner } = current;
+            if (owner === undefined || !owner.parts.has(current)) {
+                throw new ImplementationError(`Cannot judge ${endpoint}, which is not a part of ${this.#node}`);
             }
             current = owner;
         }

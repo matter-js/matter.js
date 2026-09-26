@@ -9,9 +9,11 @@ they declare and reports where they depart from them.
 For every device type an endpoint lists that the model defines, and for the Base device type, which applies once the
 endpoint lists at least one such device type:
 
-- **Clusters and elements.** Mandatory and disallowed server and client clusters, and the feature, attribute,
-  command and event requirements nested in them. A condition (see below) can only ever make something mandatory;
-  only a literal `X` or a feature term can make something disallowed, matching how CHIP evaluates conformance.
+- **Clusters and elements.** Mandatory and disallowed server and client clusters, and the feature, attribute, command
+  and event requirements nested in server clusters. A client cluster is checked for presence only: a client cluster
+  declaration does not state which features or elements the client uses. A condition (see below) can only ever make
+  something mandatory; only a literal `X` or a feature term can make something disallowed, matching how CHIP evaluates
+  conformance.
 - **Base requirements.** Base's own requirements (e.g. `Binding` under `Simple & Client`) are enforced only when
   mandatory, never as disallowed — CHIP does not judge Base at all, and matter.js's own reference apps carry a
   `Binding` server on endpoints Base would otherwise call disallowed.

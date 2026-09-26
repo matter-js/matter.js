@@ -6,6 +6,7 @@
 
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
+import { Lifecycle } from "@matter/general";
 import {
     ConditionModel,
     Conformance,
@@ -144,8 +145,12 @@ export namespace ConditionAssertions {
 
             const inScope = reaching.filter(endpoint => isInScope(endpoint, nodeEndpoint, pass));
             if (inScope.length !== reaching.length) {
-                // An endpoint that left the scope never returns to it, so the entry can drop it for good
-                held.reaching.set(nodeEndpoint, inScope);
+                // An endpoint below a new node endpoint returns once that stops being one, which changes no watched
+                // endpoint
+                held.reaching.set(
+                    nodeEndpoint,
+                    reaching.filter(endpoint => inScope.includes(endpoint) || isAttached(endpoint)),
+                );
             }
             return inScope;
         });
@@ -523,6 +528,13 @@ function isInScope(endpoint: Endpoint, nodeEndpoint: Endpoint, pass: ValidationP
         current = owner;
     }
     return true;
+}
+
+function isAttached(endpoint: Endpoint) {
+    const { status } = endpoint.construction;
+    return (
+        endpoint.owner !== undefined && status !== Lifecycle.Status.Destroying && status !== Lifecycle.Status.Destroyed
+    );
 }
 
 /**

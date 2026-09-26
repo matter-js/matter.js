@@ -818,6 +818,21 @@ describe("device type validation after construction", () => {
             await node.close();
         });
 
+        it("reads the node scope again once an endpoint that became a node endpoint stops being one", async () => {
+            const { node, widget } = await createGuardedNode();
+            const light = await addStandIn(node, "light", "OnOffLight");
+            await captureLogOf(() => addStandIn(light, "asserter", ASSERTER_ID));
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await captureLogOf(() => light.set({ descriptor: { deviceTypeList: deviceTypeList("RootNode") } }));
+            expect(requirementsOf(node, widget)).deep.equals([]);
+
+            await captureLogOf(() => light.set({ descriptor: { deviceTypeList: deviceTypeList("OnOffLight") } }));
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await node.close();
+        });
+
         it("reads a network interface of a server cluster added at runtime", async () => {
             const node = await createNode();
             node.env.set(
@@ -1025,7 +1040,7 @@ describe("device type validation after construction", () => {
     });
 
     describe("a peer", () => {
-        it("judges nothing when an endpoint of a peer changes or is destroyed", async () => {
+        async function createNodeWithPeer() {
             const node = await createNode();
             const fabric = await node.addFabric();
             const address = { fabricIndex: fabric.fabricIndex, nodeId: NodeId(BigInt(fabric.nodeId) + 1n) };
@@ -1036,6 +1051,11 @@ describe("device type validation after construction", () => {
             }
             const endpoint = peer.endpoints.require(1);
             await endpoint.construction.ready;
+            return { node, peer, endpoint };
+        }
+
+        it("judges nothing when an endpoint of a peer changes or is destroyed", async () => {
+            const { node, peer, endpoint } = await createNodeWithPeer();
             const service = serviceOf(node);
 
             using recording = recordingChecks();
@@ -1048,6 +1068,21 @@ describe("device type validation after construction", () => {
 
             expect(recording.judged).deep.equals([]);
             expect(logged).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("refuses to validate an endpoint of a peer", async () => {
+            const { node, peer, endpoint } = await createNodeWithPeer();
+            const service = serviceOf(node);
+
+            using recording = recordingChecks();
+            expect(() => service.validate(endpoint)).throws(ImplementationError);
+            expect(() => service.validate([node, peer])).throws(ImplementationError);
+            expect(() => service.validateNodeScope(endpoint)).throws(ImplementationError);
+            expect(() => service.validateAddition(endpoint)).throws(ImplementationError);
+
+            expect(recording.judged).deep.equals([]);
 
             await node.close();
         });
