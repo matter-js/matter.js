@@ -702,7 +702,7 @@ export declare namespace CommodityTariff {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.12.5.12.3
          */
-        dayEntryIDs: number[];
+        dayEntryIds: number[];
     }
 
     /**
@@ -750,7 +750,7 @@ export declare namespace CommodityTariff {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.12.5.9.2
          */
-        dayPatternIDs: number[];
+        dayPatternIds: number[];
     }
 
     /**
@@ -802,7 +802,7 @@ export declare namespace CommodityTariff {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.12.5.11.3
          */
-        dayEntryIDs: number[];
+        dayEntryIds: number[];
     }
 
     /**
@@ -934,7 +934,7 @@ export declare namespace CommodityTariff {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.12.5.17.2
          */
-        dayEntryIDs: number[];
+        dayEntryIds: number[];
 
         /**
          * This field shall indicate a list of TariffComponentIDs for the TariffComponentStructs active during the
@@ -942,7 +942,7 @@ export declare namespace CommodityTariff {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.12.5.17.3
          */
-        tariffComponentIDs: number[];
+        tariffComponentIds: number[];
     }
 
     /**
@@ -1013,7 +1013,7 @@ export declare namespace CommodityTariff {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 9.12.7.2.2
          */
-        dayEntryIDs: number[];
+        dayEntryIds: number[];
 
         /**
          * This field shall indicate the TariffComponentStruct whose TariffComponentID field matches the requested

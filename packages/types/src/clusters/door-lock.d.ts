@@ -22,8 +22,6 @@ import type { StatusResponseError } from "../common/StatusResponseError.js";
  * locking functionality is abstracted from the cluster. The cluster has a small list of mandatory attributes and
  * functions and a list of optional features.
  *
- * !image2
- *
  * @see {@link MatterSpecification.v16.Cluster} § 5.2
  */
 export declare namespace DoorLock {
@@ -452,8 +450,8 @@ export declare namespace DoorLock {
      */
     export interface AliroProvisioningAttributes {
         /**
-         * Indicates the verification key component of the Reader's key pair as defined in [[Aliro]](#ref_Aliro). The
-         * value, if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         * Indicates the verification key component of the Reader's key pair as defined in Aliro. The value, if not
+         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
          *
          * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
          * Command".
@@ -463,7 +461,7 @@ export declare namespace DoorLock {
         aliroReaderVerificationKey: Bytes | null;
 
         /**
-         * Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the reader_group_identifier as defined in Aliro.
          *
          * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26,
          * "SetAliroReaderConfig Command".
@@ -473,15 +471,14 @@ export declare namespace DoorLock {
         aliroReaderGroupIdentifier: Bytes | null;
 
         /**
-         * Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the reader_group_sub_identifier as defined in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.39
          */
         aliroReaderGroupSubIdentifier: Bytes;
 
         /**
-         * Indicates the list of protocol versions supported for expedited transactions as defined in
-         * [[Aliro]](#ref_Aliro).
+         * Indicates the list of protocol versions supported for expedited transactions as defined in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.40
          */
@@ -517,7 +514,7 @@ export declare namespace DoorLock {
      */
     export interface AliroBleuwbAttributes {
         /**
-         * Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the Group Resolving Key as defined in Aliro.
          *
          * Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
          * Command".
@@ -528,14 +525,14 @@ export declare namespace DoorLock {
 
         /**
          * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
-         * in [[Aliro]](#ref_Aliro).
+         * in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.42
          */
         aliroSupportedBleuwbProtocolVersions: Bytes[];
 
         /**
-         * Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the version of the Bluetooth LE advertisement as defined in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.43
          */
@@ -893,8 +890,8 @@ export declare namespace DoorLock {
         requirePinForRemoteOperation: boolean;
 
         /**
-         * Indicates the verification key component of the Reader's key pair as defined in [[Aliro]](#ref_Aliro). The
-         * value, if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         * Indicates the verification key component of the Reader's key pair as defined in Aliro. The value, if not
+         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
          *
          * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
          * Command".
@@ -904,7 +901,7 @@ export declare namespace DoorLock {
         aliroReaderVerificationKey: Bytes | null;
 
         /**
-         * Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the reader_group_identifier as defined in Aliro.
          *
          * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26,
          * "SetAliroReaderConfig Command".
@@ -914,15 +911,14 @@ export declare namespace DoorLock {
         aliroReaderGroupIdentifier: Bytes | null;
 
         /**
-         * Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the reader_group_sub_identifier as defined in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.39
          */
         aliroReaderGroupSubIdentifier: Bytes;
 
         /**
-         * Indicates the list of protocol versions supported for expedited transactions as defined in
-         * [[Aliro]](#ref_Aliro).
+         * Indicates the list of protocol versions supported for expedited transactions as defined in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.40
          */
@@ -953,7 +949,7 @@ export declare namespace DoorLock {
         numberOfAliroEndpointKeysSupported: number;
 
         /**
-         * Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the Group Resolving Key as defined in Aliro.
          *
          * Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
          * Command".
@@ -964,14 +960,14 @@ export declare namespace DoorLock {
 
         /**
          * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
-         * in [[Aliro]](#ref_Aliro).
+         * in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.42
          */
         aliroSupportedBleuwbProtocolVersions: Bytes[];
 
         /**
-         * Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the version of the Bluetooth LE advertisement as defined in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.43
          */
@@ -1198,8 +1194,7 @@ export declare namespace DoorLock {
      */
     export interface AliroProvisioningCommands {
         /**
-         * This command allows communicating an Aliro Reader configuration, as defined in [[Aliro]](#ref_Aliro), to the
-         * lock.
+         * This command allows communicating an Aliro Reader configuration, as defined in Aliro, to the lock.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.26
          */
@@ -1592,8 +1587,8 @@ export declare namespace DoorLock {
         /**
          * AliroProvisioning (ALIRO)
          *
-         * Locks that support this feature implement the Aliro specification as defined in [[Aliro]](#ref_Aliro) and
-         * support Matter as a method for provisioning Aliro credentials.
+         * Locks that support this feature implement the Aliro specification as defined in Aliro and support Matter as a
+         * method for provisioning Aliro credentials.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.12
          */
@@ -1602,8 +1597,7 @@ export declare namespace DoorLock {
         /**
          * AliroBleuwb (ALBU)
          *
-         * Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in
-         * [[Aliro]](#ref_Aliro).
+         * Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in Aliro.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.13
          */
@@ -3078,8 +3072,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * This command allows communicating an Aliro Reader configuration, as defined in [[Aliro]](#ref_Aliro), to the
-     * lock.
+     * This command allows communicating an Aliro Reader configuration, as defined in Aliro, to the lock.
      *
      * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.26
      */
@@ -3577,7 +3570,7 @@ export declare namespace DoorLock {
          * of SEC 1.
          *
          * Credentials of this type shall NOT be used to allow operating the lock. They shall be used, as defined in
-         * [[Aliro]](#ref_Aliro), to create new credentials of type AliroEvictableEndpointKey via a step-up transaction.
+         * Aliro, to create new credentials of type AliroEvictableEndpointKey via a step-up transaction.
          *
          * When performing the step-up transaction, the lock shall request the data element with identifier "matter1",
          * and shall attempt to create a new credential of type AliroEvictableEndpointKey if and only if the data

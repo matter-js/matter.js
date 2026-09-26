@@ -64,6 +64,23 @@ const CONTROLLER = "chip-tool";
  * `controllerPicsOverridesFor`). Only what differs from the CHIP PICS file, which describes a device.
  */
 export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
+    // chip-tool speaks no BDX at all: it is a commissioner, hosts no OTA provider and has no image to
+    // send. The CHIP PICS file answers these for a device, so without this a BDX case would be gated
+    // on what the TH supports rather than on what this controller can do.
+    "MCORE.BDX.Sender": 0,
+    "MCORE.BDX.Responder": 0,
+    "MCORE.BDX.SynchronousSender": 0,
+    "MCORE.BDX.AsynchronousSender": 0,
+    "MCORE.BDX.BlockQueryWithSkip": 0,
+
+    // The same for the OTA roles built on BDX. Without these the device file's own answers stand, the
+    // SU cases are admitted, and their first step fails on a controller that cannot serve an image at
+    // all — a whole case a controller cannot drive has to skip before it commissions anything.
+    "MCORE.OTA.Provider": 0,
+    "OTAR.C.M.AnnounceOTAProvider": 0,
+    "OTAP.S.M.DelayedActionTime": 0,
+    "OTAP.S.M.UserConsentNeeded": 0,
+
     // command-by-id sends one command path per invoke and no CommandRef.
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
 
@@ -112,6 +129,18 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "S.C.C05.Tx": 1,
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
+
+    // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
+    // only the server side, because it describes a device; here the client is the controller.
+    "TBRM.C": 1,
+    "TBRM.C.C00.Tx": 1,
+    "TBRM.C.C01.Tx": 1,
+    "TBRM.C.C03.Tx": 1,
+    "TBRM.C.C04.Tx": 1,
+
+    // chip-tool has an ICD client of its own, but this adapter does not expose it.
+    "ICDB.C": 0,
+    "ICDM.C": 0,
 
     // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
     // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
@@ -903,6 +932,42 @@ class ChipToolCertNodeApi implements CertNodeApi {
             : chipJsonToMatter(response.value, responseModel, clusterModel);
     }
 
+    icdClient(): never {
+        throw new UnsupportedByControllerError(
+            "icdClient",
+            CONTROLLER,
+            "this adapter drives chip-tool's commands for single interactions and does not expose its ICD client " +
+                "(registration, key refresh and Check-In handling)",
+        );
+    }
+
+    async serveOtaUpdate(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "serveOtaUpdate",
+            CONTROLLER,
+            "chip-tool is a commissioner, not an OTA provider: it hosts no OtaSoftwareUpdateProvider cluster and " +
+                "keeps no image catalog to serve one from",
+        );
+    }
+
+    async announceOtaProvider(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "announceOtaProvider",
+            CONTROLLER,
+            "chip-tool is a commissioner, not an OTA provider: it hosts no OtaSoftwareUpdateProvider cluster to " +
+                "announce, so a node it announced would query an endpoint that does not exist",
+        );
+    }
+
+    async scriptOtaProvider(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "scriptOtaProvider",
+            CONTROLLER,
+            "chip-tool hosts no OtaSoftwareUpdateProvider cluster, so there is no provider of its own whose " +
+                "answers could be scripted",
+        );
+    }
+
     async invokeBatch(commands: BatchCommandSpec[]): Promise<BatchCommandResult[]> {
         throw new UnsupportedByControllerError(
             "invokeBatch",
@@ -1303,7 +1368,10 @@ function matchLog(logs: string[], pattern: RegExp) {
  *
  * Operations chip-tool cannot express throw {@link UnsupportedByControllerError}, which the step
  * runner records as a skip. That covers a wildcard-endpoint `writeAttributes` (chip-tool reports no
- * status for a written path) and path counts above chip-tool's own limit.
+ * status for a written path) and path counts above chip-tool's own limit. A capability asked of the
+ * whole adapter rather than of a step — `webRtcRequestor` — throws the same error from the
+ * constructor, where no step is running to record anything, so a case asking for one selects its
+ * controller itself.
  *
  * While a subscription is live the adapter runs a report pump: chip-tool records nothing while its
  * result slot is disarmed, so the client keeps an async-report frame parked whenever no command needs
@@ -1327,6 +1395,23 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     #closed = false;
 
     constructor(id: string, options?: ControllerAdapterOptions) {
+        if (options?.attestation) {
+            throw new UnsupportedByControllerError(
+                "judging device attestation against installed revocation information",
+                id,
+                "chip-tool reads revocation from a file its own process is started with, which a running adapter " +
+                    "cannot change",
+            );
+        }
+
+        if (options?.webRtcRequestor) {
+            throw new UnsupportedByControllerError(
+                "hosting a WebRTC transport requestor cluster",
+                id,
+                "chip-tool is a commissioner process, not a node, so a provider has nowhere to invoke signaling",
+            );
+        }
+
         const commissionerName = COMMISSIONER_NAMES.find(name => !claimedCommissioners.has(name));
         if (commissionerName === undefined) {
             throw new InternalError(

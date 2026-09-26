@@ -18,6 +18,22 @@ import { Identity } from "@matter/general";
 /**
  * A Closure Controller is capable of controlling a Closure.
  *
+ * ### Introduction
+ *
+ * Two levels of control are available:
+ *
+ *   - Basic Level (Closure Control Cluster):
+ *
+ *   - Used for simple controller with buttons like wall switches.
+ *
+ *   - Also all the general status and information remain at this level.
+ *
+ *   - Advanced Level (Closure Dimension Cluster):
+ *
+ *   - Provides advanced information, controls and settings.
+ *
+ *   - Used for advanced controller.
+ *
  * @see {@link MatterSpecification.v16.Device} § 8.7
  */
 export interface ClosureControllerDevice extends Identity<typeof ClosureControllerDeviceDefinition> {}

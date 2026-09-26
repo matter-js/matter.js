@@ -18,16 +18,15 @@ export class ScopeFile extends TsFile {
 
     constructor(options: ScopeFile.Options) {
         let filename: string;
-        let scope: GeneratorScope | undefined;
         let definesScope: boolean;
+
+        const scope = GeneratorScope(options.scope);
 
         if (options.name === undefined) {
             definesScope = true;
-            scope = GeneratorScope(options.scope);
             filename = ScopeFile.filenameFor(scope.owner).replace(/.js$/, "");
         } else {
             definesScope = false;
-            scope = options.scope && GeneratorScope(options.scope);
             filename = options.name;
         }
 
@@ -42,9 +41,6 @@ export class ScopeFile extends TsFile {
     }
 
     get model() {
-        if (!this.#scope) {
-            throw new InternalError("Model requested from ");
-        }
         return this.#scope.owner;
     }
 
@@ -58,18 +54,14 @@ export class ScopeFile extends TsFile {
      */
     reference(model: Model, tlv = false, specific = false) {
         let sourceScope;
-        if (this.#scope) {
-            const location = this.#scope.locationOf(model, specific);
-            if (location.isLocal) {
-                if (this.#definesScope) {
-                    // Model is defined locally, no import required
-                    return this.#scope.nameFor(model, tlv, specific);
-                }
-                sourceScope = this.#scope;
+        const location = this.#scope.locationOf(model, specific);
+        if (location.isLocal) {
+            if (this.#definesScope) {
+                // Model is defined locally, no import required
+                return this.#scope.nameFor(model, tlv, specific);
             }
-        }
-
-        if (sourceScope === undefined) {
+            sourceScope = this.#scope;
+        } else {
             sourceScope = GeneratorScope(model);
         }
 
@@ -84,12 +76,7 @@ export class ScopeFile extends TsFile {
 
         // Determine the name of the definition to import and the name to import as
         const importName = sourceScope.nameFor(importModel, tlv && importModel === model);
-        let localName;
-        if (this.#scope) {
-            localName = this.#scope.nameFor(importModel, tlv && importModel === model);
-        } else {
-            localName = importName;
-        }
+        const localName = this.#scope.nameFor(importModel, tlv && importModel === model);
 
         // Add the import
         let importExpr;

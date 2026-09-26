@@ -38,6 +38,42 @@ import { Identity } from "@matter/general";
  *
  * A Room Air Conditioner is a device with the primary function of controlling the air temperature in a single room.
  *
+ * ### Room Air Conditioner Architecture
+ *
+ * A Room Air Conditioner is a device which at a minimum is capable of being turned on and off and of controlling the
+ * temperature in the living space.
+ *
+ * A Room Air Conditioner may also support additional capabilities via endpoint composition. See Section 13.3.5, "Device
+ * Type Requirements" for typical device types.
+ *
+ * The following diagram shows an example Room Air Conditioner consisting of a parent endpoint that is the Room Air
+ * Conditioner device type and several child endpoints providing additional capabilities. Note that two of the child
+ * endpoints are of the same device type, Temperature Sensor, which are being disambiguated via the requirements of
+ * endpoint composition defined in the system model.
+ *
+ * ### Device Type Requirements
+ *
+ * A Room Air Conditioner may have zero or more of each device type listed in this table subject to the conformance
+ * column of the table. All devices used in compositions shall adhere to the disambiguation requirements of the System
+ * Model. Additional device types not listed in this table may also be included in device compositions.
+ *
+ * ### Cluster Restrictions
+ *
+ * #### On/Off Cluster (Server) Clarifications
+ *
+ * As indicated in the Element Requirements section below, the DF (Dead Front) feature is required for the On/Off
+ * cluster in this device type. See the "DeadFrontBehavior feature" section in the On/Off cluster description for
+ * detailed requirements. The "dead front" state is linked to the OnOff attribute in the On/Off cluster having the value
+ * False. Thus, the Off command of the On/Off cluster shall move the device into the "dead front" state, the On command
+ * of the On/Off cluster shall bring the device out of the "dead front" state, and the device shall adhere with the
+ * associated requirements on subscription handling and event reporting.
+ *
+ * #### Best Effort Attribute Values in "Dead Front" State
+ *
+ * When in "dead front", should the operational values of the cluster attributes not be available or accessible, the
+ * following are the recommended best effort values for per cluster attributes when responding to a new subscription
+ * request or a read request. Attributes not listed have no change in their defined or expected values.
+ *
  * RoomAirConditionerDevice requires Thermostat cluster but Thermostat is not added by default because you must select
  * the features your device supports. You can add manually using RoomAirConditionerDevice.with().
  *
@@ -106,10 +142,10 @@ export namespace RoomAirConditionerRequirements {
     /**
      * The ThermostatUserInterfaceConfiguration cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ThermostatUserInterfaceConfigurationServer} for
-     * convenience.
+     * This version of {@link ThermostatUserInterfaceConfigurationServer} is specialized per the specification.
      */
-    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer;
+    export const ThermostatUserInterfaceConfigurationServer = BaseThermostatUserInterfaceConfigurationServer
+        .alter({ attributes: { keypadLockout: { optional: true } } });
 
     /**
      * The TemperatureMeasurement cluster is optional per the Matter specification.

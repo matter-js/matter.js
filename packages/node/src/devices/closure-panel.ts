@@ -28,6 +28,20 @@ import { Identity } from "@matter/general";
  * A Closure Panel shall use exactly one semantic tag from the ClosurePanel namespace (0x45) in the TagList attribute of
  * the Descriptor cluster to describe the spatial aspect of the dimension, e.g., "Lift", "Tilt", etc.
  *
+ * ### Cluster Requirements
+ *
+ * The Window Covering cluster shall NOT be present on the same endpoint for this device type. This restriction prevents
+ * conflicts between potential future standardized use of the Window Covering cluster and any existing non-standard
+ * implementations, until appropriate data dependency language is defined.
+ *
+ * ### Element Requirements
+ *
+ * The TagList in the Descriptor cluster of an endpoint with this device type shall meet the following constraints:
+ *
+ *   - There shall be exactly one tag from the ClosurePanel namespace (namespace 0x45).
+ *
+ *   - There shall NOT be any tag from the Closure namespace (namespace 0x44).
+ *
  * ClosurePanelDevice requires ClosureDimension cluster but ClosureDimension is not added by default because you must
  * select the features your device supports. You can add manually using ClosurePanelDevice.with().
  *

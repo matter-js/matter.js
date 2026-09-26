@@ -126,6 +126,9 @@ async function withDut<T>(
     const cx: CertStepContext = {
         controllers: {},
         devices: { dut },
+        picsMet: () => {
+            throw new InternalError("not used by these tests");
+        },
         recorder: {
             beginStep() {},
             check(record) {
@@ -617,6 +620,9 @@ describe("recordSeveredSession", () => {
         const cx: CertStepContext = {
             controllers: { th },
             devices: { dut },
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check(record) {

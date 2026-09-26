@@ -159,6 +159,15 @@ RUN build-one camera-app/linux chip-camera-app chip-camera-app treat_warnings_as
 RUN build-one ota-provider-app/linux chip-ota-provider-app
 RUN build-one ota-requestor-app/linux chip-ota-requestor-app
 
+# TC-TBRM-3.1's TH, a Thread border router with a fake Thread stack behind it. Kept under CHIP's own name,
+# which the chip-cert-bins image uses too
+RUN build-one network-manager-app/linux matter-network-manager-app
+
+# TC-ICDB-1.3's TH, an ICD server with long idle time support, under CHIP's own name plus a variant suffix.
+# Built without subscription persistence: CHIP suppresses Check-In messages to a client while it holds a
+# persisted subscription for it, and a controller always subscribes before it registers
+RUN build-one lit-icd-app/linux lit-icd-app lit-icd-app-nopersist chip_persist_subscriptions=false chip_subscription_timeout_resumption=false
+
 # Install Python stuff
 COPY support/install-chip-python /bin
 RUN install-chip-python
@@ -227,6 +236,13 @@ COPY --from=source /connectedhomeip/src/app/ota_image_tool.py /src/app/ota_image
 # Development certs
 COPY --from=source /connectedhomeip/credentials/development/paa-root-certs /credentials/development/paa-root-certs
 COPY --from=source /connectedhomeip/credentials/development/cd-certs /credentials/development/cd-certs
+
+# Attestation revocation test vectors: a revocation case starts the test app with one of the DAC
+# providers and gives the commissioner the revocation set naming those certificates
+COPY --from=source /connectedhomeip/credentials/test/revoked-attestation-certificates/dac-provider-test-vectors \
+    /credentials/test/revoked-attestation-certificates/dac-provider-test-vectors
+COPY --from=source /connectedhomeip/credentials/test/revoked-attestation-certificates/revocation-sets \
+    /credentials/test/revoked-attestation-certificates/revocation-sets
 
 # Idempotent: the media packages above pull in dbus, whose own install creates this directory
 RUN mkdir -p /run/dbus

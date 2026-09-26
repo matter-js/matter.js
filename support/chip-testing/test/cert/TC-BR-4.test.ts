@@ -262,7 +262,7 @@ certTest("TC-BR-4", {
             const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
             const composedParts = partsOf(valueAt(parts, COMPOSED_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
 
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => ({
                         type: "response",
@@ -312,7 +312,7 @@ certTest("TC-BR-4", {
             const composed = heldEndpoint(held, COMPOSED_ENDPOINT);
             const aggregator = heldEndpoint(held, AGGREGATOR_ENDPOINT);
 
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => ({
                         type: "response",
@@ -361,7 +361,7 @@ certTest("TC-BR-4", {
                 endpoint => held.get(endpoint) !== valueAt(entries, endpoint, BRIDGED_INFO_ID, NODE_LABEL_ID),
             );
 
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => ({
                         type: "response",
@@ -525,7 +525,7 @@ certTest("TC-BR-4", {
             const answered = endpointsAnswering(entries, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
             const read = valueAt(entries, COMPOSED_ENDPOINT, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
 
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => ({
                         type: "response",
@@ -687,7 +687,7 @@ certTest("TC-BR-4", {
                 valueAt(deviceTypes, ADDED_LIGHT_ENDPOINT, DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID),
             );
 
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => ({
                         type: "response",
@@ -768,7 +768,7 @@ certTest("TC-BR-4", {
             const rootParts = partsOf(valueAt(parts, ROOT_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
             const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
 
-            recordAll(cx, [
+            await recordAll(cx, [
                 {
                     check: () => ({
                         type: "response",
@@ -841,7 +841,7 @@ async function recordLightState(cx: CertStepContext, what: string) {
 
     const missing = LIGHTS.filter(number => !answered.includes(number));
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => ({
                 type: "response",
@@ -880,7 +880,7 @@ async function recordTemperatures(cx: CertStepContext, what: string) {
 
     const missing = TEMPERATURE_SENSORS.filter(number => !answered.includes(number));
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => ({
                 type: "response",

@@ -22,6 +22,35 @@ const logger = Logger.get("FeatureSelectionErrors");
  * @returns one message per violated combination, empty if the selection conforms
  */
 export function FeatureSelectionErrors(cluster: ClusterModel): string[] {
+    const violations = FeatureSelectionViolations(cluster, cluster.supportedFeatures);
+    if (!violations?.length) {
+        return [];
+    }
+
+    const titles = new Map(cluster.features.map(feature => [feature.name, feature.title ?? feature.name]));
+    const titleOf = (name: string) => titles.get(name) ?? name;
+
+    const errors = new Set<string>();
+    for (const combination of violations) {
+        errors.add(describe(combination, Object.keys(combination), titleOf));
+    }
+
+    return [...errors];
+}
+
+/**
+ * The combinations a cluster forbids that {@link selection} violates.
+ *
+ * Both the runtime assessment and the decision codegen makes about whether an application must select features itself
+ * resolve through here, so the two cannot diverge.
+ *
+ * @returns the violated combinations, or undefined when the cluster's conformance is outside our ruleset and the
+ * selection is therefore unassessed rather than judged
+ */
+export function FeatureSelectionViolations(
+    cluster: ClusterModel,
+    selection: { has(name: string): boolean },
+): FeatureBitmap[] | undefined {
     let illegal;
     try {
         ({ illegal } = IllegalFeatureCombinations(cluster));
@@ -32,29 +61,12 @@ export function FeatureSelectionErrors(cluster: ClusterModel): string[] {
             throw error;
         }
         logger.warn(`Cannot assess feature selection for ${cluster.name}: ${error.message}`);
-        return [];
+        return;
     }
 
-    if (!illegal.length) {
-        return [];
-    }
-
-    const supported = cluster.supportedFeatures;
-    const titles = new Map(cluster.features.map(feature => [feature.name, feature.title ?? feature.name]));
-    const titleOf = (name: string) => titles.get(name) ?? name;
-
-    const errors = new Set<string>();
-
-    for (const combination of illegal) {
-        const names = Object.keys(combination);
-        if (names.some(name => supported.has(name) !== combination[name])) {
-            continue;
-        }
-
-        errors.add(describe(combination, names, titleOf));
-    }
-
-    return [...errors];
+    return illegal.filter(combination =>
+        Object.keys(combination).every(name => selection.has(name) === combination[name]),
+    );
 }
 
 function describe(combination: FeatureBitmap, names: string[], titleOf: (name: string) => string) {

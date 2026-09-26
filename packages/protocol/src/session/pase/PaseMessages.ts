@@ -6,7 +6,12 @@
 
 import { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
 import { SessionIntervals } from "#session/SessionIntervals.js";
-import { CRYPTO_HASH_LEN_BYTES, CRYPTO_PUBLIC_KEY_SIZE_BYTES } from "@matter/general";
+import {
+    CRYPTO_HASH_LEN_BYTES,
+    CRYPTO_PBKDF_ITERATIONS_MAX,
+    CRYPTO_PBKDF_ITERATIONS_MIN,
+    CRYPTO_PUBLIC_KEY_SIZE_BYTES,
+} from "@matter/general";
 import {
     TlvBitmap,
     TlvBoolean,
@@ -81,7 +86,10 @@ export const TlvPbkdfParamResponse = TlvObject({
     pbkdfParameters: TlvOptionalField(
         4,
         TlvObject({
-            iterations: TlvField(1, TlvUInt32),
+            iterations: TlvField(
+                1,
+                TlvUInt32.bound({ min: CRYPTO_PBKDF_ITERATIONS_MIN, max: CRYPTO_PBKDF_ITERATIONS_MAX }),
+            ),
             salt: TlvField(2, TlvByteString.bound({ minLength: 16, maxLength: 32 })),
         }),
     ),

@@ -71,11 +71,18 @@ export class PersistedFileDesignator extends FileDesignator {
 
     writeFromStream(stream: ReadableStream<Bytes>) {
         logger.debug(`Writing blob "${this.text}" (${this.#blobName}) to storage`);
+
+        // A designator outlives the blob it names — an OTA requestor keeps one for the life of the
+        // node and downloads through it again and again — so a `Blob` opened before this write
+        // describes content that is no longer there, and returning it would hand the caller the
+        // previous download.
+        this.#blob = undefined;
         return this.#blobDriver.writeBlobFromStream(this.#contexts, this.#blobName, stream);
     }
 
     delete() {
         logger.debug(`Deleting blob "${this.text}" (${this.#blobName}) from storage`);
+        this.#blob = undefined;
         return this.#blobDriver.delete(this.#contexts, this.#blobName);
     }
 }
