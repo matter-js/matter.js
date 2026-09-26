@@ -109,7 +109,7 @@ LocalMatter.children.push({
             ],
         },
         // The MatterScheduleConfiguration feature is provisional in fact although the specification does not mark it,
-        // so the feature and the attributes it makes mandatory are marked provisional
+        // so the feature and the elements it makes mandatory are marked provisional
         {
             tag: "attribute",
             id: FeatureMap.id,
@@ -124,5 +124,13 @@ LocalMatter.children.push({
         { tag: "attribute", id: 0x4d, name: "NumberOfScheduleTransitionPerDay", conformance: "P, MSCH", asOf: "1.4" },
         { tag: "attribute", id: 0x4f, name: "ActiveScheduleHandle", conformance: "P, MSCH", asOf: "1.4" },
         { tag: "attribute", id: 0x51, name: "Schedules", conformance: "P, MSCH", asOf: "1.4" },
+        {
+            tag: "command",
+            id: 0x5,
+            name: "SetActiveScheduleRequest",
+            direction: "request",
+            conformance: "P, MSCH",
+            asOf: "1.4",
+        },
     ],
 });

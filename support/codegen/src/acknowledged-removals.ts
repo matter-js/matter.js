@@ -121,4 +121,12 @@ export const AcknowledgedRemovals: AcknowledgedRemoval[] = [
             "Thermostat Schedules: the ThermostatOverrides mark the MatterScheduleConfiguration feature and the attributes " +
             "it makes mandatory as provisional (P, MSCH), because the feature is provisional in fact.",
     },
+    {
+        key: "cluster#513/command#5",
+        kind: "conformance",
+        revision: "1.6.1",
+        reason:
+            "Thermostat SetActiveScheduleRequest: the ThermostatOverrides mark the MatterScheduleConfiguration feature " +
+            "and the elements it makes mandatory as provisional (P, MSCH), because the feature is provisional in fact.",
+    },
 ];

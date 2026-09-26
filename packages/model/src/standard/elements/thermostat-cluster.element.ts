@@ -325,8 +325,8 @@ export const Thermostat = Cluster(
 
     Command(
         {
-            name: "SetActiveScheduleRequest", id: 0x5, access: "O", conformance: "MSCH", direction: "request",
-            response: "status"
+            name: "SetActiveScheduleRequest", id: 0x5, access: "O", conformance: "P, MSCH",
+            direction: "request", response: "status"
         },
         Field({ name: "ScheduleHandle", id: 0x0, type: "octstr", conformance: "M", constraint: "max 16" })
     ),
