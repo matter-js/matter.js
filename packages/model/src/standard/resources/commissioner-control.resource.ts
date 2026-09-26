@@ -16,9 +16,7 @@ Resource.add({
         "case is ecosystem to ecosystem Fabric Synchronization setup." +
         "\n" +
         "The generalized flow supported by the Commissioner Control Cluster can be seen in the following " +
-        "diagram." +
-        "\n" +
-        "!commissioner control cluster general flow",
+        "diagram.",
 
     children: [
         {

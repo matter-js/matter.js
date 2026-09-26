@@ -83,6 +83,26 @@ import { Identity } from "@matter/general";
  *
  *   - Other device types with Node scope may be supported on the same endpoint as this device type.
  *
+ * ### Cluster Requirements
+ *
+ * > [!NOTE]
+ *
+ * > NOTE: The Network Diagnostics clusters present on the Root Node shall serve the primary network interface as
+ *   specified in the Network Commissioning cluster if it exists, or the out-of-band-configured networking interfaces.
+ *
+ * ### Element Requirements
+ *
+ * #### Access Control MNGD Conformance
+ *
+ * The MNGD (Managed Device) feature of the Access Control Cluster on the device's Root Node endpoint is restricted to
+ * devices that contain an Application Endpoint type that explicitly permits its use, such as the Network Infrastructure
+ * Manager device type (Device Type ID 0x0090).
+ *
+ * ### Endpoint Composition
+ *
+ * A Root Node endpoint's Descriptor cluster PartsList attribute shall contain a list of all other endpoints on the
+ * node, i.e. the full-family pattern defined in the System Model specification.
+ *
  * @see {@link MatterSpecification.v16.Device} § 2.1
  */
 export interface RootEndpoint extends Identity<typeof RootEndpointDefinition> {}
@@ -279,7 +299,7 @@ export namespace RootRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { TimeSynchronization: TimeSynchronizationClient }, mandatory: {} };
+    export const client = { optional: { TimeSynchronization: TimeSynchronizationClient } };
 }
 
 export const RootEndpointDefinition = MutableEndpoint({

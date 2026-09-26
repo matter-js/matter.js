@@ -6,15 +6,36 @@
 
 import { ClientBehavior } from "#behavior/cluster/ClientBehavior.js";
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
+import { OtaSoftwareUpdateRequestorServer } from "#behaviors/ota-software-update-requestor";
 import { ChimeDevice } from "#devices/chime";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
+import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { MatterFlowError } from "@matter/general";
 import { AccessLevel } from "@matter/model";
-import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
-import { ClusterId, CommandId, EndpointNumber, Status, StatusResponseError, TlvUInt8 } from "@matter/types";
+import {
+    CommandInvokeResponse,
+    Invoke,
+    InvokeRequest,
+    InvokeResult,
+    MessageExchange,
+    ProtocolMocks,
+} from "@matter/protocol";
+import {
+    ClusterId,
+    CommandId,
+    EndpointNumber,
+    FabricIndex,
+    NodeId,
+    Status,
+    StatusResponseError,
+    TlvUInt8,
+    VendorId,
+} from "@matter/types";
 import { Chime } from "@matter/types/clusters/chime";
 import { OnOff } from "@matter/types/clusters/on-off";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
+import { MockExchange } from "./mock-exchange.js";
 import { MockServerNode } from "./mock-server-node.js";
 
 describe("CommandInvokeResponse", () => {
@@ -480,6 +501,167 @@ describe("CommandInvokeResponse", () => {
         ]);
     });
 
+    it("refuses a fabric-scoped command over a PASE session with UNSUPPORTED_ACCESS", async () => {
+        const device = new Endpoint(OtaRequestorEndpoint);
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        // A NodeSession with no fabric mirrors a PASE session established before commissioning completes. Its
+        // peerNodeId must be the unspecified node ID for FabricAccessControl to grant the implicit PASE-commissioning
+        // Administer privilege that AnnounceOtaProvider's "A" access requires.
+        const session = new ProtocolMocks.NodeSession({ fabric: undefined, peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
+        const exchange = new MockExchange(
+            { fabricIndex: FabricIndex.NO_FABRIC, nodeId: NodeId.UNSPECIFIED_NODE_ID },
+            { session },
+        );
+
+        const response = await invokeCmdRawAs(
+            node,
+            // Ignored: an explicit exchange is passed below, and its own session's PASE grant governs privilege.
+            AccessLevel.View,
+            Invoke(
+                Invoke.ConcreteCommandRequest({
+                    endpoint: device,
+                    cluster: OtaSoftwareUpdateRequestor,
+                    command: "announceOtaProvider",
+                    fields: {
+                        providerNodeId: NodeId(1),
+                        vendorId: VendorId(1),
+                        announcementReason: OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement,
+                        endpoint: EndpointNumber(0),
+                    },
+                }),
+            ),
+            exchange,
+        );
+
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: OtaSoftwareUpdateRequestor.id, commandId: 0, endpointId: 1 },
+                status: Status.UnsupportedAccess,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 1 });
+    });
+
+    it("the framework fabric-scoped guard refuses invocation before the handler runs, even without a handler-level guard", async () => {
+        let handlerRan = false;
+
+        // Every built-in fabric-scoped handler happens to self-guard via session.associatedFabric or an explicit
+        // check, so overriding announceOtaProvider without calling super() is what isolates
+        // CommandInvokeResponse's own fabricScoped check from that incidental, per-handler protection.
+        class NonSelfGuardingOtaRequestorServer extends OtaSoftwareUpdateRequestorServer {
+            override async announceOtaProvider() {
+                handlerRan = true;
+            }
+        }
+
+        const device = new Endpoint(OtaRequestorEndpoint.with(NonSelfGuardingOtaRequestorServer));
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        const session = new ProtocolMocks.NodeSession({ fabric: undefined, peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
+        const exchange = new MockExchange(
+            { fabricIndex: FabricIndex.NO_FABRIC, nodeId: NodeId.UNSPECIFIED_NODE_ID },
+            { session },
+        );
+
+        const response = await invokeCmdRawAs(
+            node,
+            // Ignored: an explicit exchange is passed below, and its own session's PASE grant governs privilege.
+            AccessLevel.View,
+            Invoke(
+                Invoke.ConcreteCommandRequest({
+                    endpoint: device,
+                    cluster: OtaSoftwareUpdateRequestor,
+                    command: "announceOtaProvider",
+                    fields: {
+                        providerNodeId: NodeId(1),
+                        vendorId: VendorId(1),
+                        announcementReason: OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement,
+                        endpoint: EndpointNumber(0),
+                    },
+                }),
+            ),
+            exchange,
+        );
+
+        expect(handlerRan).equals(false);
+        expect(response.data).deep.equals([
+            {
+                kind: "cmd-status",
+                path: { clusterId: OtaSoftwareUpdateRequestor.id, commandId: 0, endpointId: 1 },
+                status: Status.UnsupportedAccess,
+                clusterStatus: undefined,
+                commandRef: undefined,
+            },
+        ]);
+        expect(response.counts).deep.equals({ status: 1, success: 0, existent: 1 });
+    });
+
+    it("invokes a command that is not fabric-scoped over the same PASE session", async () => {
+        const device = new Endpoint(OnOffLightDevice);
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        const session = new ProtocolMocks.NodeSession({ fabric: undefined, peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
+        const exchange = new MockExchange(
+            { fabricIndex: FabricIndex.NO_FABRIC, nodeId: NodeId.UNSPECIFIED_NODE_ID },
+            { session },
+        );
+
+        const response = await invokeCmdRawAs(
+            node,
+            AccessLevel.View,
+            Invoke(Invoke.ConcreteCommandRequest({ endpoint: device, cluster: OnOff, command: "on" })),
+            exchange,
+        );
+
+        expect(response.counts).deep.equals({ status: 0, success: 1, existent: 1 });
+    });
+
+    it("skips a fabric-scoped command on a wildcard path over a PASE session rather than reporting it", async () => {
+        let handlerRan = false;
+
+        class NonSelfGuardingOtaRequestorServer extends OtaSoftwareUpdateRequestorServer {
+            override async announceOtaProvider() {
+                handlerRan = true;
+            }
+        }
+
+        const device = new Endpoint(OtaRequestorEndpoint.with(NonSelfGuardingOtaRequestorServer));
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        const session = new ProtocolMocks.NodeSession({ fabric: undefined, peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
+        const exchange = new MockExchange(
+            { fabricIndex: FabricIndex.NO_FABRIC, nodeId: NodeId.UNSPECIFIED_NODE_ID },
+            { session },
+        );
+
+        const response = await invokeCmdRawAs(
+            node,
+            AccessLevel.View,
+            Invoke(
+                Invoke.WildcardCommandRequest({
+                    cluster: OtaSoftwareUpdateRequestor,
+                    command: "announceOtaProvider",
+                    fields: {
+                        providerNodeId: NodeId(1),
+                        vendorId: VendorId(1),
+                        announcementReason: OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement,
+                        endpoint: EndpointNumber(0),
+                    },
+                }),
+            ),
+            exchange,
+        );
+
+        // A wildcard path reports nothing for an endpoint it cannot invoke, unlike a concrete path which states why
+        expect(handlerRan).equals(false);
+        expect(response.data).undefined;
+        expect(response.counts).deep.equals({ status: 0, success: 0, existent: 0 });
+    });
+
     // TODO - more tests and Migrate some from InteractionProtocolTest
 });
 
@@ -493,15 +675,21 @@ function invokeCmdRaw(node: MockServerNode, data: Partial<InvokeRequest>) {
     return invokeCmdRawAs(node, AccessLevel.Operate, data);
 }
 
-// No exchange is supplied so the mock builds a session whose privilege is actually capped at {@link accessLevel};
-// supplying a fabric exchange would instead grant the subject full access regardless of accessLevel.
-async function invokeCmdRawAs(node: MockServerNode, accessLevel: AccessLevel, data: Partial<InvokeRequest>) {
+// Without an exchange the mock builds a session whose privilege is actually capped at {@link accessLevel}; a fabric
+// exchange would instead grant the subject full access regardless of accessLevel.  A caller that supplies its own
+// exchange governs privilege through that exchange's session, and accessLevel is then unused.
+async function invokeCmdRawAs(
+    node: MockServerNode,
+    accessLevel: AccessLevel,
+    data: Partial<InvokeRequest>,
+    exchange?: MessageExchange,
+) {
     const request = {
         suppressResponse: false,
         ...data,
     } as Invoke;
 
-    return node.online({ command: true, accessLevel }, async ({ context }) => {
+    return node.online({ command: true, accessLevel, exchange }, async ({ context }) => {
         const response = new CommandInvokeResponse(node.protocol, context);
         let chunks: InvokeResult.Data[] | undefined;
         for await (const chunk of response.process(request)) {

@@ -176,7 +176,7 @@ export declare namespace WiFiNetworkManagement {
          *   - 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit.
          *
          * This matches the formats defined for WPA networks by the Credentials field in the Network Commissioning
-         * cluster (see [[MatterCore]](#ref_MatterCore)).
+         * cluster (see MatterCore).
          *
          * > [!NOTE]
          *

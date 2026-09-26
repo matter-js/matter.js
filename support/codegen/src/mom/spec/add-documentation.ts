@@ -5,7 +5,7 @@
  */
 
 import { looksLikeListItem } from "@matter/general";
-import { SpecReference } from "./spec-types.js";
+import { DeviceReference, SpecReference } from "./spec-types.js";
 
 /**
  * Extraction terminates when it encounters these flags.  These are for places where we don't have an elegant way of
@@ -80,7 +80,10 @@ function mergeSplitParagraphs(paragraphs: string[]) {
             paragraph.endsWith(":") ||
             paragraph.endsWith(".\u201D") ||
             paragraph.endsWith('."') ||
-            paragraph.startsWith("###")
+            paragraph.startsWith("###") ||
+            // The specification states a list item on one line, so a paragraph that follows one starts a new block
+            // rather than continuing it
+            looksLikeListItem(paragraph)
         ) {
             continue;
         }
@@ -132,17 +135,41 @@ function mergeSplitParagraphs(paragraphs: string[]) {
 }
 
 /**
- * Extract documentation from prose strings produced by the markdown scanner.
+ * Sentences the device library repeats in almost every chapter.  Each one announces the shape of the table that
+ * follows, which the generated model already states, so keeping them would put the same text into ninety device types
+ * and bury the chapter's own content.
  */
-export function addDocumentation(target: { details?: string }, definition: SpecReference) {
+const DeviceBoilerplate = [
+    /^Each (?:endpoint|node) supporting .+ device type (?:shall|may) include (?:these clusters|endpoints with these device types) based on the conformance defined below\.$/i,
+    /^Each Matter device type implementation shall include these clusters, as a minimum set, based on the conformance defined below\.$/i,
+    /^See the Base Device Type definition for (?:additional )?conformance tags\.$/i,
+    /^(?:The (?:table below|following table|table)|This) lists\b/i,
+    /^A blank (?:table cell means there is no change to that item,? and the value from the cluster specification applies|entry means no change)\.$/i,
+];
+
+/**
+ * Remove boilerplate sentences from a paragraph.  The specification packages them inconsistently — alone in their own
+ * paragraph in most chapters, followed by content in others — so matching whole paragraphs misses half of them.
+ */
+function withoutBoilerplate(text: string, boilerplate: readonly RegExp[]) {
+    return text
+        .split(/(?<=\.)\s+(?=[A-Z])/)
+        .filter(sentence => !boilerplate.some(pattern => sentence.match(pattern)))
+        .join(" ");
+}
+
+/**
+ * Convert a section's prose strings into paragraphs, dropping content we cannot use.
+ */
+function collectParagraphs(definition: SpecReference, boilerplate?: readonly RegExp[]) {
+    const paragraphs = Array<string>();
+
     const prose = definition.prose;
     if (!prose) {
-        return;
+        return paragraphs;
     }
 
-    let paragraphs = Array<string>();
-
-    prose: for (const text of prose) {
+    prose: for (let text of prose) {
         // Ignore figure annotations
         if (text.match(/^Figure \d+/)) {
             continue;
@@ -158,6 +185,13 @@ export function addDocumentation(target: { details?: string }, definition: SpecR
         for (const flag of EndContentFlags) {
             if (text.match(flag)) {
                 break prose;
+            }
+        }
+
+        if (boilerplate) {
+            text = withoutBoilerplate(text, boilerplate);
+            if (!text) {
+                continue;
             }
         }
 
@@ -187,18 +221,84 @@ export function addDocumentation(target: { details?: string }, definition: SpecR
         }
     }
 
+    return paragraphs;
+}
+
+/**
+ * Reassemble split paragraphs and strip the phrasing that reads as scavenged.
+ */
+function cleanParagraphs(paragraphs: string[]) {
+    if (!paragraphs.length) {
+        return paragraphs;
+    }
+
+    mergeSplitParagraphs(paragraphs);
+
+    return paragraphs.map(extractUsefulDocumentation).filter(p => p !== "" && p !== "###");
+}
+
+/**
+ * Extract documentation from prose strings produced by the markdown scanner.
+ */
+export function addDocumentation(target: { details?: string }, definition: SpecReference) {
+    const paragraphs = cleanParagraphs(collectParagraphs(definition));
     if (paragraphs.length) {
-        mergeSplitParagraphs(paragraphs);
-        paragraphs = paragraphs
-            .map(p => {
-                // Preserve leading indentation for list items through extractUsefulDocumentation
-                const match = p.match(/^(\s+)(?:-\s|\d+\.\s|[a-z]+\.\s)/i);
-                const cleaned = extractUsefulDocumentation(p);
-                return match ? `${match[1]}${cleaned.trimStart()}` : cleaned;
-            })
-            .filter(p => p !== "" && p !== "###");
         target.details = paragraphs.join("\n");
     }
+}
+
+/**
+ * Extract documentation for a device type.
+ *
+ * A device type chapter states most of its normative prose below a subsection heading, so documentation built from the
+ * lead paragraphs alone loses the namespace-tag requirements, the composition rules and the element requirements.
+ * Each subsection contributes under a heading of its own depth, because a chapter may repeat a subsection name — the
+ * robotic vacuum cleaner states "Preconditions" once per operation — and a flat heading would make them
+ * indistinguishable.
+ */
+export function addDeviceDocumentation(target: { details?: string }, deviceRef: DeviceReference) {
+    const paragraphs = cleanParagraphs(collectParagraphs(deviceRef, DeviceBoilerplate));
+
+    const subsections = deviceRef.subsections ?? [];
+    const headed = new Set<string>();
+
+    function addHeading(subsection: SpecReference) {
+        const section = subsection.xref.section;
+        if (headed.has(section)) {
+            return;
+        }
+        headed.add(section);
+        paragraphs.push(`${"#".repeat(Math.min(depthOf(section), 6))} ${subsection.name}`);
+    }
+
+    for (const subsection of subsections) {
+        const subsectionParagraphs = cleanParagraphs(collectParagraphs(subsection, DeviceBoilerplate));
+        if (!subsectionParagraphs.length) {
+            continue;
+        }
+
+        // A subsection that only heads other subsections has no prose of its own, so its heading appears here or not
+        // at all, and without it the nesting below it has nothing to hang from
+        for (const ancestor of subsections) {
+            if (subsection.xref.section.startsWith(`${ancestor.xref.section}.`)) {
+                addHeading(ancestor);
+            }
+        }
+
+        addHeading(subsection);
+        paragraphs.push(...subsectionParagraphs);
+    }
+
+    if (paragraphs.length) {
+        target.details = paragraphs.join("\n");
+    }
+}
+
+/**
+ * Heading depth for a section, where a device type chapter is depth two and its subsections start at three.
+ */
+function depthOf(section: string) {
+    return section.split(".").length;
 }
 
 /**

@@ -18,8 +18,6 @@ import type { Status } from "../globals/Status.js";
  *
  * This cluster provides an interface to the functionality of a thermostat.
  *
- * !thermostat devices
- *
  * @see {@link MatterSpecification.v16.Cluster} § 4.3
  */
 export declare namespace Thermostat {

@@ -16,8 +16,15 @@ import {
     Seconds,
     UnexpectedDataError,
 } from "@matter/general";
-import { GeneralStatusCode, SecureChannelStatusCode, SecureMessageType, TlvSchema, VendorId } from "@matter/types";
-import { Message } from "../codec/MessageCodec.js";
+import {
+    GeneralStatusCode,
+    SecureChannelStatusCode,
+    SecureMessageType,
+    TlvSchema,
+    ValidationError,
+    VendorId,
+} from "@matter/types";
+import { Message, PayloadHeader } from "../codec/MessageCodec.js";
 import { ExchangeSendOptions, MessageExchange } from "../protocol/MessageExchange.js";
 import { SecureChannelStatusMessage } from "./SecureChannelStatusMessageSchema.js";
 
@@ -98,7 +105,37 @@ export class SecureChannelMessenger {
      * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME is used.
      */
     async nextMessageDecoded<T>(schema: TlvSchema<T>, options?: SecureChannelMessenger.ReadOptions) {
-        return schema.decode((await this.nextMessage(options)).payload);
+        return this.decode(schema, await this.nextMessage(options));
+    }
+
+    /**
+     * Decodes the payload of a message received from the peer.
+     *
+     * A payload that violates the schema is data the peer sent, so the error is an {@link UnexpectedDataError}
+     * naming the message and field, with the {@link ValidationError} as cause.
+     */
+    protected decode<T>(
+        schema: TlvSchema<T>,
+        {
+            payload,
+            payloadHeader: { messageType },
+        }: Pick<Message, "payload"> & { payloadHeader: Pick<PayloadHeader, "messageType"> },
+    ): T {
+        try {
+            return schema.decode(payload);
+        } catch (error) {
+            if (!(error instanceof ValidationError)) {
+                throw error;
+            }
+            const field = error.fieldName === undefined ? "" : ` field ${error.fieldName}`;
+            // The cause carries the offending value; the message must not echo peer-supplied data into logs
+            throw new UnexpectedDataError(
+                `Malformed ${SecureMessageType[messageType] ?? messageType}${field} from peer`,
+                {
+                    cause: error,
+                },
+            );
+        }
     }
 
     /**

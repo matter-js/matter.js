@@ -8,7 +8,7 @@ import { AccessControlServer } from "#behaviors/access-control";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Logger, Observable } from "@matter/general";
-import { assertRemoteActor, FabricAuthority, NodeSession } from "@matter/protocol";
+import { assertRemoteActor, FabricAuthority, NodeSession, PeerAddress } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { WebRtcTransportDefinitions } from "@matter/types/clusters/web-rtc-transport-definitions";
@@ -126,7 +126,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      */
     override async offer(request: WebRtcTransportRequestor.OfferRequest): Promise<void> {
         logger.debug(`incoming Offer webRtcSessionId=${request.webRtcSessionId} sdpLen=${request.sdp.length}`);
-        const session = this.#findSessionStrict(request.webRtcSessionId);
+        const session = this.#findSessionStrict("offer", request.webRtcSessionId);
         this.events.offer.emit(session, request);
     }
 
@@ -136,7 +136,7 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      */
     override async answer(request: WebRtcTransportRequestor.AnswerRequest): Promise<void> {
         logger.debug(`incoming Answer webRtcSessionId=${request.webRtcSessionId} sdpLen=${request.sdp.length}`);
-        const session = this.#findSessionStrict(request.webRtcSessionId);
+        const session = this.#findSessionStrict("answer", request.webRtcSessionId);
         this.events.answer.emit(session, request.sdp);
     }
 
@@ -148,9 +148,11 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
             `incoming ICECandidates webRtcSessionId=${request.webRtcSessionId} count=${request.iceCandidates.length}`,
         );
         if (request.iceCandidates.length === 0) {
-            throw new StatusResponseError("ICE candidates list must not be empty", Status.InvalidCommand);
+            // Reached only from a local caller: a peer's empty list is answered ConstraintError by schema
+            // validation, before this behavior runs
+            throw new StatusResponseError("ICE candidates list must not be empty", Status.ConstraintError);
         }
-        const session = this.#findSessionStrict(request.webRtcSessionId);
+        const session = this.#findSessionStrict("iceCandidates", request.webRtcSessionId);
         this.events.iceCandidates.emit(session, request.iceCandidates);
     }
 
@@ -159,17 +161,18 @@ export class WebRtcTransportRequestorServer extends WebRtcTransportRequestorBeha
      */
     override async end(request: WebRtcTransportRequestor.EndRequest): Promise<void> {
         logger.debug(`incoming End webRtcSessionId=${request.webRtcSessionId} reason=${request.reason}`);
-        const session = this.#findSessionStrict(request.webRtcSessionId);
+        const session = this.#findSessionStrict("end", request.webRtcSessionId);
         this.removeSession(request.webRtcSessionId);
         this.events.end.emit(session, request.reason);
     }
 
-    #findSessionStrict(id: number): WebRtcSession {
+    #findSessionStrict(signal: WebRtcTransportRequestorServer.SignalKind, id: number): WebRtcSession {
         assertRemoteActor(this.context);
         NodeSession.assert(this.context.session);
         const peer = this.context.session.peerAddress;
         const session = this.state.currentSessions.find(s => s.id === id);
         if (session === undefined || session.fabricIndex !== peer.fabricIndex || session.peerNodeId !== peer.nodeId) {
+            this.events.refused.emit(signal, id, peer);
             throw new StatusResponseError(`WebRTC session ${id} not found`, Status.NotFound);
         }
         return session;
@@ -190,5 +193,17 @@ export namespace WebRtcTransportRequestorServer {
 
         /** Peer ended a session; the session is already removed from tracking when this fires. */
         end = Observable<[session: WebRtcSession, reason: WebRtcTransportDefinitions.WebRtcEndReason]>();
+
+        /**
+         * Peer signaled against a session this cluster does not track for it, which it answered `NotFound`. The session
+         * id is the one the peer named, so a listener sees which id was refused rather than only that something was.
+         *
+         * Signaling this cluster never sees is not reported here: a command whose fields break their own constraints is
+         * refused by schema validation before any of this runs.
+         */
+        refused = Observable<[signal: SignalKind, webRtcSessionId: number, peer: PeerAddress]>();
     }
+
+    /** The signaling commands a peer invokes on this cluster. */
+    export type SignalKind = "offer" | "answer" | "iceCandidates" | "end";
 }

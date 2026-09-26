@@ -38,7 +38,7 @@ export const CommodityMetering = Cluster(
     Datatype(
         { name: "MeteredQuantityStruct", type: "struct" },
         Field(
-            { name: "TariffComponentIDs", id: 0x0, type: "list", conformance: "M", constraint: "max 128" },
+            { name: "TariffComponentIds", id: 0x0, type: "list", conformance: "M", constraint: "max 128" },
             Field({ name: "entry", type: "uint32" })
         ),
         Field({ name: "Quantity", id: 0x1, type: "int64", conformance: "M" })

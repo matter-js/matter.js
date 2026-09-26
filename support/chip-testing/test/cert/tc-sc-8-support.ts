@@ -7,7 +7,13 @@
 import { Duration, InternalError, MAX_UDP_MESSAGE_SIZE, Millis, Seconds, Time } from "@matter/general";
 import { Matter } from "@matter/model";
 import { MATTER_MESSAGE_OVERHEAD } from "@matter/protocol";
-import type { CertNodeRef, CertSessionInfo, CertStepContext, CheckRecord, DeviceFlavor } from "@matter/testing";
+import type {
+    CertNodeRef,
+    CertSessionInfo,
+    CertStepContext,
+    CheckRecord,
+    SelectableDeviceFlavor,
+} from "@matter/testing";
 import { resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
 import {
     CertCheckFailedError,
@@ -37,7 +43,7 @@ const VENDOR_NAME_ID = requireId(BASIC_INFORMATION.attributes.require("vendorNam
  * here does not advertise it, and a run against it silently uses UDP instead, which would leave these
  * cases claiming a transport nobody used.
  */
-export const TCP_FLAVORS: DeviceFlavor[] = ["matterjs"];
+export const TCP_FLAVORS: SelectableDeviceFlavor[] = ["matterjs"];
 
 export const TCP_PICS = ["MCORE.SC.TCP"];
 
@@ -758,7 +764,7 @@ export async function recordSeveredSession(
     // evidence, and a device check recorded after it would be missing from the bundle exactly when the step fails
     const eviction = await sessionEvictionCheck(cx, severed, from, timeout);
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => sessionGoneCheck(severed, sessions),
             what: `the TH no longer holds session ${severed.controllerSessionId}`,
@@ -803,7 +809,7 @@ export async function recordReestablishedSession(
     const sessions = await heldSessions(cx, ref);
     const id = tcpSessionIdOf(sessions);
     const further = await furtherSessionCheck(cx, from);
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => sessionGoneCheck(previous, sessions),
             what: "the session the TH holds is not the one it severed",

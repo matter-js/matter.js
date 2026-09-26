@@ -111,7 +111,7 @@ async function addGroupOverGroupcast(cx: CertStepContext) {
     const arrived =
         Number(status) === Status.Success && Number(groupId) === SECOND_GROUP.id && groupName === SECOND_GROUP.name;
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => ({
                 type: "response",
