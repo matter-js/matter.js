@@ -106,6 +106,9 @@ export class CommissioningServer extends Behavior {
 
         // Wait for cleanup to finish
         await this.internal.mutex;
+
+        // Lives as long as the behavior: initialize() does not install it again when the node restarts
+        this.env.delete(CommissioningConfigProvider);
     }
 
     handleFabricChange(fabricIndex: FabricIndex, fabricAction: CommissioningServer.FabricAction) {
@@ -252,7 +255,6 @@ export class CommissioningServer extends Behavior {
     #enterOfflineMode() {
         this.internal.mutex.run(async () => {
             await this.env.close(DeviceCommissioner);
-            this.env.delete(CommissioningConfigProvider);
             this.internal.unregisterFailsafeListener?.();
             await this.env.close(FailsafeContext);
         });
