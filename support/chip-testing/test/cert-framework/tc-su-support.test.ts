@@ -9,8 +9,11 @@ import type {
     AttributeReadEntry,
     CertStepContext,
     CheckRecord,
+    EventPathSpec,
+    EventReadEntry,
     OtaProviderExchanges,
     OtaQueryImageExchange,
+    ReadEventOptions,
 } from "@matter/testing";
 import { expect } from "chai";
 import {
@@ -22,6 +25,7 @@ import {
     planDelayCoverageCheck,
     longRunningReason,
     hexByteLength,
+    latestRequestorStateChange,
     queryImageResponseLines,
     queryStatusName,
     recordRequestorIdle,
@@ -374,6 +378,51 @@ describe("hexByteLength and queryStatusName", () => {
     it("names a status the cluster defines, and says so where it does not", () => {
         expect(queryStatusName(2)).equal("NotAvailable");
         expect(queryStatusName(9)).equal("unknown (9)");
+    });
+});
+
+describe("latestRequestorStateChange", () => {
+    function nodeHolding(...eventNumbers: number[]) {
+        const asked = new Array<{ paths: EventPathSpec[]; options?: ReadEventOptions }>();
+        const node = fakeCertNode({
+            readEvents: async (paths: EventPathSpec[], options?: ReadEventOptions) => {
+                asked.push({ paths, options });
+                return eventNumbers.map(
+                    eventNumber =>
+                        ({
+                            endpoint: 0,
+                            cluster: 0x2a,
+                            event: 0,
+                            eventNumber: BigInt(eventNumber),
+                            value: { newState: 1 },
+                        }) satisfies EventReadEntry,
+                );
+            },
+        });
+        return { node, asked };
+    }
+
+    it("answers the highest event number the node holds", async () => {
+        expect(await latestRequestorStateChange(nodeHolding(4, 7, 5).node)).equal(7n);
+    });
+
+    // The mark orders the read that follows it, so the newest event has to win whatever order the
+    // node reported its events in
+    it("answers the highest rather than the last reported", async () => {
+        expect(await latestRequestorStateChange(nodeHolding(9, 2).node)).equal(9n);
+    });
+
+    it("answers undefined where the node holds none", async () => {
+        expect(await latestRequestorStateChange(nodeHolding().node)).equal(undefined);
+    });
+
+    // A mark filtered by a previous mark would miss every event below it, so the step that then asks
+    // for events above the mark would be reading a window this already narrowed
+    it("reads without an event filter", async () => {
+        const { node, asked } = nodeHolding(1);
+        await latestRequestorStateChange(node);
+        expect(asked).lengthOf(1);
+        expect(asked[0].options?.minEventNumber).equal(undefined);
     });
 });
 
