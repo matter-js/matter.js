@@ -113,12 +113,6 @@ export class GroupSession extends SecureSession {
     }
 
     /**
-     * Source IP address of the most recently received datagram on this session.  Inbound group sessions have no
-     * channel, so the receive path records this for Groupcast testing event reporting.
-     */
-    receivedFrom?: string;
-
-    /**
      * Where a message on this session's group is addressed, in the form an IPv6 destination is
      * written: the multicast address in brackets and the port beside it. Group traffic goes to the
      * standard port, which is what makes the pair worth printing together — an address alone does not

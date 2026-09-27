@@ -2169,6 +2169,25 @@ describe("InteractionProtocol", () => {
             expect(emitted[0].accessAllowed).equals(true);
         });
 
+        it("group invoke reports the source address of its own message", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+
+            const emitted = new Array<GroupMessageEventInfo>();
+            node.env.get(SessionManager).onGroupMessage.on(info => {
+                emitted.push(info);
+            });
+
+            await interactionProtocol.handleInvokeRequest(exchange, INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS, messenger, {
+                ...interaction.BarelyMockedGroupMessage,
+                receivedFrom: "fd00::7",
+            });
+
+            expect(emitted.length).equals(1);
+            expect(emitted[0].sourceIp).equals("fd00::7");
+        });
+
         it("invoke command with with timed interaction success", async () => {
             let timedInteractionCleared = false;
             const exchange = await createDummyMessageExchange(node, undefined, true, false, undefined, () => {

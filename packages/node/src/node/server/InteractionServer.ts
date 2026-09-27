@@ -970,11 +970,10 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             const groupId = rawGroupId !== undefined ? GroupId(rawGroupId) : undefined;
             const session = exchange.session;
             const fabric = session.associatedFabric;
-            // Inbound group sessions have no channel, so the source comes from the session itself.  The destination
-            // is left to the listener, which derives it from the message's group id: one session serves every group
-            // that shares its key set
+            // The destination is left to the listener, which derives it from the message's group id: one session
+            // serves every group that shares its key set
+            const sourceIp = message.receivedFrom;
             const groupSession = GroupSession.is(session) ? session : undefined;
-            const sourceIp = groupSession?.receivedFrom;
             // The event's ClusterID/ElementID reflect the request; cmd-response paths carry the response command id
             const requestPath = invokeRequests[0]?.commandPath;
             let emitted = false;

@@ -295,8 +295,7 @@ export class ExchangeManager implements Transport.Provider {
                 key,
             } = this.#sessions.groupSessionFromPacket(packet, aad, sourceIp);
             session = groupSession;
-            message = groupMessage;
-            groupSession.receivedFrom = sourceIp;
+            message = { ...groupMessage, receivedFrom: sourceIp };
 
             const sourceNodeId = message.packetHeader.sourceNodeId;
             if (sourceNodeId === undefined) {
