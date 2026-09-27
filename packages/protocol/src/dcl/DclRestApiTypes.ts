@@ -5,6 +5,7 @@
  */
 
 import {
+    ComplianceHistoryItemDclSchema,
     DeviceModelDclSchema,
     DeviceSoftwareComplianceDclSchema,
     DeviceSoftwareVersionModelDclSchema,
@@ -60,7 +61,7 @@ export interface DclPkiAllCertificatesBySkidResponse {
     certificates: Array<{
         subject: string;
         subjectKeyId: string;
-        certs: ProductAttestationDclSchema[];
+        certs: DclProductAttestationRaw[];
         schemaVersion: number;
     }>;
 }
@@ -70,14 +71,14 @@ export interface DclPkiCertificateResponse {
     approvedCertificates: {
         subject: string;
         subjectKeyId: string;
-        certs: ProductAttestationDclSchema[];
+        certs: DclProductAttestationRaw[];
         schemaVersion: number;
     };
 }
 
 /** Response for /dcl/model/models/{vid}/{pid} */
 export interface DclModelModelsWithVidPidResponse {
-    model: DeviceModelDclSchema;
+    model: DclDeviceModelRaw;
 }
 
 /** Response for /dcl/model/versions/{vid}/{pid} */
@@ -95,9 +96,50 @@ export interface DclModelVersionWithVidPidSoftwareVersionResponse {
     modelVersion: DclDeviceSoftwareVersionModelRaw;
 }
 
+/*
+ * The DCL REST API sends every field of a record and encodes an unset optional field as `""` or `0`. The `*Raw` types
+ * describe that wire form; `DclClient` maps them to the schema types, whose optional fields are `undefined` when unset.
+ */
+
 /**
- * Device software version entry as returned by the DCL REST API. Every field is present; the uint64 `otaFileSize` is a
- * decimal string.
+ * PAA or PAI certificate record as returned by the DCL REST API.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.23.5
+ */
+export type DclProductAttestationRaw = Required<ProductAttestationDclSchema>;
+
+/**
+ * Device model record as returned by the DCL REST API.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.23.7
+ */
+export type DclDeviceModelRaw = Required<DeviceModelDclSchema>;
+
+/**
+ * Vendor record as returned by the DCL REST API.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.23.3
+ */
+export type DclVendorRaw = Required<VendorDclSchema>;
+
+/**
+ * Compliance record as returned by the DCL REST API, including the four fields the specification publishes as
+ * deprecated.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.23.10
+ */
+export interface DclComplianceInfoRaw extends Required<Omit<DeviceSoftwareComplianceDclSchema, "history">> {
+    history: Required<ComplianceHistoryItemDclSchema>[];
+    compliantPlatformUsed: string;
+    compliantPlatformVersion: string;
+    certificationIdOfSoftwareComponent: string;
+    OSVersion: string;
+}
+
+/**
+ * Device software version record as returned by the DCL REST API; the uint64 `otaFileSize` is a decimal string.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.23.8
  */
 export interface DclDeviceSoftwareVersionModelRaw extends Required<
     Omit<DeviceSoftwareVersionModelDclSchema, "otaFileSize">
@@ -107,7 +149,7 @@ export interface DclDeviceSoftwareVersionModelRaw extends Required<
 
 /** Response for /dcl/compliance/compliance-info/{vid}/{pid}/{softwareVersion}/{certificationType} */
 export interface DclComplianceInfoResponse {
-    complianceInfo: DeviceSoftwareComplianceDclSchema;
+    complianceInfo: DclComplianceInfoRaw;
 }
 
 /**

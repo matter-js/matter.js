@@ -1409,7 +1409,9 @@ describe("DclCertificateService", () => {
                     {
                         subject: "",
                         subjectKeyId: skidWithColons,
-                        certs: [{ pemCert: pemEncode(CertificationDeclaration.testSignerCertificate()) }],
+                        certs: [
+                            { pemCert: pemEncode(CertificationDeclaration.testSignerCertificate()), schemaVersion: 0 },
+                        ],
                         schemaVersion: 0,
                     },
                 ],

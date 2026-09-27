@@ -38,7 +38,7 @@ export interface ApprovalOrRejectDetails {
 /**
  * Product Attestation Authority and Intermediate Certificate Schema
  *
- * The DCL sends every field. A value that is not set arrives as an empty string, `0` or an empty list.
+ * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
  * @see {@link MatterSpecification.v16.Core} § 11.23.5
  * DCL Endpoints:
  *   * /dcl/pki/certificates
@@ -67,27 +67,27 @@ export interface ProductAttestationDclSchema {
      * The field SHALL be used to identify the Certificate Authority that issues the certificate. For a PAA
      * Certificate, this field is OPTIONAL because Issuer and Subject are the same.
      */
-    issuer: string;
+    issuer?: string;
 
     /**
      * The authority key identifier extension provides a means of identifying the public key corresponding
      * to the private key used to sign a Matter certificate. This is OPTIONAL for PAA Certificates.
      */
-    authorityKeyId: string;
+    authorityKeyId?: string;
 
     /**
      * This field SHALL contain the PAA certificate’s Subject field, as defined in PAA in PAA Certificate.
      * This is OPTIONAL for PAA Certificates. This is encoded as defined in Section 6.1, “Certificate Common
      * Conventions”.
      */
-    rootSubject: string;
+    rootSubject?: string;
 
     /**
      * This field SHALL uniquely identify the PAA certificate’s Subject Key Identifier mandatory extension.
      * It is defined in PAA Certificate and Operational Root CA Certificates (RCAC). This is OPTIONAL
      * for PAA Certificates. This is encoded as defined in Section 6.1, “Certificate Common Conventions”.
      */
-    rootSubjectKeyId: string;
+    rootSubjectKeyId?: string;
 
     /**
      * This field SHALL signify whether the associated certificate is PAA Certificate.

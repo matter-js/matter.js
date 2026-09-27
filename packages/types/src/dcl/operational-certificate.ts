@@ -14,7 +14,7 @@ export type DclCertificateType = "DeviceAttestationPKI" | "OperationalPKI" | "VI
 /**
  * Operational Root and Intermediate Certificate Schema
  *
- * The DCL sends every field. A value that is not set arrives as an empty string, `0` or an empty list.
+ * The DCL sends every field and encodes an unset optional field as `""`.
  * @see {@link MatterSpecification.v16.Core} § 11.23.6
  */
 export interface OperationalCertificateDclSchema {
@@ -40,21 +40,21 @@ export interface OperationalCertificateDclSchema {
      * Operational Root CA Certificates (RCAC), this field is OPTIONAL because Issuer and
      * Subject are the same.
      */
-    issuer: string;
+    issuer?: string;
 
     /**
      * The authority key identifier extension provides a means of identifying the public key corresponding
      * to the private key used to sign a Matter certificate. This is OPTIONAL for Operational Root CA
      * Certificates (RCAC).
      */
-    authorityKeyId: string;
+    authorityKeyId?: string;
 
     /**
      * This field SHALL contain the PAA certificate’s Subject field, as defined Operational Root CA Certificates
      * (RCAC). This is OPTIONAL for Operational Root CA Certificates (RCAC). This is encoded as
      * defined in Section 6.1, “Certificate Common Conventions”.
      */
-    rootSubject: string;
+    rootSubject?: string;
 
     /**
      * This field SHALL uniquely identify the PAA certificate’s Subject Key Identifier mandatory extension.
@@ -62,7 +62,7 @@ export interface OperationalCertificateDclSchema {
      * for Operational Root CA Certificates (RCAC). This is encoded as defined in Section 6.1, “Certificate
      * Common Conventions”.
      */
-    rootSubjectKeyId: string;
+    rootSubjectKeyId?: string;
 
     /**
      * This field SHALL signify whether the associated certificates is a Operational Root CA Certificate

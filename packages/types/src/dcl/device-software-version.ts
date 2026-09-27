@@ -9,7 +9,7 @@ import { VendorId } from "../datatype/VendorId.js";
 /**
  * DeviceSoftwareVersionModel Schema
  *
- * The DCL sends every field; `DclClient` returns optional fields the DCL sends as `""` or `0` as `undefined`.
+ * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
  *
  * @see {@link MatterSpecification.v16.Core} § 11.23.8
  * DCL endpoints:

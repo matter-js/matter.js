@@ -54,6 +54,20 @@ const OTA_DOWNLOAD_TIMEOUT = Minutes(5);
 const OTA_FILENAME_REGEX = /^[0-9a-f]+[./][0-9a-f]+[./](?:prod|test|local)[./]\d+$/i;
 
 /**
+ * Root context for the metadata of stored images, beside the image contexts. It mirrors their layout, so an image and
+ * its metadata share context path and key.
+ */
+const OTA_METADATA_CONTEXT = "meta";
+
+interface StoredImageMetadata {
+    specificationVersion?: number;
+}
+
+function isSpecificationVersion(value: unknown): value is number {
+    return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 0xffff_ffff;
+}
+
+/**
  * Service to query and manage OTA updates from the Distributed Compliance Ledger (DCL), but also allows to inject own
  * OTA update info from streams or files. The service is designed as a singleton within an Environment and is shared
  * across multiple nodes. This service is mainly relevant for controllers.
@@ -396,6 +410,90 @@ export class DclOtaUpdateService {
         }
     }
 
+    /**
+     * Location of the metadata for an image, given by its filename or by its image contexts and key.
+     */
+    #metadataLocation(filenameOrContexts: string | readonly string[], key?: string) {
+        let imageContexts: readonly string[];
+        if (typeof filenameOrContexts === "string") {
+            const parts = filenameOrContexts.split(".");
+            key = parts.pop();
+            imageContexts = [...this.#storage!.baseContexts, ...parts];
+        } else {
+            imageContexts = filenameOrContexts;
+        }
+        return {
+            contexts: [OTA_METADATA_CONTEXT, ...imageContexts.slice(this.#storage!.baseContexts.length)],
+            key: key ?? "",
+        };
+    }
+
+    /**
+     * Record the metadata of a stored image; a value that is not set removes it. The metadata is optional, so a
+     * failure is logged and does not fail the store.
+     */
+    async #recordMetadata(filename: string, metadata: StoredImageMetadata) {
+        const { specificationVersion } = metadata;
+        try {
+            if (specificationVersion === undefined || !isSpecificationVersion(specificationVersion)) {
+                if (specificationVersion !== undefined) {
+                    logger.warn(`Not storing invalid specification version ${specificationVersion} for ${filename}`);
+                }
+                await this.#deleteMetadata(filename);
+                return;
+            }
+            const { contexts, key } = this.#metadataLocation(filename);
+            await this.#blobDriver!.writeBlobFromStream(
+                contexts,
+                key,
+                new Blob([JSON.stringify({ specificationVersion })]).stream(),
+            );
+        } catch (error) {
+            logger.warn(`Failed to store metadata of OTA image ${filename}:`, Diagnostic.errorMessage(asError(error)));
+        }
+    }
+
+    /**
+     * Read the metadata of a stored image. Unreadable or invalid metadata is removed, so it is reported only once.
+     */
+    async #readMetadata(imageContexts: readonly string[], key: string): Promise<StoredImageMetadata> {
+        const { contexts } = this.#metadataLocation(imageContexts, key);
+        const blobDriver = this.#blobDriver!;
+        const name = [...contexts, key].join(".");
+        try {
+            if (!(await blobDriver.has(contexts, key))) {
+                return {};
+            }
+            const { specificationVersion } = JSON.parse(await (await blobDriver.openBlob(contexts, key)).text());
+            if (isSpecificationVersion(specificationVersion)) {
+                return { specificationVersion };
+            }
+            logger.warn(`Removing invalid metadata of stored OTA image ${name}`);
+        } catch (error) {
+            logger.warn(
+                `Removing unreadable metadata of stored OTA image ${name}:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+        }
+        try {
+            await blobDriver.delete(contexts, key);
+        } catch (error) {
+            logger.warn(
+                `Failed to remove metadata of stored OTA image ${name}:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+        }
+        return {};
+    }
+
+    async #deleteMetadata(filenameOrContexts: string | readonly string[], key?: string) {
+        const location = this.#metadataLocation(filenameOrContexts, key);
+        const blobDriver = this.#blobDriver!;
+        if (await blobDriver.has(location.contexts, location.key)) {
+            await blobDriver.delete(location.contexts, location.key);
+        }
+    }
+
     #fileName(vid: number, pid: number, mode: OtaStorageMode, softwareVersion: number) {
         return `${vid.toString(16)}.${pid.toString(16)}.${mode}.${softwareVersion}`;
     }
@@ -438,6 +536,8 @@ export class DclOtaUpdateService {
             // Read back from storage and validate (including full file checksum if provided by DCL)
             await this.#verifyUpdate(updateInfo, fileDesignator);
 
+            await this.#recordMetadata(filename, { specificationVersion: updateInfo.specificationVersion });
+
             logger.debug(`Stored OTA image`, Diagnostic.dict(diagnosticInfo));
 
             return fileDesignator;
@@ -445,6 +545,11 @@ export class DclOtaUpdateService {
             // Clean up on error
             try {
                 await fileDesignator.delete();
+            } catch {
+                // Ignore cleanup errors
+            }
+            try {
+                await this.#deleteMetadata(filename);
             } catch {
                 // Ignore cleanup errors
             }
@@ -487,6 +592,9 @@ export class DclOtaUpdateService {
                 try {
                     await this.#verifyUpdate(updateInfo, fileDesignator);
                     logger.info(`Existing OTA image validated successfully`, Diagnostic.dict(diagnosticInfo));
+                    if (updateInfo.specificationVersion !== undefined) {
+                        await this.#recordMetadata(filename, { specificationVersion: updateInfo.specificationVersion });
+                    }
                     return fileDesignator;
                 } catch (error) {
                     logger.info(
@@ -497,6 +605,7 @@ export class DclOtaUpdateService {
             }
 
             await fileDesignator.delete();
+            await this.#deleteMetadata(filename);
         }
 
         if (!otaUrl?.trim()) {
@@ -606,7 +715,7 @@ export class DclOtaUpdateService {
     async #specificationVersionOf(dclClient: DclClient, vendorId: number, productId: number, softwareVersion: number) {
         try {
             const compliance = await dclClient.fetchComplianceInfo(vendorId, productId, softwareVersion, "matter");
-            return compliance.specificationVersion || undefined;
+            return compliance.specificationVersion;
         } catch (error) {
             MatterDclError.accept(error);
             logger.debug(
@@ -666,6 +775,7 @@ export class DclOtaUpdateService {
      * - schemaVersion: DCL schema version (defaults to 0)
      * - minApplicableSoftwareVersion: If not in header, defaults to 0 (all versions)
      * - maxApplicableSoftwareVersion: If not in header, defaults to current version minus 1
+     * - specificationVersion: Not in the OTA header; stored with the image when provided
      *
      * @param stream - ReadableStream of the OTA image
      * @param otaUrl - URL to use for the OTA file (should be file:// for local files or https:// for remote)
@@ -692,6 +802,8 @@ export class DclOtaUpdateService {
              * defaults to current version (only applicable to current version and below).
              */
             maxApplicableSoftwareVersion?: number;
+            /** Matter specification version the image implements, stored with the image. */
+            specificationVersion?: number;
         },
     ) {
         // Read and validate the OTA image header from stream
@@ -715,6 +827,7 @@ export class DclOtaUpdateService {
                 options?.maxApplicableSoftwareVersion ??
                 header.softwareVersion - 1,
             releaseNotesUrl: header.releaseNotesUrl,
+            specificationVersion: options?.specificationVersion,
             schemaVersion: options?.schemaVersion ?? 0,
             source: "local",
         };
@@ -744,6 +857,7 @@ export class DclOtaUpdateService {
      * - schemaVersion: DCL schema version (defaults to 0)
      * - minApplicableSoftwareVersion: If not in header, defaults to 0 (all versions)
      * - maxApplicableSoftwareVersion: If not in header, defaults to current version
+     * - specificationVersion: Not in the OTA header; stored with the image when provided
      *
      * @param fileUrl - HTTPS URL to the OTA image file
      * @param options - Optional parameters for DCL-specific fields not in OTA header
@@ -768,6 +882,8 @@ export class DclOtaUpdateService {
              * defaults to current version (only applicable to current version and below).
              */
             maxApplicableSoftwareVersion?: number;
+            /** Matter specification version the image implements, stored with the image. */
+            specificationVersion?: number;
         },
     ) {
         const fileProtocol = fileUrl.split(":")[0].toLowerCase();
@@ -921,9 +1037,11 @@ export class DclOtaUpdateService {
                 const fileDesignator = new PersistedFileDesignator(versionKey, blobDriver, modeContexts);
                 const entry = await this.#checkEntry(fileDesignator, options);
                 if (entry !== undefined) {
+                    const { specificationVersion } = await this.#readMetadata(modeContexts, versionKey);
                     result.push({
                         ...entry,
                         mode,
+                        specificationVersion,
                     });
                 }
             }
@@ -1028,6 +1146,7 @@ export class DclOtaUpdateService {
             try {
                 const fileDesignator = await this.fileDesignatorForUpdate(filename);
                 await fileDesignator.delete();
+                await this.#deleteMetadata(filename);
             } catch (error) {
                 OtaUpdateError.accept(error);
                 // Ignore not found errors
@@ -1050,6 +1169,7 @@ export class DclOtaUpdateService {
             for (const versionKey of versionKeys) {
                 const fd = new PersistedFileDesignator(versionKey, blobDriver, modeContexts);
                 await fd.delete();
+                await this.#deleteMetadata(modeContexts, versionKey);
                 deletedCount++;
             }
             if (deletedCount > 0) {
@@ -1079,6 +1199,7 @@ export class DclOtaUpdateService {
                     for (const versionKey of await blobDriver.keys(modeContexts)) {
                         const fd = new PersistedFileDesignator(versionKey, blobDriver, modeContexts);
                         await fd.delete();
+                        await this.#deleteMetadata(modeContexts, versionKey);
                         deletedCount++;
                     }
                 }
@@ -1107,6 +1228,8 @@ export namespace DclOtaUpdateService {
         maxApplicableSoftwareVersion?: number;
         mode: OtaStorageMode;
         size: number;
+        /** Specification version recorded when the image was stored, if known. */
+        specificationVersion?: number;
     };
 
     export interface FindOptions {

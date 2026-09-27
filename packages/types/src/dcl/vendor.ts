@@ -9,7 +9,7 @@ import { VendorId } from "../datatype/VendorId.js";
 /**
  * Vendor Schema
  *
- * The DCL sends every field. A value that is not set arrives as an empty string, `0` or an empty list.
+ * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
  * @see {@link MatterSpecification.v16.Core} § 11.23.3
  * DCL Endpoint: /dcl/vendorinfo/vendors or /dcl/vendorinfo/vendors/{vendorID}
  */
@@ -36,7 +36,7 @@ export interface VendorDclSchema {
      * The CompanyPreferredName field, if provided, SHALL specify the Preferred Name that MAY be
      * used for display purposes instead of the CompanyLegalName. Maximum length is 256 characters.
      */
-    companyPreferredName: string;
+    companyPreferredName?: string;
 
     /**
      * The VendorLandingPageUrl field (when provided) SHALL contain a link to a maintained web page
@@ -45,7 +45,7 @@ export interface VendorDclSchema {
      * maintained web page. The syntax of this field SHALL follow the syntax as specified in RFC 1738 and
      * SHALL use the https scheme. The maximum length of this field is 256 ASCII characters.
      */
-    vendorLandingPageURL: string;
+    vendorLandingPageURL?: string;
 
     /**
      * This field uniquely identifies the DCL key that was used to register the vendor record in DCL, pursuant to
