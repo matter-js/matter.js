@@ -73,6 +73,22 @@ export function singleQueryImage(exchanges: OtaProviderExchanges): OtaQueryImage
     return only(exchanges.queryImage, "QueryImage");
 }
 
+/**
+ * A recorded check that a served update produced exactly one `QueryImage`, for a case that then reads
+ * that one exchange by index.
+ *
+ * {@link singleQueryImage} states the same invariant by throwing, which loses the checks a step had
+ * already built, so a step that goes on to record more states it here and names the count.
+ */
+export function singleQueryImageCheck(exchanges: OtaProviderExchanges): CheckRecord {
+    const { length } = exchanges.queryImage;
+    return {
+        type: "response",
+        verdict: length === 1 ? "pass" : "fail",
+        detail: `the DUT sent ${length} QueryImage command(s) during this update, where the plan describes one`,
+    };
+}
+
 /** The one `ApplyUpdateRequest` exchange a served update produced, as {@link singleQueryImage}. */
 export function singleApplyUpdate(exchanges: OtaProviderExchanges): OtaApplyUpdateExchange {
     return only(exchanges.applyUpdate, "ApplyUpdateRequest");
@@ -254,6 +270,18 @@ export function announcementLines(announcement: OtaAnnouncementRecord) {
 /** Smallest Max Block Size the plan requires a provider to grant over a non-TCP transport. */
 export const MIN_NON_TCP_BLOCK_SIZE = 1024;
 
+/**
+ * Largest Max Block Size the plan lets a receiver ask for over a non-TCP transport.
+ *
+ * The same number as {@link MIN_NON_TCP_BLOCK_SIZE} and a different requirement: that one is the floor
+ * a provider must be able to grant, this one the ceiling a requestor may propose. A case reading the
+ * wrong one of the two would state a claim about the other side of the transfer.
+ */
+export const MAX_NON_TCP_BLOCK_SIZE = 1024;
+
+/** Largest Max Block Size the plan lets a receiver ask for over a TCP transport. */
+export const MAX_TCP_BLOCK_SIZE = 8192;
+
 /** Above this, the plan requires the granted size to be a power of two (Matter Core § 11.20.3.5). */
 export const EXACT_BLOCK_SIZE_CEILING = 128;
 
@@ -389,11 +417,17 @@ const OTA_REQUESTOR = Matter.clusters.require("OtaSoftwareUpdateRequestor");
 const OTA_REQUESTOR_ID = requireId(OTA_REQUESTOR.id, "OtaSoftwareUpdateRequestor cluster");
 const UPDATE_STATE_ID = requireId(OTA_REQUESTOR.attributes.require("updateState").id, "UpdateState attribute");
 
-/** `UpdateState` Idle (Matter Core § 11.20.7.5.3), the state the plans' Test Setup requires. */
+/** `UpdateState` Idle (Matter Core § 11.20.7.4.2), the state the plans' Test Setup requires. */
 const UPDATE_STATE_IDLE = 1;
 
 /** `UpdateState` Downloading, which a requestor enters once it starts transferring an image. */
 export const UPDATE_STATE_DOWNLOADING = 4;
+
+/**
+ * `UpdateState` DelayedOnUserConsent (Matter Core § 11.20.7.4.2), which a requestor enters while it
+ * obtains the consent a provider asked it for.
+ */
+export const UPDATE_STATE_DELAYED_ON_USER_CONSENT = 8;
 
 const STATE_TRANSITION_ID = requireId(OTA_REQUESTOR.events.require("stateTransition").id, "StateTransition event");
 
@@ -416,6 +450,21 @@ export async function requestorStateChanges(node: CertNodeApi, after?: bigint): 
         eventNumber,
         newState: typeof value === "object" && value !== null && "newState" in value ? value.newState : undefined,
     }));
+}
+
+/**
+ * The highest event number among the DUT's `StateTransition` events, or `undefined` where it holds none.
+ *
+ * A step watching for a transition takes this before it acts and passes it to
+ * {@link requestorStateChanges}, so what it then reads is what the DUT did in the step rather than
+ * what an earlier one left behind.
+ */
+export async function latestRequestorStateChange(node: CertNodeApi): Promise<bigint | undefined> {
+    const changes = await requestorStateChanges(node);
+    return changes.reduce<bigint | undefined>(
+        (latest, { eventNumber }) => (latest === undefined || eventNumber > latest ? eventNumber : latest),
+        undefined,
+    );
 }
 
 /**

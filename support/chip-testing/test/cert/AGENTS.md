@@ -3138,6 +3138,29 @@ under storage context `certOtaRequestor` and sets `BootReason` `SoftwareUpdateCo
 - Without the restart, both steps fail rather than pass: no `NotifyUpdateApplied` arrives, and
   `BootReason` stays `Unspecified`.
 
+**A "vendor specific" consent step still has a checkable half (`TC-SU-2.3` step 1).** The consent itself
+is the vendor's, but § 11.20.7.4.2 gives `DelayedOnUserConsent` for the state a requestor passes through
+while it asks. So a requestor that obtained consent recorded a `StateTransition` into that state with a
+lower event number than the one into `Downloading`, and a case reads the two rather than recording the
+whole step unverified. Scripting `userConsentNeeded: false` instead makes the check fail, with the
+DelayedOnUserConsent transition absent.
+
+**The plan's Max Block Size rule is two rules, one per side.** `MIN_NON_TCP_BLOCK_SIZE` is the floor a
+*provider* must be able to grant (TC-SU-3.3) and `MAX_NON_TCP_BLOCK_SIZE` the ceiling a *requestor* may
+propose (TC-SU-2.3 step 2). Both are 1024, so a case reading the wrong constant states a claim about the
+other side of the transfer and still passes.
+
+**`MCORE.OTA.Resume` is `0` for the matter.js requestor.** `BdxSession` accepts a start offset only where
+it sends, so a resumed download starts from the beginning. The key is declared and not gated on: the resume
+steps are `notApplicable` on every flavor — with no transfer the harness can abort, there is nothing to
+resume — and a step carrying both never evaluates its PICS, as the note on `notApplicable` above says.
+
+**A check reading the TH's own answer is a premise, not evidence about the DUT.** TC-SU-2.3 step 2 first
+recorded the `ImageURI` the TH offered against `bdxImageUriFindings`, which compares matter.js's
+controller-side provider with itself: both the URI and the node id it is checked against come from the same
+`rootNodeId` in the same process. A regression there would have failed the *device's* step. Where the DUT is
+the requestor, the URI is TC-SU-3.2's claim, not this case's.
+
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 
 Four "DUT sends *command* to TH" steps against chip's network-manager app, the same shape as the

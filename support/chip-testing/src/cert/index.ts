@@ -256,6 +256,10 @@ registerCertAppPics("matterjs", "ota-requestor", {
     // `CertOtaRequestorServer` implements `requestUserConsent`, and the subject declares `canConsent`.
     "MCORE.OTA.RequestorConsent": 1,
 
+    // `BdxSession` accepts a start offset only where it sends, so a download it resumes is a download it
+    // starts from the beginning.
+    "MCORE.OTA.Resume": 0,
+
     // Sent on the first boot into the applied version; the controller's own `0` would otherwise answer.
     "OTAR.C.M.NotifyUpdateApplied": 1,
 
