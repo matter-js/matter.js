@@ -47,14 +47,14 @@ export interface RootNodeOptions {
  * Build the EP0 root node for AllDevicesTestApp.
  *
  * The body of this function is a verbatim copy of
- * AllClustersTestInstance.setupServer()'s ServerNode.create(...) call
- * (lines 254-377 of that file). Three seams differ:
+ * AllClustersTestInstance.setupServer()'s ServerNode.create(...) call.
+ * Three seams differ:
  *
  *   1. NetworkCommissioning variant + networkCommissioning.networks list
  *      switch on opts.wifi (Ethernet -> WiFi stub).
  *   2. enableKeyHex is sourced from opts, not parsed from process.argv.
  *   3. Groupcast + Auxiliary ACL are gated on opts.groupcast, whereas
- *      AllClusters mounts them unconditionally. all-devices is a general
+ *      AllClusters mounts them by default. all-devices is a general
  *      harness, so non-groupcast device tests keep the plain root.
  *
  * Do NOT diverge from the AllClusters source on any other field — the chip

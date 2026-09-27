@@ -37,7 +37,7 @@ import { SessionManager } from "./SessionManager.js";
 export class GroupSessionNoKeyError extends MatterFlowError {
     /**
      * Group id of the message, when a key set decrypted it successfully but is not usable because no group maps to it.
-     * The id is authenticated in that case, so Groupcast testing may report it.
+     * The id is authenticated in that case, so Groupcast testing may derive the arrival address from it.
      */
     readonly groupId?: GroupId;
 

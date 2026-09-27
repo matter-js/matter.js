@@ -10,6 +10,10 @@ import { FabricIndex, GroupId } from "@matter/types";
 
 const logger = Logger.get("ServerGroupNetworking");
 
+/**
+ * Joins the multicast address of every group the fabrics use on the node's UDP transport and follows group changes.
+ * An address stays joined while any fabric still uses it.
+ */
 export class ServerGroupNetworking {
     #construction: Construction<ServerGroupNetworking>;
     #udpInterface: UdpTransport;
@@ -21,10 +25,6 @@ export class ServerGroupNetworking {
         return this.#construction;
     }
 
-    /**
-     * The server group networking is not implemented in the Node.js environment.
-     * This class is a placeholder to maintain compatibility with the Matter.js architecture.
-     */
     constructor(env: Environment, udpInterface: UdpTransport) {
         this.#udpInterface = udpInterface;
         this.#construction = Construction(this);

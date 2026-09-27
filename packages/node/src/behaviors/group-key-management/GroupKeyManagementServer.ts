@@ -73,7 +73,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         // TODO: remove this guard once the Groupcast feature leaves provisional state in the Matter specification
         if (this.features.groupcast) {
             throw new ImplementationError(
-                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6. Do not enable it.",
+                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6.1. Do not enable it.",
             );
         }
 
@@ -149,7 +149,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             this.#updateGroupKeyMap(this.state.groupKeyMap);
         }
         if (this.state.groupTable.length) {
-            // Restore the runtime endpoint map, which drives the UDP multicast memberships
+            // Restore the runtime endpoint map, which group command dispatch and the UDP multicast memberships use
             for (const { fabricIndex, groupId, endpoints } of this.state.groupTable) {
                 if (fabrics.has(fabricIndex)) {
                     fabrics.for(fabricIndex).groups.endpoints.set(groupId, [...endpoints]);

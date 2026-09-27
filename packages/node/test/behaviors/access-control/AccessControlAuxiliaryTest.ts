@@ -64,6 +64,13 @@ function recordAcl(fabric: Fabric) {
 }
 
 type WithAuxiliaryType = { readonly auxiliaryType?: AccessControl.AccessControlAuxiliaryType };
+/** Yields until the predicate holds; queued offline reactions need a varying number of turns. */
+async function until(predicate: () => boolean) {
+    for (let i = 0; i < 50 && !predicate(); i++) {
+        await MockTime.yield3();
+    }
+}
+
 const auxOf = <T extends WithAuxiliaryType>(list: readonly T[] | undefined) =>
     (list ?? []).filter(e => e.auxiliaryType !== undefined);
 const realOf = <T extends WithAuxiliaryType>(list: readonly T[] | undefined) =>
@@ -114,6 +121,25 @@ describe("AccessControlServer auxiliary ACL", () => {
         await MockTime.yield3();
 
         expect(auxOf(installed.at(-1))).deep.equals(entries);
+    });
+
+    it("reports AuxiliaryAccessUpdated only for fabrics whose entries changed", async () => {
+        await using node = await MockServerNode.createOnline(AuxiliaryRoot, { device: undefined });
+        const fabric1 = await node.addFabric();
+        const fabric2 = await node.addFabric();
+        const provider = createProvider();
+        await node.act(agent => agent.get(AccessControlServer).registerAuxAclProvider(provider));
+        const updated = new Array<FabricIndex>();
+        node.eventsOf(AccessControlServer).auxiliaryAccessUpdated?.on(({ fabricIndex }) => {
+            updated.push(fabricIndex);
+        });
+
+        provider.emit([auxEntry(fabric1.fabricIndex, [1]), auxEntry(fabric2.fabricIndex, [1])]);
+        await MockTime.yield3();
+        provider.emit([auxEntry(fabric1.fabricIndex, [1]), auxEntry(fabric2.fabricIndex, [2])]);
+        await until(() => updated.length >= 3);
+
+        expect(updated).deep.equals([fabric1.fabricIndex, fabric2.fabricIndex, fabric2.fabricIndex]);
     });
 
     it("keeps auxiliary entries when the ACL is written locally", async () => {

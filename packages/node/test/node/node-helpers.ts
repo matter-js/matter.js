@@ -495,23 +495,26 @@ export async function subscribedPeer(controller: ServerNode, id: string) {
  * construction reports behavior failures as an aggregate.
  */
 export async function causeMessagesOf(promise: Promise<unknown>) {
+    const error = await promise.then(
+        () => undefined,
+        (e: unknown) => e ?? new InternalError("Promise rejected without a reason"),
+    );
+    if (error === undefined) {
+        throw new InternalError("Expected the promise to reject");
+    }
     const messages = new Array<string>();
-    try {
-        await promise;
-    } catch (error) {
-        const pending: unknown[] = [error];
-        while (pending.length) {
-            const next = pending.shift();
-            if (!(next instanceof Error)) {
-                continue;
-            }
-            messages.push(next.message);
-            if (next.cause !== undefined) {
-                pending.push(next.cause);
-            }
-            if ("errors" in next && Array.isArray(next.errors)) {
-                pending.push(...next.errors);
-            }
+    const pending: unknown[] = [error];
+    while (pending.length) {
+        const next = pending.shift();
+        if (!(next instanceof Error)) {
+            continue;
+        }
+        messages.push(next.message);
+        if (next.cause !== undefined) {
+            pending.push(next.cause);
+        }
+        if ("errors" in next && Array.isArray(next.errors)) {
+            pending.push(...next.errors);
         }
     }
     return messages.join(" | ");

@@ -495,11 +495,6 @@ describe("GroupcastServer", () => {
             const props = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0001);
             expect(props!.hasAuxiliaryAcl).true;
 
-            // Verify the provider observable has the correct entries (plain JS object, no context needed)
-            const gcastInternal = node.agentFor({ session: { fabricIndex: fi } as any } as any).get(GroupcastServer)
-                .internal as unknown as { auxAcl: { value: unknown[] } };
-            expect(gcastInternal.auxAcl.value.filter((e: any) => e.fabricIndex === fi)).to.have.length(1);
-
             // Verify the synthetic entry propagated into AccessControlServer state
             const auxiliaryAcl = node.stateOf(AccessControlServer).auxiliaryAcl;
             expect(auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
@@ -1124,6 +1119,33 @@ describe("GroupcastServer", () => {
             ).rejectedWith("Per-fabric membership limit reached");
         });
 
+        it("rejects a join beyond the total membership limit", async () => {
+            await using node = await createGroupcastNode();
+            const fabrics = [await node.addFabric(), await node.addFabric(), await node.addFabric()];
+            const quota = Math.floor(node.stateOf(GroupcastServer).maxMembershipCount / 2);
+
+            const join = (fabricIndex: FabricIndex, groupId: number, first: boolean) =>
+                node.online({ exchange: fabricExchange(fabricIndex), command: true }, agent =>
+                    agent.get(GroupcastServer).joinGroup({
+                        groupId: GroupId(groupId),
+                        endpoints: [EndpointNumber(1)],
+                        keySetId: 1,
+                        key: first ? TEST_KEY : undefined,
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    }),
+                );
+
+            for (const fabric of fabrics.slice(0, 2)) {
+                for (let i = 1; i <= quota; i++) {
+                    await join(fabric.fabricIndex, i, i === 1);
+                }
+            }
+
+            await expect(Promise.resolve().then(() => join(fabrics[2].fabricIndex, 1, true))).rejectedWith(
+                "Total membership limit reached",
+            );
+        });
+
         it("installs no key when the membership limit rejects the join", async () => {
             await using node = await createGroupcastNode();
             const f1 = await node.addFabric();
@@ -1464,6 +1486,97 @@ describe("GroupcastServer", () => {
             expect(events[1].groupId).equal(undefined);
             expect(events[1].sourceIpAddress).deep.equal(ipv6ToBytes("fe80::1"));
             expect(events[1].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
+        });
+
+        it("drops messages that another fabric authenticated", async () => {
+            await using node = await createGroupcastNode();
+            const fabric1 = await node.addFabric();
+            const fabric2 = await node.addFabric();
+
+            await node.online({ exchange: fabricExchange(fabric1.fabricIndex), command: true }, agent =>
+                agent.get(GroupcastServer).groupcastTesting({
+                    testOperation: Groupcast.GroupcastTesting.EnableListenerTesting,
+                    durationSeconds: 60,
+                }),
+            );
+
+            const events = new Array<Groupcast.GroupcastTestingEvent>();
+            node.eventsOf(GroupcastServer).groupcastTesting?.on(payload => {
+                events.push(payload);
+            });
+
+            const sessions = node.env.get(SessionManager);
+            const fabrics = node.env.get(FabricManager);
+            for (const fabric of [fabric2, fabric1]) {
+                sessions.emitGroupMessage({
+                    result: Groupcast.GroupcastTestResult.NoAvailableKey,
+                    fabric: fabrics.for(fabric.fabricIndex),
+                    headerGroupId: GroupId(0x0001),
+                    sourceIp: "fd00::1",
+                });
+            }
+            await MockTime.yield3();
+
+            expect(events).length(1);
+            expect(events[0].fabricIndex).equal(fabric1.fabricIndex);
+            // Group 1 is not joined, so the datagram can only have arrived via the shared IANA address
+            expect(events[0].destinationIpAddress).deep.equal(ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS));
+        });
+
+        it("derives the destination from each group's policy when groups share a key set", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const exchange = fabricExchange(fabric.fabricIndex);
+
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0001),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    key: TEST_KEY,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                }),
+            );
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).joinGroup({
+                    groupId: GroupId(0x0002),
+                    endpoints: [EndpointNumber(1)],
+                    keySetId: 1,
+                    mcastAddrPolicy: Groupcast.MulticastAddrPolicy.PerGroup,
+                }),
+            );
+            await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).groupcastTesting({
+                    testOperation: Groupcast.GroupcastTesting.EnableListenerTesting,
+                    durationSeconds: 60,
+                }),
+            );
+
+            const events = new Array<Groupcast.GroupcastTestingEvent>();
+            node.eventsOf(GroupcastServer).groupcastTesting?.on(payload => {
+                events.push(payload);
+            });
+
+            const sessions = node.env.get(SessionManager);
+            const fabricObj = node.env.get(FabricManager).for(fabric.fabricIndex);
+            for (const groupId of [GroupId(0x0001), GroupId(0x0002)]) {
+                sessions.emitGroupMessage({
+                    result: Groupcast.GroupcastTestResult.Success,
+                    fabric: fabricObj,
+                    groupId,
+                    sourceIp: "fd00::1",
+                    endpointId: EndpointNumber(1),
+                    accessAllowed: true,
+                });
+            }
+            await MockTime.yield3();
+
+            const perGroupAddress = fabricObj.groups.multicastAddressFor(GroupId(0x0002));
+            expect(perGroupAddress).not.equal(IANA_GROUPCAST_MULTICAST_ADDRESS);
+            expect(events.map(e => e.destinationIpAddress)).deep.equal([
+                ipv6ToBytes(IANA_GROUPCAST_MULTICAST_ADDRESS),
+                ipv6ToBytes(perGroupAddress),
+            ]);
         });
     });
 

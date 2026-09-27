@@ -255,7 +255,7 @@ export class GroupcastServer extends GroupcastBase {
         const fabric = this.env.get(FabricManager).for(fabricIndex);
 
         // Set the policy before writing endpoints so the endpoint-driven multicast bind uses the right address up
-        // front and avoids a follow-up rebind (correctness no longer depends on this order — see #rebindGroupMembership).
+        // front; #rebindGroupMembership corrects either order, this one only saves a rebind.
         fabric.groups.setGroupMulticastPolicy(
             groupId,
             policy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
