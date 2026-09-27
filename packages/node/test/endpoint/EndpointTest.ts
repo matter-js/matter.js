@@ -14,9 +14,12 @@ import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { EndpointBehaviorsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { RootEndpoint } from "#endpoints/root";
-import { FabricIndex } from "@matter/types";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import { ImplementationError, Lifecycle, LogDestination, Logger, LogFormat, LogLevel } from "@matter/general";
+import { EndpointNumber, FabricIndex } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "../node/mock-server-node.js";
@@ -298,6 +301,112 @@ describe("Endpoint", () => {
             const bridgedNode = new Endpoint(OnOffLightDevice);
             await bridge.add(bridgedNode);
             bridgedNode.behaviors.require(PowerSourceServer);
+        });
+    });
+
+    class FailingOnOffServer extends OnOffServer {
+        override initialize() {
+            throw new ImplementationError("Initialization refused for test");
+        }
+    }
+
+    /**
+     * Add a non-essential endpoint whose own behavior crashes before it initializes its parts, so those parts get an
+     * ID (or not) but never a number.
+     */
+    async function addCrashedParent(node: Awaited<ReturnType<typeof MockServerNode.createOnline>>) {
+        const parent = new Endpoint(OnOffLightDevice.with(FailingOnOffServer), {
+            id: "parent",
+            isEssential: false,
+            parts: [{ type: OnOffLightDevice, id: "child" }, OnOffLightDevice],
+        });
+        await expect(node.add(parent)).rejectedWith(EndpointBehaviorsError);
+        const children = [...parent.parts];
+        expect(children.map(child => [child.maybeId, child.lifecycle.hasNumber])).deep.equals([
+            ["child", false],
+            [undefined, false],
+        ]);
+        return { parent, children };
+    }
+
+    describe("close", () => {
+        it("closes parts that never received a number, with or without an ID", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const { parent, children } = await addCrashedParent(node);
+
+            // Consumers such as StateStream read endpoint.number from every "delete"
+            const deletes = new Array<Endpoint>();
+            node.env.get(ChangeNotificationService).change.on(change => {
+                if (change.kind === "delete") {
+                    deletes.push(change.endpoint);
+                    void change.endpoint.number;
+                }
+            });
+
+            const errors = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                format: LogFormat.formats.plain,
+                write(text, message) {
+                    if (message.level >= LogLevel.ERROR) {
+                        errors.push(text);
+                    }
+                },
+            });
+            try {
+                await parent.close();
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            expect(errors).deep.equals([]);
+            expect(deletes.filter(endpoint => children.includes(endpoint))).deep.equals([]);
+            expect(children.map(child => child.construction.status)).deep.equals([
+                Lifecycle.Status.Destroyed,
+                Lifecycle.Status.Destroyed,
+            ]);
+
+            await node.close();
+        });
+
+        it("does not release a live sibling's number when an unidentified part preset to the same number closes", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+
+            const holder = await node.add(OnOffLightDevice, { id: "holder", number: 5 });
+
+            // The parent crashes before its part reaches initializeDescendant/assignNumber, so the part's preset
+            // number was never recorded as allocated to it
+            const parent = new Endpoint(OnOffLightDevice.with(FailingOnOffServer), {
+                id: "parent",
+                isEssential: false,
+                parts: [{ type: OnOffLightDevice, number: EndpointNumber(5) }],
+            });
+            await expect(node.add(parent)).rejectedWith(EndpointBehaviorsError);
+            const [collidingChild] = [...parent.parts];
+            expect(collidingChild.maybeId).equals(undefined);
+            expect(collidingChild.maybeNumber).equals(5);
+
+            await parent.close();
+
+            // holder's number must still be reserved: a new endpoint claiming the same number is a conflict, not a
+            // free number to hand out
+            await expect(node.add(OnOffLightDevice, { id: "impostor", number: 5 })).rejected;
+
+            expect(holder.maybeNumber).equals(5);
+
+            await node.close();
+        });
+    });
+
+    describe("erase", () => {
+        it("erases a part that never received a number, with or without an ID", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const { children } = await addCrashedParent(node);
+
+            for (const child of children) {
+                await child.erase();
+            }
+
+            await node.close();
         });
     });
 });
