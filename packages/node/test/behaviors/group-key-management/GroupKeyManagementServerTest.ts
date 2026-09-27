@@ -7,10 +7,8 @@
 import { GroupKeyManagementClient, GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
+import { causeMessagesOf, MockServerNode, MockSite } from "@matter/node/testing";
 import { FabricIndex, GroupId } from "@matter/types";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
-import { causeMessagesOf } from "../../node/node-helpers.js";
 
 describe("GroupKeyManagementServer", () => {
     before(() => {

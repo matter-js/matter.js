@@ -13,6 +13,7 @@ import { Endpoint } from "#endpoint/index.js";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { MatterFlowError } from "@matter/general";
 import { AccessLevel } from "@matter/model";
+import { MockExchange, MockServerNode } from "@matter/node/testing";
 import {
     CommandInvokeResponse,
     Invoke,
@@ -35,8 +36,6 @@ import {
 import { Chime } from "@matter/types/clusters/chime";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { MockExchange } from "./mock-exchange.js";
-import { MockServerNode } from "./mock-server-node.js";
 
 describe("CommandInvokeResponse", () => {
     it("invoke concrete command", async () => {

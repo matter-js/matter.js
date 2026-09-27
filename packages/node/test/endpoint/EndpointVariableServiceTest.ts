@@ -6,7 +6,7 @@
 
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Diagnostic, Environment, LogDestination, Logger, LogLevel } from "@matter/general";
-import { MockServerNode } from "../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 import { MockEndpoint } from "./mock-endpoint.js";
 
 function captureBehaviorErrors() {

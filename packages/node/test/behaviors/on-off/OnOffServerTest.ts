@@ -8,10 +8,9 @@ import { OnOffServer } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { MaybePromise } from "@matter/general";
+import { MockServerNode, interaction } from "@matter/node/testing";
 import { ClusterId, CommandId, EndpointNumber, Status, TlvInvokeResponseData, TypeFromSchema } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 
 const HOLD = 0xffff;
 const LightingOnOff = OnOffServer.with("Lighting");

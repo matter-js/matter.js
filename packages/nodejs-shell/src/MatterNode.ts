@@ -33,10 +33,10 @@ import { NodeId } from "@matter/types";
 import { join } from "node:path";
 import { installDiagnosticLogging } from "./util/diagnosticLogging.js";
 import {
-    cleanupLegacyStorage as purgeLegacyStorage,
     eraseLegacyStorage,
     migrateLegacyCommissionedNodes,
     migrateLegacyControllerCredentials,
+    cleanupLegacyStorage as purgeLegacyStorage,
 } from "./util/legacyStorageMigration.js";
 
 const logger = Logger.get("Node");

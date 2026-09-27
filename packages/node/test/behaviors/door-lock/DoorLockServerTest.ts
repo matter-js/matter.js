@@ -6,10 +6,9 @@
 
 import { DoorLockServer } from "#behaviors/door-lock";
 import { DoorLockDevice } from "#devices/door-lock";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import { ClusterId, CommandId, EndpointNumber, FabricIndex, Status, TlvOfModel } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 
 const SetCredential = DoorLock.schema.commands.require("SetCredential");
 const TlvSetCredentialRequest = TlvOfModel(SetCredential);

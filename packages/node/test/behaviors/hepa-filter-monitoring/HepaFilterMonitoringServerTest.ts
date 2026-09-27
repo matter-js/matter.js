@@ -6,9 +6,9 @@
 
 import { HepaFilterMonitoringServer } from "#behaviors/hepa-filter-monitoring";
 import { AirPurifierDevice } from "#devices/air-purifier";
+import { MockServerNode } from "@matter/node/testing";
 import { FanControl } from "@matter/types/clusters/fan-control";
 import { ResourceMonitoring } from "@matter/types/clusters/resource-monitoring";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("HepaFilterMonitoringServer", () => {
     it("instantiates", async () => {

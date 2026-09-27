@@ -13,11 +13,11 @@ import { ThermostatBaseServer, ThermostatServer } from "#behaviors/thermostat";
 import { WindowCoveringBaseServer, WindowCoveringServer } from "#behaviors/window-covering";
 import { camelize, ImplementationError } from "@matter/general";
 import { ClusterModel } from "@matter/model";
+import { causeMessagesOf } from "@matter/node/testing";
 import { ClusterType } from "@matter/types";
 import { LevelControl } from "@matter/types/clusters/level-control";
 import * as behaviors from "../../../src/behaviors/index.js";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
-import { causeMessagesOf } from "../../node/node-helpers.js";
 import { MockEndpointType } from "../mock-behavior.js";
 
 /**
