@@ -137,6 +137,7 @@ import type {
     OtaAnnouncementRecord,
     OtaProviderExchanges,
     OtaProviderScript,
+    OtaScriptedQueryAnswer,
     OtaQueryImageExchange,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -442,9 +443,9 @@ export class OtaTransferError extends MatterError {}
  * both of which the SU cases whose DUT is the provider assert on. So the provider records what it
  * answered, and the requestor's log is what corroborates that the answer reached it.
  *
- * Recording only: every answer is `super`'s, so a case reads the provider matter.js ships rather than
- * one this harness shaped for it. An answer is recorded once `super` has produced it, so a command
- * this provider rejected leaves nothing in the record.
+ * Unless a case scripted it (`CertNodeApi.scriptOtaProvider`), every answer is `super`'s, so a case reads
+ * the provider matter.js ships rather than one this harness shaped for it. An answer is recorded once it
+ * was produced, so a command this provider rejected leaves nothing in the record.
  *
  * {@link OtaExchangeRecording} owns the record's lifetime; nothing else clears it or reads it live.
  */
@@ -508,11 +509,13 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const response: OtaSoftwareUpdateProvider.QueryImageResponse =
             scripted?.status === undefined
                 ? withUserConsent(await super.queryImage(request), scripted?.userConsentNeeded)
-                : {
-                      status: scripted.status,
-                      delayedActionTime: scripted.delayedActionTime,
-                      userConsentNeeded: scripted.userConsentNeeded,
-                  };
+                : scripted.status === OtaSoftwareUpdateProvider.Status.UpdateAvailable
+                  ? this.#unheldUpdate(request, scripted)
+                  : {
+                        status: scripted.status,
+                        delayedActionTime: scripted.delayedActionTime,
+                        userConsentNeeded: scripted.userConsentNeeded,
+                    };
 
         this.#exchangesFor(peer).queryImage.push({
             request: {
@@ -539,6 +542,30 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         });
         this.internal.recorded.emit(peer);
         return response;
+    }
+
+    /**
+     * An `UpdateAvailable` for an image this provider does not hold, with the fields a script left open
+     * filled as the provider's own answer fills them.
+     */
+    #unheldUpdate(
+        request: OtaSoftwareUpdateProvider.QueryImageRequest,
+        scripted: OtaScriptedQueryAnswer,
+    ): OtaSoftwareUpdateProvider.QueryImageResponse {
+        assertRemoteActor(this.context);
+        const session = this.context.session;
+        NodeSession.assert(session);
+        const softwareVersion = scripted.softwareVersion ?? request.softwareVersion + 1;
+        return {
+            status: OtaSoftwareUpdateProvider.Status.UpdateAvailable,
+            imageUri:
+                scripted.imageUri ??
+                new FileDesignator(`ota/unheld-${softwareVersion}`).asBdxUri(session.associatedFabric.rootNodeId),
+            softwareVersion,
+            softwareVersionString: `${softwareVersion}.0.0`,
+            updateToken: this.env.get(Crypto).randomBytes(UNHELD_UPDATE_TOKEN_LENGTH),
+            userConsentNeeded: scripted.userConsentNeeded,
+        };
     }
 
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
@@ -684,6 +711,9 @@ class OtaExchangeRecording {
         this.#observers.close();
     }
 }
+
+/** Token length the provider's own answers use, the top of the 8 to 32 bytes `UpdateToken` allows. */
+const UNHELD_UPDATE_TOKEN_LENGTH = 32;
 
 /** `response` with `UserConsentNeeded` set, where a script asked for it. */
 function withUserConsent(
