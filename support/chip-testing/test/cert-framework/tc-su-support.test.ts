@@ -9,8 +9,11 @@ import type {
     AttributeReadEntry,
     CertStepContext,
     CheckRecord,
+    EventPathSpec,
+    EventReadEntry,
     OtaProviderExchanges,
     OtaQueryImageExchange,
+    ReadEventOptions,
 } from "@matter/testing";
 import { expect } from "chai";
 import {
@@ -22,11 +25,13 @@ import {
     planDelayCoverageCheck,
     longRunningReason,
     hexByteLength,
+    latestRequestorStateChange,
     queryImageResponseLines,
     queryStatusName,
     recordRequestorIdle,
     singleApplyUpdate,
     singleQueryImage,
+    singleQueryImageCheck,
     unsupportedByDut,
 } from "../cert/tc-su-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
@@ -138,6 +143,37 @@ describe("singleQueryImage", () => {
     it("fails the step where the provider answered more than once, or not at all", () => {
         expect(() => singleQueryImage(exchanges(0))).to.throw(CertCheckFailedError, "answered 0 QueryImage");
         expect(() => singleQueryImage(exchanges(2))).to.throw(CertCheckFailedError, "answered 2 QueryImage");
+    });
+});
+
+describe("singleQueryImageCheck", () => {
+    function exchanges(count: number): OtaProviderExchanges {
+        const exchange = {
+            request: { vendorId: 1, productId: 1, softwareVersion: 1, protocolsSupported: [0] },
+            response: { status: 0 },
+            receivedAtMs: 0,
+        } satisfies OtaQueryImageExchange;
+        return {
+            queryImage: new Array<OtaQueryImageExchange>(count).fill(exchange),
+            applyUpdate: [],
+            notifyUpdateApplied: [],
+        };
+    }
+
+    it("passes on the one exchange the plan describes", () => {
+        expect(singleQueryImageCheck(exchanges(1))).deep.equal({
+            type: "response",
+            verdict: "pass",
+            detail: "the DUT sent 1 QueryImage command(s) during this update, where the plan describes one",
+        });
+    });
+
+    // The count is what tells a reader whether the step read the query it reports on
+    it("fails on none and on more than one, naming the count", () => {
+        expect(singleQueryImageCheck(exchanges(0))).deep.include({ verdict: "fail" });
+        expect(singleQueryImageCheck(exchanges(0)).detail).contain("sent 0 QueryImage");
+        expect(singleQueryImageCheck(exchanges(2))).deep.include({ verdict: "fail" });
+        expect(singleQueryImageCheck(exchanges(2)).detail).contain("sent 2 QueryImage");
     });
 });
 
@@ -342,6 +378,51 @@ describe("hexByteLength and queryStatusName", () => {
     it("names a status the cluster defines, and says so where it does not", () => {
         expect(queryStatusName(2)).equal("NotAvailable");
         expect(queryStatusName(9)).equal("unknown (9)");
+    });
+});
+
+describe("latestRequestorStateChange", () => {
+    function nodeHolding(...eventNumbers: number[]) {
+        const asked = new Array<{ paths: EventPathSpec[]; options?: ReadEventOptions }>();
+        const node = fakeCertNode({
+            readEvents: async (paths: EventPathSpec[], options?: ReadEventOptions) => {
+                asked.push({ paths, options });
+                return eventNumbers.map(
+                    eventNumber =>
+                        ({
+                            endpoint: 0,
+                            cluster: 0x2a,
+                            event: 0,
+                            eventNumber: BigInt(eventNumber),
+                            value: { newState: 1 },
+                        }) satisfies EventReadEntry,
+                );
+            },
+        });
+        return { node, asked };
+    }
+
+    it("answers the highest event number the node holds", async () => {
+        expect(await latestRequestorStateChange(nodeHolding(4, 7, 5).node)).equal(7n);
+    });
+
+    // The mark orders the read that follows it, so the newest event has to win whatever order the
+    // node reported its events in
+    it("answers the highest rather than the last reported", async () => {
+        expect(await latestRequestorStateChange(nodeHolding(9, 2).node)).equal(9n);
+    });
+
+    it("answers undefined where the node holds none", async () => {
+        expect(await latestRequestorStateChange(nodeHolding().node)).equal(undefined);
+    });
+
+    // A mark filtered by a previous mark would miss every event below it, so the step that then asks
+    // for events above the mark would be reading a window this already narrowed
+    it("reads without an event filter", async () => {
+        const { node, asked } = nodeHolding(1);
+        await latestRequestorStateChange(node);
+        expect(asked).lengthOf(1);
+        expect(asked[0].options?.minEventNumber).equal(undefined);
     });
 });
 
