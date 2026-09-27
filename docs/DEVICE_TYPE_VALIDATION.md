@@ -12,11 +12,9 @@ endpoint lists at least one such device type:
 - **Clusters and elements.** Mandatory and disallowed server and client clusters, and the feature, attribute, command
   and event requirements nested in server clusters. A client cluster is checked for presence only: a client cluster
   declaration does not state which features or elements the client uses. A condition (see below) can only ever make
-  something mandatory; only a literal `X` or a feature term can make something disallowed, matching how CHIP evaluates
-  conformance.
-- **Base requirements.** Base's own requirements (e.g. `Binding` under `Simple & Client`) are enforced only when
-  mandatory, never as disallowed — CHIP does not judge Base at all, and matter.js's own reference apps carry a
-  `Binding` server on endpoints Base would otherwise call disallowed.
+  something mandatory; only a literal `X` or a feature term makes something disallowed.
+- **Base requirements.** Base's own requirements (e.g. `Binding` under `Simple & Client`) are enforced only where
+  they make something mandatory; a Base requirement that would make something disallowed is not reported.
 - **Component device types.** The number of endpoints of each required component device type (one distinct
   endpoint per instance), choice conformance across component requirements that share a choice, and — on the
   component endpoint itself — that it satisfies the nested requirements of at least one instance it can fill. A
@@ -51,8 +49,7 @@ side.
 ## Warnings and strict mode
 
 By default a violation only logs a warning, once per endpoint, listing everything newly found; a violation that
-was already reported and still holds is not repeated. This is deliberate: departing from a device type is a
-certification problem, not by itself a runtime fault.
+was already reported and still holds is not repeated.
 
 Set `endpoint.validation.strict` (environment variable `MATTER_ENDPOINT_VALIDATION_STRICT`) to `true` to refuse
 construction instead — any new violation that a construction check finds then throws instead of just logging. An

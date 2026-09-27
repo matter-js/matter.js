@@ -328,7 +328,7 @@ function judge(
     } else if (
         applicability === Conformance.Applicability.None &&
         present &&
-        // Base only adds duties: CHIP does not judge Base, and its reference apps carry Binding on non-client endpoints
+        // Base's requirements are duties, not restrictions: presence beyond them is never disallowed
         deviceType.classification !== DeviceClassification.Base
     ) {
         kind = "disallowed";
@@ -352,7 +352,7 @@ function applicabilityOf(requirement: RequirementModel, trueNames: Set<string>, 
     const { all, features } = knownNamesOf(requirement, pass);
     const applicability = requirementApplicability(requirement, trueNames, all);
 
-    // A condition is a maker's statement, and CHIP never decides one, so only an X or a feature term disallows
+    // A condition is a maker's statement, so only an X or a feature term disallows
     if (
         applicability === Conformance.Applicability.None &&
         requirementApplicability(requirement, trueNames, features) !== Conformance.Applicability.None
