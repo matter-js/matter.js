@@ -215,12 +215,7 @@ export class DescriptorServer extends DescriptorBehavior {
         await this.context.transaction.begin();
 
         // Recompute under the lock so the write reflects membership at write time, not at reactor start
-        const numbers = this.#currentPartsListNumbers();
-        if (isDeepEqual(this.state.partsList, numbers)) {
-            return;
-        }
-
-        this.state.partsList = numbers as EndpointNumber[];
+        this.state.partsList = this.#currentPartsListNumbers() as EndpointNumber[];
     }
 
     #currentPartsListNumbers(): number[] {
