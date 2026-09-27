@@ -78,7 +78,7 @@ export namespace OnOffLightSwitchRequirements {
 export const OnOffLightSwitchDeviceDefinition = MutableEndpoint({
     name: "OnOffLightSwitch",
     deviceType: 0x103,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: OnOffLightSwitchRequirements,
     behaviors: SupportedBehaviors(OnOffLightSwitchRequirements.server.mandatory.Identify)
 });

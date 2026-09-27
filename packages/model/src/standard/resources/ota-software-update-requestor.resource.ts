@@ -204,7 +204,7 @@ Resource.add({
 
                 {
                     tag: "field", name: "UpdateAvailable",
-                    description: "An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image MAY be available.",
+                    description: "An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image MAY be available",
                     xref: "core§11.20.7.4.1.2",
                     details: "An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software " +
                         "Image may be available. The details may only be obtained by executing a OTA Software Update Query " +

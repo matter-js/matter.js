@@ -56,23 +56,24 @@ Resource.add({
         "their defined or expected values.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§13.3.6" },
-        { tag: "requirement", name: "Groups", xref: "device§13.3.6" },
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§13.3.6" },
+        { tag: "requirement", name: "Identify", xref: "device§13.3.7" },
+        { tag: "requirement", name: "Groups", xref: "device§13.3.7" },
         {
-            tag: "requirement", name: "OnOff", xref: "device§13.3.6",
-            children: [{ tag: "requirement", name: "DEADFRONTBEHAVIOR", xref: "device§13.3.8" }]
+            tag: "requirement", name: "OnOff", xref: "device§13.3.7",
+            children: [{ tag: "requirement", name: "DEADFRONTBEHAVIOR", xref: "device§13.3.9" }]
         },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§13.3.6" },
-        { tag: "requirement", name: "HepaFilterMonitoring", xref: "device§13.3.6" },
-        { tag: "requirement", name: "ActivatedCarbonFilterMonitoring", xref: "device§13.3.6" },
-        { tag: "requirement", name: "Thermostat", xref: "device§13.3.6" },
-        { tag: "requirement", name: "FanControl", xref: "device§13.3.6" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§13.3.7" },
+        { tag: "requirement", name: "HepaFilterMonitoring", xref: "device§13.3.7" },
+        { tag: "requirement", name: "ActivatedCarbonFilterMonitoring", xref: "device§13.3.7" },
+        { tag: "requirement", name: "Thermostat", xref: "device§13.3.7" },
+        { tag: "requirement", name: "FanControl", xref: "device§13.3.7" },
         {
-            tag: "requirement", name: "ThermostatUserInterfaceConfiguration", xref: "device§13.3.6",
-            children: [{ tag: "requirement", name: "KeypadLockout", xref: "device§13.3.8" }]
+            tag: "requirement", name: "ThermostatUserInterfaceConfiguration", xref: "device§13.3.7",
+            children: [{ tag: "requirement", name: "KeypadLockout", xref: "device§13.3.9" }]
         },
-        { tag: "requirement", name: "TemperatureMeasurement", xref: "device§13.3.6" },
-        { tag: "requirement", name: "RelativeHumidityMeasurement", xref: "device§13.3.6" },
+        { tag: "requirement", name: "TemperatureMeasurement", xref: "device§13.3.7" },
+        { tag: "requirement", name: "RelativeHumidityMeasurement", xref: "device§13.3.7" },
         { tag: "requirement", name: "TemperatureSensor", xref: "device§13.3.5" },
         { tag: "requirement", name: "HumiditySensor", xref: "device§13.3.5" }
     ]

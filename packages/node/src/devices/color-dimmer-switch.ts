@@ -100,7 +100,7 @@ export namespace ColorDimmerSwitchRequirements {
 export const ColorDimmerSwitchDeviceDefinition = MutableEndpoint({
     name: "ColorDimmerSwitch",
     deviceType: 0x105,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: ColorDimmerSwitchRequirements,
     behaviors: SupportedBehaviors(ColorDimmerSwitchRequirements.server.mandatory.Identify)
 });

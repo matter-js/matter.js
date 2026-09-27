@@ -114,7 +114,7 @@ export namespace ColorTemperatureLightRequirements {
 export const ColorTemperatureLightDeviceDefinition = MutableEndpoint({
     name: "ColorTemperatureLight",
     deviceType: 0x10c,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: ColorTemperatureLightRequirements,
 
     behaviors: SupportedBehaviors(

@@ -115,7 +115,7 @@ export namespace AirPurifierRequirements {
 export const AirPurifierDeviceDefinition = MutableEndpoint({
     name: "AirPurifier",
     deviceType: 0x2d,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: AirPurifierRequirements,
     behaviors: SupportedBehaviors(
         AirPurifierRequirements.server.mandatory.Identify,

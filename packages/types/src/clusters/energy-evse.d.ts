@@ -1021,8 +1021,8 @@ export declare namespace EnergyEvse {
         DischargingEnabled = 2,
 
         /**
-         * The EV is not currently allowed to charge or discharge due to an error. The error must be cleared before
-         * operation can continue.
+         * The EV is not currently allowed to charge or discharge due to an error, the error must be cleared before
+         * operation can continue
          */
         DisabledError = 3,
 

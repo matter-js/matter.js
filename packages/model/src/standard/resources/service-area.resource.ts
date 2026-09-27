@@ -574,19 +574,19 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "Success",
-                    description: "Attempting to operate in the areas identified by the entries of the NewAreas field is allowed and possible. The SelectedAreas attribute is set to the value of the NewAreas field."
+                    description: "Attempting to operate in the areas identified by the entries of the NewAreas field is allowed and possible, the SelectedAreas attribute is set to the value of the NewAreas field"
                 },
                 {
                     tag: "field", name: "UnsupportedArea",
-                    description: "The value of at least one of the entries of the NewAreas field doesn't match any entries in the SupportedAreas attribute."
+                    description: "The value of at least one of the entries of the NewAreas field doesn't match any entries in the SupportedAreas attribute"
                 },
                 {
                     tag: "field", name: "InvalidInMode",
-                    description: "The received request cannot be handled due to the current mode of the device."
+                    description: "The received request cannot be handled due to the current mode of the device"
                 },
                 {
                     tag: "field", name: "InvalidSet",
-                    description: "The set of values is invalid. For example, areas on different floors, that a robot knows it can't reach on its own."
+                    description: "The set of values is invalid. For example, areas on different floors, that a robot knows it can't reach on its own"
                 }
             ]
         },
@@ -597,16 +597,16 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "Success",
-                    description: "Skipping the area is allowed and possible, or the device was operating at the last available area and has stopped."
+                    description: "Skipping the area is allowed and possible, or the device was operating at the last available area and has stopped"
                 },
                 { tag: "field", name: "InvalidAreaList", description: "The SelectedAreas attribute is empty." },
                 {
                     tag: "field", name: "InvalidInMode",
-                    description: "The received request cannot be handled due to the current mode of the device. For example, the CurrentArea attribute is null or the device is not operating."
+                    description: "The received request cannot be handled due to the current mode of the device. For example, the CurrentArea attribute is null or the device is not operating"
                 },
                 {
                     tag: "field", name: "InvalidSkippedArea",
-                    description: "The SkippedArea field doesn't match an entry in the SupportedAreas list."
+                    description: "The SkippedArea field doesn't match an entry in the SupportedAreas list"
                 }
             ]
         }

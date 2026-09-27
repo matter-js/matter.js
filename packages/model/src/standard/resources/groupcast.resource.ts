@@ -28,11 +28,7 @@ Resource.add(
             "endpoints to operate as group senders, receivers, or both. This enables low-power and " +
             "resource-constrained devices to participate in group communication without incurring unnecessary " +
             "state or processing overhead. Together, these design elements provide a clearer and more " +
-            "interoperable basis for group functionality and form the replacement for the legacy Groups cluster." +
-            "\n" +
-            "> [!NOTE]" +
-            "\n" +
-            "> NOTE: Support for Groupcast cluster is provisional.",
+            "interoperable basis for group functionality and form the replacement for the legacy Groups cluster.",
 
         children: [
             {
@@ -52,7 +48,7 @@ Resource.add(
                             "those multicast addresses."
                     },
 
-                    { tag: "field", name: "PGA", details: "Supports PerGroup multicast addresses." }
+                    { tag: "field", name: "PGA", details: "Supports PerGroup multicast addresses" }
                 ]
             },
 
@@ -419,10 +415,13 @@ Resource.add(
 
             {
                 tag: "command", name: "GroupcastTesting", xref: "core§11.27.7.6",
+
                 details: "This command shall allow an Administrator to configure test modes that allow validation of Groupcast " +
                     "communication." +
                     "\n" +
-                    "This command shall have the following data fields subject to the listed conformance.",
+                    "This command shall have the following data fields subject to the listed conformance." +
+                    "\n" +
+                    "Note: The behavior of the command when the TestOperation is EnableSenderTesting is provisional.",
 
                 children: [
                     {
@@ -455,8 +454,9 @@ Resource.add(
                             "reducing the state it must maintain. This approach comes at the cost of receiving multicast traffic " +
                             "for all groups that use this policy, potentially from any fabric. The node will then filter this " +
                             "traffic at the message layer by attempting decryption with its available group keys. Due to various " +
-                            "network infrastructure scalability limits, such as the maximum number of MPL registrations a Border " +
-                            "Router can support, a controller SHOULD default to configure all groups to use the AllNodes address."
+                            "network infrastructure scalability limits, such as the maximum number of MPL RFC7731 registrations a " +
+                            "Border Router can support, a controller SHOULD default to configure all groups to use the AllNodes " +
+                            "address."
                     },
 
                     {
