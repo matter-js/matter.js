@@ -754,8 +754,7 @@ export class SessionManager {
         try {
             decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
         } catch (error) {
-            // Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.  Per the
-            // Groupcast spec a failed decode reports only the result, never a group id.  The header group id is passed
+            // Per the Groupcast spec a failed decode reports only the result, never a group id.  The header group id is passed
             // separately so the listener can derive the multicast address: from the plain wire header, or — when
             // privacy obfuscates the header — from a key set that authenticated the message but is not mapped to any
             // group, which also names that key set's fabric.

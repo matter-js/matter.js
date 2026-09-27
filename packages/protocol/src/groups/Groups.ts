@@ -79,7 +79,7 @@ export class Groups {
         });
     }
 
-    /** The per-group multicast address policy map; see {@link #groupMulticastPolicy}. */
+    /** Multicast address policy per group.  A group without an entry uses its per-group address. */
     get multicastPolicy(): BasicMap<GroupId, GroupMulticastPolicy> {
         return this.#groupMulticastPolicy;
     }

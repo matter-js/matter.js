@@ -46,12 +46,10 @@ const IanaOnlyRootEndpoint = MockServerNode.RootEndpoint.with(
 /** 16-byte test key for creating key sets via JoinGroup/UpdateGroupKey. */
 const TEST_KEY = new Uint8Array(16);
 
-/** Helper to create an online MockServerNode with Groupcast cluster. */
 async function createGroupcastNode() {
     return MockServerNode.createOnline(GroupcastRootEndpoint, { device: undefined });
 }
 
-/** Helper to build a MockExchange scoped to a specific fabric index. */
 function fabricExchange(fabricIndex: FabricIndex, accessLevel = AccessLevel.Administer) {
     return new MockExchange({ fabricIndex, nodeId: NodeId(0n) }, { accessLevel });
 }
@@ -77,7 +75,6 @@ describe("GroupcastServer", () => {
                 });
             });
 
-            // Membership persisted in state
             const membership = node.stateOf(GroupcastServer).membership;
             expect(membership).to.have.length(1);
             expect(membership[0].groupId).equal(0x0001);
@@ -194,7 +191,6 @@ describe("GroupcastServer", () => {
             const fabric = await node.addFabric();
             const fi = fabric.fabricIndex;
 
-            // Manage-level exchange: key field should trigger UnsupportedAccess
             await expect(
                 Promise.resolve().then(() =>
                     node.online({ exchange: fabricExchange(fi, AccessLevel.Manage), command: true }, agent =>
@@ -226,7 +222,6 @@ describe("GroupcastServer", () => {
                 }),
             );
 
-            // Second join: same group, different endpoint, same keySetId (already exists from first call)
             await node.online({ exchange, command: true }, agent =>
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0001),
@@ -286,7 +281,6 @@ describe("GroupcastServer", () => {
                 }),
             );
 
-            // FabricGroups should use per-group derived address (ff35: prefix)
             const realFabric = node.env.get(FabricManager).for(fi);
             const addr = realFabric.groups.multicastAddressFor(GroupId(0x0002));
             expect(addr).not.equal("ff05::fa");
@@ -398,7 +392,6 @@ describe("GroupcastServer", () => {
                 }),
             );
 
-            // Response contains the REMOVED endpoints (only [1])
             expect(response.endpoints).deep.equal([1]);
             const membership = node.stateOf(GroupcastServer).membership;
             expect(membership).to.have.length(1);
@@ -437,7 +430,6 @@ describe("GroupcastServer", () => {
                 }),
             );
 
-            // Create a second key set and update the group to use it
             await node.online({ exchange, command: true }, agent =>
                 agent.get(GroupcastServer).updateGroupKey({
                     groupId: GroupId(0x0001),
@@ -465,8 +457,6 @@ describe("GroupcastServer", () => {
                 ),
             ).rejectedWith("not found");
         });
-
-        // KeySetID 0 rejection is enforced by model constraint "min 1" at the interaction layer
     });
 
     describe("configureAuxiliaryAcl", () => {
@@ -496,7 +486,6 @@ describe("GroupcastServer", () => {
             const props = node.stateOf(GroupcastServer).groupProperties.find(p => p.groupId === 0x0001);
             expect(props!.hasAuxiliaryAcl).true;
 
-            // Verify the synthetic entry propagated into AccessControlServer state
             const auxiliaryAcl = node.stateOf(AccessControlServer).auxiliaryAcl;
             expect(auxiliaryAcl?.filter(e => e.fabricIndex === fi)).to.have.length(1);
         });
@@ -679,7 +668,6 @@ describe("GroupcastServer", () => {
             await MockTime.yield3();
             expect(node.stateOf(GroupcastServer).membership[0].keySetId).equal(0xffff);
 
-            // Restoring the mapping restores the KeySetId
             await node.online({ exchange, command: true }, async agent => {
                 agent.get(GroupKeyManagementServer).state.groupKeyMap = [
                     { groupId: GroupId(0x0001), groupKeySetId: 1, fabricIndex: fi },
@@ -709,7 +697,6 @@ describe("GroupcastServer", () => {
             await join(0x0001, [1], TEST_KEY);
             await join(0x0002, [1]);
 
-            // Sever the GroupKeyMap link of group 2 only
             await node.online({ exchange, command: true }, async agent => {
                 agent.get(GroupKeyManagementServer).state.groupKeyMap = [
                     { groupId: GroupId(0x0001), groupKeySetId: 1, fabricIndex: fi },
@@ -733,7 +720,7 @@ describe("GroupcastServer", () => {
             await using node = await createGroupcastNode();
             const gkmCap = node.stateOf(GroupKeyManagementServer).maxGroupsPerFabric;
             const gcMax = node.stateOf(GroupcastServer).maxMembershipCount;
-            // Mirror won't trip GKM validator only if per-fabric quotas line up.
+            // The per-fabric Groupcast quota must equal GKM's per-fabric cap, or a join accepted here is rejected by GKM
             expect(Math.floor(gcMax / 2)).equal(gkmCap);
         });
 
@@ -756,7 +743,6 @@ describe("GroupcastServer", () => {
                 }),
             );
 
-            // Fill exactly to gkmCap on this fabric
             for (let i = 2; i <= gkmCap; i++) {
                 await node.online({ exchange, command: true }, agent =>
                     agent.get(GroupcastServer).joinGroup({
@@ -773,7 +759,7 @@ describe("GroupcastServer", () => {
                 gkmCap,
             );
 
-            // One more on this fabric trips Groupcast's per-fabric cap (BEFORE the mirror runs)
+            // One more on this fabric trips Groupcast's per-fabric cap
             await expect(
                 Promise.resolve().then(() =>
                     node.online({ exchange, command: true }, agent =>
@@ -1008,7 +994,7 @@ describe("GroupcastServer", () => {
             const fi = fabric.fabricIndex;
             const exchange = fabricExchange(fi, AccessLevel.Administer);
 
-            // Create a genuine sender-only group: JoinGroup with an empty endpoint list.
+            // A genuine sender-only group
             await node.online({ exchange, command: true }, agent =>
                 agent.get(GroupcastServer).joinGroup({
                     groupId: GroupId(0x0107),
@@ -1780,9 +1766,7 @@ describe("GroupcastServer", () => {
             const exchange = fabricExchange(fi, AccessLevel.Administer);
 
             // Legacy configuration (Groups.AddGroup / direct GKM writes): never joined via Groupcast, so it has
-            // no groupProperties entry and must derive purely from the GKM tables. Unlike the "keeps the
-            // feature-aware mcastAddrPolicy default on a legacy-only group" test below, no Groupcast command is
-            // ever called here, so this is the only test exercising #deriveMembership's props===undefined path.
+            // no groupProperties entry and must derive purely from the GKM tables
             await node.online({ exchange, command: true }, async agent => {
                 const gkm = agent.get(GroupKeyManagementServer);
                 gkm.state.groupTable = [

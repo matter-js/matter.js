@@ -76,7 +76,7 @@ const TEST_DEFINITIONS = [
 
 const TEST_DEFINITIONS2 = {
     "(AX | WBL)": "AX | WBL",
-    // Redundant parens around a conjunction term drop on serialization (& binds tighter than |)
+    // & binds tighter than |, so redundant parens drop
     "HA | OI | AUD | (OC & OI)": "HA | OI | AUD | OC & OI",
     "P, HA | OI | AUD | (OC & OI)": "P, HA | OI | AUD | OC & OI",
     "[!(LT)]": "[!LT]",

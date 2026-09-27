@@ -164,9 +164,8 @@ const GROUP_INVOKE_LINE = new RegExp(
  * Confirms the message went where a group message must go: to the multicast address this fabric uses for this
  * group, on a session the sender itself renders as a group one.
  *
- * The address is not shape-matched. It is recomputed from the sender's fabric id and the group id and compared byte
- * for byte with the destination the invoke names — which is what the plan's "FF35:0040:FD<Fabric ID>00:<Group ID>"
- * asks for, and what also establishes the destination is GroupID 1 rather than some other group.
+ * The address is recomputed from the sender's fabric id and the group id and compared byte for byte with the
+ * destination the invoke names, which also proves it is GroupID 1 and not another group.
  */
 async function groupcastSentCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
     const dut = cx.controllers.dut;

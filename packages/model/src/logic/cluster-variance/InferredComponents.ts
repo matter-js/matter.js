@@ -78,9 +78,8 @@ function splitDisjunction(disjunction: string) {
     return disjunction.split(" | ");
 }
 
-// Process an "otherwise" list of feature terms (single features or "&"-conjunctions, optionally parenthesized)
-// separated by `separator`.  Single-feature terms collapse into one anyOf component; conjunction terms each get their
-// own component.  Shared by the comma ("A, B & C") and pipe ("A | (B & C)") spellings.
+// Adds one anyOf component for the single-feature terms of an "otherwise" list, plus one allOf component per
+// conjunction term
 function addOtherwiseList(
     add: (optional?: boolean, condition?: VarianceCondition) => void,
     list: string,
@@ -323,8 +322,7 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
-    // FOO, BAR<, BAZ>*<, BIZ & BAZ>* (comma "otherwise" list — mandatory if any listed term is satisfied).
-    // Single-feature terms collapse into one anyOf component; conjunction terms each get their own component.
+    // FOO, BAR<, BAZ>*<, BIZ & BAZ>* (comma "otherwise" list — mandatory if any listed term is satisfied)
     {
         pattern: pattern(COMMA_OTHERWISE),
         processor(add, match) {
@@ -332,8 +330,7 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
-    // FOO | BAR<| BAZ>*<| (BIZ & BAZ)>* (pipe "otherwise" list — mandatory if any listed term is satisfied).
-    // Single-feature terms collapse into one anyOf component; conjunction terms each get their own component.
+    // FOO | BAR<| BAZ>*<| (BIZ & BAZ)>* (pipe "otherwise" list — mandatory if any listed term is satisfied)
     {
         pattern: pattern(PIPE_OTHERWISE),
         processor(add, match) {

@@ -255,8 +255,7 @@ class EndpointState {
             return;
         }
 
-        // A second behavior for the same cluster would silently replace the first on the wire while both keep acting.
-        // A new backing of the same behavior (re-injection) takes over the cluster
+        // A second behavior for the same cluster would silently replace the first on the wire while both keep acting
         const existing = this.#backings.get(type.id);
         if (existing !== undefined && existing.type.id !== backing.type.id) {
             throw new ImplementationError(

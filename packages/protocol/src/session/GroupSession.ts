@@ -331,7 +331,6 @@ export class GroupSession extends SecureSession {
         const messageFlags = Bytes.of(aad)[0];
         const mic = Bytes.of(applicationPayload).slice(-CRYPTO_AEAD_MIC_LENGTH_BYTES);
 
-        /** Deobfuscates the header (when privacy is active) and decrypts with the candidate's key. */
         const tryDecrypt = (candidate: { key: Bytes; privacyKey?: Bytes; keySetId: number; fabric: Fabric }) => {
             try {
                 let packetHeader = header;

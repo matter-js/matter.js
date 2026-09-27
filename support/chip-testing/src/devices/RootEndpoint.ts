@@ -197,7 +197,7 @@ export async function buildRootNode(opts: RootNodeOptions): Promise<ServerNode> 
             activeCalendarType: TimeFormatLocalization.CalendarType.Gregorian,
             supportedCalendarTypes: [
                 // After conversion from YAML to python CHIP requires support for Buddhist calendar
-                // can be removed again after https://github.com/project-chip/connectedhomeip/issues/38812 is fixed
+                // can be removed again once CHIP's Python tests no longer require it
                 TimeFormatLocalization.CalendarType.Buddhist,
                 TimeFormatLocalization.CalendarType.Gregorian,
             ],

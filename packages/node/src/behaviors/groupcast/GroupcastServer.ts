@@ -72,9 +72,8 @@ const groupPropertiesStructFS = DatatypeElement(
     FieldElement({ name: "HasAuxiliaryAcl", id: 0x2, type: "bool", access: "F", conformance: "M" }),
     FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
 );
-// All features are on by default.  Listener and Sender meet the Root Node GroupcastListenerCond/GroupcastSenderCond
-// of Matter 1.6.1, and PerGroup keeps groups created through the Groups cluster on their per-group address as the
-// migration to Groupcast requires.  Select fewer with GroupcastServer.with(...)
+// Listener and Sender meet the Root Node GroupcastListenerCond/GroupcastSenderCond of Matter 1.6.1, and PerGroup keeps
+// groups created through the Groups cluster on their per-group address as the migration to Groupcast requires
 const GroupcastBase = GroupcastBehavior.with("Listener", "Sender", "PerGroup");
 
 const schema = GroupcastBase.schema.extend(
@@ -130,7 +129,6 @@ export class GroupcastServer extends GroupcastBase {
             );
         }
 
-        // Register the aux ACL observable with AccessControlServer so it can subscribe for updates
         acl.registerAuxAclProvider(this.internal.auxAcl);
 
         const fabrics = this.env.get(FabricManager);
@@ -139,17 +137,13 @@ export class GroupcastServer extends GroupcastBase {
         // it from its sources on every input change, so the stored copy is never authoritative and cannot diverge.
         this.#deriveMembership();
 
-        // Keep in sync as fabrics are added, replaced or removed.  A replaced fabric gets a fresh Groups instance,
-        // so the multicast address policies must be re-applied from the derived membership.
+        // A replaced fabric gets a fresh Groups instance, so the multicast address policies must be re-applied
         this.reactTo(fabrics.events.added, this.#handleFabricChanged, { offline: true });
         this.reactTo(fabrics.events.replaced, this.#handleFabricChanged, { offline: true });
         this.reactTo(fabrics.events.deleted, this.#handleFabricDeleted, { offline: true });
 
         // GKM owns endpoints (groupTable) and keySetId (groupKeyMap); any external change to either (e.g. legacy
-        // Groups cluster commands or direct attribute writes) must re-derive Membership and its auxiliary ACLs.  A
-        // fabric removal clears both attributes in one cascade, firing both reactors against the same groupcast.state:
-        // #deriveNow derives inline while the lock is free but defers to an async-locked derive the moment it is not,
-        // so the second reactor in a cascade never conflicts synchronously.
+        // Groups cluster commands or direct attribute writes) must re-derive Membership and its auxiliary ACLs.
         const gkmEvents = this.endpoint.eventsOf(GroupKeyManagementServer);
         this.reactTo(gkmEvents.groupTable$Changed, this.#handleGroupTableChanged, { offline: true });
         this.reactTo(gkmEvents.groupKeyMap$Changed, this.#handleGroupKeyMapChanged, { offline: true });
@@ -256,7 +250,7 @@ export class GroupcastServer extends GroupcastBase {
         const fabric = this.env.get(FabricManager).for(fabricIndex);
 
         // Set the policy before writing endpoints so the endpoint-driven multicast bind uses the right address up
-        // front; #rebindGroupMembership corrects either order, this one only saves a rebind.
+        // front; ServerGroupNetworking rebinds on a policy change, so this order only saves a rebind
         fabric.groups.setGroupMulticastPolicy(
             groupId,
             policy === Groupcast.MulticastAddrPolicy.PerGroup ? "perGroupId" : "ianaAddr",
@@ -269,7 +263,6 @@ export class GroupcastServer extends GroupcastBase {
             const existingEndpoints = [...(existing?.endpoints ?? [])];
             const groupName = existing?.groupName ?? "";
             const target = replaceEndpoints ? endpoints : [...new Set([...existingEndpoints, ...endpoints])];
-            // Replacing a listener's endpoints with none keeps the group sender-only.
             keepsSenderOnly = target.length === 0 && existingEndpoints.length > 0;
             for (const ep of existingEndpoints) {
                 if (!target.includes(ep)) {
@@ -294,10 +287,6 @@ export class GroupcastServer extends GroupcastBase {
         if (keepsSenderOnly) {
             this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
         }
-
-        /* The GroupKeyManagement GroupcastAdoption attribute is not supported by the default server:
-        gkm.setGroupcastAdopted(fabricIndex, true);
-        */
     }
 
     override leaveGroup(request: Groupcast.LeaveGroupRequest): Groupcast.LeaveGroupResponse {
@@ -348,8 +337,6 @@ export class GroupcastServer extends GroupcastBase {
         } else {
             removedEndpoints = requestedEndpoints.filter(ep => currentEndpoints.includes(ep));
             const remainingEndpoints = currentEndpoints.filter(ep => !requestedEndpoints.includes(ep));
-            // A listener entry losing all endpoints survives as sender-only when the Sender feature is enabled and
-            // disappears otherwise, matching the derived-membership existence rule.
             if (remainingEndpoints.length === 0 && !this.features.sender) {
                 entryRemoved = true;
             } else if (remainingEndpoints.length === 0 && removedEndpoints.length > 0) {
@@ -550,8 +537,8 @@ export class GroupcastServer extends GroupcastBase {
     /**
      * React to external GKM groupTable changes (legacy Groups cluster commands, direct attribute writes).  A group
      * present in the OLD table but absent from the NEW one lost all its endpoints; per CHIP kDeleteGroupIfEmpty it must
-     * be fully deleted rather than lingering as a phantom sender-only entry.  The out-transition is recorded before
-     * deriving so a deferred derive still applies it (a cascade discards the losing reactor's oldTable).  Genuine
+     * be fully deleted rather than lingering as a phantom sender-only entry.  The removal is recorded before deriving
+     * so a deferred derive still applies it (a cascade discards the losing reactor's oldTable).  Genuine
      * sender-only joins never had a groupTable entry, so they are never in oldTable and always survive.
      */
     #handleGroupTableChanged(
@@ -587,8 +574,7 @@ export class GroupcastServer extends GroupcastBase {
             return;
         }
         // State writes use this reactor's own locked transaction; the writer's online context is passed through only so
-        // the emitted AuxiliaryAccessUpdated event names the administering node.  A deferred derive (see #scheduleDerive)
-        // runs after that context is gone and emits with no admin.
+        // the emitted AuxiliaryAccessUpdated event names the administering node
         this.#applyPendingAndDerive(actorContext ?? this.context);
     }
 
@@ -662,8 +648,7 @@ export class GroupcastServer extends GroupcastBase {
                 if (present.has(key)) {
                     continue;
                 }
-                // A groupcast command that emptied this group asked to keep it sender-only (spec kKeepGroupIfEmpty);
-                // consume the mark so a later external removal of the same group still deletes it.
+                // Consume the mark so a later external removal still deletes the group
                 if (retained.has(key)) {
                     marksToConsume.add(key);
                     continue;
@@ -734,8 +719,8 @@ export class GroupcastServer extends GroupcastBase {
 
     /**
      * Apply the multicast address policy of each derived membership entry to its fabric's FabricGroups, drop the
-     * policy of groups no longer present, and re-emit the auxiliary ACL entries.  Reproduces the policy/aux-ACL
-     * portions of the former OUT mirror; it never writes GKM groupTable/groupKeyMap.
+     * policy of groups no longer present, and re-emit the auxiliary ACL entries.  Never writes GKM
+     * groupTable/groupKeyMap.
      */
     #applyPoliciesAndAuxAcl(
         previousKeys: { fabricIndex: FabricIndex; groupId: GroupId }[],
@@ -784,8 +769,7 @@ export class GroupcastServer extends GroupcastBase {
 
     /**
      * Write a group→keySet mapping to the persisted GroupKeyMap attribute (source for the derived KeySetId) and the
-     * operational fabric key-id map (runtime group-message decryption).  The operational map is set synchronously
-     * here because GroupKeyManagement's own reactor updates it only on a later tick.
+     * operational fabric key-id map (runtime group-message decryption).
      */
     #setGroupKeyMapping(fabric: Fabric, fabricIndex: FabricIndex, groupId: GroupId, keySetId: number) {
         const gkm = this.agent.get(GroupKeyManagementServer);

@@ -485,8 +485,7 @@ export class AccessControlServer extends AccessControlBase {
     registerAuxAclProvider(observable: AccessControlServer.AuxAclObservable) {
         this.internal.auxiliaryAclProviders.add(observable);
         // Offline: the auxiliaryAcl state write runs in its own transaction rather than re-opening the provider's
-        // already-committed one during postCommit.  The administering node is still taken from the passed context,
-        // which offline reactors receive as an argument.
+        // already-committed one during postCommit
         this.reactTo(observable, this.callback(this.#onProviderAuxAclChanged, { offline: true }));
         // Sync initial value without emitting events (node is still initializing)
         if (observable.value?.length) {
@@ -662,9 +661,8 @@ export class AccessControlServer extends AccessControlBase {
      * Collect the auxiliary ACL entries of one fabric, or of all fabrics, from the registered providers.  Entries are
      * split to respect SubjectsPerAccessControlEntry and TargetsPerAccessControlEntry (core§9.10.6.10).
      *
-     * Reads the provider observable values directly, which is context-free and therefore safe from reactors that run
-     * after an interaction context has exited — unlike the managed {@link AccessControlServer.State.auxiliaryAcl}
-     * state, which throws there.
+     * Reads the provider observables directly, so it is safe in reactors that run after an interaction context has
+     * exited.
      */
     #auxiliaryAclFor(fabricIndex?: FabricIndex) {
         const entries = new Array<AccessControlTypes.AccessControlEntry>();

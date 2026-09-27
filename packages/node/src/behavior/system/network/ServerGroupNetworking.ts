@@ -114,8 +114,6 @@ export class ServerGroupNetworking {
     /**
      * Bring the joined addresses in line with the desired ones.  Runs serialized: a request while a run is active
      * repeats the run once it completes, so every change is applied and no two runs touch the socket concurrently.
-     * The UDP socket is shared by all fabrics and IanaAddr groups of every fabric use ff05::fa, so an address is
-     * joined once and left when no group of any fabric wants it.
      */
     #reconcile(): Promise<void> {
         this.#reconcileRequested = true;
@@ -238,8 +236,7 @@ export class ServerGroupNetworking {
         this.#fabricObservers.forEach(observer => observer.close());
         this.#fabricObservers.clear();
 
-        // Leave every joined multicast group before the shared UDP socket is torn down.  A Node dgram socket left
-        // with active memberships can hang on close(), which would block the runtime shutdown from completing.
+        // A Node dgram socket left with active memberships can hang on close() and block the runtime shutdown
         this.#closed = true;
         this.#joinRetry.stop();
         this.#desired.clear();

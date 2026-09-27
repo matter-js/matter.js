@@ -178,8 +178,8 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             );
         }
         if (this.state.groupTable.length) {
-            // Initialize the group table for the fabric.  Diff instead of clear+refill: endpoint map events drive
-            // the UDP multicast memberships, a blind rebuild would leave and rejoin every group address.
+            // Diff instead of clear+refill: endpoint map events drive the UDP multicast memberships, a blind rebuild
+            // would leave and rejoin every group address
             const groupTable = this.state.groupTable.filter(
                 ({ fabricIndex: entryIndex }) => entryIndex === fabricIndex,
             );
