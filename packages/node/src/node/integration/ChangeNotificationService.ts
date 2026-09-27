@@ -89,10 +89,12 @@ export class ChangeNotificationService {
         observers.on(node.lifecycle.changed, (type, endpoint) => {
             switch (type) {
                 case EndpointLifecycle.Change.Destroyed:
-                    this.#change.emit({
-                        kind: "delete",
-                        endpoint,
-                    });
+                    if (endpoint.maybeNumber !== undefined) {
+                        this.#change.emit({
+                            kind: "delete",
+                            endpoint,
+                        });
+                    }
                     if (endpoint === node) {
                         observers.close();
                         this.#observers.delete(node);
