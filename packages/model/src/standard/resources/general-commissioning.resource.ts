@@ -400,7 +400,7 @@ Resource.add(
                         tag: "field", name: "TcUserResponse", xref: "core§11.10.7.8.2",
                         details: "This field shall contain the user responses to the Enhanced Setup Flow Terms & Conditions as a map " +
                             "where each bit set in the bitmap corresponds to an accepted term in the file located at Section " +
-                            "11.23.6.23, \"EnhancedSetupFlowTCUrl\"."
+                            "11.23.7.23, \"EnhancedSetupFlowTCUrl\"."
                     }
                 ]
             },

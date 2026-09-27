@@ -74,6 +74,12 @@ export interface Message {
     payloadHeader: PayloadHeader;
     securityExtension?: Bytes;
     payload: Bytes;
+
+    /**
+     * Source IP address of the datagram an inbound group message arrived in.  Group sessions have no channel and serve
+     * every datagram of one source node and key, so the address belongs to the message, not the session.
+     */
+    receivedFrom?: string;
 }
 
 export namespace Message {

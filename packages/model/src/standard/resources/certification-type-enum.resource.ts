@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "datatype", name: "CertificationTypeEnum", xref: "core§11.23.5.9.1",
+    tag: "datatype", name: "CertificationTypeEnum", xref: "core§11.23.6.9.1",
 
     children: [
         { tag: "field", name: "DeviceAttestationPki", description: "used for Device Attestation PKI (PAA/PAI)" },

@@ -995,7 +995,7 @@ export declare namespace PushAvStreamTransport {
      *
      * When a Motion Trigger is activated, either by receiving a ManuallyTriggerTransport command, or when motion is
      * initially detected which matches a configured motion trigger, the Node shall start the push transport configured
-     * with this trigger see (TransportOptionsStruct).
+     * with this trigger (see TransportOptionsStruct).
      *
      * This places the Node in a Motion Detected state, at which point the Node shall internally track two values.
      *
@@ -1117,7 +1117,7 @@ export declare namespace PushAvStreamTransport {
         tlsEndpointId: number;
 
         /**
-         * This field shall be a valid string in RFC 3986 format representing the upload location. The field shall use
+         * This field shall be a valid string in RFC3986 format representing the upload location. The field shall use
          * the https scheme which will be validated by the underlying TLSEndpointID.
          *
          * When the IngestMethod is CMAFIngest, this shall be the CMAF publishing_point_URL to transport the AV Stream

@@ -539,7 +539,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
 
         /**
          * An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image MAY
-         * be available.
+         * be available
          *
          * An OTA Provider is announcing, either to a single Node or to a group of Nodes, that a new Software Image may
          * be available. The details may only be obtained by executing a OTA Software Update Query procedure. A
