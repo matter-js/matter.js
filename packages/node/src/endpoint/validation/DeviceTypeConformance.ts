@@ -15,6 +15,7 @@ import {
     requirementApplicability,
     RequirementModel,
     RequirementResolver,
+    ValueModel,
 } from "@matter/model";
 import { ConditionAssertions, conditionScopeOf } from "./ConditionAssertions.js";
 import { EndpointFacts } from "./EndpointFacts.js";
@@ -47,6 +48,8 @@ export namespace DeviceTypeConformance {
      * is judged for presence only, because its declaration does not state which features or elements it uses.
      *
      * A mandatory requirement is violated when its cluster or element is absent, a disallowed one when it is present.
+     * A mandatory requirement for an element its own definition marks provisional is not violated by its absence,
+     * because a provisional element is not certifiable and matter.js may refuse it.
      * Conditions decide what is mandatory but never what is disallowed: only an `X` or a feature term disallows.
      * A server cluster that a device type in the endpoint's node scope declares a singleton is violated on every
      * endpoint of that scope but the declaring ones.
@@ -262,7 +265,14 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
     const name = context.facts.clusterName(side, cluster.id);
     const path = side === "client" ? `client:${cluster.name}` : cluster.name;
     const applicability = applicabilityOf(requirement, context.conditions, pass);
-    const departed = judge(context, applicability, name !== undefined, path, `${side} cluster ${cluster.name}`);
+    const departed = judge(
+        context,
+        applicability,
+        name !== undefined,
+        cluster,
+        path,
+        `${side} cluster ${cluster.name}`,
+    );
 
     if (departed || name === undefined || side === "client") {
         return;
@@ -300,6 +310,7 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
             context,
             applicabilityOf(nested, trueNames, pass),
             present,
+            referent,
             `${path}.${referent.name}`,
             `${nested.element} ${referent.name} of ${cluster.name}`,
         );
@@ -307,12 +318,14 @@ function checkCluster(context: Context, requirement: RequirementModel, side: "se
 }
 
 /**
- * Record the violation {@link applicability} and {@link present} amount to, and answer whether there is one.
+ * Record the violation {@link applicability} and {@link present} amount to for {@link definition}, the model of the
+ * required cluster or element, and answer whether there is one.
  */
 function judge(
     { violations, facts, deviceType, waived }: Context,
     applicability: Conformance.Applicability,
     present: boolean,
+    definition: Model,
     requirement: string,
     subject: string,
 ) {
@@ -322,7 +335,7 @@ function judge(
 
     let kind: Violation.Kind;
     let detail: string;
-    if (applicability === Conformance.Applicability.Mandatory && !present) {
+    if (applicability === Conformance.Applicability.Mandatory && !present && !isProvisional(definition)) {
         kind = "missing";
         detail = `Mandatory ${subject} is missing`;
     } else if (
@@ -339,6 +352,17 @@ function judge(
 
     violations.push({ endpoint: facts.endpoint, deviceType: deviceType.name, requirement, kind, detail });
     return true;
+}
+
+/**
+ * Whether {@link definition} is provisional in its own conformance, whatever the requirement for it states.
+ *
+ * A cluster model carries no conformance, so a cluster is never provisional here.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 7.3
+ */
+function isProvisional(definition: Model) {
+    return definition instanceof ValueModel && definition.conformance.isProvisional;
 }
 
 /**

@@ -30,7 +30,9 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import { ImplementationError, MatterAggregateError } from "@matter/general";
 import {
+    AttributeModel,
     ClusterModel,
+    CommandModel,
     ConditionModel,
     DeviceTypeModel,
     FeatureMap,
@@ -197,6 +199,43 @@ function lightingFeatureModel(conformance: string) {
     return model;
 }
 
+/**
+ * A model whose OnOffLight requires the DeadFrontBehavior feature, a Pending attribute and a Pend command of OnOff,
+ * none of which a standard light carries, and whose OnOff defines each of them with {@link conformance}.
+ */
+function ownConformanceModel(conformance: string) {
+    const featureMap = FeatureMap.clone();
+    featureMap.children = [
+        new FieldModel({ name: "LT", title: "Lighting", constraint: "0" }),
+        new FieldModel({ name: "DF", title: "DeadFrontBehavior", constraint: "1", conformance }),
+    ];
+
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }),
+        new DeviceTypeModel(
+            { name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" },
+            new RequirementModel(
+                { name: "OnOff", id: 6, element: "serverCluster", conformance: "M" },
+                new RequirementModel({ name: "DF", element: "feature", conformance: "M" }),
+                new RequirementModel({ name: "Pending", element: "attribute", conformance: "M" }),
+                new RequirementModel({ name: "Pend", element: "command", conformance: "M" }),
+            ),
+        ),
+        new ClusterModel({
+            name: "OnOff",
+            id: 6,
+            children: [
+                featureMap,
+                new AttributeModel({ name: "Pending", id: 0x7ff0, type: "bool", conformance }),
+                new CommandModel({ name: "Pend", id: 0x7f, direction: "request", response: "status", conformance }),
+            ],
+        }),
+    );
+    model.finalize();
+    return model;
+}
+
 function requirementOf(deviceType: string, ...path: string[]) {
     let model = Matter.deviceTypes(deviceType)?.get(RequirementModel, path[0]);
     for (const name of path.slice(1)) {
@@ -321,6 +360,28 @@ describe("DeviceTypeConformance", () => {
 
         expect(violationsOf(endpoint).map(v => [v.kind, v.requirement])).deep.equals([
             ["missing", "Identify.TriggerEffect"],
+        ]);
+
+        await node.close();
+    });
+
+    it("does not report a mandatory element its own definition marks provisional as missing", async () => {
+        const node = await createNode();
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+
+        expect(violationsOf(light, ownConformanceModel("P, O"))).deep.equals([]);
+
+        await node.close();
+    });
+
+    it("reports a mandatory element its own definition marks optional but not provisional as missing", async () => {
+        const node = await createNode();
+        const light = await node.add(OnOffLightDevice, { id: "light" });
+
+        expect(violationsOf(light, ownConformanceModel("O")).map(v => [v.kind, v.requirement])).deep.equals([
+            ["missing", "OnOff.DF"],
+            ["missing", "OnOff.Pending"],
+            ["missing", "OnOff.Pend"],
         ]);
 
         await node.close();

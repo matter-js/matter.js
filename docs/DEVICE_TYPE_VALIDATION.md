@@ -12,7 +12,9 @@ endpoint lists at least one such device type:
 - **Clusters and elements.** Mandatory and disallowed server and client clusters, and the feature, attribute, command
   and event requirements nested in server clusters. A client cluster is checked for presence only: a client cluster
   declaration does not state which features or elements the client uses. A condition (see below) can only ever make
-  something mandatory; only a literal `X` or a feature term makes something disallowed.
+  something mandatory; only a literal `X` or a feature term makes something disallowed. A mandatory feature,
+  attribute, command or event that its own cluster marks provisional (`P`) is never reported missing, because it is
+  not certifiable and matter.js may refuse it; its disallowed check is unchanged.
 - **Base requirements.** Base's own requirements (e.g. `Binding` under `Simple & Client`) are enforced only where
   they make something mandatory; a Base requirement that would make something disallowed is not reported.
 - **Component device types.** The number of endpoints of each required component device type (one distinct
