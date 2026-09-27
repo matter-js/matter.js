@@ -1243,6 +1243,56 @@ describe("Ota", () => {
         expect(await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates)).length(0);
     }).timeout(10_000);
 
+    it("refuses an apply it holds no consent for, naming the wait in seconds", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+
+        let peerAddress: PeerAddress | undefined;
+        let targetVersion: number | undefined;
+        const { queryImagePromise, applyUpdateRequestPromise, applyUpdateResponses, TestOtaProviderServer } =
+            InstrumentedOtaProviderServer(
+                { requestUserConsentForUpdate: false, notifyUpdateApplied: false },
+                {
+                    // The provider refuses an update it holds no consent for, and the flow that reaches
+                    // its apply is the flow that granted one, so the consent goes away here
+                    beforeApplyUpdateRequest: agent =>
+                        agent.get(SoftwareUpdateManager).removeConsent(peerAddress!, targetVersion!),
+                },
+            );
+
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        data.expectedOtaImage = Bytes.of(otaImage.image);
+        targetVersion = targetSoftwareVersion;
+
+        const peer1 = controller.peers.get("peer1")!;
+        peerAddress = peer1.state.commissioning.peerAddress!;
+
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress!, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+
+        await MockTime.resolve(queryImagePromise);
+        await MockTime.resolve(applyUpdateRequestPromise);
+        await MockTime.macrotasks;
+
+        expect(applyUpdateResponses).length(1);
+        expect(applyUpdateResponses[0].action).equals(OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue);
+
+        // DelayedActionTime is seconds on the wire (Matter Core 11.20.6.10), so two minutes is 120; a
+        // Duration written straight into the field would say 120000, which a requestor clamps to 24 hours
+        expect(applyUpdateResponses[0].delayedActionTime).equals(120);
+
+        await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
     it("Apply failure detected when startUp fires after Applying state", async () => {
         // This test verifies the status ordering fix: previousProgressStatus is saved BEFORE the
         // clearing block in #onSoftwareVersionChanged, so the Applying check on startUp works correctly.
