@@ -27,6 +27,7 @@ import {
     recordRequestorIdle,
     singleApplyUpdate,
     singleQueryImage,
+    singleQueryImageCheck,
     unsupportedByDut,
 } from "../cert/tc-su-support.js";
 import { CertCheckFailedError } from "../cert/tc-support.js";
@@ -138,6 +139,37 @@ describe("singleQueryImage", () => {
     it("fails the step where the provider answered more than once, or not at all", () => {
         expect(() => singleQueryImage(exchanges(0))).to.throw(CertCheckFailedError, "answered 0 QueryImage");
         expect(() => singleQueryImage(exchanges(2))).to.throw(CertCheckFailedError, "answered 2 QueryImage");
+    });
+});
+
+describe("singleQueryImageCheck", () => {
+    function exchanges(count: number): OtaProviderExchanges {
+        const exchange = {
+            request: { vendorId: 1, productId: 1, softwareVersion: 1, protocolsSupported: [0] },
+            response: { status: 0 },
+            receivedAtMs: 0,
+        } satisfies OtaQueryImageExchange;
+        return {
+            queryImage: new Array<OtaQueryImageExchange>(count).fill(exchange),
+            applyUpdate: [],
+            notifyUpdateApplied: [],
+        };
+    }
+
+    it("passes on the one exchange the plan describes", () => {
+        expect(singleQueryImageCheck(exchanges(1))).deep.equal({
+            type: "response",
+            verdict: "pass",
+            detail: "the DUT sent 1 QueryImage command(s) during this update, where the plan describes one",
+        });
+    });
+
+    // The count is what tells a reader whether the step read the query it reports on
+    it("fails on none and on more than one, naming the count", () => {
+        expect(singleQueryImageCheck(exchanges(0))).deep.include({ verdict: "fail" });
+        expect(singleQueryImageCheck(exchanges(0)).detail).contain("sent 0 QueryImage");
+        expect(singleQueryImageCheck(exchanges(2))).deep.include({ verdict: "fail" });
+        expect(singleQueryImageCheck(exchanges(2)).detail).contain("sent 2 QueryImage");
     });
 });
 
