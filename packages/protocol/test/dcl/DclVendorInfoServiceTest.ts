@@ -446,7 +446,7 @@ describe("DclVendorInfoService", () => {
             model: {
                 vid: 0xfff1,
                 pid: 0x8000,
-                deviceTypeID: 10,
+                deviceTypeId: 10,
                 productName: "Test Smart Lock",
                 productLabel: "Smart Lock v2",
                 partNumber: "TSL-001",
@@ -455,6 +455,9 @@ describe("DclVendorInfoService", () => {
                 commissioningModeInitialStepsHint: 1, // bit 0 = powerCycle
                 commissioningModeSecondaryStepsHint: 4, // bit 2 = administrator
                 userManualUrl: "https://example.com/manual",
+                enhancedSetupFlowOptions: 1,
+                maintenanceUrl: "https://example.com/maintenance",
+                creator: "cosmos1test",
                 schemaVersion: 0,
             },
         };
@@ -470,6 +473,7 @@ describe("DclVendorInfoService", () => {
             const info = await service.productInfoFor(0xfff1, 0x8000);
 
             expect(info).to.not.be.undefined;
+            expect(info?.deviceTypeID).to.equal(10);
             expect(info?.productName).to.equal("Test Smart Lock");
             expect(info?.productLabel).to.equal("Smart Lock v2");
             expect(info?.commissioningFlow).to.equal(CommissioningFlowType.Standard);
@@ -479,6 +483,7 @@ describe("DclVendorInfoService", () => {
             expect(info?.commissioningModeInitialStepsHint.administrator).to.be.false;
             expect(info?.commissioningModeSecondaryStepsHint.administrator).to.be.true;
             expect(info?.userManualUrl).to.equal("https://example.com/manual");
+            expect(info?.enhancedSetupFlowMaintenanceUrl).to.equal("https://example.com/maintenance");
             // Wire-format internals must not be present
             expect((info as any).vid).to.be.undefined;
             expect((info as any).pid).to.be.undefined;

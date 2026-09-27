@@ -8,7 +8,7 @@ import { VendorId } from "../datatype/VendorId.js";
 
 /**
  * Vendor Schema
- * @see {@link MatterSpecification.v16.Core} § 11.23.3.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.3
  * DCL Endpoint: /dcl/vendorinfo/vendors or /dcl/vendorinfo/vendors/{vendorID}
  */
 export interface VendorDclSchema {
@@ -43,7 +43,13 @@ export interface VendorDclSchema {
      * maintained web page. The syntax of this field SHALL follow the syntax as specified in RFC 1738 and
      * SHALL use the https scheme. The maximum length of this field is 256 ASCII characters.
      */
-    vendorLandingPageUrl?: string;
+    vendorLandingPageURL?: string;
+
+    /**
+     * This field uniquely identifies the DCL key that was used to register the vendor record in DCL, pursuant to
+     * DCL policies.
+     */
+    creator: string;
 
     /**
      * The SchemaVersion field value history for this schema is provided below:

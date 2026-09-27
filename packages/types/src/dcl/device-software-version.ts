@@ -8,7 +8,7 @@ import { VendorId } from "../datatype/VendorId.js";
 
 /**
  * DeviceSoftwareVersionModel Schema
- * @see {@link MatterSpecification.v16.Core} § 11.23.7.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.8
  * DCL endpoints:
  * * check with https://on.dcl.csa-iot.org/dcl/model/versions/{vid}/{pid} to get a list of software versions, check for newer ones
  * * check with https://on.dcl.csa-iot.org/dcl/model/versions/{vid}/{pid}/{softwareVersion} for these details
@@ -54,6 +54,15 @@ export interface DeviceSoftwareVersionModelDclSchema {
      * structure.
      */
     cdVersionNumber: number;
+
+    /**
+     * This field uniquely identifies the DCL key that was used to register the device software version model record
+     * in DCL, pursuant to DCL policies.
+     *
+     * Mandatory in the specification and always set in DCL responses. Optional here because OTA update records
+     * built from a local OTA image use this type and have no DCL key.
+     */
+    creator?: string;
 
     /**
      * The FirmwareInformation field, if present, SHALL match the firmware_information field in attestation-elements
@@ -132,6 +141,8 @@ export interface DeviceSoftwareVersionModelDclSchema {
      * SpecificationVersion SHALL identify the specification version applicable to the device model. This
      * field SHALL match the SpecificationVersion field in the Basic Information Cluster of a device running
      * the software certified by this DeviceModel record.
+     *
+     * @deprecated Matter 1.6.1 moves this field to the DeviceSoftwareCompliance record.
      */
     specificationVersion?: number;
 

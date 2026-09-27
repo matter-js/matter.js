@@ -247,7 +247,7 @@ export class DclVendorInfoService {
 
     #normalizeProductModel(model: DeviceModelDclSchema): ProductInfo | undefined {
         const {
-            deviceTypeID,
+            deviceTypeId,
             productName,
             productLabel,
             partNumber,
@@ -267,11 +267,11 @@ export class DclVendorInfoService {
             enhancedSetupFlowOptions,
             enhancedSetupFlowTCUrl,
             enhancedSetupFlowTCRevision,
-            enhancedSetupFlowMaintenanceUrl,
+            maintenanceUrl,
         } = model;
         try {
             return {
-                deviceTypeID,
+                deviceTypeID: deviceTypeId,
                 productName,
                 productLabel,
                 partNumber,
@@ -296,7 +296,7 @@ export class DclVendorInfoService {
                         : undefined,
                 enhancedSetupFlowTCUrl,
                 enhancedSetupFlowTCRevision,
-                enhancedSetupFlowMaintenanceUrl,
+                enhancedSetupFlowMaintenanceUrl: maintenanceUrl,
             };
         } catch (error) {
             logger.warn(

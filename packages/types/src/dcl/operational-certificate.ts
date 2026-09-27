@@ -5,8 +5,15 @@
  */
 
 /**
+ * CertificationTypeEnum of the Operational Trust Anchors Schema, as the DCL REST API encodes it: the value name, not
+ * its number.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.6.9
+ */
+export type DclCertificateType = "DeviceAttestationPKI" | "OperationalPKI" | "VIDSignerPKI";
+
+/**
  * Operational Root and Intermediate Certificate Schema
- * @see {@link MatterSpecification.v16.Core} § 11.23.5.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.6
  */
 export interface OperationalCertificateDclSchema {
     /**
@@ -60,11 +67,10 @@ export interface OperationalCertificateDclSchema {
     isRoot: boolean;
 
     /**
-     * This field SHALL indicate whether the associated certificate is a Vendor Verification Signer Certificate
-     * (VVSC) used to sign vid_verification_statement messages as defined in Section 6.4.10, “Fabric
-     * Table Vendor ID Verification Procedure”.
+     * This field SHALL indicate the type of the certificate. `VIDSignerPKI` marks a Vendor ID Verification Signer
+     * Certificate (VVSC).
      */
-    isVidVerificationSigner: boolean;
+    certificateType: DclCertificateType;
 
     /**
      * This field uniquely identifies the DCL key that was used to register the certificate in DCL, pursuant
@@ -77,6 +83,11 @@ export interface OperationalCertificateDclSchema {
      * “Certificate Common Conventions”.
      */
     subject: string;
+
+    /**
+     * This field SHALL contain the certificate's Subject field, encoded as a human-readable string.
+     */
+    subjectAsText: string;
 
     /**
      * This field SHALL uniquely identify the PAA certificate’s Subject Key Identifier mandatory extension.
@@ -92,7 +103,7 @@ export interface OperationalCertificateDclSchema {
     /**
      * The SchemaVersion field value history for this schema is provided below:
      * * 0 Initial Release
-     * * 1 Introduction of IsVidVerificationSigner
+     * * 1 Introduction of the CertificationType enum
      */
     schemaVersion: number;
 }

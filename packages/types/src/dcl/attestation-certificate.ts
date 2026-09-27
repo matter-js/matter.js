@@ -5,17 +5,39 @@
  */
 
 import { VendorId } from "../datatype/VendorId.js";
+import { DclCertificateType } from "./operational-certificate.js";
 
+/**
+ * Grant Schema, one approval or rejection of a PAA certificate.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.4
+ */
 export interface ApprovalOrRejectDetails {
+    /**
+     * This field SHALL contain the DCL Key address of the entity granting the approval or rejection.
+     */
     address: string;
-    time: string; // but number content
+
+    /**
+     * This field SHALL contain the timestamp of the grant. The DCL REST API sends Unix epoch seconds (not the Matter
+     * epoch) as a decimal string.
+     */
+    time: string;
+
+    /**
+     * Additional information or reason for the grant.
+     */
     info: string;
-    schemaVersion: number; // No info
+
+    /**
+     * The SchemaVersion field value history for this schema is provided below:
+     * * 0: Initial Release
+     */
+    schemaVersion: number;
 }
 
 /**
  * Product Attestation Authority and Intermediate Certificate Schema
- * @see {@link MatterSpecification.v16.Core} § 11.23.4.
+ * @see {@link MatterSpecification.v16.Core} § 11.23.5
  * DCL Endpoints:
  *   * /dcl/pki/certificates
  *   * /dcl/pki/certificates/{subject}
@@ -75,17 +97,18 @@ export interface ProductAttestationDclSchema {
     owner: string;
 
     /**
-     * This field SHALL contain the certificate's Subject field. This is OPTIONAL for PAA Certificates. This
-     * is encoded as defined in Section 6.1, "Certificate Common Conventions".
-     * Base64 encoded
-     * TODO Check optional or not??
+     * This field SHALL contain the certificate's Subject field. This is encoded as defined in Section 6.1,
+     * "Certificate Common Conventions". Base64 encoded.
+     *
+     * The specification text calls it OPTIONAL for PAA Certificates while its schema table lists it as mandatory;
+     * the DCL sends it for every certificate.
      */
-    subject?: string;
+    subject: string;
 
     /**
-     * Human-readable text representation of the certificate's Subject field.
+     * This field SHALL contain the certificate's Subject field, encoded as a human-readable string.
      */
-    subjectAsText?: string;
+    subjectAsText: string;
 
     /**
      * This field SHALL uniquely identify the PAA certificate's Subject Key Identifier mandatory extension.
@@ -97,13 +120,19 @@ export interface ProductAttestationDclSchema {
      * This field SHALL contain list of DCL Keys that approved the PAA Certificate admission into DCL.
      * This field SHALL be set only for a PAA Certificate.
      */
-    approvals: ApprovalOrRejectDetails; // Spec: grantApprovals and other format
+    approvals: ApprovalOrRejectDetails[];
 
     /**
      * This field SHALL contain list of DCL Keys that rejected the PAA Certificate admission into DCL. This
      * field SHALL be set only for a PAA Certificate
      */
-    rejects: ApprovalOrRejectDetails; // Spec: grantRejects and other format
+    rejects: ApprovalOrRejectDetails[];
+
+    /**
+     * The certificate type. The DCL sends it on every certificate record, although the specification lists it only
+     * in the Operational Trust Anchors Schema.
+     */
+    certificateType?: DclCertificateType;
 
     /**
      * This field SHALL uniquely identify this Vendor Schema entry and it SHALL match the Vendor’s
