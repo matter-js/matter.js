@@ -85,6 +85,9 @@ export interface OtaTransferRoles {
     /** How long to wait for the receiver's `ApplyUpdateRequest`, for a case whose provider defers it. */
     applyTimeoutMs?: number;
 
+    /** How long to wait for the receiver's `NotifyUpdateApplied`, for a case about it. */
+    notifyAppliedTimeoutMs?: number;
+
     /**
      * How long the whole exchange may take, for a case whose provider defers the query.
      *
@@ -107,7 +110,14 @@ export interface OtaTransferRoles {
 export async function serveOtaTransfer(
     cx: CertStepContext,
     ref: CertNodeRef,
-    { sender, receiver, expectApply: expectApplyOverride, applyTimeoutMs, timeoutMs }: OtaTransferRoles,
+    {
+        sender,
+        receiver,
+        expectApply: expectApplyOverride,
+        applyTimeoutMs,
+        notifyAppliedTimeoutMs,
+        timeoutMs,
+    }: OtaTransferRoles,
 ): Promise<BdxTransferEvidence> {
     const device = cx.devices[receiver];
     const from = await device.log.markSettled();
@@ -122,9 +132,12 @@ export async function serveOtaTransfer(
 
     let transfer: OtaBdxTransfer;
     try {
-        transfer = await cx.controllers[sender]
-            .node(ref)
-            .serveOtaUpdate({ timeoutMs: timeoutMs ?? OTA_TRANSFER_TIMEOUT, expectApply, applyTimeoutMs });
+        transfer = await cx.controllers[sender].node(ref).serveOtaUpdate({
+            timeoutMs: timeoutMs ?? OTA_TRANSFER_TIMEOUT,
+            expectApply,
+            applyTimeoutMs,
+            notifyAppliedTimeoutMs,
+        });
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
         // recorded nothing, so recording first would fail the run on a controller that cannot serve at all.
