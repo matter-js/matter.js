@@ -113,8 +113,8 @@ export namespace BasicVideoPlayerRequirements {
     export const AudioOutputServer = BaseAudioOutputServer;
 
     /**
-     * The ContentControl cluster is provisional per the Matter specification (conformance P, O), so it is treated as
-     * optional.
+     * The ContentControl cluster is provisional per the Matter specification (conformance P, [Rev >= v2]), so it is
+     * treated as optional.
      *
      * We provide this alias to the default implementation {@link ContentControlServer} for convenience.
      */

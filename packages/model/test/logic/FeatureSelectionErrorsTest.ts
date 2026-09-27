@@ -30,6 +30,7 @@ describe("FeatureSelectionErrors", () => {
 
         it("requires a member of an inclusive group", () => {
             expect(errorsFor("Thermostat", [])).deep.equals(["select at least one of Heating or Cooling"]);
+            expect(errorsFor("Groupcast", [])).deep.equals(["select at least one of Listener or Sender"]);
         });
 
         it("accepts several members of an inclusive group", () => {
@@ -44,7 +45,6 @@ describe("FeatureSelectionErrors", () => {
         });
 
         it("requires no member of a group the specification leaves provisional", () => {
-            expect(errorsFor("Groupcast", [])).deep.equals([]);
             expect(errorsFor("AmbientContextSensing", [])).deep.equals([]);
         });
 

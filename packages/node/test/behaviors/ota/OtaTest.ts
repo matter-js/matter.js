@@ -32,6 +32,7 @@ import {
     FabricAuthority,
     PeerAddress,
     PersistedFileDesignator,
+    SecureSession,
     SessionManager,
     SustainedSubscription,
 } from "@matter/protocol";
@@ -580,38 +581,28 @@ describe("Ota", () => {
         await MockTime.resolve(applyUpdatePromise);
 
         // Simulate reboot with the new version — CASE resumes quickly, but the pre-reboot subscription was
-        // deleted server-side by the restart, and this harness's client subscription only notices that on its
-        // own ~1m47s liveness timeout (far outside the 30s grace). A persistent device that keeps feeding its
-        // subscription would refresh lastReportStartedAtFor well before that; simulate that here rather than
-        // waiting out the real timeout, so the test verifies the armer's grace-window decision deterministically.
+        // deleted server-side by the restart, so this harness's device never reports again. A persistent device
+        // would keep feeding its subscription; simulate that below rather than waiting out the real timeout, so
+        // the test verifies the armer's grace-window decision deterministically.
         await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
         await MockTime.resolve(device.start());
         await MockTime.resolve(notifyUpdateAppliedPromise);
 
-        // Model a persistent, fed device and record every grace-window query. lastReportStartedAtFor is queried
-        // nowhere but the armer's #onGraceExpired, so a recorded query proves the grace path ran end-to-end.
-        const lastReportQueries = new Array<PeerAddress>();
+        // Model a persistent device that keeps feeding its subscription: report over the session the returning
+        // device opened, which is the only session it still holds once Mechanism A has closed the pre-reboot ones.
+        // The sibling Mechanism B test proves the grace window reaches closeForPeer in this harness, so the keep
+        // asserted below is a decision and not an absence of one.
         await otaProvider.act(agent => {
-            const subscriptions = agent.env.get(ClientSubscriptions);
-            subscriptions.lastReportStartedAtFor = address => {
-                if (PeerAddress.is(address, peerAddress)) {
-                    lastReportQueries.push(address);
-                    return Timestamp(MockTime.nowMs);
-                }
-                return undefined;
-            };
+            const sessions = agent.env.get(SessionManager);
+            const live = sessions.sessions.filter(session => PeerAddress.is(session.peerAddress, peerAddress));
+            expect(live.length).equals(1);
+            agent.env.get(ClientSubscriptions).reportStarted.emit(live[0]);
         });
 
         // Let the grace window elapse.
         await MockTime.advance(Seconds(30));
         await MockTime.macrotasks;
-
-        // The armer's grace-expiry path ran for the returning peer and reached its keep/re-subscribe decision.
-        // This is the anti-vacuous anchor: a no-op #onSessionAdded never arms the grace timer, so #onGraceExpired
-        // never runs and this stays empty — the whole test then fails rather than passing on the Peers.#onStartUp
-        // contribution alone.
-        expect(lastReportQueries.some(a => PeerAddress.is(a, peerAddress))).equals(true);
 
         // Mechanism A ran for the returning peer with the reboot session's createdAt (the armer's asOf), not merely
         // the general Peers.#onStartUp shutdown.
@@ -657,12 +648,9 @@ describe("Ota", () => {
         const peer1 = controller.peers.get("peer1")!;
         const peerAddress = peer1.state.commissioning.peerAddress!;
 
-        // Complement of the sibling "does not re-subscribe" test: spy on the real closeForPeer while
-        // deliberately NOT patching lastReportStartedAtFor. This harness's ClientSubscriptions only
-        // notices a lost subscription on its own ~1m47s liveness timeout, far outside the 30s grace,
-        // so lastReportStartedAtFor still reflects the pre-reboot report and the armer's grace-window
-        // check should fire Mechanism B unassisted. No restore is needed: each initOtaSite test gets
-        // its own Environment, so this patch dies with the site.
+        // Complement of the sibling "does not re-subscribe" test: spy on the real closeForPeer and let the
+        // rebooted device stay silent, which is what a device that does not persist subscriptions does. No
+        // restore is needed: each initOtaSite test gets its own Environment, so this patch dies with the site.
         const closeForPeerCalls = new Array<PeerAddress>();
         await otaProvider.act(agent => {
             const subscriptions = agent.env.get(ClientSubscriptions);
@@ -701,7 +689,7 @@ describe("Ota", () => {
         // on session-added rather than after the grace window.
         expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
 
-        // Let the grace window elapse without ever refreshing lastReportStartedAtFor.
+        // Let the grace window elapse without the device reporting.
         await MockTime.advance(Seconds(31));
         await MockTime.macrotasks;
 
@@ -710,10 +698,9 @@ describe("Ota", () => {
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);
 
-    it("a real inbound subscription report advances ClientSubscriptions.lastReportStartedAtFor", async () => {
-        // Exercises the actual stamp in ClientSubscriptionHandler and its aggregation in
-        // ClientSubscriptions, with no patch of either — the RebootResubscribeArmer's grace-window
-        // decision depends entirely on this real path staying correct.
+    it("a real inbound subscription report announces the session it arrived over", async () => {
+        // Exercises the actual report notification in ClientSubscriptionHandler with no patch of it — the
+        // RebootResubscribeArmer's grace-window decision depends entirely on this real path staying correct.
         const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
 
@@ -732,21 +719,27 @@ describe("Ota", () => {
         // callers (e.g. SoftwareUpdateManager.forceUpdate) do via PeerAddress(peerAddress).
         const peerAddress = PeerAddress(peer1.state.commissioning.peerAddress!);
 
-        const subscriptions = await otaProvider.act(agent => agent.env.get(ClientSubscriptions));
+        const { subscriptions, sessions } = await otaProvider.act(agent => ({
+            subscriptions: agent.env.get(ClientSubscriptions),
+            sessions: agent.env.get(SessionManager),
+        }));
 
-        // Only device-pushed reports flow through ClientSubscriptionHandler (which does the stamp); the initial
-        // priming report comes back inline in the subscribe exchange and never touches that path. So we drive TWO
-        // successive device-pushed reports and assert the stamp strictly advances between them — a stamp written at
-        // the wrong time or held constant would fail even though a single report leaves it merely defined.
+        const reports = new Array<{ peer: PeerAddress; session: SecureSession }>();
+        subscriptions.reportStarted.on(session => {
+            reports.push({ peer: session.peerAddress, session });
+        });
+
+        // Only device-pushed reports flow through ClientSubscriptionHandler; the initial priming report comes back
+        // inline in the subscribe exchange and never touches that path. So we drive TWO successive device-pushed
+        // reports and assert both are announced — a notification raised from the wrong place would fail even
+        // though a single report leaves the list merely non-empty.
         const firstReport = new Promise<void>(resolve => {
             peer1.eventsOf(BasicInformationClient).softwareVersion$Changed.once(() => resolve());
         });
         await device.setStateOf(BasicInformationServer, { softwareVersion: 99 });
         await MockTime.resolve(firstReport);
-        const afterFirst = subscriptions.lastReportStartedAtFor(peerAddress);
-        expect(afterFirst).not.undefined;
+        expect(reports.length).equals(1);
 
-        // Advance so the second report is stamped at a strictly later time than the first.
         await MockTime.advance(Seconds(5));
 
         const secondReport = new Promise<void>(resolve => {
@@ -754,10 +747,15 @@ describe("Ota", () => {
         });
         await device.setStateOf(BasicInformationServer, { softwareVersion: 100 });
         await MockTime.resolve(secondReport);
-        const afterSecond = subscriptions.lastReportStartedAtFor(peerAddress);
-        expect(afterSecond).not.undefined;
+        expect(reports.length).equals(2);
 
-        expect(afterSecond!).greaterThan(afterFirst!);
+        // The session is what the armer keys its decision on, so each report must name the peer's own live session
+        // rather than any session that happens to exist.
+        const live = sessions.sessions.filter(session => PeerAddress.is(session.peerAddress, peerAddress));
+        expect(live.length).equals(1);
+        expect(reports.every(report => PeerAddress.is(report.peer, peerAddress) && report.session === live[0])).equals(
+            true,
+        );
 
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);

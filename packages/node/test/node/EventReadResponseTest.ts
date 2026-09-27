@@ -367,7 +367,7 @@ describe("EventReadResponse", () => {
         expect(response.counts).deep.equals({
             status: 0,
             success: ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT,
-            existent: ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT + 3,
+            existent: ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT + 5,
         });
     });
 
