@@ -1231,19 +1231,19 @@ export declare namespace NetworkCommissioning {
          *
          *   - ErrorValue interpretation for Wi-Fi association errors:
          *
-         *   - On any association failure during enabling of a network, the ErrorValue field shall be set to the Status
-         *     Code value that was present in the last frame related to association where Status Code was not equal to
-         *     zero and which caused the failure of a final retry attempt, if this final failure was due to one of the
-         *     following Management frames:
+         *     - On any association failure during enabling of a network, the ErrorValue field shall be set to the
+         *       Status Code value that was present in the last frame related to association where Status Code was not
+         *       equal to zero and which caused the failure of a final retry attempt, if this final failure was due to
+         *       one of the following Management frames:
          *
-         *   - Association Response (Type 0, Subtype 1)
+         *       - Association Response (Type 0, Subtype 1)
          *
-         *   - Reassociation Response (Type 0, Subtype 3)
+         *       - Reassociation Response (Type 0, Subtype 3)
          *
-         *   - Authentication (Type 0, Subtype 11)
+         *       - Authentication (Type 0, Subtype 11)
          *
-         *   - Table 9-50 "Status Codes" in IEEE 802.11-2020 contains a description of all values possible, which can
-         *     unambiguously be used to determine the cause, such as an invalid security type, unsupported rate, etc.
+         *     - Table 9-50 "Status Codes" in IEEE 802.11-2020 contains a description of all values possible, which can
+         *       unambiguously be used to determine the cause, such as an invalid security type, unsupported rate, etc.
          *
          *   - Otherwise, the ErrorValue field shall contain an implementation-dependent value which may be used by a
          *     reader of the structure to record, report or diagnose the failure.
