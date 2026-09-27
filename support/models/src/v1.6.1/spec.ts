@@ -7685,7 +7685,7 @@ export const SpecMatter = Matter(
                     "Sound Namespace."
             },
 
-            Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+            Field({ name: "entry", type: "semtag" })
         ),
 
         Attribute({
@@ -7886,7 +7886,7 @@ export const SpecMatter = Matter(
                         "include more than two ambient context events."
                 },
 
-                Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+                Field({ name: "entry", type: "semtag" })
             )
         ),
 
@@ -7898,8 +7898,7 @@ export const SpecMatter = Matter(
             },
 
             Field({
-                name: "CountingObject", id: 0x0, type: "ModeSelect.SemanticTagStruct", conformance: "P, M",
-                xref: "cluster§2.16.6.3.1",
+                name: "CountingObject", id: 0x0, type: "semtag", conformance: "P, M", xref: "cluster§2.16.6.3.1",
                 details: "This field shall indicate the object to be detected and counted. If the MfgCode field in " +
                     "CountingObject is NULL, the object shall be specified by ObjectIdentified namespace ID and its tag " +
                     "ID available from the AmbientContextTypeSupported attribute."
@@ -7937,7 +7936,7 @@ export const SpecMatter = Matter(
                         "time period."
                 },
 
-                Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+                Field({ name: "entry", type: "semtag" })
             ),
 
             Field({
@@ -45562,13 +45561,11 @@ export const SpecMatter = Matter(
                 xref: "device§2.1.5"
             },
             Requirement({
-                name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature",
+                name: "MNGD", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature",
                 xref: "device§2.1.6"
             }),
-            Requirement(
-                { name: "AUXILIARY", conformance: "GroupcastListenerCond", element: "feature", xref: "device§2.1.6" }
-            ),
-            Requirement({ name: "Extension", conformance: "ACLExtensionCond", element: "attribute", xref: "device§2.1.6" })
+            Requirement({ name: "AUX", conformance: "GroupcastListenerCond", element: "feature", xref: "device§2.1.6" }),
+            Requirement({ name: "Extension", conformance: "AclExtensionCond", element: "attribute", xref: "device§2.1.6" })
         ),
 
         Requirement({
@@ -45627,21 +45624,18 @@ export const SpecMatter = Matter(
         Requirement(
             {
                 name: "TimeSynchronization", id: 0x38,
-                conformance: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNTPCCond, TimeSyncWithTZCond, TLSClientCond, TLSCertificatesCond, O",
+                conformance: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNtpcCond, TimeSyncWithTzCond, TlsClientCond, TlsCertificatesCond, O",
                 element: "serverCluster", quality: "I", xref: "device§2.1.5"
             },
             Requirement({
-                name: "TIMESYNCCLIENT",
-                conformance: "TimeSyncWithClientCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+                name: "TSC", conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
                 element: "feature", xref: "device§2.1.6"
             }),
             Requirement({
-                name: "NTPCLIENT", conformance: "TimeSyncWithNTPCCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+                name: "NTPC", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
                 element: "feature", xref: "device§2.1.6"
             }),
-            Requirement(
-                { name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature", xref: "device§2.1.6" }
-            )
+            Requirement({ name: "TZ", conformance: "TimeSyncWithTzCond, O", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement(
@@ -45650,17 +45644,14 @@ export const SpecMatter = Matter(
                 element: "clientCluster", quality: "I", xref: "device§2.1.5"
             },
             Requirement({
-                name: "TIMESYNCCLIENT",
-                conformance: "TimeSyncWithClientCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+                name: "TSC", conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
                 element: "feature", xref: "device§2.1.6"
             }),
             Requirement({
-                name: "NTPCLIENT", conformance: "TimeSyncWithNTPCCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+                name: "NTPC", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
                 element: "feature", xref: "device§2.1.6"
             }),
-            Requirement(
-                { name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature", xref: "device§2.1.6" }
-            )
+            Requirement({ name: "TZ", conformance: "TimeSyncWithTzCond, O", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement({
@@ -45678,17 +45669,17 @@ export const SpecMatter = Matter(
                 xref: "device§2.1.5"
             },
             Requirement({
-                name: "GROUPCAST", conformance: "GroupcastListenerCond | GroupcastSenderCond, O",
-                element: "feature", xref: "device§2.1.6"
+                name: "GCAST", conformance: "GroupcastListenerCond | GroupcastSenderCond, O", element: "feature",
+                xref: "device§2.1.6"
             })
         ),
 
         Requirement(
             {
-                name: "IcdManagement", id: 0x46, conformance: "SIT | LIT", element: "serverCluster", quality: "I",
+                name: "IcdManagement", id: 0x46, conformance: "Sit | Lit", element: "serverCluster", quality: "I",
                 xref: "device§2.1.5"
             },
-            Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature", xref: "device§2.1.6" })
+            Requirement({ name: "LITS", conformance: "Lit", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement(
@@ -45696,20 +45687,16 @@ export const SpecMatter = Matter(
                 name: "Groupcast", id: 0x65, conformance: "GroupcastListenerCond, GroupcastSenderCond, O",
                 element: "serverCluster", quality: "I", xref: "device§2.1.5"
             },
-            Requirement(
-                { name: "LISTENER", conformance: "GroupcastListenerCond, O", element: "feature", xref: "device§2.1.6" }
-            ),
-            Requirement(
-                { name: "SENDER", conformance: "GroupcastSenderCond, O", element: "feature", xref: "device§2.1.6" }
-            )
+            Requirement({ name: "LN", conformance: "GroupcastListenerCond, O", element: "feature", xref: "device§2.1.6" }),
+            Requirement({ name: "SD", conformance: "GroupcastSenderCond, O", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement({
-            name: "TlsCertificateManagement", id: 0x801, conformance: "TLSCertificatesCond, O",
+            name: "TlsCertificateManagement", id: 0x801, conformance: "TlsCertificatesCond, O",
             element: "serverCluster", quality: "I", xref: "device§2.1.5"
         }),
         Requirement({
-            name: "TlsClientManagement", id: 0x802, conformance: "TLSClientCond, O", element: "serverCluster",
+            name: "TlsClientManagement", id: 0x802, conformance: "TlsClientCond, O", element: "serverCluster",
             quality: "I", xref: "device§2.1.5"
         }),
         Requirement({
@@ -45930,26 +45917,15 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x98, conformance: "M", element: "serverCluster",
                 xref: "device§2.7.4"
             },
-            Requirement({ name: "POWERADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature", xref: "device§2.7.5" }),
-            Requirement({
-                name: "STARTTIMEADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
-                xref: "device§2.7.5"
-            }),
-            Requirement(
-                { name: "PAUSABLE", conformance: "[ControllableESA].a+", element: "feature", xref: "device§2.7.5" }
-            ),
-            Requirement({
-                name: "FORECASTADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
-                xref: "device§2.7.5"
-            }),
-            Requirement({
-                name: "CONSTRAINTBASEDADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
-                xref: "device§2.7.5"
-            })
+            Requirement({ name: "PA", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({ name: "STA", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({ name: "PAU", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({ name: "FA", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({ name: "CON", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" })
         ),
 
         Requirement({
-            name: "DeviceEnergyManagementMode", id: 0x9f, conformance: "ControllableESA, O",
+            name: "DeviceEnergyManagementMode", id: 0x9f, conformance: "ControllableEsa, O",
             element: "serverCluster", xref: "device§2.7.4"
         }),
         Requirement({
@@ -46067,13 +46043,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.1.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.1.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.1.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.1.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§4.1.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.1.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.1.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§4.1.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.1.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.1.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.1.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.1.6" })
@@ -46112,13 +46088,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.2.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.2.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.2.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.2.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.2.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.2.6" }),
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.2.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.2.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§4.2.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.2.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.2.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.2.6" })
@@ -46157,13 +46133,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.3.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.3.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.3.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.3.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.3.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§4.3.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.3.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.3.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.3.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.3.6" })
@@ -46175,7 +46151,7 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
-            Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature", xref: "device§4.3.6" }),
+            Requirement({ name: "CT", conformance: "M", element: "feature", xref: "device§4.3.6" }),
             Requirement({ name: "RemainingTime", conformance: "M", element: "attribute", xref: "device§4.3.6" })
         ),
         Requirement(
@@ -46209,13 +46185,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.4.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.4.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.4.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.4.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.4.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.4.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.4.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.4.6" })
@@ -46228,11 +46204,11 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
-            Requirement({ name: "HUESATURATION", conformance: "O", element: "feature", xref: "device§4.4.6" }),
-            Requirement({ name: "ENHANCEDHUE", conformance: "O", element: "feature", xref: "device§4.4.6" }),
-            Requirement({ name: "COLORLOOP", conformance: "O", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "HS", conformance: "O", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "EHUE", conformance: "O", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "CL", conformance: "O", element: "feature", xref: "device§4.4.6" }),
             Requirement({ name: "XY", conformance: "M", element: "feature", xref: "device§4.4.6" }),
-            Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "CT", conformance: "M", element: "feature", xref: "device§4.4.6" }),
             Requirement({ name: "RemainingTime", conformance: "M", element: "attribute", xref: "device§4.4.6" })
         ),
 
@@ -46293,13 +46269,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.1.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.1.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.1.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.1.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.1.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.1.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.1.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§5.1.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.1.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.1.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.1.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.1.6" })
@@ -46352,13 +46328,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.2.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.2.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.2.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.2.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.2.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.2.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.2.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§5.2.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.2.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.2.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.2.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.2.6" })
@@ -46426,13 +46402,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.3.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.3.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.3.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.3.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.3.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.3.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.3.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§5.3.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.3.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.3.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.3.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.3.6" })
@@ -46485,13 +46461,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.4.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.4.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.4.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.4.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.4.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.4.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.4.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§5.4.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.4.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.4.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.4.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.4.6" })
@@ -47364,7 +47340,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.11.4" },
             Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.11.5" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.11.5" })
+            Requirement({ name: "CHGEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.11.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -47404,7 +47380,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.12.4" },
             Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.12.5" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.12.5" })
+            Requirement({ name: "CHGEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.12.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -47444,7 +47420,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.13.4" },
             Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.13.5" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.13.5" })
+            Requirement({ name: "CHGEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.13.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -48095,7 +48071,7 @@ export const SpecMatter = Matter(
                 name: "ApplicationLauncher", id: 0x50c, conformance: "ContentAppPlatform", element: "serverCluster",
                 xref: "device§10.3.4"
             },
-            Requirement({ name: "APPLICATIONPLATFORM", conformance: "M", element: "feature", xref: "device§10.3.5" })
+            Requirement({ name: "AP", conformance: "M", element: "feature", xref: "device§10.3.5" })
         ),
 
         Requirement({ name: "AccountLogin", id: 0x50e, conformance: "O", element: "serverCluster", xref: "device§10.3.4" }),
@@ -48176,7 +48152,7 @@ export const SpecMatter = Matter(
                 name: "ApplicationLauncher", id: 0x50c, conformance: "M", element: "serverCluster",
                 xref: "device§10.5.4"
             },
-            Requirement({ name: "APPLICATIONPLATFORM", conformance: "X", element: "feature", xref: "device§10.5.5" })
+            Requirement({ name: "AP", conformance: "X", element: "feature", xref: "device§10.5.5" })
         ),
 
         Requirement(
@@ -48560,11 +48536,11 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.1.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.1.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.1.6" })
+            Requirement({ name: "DF", conformance: "M", element: "feature", xref: "device§13.1.6" })
         ),
         Requirement(
             { name: "LaundryWasherMode", id: 0x51, conformance: "O", element: "serverCluster", xref: "device§13.1.4" },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.1.6" }),
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.1.6" }),
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.1.6" })
         ),
         Requirement({ name: "LaundryWasherControls", id: 0x53, conformance: "O", element: "serverCluster", xref: "device§13.1.4" }),
@@ -48628,7 +48604,7 @@ export const SpecMatter = Matter(
                 name: "RefrigeratorAndTemperatureControlledCabinetMode", id: 0x52, conformance: "O",
                 element: "serverCluster", xref: "device§13.2.7"
             },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.2.8" }),
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.2.8" }),
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.2.8" })
         ),
 
@@ -48706,7 +48682,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§13.3.7" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§13.3.7" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.3.9" })
+            Requirement({ name: "DF", conformance: "M", element: "feature", xref: "device§13.3.9" })
         ),
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster", xref: "device§13.3.7" }
@@ -48768,8 +48744,8 @@ export const SpecMatter = Matter(
         Condition({ name: "Heater", description: "The device has heating functionality.", xref: "device§13.4.3" }),
         Requirement(
             { name: "TemperatureControl", id: 0x56, conformance: "M", element: "serverCluster", xref: "device§13.4.4" },
-            Requirement({ name: "TEMPERATURENUMBER", conformance: "M", element: "feature", xref: "device§13.4.5" }),
-            Requirement({ name: "TEMPERATURELEVEL", conformance: "X", element: "feature", xref: "device§13.4.5" })
+            Requirement({ name: "TN", conformance: "M", element: "feature", xref: "device§13.4.5" }),
+            Requirement({ name: "TL", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
         Requirement({
             name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster",
@@ -48782,13 +48758,13 @@ export const SpecMatter = Matter(
                 element: "serverCluster", xref: "device§13.4.4"
             },
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.4.5" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
 
         Requirement(
             { name: "OvenMode", id: 0x49, conformance: "[Heater]", element: "serverCluster", xref: "device§13.4.4" },
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.4.5" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
 
         Requirement(
@@ -48855,7 +48831,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.5.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.5.6" })
+            Requirement({ name: "DF", conformance: "M", element: "feature", xref: "device§13.5.6" })
         ),
         Requirement(
             { name: "TemperatureControl", id: 0x56, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }
@@ -48863,7 +48839,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "DishwasherMode", id: 0x59, conformance: "O", element: "serverCluster", xref: "device§13.5.4" },
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.5.6" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.5.6" })
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.5.6" })
         ),
         Requirement(
             { name: "DishwasherAlarm", id: 0x5d, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }
@@ -48916,12 +48892,12 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.6.4" }),
         Requirement(
             { name: "LaundryWasherMode", id: 0x51, conformance: "O", element: "serverCluster", xref: "device§13.6.4" },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.6.6" }),
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.6.6" }),
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.6.6" })
         ),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.6.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.6.6" })
+            Requirement({ name: "DF", conformance: "M", element: "feature", xref: "device§13.6.6" })
         ),
         Requirement({ name: "LaundryDryerControls", id: 0x4a, conformance: "O", element: "serverCluster", xref: "device§13.6.4" }),
         Requirement(
@@ -48972,8 +48948,8 @@ export const SpecMatter = Matter(
                 name: "TemperatureControl", id: 0x56, conformance: "O.a+", element: "serverCluster",
                 xref: "device§13.7.4"
             },
-            Requirement({ name: "TEMPERATURELEVEL", conformance: "M", element: "feature", xref: "device§13.7.6" }),
-            Requirement({ name: "TEMPERATURENUMBER", conformance: "X", element: "feature", xref: "device§13.7.6" })
+            Requirement({ name: "TL", conformance: "M", element: "feature", xref: "device§13.7.6" }),
+            Requirement({ name: "TN", conformance: "X", element: "feature", xref: "device§13.7.6" })
         ),
 
         Requirement({
@@ -49130,9 +49106,9 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster", xref: "device§13.10.5" },
-            Requirement({ name: "ROCKING", conformance: "X", element: "feature", xref: "device§13.10.6" }),
-            Requirement({ name: "WIND", conformance: "X", element: "feature", xref: "device§13.10.6" }),
-            Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature", xref: "device§13.10.6" })
+            Requirement({ name: "RCK", conformance: "X", element: "feature", xref: "device§13.10.6" }),
+            Requirement({ name: "WND", conformance: "X", element: "feature", xref: "device§13.10.6" }),
+            Requirement({ name: "DIR", conformance: "X", element: "feature", xref: "device§13.10.6" })
         ),
 
         Requirement({ name: "OnOffLight", id: 0x100, conformance: "O", element: "deviceType", xref: "device§13.10.4" })
@@ -49237,8 +49213,8 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "FanControl", id: 0x202, conformance: "O", element: "serverCluster", xref: "device§13.11.6" },
-            Requirement({ name: "WIND", conformance: "X", element: "feature", xref: "device§13.11.7" }),
-            Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature", xref: "device§13.11.7" })
+            Requirement({ name: "WND", conformance: "X", element: "feature", xref: "device§13.11.7" }),
+            Requirement({ name: "DIR", conformance: "X", element: "feature", xref: "device§13.11.7" })
         ),
         Requirement(
             { name: "MicrowaveOvenMode", id: 0x5e, conformance: "M", element: "serverCluster", xref: "device§13.11.6" }
@@ -49312,13 +49288,10 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", constraint: "min 1",
                 element: "deviceType", xref: "device§14.1.6"
             },
-
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement(
-                    { name: "POWERFORECASTREPORTING", conformance: "M", element: "feature", xref: "device§14.1.6.2" }
-                ),
-                Requirement({ name: "POWERADJUSTMENT", conformance: "desc", element: "feature", xref: "device§14.1.6.2" })
+                Requirement({ name: "PFR", conformance: "M", element: "feature", xref: "device§14.1.6.2" }),
+                Requirement({ name: "PA", conformance: "desc", element: "feature", xref: "device§14.1.6.2" })
             )
         ),
 
@@ -49407,7 +49380,7 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster", xref: "device§14.2.5" },
-            Requirement({ name: "HEATING", conformance: "M", element: "feature", xref: "device§14.2.6" })
+            Requirement({ name: "HEAT", conformance: "M", element: "feature", xref: "device§14.2.6" })
         ),
         Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType", xref: "device§14.2.7" }),
         Requirement(
@@ -49419,12 +49392,9 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x50d, conformance: "O", element: "deviceType",
                 xref: "device§14.2.7"
             },
-
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement(
-                    { name: "POWERFORECASTREPORTING", conformance: "M", element: "feature", xref: "device§14.2.7.3" }
-                )
+                Requirement({ name: "PFR", conformance: "M", element: "feature", xref: "device§14.2.7.3" })
             )
         ),
 
@@ -49556,7 +49526,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
+                Requirement({ name: "PA", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             )
         ),
 
@@ -49573,7 +49543,7 @@ export const SpecMatter = Matter(
             ),
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
+                Requirement({ name: "EXPE", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             )
         )
     ),
@@ -49669,14 +49639,14 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "ALTC", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
                 Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
                 Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.4.6.2" })
             ),
 
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
+                Requirement({ name: "EXPE", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             ),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
@@ -49692,14 +49662,14 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "DIRECTCURRENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "DIRC", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
                 Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
                 Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.4.6.2" })
             ),
 
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
+                Requirement({ name: "EXPE", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             ),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
@@ -49734,7 +49704,7 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "PowerSource", id: 0x2f, element: "serverCluster" },
-                Requirement({ name: "BATTERY", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "BAT", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
                 Requirement({ name: "BatVoltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
                 Requirement(
                     { name: "BatPercentRemaining", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }
@@ -49771,7 +49741,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
+                Requirement({ name: "PA", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             )
         )
     ),
@@ -49885,7 +49855,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
+                Requirement({ name: "PA", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
             )
         ),
 
@@ -49899,7 +49869,7 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature", xref: "device§14.5.6.2" }),
+                Requirement({ name: "ALTC", conformance: "M", element: "feature", xref: "device§14.5.6.2" }),
                 Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.5.6.2" }),
                 Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.5.6.2" })
             ),
@@ -50506,9 +50476,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.1.6"
             },
-            Requirement({ name: "VIDEO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
-            Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature", xref: "device§16.1.7" })
+            Requirement({ name: "VDO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
+            Requirement({ name: "ADO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
+            Requirement({ name: "SNP", conformance: "M", element: "feature", xref: "device§16.1.7" })
         ),
 
         Requirement({
@@ -50532,14 +50502,10 @@ export const SpecMatter = Matter(
             name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster",
             xref: "device§16.1.6"
         }),
-
         Requirement(
             { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster", xref: "device§16.1.6" },
-            Requirement(
-                { name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature", xref: "device§16.1.7" }
-            )
+            Requirement({ name: "TWODCART", conformance: "M", element: "feature", xref: "device§16.1.7" })
         ),
-
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster", xref: "device§16.1.6" }
         ),
@@ -50667,9 +50633,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.4.6"
             },
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.4.7" }),
-            Requirement({ name: "VIDEO", conformance: "O", element: "feature", xref: "device§16.4.7" }),
-            Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature", xref: "device§16.4.7" })
+            Requirement({ name: "ADO", conformance: "M", element: "feature", xref: "device§16.4.7" }),
+            Requirement({ name: "VDO", conformance: "O", element: "feature", xref: "device§16.4.7" }),
+            Requirement({ name: "SNP", conformance: "X", element: "feature", xref: "device§16.4.7" })
         ),
 
         Requirement({
@@ -50701,7 +50667,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "Switch", id: 0x3b, element: "serverCluster" },
-                Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature", xref: "device§16.4.8" })
+                Requirement({ name: "MS", conformance: "M", element: "feature", xref: "device§16.4.8" })
             )
         )
     ),
@@ -50740,9 +50706,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.5.4"
             },
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.5.5" }),
-            Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature", xref: "device§16.5.5" }),
-            Requirement({ name: "VIDEO", conformance: "X", element: "feature", xref: "device§16.5.5" })
+            Requirement({ name: "ADO", conformance: "M", element: "feature", xref: "device§16.5.5" }),
+            Requirement({ name: "SNP", conformance: "X", element: "feature", xref: "device§16.5.5" }),
+            Requirement({ name: "VDO", conformance: "X", element: "feature", xref: "device§16.5.5" })
         ),
 
         Requirement({
@@ -50807,12 +50773,9 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster", xref: "device§16.6.6" }
         ),
-
         Requirement(
             { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster", xref: "device§16.6.6" },
-            Requirement(
-                { name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature", xref: "device§16.6.7" }
-            )
+            Requirement({ name: "TWODCART", conformance: "M", element: "feature", xref: "device§16.6.7" })
         ),
 
         Requirement(
@@ -50820,9 +50783,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.6.6"
             },
-            Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature", xref: "device§16.6.7" }),
-            Requirement({ name: "VIDEO", conformance: "X", element: "feature", xref: "device§16.6.7" }),
-            Requirement({ name: "AUDIO", conformance: "X", element: "feature", xref: "device§16.6.7" })
+            Requirement({ name: "SNP", conformance: "M", element: "feature", xref: "device§16.6.7" }),
+            Requirement({ name: "VDO", conformance: "X", element: "feature", xref: "device§16.6.7" }),
+            Requirement({ name: "ADO", conformance: "X", element: "feature", xref: "device§16.6.7" })
         ),
 
         Requirement({
@@ -50947,7 +50910,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§16.9.2.1" }),
         Requirement(
             { name: "Switch", id: 0x3b, conformance: "M", element: "serverCluster", xref: "device§16.9.2.1" },
-            Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature", xref: "device§16.9.2.2" })
+            Requirement({ name: "MS", conformance: "M", element: "feature", xref: "device§16.9.2.2" })
         ),
         Requirement({ name: "Chime", id: 0x556, conformance: "M", element: "clientCluster", xref: "device§16.9.2.1" })
     ),

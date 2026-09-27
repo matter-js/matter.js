@@ -385,7 +385,7 @@ class Comparison {
         }
     }
 
-    #requirements(path: string[], chipChildren: DmElement[], model: Model, shadow?: Model, cluster?: ClusterModel) {
+    #requirements(path: string[], chipChildren: DmElement[], model: Model, shadow?: Model) {
         const requirements = new Map(model.children.filter(isRequirement).map(child => [requirementKey(child), child]));
         const shadowRequirements = new Map(
             (shadow?.children.filter(isRequirement) ?? []).map(child => [requirementKey(child), child]),
@@ -393,8 +393,7 @@ class Comparison {
         const seen = new Set<string>();
 
         for (const chip of chipChildren) {
-            const keys = this.#requirementKeys(chip, cluster);
-            const key = keys.find(candidate => requirements.has(candidate)) ?? keys[0];
+            const key = `${chip.element}:${canonicalizeName(chip.name)}`;
             seen.add(key);
 
             const requirement = requirements.get(key);
@@ -413,13 +412,7 @@ class Comparison {
             this.#aspect(requirementPath, "constraint", chip, requirement, shadowRequirement);
 
             if (chip.children.length) {
-                this.#requirements(
-                    requirementPath,
-                    chip.children,
-                    requirement,
-                    shadowRequirement,
-                    this.#models.merged.clusters(chip.id ?? chip.name),
-                );
+                this.#requirements(requirementPath, chip.children, requirement, shadowRequirement);
             }
         }
 
@@ -435,27 +428,6 @@ class Comparison {
 
             this.#extra([...path, requirement.name], "requirement", !shadowRequirements.has(key));
         }
-    }
-
-    /**
-     * Keys a CHIP requirement may match.
-     *
-     * CHIP identifies a required feature by its code where we use the name the specification gives the feature in the
-     * device type table, which is the feature's title in upper case.
-     */
-    #requirementKeys(chip: DmElement, cluster?: ClusterModel) {
-        const keys = [`${chip.element}:${canonicalizeName(chip.name)}`];
-
-        if (chip.element === RequirementElement.ElementType.Feature && cluster !== undefined) {
-            const feature = cluster.features.find(
-                candidate => canonicalizeName(candidate.name) === canonicalizeName(chip.name),
-            );
-            if (feature?.title !== undefined) {
-                keys.push(`${chip.element}:${canonicalizeName(feature.title)}`);
-            }
-        }
-
-        return keys;
     }
 
     /**

@@ -23,6 +23,8 @@ import {
     ValidateModel,
     ValueModel,
 } from "#model";
+import { canonicalizeConditionReferences } from "./canonicalize-condition-references.js";
+import { canonicalizeFeatureRequirements } from "./canonicalize-feature-requirements.js";
 
 const logger = Logger.get("create-model");
 
@@ -34,6 +36,9 @@ export function finalizeModel(matter: MatterModel) {
     if (matter.isFinal) {
         throw new InternalError(`Cannot generate from ${matter.name} because it is final`);
     }
+
+    canonicalizeFeatureRequirements(matter);
+    canonicalizeConditionReferences(matter);
 
     const scopedDatatypes = collectScopedDatatypes(matter);
 
@@ -97,6 +102,15 @@ function inheritedPriority(model: Model | undefined, depth = 0): EventElement.Pr
 
 export type ScopedDatatypes = Record<string, Model | undefined>;
 
+/**
+ * Global datatypes the specification references by a name other than the one we give them.  Mode Select defines its
+ * own, different datatype named `SemanticTagStruct`, so the alias applies only where no cluster-local datatype of that
+ * name is in scope.
+ */
+const GLOBAL_DATATYPE_ALIASES: Record<string, string | undefined> = {
+    SemanticTagStruct: "semtag",
+};
+
 function updateSemanticNamespaces(semanticNamespaces: SemanticNamespaceModel[], matter: MatterModel) {
     const namespace = matter.get(DatatypeModel, "namespace");
     if (!namespace) {
@@ -155,7 +169,7 @@ function childrenIdentity(model: ValueModel) {
  *
  * Repair this by identifying missing datatypes that have a corresponding datatype definition of the same name in
  * exactly one other cluster.  When detected, replace the datatype name with a qualified name referencing the other
- * cluster.
+ * cluster.  A name that aliases a global datatype resolves to that global instead.
  */
 function patchIllegalCrossClusterReferences(cluster: ClusterModel, scopedDatatypes: ScopedDatatypes) {
     cluster.visit(model => {
@@ -167,6 +181,12 @@ function patchIllegalCrossClusterReferences(cluster: ClusterModel, scopedDatatyp
         // If there is a base the type name is already valid
         const base = model.base;
         if (base !== undefined) {
+            return;
+        }
+
+        const global = GLOBAL_DATATYPE_ALIASES[model.type];
+        if (global !== undefined) {
+            model.type = global;
             return;
         }
 

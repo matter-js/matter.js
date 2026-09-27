@@ -40,8 +40,8 @@ Resource.add({
         {
             tag: "requirement", name: "TemperatureControl", xref: "device§13.7.4",
             children: [
-                { tag: "requirement", name: "TEMPERATURELEVEL", xref: "device§13.7.6" },
-                { tag: "requirement", name: "TEMPERATURENUMBER", xref: "device§13.7.6" }
+                { tag: "requirement", name: "TL", xref: "device§13.7.6" },
+                { tag: "requirement", name: "TN", xref: "device§13.7.6" }
             ]
         },
 

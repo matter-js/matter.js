@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterDefinition, MatterModel, ValidateModel } from "#index.js";
+import { MatterDefinition, MatterModel, ValidateModel, ValueModel } from "#index.js";
 
 let matterModel: MatterModel;
 let validationResult: ValidateModel.Result | undefined;
@@ -43,6 +43,30 @@ describe("MatterDefinition", () => {
 
     it("has not decreased in scope", () => {
         expect(validate().elementCount).least(3582);
+    });
+
+    // Mode Select defines its own datatype named SemanticTagStruct; every other cluster means the global semtag
+    it("binds SemanticTagStruct outside Mode Select to the global semtag", () => {
+        const semtag = instantiate().datatypes("semtag");
+        const offenders = new Array<string>();
+        for (const cluster of instantiate().clusters) {
+            if (cluster.name === "ModeSelect") {
+                continue;
+            }
+            cluster.visit(model => {
+                if (model instanceof ValueModel && model.type?.endsWith("SemanticTagStruct")) {
+                    offenders.push(`${model.path}: ${model.type}`);
+                }
+            });
+        }
+        expect(offenders).deep.equal([]);
+
+        const countingObject = instantiate()
+            .clusters("AmbientContextSensing")
+            ?.datatypes("ObjectCountConfigStruct")
+            ?.children.find(field => field.name === "CountingObject");
+        expect(semtag).not.undefined;
+        expect(countingObject?.base).equals(semtag);
     });
 
     // Commands are not fabric-scoped data (Core § 7.5.3) so their structs must never carry the implicit global
