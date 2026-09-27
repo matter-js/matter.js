@@ -19,12 +19,12 @@ export const TimeFormatLocalization = Cluster(
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "CALFMT", constraint: "0", title: "CalendarFormat" })
+        Field({ name: "CALFMT", conformance: "O", constraint: "0", title: "CalendarFormat" })
     ),
     Attribute({ name: "HourFormat", id: 0x0, type: "HourFormatEnum", access: "RW VM", conformance: "M", quality: "N" }),
     Attribute({
         name: "ActiveCalendarType", id: 0x1, type: "CalendarTypeEnum", access: "RW VM",
-        conformance: "CALFMT", constraint: "in SupportedCalendarTypes", quality: "N"
+        conformance: "CALFMT", constraint: "in supportedCalendarTypes", quality: "N"
     }),
 
     Attribute(

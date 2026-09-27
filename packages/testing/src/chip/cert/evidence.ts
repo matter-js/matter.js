@@ -6,7 +6,14 @@
 
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { CertStepDefinition, CheckRecord, DeviceExitInfo, StepRecorder, StepVerdict } from "./cert-context.js";
+import type {
+    CertStepDefinition,
+    CheckRecord,
+    DeviceExitInfo,
+    DeviceFlavor,
+    StepRecorder,
+    StepVerdict,
+} from "./cert-context.js";
 import type { LogLine } from "./log-follower.js";
 
 // StepRecorder.check() needs this shape too, so cert-context.ts is CheckRecord's canonical home;
@@ -26,6 +33,44 @@ export interface StepRecord {
 }
 
 /**
+ * One device a run declared, and the binary it actually ran.
+ *
+ * A run may declare several devices running different apps — an OTA requestor and an OTA provider,
+ * say — so provenance is stated per device rather than once for the run.
+ */
+export interface RunDeviceRecord {
+    /** Role this device was declared under (a key of `certTest`'s `devices` option). */
+    role: string;
+    /**
+     * The binary this role ran: a chip example-app name for a device the harness spawned (a value of
+     * `certTest`'s `devices` option, or its `app`), or the path a wrapped script was pointed at.
+     */
+    app: string;
+    /** The variant of `app` this device actually runs, absent where its flavor has no binary to vary. */
+    appVariant?: string;
+    flavor: DeviceFlavor;
+    /**
+     * Arguments this role's app was started with, absent where it took none.
+     *
+     * What the case declared plus whatever the harness had to add for the app to start at all.
+     *
+     * A chip app takes behaviour a case depends on from its command line, and a matter.js subject
+     * ignores an argument it does not implement — so a bundle recording the arguments is what lets a
+     * reader tell a flag that took effect from one that meant nothing on the flavor that ran.
+     */
+    appArgs?: string[];
+    /**
+     * Revision of the image or extraction this device's binary came from, absent where none is
+     * available.
+     *
+     * Only `chip-docker` states a per-binary revision. `chip-local` names the extraction directory the
+     * whole run's binaries came from, so every device of such a run repeats one value, and neither
+     * `matterjs` nor `python-wrapped` has an image or extraction to name at all.
+     */
+    chipRef?: string;
+}
+
+/**
  * The evidence bundle for one cert-test run, written to `result.json` by {@link EvidenceRecorder.flush}
  * and settled there by {@link EvidenceRecorder.concludeRun}.
  */
@@ -36,9 +81,9 @@ export interface RunRecord {
         timestamp: string;
         controller: string;
         controllerImplementation: string;
-        device: string;
+        /** Every device the run declared: the primary first, then the rest in declaration order. */
+        devices: RunDeviceRecord[];
         matterJsCommit: string;
-        chipRef?: string;
         chipToolRef?: string;
     };
     steps: StepRecord[];
@@ -49,7 +94,12 @@ export interface RunRecord {
      * leave a passing record standing for a run that failed.
      */
     verdict: "pass" | "fail" | "unverified" | "skipped" | "incomplete";
-    deviceExit?: { code: number | null; signal?: string };
+    /**
+     * The device that exited unexpectedly, named by its role — the role is what tells a reader of a
+     * multi-device bundle which binary to look at. The run races its devices and reports one exit,
+     * the first: one device dying commonly takes the rest with it.
+     */
+    deviceExit?: { role: string; code: number | null; signal?: string };
     /** Why the run's own cleanup failed, if it did (see {@link EvidenceRecorder.finalizationFailed}). */
     finalizationError?: string;
     /** Why closing the run's controllers or devices failed, if it did (see {@link EvidenceRecorder.teardownFailed}). */
@@ -76,6 +126,13 @@ export interface RunRecord {
      */
     picsSkips?: number;
     /**
+     * How many steps were skipped for costing minutes of real time on this flavor, absent if none.
+     *
+     * Such a step is covered by a run that asks for it (`MATTER_CERT_LONG_RUNNING`), so a bundle
+     * without this count covers the plan and one with it covers the plan minus what it names.
+     */
+    longRunningSkips?: number;
+    /**
      * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
      * disproves what its step claims, so this is what tells a reader of this record alone how much of
      * the run's claims rest on nothing observed. A step carrying one ends `"unverified"` unless the
@@ -96,6 +153,16 @@ function errorText(e: unknown): string {
 }
 
 /**
+ * One device's line in the run header: the role, the binary it ran, the arguments it was started
+ * with, and where that binary came from.
+ */
+function describeDevice({ role, app, appVariant, flavor, appArgs, chipRef }: RunDeviceRecord): string {
+    const binary = appVariant === undefined ? app : `${app}-${appVariant}`;
+    const args = appArgs?.length ? ` ${appArgs.join(" ")}` : "";
+    return `${role} = ${flavor}:${binary}${args} (chip ref ${chipRef ?? "(unknown)"})`;
+}
+
+/**
  * Collects a {@link CertTest} run's per-step evidence and writes it to disk as `result.json` plus one
  * `<name>.log` per {@link attachLog} call.
  *
@@ -110,7 +177,7 @@ export class EvidenceRecorder implements StepRecorder {
     #steps = new Array<StepRecord>();
     #logs = new Map<string, LogLine[]>();
     #current?: { def: CertStepDefinition; checks: CheckRecord[] };
-    #deviceExit?: { code: number | null; signal?: string };
+    #deviceExit?: { role: string; code: number | null; signal?: string };
     #finalizationError?: string;
     #teardownError?: string;
     #evidenceError?: string;
@@ -118,6 +185,7 @@ export class EvidenceRecorder implements StepRecorder {
     #unproven = false;
     #controllerUnsupportedSkips?: number;
     #picsSkips?: number;
+    #longRunningSkips?: number;
     #unverifiedChecks?: number;
     #concluded = false;
 
@@ -163,11 +231,12 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
-     * Records that a device's backing process/container exited during the run. A device crash fails
-     * the run regardless of how far its steps got (see {@link RunRecord.deviceExit}).
+     * Records that the device declared under `role`'s backing process/container exited during the run.
+     * A device crash fails the run regardless of how far its steps got (see
+     * {@link RunRecord.deviceExit}).
      */
-    deviceExited(info: DeviceExitInfo): void {
-        this.#deviceExit = { code: info.code, signal: info.signal ?? undefined };
+    deviceExited(role: string, info: DeviceExitInfo): void {
+        this.#deviceExit = { role, code: info.code, signal: info.signal ?? undefined };
     }
 
     /**
@@ -194,6 +263,15 @@ export class EvidenceRecorder implements StepRecorder {
      */
     recordPicsSkips(count: number): void {
         this.#picsSkips = count;
+    }
+
+    /**
+     * Records how many steps were skipped for their cost in real time (see
+     * {@link RunRecord.longRunningSkips}). Like a PICS skip this never changes the verdict: the run
+     * did not ask for those steps.
+     */
+    recordLongRunningSkips(count: number): void {
+        this.#longRunningSkips = count;
     }
 
     /**
@@ -299,9 +377,8 @@ export class EvidenceRecorder implements StepRecorder {
                 timestamp: this.#meta.timestamp,
                 controller: this.#meta.controller,
                 controllerImplementation: this.#meta.controllerImplementation,
-                device: this.#meta.device,
+                devices: this.#meta.devices,
                 matterJsCommit: this.#meta.matterJsCommit,
-                chipRef: this.#meta.chipRef,
                 chipToolRef: this.#meta.chipToolRef,
             },
             steps: this.#steps,
@@ -313,6 +390,7 @@ export class EvidenceRecorder implements StepRecorder {
             runError: this.#runError,
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
             picsSkips: this.#picsSkips,
+            longRunningSkips: this.#longRunningSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
 
@@ -325,14 +403,13 @@ export class EvidenceRecorder implements StepRecorder {
     }
 
     /**
-     * Lines describing this run's configuration — TC, plan, device, controller, matter.js commit,
-     * chip ref, and where evidence will land — emitted once before the first step through the same
-     * channel step boundaries use (see `cert-test.ts`'s `announceStep`). A log excerpt then carries
-     * its own provenance.
+     * Lines describing this run's configuration — TC, plan, one line per device naming its binary and
+     * chip ref, controller, matter.js commit, and where evidence will land — emitted once before the
+     * first step through the same channel step boundaries use (see `cert-test.ts`'s `announceStep`).
+     * A log excerpt then carries its own provenance.
      */
     runHeaderLines(): string[] {
-        const { tc, plan, device, controller, controllerImplementation, chipToolRef, matterJsCommit, chipRef } =
-            this.#meta;
+        const { tc, plan, devices, controller, controllerImplementation, chipToolRef, matterJsCommit } = this.#meta;
         const controllerLine =
             chipToolRef === undefined
                 ? `${controllerImplementation} (${controller})`
@@ -341,10 +418,9 @@ export class EvidenceRecorder implements StepRecorder {
         return [
             `===== ${tc} =====`,
             `plan       : ${plan}`,
-            `device     : ${device}`,
+            ...devices.map(device => `device     : ${describeDevice(device)}`),
             `controller : ${controllerLine}`,
             `matter.js  : ${matterJsCommit}`,
-            `chip ref   : ${chipRef ?? "(unknown)"}`,
             `evidence   : ${this.#dir}`,
         ];
     }

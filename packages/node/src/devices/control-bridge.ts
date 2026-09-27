@@ -123,7 +123,7 @@ export namespace ControlBridgeRequirements {
 export const ControlBridgeDeviceDefinition = MutableEndpoint({
     name: "ControlBridge",
     deviceType: 0x840,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: ControlBridgeRequirements,
     behaviors: SupportedBehaviors(ControlBridgeRequirements.server.mandatory.Identify)
 });

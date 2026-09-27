@@ -51,6 +51,18 @@ export abstract class Flow {
         return this.#transferParameters;
     }
 
+    /**
+     * What this flow settled on, which for a responder is what its own *Accept message granted.
+     *
+     * A snapshot rather than the options themselves: the flow rereads those while it runs, so handing them out
+     * would let an observer retarget a transfer in flight.
+     */
+    get negotiated(): Flow.NegotiatedParameters {
+        const { transferMode, asynchronousTransfer, dataLength, startOffset, blockSize, isDriver } =
+            this.#transferParameters;
+        return Object.freeze({ transferMode, asynchronousTransfer, dataLength, startOffset, blockSize, isDriver });
+    }
+
     protected get isClosed() {
         return this.#isClosed;
     }
@@ -151,6 +163,9 @@ export namespace Flow {
         isDriver: boolean;
         fileDesignator: PersistedFileDesignator;
     }
+
+    /** {@link TransferOptions} as an observer may read them: no operational objects, and no writes. */
+    export type NegotiatedParameters = Readonly<Omit<TransferOptions, "fileDesignator">>;
 
     export enum DriverMode {
         SenderDrive = "senderDrive",

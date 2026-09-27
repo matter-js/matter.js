@@ -6,7 +6,7 @@
 
 import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import type { CertStepContext, DeviceFlavor } from "@matter/testing";
+import type { CertStepContext, SelectableDeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import type { CommandFieldValue } from "./tc-support.js";
 import { CommissionedRefs, expectCommandInvoke, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
@@ -26,7 +26,7 @@ const TRANSITION_TIME = 1_234;
 
 // Only chip-docker/chip-local run a real chip-bridge-app TH; matter.js's own BridgeTestInstance has no
 // Actions cluster support (see AGENTS.md's "device-flavor capability gaps" section).
-const CHIP_FLAVORS: DeviceFlavor[] = ["chip-docker", "chip-local"];
+const CHIP_FLAVORS: SelectableDeviceFlavor[] = ["chip-docker", "chip-local"];
 
 function invokeIdFor(step: number): number {
     return 700_000 + step;

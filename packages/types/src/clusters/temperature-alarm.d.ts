@@ -283,8 +283,6 @@ export declare namespace TemperatureAlarm {
          * > NOTE: The constraints related to the field values in the table above shall have the relationship as
          *   represented by the illustration below:
          *
-         * !TemperatureAlarm Thresholds
-         *
          * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1
          */
         setTemperatureAlarmThresholds(request: SetTemperatureAlarmThresholdsRequest): MaybePromise;
@@ -550,8 +548,6 @@ export declare namespace TemperatureAlarm {
      *
      * > NOTE: The constraints related to the field values in the table above shall have the relationship as represented
      *   by the illustration below:
-     *
-     * !TemperatureAlarm Thresholds
      *
      * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1
      */

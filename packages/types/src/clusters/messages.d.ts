@@ -66,7 +66,7 @@ export declare namespace Messages {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.16.6.2
          */
-        activeMessageIDs: Bytes[];
+        activeMessageIds: Bytes[];
     }
 
     /**
@@ -96,7 +96,7 @@ export declare namespace Messages {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.16.6.2
          */
-        activeMessageIDs: Bytes[];
+        activeMessageIds: Bytes[];
     }
 
     /**
@@ -419,7 +419,7 @@ export declare namespace Messages {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 1.16.7.2.1
          */
-        messageIDs: Bytes[];
+        messageIds: Bytes[];
     }
 
     /**

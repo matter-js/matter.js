@@ -38,7 +38,10 @@ Resource.add({
         { tag: "requirement", name: "KeypadInput", xref: "device§10.3.4" },
         { tag: "requirement", name: "ContentLauncher", xref: "device§10.3.4" },
         { tag: "requirement", name: "AudioOutput", xref: "device§10.3.4" },
-        { tag: "requirement", name: "ApplicationLauncher", xref: "device§10.3.4" },
+        {
+            tag: "requirement", name: "ApplicationLauncher", xref: "device§10.3.4",
+            children: [{ tag: "requirement", name: "APPLICATIONPLATFORM", xref: "device§10.3.5" }]
+        },
         { tag: "requirement", name: "AccountLogin", xref: "device§10.3.4" },
         { tag: "requirement", name: "ContentControl", xref: "device§10.3.4" },
         {

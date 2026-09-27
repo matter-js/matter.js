@@ -5,7 +5,7 @@
  */
 
 import type {
-    CertStepContext,
+    CertStepWiring,
     Container,
     Docker,
     PromptHandler,
@@ -136,7 +136,7 @@ function stubSubject(): Subject {
     };
 }
 
-function stubCx(): CertStepContext {
+function stubCx(): CertStepWiring {
     return {
         controllers: {},
         devices: {},
@@ -172,7 +172,7 @@ describe("PromptDrivenPythonTest", () => {
         );
 
         const cx = stubCx();
-        const calls = new Array<{ cx: CertStepContext; promptText: string }>();
+        const calls = new Array<{ cx: CertStepWiring; promptText: string }>();
         const handlers: PromptHandler[] = [
             {
                 pattern: /Manual Pairing Code:.*\(chip-tool: pairing onnetwork \d+ (\d+)\)/,
@@ -407,6 +407,63 @@ describe("PromptDrivenPythonTest", () => {
         const { container } = fakeContainer(new FakeTerminal([]));
         const test = new PromptDrivenPythonTest(stubDescriptor(), container, [], stubCx());
         await test.initializeSubject(stubSubject());
+    });
+
+    describe("declaredTimeout()", () => {
+        function testFor(source: string) {
+            const { container } = fakeContainer(new FakeTerminal([]));
+            return new PromptDrivenPythonTest(
+                stubDescriptor(),
+                { ...container, read: async () => source },
+                [],
+                stubCx(),
+            );
+        }
+
+        it("reads a timeout the script states as a product", async () => {
+            expect(
+                await testFor(
+                    ["    @property", "    def default_timeout(self) -> int:", "        return 3 * 60"].join("\n"),
+                ).declaredTimeout(),
+            ).equal(180);
+        });
+
+        it("reads a timeout the script states as one number, past the docstring that describes it", async () => {
+            expect(
+                await testFor(
+                    [
+                        "    @property",
+                        "    def default_timeout(self) -> int:",
+                        '        """The default timeout in seconds for async operations in a test."""',
+                        "        return 240",
+                    ].join("\n"),
+                ).declaredTimeout(),
+            ).equal(240);
+        });
+
+        it("falls back to what MatterBaseTest allows where the script states nothing", async () => {
+            expect(await testFor("class TC_X(MatterBaseTest):\n    pass\n").declaredTimeout()).equal(90);
+        });
+
+        it("falls back where the script states a timeout of no time at all", async () => {
+            expect(
+                await testFor(
+                    ["    @property", "    def default_timeout(self) -> int:", "        return 0"].join("\n"),
+                ).declaredTimeout(),
+            ).equal(90);
+        });
+
+        it("falls back where the script computes a timeout this cannot read", async () => {
+            expect(
+                await testFor(
+                    [
+                        "    @property",
+                        "    def default_timeout(self) -> int:",
+                        "        return self.step_count * TIMEOUT_PER_STEP",
+                    ].join("\n"),
+                ).declaredTimeout(),
+            ).equal(90);
+        });
     });
 
     it("reuses PythonTest's own command construction (script path, --test-case subpath)", async () => {

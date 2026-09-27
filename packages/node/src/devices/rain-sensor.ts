@@ -18,6 +18,23 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Rain Sensor device type.
  *
+ * ### Cluster Requirements
+ *
+ * #### Identify Cluster
+ *
+ * This is used to identify the endpoint.
+ *
+ * #### Boolean State Cluster
+ *
+ * This is used to indicate the state of the sensor/detector.
+ *
+ * The state of the Boolean State cluster shall reflect the sensor detection using this scheme of:
+ *
+ * #### Boolean State Configuration Cluster
+ *
+ * This is used to configure the sensor/detector and is for this device type linked to the configuration of the Boolean
+ * State cluster.
+ *
  * @see {@link MatterSpecification.v16.Device} § 7.13
  */
 export interface RainSensorDevice extends Identity<typeof RainSensorDeviceDefinition> {}
@@ -35,7 +52,9 @@ export namespace RainSensorRequirements {
      *
      * This version of {@link BooleanStateServer} is specialized per the specification.
      */
-    export const BooleanStateServer = BaseBooleanStateServer.alter({ events: { stateChange: { optional: false } } });
+    export const BooleanStateServer = BaseBooleanStateServer
+        .with("ChangeEvent")
+        .alter({ events: { stateChange: { optional: false } } });
 
     /**
      * The BooleanStateConfiguration cluster is optional per the Matter specification.

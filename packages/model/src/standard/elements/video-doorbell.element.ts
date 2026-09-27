@@ -15,8 +15,8 @@ export const VideoDoorbellDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 323, revision: 1 } ], element: "attribute" })
     ),
-    Requirement({ name: "Camera", id: 0x142, conformance: "M", element: "deviceType" }),
-    Requirement({ name: "Doorbell", id: 0x148, conformance: "M", element: "deviceType" })
+    Requirement({ name: "Camera", id: 0x142, conformance: "M", constraint: "1", element: "deviceType" }),
+    Requirement({ name: "Doorbell", id: 0x148, conformance: "M", constraint: "min 1", element: "deviceType" })
 );
 
 MatterDefinition.children.push(VideoDoorbellDt);

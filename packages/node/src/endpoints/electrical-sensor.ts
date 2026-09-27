@@ -21,6 +21,13 @@ import { Identity } from "@matter/general";
 /**
  * An Electrical Sensor device measures the electrical power and/or energy being imported and/or exported.
  *
+ * ### Cluster Requirements
+ *
+ * > [!NOTE]
+ *
+ * > NOTE: Electrical measurements made by either the Electrical Power Measurement cluster, the Electrical Energy
+ *   Measurement cluster, or both shall apply to the endpoints indicated by the Power Topology cluster.
+ *
  * ElectricalSensorEndpoint requires PowerTopology cluster but PowerTopology is not added by default because you must
  * select the features your device supports. You can add manually using ElectricalSensorEndpoint.with().
  *

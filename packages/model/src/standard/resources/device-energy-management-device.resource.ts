@@ -14,7 +14,18 @@ Resource.add({
         "power planned on being consumed or produced by the device.",
 
     children: [
-        { tag: "requirement", name: "DeviceEnergyManagement", xref: "device§2.7.4" },
+        {
+            tag: "requirement", name: "DeviceEnergyManagement", xref: "device§2.7.4",
+
+            children: [
+                { tag: "requirement", name: "POWERADJUSTMENT", xref: "device§2.7.5" },
+                { tag: "requirement", name: "STARTTIMEADJUSTMENT", xref: "device§2.7.5" },
+                { tag: "requirement", name: "PAUSABLE", xref: "device§2.7.5" },
+                { tag: "requirement", name: "FORECASTADJUSTMENT", xref: "device§2.7.5" },
+                { tag: "requirement", name: "CONSTRAINTBASEDADJUSTMENT", xref: "device§2.7.5" }
+            ]
+        },
+
         { tag: "requirement", name: "DeviceEnergyManagementMode", xref: "device§2.7.4" },
         { tag: "requirement", name: "ElectricalGridConditions", xref: "device§2.7.4" },
         {

@@ -52,8 +52,7 @@ export namespace ElectricalEnergyTariffRequirements {
             CommodityPrice: CommodityPriceServer,
             ElectricalGridConditions: ElectricalGridConditionsServer,
             CommodityTariff: CommodityTariffServer
-        },
-        mandatory: {}
+        }
     };
 }
 

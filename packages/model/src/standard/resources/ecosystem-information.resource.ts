@@ -117,13 +117,13 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "UniqueLocationIDs", xref: "core§9.17.4.2.6",
+                    tag: "field", name: "UniqueLocationIds", xref: "core§9.17.4.2.6",
                     details: "This field shall specify the EcosystemLocationStruct entries in the LocationDirectory attribute " +
                         "associated with this EcosystemDeviceStruct."
                 },
 
                 {
-                    tag: "field", name: "UniqueLocationIDsLastEdit", xref: "core§9.17.4.2.7",
+                    tag: "field", name: "UniqueLocationIdsLastEdit", xref: "core§9.17.4.2.7",
 
                     details: "This field shall indicate the timestamp of when the UniqueLocationIDs was last modified." +
                         "\n" +

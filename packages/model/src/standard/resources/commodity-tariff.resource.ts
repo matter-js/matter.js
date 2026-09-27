@@ -208,7 +208,7 @@ Resource.add({
                     details: "A free-form label for the tariff period."
                 },
                 {
-                    tag: "field", name: "DayEntryIDs", xref: "cluster§9.12.7.2.2",
+                    tag: "field", name: "DayEntryIds", xref: "cluster§9.12.7.2.2",
                     details: "This field shall indicate a list of DayEntryIDs for the DayEntryStructs during which the tariff " +
                         "component is active."
                 },
@@ -350,7 +350,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "DayPatternIDs", xref: "cluster§9.12.5.9.2",
+                    tag: "field", name: "DayPatternIds", xref: "cluster§9.12.5.9.2",
 
                     details: "This field shall indicate a list of DayPatternIDs for the DayPatternStructs in use during this " +
                         "calendar period." +
@@ -502,7 +502,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "DayEntryIDs", xref: "cluster§9.12.5.11.3",
+                    tag: "field", name: "DayEntryIds", xref: "cluster§9.12.5.11.3",
 
                     details: "This field shall indicate a list of DayEntryIDs for the DayEntryStructs to apply during the date " +
                         "specified by Date, ordered by the value of the StartTime field." +
@@ -555,7 +555,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "DayEntryIDs", xref: "cluster§9.12.5.12.3",
+                    tag: "field", name: "DayEntryIds", xref: "cluster§9.12.5.12.3",
                     details: "This field shall indicate a list of DayEntryIDs for the DayEntryStructs to apply during the days " +
                         "specified by DaysOfWeek, ordered by StartTime." +
                         "\n" +
@@ -721,7 +721,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "DayEntryIDs", xref: "cluster§9.12.5.17.2",
+                    tag: "field", name: "DayEntryIds", xref: "cluster§9.12.5.17.2",
                     details: "This field shall indicate a list of DayEntryIDs for the DayEntryStructs during which the tariff " +
                         "components are active." +
                         "\n" +
@@ -730,7 +730,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "TariffComponentIDs", xref: "cluster§9.12.5.17.3",
+                    tag: "field", name: "TariffComponentIds", xref: "cluster§9.12.5.17.3",
                     details: "This field shall indicate a list of TariffComponentIDs for the TariffComponentStructs active during " +
                         "the specified day entries."
                 }

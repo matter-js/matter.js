@@ -12,9 +12,7 @@ Resource.add({
     tag: "cluster", name: "PumpConfigurationAndControl", pics: "PCC", xref: "cluster§4.2",
     details: "The Pump Configuration and Control cluster provides an interface for the setup and control of pump " +
         "devices, and the automatic reporting of pump status information. Note that control of pump speed is " +
-        "not included – speed is controlled by the On/Off and Level Control clusters." +
-        "\n" +
-        "!pump devices",
+        "not included – speed is controlled by the On/Off and Level Control clusters.",
 
     children: [
         {
@@ -256,8 +254,6 @@ Resource.add({
                 "The actual operating mode of the pump is a result of the setting of the attributes OperationMode, " +
                 "ControlMode and the optional connection of a remote sensor. The operation and control is prioritized " +
                 "as shown in the scheme below:" +
-                "\n" +
-                "!Priority Scheme of Pump Operation and Control.jpg" +
                 "\n" +
                 "If this attribute is Maximum, Minimum or Local, the OperationMode attribute decides how the pump is " +
                 "operated." +

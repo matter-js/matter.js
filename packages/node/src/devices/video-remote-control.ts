@@ -129,7 +129,8 @@ export namespace VideoRemoteControlRequirements {
     export const AccountLoginClient = BaseAccountLoginClient;
 
     /**
-     * The ContentControl cluster is optional per the Matter specification.
+     * The ContentControl cluster is provisional per the Matter specification (conformance P, O), so it is treated as
+     * optional.
      *
      * We provide this alias to the default implementation {@link ContentControlClient} for convenience.
      */

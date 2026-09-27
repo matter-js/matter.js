@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { env } from "node:process";
 import type { Subject } from "../../device/subject.js";
 import { BaseTest } from "../../device/test.js";
 import type { Container } from "../../docker/container.js";
@@ -11,10 +12,12 @@ import { TestDescriptor, TestFileDescriptor } from "../../test-descriptor.js";
 import { delay } from "../../util/async.js";
 import { PicsExpression } from "../pics/expression.js";
 import { PicsUnavailableError, type PicsFile } from "../pics/file.js";
+import { picsWithOverrides } from "./cert-app-pics.js";
 import {
     CertDevice,
     CertStepContext,
     CertStepDefinition,
+    CertStepWiring,
     CertTestDefinition,
     CheckRecord,
     DeviceExitInfo,
@@ -22,8 +25,7 @@ import {
     StepRecorder,
     StepVerdict,
 } from "./cert-context.js";
-import { controllerPicsOverridesFor, UnsupportedByControllerError } from "./controller-adapter.js";
-import { resolveControllerImplementation } from "./device-config.js";
+import { UnsupportedByControllerError } from "./controller-adapter.js";
 
 const inertRecorder: StepRecorder = {
     beginStep() {},
@@ -64,7 +66,10 @@ export class CertTest extends BaseTest {
         _args: string[],
         _uncommissioned: boolean,
     ): Promise<void> {
-        const cx = this.contextFor(subject);
+        let picsFile: PicsFile | undefined;
+        const cx: CertStepContext = Object.assign(this.contextFor(subject), {
+            picsMet: (expression: string) => picsAnswer(expression, picsFile),
+        });
         const { devices } = cx;
 
         // A step's own checks are how the suite defines "something was observed" — AGENTS.md requires
@@ -92,7 +97,8 @@ export class CertTest extends BaseTest {
                 }
             },
             endStep: (step, verdict, skipReason) => recorded.endStep(step, verdict, skipReason),
-            deviceExited: recorded.deviceExited === undefined ? undefined : info => recorded.deviceExited?.(info),
+            deviceExited:
+                recorded.deviceExited === undefined ? undefined : (role, info) => recorded.deviceExited?.(role, info),
             finalizationFailed:
                 recorded.finalizationFailed === undefined ? undefined : detail => recorded.finalizationFailed?.(detail),
             runHeaderLines: recorded.runHeaderLines === undefined ? undefined : () => recorded.runHeaderLines?.() ?? [],
@@ -102,6 +108,10 @@ export class CertTest extends BaseTest {
                     : count => recorded.recordControllerUnsupportedSkips?.(count),
             recordPicsSkips:
                 recorded.recordPicsSkips === undefined ? undefined : count => recorded.recordPicsSkips?.(count),
+            recordLongRunningSkips:
+                recorded.recordLongRunningSkips === undefined
+                    ? undefined
+                    : count => recorded.recordLongRunningSkips?.(count),
             recordUnverifiedChecks:
                 recorded.recordUnverifiedChecks === undefined
                     ? undefined
@@ -128,6 +138,7 @@ export class CertTest extends BaseTest {
         let failed = false;
         let controllerUnsupportedSkips = 0;
         let picsSkips = 0;
+        let longRunningSkips = 0;
         let unverifiedSteps = 0;
         let unproven = false;
         let reportingFailure: unknown;
@@ -149,9 +160,8 @@ export class CertTest extends BaseTest {
         try {
             // Inside the try: reading the subject's PICS, and resolving what the controller declares,
             // can both throw, and everything this run opened is closed by the teardown below.
-            const picsFile = resolvePicsFile(subject)?.with(
-                controllerPicsOverridesFor(resolveControllerImplementation()),
-            );
+            const subjectPics = resolvePicsFile(subject);
+            picsFile = subjectPics && picsWithOverrides(subjectPics, this.#definition);
 
             // Provenance reporting must never be why a run that would otherwise pass its steps
             // aborts before running any of them.
@@ -177,7 +187,10 @@ export class CertTest extends BaseTest {
                     // A step that declares flavors never runs on an unknown one: taking silence for
                     // consent would run it wherever the flavor could not be determined, which is the
                     // one case its declaration cannot speak for.
-                    if (stepDef.flavors !== undefined && (flavor === undefined || !stepDef.flavors.includes(flavor))) {
+                    if (
+                        stepDef.flavors !== undefined &&
+                        (flavor === undefined || !stepDef.flavors.some(supported => supported === flavor))
+                    ) {
                         report(
                             stepDef,
                             "skipped",
@@ -191,6 +204,12 @@ export class CertTest extends BaseTest {
                     if (!stepPicsMet(stepDef, picsFile)) {
                         picsSkips++;
                         report(stepDef, "skipped", `PICS "${stepDef.pics}" not met`);
+                        continue;
+                    }
+
+                    if (stepDef.longRunning !== undefined && !longRunningEnabled()) {
+                        longRunningSkips++;
+                        report(stepDef, "skipped", `${stepDef.longRunning}; set MATTER_CERT_LONG_RUNNING=1 to run it`);
                         continue;
                     }
 
@@ -264,6 +283,14 @@ export class CertTest extends BaseTest {
                     () => recorder.recordPicsSkips?.(picsSkips),
                     () => announcePicsSkipSummary(cx, tc, picsSkips),
                     "PICS-skip",
+                );
+            }
+
+            if (longRunningSkips > 0) {
+                recordSummary(
+                    () => recorder.recordLongRunningSkips?.(longRunningSkips),
+                    () => announceLongRunningSkipSummary(cx, tc, longRunningSkips),
+                    "long-running-skip",
                 );
             }
 
@@ -356,8 +383,8 @@ export class CertTest extends BaseTest {
                 if (exited !== undefined) {
                     failed = true;
                     failure = new Error(
-                        `A cert-test device exited unexpectedly (code ${exited.code}, signal ${exited.signal}) ` +
-                            "during the run",
+                        `Cert-test device "${exited.role}" exited unexpectedly (code ${exited.info.code}, signal ` +
+                            `${exited.info.signal}) during the run`,
                     );
                 } else if (teardownErrors.length > 0) {
                     failed = true;
@@ -427,7 +454,7 @@ export class CertTest extends BaseTest {
      * Build the step context for a run.  Overridable so controller/device wiring can be layered on in
      * later tasks without changing {@link invoke}'s public contract.
      */
-    protected contextFor(_subject: Subject): CertStepContext {
+    protected contextFor(_subject: Subject): CertStepWiring {
         return {
             controllers: {},
             devices: {},
@@ -477,6 +504,12 @@ function currentFlavor(devices: Record<string, CertDevice>): DeviceFlavor | unde
     return Object.values(devices)[0]?.flavor;
 }
 
+/** Whether this run asked for the steps that cost minutes of real time. */
+export function longRunningEnabled() {
+    const value = env.MATTER_CERT_LONG_RUNNING;
+    return value !== undefined && value !== "" && value !== "0" && value.toLowerCase() !== "false";
+}
+
 /**
  * A malformed step PICS expression, evaluated against a PICS file that *is* available, is a step-level
  * failure — unlike a missing PICS file (see {@link resolvePicsFile}), the expression itself is broken.
@@ -487,6 +520,28 @@ function stepPicsMet(stepDef: CertStepDefinition, picsFile: PicsFile | undefined
     }
 
     return new PicsExpression(stepDef.pics).evaluate(picsFile);
+}
+
+/**
+ * Thrown by {@link CertStepContext.picsMet} in a run with no active PICS, which fails the step.
+ *
+ * Its own type rather than {@link PicsUnavailableError}, which means the opposite to its catchers:
+ * that gating is inactive and the step may run. A plain `Error` because `packages/testing` carries no
+ * dependency on the library and therefore no `MatterError`.
+ */
+export class PicsUnansweredError extends Error {}
+
+/**
+ * {@link CertStepContext.picsMet}. Unlike a gate it cannot treat a missing PICS file as "met": a step
+ * asking which outcome it is owed would then be owed both `X` and `!X`.
+ */
+function picsAnswer(expression: string, picsFile: PicsFile | undefined): boolean {
+    const parsed = new PicsExpression(expression);
+    if (!picsFile) {
+        throw new PicsUnansweredError(`No active PICS answers "${expression}" for this step`);
+    }
+
+    return parsed.evaluate(picsFile);
 }
 
 const STEP_BANNER_RULE = "-".repeat(70);
@@ -558,6 +613,14 @@ function announcePicsSkipSummary(cx: CertStepContext, tc: string, count: number)
     ]);
 }
 
+function announceLongRunningSkipSummary(cx: CertStepContext, tc: string, count: number): void {
+    announceStep(cx, [
+        STEP_BANNER_RULE,
+        `${tc} — ${count} step${count === 1 ? "" : "s"} skipped for costing minutes on this flavor`,
+        STEP_BANNER_RULE,
+    ]);
+}
+
 function announceUnverifiedSummary(cx: CertStepContext, tc: string, count: number): void {
     announceStep(cx, [
         STEP_BANNER_RULE,
@@ -586,18 +649,18 @@ const FINALIZATION_TIMEOUT_MS = 120_000;
 async function runFinalizer(
     finalize: (cx: CertStepContext) => Promise<void>,
     cx: CertStepContext,
-    deviceExit: Promise<DeviceExitInfo>,
+    deviceExit: Promise<DeviceExit>,
     tc: string,
     timeoutMs: number,
 ): Promise<void> {
     const run = finalize(cx);
     const timeout = delay(timeoutMs);
 
-    let outcome: "done" | "exited" | "timeout";
+    let outcome: "done" | "timeout" | { exited: DeviceExit };
     try {
         outcome = await Promise.race([
             run.then((): "done" => "done"),
-            deviceExit.then((): "exited" => "exited"),
+            deviceExit.then(exited => ({ exited })),
             timeout.promise,
         ]);
     } finally {
@@ -613,9 +676,9 @@ async function runFinalizer(
     });
 
     throw new Error(
-        outcome === "exited"
-            ? `Cert test ${tc}: a device exited before the run's cleanup finished`
-            : `Cert test ${tc}: cleanup did not finish within ${timeoutMs}ms`,
+        outcome === "timeout"
+            ? `Cert test ${tc}: cleanup did not finish within ${timeoutMs}ms`
+            : `Cert test ${tc}: device "${outcome.exited.role}" exited before the run's cleanup finished`,
     );
 }
 
@@ -661,19 +724,28 @@ function announceStepEnd(
 }
 
 /**
+ * A device exit with the role that identifies which device it was — the run declares devices by role,
+ * so an exit that names none cannot be attributed to a binary in a run that declares several.
+ */
+interface DeviceExit {
+    role: string;
+    info: DeviceExitInfo;
+}
+
+/**
  * A {@link watchDeviceExits} subscription: `exit` resolves the same way every time (first device to
  * exit wins), but the reaction that reports it to `recorder` must be {@link disarm}ed once the run is
  * done with it.
  */
 interface DeviceExitWatch {
-    exit: Promise<DeviceExitInfo>;
+    exit: Promise<DeviceExit>;
     /**
      * The exit observed while the watch was armed, if any. A device exit can settle outside any
      * step race (all steps skipped, or after the last step) — {@link CertTest.invoke} checks this
      * after the step loop so such a run still rejects instead of reporting success while the
      * evidence says fail.
      */
-    readonly observed: DeviceExitInfo | undefined;
+    readonly observed: DeviceExit | undefined;
     /**
      * Drops the watch's reference to `recorder`. A matterjs device's `exit` never resolves, so
      * without this the reaction below stays attached to it for the process's lifetime, keeping
@@ -688,17 +760,19 @@ interface DeviceExitWatch {
  * for, so a resolution here means the device died independently of anything the test asked it to do.
  */
 function watchDeviceExits(devices: Record<string, CertDevice>, recorder: StepRecorder): DeviceExitWatch {
-    let observed: DeviceExitInfo | undefined;
-    let onExit: ((info: DeviceExitInfo) => void) | undefined = info => recorder.deviceExited?.(info);
-    const exit = Promise.race(Object.values(devices).map(device => device.exit));
+    let observed: DeviceExit | undefined;
+    let onExit: ((exit: DeviceExit) => void) | undefined = ({ role, info }) => recorder.deviceExited?.(role, info);
+    const exit = Promise.race(
+        Object.entries(devices).map(async ([role, device]): Promise<DeviceExit> => ({ role, info: await device.exit })),
+    );
 
-    void exit.then(info => {
+    void exit.then(exited => {
         if (onExit === undefined) {
             return;
         }
-        observed = info;
+        observed = exited;
         try {
-            onExit(info);
+            onExit(exited);
         } catch (e) {
             console.warn("Cert test deviceExited hook failed:", e);
         }
@@ -721,19 +795,22 @@ function watchDeviceExits(devices: Record<string, CertDevice>, recorder: StepRec
  */
 async function raceAgainstDeviceExit(
     stepRun: Promise<void>,
-    deviceExit: Promise<DeviceExitInfo>,
+    deviceExit: Promise<DeviceExit>,
     tc: string,
     step: number | string,
 ): Promise<void> {
-    const outcome = await Promise.race([stepRun.then((): "ran" => "ran"), deviceExit.then((): "exited" => "exited")]);
-    if (outcome === "exited") {
+    const exitedRole = await Promise.race([
+        stepRun.then((): string | undefined => undefined),
+        deviceExit.then(({ role }) => role),
+    ]);
+    if (exitedRole !== undefined) {
         // stepRun keeps running independently of this race and settles on its own time; observe
         // its eventual rejection so it can't surface as an unhandled rejection attributed to
         // whatever runs later, without trying to cancel the operation itself.
         void stepRun.catch(e => {
             console.warn(`Cert test ${tc} step ${step}: orphaned step run settled after the device exit:`, e);
         });
-        throw new Error("A cert-test device exited unexpectedly while a step was running");
+        throw new Error(`Cert-test device "${exitedRole}" exited unexpectedly while a step was running`);
     }
 }
 

@@ -4,12 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Logger } from "#log/Logger.js";
 import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
+import { asError } from "#util/Error.js";
 import { Crypto, ec } from "./Crypto.js";
 import { CurveType, Key, KeyType, PrivateKey } from "./Key.js";
 import { NodeJsStyleCrypto } from "./NodeJsStyleCrypto.js";
 import { StandardCrypto } from "./StandardCrypto.js";
+
+const logger = Logger.get("MockCrypto");
 
 /**
  * WARNING: ONLY FOR USE IN PROTECTED TESTING ENVIRONMENTS WHERE SECURITY IS NOT A CONCERN
@@ -33,10 +37,41 @@ export interface MockCrypto extends Crypto {
     entropic: boolean;
 }
 
-export function MockCrypto(
-    index: number = 0x80,
-    implementation: new () => Crypto = NodeJsStyleCrypto.detectedCrypto ? NodeJsStyleCrypto : StandardCrypto,
-) {
+let defaultImplementation: (new () => Crypto) | undefined;
+
+/**
+ * The implementation a mock should wrap: whichever serves this runtime.
+ *
+ * Where the Node.js-style implementation is not the default, the standard one is chosen only once it has
+ * constructed, because a runtime offering incomplete Web Crypto cannot supply it at all.
+ */
+function implementationForRuntime() {
+    if (defaultImplementation !== undefined) {
+        return defaultImplementation;
+    }
+
+    if (NodeJsStyleCrypto.providesDefault) {
+        return (defaultImplementation = NodeJsStyleCrypto);
+    }
+
+    try {
+        new StandardCrypto();
+        return (defaultImplementation = StandardCrypto);
+    } catch (error) {
+        // Nothing to fall back to, and the error names the primitive this runtime lacks
+        if (NodeJsStyleCrypto.detectedCrypto === undefined) {
+            throw error;
+        }
+
+        logger.error(
+            "Mocking a Node.js-style crypto that cannot serve Matter, because standard crypto did not load:" +
+                ` ${asError(error).message}`,
+        );
+        return (defaultImplementation = NodeJsStyleCrypto);
+    }
+}
+
+export function MockCrypto(index: number = 0x80, implementation: new () => Crypto = implementationForRuntime()) {
     if (index < 0 || index > 255) {
         throw new ImplementationError(`Index for stable crypto must be 0-255`);
     }

@@ -38,6 +38,15 @@ import { Identity } from "@matter/general";
  *
  *   - Telescoping Extractors
  *
+ * ### Device Type Requirements
+ *
+ * An Extractor Hood is composed of other device types listed in this table subject to the conformance column of the
+ * table. All devices used in compositions shall adhere to the disambiguation and superset requirements of the System
+ * Model. Specifically, please note that the On/Off Light as listed is a Superset Device Type as defined by the System
+ * Model (see Superset Device Types in MatterCore), and so the rules defined in that section apply to the use of On/Off
+ * Light as a superset when composed in this device type. Additional device types not listed in this table may also be
+ * included in device compositions.
+ *
  * @see {@link MatterSpecification.v16.Device} § 13.10
  */
 export interface ExtractorHoodDevice extends Identity<typeof ExtractorHoodDeviceDefinition> {}

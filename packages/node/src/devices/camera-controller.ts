@@ -40,6 +40,10 @@ import { Identity } from "@matter/general";
 /**
  * A Camera controller device is a device that provides interfaces for controlling and managing camera devices.
  *
+ * ### Cluster Requirements
+ *
+ * A node shall only ever have, at most, one instance of the Camera Controller's required clusters.
+ *
  * @see {@link MatterSpecification.v16.Device} § 16.8
  */
 export interface CameraControllerDevice extends Identity<typeof CameraControllerDeviceDefinition> {}

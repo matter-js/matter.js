@@ -20,7 +20,16 @@ Resource.add({
         { tag: "requirement", name: "TlsClientCond", xref: "device§16.5.3" },
         { tag: "requirement", name: "Identify", xref: "device§16.5.4" },
         { tag: "requirement", name: "Switch", xref: "device§16.5.4" },
-        { tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.5.4" },
+
+        {
+            tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.5.4",
+            children: [
+                { tag: "requirement", name: "AUDIO", xref: "device§16.5.5" },
+                { tag: "requirement", name: "SNAPSHOT", xref: "device§16.5.5" },
+                { tag: "requirement", name: "VIDEO", xref: "device§16.5.5" }
+            ]
+        },
+
         {
             tag: "requirement", name: "WebRtcTransportProvider", discriminator: "M:serverCluster",
             xref: "device§16.5.4"

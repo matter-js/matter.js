@@ -1140,7 +1140,7 @@ Resource.add({
                 "transports that handle audio and video streams." +
                 "\n" +
                 "When encoded in TLV binary format and placed inside other standards, this shall be represented using " +
-                "the RFC 8141 compliant string urn:csa:matter:av-metadata.",
+                "the RFC8141 compliant string urn:csa:matter:av-metadata.",
 
             children: [
                 {

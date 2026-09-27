@@ -7,6 +7,7 @@
 import { ChannelType } from "#net/Channel.js";
 import { MockTcpConnection } from "#net/mock/MockTcpConnection.js";
 import { NetworkSimulator } from "#net/mock/NetworkSimulator.js";
+import { TransportClosedError } from "#net/Network.js";
 import type { TcpConnection } from "#net/tcp/TcpConnection.js";
 import { Bytes } from "#util/Bytes.js";
 
@@ -76,13 +77,7 @@ describe("MockTcpConnection", () => {
         const [client] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
         await client.close();
 
-        let threw = false;
-        try {
-            await client.send(Bytes.fromHex("ff"));
-        } catch {
-            threw = true;
-        }
-        expect(threw).true;
+        await expect(client.send(Bytes.fromHex("ff"))).rejectedWith(TransportClosedError);
     });
 });
 

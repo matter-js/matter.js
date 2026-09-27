@@ -21,6 +21,37 @@ import { Identity } from "@matter/general";
  * mains electricity supply to allow it to be charged (or discharged in case of Vehicle to Grid / Vehicle to Home
  * applications).
  *
+ * ### EVSE Architecture
+ *
+ * An EVSE is always defined via endpoint composition. See Section 14.1.6, "Device Type Requirements" for more details.
+ *
+ * An example of an EVSE with single phase AC supply is illustrated below.
+ *
+ * The EVSE may also indicate its internal temperature using the temperature measurement cluster (not shown).
+ *
+ * An example of an EVSE with a 3 phase AC supply is illustrated below.
+ *
+ * ### Device Type Requirements
+ *
+ * An EVSE shall be composed of at least one endpoint with device types as defined by the conformance below. There may
+ * be more endpoints with other device types existing in the EVSE.
+ *
+ * #### Cluster Requirements on Component Device Types
+ *
+ * The Electrical Sensor device shall include both the Electrical Energy Measurement and Electrical Power Measurement
+ * clusters, measuring the total energy and power of the EVSE.
+ *
+ * #### Element Requirements on Component Device Types
+ *
+ * If an EVSE supports three phase power then it shall include three additional endpoints including an Electrical Sensor
+ * Device Type as child elements. For each child endpoint it shall include a semantic tag from the Electrical
+ * Measurement Namespace in the TagList attribute of the Descriptor cluster to describe the endpoint for the relevant
+ * Electrical Power Measurement and Electrical Energy Measurement clusters indicating the relevant AC phase that is
+ * being measured.
+ *
+ * If the EVSE supports the V2X feature then the Device Energy Management cluster included in the Device Energy
+ * Management device shall support the PowerAdjustment (PA) feature.
+ *
  * @see {@link MatterSpecification.v16.Device} § 14.1
  */
 export interface EnergyEvseDevice extends Identity<typeof EnergyEvseDeviceDefinition> {}

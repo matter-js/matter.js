@@ -41,7 +41,7 @@ Resource.add({
 
             children: [
                 {
-                    tag: "field", name: "TariffComponentIDs", xref: "cluster§9.11.4.1.1",
+                    tag: "field", name: "TariffComponentIds", xref: "cluster§9.11.4.1.1",
                     details: "Indicates the specific TariffComponentStructs associated with the metered commodity."
                 },
                 {

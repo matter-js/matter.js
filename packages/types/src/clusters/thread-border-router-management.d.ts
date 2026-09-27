@@ -311,8 +311,7 @@ export declare namespace ThreadBorderRouterManagement {
         activeDataset: Bytes;
 
         /**
-         * See Breadcrumb Attribute section of General Commissioning Cluster in [[MatterCore]](#ref_MatterCore) for
-         * usage.
+         * See Breadcrumb Attribute section of General Commissioning Cluster in MatterCore for usage.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 10.3.6.4.2
          */

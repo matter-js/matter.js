@@ -93,15 +93,14 @@ export declare namespace AccountLogin {
          * with the Commissionee.
          *
          * The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of the
-         * client's commissionable node advertisement (see Rotating Device Identifier section in
-         * [[MatterCore]](#ref_MatterCore)) encoded as an octet string where the octets of the Rotating Device
-         * Identifier are encoded as 2-character sequences by representing each octet’s value as a 2-digit hexadecimal
-         * number, using uppercase letters.
+         * client's commissionable node advertisement (see Rotating Device Identifier section in MatterCore) encoded as
+         * an octet string where the octets of the Rotating Device Identifier are encoded as 2-character sequences by
+         * representing each octet’s value as a 2-digit hexadecimal number, using uppercase letters.
          *
          * The Setup PIN is a character string so that it can accommodate different future formats, including
          * alpha-numeric encodings. For a Commissionee it shall be populated with the Manual Pairing Code (see Manual
-         * Pairing Code section in [[MatterCore]](#ref_MatterCore)) encoded as a string (11 characters) or the Passcode
-         * portion of the Manual Pairing Code (when less than 11 characters).
+         * Pairing Code section in MatterCore) encoded as a string (11 characters) or the Passcode portion of the Manual
+         * Pairing Code (when less than 11 characters).
          *
          * The server shall implement rate limiting to prevent brute force attacks. No more than 10 unique requests in a
          * 10 minute period shall be allowed; a command response status of FAILURE should sent for additional commands
@@ -228,14 +227,14 @@ export declare namespace AccountLogin {
      * Commissionee.
      *
      * The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of the client's
-     * commissionable node advertisement (see Rotating Device Identifier section in [[MatterCore]](#ref_MatterCore))
-     * encoded as an octet string where the octets of the Rotating Device Identifier are encoded as 2-character
-     * sequences by representing each octet’s value as a 2-digit hexadecimal number, using uppercase letters.
+     * commissionable node advertisement (see Rotating Device Identifier section in MatterCore) encoded as an octet
+     * string where the octets of the Rotating Device Identifier are encoded as 2-character sequences by representing
+     * each octet’s value as a 2-digit hexadecimal number, using uppercase letters.
      *
      * The Setup PIN is a character string so that it can accommodate different future formats, including alpha-numeric
      * encodings. For a Commissionee it shall be populated with the Manual Pairing Code (see Manual Pairing Code section
-     * in [[MatterCore]](#ref_MatterCore)) encoded as a string (11 characters) or the Passcode portion of the Manual
-     * Pairing Code (when less than 11 characters).
+     * in MatterCore) encoded as a string (11 characters) or the Passcode portion of the Manual Pairing Code (when less
+     * than 11 characters).
      *
      * The server shall implement rate limiting to prevent brute force attacks. No more than 10 unique requests in a 10
      * minute period shall be allowed; a command response status of FAILURE should sent for additional commands received

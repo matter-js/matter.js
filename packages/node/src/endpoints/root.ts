@@ -59,6 +59,7 @@ import {
     TimeSynchronizationServer as BaseTimeSynchronizationServer
 } from "../behaviors/time-synchronization/TimeSynchronizationServer.js";
 import { IcdManagementServer as BaseIcdManagementServer } from "../behaviors/icd-management/IcdManagementServer.js";
+import { GroupcastServer as BaseGroupcastServer } from "../behaviors/groupcast/GroupcastServer.js";
 import {
     TlsCertificateManagementServer as BaseTlsCertificateManagementServer
 } from "../behaviors/tls-certificate-management/TlsCertificateManagementServer.js";
@@ -82,6 +83,26 @@ import { Identity } from "@matter/general";
  *   - Clusters with an Application role shall NOT be supported on the same endpoint as this device type.
  *
  *   - Other device types with Node scope may be supported on the same endpoint as this device type.
+ *
+ * ### Cluster Requirements
+ *
+ * > [!NOTE]
+ *
+ * > NOTE: The Network Diagnostics clusters present on the Root Node shall serve the primary network interface as
+ *   specified in the Network Commissioning cluster if it exists, or the out-of-band-configured networking interfaces.
+ *
+ * ### Element Requirements
+ *
+ * #### Access Control MNGD Conformance
+ *
+ * The MNGD (Managed Device) feature of the Access Control Cluster on the device's Root Node endpoint is restricted to
+ * devices that contain an Application Endpoint type that explicitly permits its use, such as the Network Infrastructure
+ * Manager device type (Device Type ID 0x0090).
+ *
+ * ### Endpoint Composition
+ *
+ * A Root Node endpoint's Descriptor cluster PartsList attribute shall contain a list of all other endpoints on the
+ * node, i.e. the full-family pattern defined in the System Model specification.
  *
  * @see {@link MatterSpecification.v16.Device} § 2.1
  */
@@ -222,6 +243,13 @@ export namespace RootRequirements {
     export const IcdManagementServer = BaseIcdManagementServer;
 
     /**
+     * The Groupcast cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link GroupcastServer} for convenience.
+     */
+    export const GroupcastServer = BaseGroupcastServer;
+
+    /**
      * The TlsCertificateManagement cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link TlsCertificateManagementServer} for convenience.
@@ -271,6 +299,7 @@ export namespace RootRequirements {
             EthernetNetworkDiagnostics: EthernetNetworkDiagnosticsServer,
             TimeSynchronization: TimeSynchronizationServer,
             IcdManagement: IcdManagementServer,
+            Groupcast: GroupcastServer,
             TlsCertificateManagement: TlsCertificateManagementServer,
             TlsClientManagement: TlsClientManagementServer
         }
@@ -279,13 +308,13 @@ export namespace RootRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { TimeSynchronization: TimeSynchronizationClient }, mandatory: {} };
+    export const client = { optional: { TimeSynchronization: TimeSynchronizationClient } };
 }
 
 export const RootEndpointDefinition = MutableEndpoint({
     name: "RootNode",
     deviceType: 0x16,
-    deviceRevision: 4,
+    deviceRevision: 5,
     deviceClass: DeviceClassification.Node,
     requirements: RootRequirements,
 

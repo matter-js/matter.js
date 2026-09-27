@@ -147,6 +147,13 @@ export class StorageService {
     }
 
     /**
+     * Whether blob drivers are registered.
+     */
+    get isBlobConfigured(): boolean {
+        return this.#blobDrivers.size > 0;
+    }
+
+    /**
      * Open storage.  The storage is initialized but the caller must take ownership.
      *
      * @param namespace a unique namespace identifier (string) or a pre-built {@link DataNamespace}/{@link DatafileRoot}

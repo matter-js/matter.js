@@ -127,7 +127,7 @@ export const CommodityTariff = Cluster(
         { name: "GetTariffComponentResponse", id: 0x0, conformance: "M", direction: "response" },
         Field({ name: "Label", id: 0x0, type: "string", conformance: "M", constraint: "max 128", quality: "X" }),
         Field(
-            { name: "DayEntryIDs", id: 0x1, type: "list", conformance: "M", constraint: "1 to 96" },
+            { name: "DayEntryIds", id: 0x1, type: "list", conformance: "M", constraint: "1 to 96" },
             Field({ name: "entry", type: "uint32" })
         ),
         Field({ name: "TariffComponent", id: 0x2, type: "TariffComponentStruct", conformance: "M" })
@@ -214,7 +214,7 @@ export const CommodityTariff = Cluster(
         { name: "CalendarPeriodStruct", type: "struct" },
         Field({ name: "StartDate", id: 0x0, type: "epoch-s", conformance: "M", constraint: "min startDate", quality: "X" }),
         Field(
-            { name: "DayPatternIDs", id: 0x1, type: "list", conformance: "M", constraint: "1 to 7" },
+            { name: "DayPatternIds", id: 0x1, type: "list", conformance: "M", constraint: "1 to 7" },
             Field({ name: "entry", type: "uint32" })
         )
     ),
@@ -234,9 +234,9 @@ export const CommodityTariff = Cluster(
     Datatype(
         { name: "DayStruct", type: "struct" },
         Field({ name: "Date", id: 0x0, type: "epoch-s", conformance: "M" }),
-        Field({ name: "DayType", id: 0x1, type: "DayTypeEnum", conformance: "M", constraint: "any" }),
+        Field({ name: "DayType", id: 0x1, type: "DayTypeEnum", conformance: "M" }),
         Field(
-            { name: "DayEntryIDs", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96" },
+            { name: "DayEntryIds", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96" },
             Field({ name: "entry", type: "uint32" })
         )
     ),
@@ -246,7 +246,7 @@ export const CommodityTariff = Cluster(
         Field({ name: "DayPatternId", id: 0x0, type: "uint32", conformance: "M" }),
         Field({ name: "DaysOfWeek", id: 0x1, type: "DayPatternDayOfWeekBitmap", conformance: "M" }),
         Field(
-            { name: "DayEntryIDs", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96" },
+            { name: "DayEntryIds", id: 0x2, type: "list", conformance: "M", constraint: "1 to 96" },
             Field({ name: "entry", type: "uint32" })
         )
     ),
@@ -289,11 +289,11 @@ export const CommodityTariff = Cluster(
         { name: "TariffPeriodStruct", type: "struct" },
         Field({ name: "Label", id: 0x0, type: "string", conformance: "M", constraint: "max 128", quality: "X" }),
         Field(
-            { name: "DayEntryIDs", id: 0x1, type: "list", conformance: "M", constraint: "1 to 20" },
+            { name: "DayEntryIds", id: 0x1, type: "list", conformance: "M", constraint: "1 to 20" },
             Field({ name: "entry", type: "uint32" })
         ),
         Field(
-            { name: "TariffComponentIDs", id: 0x2, type: "list", conformance: "M", constraint: "1 to 20" },
+            { name: "TariffComponentIds", id: 0x2, type: "list", conformance: "M", constraint: "1 to 20" },
             Field({ name: "entry", type: "uint32" })
         )
     )

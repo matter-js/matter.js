@@ -44,7 +44,7 @@
         "@matter/testing": "*",
         "@types/jsdom": "^30.0.0",
         "@xmldom/xmldom": "^0.9.11",
-        "jsdom": "^30.0.1",
+        "jsdom": "^29.1.1",
         "word-list": "^4.1.0",
         "yargs": "^18.1.0"
     },

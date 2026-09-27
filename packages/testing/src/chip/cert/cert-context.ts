@@ -5,6 +5,8 @@
  */
 
 import type { Subject } from "../../device/subject.js";
+import type { ChipBinsSource } from "../chip-bins.js";
+import type { CertAppVariant } from "./cert-dsl.js";
 import type { ControllerTransport } from "./controller-adapter.js";
 import type { ControllerAdapter } from "./controller-adapter.js";
 import type { LogFollower } from "./log-follower.js";
@@ -17,9 +19,19 @@ export interface LogSource {
 }
 
 /**
- * Kind of implementation backing a {@link CertDevice}.
+ * Kind of implementation backing a {@link CertDevice} that a run can select through
+ * `MATTER_CERT_DEVICE`, and that the harness therefore knows how to build and start.
  */
-export type DeviceFlavor = "chip-docker" | "chip-local" | "matterjs";
+export type SelectableDeviceFlavor = "chip-docker" | "chip-local" | "matterjs";
+
+/**
+ * Kind of implementation backing a {@link CertDevice}.
+ *
+ * `"python-wrapped"` names a device a wrapped python script spawns for itself from a path the run was
+ * pointed at. No run selects it and no factory here builds one: it exists so a record can state what
+ * ran without describing such a device as one of the flavors the harness does start.
+ */
+export type DeviceFlavor = SelectableDeviceFlavor | "python-wrapped";
 
 /**
  * How a {@link CertDevice}'s backing process or container ended.
@@ -47,6 +59,15 @@ export interface CertDevice extends Subject {
 
     /** The app variant this device actually runs, absent for a device whose flavor has no binary to vary. */
     readonly appVariant?: string;
+
+    /**
+     * The arguments this device was actually started with, absent for a device that takes none.
+     *
+     * What the case declared plus whatever the harness had to add for the app to start at all, which
+     * is what a reader of a bundle needs: an argument that changed the app's behaviour is no less
+     * relevant for having come from the harness.
+     */
+    readonly appArgs?: string[];
 }
 
 /**
@@ -106,11 +127,11 @@ export interface StepRecorder {
     /** Returns the checks recorded for `step` (empty if it never began), for the caller's own end-of-step reporting. */
     endStep(step: CertStepDefinition, verdict: StepVerdict, skipReason?: string): CheckRecord[];
     /**
-     * Records that a device exited unexpectedly while the run was in progress. {@link CertTest}
-     * calls this and then fails the run itself; a recorder need only persist the information (see
-     * {@link EvidenceRecorder.deviceExited}).
+     * Records that the device declared under `role` exited unexpectedly while the run was in progress.
+     * {@link CertTest} calls this and then fails the run itself; a recorder need only persist the
+     * information (see {@link EvidenceRecorder.deviceExited}).
      */
-    deviceExited?(info: DeviceExitInfo): void;
+    deviceExited?(role: string, info: DeviceExitInfo): void;
     /**
      * Records that {@link CertTestDefinition.finalize} threw. {@link CertTest} calls this and then
      * fails the run itself unless a step already failed; a recorder need only persist the
@@ -137,6 +158,12 @@ export interface StepRecorder {
      * less to test.
      */
     recordPicsSkips?(count: number): void;
+    /**
+     * Records how many steps were skipped for costing minutes of real time on the running flavor. A
+     * run that does not ask for them covers the plan minus what this names, and without the count a
+     * bundle would read as covering the whole plan.
+     */
+    recordLongRunningSkips?(count: number): void;
     /**
      * Records how many of the run's checks reported `"unverified"` — a check whose claim could not be
      * evaluated at all. Counts the checks that declared their gap ({@link CheckRecord.accepted})
@@ -183,7 +210,26 @@ export interface CertStepContext {
     controllers: Record<string, ControllerAdapter>;
     devices: Record<string, CertDevice>;
     recorder: StepRecorder;
+
+    /**
+     * Whether a PICS expression holds for this run, against the same PICS a step's own `pics` gate
+     * reads.
+     *
+     * For a plan step whose expected outcome depends on a PICS answer ("IF (X) … Otherwise …"): the
+     * step runs either way, and its check needs to know which outcome it is owed. A malformed
+     * expression throws, and so does a run with no active PICS, where a gate would treat every
+     * expression as met.
+     */
+    picsMet(expression: string): boolean;
 }
+
+/**
+ * What a run's wiring provides before {@link CertTest} adds what only it can answer.
+ *
+ * {@link CertStepContext.picsMet} rests on the PICS the run resolves once it starts, so the wiring cannot
+ * supply it.
+ */
+export type CertStepWiring = Omit<CertStepContext, "picsMet">;
 
 /**
  * A single step of a cert test plan.
@@ -194,9 +240,11 @@ export interface CertStepDefinition {
     expected?: string;
     pics?: string;
     /** Device flavors this step supports; absent runs on every flavor (see `cert-dsl.ts`'s `certTest`/`.step`). */
-    flavors?: DeviceFlavor[];
+    flavors?: SelectableDeviceFlavor[];
     /** Reason this step can never execute; present makes the engine skip it (see `cert-dsl.ts`'s `CertStepOptions`). */
     notApplicable?: string;
+    /** Why this step costs minutes of real time (see `cert-dsl.ts`'s `CertStepOptions`). */
+    longRunning?: string;
     run: (cx: CertStepContext) => Promise<void>;
 }
 
@@ -208,10 +256,21 @@ export interface CertTestDefinition {
     plan: string;
     pics: string[];
     app: string;
+    /**
+     * Whether the device under test is a device rather than a controller, which the declaration says by
+     * giving no controller role the `"dut"` kind (see `cert-dsl.ts`'s `CertTestOptions.controllers`).
+     *
+     * It decides whose self-declared PICS win where the device's and the controller's disagree: the
+     * claim a step makes is about the DUT, so the DUT's own side answers it. Absent, the controller
+     * is the DUT, which is what every case declaring no roles of its own is.
+     */
+    dutIsDevice?: boolean;
     /** Variant of `app` to run, where the flavor supports one (see `cert-dsl.ts`'s `CertTestOptions`). */
-    appVariant?: string;
+    appVariant?: CertAppVariant;
     /** Device flavors this test supports; absent runs on every flavor (see `cert-dsl.ts`'s `CertTestOptions`). */
-    flavors?: DeviceFlavor[];
+    flavors?: SelectableDeviceFlavor[];
+    /** Chip binary sources this test supports; absent runs on every source (see `cert-dsl.ts`'s `CertTestOptions`). */
+    chipBinsSources?: ChipBinsSource[];
     steps: CertStepDefinition[];
     /** Cleanup the engine runs after the last step whatever happened to it (see `cert-dsl.ts`'s `finalize`). */
     finalize?: (cx: CertStepContext) => Promise<void>;
@@ -220,4 +279,23 @@ export interface CertTestDefinition {
      * here; every other test keeps the transport its evidence and timing were written against.
      */
     transport?: ControllerTransport;
+    /** Role name → arguments that role's app starts with (see `cert-dsl.ts`'s `CertTestOptions`). */
+    appArgs?: Record<string, CertAppArgs>;
+}
+
+/**
+ * Arguments one role's app starts with.
+ *
+ * A list goes to every flavor. A flag only one implementation understands goes under that
+ * implementation's key instead: chip's apps refuse to start on an argument they do not know, where a
+ * matter.js subject ignores one.
+ */
+export type CertAppArgs = string[] | { chip?: string[]; matterjs?: string[] };
+
+/** The arguments {@link CertAppArgs} gives the app a run of `flavor` starts. */
+export function appArgsFor(args: CertAppArgs | undefined, flavor: DeviceFlavor): string[] | undefined {
+    if (args === undefined || Array.isArray(args)) {
+        return args;
+    }
+    return flavor === "matterjs" ? args.matterjs : args.chip;
 }

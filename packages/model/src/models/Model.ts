@@ -383,6 +383,14 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     /**
+     * The value this model defines under a name a constraint or conformance states, such as a member of an enumerated
+     * type. Undefined for a model that defines no values, which is any model that is not a {@link ValueModel}.
+     */
+    memberNamed(_name: string): Model | undefined {
+        return undefined;
+    }
+
+    /**
      * Record a validation error for this model.
      */
     error(code: string, message: string) {

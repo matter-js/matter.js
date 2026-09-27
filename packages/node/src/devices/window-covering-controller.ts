@@ -53,7 +53,7 @@ export namespace WindowCoveringControllerRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { optional: { Identify: IdentifyServer }, mandatory: {} };
+    export const server = { optional: { Identify: IdentifyServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -67,7 +67,7 @@ export namespace WindowCoveringControllerRequirements {
 export const WindowCoveringControllerDeviceDefinition = MutableEndpoint({
     name: "WindowCoveringController",
     deviceType: 0x203,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: WindowCoveringControllerRequirements,
     behaviors: SupportedBehaviors()
 });

@@ -18,7 +18,10 @@ export const BatteryStorageDt = DeviceType(
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
 
     Requirement(
-        { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", instance: 1 },
+        {
+            name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 2", element: "deviceType",
+            instance: 1
+        },
 
         Requirement(
             { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
@@ -38,7 +41,10 @@ export const BatteryStorageDt = DeviceType(
     ),
 
     Requirement(
-        { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType", instance: 2 },
+        {
+            name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 2", element: "deviceType",
+            instance: 2
+        },
 
         Requirement(
             { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
@@ -58,7 +64,7 @@ export const BatteryStorageDt = DeviceType(
     ),
 
     Requirement(
-        { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", instance: 1 },
+        { name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 2", element: "deviceType", instance: 1 },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
@@ -70,7 +76,7 @@ export const BatteryStorageDt = DeviceType(
     ),
 
     Requirement(
-        { name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType", instance: 2 },
+        { name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 2", element: "deviceType", instance: 2 },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })

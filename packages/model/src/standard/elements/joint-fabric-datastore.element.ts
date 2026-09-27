@@ -351,20 +351,12 @@ export const JointFabricDatastore = Cluster(
         { name: "DatastoreAccessControlEntryStruct", type: "struct" },
         Field({ name: "Privilege", id: 0x1, type: "DatastoreAccessControlEntryPrivilegeEnum", conformance: "M" }),
         Field({ name: "AuthMode", id: 0x2, type: "DatastoreAccessControlEntryAuthModeEnum", conformance: "M" }),
-
         Field(
-            {
-                name: "Subjects", id: 0x3, type: "list", conformance: "M",
-                constraint: "max subjectsPerAccessControlEntry", quality: "X"
-            },
+            { name: "Subjects", id: 0x3, type: "list", conformance: "M", constraint: "none", quality: "X" },
             Field({ name: "entry", type: "subject-id" })
         ),
-
         Field(
-            {
-                name: "Targets", id: 0x4, type: "list", conformance: "M",
-                constraint: "max targetsPerAccessControlEntry", quality: "X"
-            },
+            { name: "Targets", id: 0x4, type: "list", conformance: "M", constraint: "none", quality: "X" },
             Field({ name: "entry", type: "DatastoreAccessControlTargetStruct" })
         )
     ),

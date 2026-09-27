@@ -11,6 +11,7 @@ import {
     DEFAULT_MAX_TCP_MESSAGE_SIZE,
     isConnectedChannel,
     MockTcpConnection,
+    TransportClosedError,
 } from "@matter/general";
 
 /** Build a 4-byte LE length header for the given payload length. */
@@ -62,6 +63,17 @@ describe("TcpChannel", () => {
             expect(Bytes.toHex(sent.slice(4))).equals("deadbeef");
 
             await conn.close();
+        });
+    });
+
+    describe("send after close", () => {
+        it("rejects with a typed error rather than an untyped one", async () => {
+            const { client } = createPair();
+            const conn = new TcpChannel(client);
+
+            await conn.close();
+
+            await expect(conn.send(Bytes.fromHex("deadbeef"))).rejectedWith(TransportClosedError);
         });
     });
 

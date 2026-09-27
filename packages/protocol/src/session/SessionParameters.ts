@@ -5,6 +5,7 @@
  */
 
 import { SupportedTransportsBitmap, SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
+import { UINT16_MAX } from "@matter/general";
 import { Specification } from "@matter/model";
 import { SessionIntervals } from "./SessionIntervals.js";
 
@@ -69,6 +70,19 @@ export function SessionParameters(config?: SessionParameters.Config): SessionPar
         }
     }
 
+    // The MaxPathsPerInvoke attribute defines zero as "assume one", and the MAX_PATHS_PER_INVOKE session parameter
+    // carries that same attribute as a uint16. Persisted parameters reach us untyped, so anything the wire could not
+    // have carried takes the fallback.
+    const maxPathsPerInvoke = sanitizedConfig.maxPathsPerInvoke;
+    if (
+        typeof maxPathsPerInvoke !== "number" ||
+        !Number.isInteger(maxPathsPerInvoke) ||
+        maxPathsPerInvoke < 1 ||
+        maxPathsPerInvoke > UINT16_MAX
+    ) {
+        delete sanitizedConfig.maxPathsPerInvoke;
+    }
+
     return { ...SessionParameters.fallbacks, ...sanitizedConfig, supportedTransports, maxTcpMessageSize };
 }
 
@@ -104,8 +118,10 @@ export namespace SessionParameters {
         specificationVersion: 0,
 
         /**
-         * Fallback value for the maximum number of paths that can be included in a single invoke message when not provided in
-         * Session parameters.
+         * Fallback value for the maximum number of paths that can be included in a single invoke message when not
+         * provided in, or reported as zero by, Session parameters.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.1.5.23
          */
         maxPathsPerInvoke: 1,
 

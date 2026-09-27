@@ -319,9 +319,22 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
             quality: Optional(Str),
             conformance: Optional(ConformanceCode),
             children: Details(translateValueChildren),
+            accessModifier: Details(extractAccessModifier),
         });
 
         const commands = translateRecordsToMatter("command", records, r => {
+            // The specification states fabric scoping in the command list's Access column and again as a header on the
+            // command's own field table.  Reading only the first inherits any omission from that one column.
+            if (r.accessModifier) {
+                if (!r.access) {
+                    r.access = r.accessModifier;
+                } else if (!r.access.includes(r.accessModifier)) {
+                    r.access = `${r.access} ${r.accessModifier}`;
+                }
+
+                delete r.accessModifier;
+            }
+
             let direction: CommandElement.Direction | undefined;
 
             if (r.direction?.match(/client[^⇐]*⇐[^⇐]*server/i) || r.direction?.match(/client\s*<=\s*server/i)) {

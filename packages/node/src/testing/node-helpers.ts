@@ -17,7 +17,7 @@ import {
     NetworkClient,
     ServerNode,
 } from "#index.js";
-import { Bytes, Crypto, type Environment, InternalError } from "@matter/general";
+import { Bytes, Crypto, type Environment, InternalError, Seconds } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     Certificate,
@@ -380,8 +380,13 @@ export namespace interaction {
         fabric: Fabric,
         request: TypeFromSchema<typeof TlvInvokeRequest>["invokeRequests"][number],
         responder: (value: TypeFromSchema<typeof TlvInvokeResponseData>) => void,
+        options?: { timed?: boolean },
     ) {
         const { exchange, interactionServer } = await connect(node, fabric);
+
+        if (options?.timed) {
+            exchange.startTimedInteraction(Seconds(10));
+        }
 
         const { messenger, getResponse } = createInvokeMessenger();
         await interactionServer.handleInvokeRequest(
@@ -390,7 +395,7 @@ export namespace interaction {
                 invokeRequests: [request],
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                 suppressResponse: false,
-                timedRequest: false,
+                timedRequest: options?.timed ?? false,
             },
             messenger,
             BarelyMockedMessage,
@@ -483,4 +488,34 @@ export async function subscribedPeer(controller: ServerNode, id: string) {
     await MockTime.resolve(subscription.active);
 
     return peer!;
+}
+
+/**
+ * The messages of the error a promise rejects with and of all of its causes, including aggregated ones.  Endpoint
+ * construction reports behavior failures as an aggregate.
+ */
+export async function causeMessagesOf(promise: Promise<unknown>) {
+    const error = await promise.then(
+        () => undefined,
+        (e: unknown) => e ?? new InternalError("Promise rejected without a reason"),
+    );
+    if (error === undefined) {
+        throw new InternalError("Expected the promise to reject");
+    }
+    const messages = new Array<string>();
+    const pending: unknown[] = [error];
+    while (pending.length) {
+        const next = pending.shift();
+        if (!(next instanceof Error)) {
+            continue;
+        }
+        messages.push(next.message);
+        if (next.cause !== undefined) {
+            pending.push(next.cause);
+        }
+        if ("errors" in next && Array.isArray(next.errors)) {
+            pending.push(...next.errors);
+        }
+    }
+    return messages.join(" | ");
 }

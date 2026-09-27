@@ -22,15 +22,15 @@ export const DeviceEnergyManagementDt = DeviceType(
 
     Requirement(
         { name: "DeviceEnergyManagement", id: 0x98, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "POWERADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature" }),
-        Requirement({ name: "STARTTIMEADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature" }),
-        Requirement({ name: "PAUSABLE", conformance: "[ControllableESA].a+", element: "feature" }),
-        Requirement({ name: "FORECASTADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature" }),
-        Requirement({ name: "CONSTRAINTBASEDADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature" })
+        Requirement({ name: "POWERADJUSTMENT", conformance: "[ControllableEsa].a+", element: "feature" }),
+        Requirement({ name: "STARTTIMEADJUSTMENT", conformance: "[ControllableEsa].a+", element: "feature" }),
+        Requirement({ name: "PAUSABLE", conformance: "[ControllableEsa].a+", element: "feature" }),
+        Requirement({ name: "FORECASTADJUSTMENT", conformance: "[ControllableEsa].a+", element: "feature" }),
+        Requirement({ name: "CONSTRAINTBASEDADJUSTMENT", conformance: "[ControllableEsa].a+", element: "feature" })
     ),
 
     Requirement(
-        { name: "DeviceEnergyManagementMode", id: 0x9f, conformance: "ControllableESA, O", element: "serverCluster" }
+        { name: "DeviceEnergyManagementMode", id: 0x9f, conformance: "ControllableEsa, O", element: "serverCluster" }
     ),
     Requirement({ name: "ElectricalGridConditions", id: 0xa0, conformance: "O", element: "clientCluster" }),
     Condition({ name: "ControllableEsa" })

@@ -18,8 +18,6 @@ import type { Status } from "../globals/Status.js";
  *
  * This cluster provides an interface to the functionality of a thermostat.
  *
- * !thermostat devices
- *
  * @see {@link MatterSpecification.v16.Cluster} § 4.3
  */
 export declare namespace Thermostat {
@@ -778,21 +776,21 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.43
          */
-        scheduleTypes: ScheduleType[];
+        scheduleTypes?: ScheduleType[];
 
         /**
          * Indicates the maximum number of entries supported by the Schedules attribute.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.45
          */
-        numberOfSchedules: number;
+        numberOfSchedules?: number;
 
         /**
          * Indicates the maximum number of transitions per Schedules attribute entry.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.46
          */
-        numberOfScheduleTransitions: number;
+        numberOfScheduleTransitions?: number;
 
         /**
          * Indicates the maximum number of transitions per day of the week supported by each Schedules attribute entry.
@@ -800,7 +798,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.47
          */
-        numberOfScheduleTransitionPerDay: number | null;
+        numberOfScheduleTransitionPerDay?: number | null;
 
         /**
          * Indicates the ScheduleHandle of the active schedule. A null value in this attribute indicates that there is
@@ -808,7 +806,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.49
          */
-        activeScheduleHandle: Bytes | null;
+        activeScheduleHandle?: Bytes | null;
 
         /**
          * This attribute shall contain a list of ScheduleStructs.
@@ -921,7 +919,7 @@ export declare namespace Thermostat {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 4.3.11.51
          */
-        schedules: Schedule[];
+        schedules?: Schedule[];
     }
 
     /**

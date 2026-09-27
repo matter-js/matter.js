@@ -15,9 +15,15 @@ export const DoorLockDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 10, revision: 4 } ], element: "attribute" })
     ),
-    Requirement({ name: "AclExtensionCond", type: "RootNode.AclExtensionCond", conformance: "M", element: "condition" }),
-    Requirement({ name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "O", element: "condition" }),
-    Requirement({ name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "O", element: "condition" }),
+    Requirement({
+        name: "AclExtensionCond", type: "RootNode.AclExtensionCond", conformance: "M", element: "condition",
+        location: "Root"
+    }),
+    Requirement({ name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "O", element: "condition", location: "Root" }),
+    Requirement({
+        name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "O",
+        element: "condition", location: "Root"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "X", element: "serverCluster" }),
     Requirement({ name: "ScenesManagement", id: 0x62, conformance: "X", element: "serverCluster" }),

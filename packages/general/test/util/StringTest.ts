@@ -18,6 +18,16 @@ const CAMELIZE_TESTS = {
     hello$: "Hello$",
     hello$wOrLd: "Hello$wOrLd",
     "foo bar biz baz $ huhu": "FooBarBizBaz$ huhu",
+
+    // A pluralised acronym is one word, so it normalises the same way the singular does
+    TariffComponentID: "TariffComponentId",
+    TariffComponentIDs: "TariffComponentIds",
+    ZoneIDs: "ZoneIds",
+    IDs: "Ids",
+
+    // Controls: an uppercase run followed by a longer lowercase run is still two words
+    IPv6Address: "IPv6Address",
+    ACCurrent: "AcCurrent",
 };
 
 describe("String", () => {

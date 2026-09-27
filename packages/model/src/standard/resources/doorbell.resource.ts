@@ -11,9 +11,13 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "deviceType", name: "Doorbell", xref: "device§16.9",
     details: "A Doorbell device is a switch which when pressed usually causes a Chime to activate.",
+
     children: [
         { tag: "requirement", name: "Identify", xref: "device§16.9.2.1" },
-        { tag: "requirement", name: "Switch", xref: "device§16.9.2.1" },
+        {
+            tag: "requirement", name: "Switch", xref: "device§16.9.2.1",
+            children: [{ tag: "requirement", name: "MOMENTARYSWITCH", xref: "device§16.9.2.2" }]
+        },
         { tag: "requirement", name: "Chime", xref: "device§16.9.2.1" }
     ]
 });

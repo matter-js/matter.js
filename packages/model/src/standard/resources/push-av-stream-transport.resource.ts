@@ -37,8 +37,8 @@ Resource.add({
         "All push transport ingest methods shall use TLS as specified by the core specification. TLS Client " +
         "Certificates shall be used for Authorization and Identification of a Node on the underlying TLS " +
         "connection (see Chapter 14, TLS Certificate Management and TLS Client Management sections in " +
-        "[[MatterCore]](#ref_MatterCore)). Nodes supporting this cluster shall also support the TLS Client " +
-        "Management Cluster and its dependencies.",
+        "MatterCore). Nodes supporting this cluster shall also support the TLS Client Management Cluster and " +
+        "its dependencies.",
 
     children: [
         {
@@ -70,11 +70,11 @@ Resource.add({
 
             details: "This attribute shall be a list of TransportConfigurationStruct which represents all the allocated " +
                 "connections added via AllocatePushTransport. When this attribute is read over a non Large Message " +
-                "(See Large Message Quality in the Data Model section of [[MatterCore]](#ref_MatterCore)) capable " +
-                "transport, the TransportOptions field shall NOT be included. To get the full details of the " +
-                "connections use the FindTransport command. The maximum size of this list is run-time dependent upon " +
-                "the resource constraints of the system as described in Resource Management and Stream Priorities and " +
-                "the currently used bandwidth of the total available specified by MaxNetworkBandwidth."
+                "(See Large Message Quality in the Data Model section of MatterCore) capable transport, the " +
+                "TransportOptions field shall NOT be included. To get the full details of the connections use the " +
+                "FindTransport command. The maximum size of this list is run-time dependent upon the resource " +
+                "constraints of the system as described in Resource Management and Stream Priorities and the " +
+                "currently used bandwidth of the total available specified by MaxNetworkBandwidth."
         },
 
         {
@@ -588,7 +588,7 @@ Resource.add({
                 "\n" +
                 "When a Motion Trigger is activated, either by receiving a ManuallyTriggerTransport command, or when " +
                 "motion is initially detected which matches a configured motion trigger, the Node shall start the " +
-                "push transport configured with this trigger see (TransportOptionsStruct)." +
+                "push transport configured with this trigger (see TransportOptionsStruct)." +
                 "\n" +
                 "This places the Node in a Motion Detected state, at which point the Node shall internally track two " +
                 "values." +
@@ -689,14 +689,13 @@ Resource.add({
                     tag: "field", name: "TlsEndpointId", xref: "cluster§11.7.7.15.4",
                     details: "This field shall be a TLSEndpointID representing a provisioned TLS Endpoint, which shall have valid " +
                         "TLSCAID and TLSCCDID values (see Chapter 14, Certificate Authority ID (CAID) Mapping and the " +
-                        "ProvisionEndpoint command in the TLS Client Management Cluster sections in " +
-                        "[[MatterCore]](#ref_MatterCore))."
+                        "ProvisionEndpoint command in the TLS Client Management Cluster sections in MatterCore)."
                 },
 
                 {
                     tag: "field", name: "Url", xref: "cluster§11.7.7.15.5",
 
-                    details: "This field shall be a valid string in RFC 3986 format representing the upload location. The field " +
+                    details: "This field shall be a valid string in RFC3986 format representing the upload location. The field " +
                         "shall use the https scheme which will be validated by the underlying TLSEndpointID." +
                         "\n" +
                         "When the IngestMethod is CMAFIngest, this shall be the CMAF publishing_point_URL to transport the AV " +

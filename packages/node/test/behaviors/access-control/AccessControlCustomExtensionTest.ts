@@ -72,7 +72,10 @@ namespace CustomAccessControlServer {
     }
 }
 
-const CustomRoot = MockServerNode.RootEndpoint.with(CustomAccessControlServer);
+// The default root runs Groupcast, whose Listener needs the Auxiliary ACL feature
+const CustomAclServer = CustomAccessControlServer.with("Extension", "Auxiliary");
+
+const CustomRoot = MockServerNode.RootEndpoint.with(CustomAclServer);
 
 // TLV of the custom command request/response.  On the controller (generic path) the field layout is not discoverable
 // from the wire, so the caller encodes it explicitly.
@@ -100,8 +103,13 @@ const ControllerModel = Matter.withClusters(ExtendedAccessControl);
 
 describe("AccessControl custom extension", () => {
     describe("server", () => {
+        it("keeps the behavior id when features are selected on the decorated subclass", () => {
+            expect(CustomAccessControlServer.id).equals("accessControl");
+            expect(CustomAclServer.id).equals("accessControl");
+        });
+
         it("adds the custom attribute and command to the cluster schema", () => {
-            const schema = CustomAccessControlServer.schema;
+            const schema = CustomAclServer.schema;
 
             const attr = schema.get(AttributeModel, "myCounter");
             expect(attr).not.undefined;
@@ -116,7 +124,7 @@ describe("AccessControl custom extension", () => {
             const node = await MockServerNode.createOnline(CustomRoot);
             try {
                 await node.act(agent => {
-                    const acl = agent.get(CustomAccessControlServer);
+                    const acl = agent.get(CustomAclServer);
                     expect(acl.state.acl).deep.equals([]);
                     expect(acl.state.myCounter).equals(0);
                 });
@@ -148,7 +156,7 @@ describe("AccessControl custom extension", () => {
 
                 expect(response?.command).not.undefined;
                 expect(TlvDoThingResponse.decodeTlv(response!.command!.commandFields!)).deep.equals({ count: 5 });
-                expect(node.stateOf(CustomAccessControlServer).myCounter).equals(5);
+                expect(node.stateOf(CustomAclServer).myCounter).equals(5);
             } finally {
                 await node.close();
             }
@@ -178,7 +186,7 @@ describe("AccessControl custom extension", () => {
                 return client[CMD_NAME](TlvDoThingRequest.encodeTlv({ note: "hello" }));
             });
 
-            expect(device.stateOf(CustomAccessControlServer).myCounter).equals(12);
+            expect(device.stateOf(CustomAclServer).myCounter).equals(12);
 
             const after = await peer.getStateOf("accessControl", [ATTR_NAME]);
             expect(after[ATTR_NAME]).equals(12);
@@ -222,7 +230,7 @@ describe("AccessControl custom extension", () => {
                 return client.doThing({ note: "hello" });
             });
 
-            expect(device.stateOf(CustomAccessControlServer).myCounter).equals(12);
+            expect(device.stateOf(CustomAclServer).myCounter).equals(12);
 
             const after = await peer.getStateOf("accessControl", ["myCounter"]);
             expect(after.myCounter).equals(12);

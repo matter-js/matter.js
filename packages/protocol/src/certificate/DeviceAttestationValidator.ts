@@ -334,7 +334,7 @@ export namespace DeviceAttestationValidator {
                 );
             }
 
-            // Step 5: Revocation check — composite key is (AKID, IssuerDN) per spec 6.2.4.2
+            // Step 5: Revocation check — composite key is (AKID, IssuerDN) per spec 6.2.6.2
             const dacIssuerDnHex = dac.cert.issuerDer ? Bytes.toHex(dac.cert.issuerDer).toUpperCase() : undefined;
             if (
                 await dclCertificateService.isRevoked(

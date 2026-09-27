@@ -325,9 +325,6 @@ Resource.add({
                 "The Credentials associated with the network are not readable after execution of this command, as " +
                 "they do not appear in the Networks attribute, for security reasons." +
                 "\n" +
-                "If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a " +
-                "matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND." +
-                "\n" +
                 "See Section 11.9.7.5, \"Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork\" for " +
                 "behavior of addition/update.",
 
@@ -364,8 +361,10 @@ Resource.add({
                         "\n" +
                         "  - 8..63 bytes: WPA/WPA2/WPA3 passphrase" +
                         "\n" +
-                        "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK These lengths shall be contextually interpreted based on the " +
-                        "security type of the BSSID where connection will occur." +
+                        "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK" +
+                        "\n" +
+                        "These lengths shall be contextually interpreted based on the security type of the BSSID where " +
+                        "connection will occur." +
                         "\n" +
                         "When the length of Credentials and available set of BSSID admits more than one option, such as the " +
                         "presence of both WPA2 and WPA security type within the result set, WPA2 shall be considered more " +

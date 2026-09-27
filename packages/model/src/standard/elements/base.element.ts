@@ -14,7 +14,7 @@ import {
 } from "../../elements/index.js";
 
 export const BaseDt = DeviceType(
-    { name: "Base", classification: "base" },
+    { name: "Base", classification: "base", revision: 3 },
     Condition({ name: "Ethernet" }),
     Condition({ name: "WiFi" }),
     Condition({ name: "Thread" }),

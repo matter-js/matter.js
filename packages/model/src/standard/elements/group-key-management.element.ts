@@ -17,7 +17,7 @@ import {
 
 export const GroupKeyManagement = Cluster(
     { name: "GroupKeyManagement", id: 0x3f, classification: "node" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "CS", conformance: "P", constraint: "0", title: "CacheAndSync" }),
@@ -27,7 +27,7 @@ export const GroupKeyManagement = Cluster(
     Attribute(
         {
             name: "GroupKeyMap", id: 0x0, type: "list", access: "RW F VM", conformance: "M", constraint: "desc",
-            default: [], quality: "N"
+            default: [], quality: "N C"
         },
         Field({ name: "entry", type: "GroupKeyMapStruct" })
     ),
@@ -87,7 +87,7 @@ export const GroupKeyManagement = Cluster(
     Command(
         { name: "KeySetReadAllIndicesResponse", id: 0x5, conformance: "M", direction: "response" },
         Field(
-            { name: "GroupKeySetIDs", id: 0x0, type: "list", conformance: "M" },
+            { name: "GroupKeySetIds", id: 0x0, type: "list", conformance: "M" },
             Field({ name: "entry", type: "uint16" })
         )
     ),

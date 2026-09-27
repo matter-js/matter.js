@@ -19,8 +19,6 @@ import type { MaybePromise } from "@matter/general";
  *
  * In most deployments the EMS will be the client, and the ESA will host the Device Energy Management Cluster server.
  *
- * !ESA EMS Cluster
- *
  * This cluster is intended to be generic in nature and could apply to any electrical load or generator (e.g. a Battery
  * Electric Storage System - BESS, solar PV inverter, EVSE, HVAC, heat pump, hot water heater, white goods appliances
  * etc).
@@ -46,8 +44,6 @@ import type { MaybePromise } from "@matter/general";
  * It is likely that the ESA may also use the Pricing Cluster to obtain incentive signals such as 'grid carbon
  * intensity', 'time of use' or 'type of use' tariffs to schedule its operation to run at the cheapest and greenest
  * times.
- *
- * !HVAC ESA Example with EMS
  *
  * > [!NOTE]
  *
@@ -1387,7 +1383,7 @@ export declare namespace DeviceEnergyManagement {
      */
     export enum Cause {
         /**
-         * The ESA completed the power adjustment as requested
+         * The ESA completed the adjustment as requested
          */
         NormalCompletion = 0,
 

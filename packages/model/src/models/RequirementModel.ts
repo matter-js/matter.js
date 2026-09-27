@@ -15,6 +15,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
     declare element: RequirementElement.ElementType;
     declare default?: any;
     declare instance?: number;
+    declare location?: RequirementElement.Location;
 
     #constraint: Constraint;
     #conformance: Conformance;
@@ -81,6 +82,28 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
     }
 
     /**
+     * The numeric range the requirement's constraint states, such as the number of endpoints a component device type
+     * requirement requires.
+     *
+     * Undefined when the constraint bounds no number (`all`, `desc` or no constraint at all) and when it has several
+     * parts (e.g. `1 to 2, 4`). An exact number (e.g. `1`) is both bounds. An undefined bound means there is no bound
+     * on that side.
+     */
+    get componentCountRange(): RequirementModel.CountRange | undefined {
+        const { value, min, max } = this.constraint;
+        if (typeof value === "number") {
+            return { min: value, max: value };
+        }
+
+        const lower = typeof min === "number" ? min : undefined;
+        const upper = typeof max === "number" ? max : undefined;
+        if (lower === undefined && upper === undefined) {
+            return undefined;
+        }
+        return { min: lower, max: upper };
+    }
+
+    /**
      * Is the element mandatory?
      */
     get isMandatory() {
@@ -103,6 +126,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
         this.element = definition.element as RequirementElement.ElementType;
         this.default = definition.default;
         this.instance = definition.instance;
+        this.location = definition.location as RequirementElement.Location;
         this.#constraint = Constraint.create(definition.constraint);
         this.#conformance = Conformance.create(definition.conformance);
         this.#access = Access.create(definition.access);
@@ -113,6 +137,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
         return super.toElement(omitResources, {
             element: this.element,
             instance: this.instance,
+            location: this.location,
             default: this.default,
             constraint: this.#constraint.valueOf(),
             conformance: this.#conformance.valueOf(),
@@ -129,4 +154,19 @@ RequirementModel.register();
 
 export namespace RequirementModel {
     export type Child = RequirementModel | FieldModel;
+
+    /**
+     * The range of {@link RequirementModel.componentCountRange}, inclusive at both ends.
+     */
+    export interface CountRange {
+        /**
+         * The lowest number allowed, or undefined if there is no lower bound.
+         */
+        min?: number;
+
+        /**
+         * The highest number allowed, or undefined if there is no upper bound.
+         */
+        max?: number;
+    }
 }

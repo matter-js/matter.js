@@ -14,13 +14,17 @@ import { SessionManager } from "#session/SessionManager.js";
 import {
     b$,
     Bytes,
+    Environment,
     ImplementationError,
     Key,
+    Logger,
+    LogLevel,
     MemoryStorageDriver,
     Millis,
     PrivateKey,
     StandardCrypto,
     StorageContext,
+    StorageManager,
     Timestamp,
 } from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
@@ -140,6 +144,74 @@ describe("SessionManager", () => {
             }
             expect(await sessionManager.getNextAvailableSessionId()).to.equal(first);
             expect(firstClosed).to.be.true;
+        });
+
+        describe("with a fixed random seed", () => {
+            class FixedSeedCrypto extends StandardCrypto {
+                constructor(readonly seed: number) {
+                    super();
+                }
+
+                override get randomUint16() {
+                    return this.seed;
+                }
+
+                override get randomUint32() {
+                    return this.seed;
+                }
+            }
+
+            async function managerWithSeed(seed: number) {
+                const manager = new SessionManager({
+                    parameters: {} as SessionParameters,
+                    fabrics: new FabricManager(new FixedSeedCrypto(seed)),
+                    storage: storageContext,
+                });
+                await manager.construction.ready;
+                return manager;
+            }
+
+            async function occupy(manager: SessionManager, id: number) {
+                await manager.createSecureSession({
+                    id,
+                    fabric: undefined,
+                    peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                    peerSessionId: 0x8d4b,
+                    sharedSecret: DUMMY_BYTEARRAY,
+                    salt: DUMMY_BYTEARRAY,
+                    isInitiator: false,
+                    isResumption: false,
+                });
+            }
+
+            it("never allocates 0 when the random seed is 0", async () => {
+                const manager = await managerWithSeed(0);
+
+                expect(await manager.getNextAvailableSessionId()).to.equal(1);
+                expect(await manager.getNextAvailableSessionId()).to.equal(2);
+            });
+
+            it("stays within the ID range after reusing the session with the highest ID", async () => {
+                const manager = await managerWithSeed(0);
+                manager.compressIdRange(3);
+
+                const [first, second, third] = [
+                    await manager.getNextAvailableSessionId(),
+                    await manager.getNextAvailableSessionId(),
+                    await manager.getNextAvailableSessionId(),
+                ];
+                expect([first, second, third]).to.deep.equal([1, 2, 3]);
+                await occupy(manager, third);
+                await MockTime.advance(1000);
+                await occupy(manager, first);
+                await occupy(manager, second);
+
+                const reused = await manager.getNextAvailableSessionId();
+                expect(reused).to.equal(3);
+                await occupy(manager, reused);
+
+                expect(await manager.getNextAvailableSessionId()).to.be.within(1, 3);
+            });
         });
     });
 
@@ -327,6 +399,65 @@ describe("SessionManager", () => {
             });
 
             expect(received[0]).equals(currentExchange);
+        });
+    });
+
+    describe("log attribution", () => {
+        // Session eviction runs from a timer or transport callback, so nothing on the call stack says which node
+        // it belongs to.  A process running several nodes reads these lines only if the message names its owner.
+        it("names the originating environment on the lines an eviction produces", async () => {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const storageManager = new StorageManager(storage);
+            await storageManager.initialize();
+
+            const environment = new Environment("test", Environment.default);
+            environment.set(StorageManager, storageManager);
+            environment.set(FabricManager, new FabricManager(new StandardCrypto()));
+
+            // Through the environment rather than by construction, so the logger the environment installs is the
+            // one under test
+            const sessionManager = environment.get(SessionManager);
+            await sessionManager.construction.ready;
+
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const origins = new Array<unknown>();
+            // The level is process-global and other suites move it; the line under test is INFO
+            dest.level = LogLevel.INFO;
+            dest.add = message => {
+                if (String(message.values[1]).startsWith("Closing least recently used session")) {
+                    origins.push(message.origin);
+                }
+            };
+
+            try {
+                const PEER_NODE_ID = NodeId(0x4321n);
+                for (let i = 0; i < 6; i++) {
+                    const session = await sessionManager.createSecureSession({
+                        id: 0x0200 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0001 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: false,
+                        isResumption: false,
+                    });
+                    session.timestamp = Timestamp(1000 + i);
+                }
+
+                await MockTime.yield3();
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+                await sessionManager.close();
+            }
+
+            // Identity, not deep equality: an origin is a plain name-and-parent record, so deep equality holds
+            // between any two environments named alike and would accept attribution to the wrong node
+            expect(origins.length).equals(1);
+            expect(origins[0]).equals(environment.logOrigin);
         });
     });
 
@@ -561,6 +692,49 @@ describe("SessionManager", () => {
             await sessionManager.construction.ready;
 
             expect(sessionManager.sessionParameters.activeThreshold).equal(Millis(65535));
+        });
+    });
+
+    describe("max paths per invoke validation", () => {
+        function newManager(parameters: Partial<SessionParameters>) {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            return new SessionManager({
+                parameters: parameters as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+        }
+
+        it("rejects a local max paths per invoke of zero on construction", () => {
+            expect(() => newManager({ maxPathsPerInvoke: 0 })).throws(ImplementationError, "Max Paths Per Invoke");
+        });
+
+        it("rejects a local max paths per invoke of zero via the setter", async () => {
+            const sessionManager = newManager({});
+            await sessionManager.construction.ready;
+
+            expect(() => (sessionManager.sessionParameters = { maxPathsPerInvoke: 0 })).throws(
+                ImplementationError,
+                "Max Paths Per Invoke",
+            );
+        });
+
+        it("rejects a local max paths per invoke that is not a whole count", async () => {
+            const sessionManager = newManager({});
+            await sessionManager.construction.ready;
+
+            expect(() => (sessionManager.sessionParameters = { maxPathsPerInvoke: 2.5 })).throws(
+                ImplementationError,
+                "Max Paths Per Invoke",
+            );
+        });
+
+        it("accepts a local max paths per invoke of one", async () => {
+            const sessionManager = newManager({ maxPathsPerInvoke: 1 });
+            await sessionManager.construction.ready;
+
+            expect(sessionManager.sessionParameters.maxPathsPerInvoke).equals(1);
         });
     });
 

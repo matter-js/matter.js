@@ -13,8 +13,12 @@ export const MountedDimmableLoadControlDt = DeviceType(
     { name: "MountedDimmableLoadControl", id: 0x110, type: "DimmablePlugInUnit", classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 272, revision: 2 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 272, revision: 3 } ], element: "attribute" })
     ),
+    Requirement({
+        name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
     Requirement(
         { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" },
         Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })

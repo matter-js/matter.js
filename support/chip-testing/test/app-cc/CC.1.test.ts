@@ -5,16 +5,17 @@
  */
 
 describe("CC", () => {
-    chip("CC/*").exclude(
+    // Each CC test defines one run per device type it targets, each exercising a different ColorControl feature set
+    chip("CC/*/*").exclude(
         // CC tests are incredibly slow so we split these out into CC.2.test.ts for CI purposes
-        "CC/5.*",
-        "CC/6.*",
-        "CC/7.*",
-        "CC/8.*",
+        "CC/5.*/*",
+        "CC/6.*/*",
+        "CC/7.*/*",
+        "CC/8.*/*",
 
         // has too exact, expectations on transition results
-        "CC/9.1",
-        "CC/9.2",
-        "CC/9.3",
+        "CC/9.1/*",
+        "CC/9.2/*",
+        "CC/9.3/*",
     );
 });

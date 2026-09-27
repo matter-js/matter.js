@@ -105,6 +105,7 @@ const schema = OtaSoftwareUpdateRequestorBehavior.schema.extend(
         { name: "updateInProgressDetails", type: "struct", quality: "NX", conformance: "M" },
         FieldElement({ name: "location", type: "ProviderLocation", conformance: "O" }),
         FieldElement({ name: "newSoftwareVersion", type: "uint32" }),
+        FieldElement({ name: "updateToken", type: "octstr", conformance: "O" }),
     ),
 );
 
@@ -135,7 +136,11 @@ const schema = OtaSoftwareUpdateRequestorBehavior.schema.extend(
  *
  * * {@link applyUpdate}: The method is called with the new SoftwareVersion and the PersistedFileDescriptor where a downloaded
  *     update is placed and needs to trigger the update process including shutdown and restart of the node and also
- *     sending "bootReason" event after the update!
+ *     sending "bootReason" event after the update!  It runs in its own transaction after the record of the update is
+ *     stored.  If the update fails, or the node keeps running the old version, it deletes the downloaded file: a file
+ *     left behind is applied again at the next query without asking the provider, so no `NotifyUpdateApplied`
+ *     follows.  After a restart into the new version the requestor discards the file itself.  If it throws, the
+ *     requestor logs the error, forgets the update and returns to idle.
  *
  * * {@link validateUpdateFile}: This method in default implementation reads the received OTA file and validates header and
  *     checksums and basic details. Override this method and use this.getDownloadLocation() for access if any custom
@@ -172,6 +177,8 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
         // After commissioningComplete we should do an update query 30s later if anything was configured
         this.reactTo(node.lifecycle.commissioned, this.#scheduleInitialQuery);
+
+        this.internal.applyPreparedUpdate = this.callback(this.#applyPreparedUpdate, { offline: true });
     }
 
     async getDownloadLocation(): Promise<PersistedFileDesignator> {
@@ -378,7 +385,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         // real delays under load) a chance to fire the old timer prematurely.
         if (announcementReason !== OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement) {
             // If Urgent or UpdateAvailable, we schedule an update query earlier as we would have done before
-            const delay = Seconds(Math.floor(Math.random() * 599) + 1); // random delay 1..600s as per spec
+            const delay = this.state.announcedUpdateQueryDelay ?? Seconds(Math.floor(Math.random() * 600) + 1);
             logger.info(`Scheduling urgent update query in`, delay);
             this.#scheduleUpdateQuery(delay, ScheduleReason.Announced, provider);
         } else {
@@ -538,6 +545,12 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
     /** Perform an actual update query */
     async #performUpdateQuery() {
+        // Every query passes here, so none starts while applyUpdate runs outside the query's transaction
+        if (this.state.updateState === OtaSoftwareUpdateRequestor.UpdateState.Applying) {
+            logger.info("OTA update is being applied, skipping update query");
+            return;
+        }
+
         const downloadLocation = await this.getDownloadLocation();
         if (await downloadLocation.exists()) {
             let otaHeader: OtaImageHeader | undefined;
@@ -554,7 +567,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                 // We already have a file, and a version is newer than the current, apply it
                 const { softwareVersion } = otaHeader;
                 logger.info(`OTA update file is already downloaded and valid, applying version ${softwareVersion}.`);
-                await this.#triggerApplyUpdate(softwareVersion, downloadLocation);
+                this.#prepareApplyUpdate(softwareVersion, downloadLocation);
                 return;
             }
         }
@@ -575,9 +588,10 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             OtaSoftwareUpdateRequestor.ChangeReason.Success,
         );
 
+        let applyPrepared = false;
         try {
             // Connect to the provider and query for updates
-            await this.#queryOtaProvider(await this.#connectOtaProviderFor(provider), provider);
+            applyPrepared = await this.#queryOtaProvider(await this.#connectOtaProviderFor(provider), provider);
         } catch (error) {
             logger.warn(`OTA provider communication failed to`, Diagnostic.dict(provider), error);
 
@@ -585,7 +599,9 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             this.#markActiveOtaProviderNoUpdate(provider);
         }
 
-        this.#resetStateToIdle();
+        if (!applyPrepared) {
+            this.#resetStateToIdle();
+        }
     }
 
     /** Query the given OTA provider for an update and handle all non-UpdateAvailable results and error cases */
@@ -622,7 +638,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                         OtaSoftwareUpdateRequestor.ChangeReason.DelayByProvider,
                     );
                     this.#scheduleUpdateQuery(
-                        Seconds(Math.max(delayedActionTime, 120)),
+                        Millis(Math.max(Seconds(delayedActionTime), this.state.minimumQueryInterval)),
                         ScheduleReason.Busy,
                         providerLocation,
                     );
@@ -749,7 +765,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             );
             this.internal.updateDelayPromise = Time.sleep(
                 "OTAUpdateApply-AwaitNextAction",
-                Millis(Math.min(Math.max(Seconds(applyDelayedActionTime), Minutes(2)), Hours(24))),
+                Millis(Math.min(Math.max(Seconds(applyDelayedActionTime), this.state.minimumApplyDelay), Hours(24))),
             );
             await this.internal.updateDelayPromise;
             this.internal.updateDelayPromise = undefined;
@@ -779,8 +795,12 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         return true;
     }
 
-    /** Query the given OTA provider for an update and handle the result */
-    async #queryOtaProvider(ep: Endpoint, providerLocation: ProviderLocation): Promise<void> {
+    /**
+     * Query the given OTA provider for an update and handle the result.
+     *
+     * @returns whether an update is prepared to be applied once this transaction finishes
+     */
+    async #queryOtaProvider(ep: Endpoint, providerLocation: ProviderLocation): Promise<boolean> {
         const { vendorId, productId, softwareVersion, hardwareVersion, location, localConfigDisabled } =
             this.#basicInformationState();
 
@@ -800,7 +820,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         );
         if (updateDetails === undefined) {
             // No update available
-            return;
+            return false;
         }
 
         const {
@@ -827,12 +847,13 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                     // Consent denied
                     this.#markActiveOtaProviderNoUpdate(providerLocation);
                     this.#resetStateToIdle();
-                    return;
+                    return false;
                 }
             } catch (error) {
                 logger.warn(`Failed to request user consent:`, error);
                 this.#markActiveOtaProviderNoUpdate(providerLocation);
                 this.#resetStateToIdle(OtaSoftwareUpdateRequestor.ChangeReason.Failure);
+                return false;
             }
         }
 
@@ -872,7 +893,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                 MatterError.accept(error);
                 logger.warn(`OTA download failed and deleting partial file also failed:`, error);
             }
-            return;
+            return false;
         }
 
         // Inform the provider that we are ready to apply the update
@@ -887,10 +908,11 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             ))
         ) {
             // Not allowed to proceed with the update, so stop here
-            return;
+            return false;
         }
 
-        await this.#triggerApplyUpdate(newSoftwareVersion, fileDesignator, providerLocation, updateToken);
+        this.#prepareApplyUpdate(newSoftwareVersion, fileDesignator, providerLocation, updateToken);
+        return true;
     }
 
     async #handleBdxDownload(endpoint: Endpoint, fileDesignator: FileDesignator) {
@@ -1168,7 +1190,13 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         );
     }
 
-    #triggerApplyUpdate(
+    /**
+     * Record the update and apply it once the current transaction commits.
+     *
+     * {@link applyUpdate} runs in its own transaction so that the record is stored before it runs, and so that it holds
+     * no lock the requestor's other reactions wait for.
+     */
+    #prepareApplyUpdate(
         newSoftwareVersion: number,
         fileDesignator: PersistedFileDesignator,
         location?: ProviderLocation,
@@ -1186,7 +1214,39 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             newSoftwareVersion,
         );
 
-        return this.applyUpdate(newSoftwareVersion, fileDesignator);
+        const { applyPreparedUpdate } = this.internal;
+        this.context.transaction.onFinalize(() => applyPreparedUpdate?.(newSoftwareVersion, fileDesignator));
+    }
+
+    async #applyPreparedUpdate(newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) {
+        // onFinalize also runs after a roll back, which leaves nothing prepared and no query scheduled
+        if (
+            this.state.updateState !== OtaSoftwareUpdateRequestor.UpdateState.Applying ||
+            this.state.updateInProgressDetails?.newSoftwareVersion !== newSoftwareVersion
+        ) {
+            logger.info(`OTA update to software version ${newSoftwareVersion} was not prepared, not applying it`);
+            this.#scheduleUpdateQuery();
+            return;
+        }
+
+        try {
+            await this.applyUpdate(newSoftwareVersion, fileDesignator);
+        } catch (error) {
+            logger.error(`Applying OTA update to software version ${newSoftwareVersion} failed:`, error);
+            await this.#lockState();
+            this.state.updateInProgressDetails = null;
+            this.#resetStateToIdle(OtaSoftwareUpdateRequestor.ChangeReason.Failure);
+            return;
+        }
+
+        await this.#lockState();
+        this.#resetStateToIdle();
+    }
+
+    /** Wait for other writers of this state instead of failing on a synchronous write */
+    async #lockState() {
+        await this.context.transaction.addResources(this);
+        await this.context.transaction.begin();
     }
 
     protected applyUpdate(_newSoftwareVersion: number, _fileDesignator: PersistedFileDesignator): MaybePromise<void> {
@@ -1212,16 +1272,52 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 export namespace OtaSoftwareUpdateRequestorServer {
     export class State extends OtaSoftwareUpdateRequestorBehavior.State {
         /**
+         * How long to wait before querying a provider that announced an update other than a simple one.
+         *
+         * Unset draws the specified random window, so that the nodes of a fabric announced to together do
+         * not query at once. A node that knows it is alone with its provider may name a shorter wait; the
+         * specification states a preference rather than a requirement, so a fixed value still conforms.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.7.4.1.3
+         */
+        announcedUpdateQueryDelay?: Duration = undefined;
+
+        /**
+         * Shortest interval this requestor leaves between two `QueryImage` commands to one provider,
+         * which also floors the `DelayedActionTime` a `Busy` answer names.
+         *
+         * The specification requires two minutes, which is the default. It is settable so a test
+         * harness can observe the exchange that follows a delayed answer without waiting the delay
+         * out; a product that lowers it does not conform.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.3.2
+         */
+        minimumQueryInterval: Duration = Seconds(120);
+
+        /**
+         * Shortest interval this requestor leaves before re-sending an `ApplyUpdateRequest` a provider
+         * answered `AwaitNextAction`, which also floors the `DelayedActionTime` that answer names.
+         *
+         * As {@link minimumQueryInterval}: the specification requires two minutes, and lowering it is
+         * for a harness rather than for a product.
+         *
+         * @see {@link MatterSpecification.v16.Core} § 11.20.6.10
+         */
+        minimumApplyDelay: Duration = Minutes(2);
+
+        /**
          * The list of OTA providers that were recently active (by announcement or by being used).
-         * The error counter is increased when a provider could not be reached or returned an unexpected error.
-         * After 3 errors the provider is removed from this list and also from the defaultProviders list.
+         * A provider that supports none of this requestor's download protocols is removed from this list and from the
+         * default providers; one that fails or has no update is tried after the others next time.
          * This value is persisted.
          */
         activeOtaProviders: ActiveProviderLocation[] = [];
 
         /**
-         * Details of an upgrade in progress that is checked on restart if the upgrade was successful.
-         * This value is persisted.
+         * Details of an upgrade in progress, set when the update is applied and consumed on the next start: if the node
+         * then runs {@link UpdateInProgressDetails.newSoftwareVersion} it emits `VersionApplied` and, where the update
+         * came from a provider with a token, reports it applied to that provider; otherwise it reports a failure and
+         * queries again.  A failing `applyUpdate` clears it.  This value is persisted.
          */
         updateInProgressDetails: UpdateInProgressDetails | null = null;
 
@@ -1281,6 +1377,9 @@ export namespace OtaSoftwareUpdateRequestorServer {
          * It is initialized from the state or with an internal default on startup.
          */
         downloadLocation!: PersistedFileDesignator;
+
+        /** Applies a prepared update in a dedicated transaction */
+        applyPreparedUpdate?: (newSoftwareVersion: number, fileDesignator: PersistedFileDesignator) => void;
     }
 
     export declare const ExtensionInterface: {

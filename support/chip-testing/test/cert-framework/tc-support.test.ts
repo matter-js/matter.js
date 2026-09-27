@@ -5,16 +5,21 @@
  */
 
 import { InternalError, Millis, Time, Seconds } from "@matter/main";
+import type { ClusterModel } from "@matter/model";
+import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
+    CertDevice,
     CertNodeApi,
     CertStepContext,
     CheckRecord,
     ControllerAdapter,
+    DeviceExitInfo,
     LogExpectPatterns,
 } from "@matter/testing";
-import { LogFollower } from "@matter/testing";
+import { LogFollower, PicsFile, UnsupportedByControllerError } from "@matter/testing";
 import {
+    attempt,
     attributePathIBSequence,
     CertCheckFailedError,
     CertCleanupError,
@@ -33,6 +38,7 @@ import {
     expectSubscriptionId,
     fabricFilteredPattern,
     fabricSessionsEnded,
+    invokeCommand,
     matterjsReadEventPath,
     matterjsSubscribeEventPath,
     matterjsSubscribeFlags,
@@ -40,12 +46,15 @@ import {
     READ_REQUEST_MESSAGE,
     readOwnFabricIndex,
     recordAll,
+    withChecks,
     CertCleanupErrors,
     removeFabricSucceeded,
     requireId,
     runCleanups,
+    statedInPrompt,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
+import { fakeCertNode } from "./fake-cert-node.js";
 
 const EXCHANGE = 26481;
 const CHUNK = "[DMG] ReportDataMessage =";
@@ -1438,21 +1447,7 @@ describe("requireId", () => {
 
 describe("readOwnFabricIndex", () => {
     function nodeReporting(value: unknown): CertNodeApi {
-        const unused = () => Promise.reject(new InternalError("not used by these tests"));
-        return {
-            invoke: unused,
-            invokeBatch: unused,
-            readAttributes: unused,
-            writeAttribute: unused,
-            writeAttributes: unused,
-            subscribe: unused,
-            readEvents: unused,
-            subscribeEvents: unused,
-            openCommissioningWindow: unused,
-            operationalMdnsInstanceName: unused,
-            decommission: unused,
-            readAttribute: async () => value,
-        };
+        return fakeCertNode({ readAttribute: async () => value });
     }
 
     it("returns the index the device reported", async () => {
@@ -1633,6 +1628,221 @@ describe("expectCommandInvoke", () => {
     });
 });
 
+describe("attempt", () => {
+    it("lets a controller's refusal through, so the harness can skip the step", async () => {
+        await expect(
+            attempt(
+                async () => {
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool", "no per-path status");
+                },
+                () => "",
+            ),
+        ).rejectedWith(UnsupportedByControllerError);
+    });
+
+    it("judges any other error as a failing check", async () => {
+        const result = await attempt(
+            async () => {
+                throw new InternalError("read failed");
+            },
+            () => "",
+        );
+        expect(result.ok).equal(false);
+        expect(result.check.verdict).equal("fail");
+    });
+});
+
+describe("invokeCommand", () => {
+    const GROUPS = Matter.clusters.require("Groups");
+    const GROUPS_ENDPOINT = 1;
+    const LEVEL_CONTROL = Matter.clusters.require("LevelControl");
+    const LEVEL_CONTROL_ENDPOINT = 1;
+
+    const noLines = async function* (): AsyncGenerator<string> {};
+
+    const invokeLine = (path: string) => `INFO InteractionServer Invoke « invokes: ${path}`;
+
+    function fakeTh(line: string): CertDevice {
+        const source = new OpenSource();
+        source.push(line);
+        return {
+            id: "th",
+            app: "th",
+            commissioning: { kind: "on-network", passcode: 20202021, discriminator: 3840, qrPairingCode: "" },
+            pics: new PicsFile([]),
+            async initialize() {},
+            async start() {},
+            async stop() {},
+            async close() {},
+            async snapshot() {
+                return {};
+            },
+            async restore() {},
+            async backchannel() {},
+            flavor: "matterjs",
+            log: new LogFollower(source, "th"),
+            exit: new Promise<DeviceExitInfo>(() => {}),
+        };
+    }
+
+    function contextFor(th: CertDevice, respond: CertNodeApi["invoke"]): CertStepContext {
+        const controller: ControllerAdapter = {
+            id: "dut",
+            log: new LogFollower(noLines(), "dut"),
+            async start() {},
+            async close() {},
+            async commission() {
+                return "ref";
+            },
+            async parseQrPayload(): Promise<never> {
+                throw new InternalError("not used by these tests");
+            },
+            async parseManualPairingCode(): Promise<never> {
+                throw new InternalError("not used by these tests");
+            },
+            group: (): never => {
+                throw new InternalError("not used by these tests");
+            },
+            node: () => fakeCertNode({ invoke: respond }),
+        };
+
+        return {
+            controllers: { dut: controller },
+            devices: { th },
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
+            recorder: {
+                beginStep() {},
+                check() {},
+                endStep() {
+                    return [];
+                },
+                async flush() {
+                    return "";
+                },
+            },
+        };
+    }
+
+    /**
+     * Drives one `invokeCommand` call and resolves its checks to plain records.
+     *
+     * `path` is queued on the TH's log before `invokeCommand` runs, and `invokeCommand` takes its
+     * log mark synchronously, before its first `await` — so the mark lands at index 0 and the queued
+     * line is always at or after it. Nothing here awaits in between, which is what keeps the ordering
+     * deterministic rather than a race the log follower's own pump could lose.
+     */
+    async function invoke(
+        cluster: ClusterModel,
+        endpoint: number,
+        command: string,
+        path: string,
+        args: object,
+        respond: CertNodeApi["invoke"],
+    ) {
+        const th = fakeTh(invokeLine(path));
+        const cx = contextFor(th, respond);
+        try {
+            const result = await invokeCommand(cx, "ref", { cluster, endpoint, command, args, fields: [] });
+            const checks = await Promise.all(
+                result.checks.map(async ({ what, check }) => ({ what, ...(await check()) })),
+            );
+            return { result, checks };
+        } finally {
+            await th.log.close();
+        }
+    }
+
+    it("passes the response and log checks, and adds no status check, when the response has no Status field", async () => {
+        const { result, checks } = await invoke(
+            LEVEL_CONTROL,
+            LEVEL_CONTROL_ENDPOINT,
+            "moveToLevel",
+            "1.levelControl.moveToLevel",
+            { level: 100, transitionTime: 0, optionsMask: 0, optionsOverride: 0 },
+            async () => undefined,
+        );
+
+        expect(result.response).deep.equal({ ok: true, value: undefined });
+        expect(checks.map(check => check.what)).deep.equal([
+            "LevelControl.moveToLevel response",
+            "CommandDataIB log for LevelControl.moveToLevel",
+        ]);
+        expect(checks[0].verdict).equal("pass");
+        expect(checks[1].verdict).equal("pass");
+    });
+
+    it("passes the status check when a response carrying Status answers 0", async () => {
+        const { result, checks } = await invoke(
+            GROUPS,
+            GROUPS_ENDPOINT,
+            "addGroup",
+            "1.groups.addGroup",
+            { groupId: 5, groupName: "g5" },
+            async () => ({ status: 0, groupId: 5 }),
+        );
+
+        const status = checks.find(check => check.what === "Groups.addGroup response status");
+        expect(status?.verdict).equal("pass");
+        expect(status?.detail).equal("addGroup response status=0");
+        expect(result.accepted).equal(true);
+    });
+
+    it("fails the status check when a response carrying Status answers a nonzero status", async () => {
+        const { result, checks } = await invoke(
+            GROUPS,
+            GROUPS_ENDPOINT,
+            "addGroup",
+            "1.groups.addGroup",
+            { groupId: 5, groupName: "g5" },
+            async () => ({ status: 0x8b, groupId: 5 }),
+        );
+
+        const status = checks.find(check => check.what === "Groups.addGroup response status");
+        expect(status?.verdict).equal("fail");
+        expect(status?.detail).equal("addGroup response status=139");
+        expect(result.accepted).equal(false);
+    });
+
+    it("fails the status check, naming what it answered, when a response that should carry Status has none", async () => {
+        const { checks } = await invoke(
+            GROUPS,
+            GROUPS_ENDPOINT,
+            "addGroup",
+            "1.groups.addGroup",
+            { groupId: 5, groupName: "g5" },
+            async () => ({ groupId: 5 }),
+        );
+
+        const status = checks.find(check => check.what === "Groups.addGroup response status");
+        expect(status?.verdict).equal("fail");
+        expect(status?.detail).equal('addGroup answered {"groupId":5}, which carries no status');
+    });
+
+    it("fails the response check with the command name prefix, still produces the log check, and adds no status check, on a rejected invoke", async () => {
+        const { result, checks } = await invoke(
+            GROUPS,
+            GROUPS_ENDPOINT,
+            "addGroup",
+            "1.groups.addGroup",
+            { groupId: 5, groupName: "g5" },
+            async () => {
+                throw new InternalError("group table full");
+            },
+        );
+
+        expect(result.response).deep.equal({ ok: false });
+        expect(checks.map(check => check.what)).deep.equal([
+            "Groups.addGroup response",
+            "CommandDataIB log for Groups.addGroup",
+        ]);
+        expect(checks[0].verdict).equal("fail");
+        expect(checks[0].detail).equal("addGroup: InternalError: group table full");
+        expect(checks[1].verdict).equal("pass");
+    });
+});
+
 describe("runCleanups", () => {
     it("runs every cleanup even after one fails, and reports both failures", async () => {
         const ran = new Array<string>();
@@ -1692,21 +1902,7 @@ describe("runCleanups", () => {
 describe("CommissionedRefs", () => {
     function contextWith(decommission: (role: string) => Promise<void>): CertStepContext {
         function nodeFor(role: string): CertNodeApi {
-            const unused = () => Promise.reject(new Error("not used by these tests"));
-            return {
-                invoke: unused,
-                invokeBatch: unused,
-                readAttribute: unused,
-                readAttributes: unused,
-                writeAttribute: unused,
-                writeAttributes: unused,
-                subscribe: unused,
-                readEvents: unused,
-                subscribeEvents: unused,
-                openCommissioningWindow: unused,
-                operationalMdnsInstanceName: unused,
-                decommission: () => decommission(role),
-            };
+            return fakeCertNode({ decommission: () => decommission(role) });
         }
 
         // An ended source lets the follower close itself; this file's OpenSource would leave one
@@ -1736,6 +1932,9 @@ describe("CommissionedRefs", () => {
         return {
             controllers: { dut: controllerFor("dut"), th_cr2: controllerFor("th_cr2") },
             devices: {},
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check() {},
@@ -1855,6 +2054,9 @@ describe("recordAll", () => {
         const cx = {
             controllers: {},
             devices: {},
+            picsMet: () => {
+                throw new InternalError("not used by these tests");
+            },
             recorder: {
                 beginStep() {},
                 check(check: CheckRecord) {
@@ -1875,10 +2077,10 @@ describe("recordAll", () => {
     const pass = (detail: string): CheckRecord => ({ type: "response", verdict: "pass", detail });
     const fail = (detail: string): CheckRecord => ({ type: "response", verdict: "fail", detail });
 
-    it("records every check when they all pass", () => {
+    it("records every check when they all pass", async () => {
         const { checks, cx } = recordingContext();
 
-        recordAll(cx, [
+        await recordAll(cx, [
             { check: () => pass("first"), what: "one" },
             { check: () => pass("second"), what: "two" },
         ]);
@@ -1886,35 +2088,48 @@ describe("recordAll", () => {
         expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
     });
 
-    it("records the checks after a failing one rather than stopping at it", () => {
+    it("records the checks after a failing one rather than stopping at it", async () => {
         const { checks, cx } = recordingContext();
 
-        expect(() =>
+        await expect(
             recordAll(cx, [
                 { check: () => fail("first"), what: "one" },
                 { check: () => pass("second"), what: "two" },
                 { check: () => fail("third"), what: "three" },
             ]),
-        ).throw(CertCheckFailedError, /2 of 3 checks failed/);
+        ).rejectedWith(CertCheckFailedError, /2 of 3 checks failed/);
 
         expect(checks.map(check => check.detail)).deep.equal(["first", "second", "third"]);
     });
 
-    it("names every failure in the error it throws", () => {
+    it("names every failure in the error it throws", async () => {
         const { cx } = recordingContext();
 
-        expect(() =>
+        await expect(
             recordAll(cx, [
                 { check: () => fail("first"), what: "one" },
                 { check: () => fail("third"), what: "three" },
             ]),
-        ).throw(CertCheckFailedError, /one:.*three:/);
+        ).rejectedWith(CertCheckFailedError, /one:.*three:/);
     });
 
-    it("keeps the checks recorded before a builder threw", () => {
+    it("awaits an asynchronous builder and records what follows a failing check", async () => {
         const { checks, cx } = recordingContext();
 
-        expect(() =>
+        await expect(
+            recordAll(cx, [
+                { check: () => fail("first"), what: "one" },
+                { check: async () => pass("second"), what: "two" },
+            ]),
+        ).rejectedWith(CertCheckFailedError, /1 of 2 checks failed/);
+
+        expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
+    });
+
+    it("keeps the checks recorded before a builder threw", async () => {
+        const { checks, cx } = recordingContext();
+
+        await expect(
             recordAll(cx, [
                 { check: () => pass("first"), what: "one" },
                 {
@@ -1924,18 +2139,109 @@ describe("recordAll", () => {
                     what: "two",
                 },
             ]),
-        ).throw(InternalError);
+        ).rejectedWith(InternalError);
 
         expect(checks.map(check => check.detail)).deep.equal(["first"]);
     });
 
-    it("passes an unverified check through, as record does", () => {
+    it("passes an unverified check through, as record does", async () => {
         const { checks, cx } = recordingContext();
 
-        recordAll(cx, [
+        await recordAll(cx, [
             { check: () => ({ type: "device-log", verdict: "unverified" }), what: "matterjs has no pattern" },
         ]);
 
         expect(checks).length(1);
+    });
+
+    describe("withChecks", () => {
+        it("records what the body added and fails once for every failing check", async () => {
+            const { checks, cx } = recordingContext();
+
+            await expect(
+                withChecks(cx, async added => {
+                    added.push({ check: () => fail("first"), what: "one" });
+                    added.push({ check: () => pass("second"), what: "two" });
+                }),
+            ).rejectedWith(CertCheckFailedError, /1 of 2 checks failed/);
+
+            expect(checks.map(check => check.detail)).deep.equal(["first", "second"]);
+        });
+
+        it("records the checks added before an action threw, and fails with the action's error", async () => {
+            const { checks, cx } = recordingContext();
+
+            await expect(
+                withChecks(cx, async added => {
+                    added.push({ check: () => pass("first"), what: "one" });
+                    throw new InternalError("remote read failed");
+                }),
+            ).rejectedWith(InternalError, "remote read failed");
+
+            expect(checks.map(check => check.detail)).deep.equal(["first"]);
+        });
+
+        it("records a builder that throws after the step failed as a failing check", async () => {
+            const { checks, cx } = recordingContext();
+
+            await expect(
+                withChecks(cx, async added => {
+                    added.push({
+                        check: (): CheckRecord => {
+                            throw new InternalError("log closed");
+                        },
+                        what: "log",
+                    });
+                    throw new InternalError("remote read failed");
+                }),
+            ).rejectedWith(InternalError, "remote read failed");
+
+            expect(checks).length(1);
+            expect(checks[0].verdict).equal("fail");
+            expect(checks[0].detail).match(/^log: .*log closed/);
+        });
+    });
+});
+
+describe("statedInPrompt()", () => {
+    const prompt = [
+        ">>> Please commission the DUT with:",
+        "  Manual Pairing Code: '14970112338'",
+        "  Revocation Set: /credentials/test/revoked-attestation-certificates/revocation-sets/revocation-set.json",
+        "Input 'Y' if DUT successfully commissions without any warnings",
+        "Input 'N' if commissioner warns about commissioning the non-genuine device (press enter to confirm)",
+    ];
+
+    it("reads a value the prompt stated on an earlier line", () => {
+        expect(statedInPrompt(prompt, /Manual Pairing Code: '(\d+)'/, "a pairing code")).equal("14970112338");
+        expect(statedInPrompt(prompt, /Revocation Set: (\S+)/, "a revocation set")).equal(
+            "/credentials/test/revoked-attestation-certificates/revocation-sets/revocation-set.json",
+        );
+    });
+
+    it("reads the last statement, which is the one the current prompt made", () => {
+        expect(
+            statedInPrompt(
+                [...prompt, "  Manual Pairing Code: '20054912334'"],
+                /Manual Pairing Code: '(\d+)'/,
+                "a pairing code",
+            ),
+        ).equal("20054912334");
+    });
+
+    it("refuses a pattern that matches a line without stating a value", () => {
+        // A pattern with no capture group matches, and reading match[1] off it would hand the caller
+        // undefined where it asked for a string
+        expect(() => statedInPrompt(prompt, /press enter to confirm/, "a pairing code")).throws(
+            InternalError,
+            "a pairing code",
+        );
+    });
+
+    it("refuses to guess where no line stated the value", () => {
+        expect(() => statedInPrompt(prompt, /Discriminator: (\d+)/, "a discriminator")).throws(
+            InternalError,
+            "a discriminator",
+        );
     });
 });

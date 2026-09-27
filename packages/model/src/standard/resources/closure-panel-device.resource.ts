@@ -24,9 +24,29 @@ Resource.add({
         "\n" +
         "A Closure Panel shall use exactly one semantic tag from the ClosurePanel namespace (0x45) in the " +
         "TagList attribute of the Descriptor cluster to describe the spatial aspect of the dimension, e.g., " +
-        "\"Lift\", \"Tilt\", etc.",
+        "\"Lift\", \"Tilt\", etc." +
+        "\n" +
+        "### Cluster Requirements" +
+        "\n" +
+        "The Window Covering cluster shall NOT be present on the same endpoint for this device type. This " +
+        "restriction prevents conflicts between potential future standardized use of the Window Covering " +
+        "cluster and any existing non-standard implementations, until appropriate data dependency language is " +
+        "defined." +
+        "\n" +
+        "### Element Requirements" +
+        "\n" +
+        "The TagList in the Descriptor cluster of an endpoint with this device type shall meet the following " +
+        "constraints:" +
+        "\n" +
+        "  - There shall be exactly one tag from the ClosurePanel namespace (namespace 0x45)." +
+        "\n" +
+        "  - There shall NOT be any tag from the Closure namespace (namespace 0x44).",
 
     children: [
+        {
+            tag: "requirement", name: "Descriptor",
+            children: [{ tag: "requirement", name: "TAGLIST", xref: "device§8.6.4" }]
+        },
         { tag: "requirement", name: "WindowCovering", xref: "device§8.6.3" },
         { tag: "requirement", name: "ClosureControl", xref: "device§8.6.3" },
         { tag: "requirement", name: "ClosureDimension", xref: "device§8.6.3" }

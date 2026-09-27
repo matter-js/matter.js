@@ -15,18 +15,27 @@ export const CameraDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 322, revision: 1 } ], element: "attribute" })
     ),
-    Requirement(
-        { name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M", element: "condition" }
-    ),
-    Requirement({ name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition" }),
-    Requirement(
-        { name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "M", element: "condition" }
-    ),
-    Requirement({ name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "M", element: "condition" }),
-    Requirement(
-        { name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M", element: "condition" }
-    ),
-    Requirement({ name: "TlsClientCond", type: "RootNode.TlsClientCond", conformance: "M", element: "condition" }),
+    Requirement({
+        name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "PowerSourceCond", type: "RootNode.PowerSourceCond", conformance: "M", element: "condition",
+        location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithNtpcCond", type: "RootNode.TimeSyncWithNtpcCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithClientCond", type: "RootNode.TimeSyncWithClientCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({
+        name: "TimeSyncWithTzCond", type: "RootNode.TimeSyncWithTzCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
+    Requirement({ name: "TlsClientCond", type: "RootNode.TlsClientCond", conformance: "M", element: "condition", location: "Root" }),
 
     Requirement(
         { name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster" },

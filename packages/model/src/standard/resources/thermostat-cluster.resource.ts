@@ -11,9 +11,7 @@ import { Resource } from "#models/Resource.js";
 Resource.add(
     {
         tag: "cluster", name: "Thermostat", pics: "TSTAT", xref: "cluster§4.3",
-        details: "This cluster provides an interface to the functionality of a thermostat." +
-            "\n" +
-            "!thermostat devices",
+        details: "This cluster provides an interface to the functionality of a thermostat.",
 
         children: [
             {

@@ -29,7 +29,169 @@ type TimerCallback = () => any;
 type MockTimeLike = typeof MockTime;
 export interface MockTime extends MockTimeLike {}
 
-const macrotaskDependents = new Set<Promise<unknown>>();
+/**
+ * An operation that only settles on a macrotask boundary.  A "host" dependent additionally settles on host time
+ * rather than virtual time, so virtual time must stand still while it is pending.  An abandoned dependent still
+ * requires macrotask yields to settle but no longer holds virtual time.
+ */
+interface Dependent {
+    host: boolean;
+
+    /**
+     * Host time at which the operation started, against which its budget is measured.
+     */
+    startedAt: number;
+
+    abandoned: boolean;
+
+    /**
+     * Turns the entry still withholds virtual time after settling.  Undefined until it settles.
+     */
+    graceTurns?: number;
+}
+
+const dependents = new Map<Promise<unknown>, Dependent>();
+
+/**
+ * The host's elapsed time in milliseconds.  Monotonic where the platform offers it, so a clock adjustment cannot make
+ * an operation look older or younger than it is.
+ */
+function hostElapsedMs() {
+    return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+
+/**
+ * Host milliseconds a single host operation may withhold virtual time for.  The budget is measured on the host's own
+ * clock because what it bounds is the host: counted in yields it shrinks exactly when the machine is loaded, which is
+ * when a real operation needs it most.  An operation over budget is abandoned: it still requires macrotask yields to
+ * settle but no longer withholds virtual time, so one that never settles costs a bounded delay rather than a stalled
+ * clock.  Crypto settles in single-digit milliseconds even on a loaded runner, so this is generous.
+ */
+const MAX_HOST_ASYNC_MS = 1000;
+
+/**
+ * Iterations of {@link MockTime.resolve} between visits to the host's task queue once it is driving the clock.  Work
+ * the host owns cannot progress during a microtask-only loop, so this bounds how much virtual time a continuation
+ * parked on the host can cost.
+ */
+const HOST_TURNS_EVERY = 4;
+
+/**
+ * Host turns a settled operation keeps withholding virtual time for.  Its continuation resumes on the host's task
+ * queue and usually starts the next operation, so without this bridge the handover reads as idle and costs a step.
+ * Counting host turns rather than loop iterations keeps the bridge the same width however fast the loop spins, and
+ * the bridge expires where it is spent, so no wait has to clean up after another.
+ */
+const HOST_SETTLE_GRACE_TURNS = 6;
+
+function register<T>(dependent: Promise<T>, host: boolean) {
+    const registered = dependent.finally(() => {
+        const entry = dependents.get(registered);
+        if (entry === undefined) {
+            return;
+        }
+
+        if (entry.host && !entry.abandoned) {
+            entry.graceTurns = HOST_SETTLE_GRACE_TURNS;
+            return;
+        }
+
+        dependents.delete(registered);
+    });
+    dependents.set(registered, { host, startedAt: hostElapsedMs(), abandoned: false });
+    return registered;
+}
+
+/**
+ * The uninstrumented macrotask of each instrumented implementation.  {@link instrumentImplementation} replaces the
+ * public getter with one that registers a dependent, which is right for callers but wrong for MockTime's own waits.
+ */
+const uninstrumentedMacrotasks = new WeakMap<TimeLike, () => Promise<void>>();
+
+/**
+ * Yield to the host's task queue without registering a dependent, so a wait performed by {@link MockTime} itself does
+ * not read as work in progress.  Falls back to a microtask where no implementation is installed, which is the most
+ * MockTime can do on its own.
+ */
+function hostTurn() {
+    const macrotask = real === undefined ? undefined : uninstrumentedMacrotasks.get(real);
+    return macrotask === undefined ? Promise.resolve() : macrotask();
+}
+
+/**
+ * The waiter spending the handover bridge.  Waits nest and overlap, so without a single spender a bridge would be
+ * spent once per concurrent waiter rather than once per host turn.
+ */
+let charger: object | undefined;
+
+/**
+ * Host operations abandoned since the last {@link MockTime.reset}.  Any count above zero means virtual time inflated
+ * with host latency, so a test that fails on protocol timing should be read in that light.
+ */
+let abandonedHostAsyncOps = 0;
+
+/**
+ * Report whether virtual time must stand still for a pending host operation.  The waiter that owns the bridge also
+ * spends it and abandons any operation that has outlived its budget.
+ */
+function withholdVirtualTime(waiter: object, hostTurnTaken: boolean) {
+    if (charger === undefined) {
+        charger = waiter;
+    }
+    const charging = charger === waiter;
+
+    let withholding = false;
+    for (const [promise, dependent] of dependents) {
+        if (!dependent.host || dependent.abandoned) {
+            continue;
+        }
+
+        // A settled operation bridges the handover to its continuation, then leaves.  Only the charger spends the
+        // bridge, so overlapping waits cannot drain it faster than one turn at a time
+        if (dependent.graceTurns !== undefined) {
+            if (charging && hostTurnTaken) {
+                if (dependent.graceTurns === 0) {
+                    dependents.delete(promise);
+                    continue;
+                }
+                dependent.graceTurns--;
+            }
+            withholding = true;
+            continue;
+        }
+
+        if (charging) {
+            if (hostElapsedMs() - dependent.startedAt >= MAX_HOST_ASYNC_MS) {
+                dependent.abandoned = true;
+                abandonedHostAsyncOps++;
+
+                // Virtual time inflates with host latency again from here, which is the defect this budget exists to
+                // contain, so an abandonment must not pass unnoticed
+                console.warn(
+                    `MockTime abandoned a host operation pending for ${MAX_HOST_ASYNC_MS} ms; virtual time may now inflate with host latency`,
+                );
+                continue;
+            }
+        }
+        withholding = true;
+    }
+    return withholding;
+}
+
+function releaseCharger(waiter: object) {
+    if (charger === waiter) {
+        charger = undefined;
+    }
+}
+
+function hasActiveDependents() {
+    for (const dependent of dependents.values()) {
+        if (!dependent.abandoned && dependent.graceTurns === undefined) {
+            return true;
+        }
+    }
+    return false;
+}
 
 const timerNames = new WeakMap<TimerCallback, string>();
 
@@ -180,6 +342,8 @@ export const MockTime = {
      */
     reset(time: ConstructorParameters<typeof Date>[0] = epoch) {
         callbacks = [];
+        dependents.clear();
+        abandonedHostAsyncOps = 0;
         nowMs = new Date(time).getTime();
         defaultToMacrotasks = false;
         MockTime.enable();
@@ -195,7 +359,7 @@ export const MockTime = {
     },
 
     /**
-     * Enable macrotasks (true) or microtasks (false) for mock time incrementation.
+     * Enable macrotasks (true) or microtasks (false) as the default yield for mock time incrementation.
      *
      * Microtasks are the default and are more efficient.  Macrotasks are required for e.g. most of node's crypto.subtle
      * methods to resolve.
@@ -208,12 +372,53 @@ export const MockTime = {
         defaultToMacrotasks = value;
     },
 
+    /**
+     * Register an operation that settles on host time rather than virtual time.  {@link MockTime.resolve} withholds
+     * virtual time for the duration of the operation, so host latency does not expire virtual timers.  Time still
+     * advances in gaps between operations and once an operation exhausts {@link MAX_HOST_ASYNC_MS}.
+     */
+    requireHostAsync<T>(dependent: Promise<T>) {
+        return register(dependent, true);
+    },
+
     requireMacrotasks<T>(dependent: Promise<T>) {
-        dependent = dependent.finally(() => {
-            macrotaskDependents.delete(dependent);
-        });
-        macrotaskDependents.add(dependent);
-        return dependent;
+        return register(dependent, false);
+    },
+
+    /**
+     * Turns between visits to the host's task queue once the clock is moving.  Exposed for tests of MockTime itself.
+     */
+    get hostTurnInterval() {
+        return HOST_TURNS_EVERY;
+    },
+
+    /**
+     * Host operations abandoned since the last {@link MockTime.reset}.  Exposed for tests of MockTime itself.
+     */
+    get abandonedHostAsyncOps() {
+        return abandonedHostAsyncOps;
+    },
+
+    /**
+     * Operations {@link MockTime} still tracks, abandoned ones included.  Exposed for tests of MockTime itself.
+     */
+    get dependentCount() {
+        return dependents.size;
+    },
+
+    /**
+     * Host operations still outstanding, meaning neither settled nor abandoned.  A settled operation withholds virtual
+     * time for a few turns more, so zero here does not mean the clock is free to move.  Exposed for tests of MockTime
+     * itself.
+     */
+    get pendingHostAsyncOps() {
+        let count = 0;
+        for (const dependent of dependents.values()) {
+            if (dependent.host && !dependent.abandoned && dependent.graceTurns === undefined) {
+                count++;
+            }
+        }
+        return count;
     },
 
     atTime<T>(time: number | Date, actor: () => T): T {
@@ -282,12 +487,19 @@ export const MockTime = {
     },
 
     /**
-     * Wait for all registered macrotask dependencies to complete.
+     * Wait for all registered macrotask dependencies to complete.  A host dependency over budget is abandoned here as
+     * it is in {@link MockTime.resolve}, so one that never settles cannot stall the wait.
      */
     get macrotasks() {
         return (async () => {
-            while (macrotaskDependents.size) {
-                await MockTime.resolve(this.macrotask);
+            const waiter = {};
+            try {
+                while (hasActiveDependents()) {
+                    await MockTime.resolve(this.macrotask);
+                    withholdVirtualTime(waiter, true);
+                }
+            } finally {
+                releaseCharger(waiter);
             }
         })();
     },
@@ -295,7 +507,8 @@ export const MockTime = {
     /**
      * Resolve a promise with time dependency.
      *
-     * Moves time forward until the promise resolves.
+     * Moves time forward until the promise resolves.  Pass `macrotasks` to visit the host's task queue on every turn
+     * rather than only while work is registered or, once the clock is moving, every {@link HOST_TURNS_EVERY} turns.
      */
     async resolve<T>(
         promise: PromiseLike<T> | T,
@@ -326,42 +539,61 @@ export const MockTime = {
         );
 
         let timeAdvanced = 0;
+        let turns = 0;
+        let advanced = false;
+        const waiter = {};
 
-        while (!resolved) {
-            // Use macrotask yields when required explicitly or when async operations needing macrotasks (e.g.
-            // crypto) are pending
-            if ((macrotasks ?? defaultToMacrotasks) || macrotaskDependents.size) {
-                await MockTime.macrotask;
-            } else {
-                await MockTime.yield();
+        try {
+            while (!resolved) {
+                // Microtask yields keep the loop cheap, but only the host's task queue lets real work (I/O, timers
+                // the host owns) make progress, so visit it while nothing is registered too
+                const hostTurnTaken =
+                    (macrotasks ?? defaultToMacrotasks) ||
+                    dependents.size > 0 ||
+                    (advanced && turns % HOST_TURNS_EVERY === 0);
+                if (hostTurnTaken) {
+                    await hostTurn();
+                } else {
+                    await MockTime.yield();
+                }
+                turns++;
+
+                if (resolved) {
+                    break;
+                }
+
+                // If we've advanced more than one hour, assume we've hung
+                if (timeAdvanced > 60 * 60 * 1000) {
+                    throw new TestTimeoutError(
+                        "Promise did not resolve within one (virtual) hour, probably not going to happen",
+                    );
+                }
+
+                // Host operations such as crypto settle on host time.  Advancing while one is pending converts host
+                // latency into virtual time, which expires protocol timers that would not expire in production
+                if (withholdVirtualTime(waiter, hostTurnTaken)) {
+                    continue;
+                }
+
+                if (stepMs) {
+                    await this.advance(stepMs);
+                    timeAdvanced += stepMs;
+                } else {
+                    // 100ms steps give ~200 yields before a 10-second mock timeout fires, sufficient for realistic
+                    // async chains
+                    await this.advance(100);
+                    timeAdvanced += 100;
+                }
+                advanced = true;
+
+                if (resolved) {
+                    break;
+                }
+
+                await this.yield();
             }
-
-            if (resolved) {
-                break;
-            }
-
-            // If we've advanced more than one hour, assume we've hung
-            if (timeAdvanced > 60 * 60 * 1000) {
-                throw new TestTimeoutError(
-                    "Promise did not resolve within one (virtual) hour, probably not going to happen",
-                );
-            }
-
-            if (stepMs) {
-                await this.advance(stepMs);
-                timeAdvanced += stepMs;
-            } else {
-                // 100ms steps give ~200 yields before a 10-second mock timeout fires, sufficient for realistic
-                // async chains
-                await this.advance(100);
-                timeAdvanced += 100;
-            }
-
-            if (resolved) {
-                break;
-            }
-
-            await this.yield();
+        } finally {
+            releaseCharger(waiter);
         }
 
         if (error !== undefined) {
@@ -540,9 +772,12 @@ function instrumentImplementation(time: TimeLike) {
         throw new Error("Time instance does not define macrotask getter");
     }
 
+    const uninstrumented = get;
+    uninstrumentedMacrotasks.set(time, () => uninstrumented.apply(time));
+
     Object.defineProperty(time, "macrotask", {
         get() {
-            return MockTime.requireMacrotasks(get.apply(time));
+            return MockTime.requireMacrotasks(uninstrumented.apply(time));
         },
     });
 

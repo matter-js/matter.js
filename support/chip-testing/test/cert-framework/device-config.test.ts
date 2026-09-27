@@ -35,6 +35,13 @@ describe("resolveDeviceFlavor", () => {
         });
     }
 
+    // Only an evidence record ever names this flavor: the harness neither builds nor starts a device
+    // a wrapped python script spawns for itself
+    it("rejects python-wrapped, which no run can select", () => {
+        env.MATTER_CERT_DEVICE = "python-wrapped";
+        expect(() => resolveDeviceFlavor()).throws('Unknown MATTER_CERT_DEVICE "python-wrapped"');
+    });
+
     it("throws a clear error for an unknown flavor", () => {
         env.MATTER_CERT_DEVICE = "bogus";
         expect(() => resolveDeviceFlavor()).throws('Unknown MATTER_CERT_DEVICE "bogus"');

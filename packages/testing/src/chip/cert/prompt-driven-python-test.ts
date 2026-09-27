@@ -11,20 +11,20 @@ import type { TestFileDescriptor } from "../../test-descriptor.js";
 import { parseStep } from "../chip-test-common.js";
 import { FIFO_PATH } from "../container-command-pipe.js";
 import { createCommand, PythonTest, spiffy } from "../python-test.js";
-import type { CertStepContext } from "./cert-context.js";
+import type { CertStepWiring } from "./cert-context.js";
 import type { LogLine } from "./log-follower.js";
 
 /**
  * Reacts to one line of a python-wrapped CHIP test script's own stdout. `pattern` identifies a prompt
  * line — see `MatterBaseTest.wait_for_user_input` in `connectedhomeip`'s
  * `matter/testing/matter_testing.py`, which logs the prompt then blocks on a bare `input()` read — and
- * `action` reacts to it (e.g. drives a {@link CertStepContext} controller through a commissioning
+ * `action` reacts to it (e.g. drives a {@link CertStepWiring} controller through a commissioning
  * attempt) and returns the text {@link PromptDrivenPythonTest} writes to the script's stdin to unblock
  * it.
  */
 export interface PromptHandler {
     pattern: RegExp;
-    action: (cx: CertStepContext, promptText: string) => Promise<string>;
+    action: (cx: CertStepWiring, promptText: string) => Promise<string>;
 }
 
 /**
@@ -40,10 +40,10 @@ export interface PromptHandler {
  */
 export class PromptDrivenPythonTest extends PythonTest {
     #handlers: PromptHandler[];
-    #cx: CertStepContext;
+    #cx: CertStepWiring;
     #log = new Array<LogLine>();
 
-    constructor(descriptor: TestFileDescriptor, container: Container, handlers: PromptHandler[], cx: CertStepContext) {
+    constructor(descriptor: TestFileDescriptor, container: Container, handlers: PromptHandler[], cx: CertStepWiring) {
         super(descriptor, container);
         this.#handlers = handlers;
         this.#cx = cx;

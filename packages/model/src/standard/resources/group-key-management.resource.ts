@@ -87,9 +87,8 @@ Resource.add({
                 "\n" +
                 "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
                 "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
-                "The content of this attribute reflects data managed via the Groups cluster (see " +
-                "[[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group " +
-                "Table'." +
+                "The content of this attribute reflects data managed via the Groups cluster (see AppClusters), and is " +
+                "in general terms referred to as the 'node-wide Group Table'." +
                 "\n" +
                 "The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If " +
                 "a RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped " +
@@ -164,7 +163,7 @@ Resource.add({
                 "GroupKeySetID for all Group Key Sets associated with the scoped Fabric.",
 
             children: [{
-                tag: "field", name: "GroupKeySetIDs", xref: "core§11.2.7.6.1",
+                tag: "field", name: "GroupKeySetIds", xref: "core§11.2.7.6.1",
                 details: "This field references the set of group keys that generate operational group keys for use with the " +
                     "accessing fabric." +
                     "\n" +

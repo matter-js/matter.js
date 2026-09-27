@@ -18,6 +18,21 @@ import { Identity } from "@matter/general";
 /**
  * A Soil Sensor device reports measurements of soil values, such as moisture and (optionally) temperature.
  *
+ * ### Cluster Requirements
+ *
+ * #### Identify Cluster
+ *
+ * This is used to identify the endpoint.
+ *
+ * #### Temperature Measurement Cluster
+ *
+ * This is used to provide the temperature of the soil. Measurements SHOULD be done either in the soil or very close to
+ * the soil, in order to NOT provide ambient temperature measurements.
+ *
+ * #### Soil Measurement Cluster
+ *
+ * This is used to provide the humidity of the soil.
+ *
  * @see {@link MatterSpecification.v16.Device} § 7.14
  */
 export interface SoilSensorDevice extends Identity<typeof SoilSensorDeviceDefinition> {}

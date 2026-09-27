@@ -12,7 +12,7 @@ import { hideBin } from "yargs/helpers";
 import { ClusterFile } from "./clusters/ClusterFile.js";
 import { generateCluster } from "./clusters/generate-cluster.js";
 import { generateGlobal } from "./clusters/generate-global.js";
-import { clean, writeMatterFile } from "./util/file.js";
+import { clean, OutputSession, writeMatterFile } from "./util/file.js";
 import { TsFile } from "./util/TsFile.js";
 import "./util/setup.js";
 
@@ -76,7 +76,10 @@ for (const model of MatterModel.standard.children) {
 
 if (fail) {
     logger.error("Not modifying codebase due to errors");
+    process.exitCode = 1;
 } else if (args.save) {
+    using session = OutputSession.open();
+
     clean("!clusters");
     clean("!globals");
     for (const file of files) {
@@ -85,6 +88,9 @@ if (fail) {
     for (const js of jsFiles) {
         writeMatterFile(js.path, js.content);
     }
+
+    const { written, unchanged, removed } = session.commit();
+    logger.info(`Wrote ${written} files, ${unchanged} unchanged, removed ${removed}`);
 } else {
     logger.warn("Not modifying codebase because this is a dry run");
 }

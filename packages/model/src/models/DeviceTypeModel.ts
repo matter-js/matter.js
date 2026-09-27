@@ -49,23 +49,46 @@ export class DeviceTypeModel extends Model<DeviceTypeElement, DeviceTypeModel.Ch
         return this.all(RequirementModel);
     }
 
-    get revision() {
+    /**
+     * The revision this device type reports, taken from the Descriptor `DeviceTypeList` default it sends over the
+     * wire, or from {@link DeviceTypeElement.revision} for a device type with no such entry.
+     */
+    get revision(): number {
         return (
-            this?.get(RequirementModel, "Descriptor")?.get(RequirementModel, "DeviceTypeList")?.default[0].revision ?? 1
+            this?.get(RequirementModel, "Descriptor")?.get(RequirementModel, "DeviceTypeList")?.default[0].revision ??
+            this.#revision ??
+            1
         );
     }
+
+    /**
+     * The revision this device type states for itself, where it states one.  {@link revision} answers what applies;
+     * this distinguishes a device type that records no revision from one that records revision 1.
+     */
+    get declaredRevision() {
+        return this.#revision;
+    }
+
+    #revision?: number;
 
     constructor(definition: Model.Definition<DeviceTypeModel>, ...children: Model.ChildDefinition<DeviceTypeModel>[]) {
         super(definition, ...children);
 
         this.classification = definition.classification as DeviceClassification;
         this.composition = definition.composition as EndpointComposition;
+
+        // Reading revision from another model would take the resolved value and store it as a declaration of its own
+        this.#revision =
+            definition instanceof DeviceTypeModel
+                ? definition.declaredRevision
+                : (definition as DeviceTypeElement).revision;
     }
 
     override toElement(omitResources = false, extra?: Record<string, unknown>) {
         return super.toElement(omitResources, {
             classification: this.classification,
             composition: this.composition,
+            revision: this.#revision,
             ...extra,
         });
     }

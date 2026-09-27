@@ -39,8 +39,24 @@ import { Identity } from "@matter/general";
  *
  *   - Entry door to individual units in a multi-tenant building
  *
- * IntercomDevice requires CameraAvStreamManagement cluster but CameraAvStreamManagement is not added by default because
- * you must select the features your device supports. You can add manually using IntercomDevice.with().
+ * ### Device Type Requirements
+ *
+ * An Intercom shall be composed of at least one endpoint with the Generic Switch device type as defined by the
+ * conformance below. There may be more endpoints with other device types existing in the Intercom. The Generic Switch
+ * shall model the mechanism used by the Intercom to trigger an alert of the desired connected party.
+ *
+ * All devices used in compositions shall adhere to the disambiguation and superset requirements of the System Model.
+ *
+ * ### Cluster Requirements
+ *
+ * An Audio connection may be established with an instance of an Intercom in one of two ways:
+ *
+ *   - via WebRTC, with the Intercom acting as a WebRTC Transport Requestor Client.
+ *
+ *   - via WebRTC, with a Controller acting as the WebRTC Transport Requestor and the Intercom, in this instance, acting
+ *     as a WebRTC Transport Provider Server. In this case, the Controller may trigger the establishment of Audio
+ *     through knowledge that there is user intent via subscriptions to the attributes of the Generic Switch, or other
+ *     means.
  *
  * @see {@link MatterSpecification.v16.Device} § 16.4
  */
@@ -137,6 +153,7 @@ export const IntercomDeviceDefinition = MutableEndpoint({
     deviceRevision: 2,
     requirements: IntercomRequirements,
     behaviors: SupportedBehaviors(
+        IntercomRequirements.server.mandatory.CameraAvStreamManagement,
         IntercomRequirements.server.mandatory.WebRtcTransportProvider,
         IntercomRequirements.server.mandatory.WebRtcTransportRequestor
     )

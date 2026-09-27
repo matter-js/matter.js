@@ -18,6 +18,23 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Contact Sensor device type.
  *
+ * ### Cluster Requirements
+ *
+ * #### Identify Cluster
+ *
+ * This is used to identify the endpoint.
+ *
+ * #### Boolean State Cluster
+ *
+ * This is used to indicate the state of the sensor/detector.
+ *
+ * The state of the Boolean State cluster shall reflect the sensor detection using this scheme:
+ *
+ * #### Boolean State Configuration Cluster
+ *
+ * This is used to configure the sensor/detector and is for this device type linked to the configuration of the Boolean
+ * State cluster.
+ *
  * @see {@link MatterSpecification.v16.Device} § 7.1
  */
 export interface ContactSensorDevice extends Identity<typeof ContactSensorDeviceDefinition> {}

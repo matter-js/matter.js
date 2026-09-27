@@ -14,6 +14,10 @@ Resource.add({
         "electrical energy.",
 
     children: [
+        {
+            tag: "requirement", name: "Descriptor",
+            children: [{ tag: "requirement", name: "TAGLIST", xref: "device§14.7.5" }]
+        },
         { tag: "requirement", name: "CommodityPrice", xref: "device§14.7.4" },
         { tag: "requirement", name: "ElectricalGridConditions", xref: "device§14.7.4" },
         { tag: "requirement", name: "CommodityTariff", xref: "device§14.7.4" },

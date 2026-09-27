@@ -12,7 +12,16 @@ import { MessageType } from "#interaction/InteractionMessenger.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { ExchangeReceiveOptions, MessageExchange } from "#protocol/MessageExchange.js";
-import { AbortedError, ChannelType, ClosedError, createPromise, Duration, Environment, Seconds } from "@matter/general";
+import {
+    AbortedError,
+    ChannelType,
+    ClosedError,
+    createPromise,
+    Duration,
+    Environment,
+    InternalError,
+    Seconds,
+} from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     ClusterId,
@@ -367,6 +376,26 @@ describe("ClientInteraction invoke commandRef wire handling", () => {
                 clusterStatus: undefined,
             },
         ]);
+    });
+
+    it("refuses to split an invoke for a provider reporting no usable path limit", async () => {
+        const sentRequests = new Array<InvokeRequest>();
+        const client = new ClientInteraction({
+            environment: Environment.default,
+            exchangeProvider: new RefLessDeviceExchangeProvider(0, sentRequests),
+        });
+
+        try {
+            await expect(
+                (async () => {
+                    for await (const _chunk of client.invoke(twoOnOffCommands()));
+                })(),
+            ).rejectedWith(InternalError);
+        } finally {
+            await client.close();
+        }
+
+        expect(sentRequests.length).equals(0);
     });
 
     it("aborts an in-flight batch on close instead of awaiting its response", async () => {

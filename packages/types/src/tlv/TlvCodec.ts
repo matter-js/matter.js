@@ -15,7 +15,6 @@ import {
     INT32_MIN,
     INT8_MAX,
     INT8_MIN,
-    NotImplementedError,
     UINT16_MAX,
     UINT32_MAX,
     UINT8_MAX,
@@ -169,11 +168,11 @@ export class TlvCodec {
                 return { profile: MATTER_COMMON_PROFILE, id: reader.readUInt32() };
             case TagControl.ImplicitProfile16:
             case TagControl.ImplicitProfile32:
-                throw new NotImplementedError(`Unsupported implicit profile ${tagControl}`);
+                throw new UnexpectedDataError(`Implicit profile tag (tag control ${tagControl}) cannot be resolved`);
             case TagControl.FullyQualified48:
                 return { profile: reader.readUInt32(), id: reader.readUInt16() };
-            default:
-                throw new NotImplementedError(`Unexpected tagControl ${tagControl}`);
+            case TagControl.FullyQualified64:
+                return { profile: reader.readUInt32(), id: reader.readUInt32() };
         }
     }
 

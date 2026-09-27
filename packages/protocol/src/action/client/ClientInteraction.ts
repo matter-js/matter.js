@@ -40,6 +40,7 @@ import {
     Environment,
     Forever,
     ImplementationError,
+    InternalError,
     Instant,
     isObject,
     Lifetime,
@@ -85,7 +86,7 @@ export const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
  * Probe commands in a {@link ClientInvoke} for the Matter "Large Message Quality" ("L") flag.
  *
  * Legacy command requests carry no model reference, so callers using {@link Invoke.LegacyCommandRequest}
- * must continue to set {@link ClientInvoke.largeMessage} explicitly.
+ * must continue to set the request's `largeMessage` explicitly.
  *
  * @internal — exported for unit testing.
  */
@@ -584,6 +585,11 @@ export class ClientInteraction<
         maxPathsPerInvoke: number,
         session?: SessionT,
     ): DecodedInvokeResult {
+        // Batches of zero would never consume a command and allocate without end
+        if (maxPathsPerInvoke < 1) {
+            throw new InternalError(`Cannot split an invoke into batches of ${maxPathsPerInvoke} paths`);
+        }
+
         // Split commands into batches
         const allCommands = [...request.commands.entries()];
         const batches = new Array<ClientInvoke["commands"]>();
@@ -1148,8 +1154,7 @@ export class ClientInteraction<
         // that would dispose prematurely when #begin returns, creating a zombie in the spans Set
         const lifetime = this.#lifetime.join(what);
 
-        // Large Message Quality commands require TCP transport
-        const requiredTransport = "largeMessage" in request && request.largeMessage ? ChannelType.TCP : undefined;
+        const requiredTransport = request.largeMessage ? ChannelType.TCP : undefined;
 
         let abort: Abort;
         let messenger: InteractionClientMessenger;

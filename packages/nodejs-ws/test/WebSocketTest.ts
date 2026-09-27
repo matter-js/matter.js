@@ -201,6 +201,7 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 0, "subscriptions", "a");
         await cx.receiveUpdate("test", 0, "sessions", "a");
         await cx.receiveUpdate("test", 0, "events", "a");
+        await cx.receiveUpdate("test", 0, "groupcast", "a");
         await cx.receiveUpdate("test", 0, "websocket", "a");
         await cx.receiveUpdate("test", 0, "descriptor", "a");
         await cx.receiveUpdate("test", 1, "identify", "a");

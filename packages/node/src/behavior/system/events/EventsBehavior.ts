@@ -40,12 +40,11 @@ export class EventsBehavior extends Behavior {
         FieldElement({ name: "nonvolatile", type: "bool" }),
         FieldElement({ name: "numberBlockSize", type: "uint16" }),
         FieldElement(
-            { name: "buffer", type: "struct" },
+            { name: "buffers", type: "struct" },
             FieldElement({ name: "minEventAllowance", type: "uint32" }),
             FieldElement({ name: "maxEventAllowance", type: "uint32" }),
             FieldElement(
                 { name: "minPriorityEventAllowance", type: "struct" },
-                FieldElement({ name: "critical", type: "uint32" }),
                 FieldElement({ name: "info", type: "uint32" }),
                 FieldElement({ name: "debug", type: "uint32" }),
             ),

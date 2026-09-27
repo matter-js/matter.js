@@ -353,7 +353,7 @@ Resource.add(
 
                         details: "This field shall indicate the URL for the service associated with the device maker which the user " +
                             "can visit to manage fabric limitations. The syntax of this field shall follow the syntax as " +
-                            "specified in RFC 1738 and shall use the https scheme for internet-hosted URLs." +
+                            "specified in RFC1738 and shall use the https scheme for internet-hosted URLs." +
                             "\n" +
                             "  - The URL may embed the token, fabric index, fabric vendor, or other information transparently in " +
                             "order to pass context about the originating ReviewFabricRestrictions command to the service " +
@@ -568,8 +568,6 @@ Resource.add(
                             "When a Node is granted a particular privilege, it is also implicitly granted all logically lower " +
                             "privilege levels as well. The following diagram illustrates how the higher privilege levels subsume " +
                             "the lower privilege levels:" +
-                            "\n" +
-                            "!Diagram" +
                             "\n" +
                             "Individual clusters shall define whether attributes are readable, writable, or both readable and " +
                             "writable. Clusters also shall define which privilege is minimally required to be able to perform a " +
