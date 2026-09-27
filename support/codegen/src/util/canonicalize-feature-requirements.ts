@@ -11,7 +11,8 @@ import { MatterModel, RequirementElement, RequirementModel, RequirementResolver 
  *
  * The specification's element requirement tables name a feature by its title ("LongIdleTimeSupport" for `LITS`),
  * while conformance and the cluster's feature map use codes. A name matches a feature by its code or by its title,
- * ignoring case and whitespace. A name that matches no feature stays as written, so model validation reports it.
+ * ignoring case and whitespace. This applies to local overrides as well. A name that matches no feature stays as
+ * written, so model validation reports it.
  *
  * Runs on the assembled model because the feature codes come from the clusters.
  */

@@ -25,7 +25,6 @@ const TYPE_ERRORS: { [badType: string]: string } = {
     ipv6addr: "ipv6adr",
     "endpoint-id": "endpoint-no",
     "ModeBitmap.": "ModeBitmap",
-    CurrencyStruct: "currency",
     StatusCode: "status",
 
     // Asciidoctor renders these as "FooType" in table cells but headings strip " Type" suffix

@@ -25,11 +25,16 @@ import {
 } from "#model";
 import { canonicalizeConditionReferences } from "./canonicalize-condition-references.js";
 import { canonicalizeFeatureRequirements } from "./canonicalize-feature-requirements.js";
+import { GlobalDatatypeAliases } from "./global-datatype-aliases.js";
 
 const logger = Logger.get("create-model");
 
 /**
- * Create and validate the final model for export
+ * Repair a model assembled from its sources, then validate it.
+ *
+ * Applies to intermediate models as well as to the final model for export.  Device type requirements name features by
+ * code and conditions as declared, references resolve to the datatypes the specification means, events without a
+ * priority get one, Zigbee-only elements are removed, and redundant cross-references are dropped.
  **/
 export function finalizeModel(matter: MatterModel) {
     // Generation emits what validation normalizes, and validation cannot normalize a frozen model
@@ -39,6 +44,8 @@ export function finalizeModel(matter: MatterModel) {
 
     canonicalizeFeatureRequirements(matter);
     canonicalizeConditionReferences(matter);
+
+    resolveGlobalDatatypeAliases(matter);
 
     const scopedDatatypes = collectScopedDatatypes(matter);
 
@@ -102,15 +109,6 @@ function inheritedPriority(model: Model | undefined, depth = 0): EventElement.Pr
 
 export type ScopedDatatypes = Record<string, Model | undefined>;
 
-/**
- * Global datatypes the specification references by a name other than the one we give them.  Mode Select defines its
- * own, different datatype named `SemanticTagStruct`, so the alias applies only where no cluster-local datatype of that
- * name is in scope.
- */
-const GLOBAL_DATATYPE_ALIASES: Record<string, string | undefined> = {
-    SemanticTagStruct: "semtag",
-};
-
 function updateSemanticNamespaces(semanticNamespaces: SemanticNamespaceModel[], matter: MatterModel) {
     const namespace = matter.get(DatatypeModel, "namespace");
     if (!namespace) {
@@ -164,12 +162,29 @@ function childrenIdentity(model: ValueModel) {
 }
 
 /**
+ * Point references to a global datatype by its specification struct name at the global, unless a datatype of that name
+ * is in scope.
+ */
+function resolveGlobalDatatypeAliases(matter: MatterModel) {
+    matter.visit(model => {
+        if (model.type === undefined || model.base !== undefined) {
+            return;
+        }
+
+        const global = GlobalDatatypeAliases.get(model.type);
+        if (global !== undefined) {
+            model.type = global;
+        }
+    });
+}
+
+/**
  * CHIP defines datatypes in a global scope.  This is not how the specification actually works but the behavior
  * continually leaks into cluster definitions where clusters reference datatypes defined in other clusters.
  *
  * Repair this by identifying missing datatypes that have a corresponding datatype definition of the same name in
  * exactly one other cluster.  When detected, replace the datatype name with a qualified name referencing the other
- * cluster.  A name that aliases a global datatype resolves to that global instead.
+ * cluster.
  */
 function patchIllegalCrossClusterReferences(cluster: ClusterModel, scopedDatatypes: ScopedDatatypes) {
     cluster.visit(model => {
@@ -181,12 +196,6 @@ function patchIllegalCrossClusterReferences(cluster: ClusterModel, scopedDatatyp
         // If there is a base the type name is already valid
         const base = model.base;
         if (base !== undefined) {
-            return;
-        }
-
-        const global = GLOBAL_DATATYPE_ALIASES[model.type];
-        if (global !== undefined) {
-            model.type = global;
             return;
         }
 

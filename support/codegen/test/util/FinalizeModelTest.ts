@@ -16,6 +16,7 @@ import {
 } from "#model";
 import { finalizeModel } from "#util/finalize-model.js";
 
+// Fixtures are named apart from the standard model, whose resources are frozen once any suite loads them
 describe("finalizeModel", () => {
     it("canonicalizes the names device type requirements reference", () => {
         const feature = new RequirementModel({
@@ -26,7 +27,6 @@ describe("finalizeModel", () => {
         const matter = new MatterModel(
             { name: "Matter" },
             new DatatypeModel({ name: "namespace", type: "uint8" }),
-            // Named apart from the standard clusters, whose resources are frozen once any suite loads them
             new ClusterModel(
                 { name: "IcdFixture", id: 0xfff3 },
                 new AttributeModel(
@@ -48,7 +48,6 @@ describe("finalizeModel", () => {
     });
 
     describe("SemanticTagStruct", () => {
-        // Named apart from the standard clusters, whose resources are frozen once any suite loads them
         function finalized() {
             const matter = new MatterModel(
                 { name: "Matter" },
@@ -58,6 +57,10 @@ describe("finalizeModel", () => {
                     new FieldModel({ name: "MfgCode", id: 0x0, type: "vendor-id" }),
                     new FieldModel({ name: "NamespaceId", id: 0x1, type: "namespace" }),
                     new FieldModel({ name: "Tag", id: 0x2, type: "uint8" }),
+                ),
+                new DatatypeModel(
+                    { name: "TaggedFixture", type: "struct" },
+                    new FieldModel({ name: "Tag", id: 0x0, type: "SemanticTagStruct" }),
                 ),
                 new ClusterModel(
                     { name: "ModeSelectFixture", id: 0xfff1 },
@@ -85,6 +88,11 @@ describe("finalizeModel", () => {
         it("binds a cluster without its own SemanticTagStruct to the global semtag", () => {
             const entry = finalized().clusters("SensingFixture")?.attributes("Sensed")?.children[0];
             expect(entry?.type).equals("semtag");
+        });
+
+        it("binds a global datatype's field to the global semtag", () => {
+            const tag = finalized().datatypes("TaggedFixture")?.children[0];
+            expect(tag?.type).equals("semtag");
         });
 
         it("keeps a cluster's own SemanticTagStruct", () => {
