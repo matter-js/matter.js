@@ -37,6 +37,8 @@ export interface ApprovalOrRejectDetails {
 
 /**
  * Product Attestation Authority and Intermediate Certificate Schema
+ *
+ * The DCL sends every field. A value that is not set arrives as an empty string, `0` or an empty list.
  * @see {@link MatterSpecification.v16.Core} § 11.23.5
  * DCL Endpoints:
  *   * /dcl/pki/certificates
@@ -56,6 +58,8 @@ export interface ProductAttestationDclSchema {
      * Matter certificate follows the same limitation on admissible serial numbers as in [RFC 5280], i.e.,
      * that implementations SHALL admit serial numbers up to 20 octets in length, and certificate authorities
      * SHALL NOT use serial numbers longer than 20 octets in length.
+     *
+     * The DCL sends the serial number as a decimal string.
      */
     serialNumber: string;
 
@@ -63,27 +67,27 @@ export interface ProductAttestationDclSchema {
      * The field SHALL be used to identify the Certificate Authority that issues the certificate. For a PAA
      * Certificate, this field is OPTIONAL because Issuer and Subject are the same.
      */
-    issuer?: string;
+    issuer: string;
 
     /**
      * The authority key identifier extension provides a means of identifying the public key corresponding
      * to the private key used to sign a Matter certificate. This is OPTIONAL for PAA Certificates.
      */
-    authorityKeyId?: string;
+    authorityKeyId: string;
 
     /**
      * This field SHALL contain the PAA certificate’s Subject field, as defined in PAA in PAA Certificate.
      * This is OPTIONAL for PAA Certificates. This is encoded as defined in Section 6.1, “Certificate Common
      * Conventions”.
      */
-    rootSubject?: string;
+    rootSubject: string;
 
     /**
      * This field SHALL uniquely identify the PAA certificate’s Subject Key Identifier mandatory extension.
      * It is defined in PAA Certificate and Operational Root CA Certificates (RCAC). This is OPTIONAL
      * for PAA Certificates. This is encoded as defined in Section 6.1, “Certificate Common Conventions”.
      */
-    rootSubjectKeyId?: string;
+    rootSubjectKeyId: string;
 
     /**
      * This field SHALL signify whether the associated certificate is PAA Certificate.
@@ -132,11 +136,13 @@ export interface ProductAttestationDclSchema {
      * The certificate type. The DCL sends it on every certificate record, although the specification lists it only
      * in the Operational Trust Anchors Schema.
      */
-    certificateType?: DclCertificateType;
+    certificateType: DclCertificateType;
 
     /**
      * This field SHALL uniquely identify this Vendor Schema entry and it SHALL match the Vendor’s
      * assigned Vendor ID.
+     *
+     * The DCL sends `0` for a PAA that is not scoped to one vendor.
      */
     vid: VendorId;
 

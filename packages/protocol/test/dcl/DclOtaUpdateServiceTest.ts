@@ -64,7 +64,7 @@ describe("DclOtaUpdateService", () => {
             expect(update?.softwareVersion).to.equal(3);
             expect(update?.softwareVersionString).to.equal("v3.0.0");
             expect(update?.otaUrl).to.equal("https://example.com/ota-v3.bin");
-            expect(update?.otaFileSize).to.equal(1024);
+            expect(update?.otaFileSize).to.equal(1024n);
         });
 
         it("returns undefined when no newer versions available", async () => {
@@ -231,8 +231,110 @@ describe("DclOtaUpdateService", () => {
 
             // Verify that the versions list endpoint was NOT called
             const callLog = fetchMock.getCallLog();
-            expect(callLog.length).to.equal(1);
             expect(callLog[0].url).to.include("/dcl/model/versions/65521/32768/2");
+            expect(callLog.some(({ url }) => url.endsWith("/dcl/model/versions/65521/32768"))).to.be.false;
+        });
+
+        it("takes the specification version from the compliance record", async () => {
+            fetchMock.addResponse("/dcl/model/versions/65521/32768/2", createVersionMetadata(2));
+            fetchMock.addResponse("/dcl/compliance/compliance-info/65521/32768/2/matter", {
+                complianceInfo: {
+                    vid: 0xfff1,
+                    pid: 0x8000,
+                    softwareVersion: 2,
+                    certificationType: "matter",
+                    specificationVersion: 0x01040200,
+                    schemaVersion: 1,
+                },
+            });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+                targetSoftwareVersion: 2,
+            });
+
+            expect(update?.specificationVersion).to.equal(0x01040200);
+        });
+
+        it("returns the update without specification version when the compliance record is missing", async () => {
+            fetchMock.addResponse("/dcl/model/versions/65521/32768/2", createVersionMetadata(2));
+            fetchMock.addResponse(
+                "/dcl/compliance/compliance-info/65521/32768/2/matter",
+                { code: 5, message: "rpc error: not found", details: [] },
+                { status: 404 },
+            );
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+                targetSoftwareVersion: 2,
+            });
+
+            expect(update?.softwareVersion).to.equal(2);
+            expect(update?.specificationVersion).to.be.undefined;
+        });
+
+        it("treats a zero specification version in the compliance record as unknown", async () => {
+            fetchMock.addResponse("/dcl/model/versions/65521/32768/2", createVersionMetadata(2));
+            fetchMock.addResponse("/dcl/compliance/compliance-info/65521/32768/2/matter", {
+                complianceInfo: {
+                    vid: 0xfff1,
+                    pid: 0x8000,
+                    softwareVersion: 2,
+                    certificationType: "matter",
+                    specificationVersion: 0,
+                    schemaVersion: 0,
+                },
+            });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+                targetSoftwareVersion: 2,
+            });
+
+            expect(update?.softwareVersion).to.equal(2);
+            expect(update?.specificationVersion).to.be.undefined;
+        });
+
+        it("ignores a compliance record with an unsupported schema version", async () => {
+            fetchMock.addResponse("/dcl/model/versions/65521/32768/2", createVersionMetadata(2));
+            fetchMock.addResponse("/dcl/compliance/compliance-info/65521/32768/2/matter", {
+                complianceInfo: {
+                    vid: 0xfff1,
+                    pid: 0x8000,
+                    softwareVersion: 2,
+                    certificationType: "matter",
+                    specificationVersion: 0x01040200,
+                    schemaVersion: 2,
+                },
+            });
+            fetchMock.install();
+
+            const service = new DclOtaUpdateService(environment);
+            const update = await service.checkForUpdate({
+                vendorId: 0xfff1,
+                productId: 0x8000,
+                currentSoftwareVersion: 1,
+                isProduction: true,
+                targetSoftwareVersion: 2,
+            });
+
+            expect(update?.softwareVersion).to.equal(2);
+            expect(update?.specificationVersion).to.be.undefined;
         });
 
         it("returns undefined when target version is not applicable", async () => {
@@ -761,7 +863,7 @@ describe("DclOtaUpdateService", () => {
 
             // Create metadata with correct OTA file size and checksum
             const metadata = createVersionMetadata(3, true, true, {
-                otaFileSize: otaImage.byteLength,
+                otaFileSize: String(otaImage.byteLength),
                 otaChecksum: otaResult.fullFileChecksum,
                 otaChecksumType: HashAlgorithmId[otaResult.fullFileChecksumType],
             });
@@ -782,7 +884,7 @@ describe("DclOtaUpdateService", () => {
                 isProduction: true,
             });
             expect(update).to.not.be.undefined;
-            expect(update?.otaFileSize).to.equal(otaImage.byteLength);
+            expect(update?.otaFileSize).to.equal(BigInt(otaImage.byteLength));
 
             // Download and validate
             const fileDesignator = await service.downloadUpdate(update!, true);
@@ -803,7 +905,7 @@ describe("DclOtaUpdateService", () => {
             const otaImage = otaResult.image;
 
             const metadata = createVersionMetadata(3, true, true, {
-                otaFileSize: otaImage.byteLength,
+                otaFileSize: String(otaImage.byteLength),
                 otaChecksum: otaResult.fullFileChecksum,
                 otaChecksumType: 99, // not in the IANA NI registry subset matter.js supports
             });

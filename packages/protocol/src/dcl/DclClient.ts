@@ -7,6 +7,8 @@
 import { DclConfig } from "#dcl/DclConfig.js";
 import {
     DclApiErrorResponse,
+    DclComplianceInfoResponse,
+    DclDeviceSoftwareVersionModelRaw,
     DclModelModelsWithVidPidResponse,
     DclModelVersionsWithVidPidResponse,
     DclModelVersionWithVidPidSoftwareVersionResponse,
@@ -16,10 +18,15 @@ import {
     DclPkiRevocationPointsByIssuerResponse,
     DclPkiRootCertificatesResponse,
     DclPkiRootCertificateSubjectReference,
-    DclVendorInfo,
 } from "#dcl/DclRestApiTypes.js";
 import { Duration, Logger, MatterError, Seconds } from "@matter/general";
-import { DeviceAttestationPkiRevocationDclSchema, ProductAttestationDclSchema, VendorId } from "@matter/types";
+import {
+    DeviceAttestationPkiRevocationDclSchema,
+    DeviceSoftwareVersionModelDclSchema,
+    ProductAttestationDclSchema,
+    VendorDclSchema,
+    VendorId,
+} from "@matter/types";
 
 const logger = new Logger("DclClient");
 
@@ -207,14 +214,45 @@ export class DclClient {
                 `Model version not found for VID: ${vid}, PID: ${pid}, Software Version: ${softwareVersion}`,
             );
         }
-        return response.modelVersion;
+        return mapRawModelVersion(response.modelVersion);
+    }
+
+    /**
+     * Fetch the compliance record of a software version for a certification program.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 11.23.10
+     */
+    async fetchComplianceInfo(
+        vid: number,
+        pid: number,
+        softwareVersion: number,
+        certificationType: string,
+        options?: DclClient.Options,
+    ) {
+        const path = `/dcl/compliance/compliance-info/${encodeURIComponent(vid)}/${encodeURIComponent(pid)}/${encodeURIComponent(softwareVersion)}/${encodeURIComponent(certificationType)}`;
+        const response = await this.#fetchJson<DclComplianceInfoResponse>(path, options);
+        const info = response?.complianceInfo;
+        // SchemaVersion 0 and 1 are the ones §11.23.10.15 defines; a later version may change field meanings.
+        if (
+            !info ||
+            info.vid !== vid ||
+            info.pid !== pid ||
+            info.softwareVersion !== softwareVersion ||
+            info.certificationType !== certificationType ||
+            ![0, 1].includes(info.schemaVersion)
+        ) {
+            throw new MatterDclError(
+                `Compliance info not found for VID: ${vid}, PID: ${pid}, Software Version: ${softwareVersion}, Certification Type: ${certificationType}`,
+            );
+        }
+        return info;
     }
 
     /**
      * Fetch all vendor information from DCL
      */
     async fetchAllVendors(options?: DclClient.Options) {
-        return this.#fetchPaginatedJson<DclVendorInfo>("/dcl/vendorinfo/vendors", "vendorInfo", options);
+        return this.#fetchPaginatedJson<VendorDclSchema>("/dcl/vendorinfo/vendors", "vendorInfo", options);
     }
 
     /**
@@ -244,6 +282,24 @@ export class DclClient {
         const rawPoints = response?.pkiRevocationDistributionPointsByIssuerSubjectKeyID?.points ?? [];
         return rawPoints.map(mapRawRevocationPoint);
     }
+}
+
+/**
+ * Maps a raw DCL device software version entry to {@link DeviceSoftwareVersionModelDclSchema}. The DCL sends unset
+ * optional fields as `""` or `0`; they become `undefined`.
+ */
+function mapRawModelVersion(raw: DclDeviceSoftwareVersionModelRaw): DeviceSoftwareVersionModelDclSchema {
+    const otaFileSize = /^\d+$/.test(raw.otaFileSize) ? BigInt(raw.otaFileSize) : 0n;
+    return {
+        ...raw,
+        firmwareInformation: raw.firmwareInformation || undefined,
+        otaUrl: raw.otaUrl || undefined,
+        otaFileSize: otaFileSize > 0n ? otaFileSize : undefined,
+        otaChecksum: raw.otaChecksum || undefined,
+        otaChecksumType: raw.otaChecksumType || undefined,
+        releaseNotesUrl: raw.releaseNotesUrl || undefined,
+        specificationVersion: raw.specificationVersion || undefined,
+    };
 }
 
 /**

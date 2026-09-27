@@ -6,7 +6,9 @@
 
 import { DclClient, MatterDclError, MatterDclResponseError } from "#dcl/DclClient.js";
 import { DclConfig } from "#dcl/DclConfig.js";
+import { DclDeviceSoftwareVersionModelRaw } from "#dcl/DclRestApiTypes.js";
 import { MockFetch } from "@matter/general";
+import { VendorId } from "@matter/types";
 
 describe("DclClient", () => {
     let fetchMock: MockFetch;
@@ -217,6 +219,124 @@ describe("DclClient", () => {
                 "Model not found",
             );
         });
+    });
+
+    describe("fetchModelVersionByVidPidSoftwareVersion", () => {
+        function modelVersion(overrides: Partial<DclDeviceSoftwareVersionModelRaw>): {
+            modelVersion: DclDeviceSoftwareVersionModelRaw;
+        } {
+            return {
+                modelVersion: {
+                    vid: VendorId(0xfff1),
+                    pid: 0x8000,
+                    softwareVersion: 6,
+                    softwareVersionString: "6.0",
+                    cdVersionNumber: 1,
+                    creator: "cosmos1test",
+                    firmwareInformation: "",
+                    softwareVersionValid: true,
+                    otaUrl: "",
+                    otaFileSize: "0",
+                    otaChecksum: "",
+                    otaChecksumType: 0,
+                    minApplicableSoftwareVersion: 0,
+                    maxApplicableSoftwareVersion: 5,
+                    releaseNotesUrl: "",
+                    specificationVersion: 0,
+                    schemaVersion: 0,
+                    ...overrides,
+                },
+            };
+        }
+
+        it("converts the file size and keeps set OTA fields", async () => {
+            fetchMock.addResponse(
+                "/dcl/model/versions/65521/32768/6",
+                modelVersion({
+                    otaUrl: "https://example.com/ota.bin",
+                    otaFileSize: "100",
+                    otaChecksum: "abc=",
+                    otaChecksumType: 1,
+                    releaseNotesUrl: "https://example.com/notes",
+                    specificationVersion: 0x01040200,
+                }),
+            );
+            fetchMock.install();
+
+            const version = await new DclClient().fetchModelVersionByVidPidSoftwareVersion(0xfff1, 0x8000, 6);
+
+            expect(version.otaFileSize).to.equal(100n);
+            expect(version.otaUrl).to.equal("https://example.com/ota.bin");
+            expect(version.otaChecksum).to.equal("abc=");
+            expect(version.otaChecksumType).to.equal(1);
+            expect(version.releaseNotesUrl).to.equal("https://example.com/notes");
+            expect(version.specificationVersion).to.equal(0x01040200);
+        });
+
+        it("returns fields the DCL sends empty as undefined", async () => {
+            fetchMock.addResponse("/dcl/model/versions/65521/32768/6", modelVersion({}));
+            fetchMock.install();
+
+            const version = await new DclClient().fetchModelVersionByVidPidSoftwareVersion(0xfff1, 0x8000, 6);
+
+            expect(version.otaFileSize).to.be.undefined;
+            expect(version.otaUrl).to.be.undefined;
+            expect(version.otaChecksum).to.be.undefined;
+            expect(version.otaChecksumType).to.be.undefined;
+            expect(version.releaseNotesUrl).to.be.undefined;
+            expect(version.firmwareInformation).to.be.undefined;
+            expect(version.specificationVersion).to.be.undefined;
+        });
+
+        it("ignores a file size that is not a decimal number", async () => {
+            fetchMock.addResponse("/dcl/model/versions/65521/32768/6", modelVersion({ otaFileSize: "12ab" }));
+            fetchMock.install();
+
+            const version = await new DclClient().fetchModelVersionByVidPidSoftwareVersion(0xfff1, 0x8000, 6);
+
+            expect(version.otaFileSize).to.be.undefined;
+        });
+    });
+
+    describe("fetchComplianceInfo", () => {
+        const record = {
+            vid: 0xfff1,
+            pid: 0x8000,
+            softwareVersion: 6,
+            certificationType: "matter",
+            specificationVersion: 0x01040200,
+            schemaVersion: 1,
+        };
+
+        it("returns the compliance record", async () => {
+            fetchMock.addResponse("/dcl/compliance/compliance-info/65521/32768/6/matter", { complianceInfo: record });
+            fetchMock.install();
+
+            const info = await new DclClient().fetchComplianceInfo(0xfff1, 0x8000, 6, "matter");
+
+            expect(info.specificationVersion).to.equal(0x01040200);
+        });
+
+        const mismatches: Array<[keyof typeof record, number | string]> = [
+            ["vid", 0xfff2],
+            ["pid", 0x8001],
+            ["softwareVersion", 7],
+            ["certificationType", "zigbee"],
+            ["schemaVersion", 2],
+        ];
+        for (const [field, value] of mismatches) {
+            it(`rejects a record with a different ${field}`, async () => {
+                fetchMock.addResponse("/dcl/compliance/compliance-info/65521/32768/6/matter", {
+                    complianceInfo: { ...record, [field]: value },
+                });
+                fetchMock.install();
+
+                await expect(new DclClient().fetchComplianceInfo(0xfff1, 0x8000, 6, "matter")).to.be.rejectedWith(
+                    MatterDclError,
+                    "Compliance info not found",
+                );
+            });
+        }
     });
 
     describe("fetchAllVendors", () => {

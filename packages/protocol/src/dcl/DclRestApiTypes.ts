@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DeviceModelDclSchema, DeviceSoftwareVersionModelDclSchema, ProductAttestationDclSchema } from "@matter/types";
+import {
+    DeviceModelDclSchema,
+    DeviceSoftwareComplianceDclSchema,
+    DeviceSoftwareVersionModelDclSchema,
+    ProductAttestationDclSchema,
+    VendorDclSchema,
+} from "@matter/types";
 
 /**
  * DCL Error codes
@@ -86,19 +92,28 @@ export interface DclModelVersionsWithVidPidResponse {
 
 /** Response for /dcl/model/versions/{vid}/{pid}/{softwareVersion} */
 export interface DclModelVersionWithVidPidSoftwareVersionResponse {
-    modelVersion: DeviceSoftwareVersionModelDclSchema;
+    modelVersion: DclDeviceSoftwareVersionModelRaw;
 }
 
-/** Vendor information from DCL */
-export interface DclVendorInfo {
-    vendorID: number;
-    vendorName: string;
-    companyLegalName: string;
-    companyPreferredName: string;
-    vendorLandingPageURL: string;
-    creator: string;
-    schemaVersion?: number;
+/**
+ * Device software version entry as returned by the DCL REST API. Every field is present; the uint64 `otaFileSize` is a
+ * decimal string.
+ */
+export interface DclDeviceSoftwareVersionModelRaw extends Required<
+    Omit<DeviceSoftwareVersionModelDclSchema, "otaFileSize">
+> {
+    otaFileSize: string;
 }
+
+/** Response for /dcl/compliance/compliance-info/{vid}/{pid}/{softwareVersion}/{certificationType} */
+export interface DclComplianceInfoResponse {
+    complianceInfo: DeviceSoftwareComplianceDclSchema;
+}
+
+/**
+ * @deprecated Use {@link VendorDclSchema}.
+ */
+export type DclVendorInfo = VendorDclSchema;
 
 /**
  * Raw revocation distribution point entry as returned by the DCL REST API.

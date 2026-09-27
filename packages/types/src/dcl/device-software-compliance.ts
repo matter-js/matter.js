@@ -16,6 +16,8 @@ export import SoftwareVersionCertificationStatusEnum = SoftwareVersionCertificat
  * ComplianceHistoryItem Schema, one entry of {@link DeviceSoftwareComplianceDclSchema.history}. Each entry records a
  * change in the certification status of a compliance record.
  *
+ * The DCL sends every field. A value that is not set arrives as an empty string, `0` or an empty list.
+ *
  * @see {@link MatterSpecification.v16.Core} § 11.23.9
  */
 export interface ComplianceHistoryItemDclSchema {
@@ -32,7 +34,7 @@ export interface ComplianceHistoryItemDclSchema {
     /**
      * See {@link DeviceSoftwareComplianceDclSchema.reason}.
      */
-    reason?: string;
+    reason: string;
 
     /**
      * See {@link DeviceSoftwareComplianceDclSchema.cDVersionNumber}.
@@ -48,6 +50,9 @@ export interface ComplianceHistoryItemDclSchema {
 
 /**
  * DeviceSoftwareCompliance / Compliance test result Schema
+ *
+ * The DCL sends every field. A value that is not set arrives as an empty string, `0` or an empty list.
+ *
  * @see {@link MatterSpecification.v16.Core} § 11.23.10
  * DCL endpoint:
  *   * /dcl/compliance/compliance-info
@@ -147,50 +152,50 @@ export interface DeviceSoftwareComplianceDclSchema {
      * `similarity`, `rapid-recert`, `fastTrack`, `ctp`, `family` and `portfolio`; values may be added or removed in
      * the future.
      */
-    certificationRoute?: string;
+    certificationRoute: string;
 
     /**
      * This field, when present, SHALL contain additional human-readable information about the reason of the
      * certification.
      */
-    reason?: string;
+    reason: string;
 
     /**
      * This field, when present, SHALL specify the communication technologies the device uses, comma-separated when
      * there are several (e.g. `wi-fi,ethernet,bluetooth`). Supported transports are `thread`, `wi-fi`, `ethernet`,
      * `bluetooth` and `nfc`.
      */
-    transport?: string;
+    transport: string;
 
     /**
      * This field, when present, SHALL specify the product family to which the certified model belongs. Typical
      * family IDs have the prefix `FAM` followed by alphanumeric characters (e.g. `FAM123456`).
      */
-    familyId?: string;
+    familyId: string;
 
     /**
      * This field, when present, SHALL specify the application cluster IDs supported by the device, as hexadecimal
      * numbers in a comma-separated list (e.g. `0x0003,0x0004,0x0006`).
      */
-    supportedClusters?: string;
+    supportedClusters: string;
 
     /**
      * This field, when present, SHALL contain the product type. Supported values are `endProduct`,
      * `softwareComponent` or `compliantPlatform`.
      */
-    programType?: string;
+    programType: string;
 
     /**
      * This field, if present, SHALL specify the version of the specified {@link DeviceSoftwareComplianceDclSchema.programType}. It MAY be provided
      * only if programType is populated.
      */
-    programTypeVersion?: string;
+    programTypeVersion: string;
 
     /**
      * This field, when present, SHALL specify the parent vs. child characteristic when using the Product Family
      * Certification or Portfolio Certification Program. Supported values are `parent` and `child`.
      */
-    parentChild?: string;
+    parentChild: string;
 
     /**
      * The SchemaVersion field value history for this schema is provided below:

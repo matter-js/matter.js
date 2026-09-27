@@ -8,6 +8,9 @@ import { VendorId } from "../datatype/VendorId.js";
 
 /**
  * DeviceSoftwareVersionModel Schema
+ *
+ * The DCL sends every field; `DclClient` returns optional fields the DCL sends as `""` or `0` as `undefined`.
+ *
  * @see {@link MatterSpecification.v16.Core} § 11.23.8
  * DCL endpoints:
  * * check with https://on.dcl.csa-iot.org/dcl/model/versions/{vid}/{pid} to get a list of software versions, check for newer ones
@@ -92,8 +95,10 @@ export interface DeviceSoftwareVersionModelDclSchema {
     /**
      * OtaFileSize is the total size of the OTA software image in bytes. This field SHALL be provided if the
      * OtaUrl field is populated.
+     *
+     * The DCL sends this uint64 as a decimal string; `DclClient` converts it.
      */
-    otaFileSize?: number | bigint; // TODO
+    otaFileSize?: number | bigint;
 
     /**
      * OtaChecksum SHALL contain the digest of the entire contents of the associated OTA Software

@@ -579,7 +579,12 @@ export class DclOtaUpdateService {
             logger.debug(
                 `Found applicable update: version ${softwareVersion} (${versionInfo.softwareVersionString}) for current version ${currentVersion}`,
             );
-            return versionInfo;
+            return {
+                ...versionInfo,
+                specificationVersion:
+                    (await this.#specificationVersionOf(dclClient, vendorId, productId, softwareVersion)) ??
+                    versionInfo.specificationVersion,
+            };
         }
 
         logger.debug(
@@ -591,6 +596,23 @@ export class DclOtaUpdateService {
                 max: versionInfo.maxApplicableSoftwareVersion,
             }),
         );
+    }
+
+    /**
+     * Read the specification version of a software version from its compliance record. Matter 1.6.1 moves the field
+     * there from the software version record, which the DCL no longer fills. A failed lookup leaves it unknown and
+     * does not fail the update check.
+     */
+    async #specificationVersionOf(dclClient: DclClient, vendorId: number, productId: number, softwareVersion: number) {
+        try {
+            const compliance = await dclClient.fetchComplianceInfo(vendorId, productId, softwareVersion, "matter");
+            return compliance.specificationVersion || undefined;
+        } catch (error) {
+            MatterDclError.accept(error);
+            logger.debug(
+                `No specification version from compliance info for VID: ${vendorId}, PID: ${productId}, version ${softwareVersion}: ${error.message}`,
+            );
+        }
     }
 
     /**

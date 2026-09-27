@@ -42,6 +42,8 @@ export const EnhancedSetupFlowOptionsSchema = BitmapSchema(EnhancedSetupFlowOpti
 
 /**
  * DeviceModel Schema
+ *
+ * The DCL sends every field. A value that is not set arrives as an empty string, `0` or an empty list.
  * @see {@link MatterSpecification.v16.Core} § 11.23.7
  * DCL endpoint:
  *   * /dcl/model/models
@@ -116,7 +118,7 @@ export interface DeviceModelDclSchema {
      * SHALL follow the syntax as specified in RFC 1738 and SHALL use the https scheme. The maximum
      * length of this field is 256 ASCII characters.
      */
-    commissioningCustomFlowUrl?: string;
+    commissioningCustomFlowUrl: string;
 
     /**
      * This field SHALL identify a hint for the steps that MAY be used to put a device that has not yet been
@@ -135,7 +137,7 @@ export interface DeviceModelDclSchema {
      * Devices that implement Extended Discovery SHALL reflect this value in the Pairing Instruction field
      * of Commissionable Node Discovery when they have not yet been commissioned.
      */
-    commissioningModeInitialStepsInstruction?: string;
+    commissioningModeInitialStepsInstruction: string;
 
     /**
      * This field SHALL identify a hint for the steps that MAY be used to put a device that has already been
@@ -157,7 +159,7 @@ export interface DeviceModelDclSchema {
      * Devices that implement Extended Discovery SHALL reflect this value in the Pairing Instruction field
      * of Commissionable Node Discovery when they have already been commissioned.
      */
-    commissioningModeSecondaryStepsInstruction?: string;
+    commissioningModeSecondaryStepsInstruction: string;
 
     /**
      * This field SHALL identify a vendor-specific commissioning-fallback URL for the device model,
@@ -168,7 +170,7 @@ export interface DeviceModelDclSchema {
      * The syntax of this field SHALL follow the syntax as specified in RFC 1738 and SHALL use the https
      * scheme. The maximum length of this field is 256 ASCII characters.
      */
-    commissioningFallbackUrl?: string;
+    commissioningFallbackUrl: string;
 
     /**
      * This field (when provided) SHALL identify a product-specific web page containing a user manual
@@ -176,7 +178,7 @@ export interface DeviceModelDclSchema {
      * maintained web page. The syntax of this field SHALL follow the syntax as specified in RFC 1738 and
      * SHALL use the https scheme. The maximum length of this field is 256 ASCII characters.
      */
-    userManualUrl?: string;
+    userManualUrl: string;
 
     /**
      * This field (when provided) SHALL identify a product specific support web page. During the lifetime
@@ -184,7 +186,7 @@ export interface DeviceModelDclSchema {
      * field SHALL follow the syntax as specified in RFC 1738 and SHALL use the https scheme. The maximum
      * length of this field is 256 ASCII characters.
      */
-    supportUrl?: string;
+    supportUrl: string;
 
     /**
      * This field (when provided) SHALL identify a link to a product specific web page. This field SHALL
@@ -193,7 +195,7 @@ export interface DeviceModelDclSchema {
      * maintained web page. The syntax of this field SHALL follow the syntax as specified in
      * RFC 1738 and SHALL use the https scheme. The maximum length of this field is 256 ASCII characters.
      */
-    productUrl?: string;
+    productUrl: string;
 
     /**
      * This field (when provided) SHALL identify a link to the Localized String File of this product. This
@@ -202,7 +204,7 @@ export interface DeviceModelDclSchema {
      * the syntax as specified in RFC 1738 and SHALL use the https scheme. The maximum length of this
      * field is 256 ASCII characters.
      */
-    lsfUrl?: string;
+    lsfUrl: string;
 
     /**
      * LsfRevision is a monotonically increasing positive integer indicating the latest available version of
@@ -214,13 +216,13 @@ export interface DeviceModelDclSchema {
      * from the LsfUrl, and update its local value of this field.
      * This field SHALL be provided if and only if when LsfUrl is provided.
      */
-    lsfRevision?: number;
+    lsfRevision: number;
 
     /**
      * This field SHALL identify the configuration options for the Enhanced Setup Flow. This field is a
      * bitmap with values defined in Enhanced Setup Flow Options Table. Decode with EnhancedSetupFlowOptionsSchema.
      */
-    enhancedSetupFlowOptions?: number;
+    enhancedSetupFlowOptions: number;
 
     /**
      * This field (when provided) SHALL identify a link to the Enhanced Setup Flow Terms and Condition
@@ -230,7 +232,7 @@ export interface DeviceModelDclSchema {
      * https scheme. This field SHALL be present if and only if the EnhancedSetupFlowOptions field has
      * bit 0 set.
      */
-    enhancedSetupFlowTCUrl?: string;
+    enhancedSetupFlowTCUrl: string;
 
     /**
      * This field (when provided) is an increasing positive integer indicating the latest available version of
@@ -238,7 +240,7 @@ export interface DeviceModelDclSchema {
      * this value SHALL increase (and SHOULD increase by 1). This field SHALL be present if and only if
      * the EnhancedSetupFlowOptions field has bit 0 set.
      */
-    enhancedSetupFlowTCRevision?: number;
+    enhancedSetupFlowTCRevision: number;
 
     /**
      * This field (when provided) SHALL contain the digest of the entire contents of the associated file
@@ -247,7 +249,7 @@ export interface DeviceModelDclSchema {
      * been computed using the SHA-256 digest algorithm. This field SHALL be present if and only if the
      * EnhancedSetupFlowOptions field has bit 0 set.
      */
-    enhancedSetupFlowTCDigest?: string;
+    enhancedSetupFlowTCDigest: string;
 
     /**
      * This field (when provided) SHALL indicate the total size of the Enhanced Setup Flow Terms and
@@ -255,7 +257,7 @@ export interface DeviceModelDclSchema {
      * of EnhancedSetupFlowTCFileSize. This field SHALL be provided if and only if the EnhancedSetupFlowTCUrl
      * field is present.
      */
-    enhancedSetupFlowTCFileSize?: number;
+    enhancedSetupFlowTCFileSize: number;
 
     /**
      * This field (when provided) SHALL identify a link to a vendor-specific URL which SHALL provide a
@@ -268,35 +270,35 @@ export interface DeviceModelDclSchema {
      *
      * The specification names this field EnhancedSetupFlowMaintenanceUrl; the DCL names it MaintenanceUrl.
      */
-    maintenanceUrl?: string;
+    maintenanceUrl: string;
 
     /**
      * This field (when provided) is applicable to an ICD that supports the UserActiveModeTrigger feature. This
      * field SHALL indicate which user action(s) will trigger the ICD to switch to Active mode. This field SHALL
      * follow the requirements specified in UserActiveModeTriggerHint.
      */
-    icdUserActiveModeTriggerHint?: number;
+    icdUserActiveModeTriggerHint: number;
 
     /**
      * This field (when provided) is applicable to an ICD that supports the UserActiveModeTrigger feature. The
      * meaning of this field is dependent upon the UserActiveModeTriggerHint field value. This field SHALL follow
      * the requirements specified in UserActiveModeTriggerInstruction.
      */
-    icdUserActiveModeTriggerInstruction?: string;
+    icdUserActiveModeTriggerInstruction: string;
 
     /**
      * This field (when provided) SHALL identify a hint for the steps that MAY be used to factory reset a device.
      * This field is a bitmap with values defined in the Pairing/Reset Hint Table. For example, a value of 64 (bit
      * 6 is set) indicates that a device will be factory reset when the Reset Button is pressed.
      */
-    factoryResetStepsHint?: number;
+    factoryResetStepsHint: number;
 
     /**
      * This field SHALL be populated with the appropriate factory reset instruction for those values of
      * FactoryResetStepsHint, for which the Pairing/Reset Hint Table indicates a dependency in the Instruction
      * Dependency column.
      */
-    factoryResetStepsInstruction?: string;
+    factoryResetStepsInstruction: string;
 
     /**
      * This field uniquely identifies the DCL key that was used to register the device model record in DCL,
