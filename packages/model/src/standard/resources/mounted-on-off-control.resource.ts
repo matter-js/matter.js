@@ -44,32 +44,33 @@ Resource.add({
         "this device type, the specified light effects may be replaced by pure on/off light effects.",
 
     children: [
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§5.3.4" },
         {
-            tag: "requirement", name: "Identify", xref: "device§5.3.4",
-            children: [{ tag: "requirement", name: "TriggerEffect", xref: "device§5.3.5" }]
+            tag: "requirement", name: "Identify", xref: "device§5.3.5",
+            children: [{ tag: "requirement", name: "TriggerEffect", xref: "device§5.3.6" }]
         },
-        { tag: "requirement", name: "Groups", xref: "device§5.3.4" },
+        { tag: "requirement", name: "Groups", xref: "device§5.3.5" },
         {
-            tag: "requirement", name: "OnOff", xref: "device§5.3.4",
-            children: [{ tag: "requirement", name: "LIGHTING", xref: "device§5.3.5" }]
+            tag: "requirement", name: "OnOff", xref: "device§5.3.5",
+            children: [{ tag: "requirement", name: "LIGHTING", xref: "device§5.3.6" }]
         },
 
         {
-            tag: "requirement", name: "LevelControl", xref: "device§5.3.4",
+            tag: "requirement", name: "LevelControl", xref: "device§5.3.5",
 
             children: [
-                { tag: "requirement", name: "ONOFF", xref: "device§5.3.5" },
-                { tag: "requirement", name: "LIGHTING", xref: "device§5.3.5" },
-                { tag: "requirement", name: "CurrentLevel", xref: "device§5.3.5" },
-                { tag: "requirement", name: "MinLevel", xref: "device§5.3.5" },
-                { tag: "requirement", name: "MaxLevel", xref: "device§5.3.5" }
+                { tag: "requirement", name: "ONOFF", xref: "device§5.3.6" },
+                { tag: "requirement", name: "LIGHTING", xref: "device§5.3.6" },
+                { tag: "requirement", name: "CurrentLevel", xref: "device§5.3.6" },
+                { tag: "requirement", name: "MinLevel", xref: "device§5.3.6" },
+                { tag: "requirement", name: "MaxLevel", xref: "device§5.3.6" }
             ]
         },
 
         {
-            tag: "requirement", name: "ScenesManagement", xref: "device§5.3.4",
-            children: [{ tag: "requirement", name: "CopyScene", xref: "device§5.3.5" }]
+            tag: "requirement", name: "ScenesManagement", xref: "device§5.3.5",
+            children: [{ tag: "requirement", name: "CopyScene", xref: "device§5.3.6" }]
         },
-        { tag: "requirement", name: "OccupancySensing", xref: "device§5.3.4" }
+        { tag: "requirement", name: "OccupancySensing", xref: "device§5.3.5" }
     ]
 });

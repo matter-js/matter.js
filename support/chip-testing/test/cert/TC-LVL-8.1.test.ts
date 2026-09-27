@@ -5,16 +5,17 @@
  */
 
 import { Matter } from "@matter/model";
-import type { CertNodeApi, CertNodeRef, CertStepContext } from "@matter/testing";
+import type { CertNodeApi, CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import type { CommandFieldValue } from "./tc-support.js";
+import type { CommandFieldValue, InvokedCommand } from "./tc-support.js";
 import {
+    attempt,
     CertCheckFailedError,
     CommissionedRefs,
-    expectCommandInvoke,
-    LOG_TIMEOUT,
+    invokeCommand,
     record,
     requireId,
+    withChecks,
 } from "./tc-support.js";
 
 const LEVEL_CONTROL = Matter.clusters.require("LevelControl");
@@ -46,10 +47,6 @@ const MOVE_MODE_UP = 0;
 const STEP_MODE_DOWN = 1;
 
 const commissioned = new CommissionedRefs();
-
-function commandId(commandName: string): number {
-    return requireId(LEVEL_CONTROL.commands.require(commandName).id, `LevelControl.${commandName}`);
-}
 
 function attributeId(attributeName: string): number {
     return requireId(LEVEL_CONTROL.attributes.require(attributeName).id, `LevelControl.${attributeName}`);
@@ -137,43 +134,26 @@ function levelOtherThan(current: number | null, { min, max }: LevelBounds): numb
 }
 
 /**
- * Invokes `commandName` on the TH's LevelControl cluster and verifies the TH's log recorded the
- * command with the field values the step sent.
+ * Has the DUT invoke `command` on the TH's LevelControl cluster; see {@link invokeCommand}.
  *
  * `optionsMask`/`optionsOverride` are sent because the commands require them, but are not among the
  * checked fields: they are bitmaps, which the two logs render differently from a plain integer.
  */
-async function invokeAndCheck(
+function invokeLevel(
     cx: CertStepContext,
     ref: CertNodeRef,
-    commandName: string,
+    command: string,
     args: Record<string, unknown>,
     fields: CommandFieldValue[],
-): Promise<void> {
-    const th = cx.devices.th;
-    const from = th.log.mark();
-
-    try {
-        await cx.controllers.dut
-            .node(ref)
-            .invoke("LevelControl", commandName, { ...args, optionsMask: {}, optionsOverride: {} }, ENDPOINT);
-    } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
-        throw e;
-    }
-    cx.recorder.check({ type: "response", verdict: "pass", detail: `${commandName} status=Success` });
-
-    const logCheck = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        ENDPOINT,
-        LEVEL_CONTROL_ID,
-        commandId(commandName),
+): Promise<InvokedCommand> {
+    return invokeCommand(cx, ref, {
+        cluster: LEVEL_CONTROL,
+        endpoint: ENDPOINT,
+        command,
+        args: { ...args, optionsMask: {}, optionsOverride: {} },
         fields,
-        from,
-        LOG_TIMEOUT,
-    );
-    record(cx, logCheck, `CommandDataIB log for LevelControl.${commandName}`);
+        describe: () => `${command} status=Success`,
+    });
 }
 
 let bounds: LevelBounds | undefined;
@@ -233,43 +213,59 @@ certTest("TC-LVL-8.1", { plan: "levelcontrol.adoc", pics: ["LVL.C"], app: "all-c
             });
             const level = levelOtherThan(typeof before === "number" ? before : null, bounds);
 
-            // WithOnOff, so the TH is on and the level it reports afterward is the one just commanded;
-            // a command without it reaching a TH that is off has no effect unless the Options bits say
-            // otherwise (Matter Application Clusters § 1.6.4.1.3, § 1.6.6.9).
-            await invokeAndCheck(cx, ref, "moveToLevelWithOnOff", { level, transitionTime: NO_TRANSITION }, [
-                { id: 0, value: level },
-                { id: 1, value: NO_TRANSITION },
-            ]);
+            await withChecks(cx, async checks => {
+                // WithOnOff, so the TH is on and the level it reports afterward is the one just commanded;
+                // a command without it reaching a TH that is off has no effect unless the Options bits say
+                // otherwise (Matter Application Clusters § 1.6.4.1.3, § 1.6.6.9).
+                const moved = await invokeLevel(
+                    cx,
+                    ref,
+                    "moveToLevelWithOnOff",
+                    { level, transitionTime: NO_TRANSITION },
+                    [
+                        { id: 0, value: level },
+                        { id: 1, value: NO_TRANSITION },
+                    ],
+                );
+                checks.push(...moved.checks);
 
-            const reported = await readNumber(node, "currentLevel");
-            record(
-                cx,
-                {
-                    type: "response",
-                    verdict: reported === level ? "pass" : "fail",
-                    detail: `CurrentLevel ${JSON.stringify(before)} -> ${reported}, commanded ${level}`,
-                },
-                "the TH moved to the level the DUT commanded",
-            );
+                if (moved.response.ok) {
+                    const read = await attempt(
+                        () => readNumber(node, "currentLevel"),
+                        () => "CurrentLevel read",
+                    );
+                    const reached: CheckRecord = read.ok
+                        ? {
+                              type: "response",
+                              verdict: read.value === level ? "pass" : "fail",
+                              detail: `CurrentLevel ${JSON.stringify(before)} -> ${read.value}, commanded ${level}`,
+                          }
+                        : read.check;
+                    checks.push({ what: "the TH moved to the level the DUT commanded", check: () => reached });
+                }
 
-            await invokeAndCheck(cx, ref, "move", { moveMode: MOVE_MODE_UP, rate: MOVE_RATE }, [
-                { id: 0, value: MOVE_MODE_UP },
-                { id: 1, value: MOVE_RATE },
-            ]);
+                const moveUp = await invokeLevel(cx, ref, "move", { moveMode: MOVE_MODE_UP, rate: MOVE_RATE }, [
+                    { id: 0, value: MOVE_MODE_UP },
+                    { id: 1, value: MOVE_RATE },
+                ]);
+                checks.push(...moveUp.checks);
 
-            await invokeAndCheck(cx, ref, "stop", {}, []);
+                const stop = await invokeLevel(cx, ref, "stop", {}, []);
+                checks.push(...stop.checks);
 
-            await invokeAndCheck(
-                cx,
-                ref,
-                "step",
-                { stepMode: STEP_MODE_DOWN, stepSize: STEP_SIZE, transitionTime: NO_TRANSITION },
-                [
-                    { id: 0, value: STEP_MODE_DOWN },
-                    { id: 1, value: STEP_SIZE },
-                    { id: 2, value: NO_TRANSITION },
-                ],
-            );
+                const stepDown = await invokeLevel(
+                    cx,
+                    ref,
+                    "step",
+                    { stepMode: STEP_MODE_DOWN, stepSize: STEP_SIZE, transitionTime: NO_TRANSITION },
+                    [
+                        { id: 0, value: STEP_MODE_DOWN },
+                        { id: 1, value: STEP_SIZE },
+                        { id: 2, value: NO_TRANSITION },
+                    ],
+                );
+                checks.push(...stepDown.checks);
+            });
         }),
         {
             expected:

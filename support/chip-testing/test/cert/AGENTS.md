@@ -291,6 +291,14 @@ certTest("TC-XXX-0.0", { plan: "n/a" | "<plan doc id>", pics: [], app: "all-clus
   it is not interop evidence, and the `.b` step that feeds the artifact to the DUT is what carries
   that. A step generating several artifacts records them through `recordAll` (`tc-support.ts`), which
   puts every one in the evidence before failing; `record` in a loop stops at the first bad one.
+- **A step records every check it claims before it fails.** `record()` throws on a fail, so it only
+  fits a step's last check or a check every later one depends on; code after a failing `record()`
+  never runs. Otherwise turn each action's outcome into a check as it happens (`attempt()` for a call
+  that may throw, `invokeCommand()` for an invoke with its response, status and CommandDataIB log
+  checks) and record the list once: `recordAll` when nothing can throw in between, `withChecks` when
+  an action can, so checks collected before a throw still reach the evidence. Take the TH's log check
+  even when the DUT's action failed — it shows whether the request reached the TH. Leave out a check
+  whose expected values depend on a failed action instead of matching it against less.
 - `certTest` registers the mocha `it()` immediately; `.step()` calls append to it and may continue
   after `certTest()` returns (see `cert-dsl.ts`'s `certTest`/`defineCertTest`).
 - Role names: `cx.controllers.dut` / `cx.devices.th` are the defaults (`controllers: { dut: "dut" }`,
@@ -2968,6 +2976,19 @@ registration on the way to an apply — and writing a status over the top afterw
 provider expecting a transfer the requestor was just told not to start. A scripted `UserConsentNeeded`
 does overlay the real answer, because the step is about the field, not about the answer.
 
+**A scripted `UpdateAvailable` offers an image the provider does not hold.** The harness fills the
+mandatory fields for a conformant offer unless the script names `softwareVersion` or `imageUri`, and a
+node that starts the transfer is refused. TC-SU-2.2 steps 6 and 7 offer the DUT's own version and an
+invalid URI this way. Two consequences for a case whose TH is the controller's provider:
+
+- An image an earlier step staged stays in the catalog, so the provider's own answer offers it again.
+  Every query a step's window can see needs a scripted answer; TC-SU-2.2 scripts the answer each step
+  is about and one more for a conformant retry.
+- That a requestor did *not* start a transfer is read from its own `StateTransition` events
+  (`requestorStateChanges` in `tc-su-support.ts`). Starting one enters `Downloading`, whatever becomes
+  of the transfer after, and a transition whose state cannot be read fails the check rather than
+  passing it.
+
 **The provider is one endpoint serving every node, so everything it holds is keyed by peer.** Its
 record of what it answered and its queue of scripted answers both live in a `Map` keyed on the
 `PeerAddress` the command arrived from, and `OtaExchangeRecording` waits only for its own peer's
@@ -3102,10 +3123,20 @@ honor it, and the case passes against both behaviours.
 **TC-SU-2.4 is matterjs-only, for TC-SU-3.4's reason.** chip's requestor sends `ApplyUpdateRequest` only
 under `--autoApplyImage`, and then exits, which the harness reads as the DUT dying mid-run.
 
-**TC-SU-2.6 is not reachable yet.** A requestor sends `NotifyUpdateApplied` when it starts up running
-the version it was updating to (`OtaSoftwareUpdateRequestorServer.#handlePreviousUpdateOnStart`).
-`OtaRequestorTestInstance` never restarts and never advances its `softwareVersion`, and chip's app
-cannot restart into the image this harness stages. Step 2's `BootReason` needs the same reboot.
+**TC-SU-2.6 is matterjs-only, and its subject restarts on request.** A requestor sends
+`NotifyUpdateApplied` when it starts up running the version it was updating to
+(`OtaSoftwareUpdateRequestorServer.#handlePreviousUpdateOnStart`). chip's app cannot restart into the
+image this harness stages. `OtaRequestorTestInstance` restarts in process into the applied version only
+when started with `REBOOT_AFTER_APPLY_ARG`, under `appArgs`' `matterjs` key. It keeps what it booted into
+under storage context `certOtaRequestor` and sets `BootReason` `SoftwareUpdateCompleted` on that boot.
+
+- The subject declares `BootReason` from its first boot. matter.js exposes an optional attribute only
+  when the state gives it a value, so setting it only after the restart would target an attribute the
+  node does not have.
+- `DGGEN.S.A0004` is declared in the app's PICS, because `matter-js-pics.properties` answers
+  `DGGEN.S.A0003..7=0` for every matter.js app.
+- Without the restart, both steps fail rather than pass: no `NotifyUpdateApplied` arrives, and
+  `BootReason` stays `Unspecified`.
 
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 
@@ -3159,9 +3190,9 @@ the first three against the same `lit-icd` TH and needs none of the Check-In con
   mode. `stopSubscription()` turns the peer's `autoSubscribe` off; the TH tears the subscription down when its next
   report goes unanswered, and sends a Check-In at its next active mode.
 - **The controller has to advertise operationally**, or the TH fails with "Node Address resolution failed for ICD
-  Check-In". A node advertises when it starts with a fabric, or when `FabricManager` `added` fires after it is
-  online — a fabric created before `start()` on a fresh node does neither. The adapter therefore creates its
-  fabric after starting the controller, and every in-process cert controller now advertises `_matter._tcp`.
+  Check-In". Every in-process cert controller advertises `_matter._tcp`: it creates its fabric before `start()`,
+  and `CommissioningServer` counts such a fabric as commissioned once the node is online. TC-ICDB-1.3 is the case
+  that breaks if that stops holding.
 
 Two more traps:
 

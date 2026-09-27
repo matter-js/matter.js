@@ -18,6 +18,7 @@ import {
     matterjsSubscribeFlags,
     matterjsSubscribeTiming,
     record,
+    recordAll,
     requireId,
     SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
@@ -99,26 +100,35 @@ certTest("TC-IDM-4.1", {
                 detail: `subscribe() resolved for ${JSON.stringify(path)}`,
             });
 
-            const pathCheck = await expectMessageWithPath(th.log, th.flavor, "subscribe", path, from, LOG_TIMEOUT);
-            record(cx, pathCheck, "SubscribeRequestMessage log");
-
-            const envelopeCheck = await expectSequence(
-                th.log,
-                th.flavor,
-                SUBSCRIBE_ENVELOPE_LABEL,
+            await recordAll(cx, [
                 {
-                    chip: SUBSCRIBE_ENVELOPE_SEQUENCE,
-                    matterjs: {
-                        ordered: [
-                            matterjsSubscribeFlags("keepSubscriptions"),
-                            matterjsSubscribeTiming(MIN_INTERVAL_FLOOR_SECONDS, MAX_INTERVAL_CEILING_SECONDS),
-                        ],
-                    },
+                    what: "SubscribeRequestMessage log",
+                    check: () => expectMessageWithPath(th.log, th.flavor, "subscribe", path, from, LOG_TIMEOUT),
                 },
-                from,
-                LOG_TIMEOUT,
-            );
-            record(cx, envelopeCheck, "SubscribeRequestMessage envelope");
+                {
+                    what: "SubscribeRequestMessage envelope",
+                    check: () =>
+                        expectSequence(
+                            th.log,
+                            th.flavor,
+                            SUBSCRIBE_ENVELOPE_LABEL,
+                            {
+                                chip: SUBSCRIBE_ENVELOPE_SEQUENCE,
+                                matterjs: {
+                                    ordered: [
+                                        matterjsSubscribeFlags("keepSubscriptions"),
+                                        matterjsSubscribeTiming(
+                                            MIN_INTERVAL_FLOOR_SECONDS,
+                                            MAX_INTERVAL_CEILING_SECONDS,
+                                        ),
+                                    ],
+                                },
+                            },
+                            from,
+                            LOG_TIMEOUT,
+                        ),
+                },
+            ]);
         },
         {
             pics: "MCORE.IDM.C.SubscribeRequest",

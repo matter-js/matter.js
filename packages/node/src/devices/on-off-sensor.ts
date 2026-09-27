@@ -100,7 +100,7 @@ export namespace OnOffSensorRequirements {
 export const OnOffSensorDeviceDefinition = MutableEndpoint({
     name: "OnOffSensor",
     deviceType: 0x850,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: OnOffSensorRequirements,
     behaviors: SupportedBehaviors(OnOffSensorRequirements.server.mandatory.Identify)
 });

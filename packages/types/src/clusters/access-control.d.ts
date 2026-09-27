@@ -207,7 +207,7 @@ export declare namespace AccessControl {
          *
          * @see {@link MatterSpecification.v16.Core} § 9.10.6.10
          */
-        auxiliaryAcl?: AccessControlEntry[];
+        auxiliaryAcl: AccessControlEntry[];
     }
 
     /**
@@ -464,7 +464,7 @@ export declare namespace AccessControl {
          *
          * @see {@link MatterSpecification.v16.Core} § 9.10.9.4
          */
-        auxiliaryAccessUpdated?: AuxiliaryAccessUpdatedEvent;
+        auxiliaryAccessUpdated: AuxiliaryAccessUpdatedEvent;
     }
 
     /**
@@ -1032,7 +1032,7 @@ export declare namespace AccessControl {
 
         /**
          * This field shall indicate the URL for the service associated with the device maker which the user can visit
-         * to manage fabric limitations. The syntax of this field shall follow the syntax as specified in RFC 1738 and
+         * to manage fabric limitations. The syntax of this field shall follow the syntax as specified in RFC1738 and
          * shall use the https scheme for internet-hosted URLs.
          *
          *   - The URL may embed the token, fabric index, fabric vendor, or other information transparently in order to

@@ -7,7 +7,7 @@
 import { Events } from "#behavior/Events.js";
 import type { Agent } from "#endpoint/Agent.js";
 import { hex, ImplementationError, MaybePromise } from "@matter/general";
-import { ClusterModifier, type Schema } from "@matter/model";
+import { ClusterModifier, ElementTag, Schema } from "@matter/model";
 import { ClusterId, ClusterType, type ClusterTyping } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import type { BehaviorBacking } from "../internal/BehaviorBacking.js";
@@ -171,7 +171,7 @@ export class ClusterBehavior extends Behavior {
         This extends ClusterBehavior.Type,
         const AlterationsT extends ClusterType.Alterations<ClusterInterface.InterfaceOf<This>>,
     >(this: This, alterations: AlterationsT) {
-        const schema = ClusterModifier.applyRequirements(this.schema, alterations);
+        const schema = ClusterModifier.applyRequirements(clusterSchemaOf(this, "alter"), alterations);
         return this.for(this.cluster, schema) as unknown as ClusterBehavior.Type<
             This,
             ClusterType.WithEnabledAttributes<
@@ -193,7 +193,7 @@ export class ClusterBehavior extends Behavior {
         This extends ClusterBehavior.Type,
         const FlagsT extends ClusterType.ElementFlags<ClusterInterface.InterfaceOf<This>>,
     >(this: This, flags: FlagsT) {
-        const schema = ClusterModifier.applyPresence(this.schema, flags);
+        const schema = ClusterModifier.applyPresence(clusterSchemaOf(this, "enable"), flags);
         return this.for(this.cluster, schema) as unknown as ClusterBehavior.Type<
             This,
             ClusterType.WithEnabledAttributes<
@@ -271,6 +271,20 @@ export class ClusterBehavior extends Behavior {
     }
 
     static override Events = Events;
+}
+
+/**
+ * The resolved cluster schema of a behavior type.
+ *
+ * Resolves explicitly because `schema` of a subclass whose parent's static override has not resolved yet returns that
+ * override, without what the subclass adds.
+ */
+function clusterSchemaOf(type: Behavior.Type, operation: string) {
+    const schema = Schema(type);
+    if (schema?.tag !== ElementTag.Cluster) {
+        throw new ImplementationError(`Cannot ${operation} behavior ${type.name} because it has no cluster schema`);
+    }
+    return schema;
 }
 
 export namespace ClusterBehavior {

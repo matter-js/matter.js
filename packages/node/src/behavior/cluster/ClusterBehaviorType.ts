@@ -29,6 +29,7 @@ import {
 import { Val } from "@matter/protocol";
 import { ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
+import { setDeclaredSchema } from "../internal/DeclaredSchema.js";
 import { DerivedState } from "../state/StateType.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
 import type { ClusterBehavior } from "./ClusterBehavior.js";
@@ -52,8 +53,9 @@ export function ClusterBehaviorType({
     // Resolve schema: from param, from base, from namespace, or from Matter model.  Base takes priority over
     // namespace because it may have extended the schema (e.g. to relax constraints for custom validation).
     if (schema === undefined) {
-        if (base.schema?.tag === ElementTag.Cluster) {
-            schema = base.schema;
+        const baseSchema = Schema(base);
+        if (baseSchema?.tag === ElementTag.Cluster) {
+            schema = baseSchema;
         }
         if (!schema && namespace) {
             schema = (namespace as ClusterType).schema;
@@ -127,7 +129,7 @@ export function ClusterBehaviorType({
 
         staticDescriptors: {
             id: {
-                value: schema.propertyName as Uncapitalize<string>,
+                value: idOf(base, schema),
                 enumerable: true,
             },
 
@@ -146,12 +148,8 @@ export function ClusterBehaviorType({
     }) as ClusterBehavior.Type;
 
     // Decorate the class
+    setDeclaredSchema(type, schema);
     ClassSemantics.of(type).mutableModel = schema;
-
-    // If the schema was overridden, it won't change with class semantics so override explicitly if necessary
-    if (type.schema !== schema) {
-        Object.defineProperty(type, "schema", { value: schema });
-    }
 
     // Mutation of schema will almost certainly result in logic errors so ensure that can't happen
     schema.finalize();
@@ -614,4 +612,21 @@ function createEventDescriptor(
         },
         enumerable: true,
     };
+}
+
+/**
+ * A variant of a behavior for the same cluster keeps the behavior's id, so it replaces that behavior on an endpoint
+ * rather than joining it.  A decorated subclass names its schema after the class, so the schema's name is not the id.
+ */
+function idOf(base: Behavior.Type, schema: ClusterModel) {
+    if (
+        "cluster" in base &&
+        typeof base.cluster === "object" &&
+        base.cluster !== null &&
+        "id" in base.cluster &&
+        base.cluster.id === schema.id
+    ) {
+        return base.id;
+    }
+    return schema.propertyName as Uncapitalize<string>;
 }

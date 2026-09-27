@@ -736,49 +736,49 @@ export declare namespace ContentControl {
         /**
          * ScreenTime (ST)
          *
-         * Supports managing screen time limits.
+         * Supports managing screen time limits
          */
         ScreenTime = "ScreenTime",
 
         /**
          * PinManagement (PM)
          *
-         * Supports managing a PIN code which is used for restricting access to configuration of this feature.
+         * Supports managing a PIN code which is used for restricting access to configuration of this feature
          */
         PinManagement = "PinManagement",
 
         /**
          * BlockUnrated (BU)
          *
-         * Supports managing content controls for unrated content.
+         * Supports managing content controls for unrated content
          */
         BlockUnrated = "BlockUnrated",
 
         /**
          * OnDemandContentRating (OCR)
          *
-         * Supports managing content controls based upon rating threshold for on demand content.
+         * Supports managing content controls based upon rating threshold for on demand content
          */
         OnDemandContentRating = "OnDemandContentRating",
 
         /**
          * ScheduledContentRating (SCR)
          *
-         * Supports managing content controls based upon rating threshold for scheduled content.
+         * Supports managing content controls based upon rating threshold for scheduled content
          */
         ScheduledContentRating = "ScheduledContentRating",
 
         /**
          * BlockChannels (BC)
          *
-         * Supports managing a set of channels that are prohibited.
+         * Supports managing a set of channels that are prohibited
          */
         BlockChannels = "BlockChannels",
 
         /**
          * BlockApplications (BA)
          *
-         * Supports managing a set of applications that are prohibited.
+         * Supports managing a set of applications that are prohibited
          */
         BlockApplications = "BlockApplications",
 
@@ -786,7 +786,7 @@ export declare namespace ContentControl {
          * BlockContentTimeWindow (BTW)
          *
          * Supports managing content controls based upon setting time window in which all contents and applications
-         * SHALL be blocked.
+         * SHALL be blocked
          */
         BlockContentTimeWindow = "BlockContentTimeWindow"
     }
@@ -1307,52 +1307,52 @@ export declare namespace ContentControl {
      */
     export enum StatusCode {
         /**
-         * Provided PIN Code does not match the current PIN code.
+         * Provided PIN Code does not match the current PIN code
          */
         InvalidPinCode = 2,
 
         /**
-         * Provided Rating is out of scope of the corresponding Rating list.
+         * Provided Rating is out of scope of the corresponding Rating list
          */
         InvalidRating = 3,
 
         /**
-         * Provided Channel(s) is invalid.
+         * Provided Channel(s) is invalid
          */
         InvalidChannel = 4,
 
         /**
-         * Provided Channel(s) already exists.
+         * Provided Channel(s) already exists
          */
         ChannelAlreadyExist = 5,
 
         /**
-         * Provided Channel(s) doesn't exist in BlockChannelList attribute.
+         * Provided Channel(s) doesn't exist in BlockChannelList attribute
          */
         ChannelNotExist = 6,
 
         /**
-         * Provided Application(s) is not identified.
+         * Provided Application(s) is not identified
          */
         UnidentifiableApplication = 7,
 
         /**
-         * Provided Application(s) already exists.
+         * Provided Application(s) already exists
          */
         ApplicationAlreadyExist = 8,
 
         /**
-         * Provided Application(s) doesn't exist in BlockApplicationList attribute.
+         * Provided Application(s) doesn't exist in BlockApplicationList attribute
          */
         ApplicationNotExist = 9,
 
         /**
-         * Provided time Window already exists in BlockContentTimeWindow attribute.
+         * Provided time Window already exists in BlockContentTimeWindow attribute
          */
         TimeWindowAlreadyExist = 10,
 
         /**
-         * Provided time window doesn't exist in BlockContentTimeWindow attribute.
+         * Provided time window doesn't exist in BlockContentTimeWindow attribute
          */
         TimeWindowNotExist = 11
     }

@@ -33,10 +33,6 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
  * communication without incurring unnecessary state or processing overhead. Together, these design elements provide a
  * clearer and more interoperable basis for group functionality and form the replacement for the legacy Groups cluster.
  *
- * > [!NOTE]
- *
- * > NOTE: Support for Groupcast cluster is provisional.
- *
  * @see {@link MatterSpecification.v16.Core} § 11.27
  */
 export declare namespace Groupcast {
@@ -105,7 +101,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.1
          */
-        membership?: Membership[];
+        membership: Membership[];
 
         /**
          * Indicates the maximum number of Groups which can be joined and appear in entries of the Membership attribute.
@@ -115,7 +111,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.2
          */
-        maxMembershipCount?: number;
+        maxMembershipCount: number;
 
         /**
          * Indicates the maximum number of unique multicast addresses the node can support. The value of this attribute
@@ -127,7 +123,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.3
          */
-        maxMcastAddrCount?: number;
+        maxMcastAddrCount: number;
 
         /**
          * Indicates the number of unique multicast addresses currently in use by the Groupcast cluster. This count
@@ -137,7 +133,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.4
          */
-        usedMcastAddrCount?: number;
+        usedMcastAddrCount: number;
 
         /**
          * Indicates the FabricIndex of the fabric currently testing the Groupcast feature with the GroupcastTesting
@@ -153,7 +149,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.6.5
          */
-        fabricUnderTest?: FabricIndex;
+        fabricUnderTest: FabricIndex;
     }
 
     /**
@@ -298,6 +294,8 @@ export declare namespace Groupcast {
          *
          * This command shall have the following data fields subject to the listed conformance.
          *
+         * Note: The behavior of the command when the TestOperation is EnableSenderTesting is provisional.
+         *
          * @see {@link MatterSpecification.v16.Core} § 11.27.7.6
          */
         groupcastTesting(request: GroupcastTestingRequest): MaybePromise;
@@ -339,7 +337,7 @@ export declare namespace Groupcast {
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.8.1
          */
-        groupcastTesting?: GroupcastTestingEvent;
+        groupcastTesting: GroupcastTestingEvent;
     }
 
     /**
@@ -397,7 +395,7 @@ export declare namespace Groupcast {
         /**
          * PerGroup (PGA)
          *
-         * Supports PerGroup multicast addresses.
+         * Supports PerGroup multicast addresses
          */
         PerGroup = "PerGroup"
     }
@@ -688,6 +686,8 @@ export declare namespace Groupcast {
      *
      * This command shall have the following data fields subject to the listed conformance.
      *
+     * Note: The behavior of the command when the TestOperation is EnableSenderTesting is provisional.
+     *
      * @see {@link MatterSpecification.v16.Core} § 11.27.7.6
      */
     export class GroupcastTestingRequest {
@@ -832,8 +832,8 @@ export declare namespace Groupcast {
          * state it must maintain. This approach comes at the cost of receiving multicast traffic for all groups that
          * use this policy, potentially from any fabric. The node will then filter this traffic at the message layer by
          * attempting decryption with its available group keys. Due to various network infrastructure scalability
-         * limits, such as the maximum number of MPL registrations a Border Router can support, a controller SHOULD
-         * default to configure all groups to use the AllNodes address.
+         * limits, such as the maximum number of MPL RFC7731 registrations a Border Router can support, a controller
+         * SHOULD default to configure all groups to use the AllNodes address.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.27.5.1.1
          */

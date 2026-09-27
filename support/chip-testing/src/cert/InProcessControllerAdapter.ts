@@ -137,6 +137,7 @@ import type {
     OtaAnnouncementRecord,
     OtaProviderExchanges,
     OtaProviderScript,
+    OtaScriptedQueryAnswer,
     OtaQueryImageExchange,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -442,9 +443,9 @@ export class OtaTransferError extends MatterError {}
  * both of which the SU cases whose DUT is the provider assert on. So the provider records what it
  * answered, and the requestor's log is what corroborates that the answer reached it.
  *
- * Recording only: every answer is `super`'s, so a case reads the provider matter.js ships rather than
- * one this harness shaped for it. An answer is recorded once `super` has produced it, so a command
- * this provider rejected leaves nothing in the record.
+ * Unless a case scripted it (`CertNodeApi.scriptOtaProvider`), every answer is `super`'s, so a case reads
+ * the provider matter.js ships rather than one this harness shaped for it. An answer is recorded once it
+ * was produced, so a command this provider rejected leaves nothing in the record.
  *
  * {@link OtaExchangeRecording} owns the record's lifetime; nothing else clears it or reads it live.
  */
@@ -508,11 +509,13 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const response: OtaSoftwareUpdateProvider.QueryImageResponse =
             scripted?.status === undefined
                 ? withUserConsent(await super.queryImage(request), scripted?.userConsentNeeded)
-                : {
-                      status: scripted.status,
-                      delayedActionTime: scripted.delayedActionTime,
-                      userConsentNeeded: scripted.userConsentNeeded,
-                  };
+                : scripted.status === OtaSoftwareUpdateProvider.Status.UpdateAvailable
+                  ? this.#unheldUpdate(request, scripted)
+                  : {
+                        status: scripted.status,
+                        delayedActionTime: scripted.delayedActionTime,
+                        userConsentNeeded: scripted.userConsentNeeded,
+                    };
 
         this.#exchangesFor(peer).queryImage.push({
             request: {
@@ -539,6 +542,30 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         });
         this.internal.recorded.emit(peer);
         return response;
+    }
+
+    /**
+     * An `UpdateAvailable` for an image this provider does not hold, with the fields a script left open
+     * filled as the provider's own answer fills them.
+     */
+    #unheldUpdate(
+        request: OtaSoftwareUpdateProvider.QueryImageRequest,
+        scripted: OtaScriptedQueryAnswer,
+    ): OtaSoftwareUpdateProvider.QueryImageResponse {
+        assertRemoteActor(this.context);
+        const session = this.context.session;
+        NodeSession.assert(session);
+        const softwareVersion = scripted.softwareVersion ?? request.softwareVersion + 1;
+        return {
+            status: OtaSoftwareUpdateProvider.Status.UpdateAvailable,
+            imageUri:
+                scripted.imageUri ??
+                new FileDesignator(`ota/unheld-${softwareVersion}`).asBdxUri(session.associatedFabric.rootNodeId),
+            softwareVersion,
+            softwareVersionString: `${softwareVersion}.0.0`,
+            updateToken: this.env.get(Crypto).randomBytes(UNHELD_UPDATE_TOKEN_LENGTH),
+            userConsentNeeded: scripted.userConsentNeeded,
+        };
     }
 
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
@@ -603,23 +630,17 @@ class OtaExchangeRecording {
     #provider: Endpoint;
     #peer: string;
     #observers = new ObserverGroup();
-    #queried: Promise<void>;
-    #queryResolver: () => void;
+    #queried = createPromise<void>();
+    #notified = createPromise<void>();
 
-    private constructor(provider: Endpoint, peer: string, queried: Promise<void>, queryResolver: () => void) {
+    private constructor(provider: Endpoint, peer: string) {
         this.#provider = provider;
         this.#peer = peer;
-        this.#queried = queried;
-        this.#queryResolver = queryResolver;
-
-        // The race in `awaitQueryImage` stops awaiting when the budget expires first
-        queried.catch(() => {});
     }
 
     static async open(provider: Endpoint, peer: PeerAddress): Promise<OtaExchangeRecording> {
-        const { promise, resolver } = createPromise<void>();
         const key = peer.toString();
-        const recording = new OtaExchangeRecording(provider, key, promise, resolver);
+        const recording = new OtaExchangeRecording(provider, key);
 
         await provider.act(agent => {
             const behavior = agent.get(RecordingOtaProviderServer);
@@ -628,8 +649,15 @@ class OtaExchangeRecording {
             // Only this peer's answers: one provider endpoint serves every node the controller holds,
             // so another requestor's periodic query would otherwise settle this wait.
             recording.#observers.on(behavior.internal.recorded, recorded => {
-                if (recorded === key && (behavior.internal.exchanges.get(key)?.queryImage.length ?? 0) > 0) {
-                    recording.#queryResolver();
+                const exchanges = recorded === key ? behavior.internal.exchanges.get(key) : undefined;
+                if (exchanges === undefined) {
+                    return;
+                }
+                if (exchanges.queryImage.length > 0) {
+                    recording.#queried.resolver();
+                }
+                if (exchanges.notifyUpdateApplied.length > 0) {
+                    recording.#notified.resolver();
                 }
             });
         });
@@ -637,12 +665,22 @@ class OtaExchangeRecording {
         return recording;
     }
 
+    /** Resolves once the provider has recorded a `NotifyUpdateApplied`, or once `timeout` has passed. */
+    async awaitNotifyApplied(timeout: Duration) {
+        const expiry = Time.sleep("cert OTA notify applied", timeout);
+        try {
+            await Promise.race([this.#notified.promise, expiry]);
+        } finally {
+            expiry.cancel();
+        }
+    }
+
     /** Resolves once the provider has answered a `QueryImage`, rejecting where it never does. */
     async awaitQueryImage(nodeId: NodeId, timeout: Duration) {
         const expiry = Time.sleep("cert OTA query", timeout);
         try {
             await Promise.race([
-                this.#queried,
+                this.#queried.promise,
                 expiry.then(() => {
                     throw new OtaTransferError(
                         `Node id ${nodeId} did not query the announced OTA provider within ${timeout}`,
@@ -673,6 +711,9 @@ class OtaExchangeRecording {
         this.#observers.close();
     }
 }
+
+/** Token length the provider's own answers use, the top of the 8 to 32 bytes `UpdateToken` allows. */
+const UNHELD_UPDATE_TOKEN_LENGTH = 32;
 
 /** `response` with `UserConsentNeeded` set, where a script asked for it. */
 function withUserConsent(
@@ -1768,6 +1809,10 @@ class InProcessCertNodeApi implements CertNodeApi {
         // ends, so the exchange has to be over before this resolves.
         const applyAcknowledged = applied === undefined ? false : await applied.settled();
 
+        if (applyAcknowledged && options?.notifyAppliedTimeoutMs !== undefined) {
+            await recording.awaitNotifyApplied(Millis(options.notifyAppliedTimeoutMs));
+        }
+
         // After the apply wait, so a provider that answered an ApplyUpdateRequest while this was
         // waiting reports that answer rather than the state before it.
         const exchanges = await recording.read();
@@ -2435,10 +2480,10 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             });
             this.#controller = controller;
 
-            await controller.start();
-
             const fabricAuthority = await controller.env.load(FabricAuthority);
             this.#fabric = await fabricAuthority.defaultFabric({ adminFabricLabel: this.id });
+
+            await controller.start();
 
             if (this.#hostsWebRtcRequestor) {
                 const endpoint = await controller.add(CameraControllerDevice, {
