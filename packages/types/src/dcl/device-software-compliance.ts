@@ -5,43 +5,60 @@
  */
 
 import { VendorId } from "../datatype/VendorId.js";
+import { SoftwareVersionCertificationStatus } from "../globals/SoftwareVersionCertificationStatus.js";
 
-export enum SoftwareVersionCertificationStatusEnum {
+/**
+ * @deprecated Use {@link SoftwareVersionCertificationStatus}.
+ */
+export import SoftwareVersionCertificationStatusEnum = SoftwareVersionCertificationStatus;
+
+/**
+ * ComplianceHistoryItem Schema, one entry of {@link DeviceSoftwareComplianceDclSchema.history}. Each entry records a
+ * change in the certification status of a compliance record.
+ *
+ * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.23.9
+ */
+export interface ComplianceHistoryItemDclSchema {
     /**
-     * Used for development and test purposes
-     * (These will typically not be placed in DCL)
+     * See {@link DeviceSoftwareComplianceDclSchema.softwareVersionCertificationStatus}.
      */
-    DevTest = 0,
+    softwareVersionCertificationStatus: SoftwareVersionCertificationStatus;
 
     /**
-     * Used for a SoftwareVersion when going into certification testing
-     * (These might or might not be placed in DCL, depending on CSA policy and procedures)
+     * See {@link DeviceSoftwareComplianceDclSchema.date}.
      */
-    Provisional = 1,
+    date: string;
 
     /**
-     * Used for a SoftwareVersion which has been certified
+     * See {@link DeviceSoftwareComplianceDclSchema.reason}.
      */
-    Certified = 2,
+    reason?: string;
 
     /**
-     * Used for a SoftwareVersion which has been revoked
+     * See {@link DeviceSoftwareComplianceDclSchema.cDVersionNumber}.
      */
-    Revoked = 3,
+    cDVersionNumber: number;
+
+    /**
+     * The SchemaVersion field value history for this schema is provided below:
+     * * 0: Initial Release
+     */
+    schemaVersion: number;
 }
 
 /**
  * DeviceSoftwareCompliance / Compliance test result Schema
- * @see {@link MatterSpecification.v16.Core} § 11.23.8.
- * DCL endpoint:
- *   * /dcl/compliance/device-software-compliance
- *   * /dcl/compliance/device-software-compliance/{cDCertificateId}
  *
+ * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 11.23.10
+ * DCL endpoint:
  *   * /dcl/compliance/compliance-info
  *   * /dcl/compliance/compliance-info/{vid}/{pid}/{softwareVersion}/{certificationType}
- *   * /dcl/compliance/certified-models
- *   * /dcl/compliance/certified-models/{vid}/{pid}/{softwareVersion}/{certificationType}
- *
+ *   * /dcl/compliance/device-software-compliance (entries in each item's `complianceInfo` list)
+ *   * /dcl/compliance/device-software-compliance/{cDCertificateId} (entries in its `complianceInfo` list)
  */
 export interface DeviceSoftwareComplianceDclSchema {
     /**
@@ -82,15 +99,7 @@ export interface DeviceSoftwareComplianceDclSchema {
      * Software Image. The CDVersionNumber maps to version_number defined in Certification Elements TLV
      * structure.
      */
-    cdVersionNumber: number;
-
-    /**
-     * The FirmwareInformation field, if present, SHALL match the firmware_information field in attestation-elements
-     * field included in the Device Attestation response when this Software Image boots on
-     * the device. It is an OPTIONAL field that MAY be present only for devices that meet the requirements
-     * listed in Section 6.3.2, “Firmware Information”.
-     */
-    softwareVersionCertificationStatus?: SoftwareVersionCertificationStatusEnum;
+    cDVersionNumber: number;
 
     /**
      * This field SHALL have the CSA certification’s certificate ID for the Certification that applies to this
@@ -98,11 +107,102 @@ export interface DeviceSoftwareComplianceDclSchema {
      * Elements TLV structure) for products using the VendorID, ProductID and SoftwareVersion
      * in this schema entry.
      */
-    cdCertificateId: string;
+    cDCertificateId: string;
+
+    /**
+     * This field SHALL specify the certification program applied to the model. Supported values are `zigbee`,
+     * `matter` or `aliro`.
+     */
+    certificationType: string;
+
+    /**
+     * SpecificationVersion SHALL identify the specification version applicable to the device model. This field
+     * SHALL match the SpecificationVersion attribute in the Basic Information Cluster of a device running the
+     * software certified by this DeviceModel record. For example, for `1.4.2.0` this field contains `0x01040200`.
+     *
+     * Records with schema version 0 predate the field and have no value.
+     */
+    specificationVersion?: number;
+
+    /**
+     * This field SHALL have a value from {@link SoftwareVersionCertificationStatus} reflecting the current
+     * certification status of this SoftwareVersion.
+     */
+    softwareVersionCertificationStatus: SoftwareVersionCertificationStatus;
+
+    /**
+     * This field SHALL identify the date (encoded as in RFC 3339) when a device software version is
+     * provisioned, certified or revoked, depending on
+     * {@link DeviceSoftwareComplianceDclSchema.softwareVersionCertificationStatus}.
+     */
+    date: string;
+
+    /**
+     * This field uniquely identifies the DCL key that was used to register the device software compliance record
+     * in DCL, pursuant to DCL policies.
+     */
+    owner: string;
+
+    /**
+     * The history of changes to the certification status. DCL creates and manages the history, adding an entry for
+     * each change in the certification status of this record.
+     */
+    history: ComplianceHistoryItemDclSchema[];
+
+    /**
+     * This field, when present, SHALL specify the certification path. Supported values are `fullTested`,
+     * `similarity`, `rapid-recert`, `fastTrack`, `ctp`, `family` and `portfolio`; values may be added or removed in
+     * the future.
+     */
+    certificationRoute?: string;
+
+    /**
+     * This field, when present, SHALL contain additional human-readable information about the reason of the
+     * certification.
+     */
+    reason?: string;
+
+    /**
+     * This field, when present, SHALL specify the communication technologies the device uses, comma-separated when
+     * there are several (e.g. `wi-fi,ethernet,bluetooth`). Supported transports are `thread`, `wi-fi`, `ethernet`,
+     * `bluetooth` and `nfc`.
+     */
+    transport?: string;
+
+    /**
+     * This field, when present, SHALL specify the product family to which the certified model belongs. Typical
+     * family IDs have the prefix `FAM` followed by alphanumeric characters (e.g. `FAM123456`).
+     */
+    familyId?: string;
+
+    /**
+     * This field, when present, SHALL specify the application cluster IDs supported by the device, as hexadecimal
+     * numbers in a comma-separated list (e.g. `0x0003,0x0004,0x0006`).
+     */
+    supportedClusters?: string;
+
+    /**
+     * This field, when present, SHALL contain the product type. Supported values are `endProduct`,
+     * `softwareComponent` or `compliantPlatform`.
+     */
+    programType?: string;
+
+    /**
+     * This field, if present, SHALL specify the version of the specified {@link DeviceSoftwareComplianceDclSchema.programType}. It MAY be provided
+     * only if programType is populated.
+     */
+    programTypeVersion?: string;
+
+    /**
+     * This field, when present, SHALL specify the parent vs. child characteristic when using the Product Family
+     * Certification or Portfolio Certification Program. Supported values are `parent` and `child`.
+     */
+    parentChild?: string;
 
     /**
      * The SchemaVersion field value history for this schema is provided below:
      * * 0: Initial Release
+     * * 1: Introduction of the SpecificationVersion field
      */
     schemaVersion: number;
 }
