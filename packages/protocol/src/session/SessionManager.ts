@@ -253,7 +253,7 @@ export class SessionManager {
         }
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
         assertActiveThreshold(this.#sessionParameters.activeThreshold);
-        this.#nextSessionId = crypto.randomUint16;
+        this.#nextSessionId = (crypto.randomUint16 % ID_SPACE_UPPER_BOUND) + 1;
         this.#globalUnencryptedMessageCounter = new MessageCounter(crypto);
 
         // When fabric is removed, also remove the resumption record
@@ -514,14 +514,18 @@ export class SessionManager {
         return oldest;
     }
 
+    /**
+     * Allocates a local ID for a new secure unicast session, PASE or CASE.  The ID is never 0 because 0 identifies the
+     * unsecured session.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 4.4.1.3.4
+     * @see {@link MatterSpecification.v16.Core} § 4.13.2.4
+     */
     async getNextAvailableSessionId() {
         await this.#construction;
 
         for (let i = 0; i < this.#idUpperBound; i++) {
-            const id = this.#nextSessionId;
-            this.#nextSessionId = (this.#nextSessionId + 1) & this.#idUpperBound;
-            if (this.#nextSessionId === 0) this.#nextSessionId++;
-
+            const id = this.#takeSessionId();
             if (this.getSession(id) === undefined) {
                 return id;
             }
@@ -534,7 +538,14 @@ export class SessionManager {
             await oldestSession.closeSubscriptions(true);
         });
         this.#nextSessionId = oldestSession.id;
-        return this.#nextSessionId++;
+        return this.#takeSessionId();
+    }
+
+    /** Returns the next candidate ID and advances the cursor, cycling through 1..{@link #idUpperBound}. */
+    #takeSessionId() {
+        const id = this.#nextSessionId;
+        this.#nextSessionId = (id % this.#idUpperBound) + 1;
+        return id;
     }
 
     getSession(sessionId: number) {
@@ -1043,7 +1054,6 @@ export class SessionManager {
      */
     compressIdRange(upperBound: number) {
         this.#idUpperBound = upperBound;
-        this.#nextSessionId = this.#context.fabrics.crypto.randomUint32 % upperBound;
-        if (this.#nextSessionId === 0) this.#nextSessionId++;
+        this.#nextSessionId = (this.#context.fabrics.crypto.randomUint32 % upperBound) + 1;
     }
 }
