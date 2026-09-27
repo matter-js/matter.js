@@ -30,7 +30,7 @@ Resource.add({
         "> [!NOTE]" +
         "\n" +
         "> For example: Derived data types defined here: | Name | Type | Constraint | Quality | ... | | --- | " +
-        "  --- | --- | --- | --- | | MonthNameString | string | 3 | F | ... | | MonthNumber | uint8 | 1 to 12 " +
+        "--- | --- | --- | --- | | MonthNameString | string | 3 | F | ... | | MonthNumber | uint8 | 1 to 12 " +
         "| | ... | SummerStruct defined here: | ID | Name | Type | Constraint | Quality | ... | | --- | --- " +
         "| --- | --- | --- | --- | | 0 | Year | int16 | -1000 to 3000 | | ... | | 1 | SummerMonths | " +
         "list[MonthNumber] | max 12 | N | ... | Used Here: | ID | Name | Type | Constraint | Quality | ... " +

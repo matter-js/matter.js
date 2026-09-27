@@ -102,9 +102,9 @@ export declare namespace Actions {
          *   - When used without suffix, it shall provide information about the various actions which the cluster
          *     provides.
          *
-         *   - Example: SetupURL could take the value of example://Actions or
-         *     https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
-         *     actions provided by this cluster).
+         *     - Example: SetupURL could take the value of example://Actions or
+         *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
+         *       actions provided by this cluster).
          *
          *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
          *     provide information about that particular action. This could be a deeplink to manufacturer-app/website
@@ -112,9 +112,9 @@ export declare namespace Actions {
          *     can view and update details of the action, e.g. edit the scene, or change the wake-up experience time
          *     period.
          *
-         *   - Example of SetupURL with suffix added: example://Actions/?a=12345 or
-         *     https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
-         *     action with ActionID 0x3039.
+         *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
+         *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
+         *       action with ActionID 0x3039.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.14.5.3
          */
@@ -150,9 +150,9 @@ export declare namespace Actions {
          *   - When used without suffix, it shall provide information about the various actions which the cluster
          *     provides.
          *
-         *   - Example: SetupURL could take the value of example://Actions or
-         *     https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
-         *     actions provided by this cluster).
+         *     - Example: SetupURL could take the value of example://Actions or
+         *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
+         *       actions provided by this cluster).
          *
          *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
          *     provide information about that particular action. This could be a deeplink to manufacturer-app/website
@@ -160,9 +160,9 @@ export declare namespace Actions {
          *     can view and update details of the action, e.g. edit the scene, or change the wake-up experience time
          *     period.
          *
-         *   - Example of SetupURL with suffix added: example://Actions/?a=12345 or
-         *     https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
-         *     action with ActionID 0x3039.
+         *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
+         *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
+         *       action with ActionID 0x3039.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.14.5.3
          */

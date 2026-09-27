@@ -64,8 +64,12 @@ const Empty: Block = {
 };
 
 /**
- * Detect block prefixes.  Uses indentation to determine nesting depth for markdown-style `-` bullets
- * (where all levels use the same marker), and marker identity for other bullet/enumeration types.
+ * Detect block prefixes.
+ *
+ * A list item nests by its indent: it closes every open list deeper than itself, continues a list of its own kind at
+ * its own indent, and otherwise opens a list inside the innermost one left open.  At equal indent, as in unindented
+ * text, a different marker therefore nests and a repeated marker continues its list.  A quote spans only the lines
+ * that carry its marker.
  */
 function detectBlock(text: string, breadcrumb: Block[]) {
     const match = text.match(/^(\s*)(\S+)/);
@@ -76,8 +80,13 @@ function detectBlock(text: string, breadcrumb: Block[]) {
     const [, leadingSpace, marker] = match;
     const indent = leadingSpace.length;
 
-    if (Bullets.includes(marker as BlockKind) || marker === BlockKind.Quote) {
-        enterBlock(marker as BlockKind, indent);
+    if (marker === BlockKind.Quote) {
+        enterQuote();
+        return;
+    }
+
+    if (Bullets.includes(marker as BlockKind)) {
+        enterList(marker as BlockKind);
         return;
     }
 
@@ -90,46 +99,51 @@ function detectBlock(text: string, breadcrumb: Block[]) {
     // Not in a block
     breadcrumb.length = 1;
 
-    function enterBlock(kind: BlockKind, sourceIndent?: number) {
-        // For `-` markers with indentation, find the right nesting level by matching indent
-        if (sourceIndent !== undefined && kind === BlockKind.Bullet1) {
-            // Find the Bullet1 block whose sourceIndent matches (or is closest-smaller)
-            let matchLevel = -1;
-            for (let i = breadcrumb.length - 1; i >= 0; i--) {
-                if (breadcrumb[i].kind === kind) {
-                    if (breadcrumb[i].sourceIndent !== undefined && breadcrumb[i].sourceIndent! <= sourceIndent) {
-                        matchLevel = i;
-                        if (breadcrumb[i].sourceIndent === sourceIndent) {
-                            // Exact match — pop to this level
-                            breadcrumb.length = matchLevel + 1;
-                            return;
-                        }
-                        // sourceIndent is larger — fall through to create nested sub-block
-                        break;
-                    }
-                }
-            }
-            // If we found a shallower block but indent is less than any existing, pop to shallowest
-            if (matchLevel === -1) {
-                for (let i = 0; i < breadcrumb.length; i++) {
-                    if (breadcrumb[i].kind === kind) {
-                        breadcrumb.length = i + 1;
-                        return;
-                    }
-                }
-            }
-        } else {
-            const level = breadcrumb.findIndex(entry => entry.kind === kind);
-            if (level !== -1) {
-                breadcrumb.length = level + 1;
-                return;
+    function enterQuote() {
+        const level = breadcrumb.findIndex(entry => entry.kind === BlockKind.Quote);
+        if (level !== -1) {
+            breadcrumb.length = level + 1;
+            return;
+        }
+        openBlock(BlockKind.Quote);
+    }
+
+    function enterList(kind: BlockKind) {
+        const { enclosing, continued } = listLevel(kind);
+        if (continued !== undefined) {
+            breadcrumb.length = continued + 1;
+            return;
+        }
+
+        breadcrumb.length = enclosing + 1;
+        openBlock(kind);
+    }
+
+    /**
+     * The innermost open block no deeper than the item, and the list of the item's kind at its indent, if one is open.
+     */
+    function listLevel(kind: BlockKind) {
+        let enclosing = breadcrumb.length - 1;
+        while (
+            enclosing > 0 &&
+            (breadcrumb[enclosing].kind === BlockKind.Quote || (breadcrumb[enclosing].sourceIndent ?? 0) > indent)
+        ) {
+            enclosing--;
+        }
+
+        for (let i = enclosing; i > 0 && (breadcrumb[i].sourceIndent ?? 0) === indent; i--) {
+            if (breadcrumb[i].kind === kind) {
+                return { enclosing, continued: i };
             }
         }
 
-        // Need to start a new block
+        return { enclosing, continued: undefined };
+    }
+
+    function openBlock(kind: BlockKind) {
         const block: Block = {
             kind,
-            sourceIndent,
+            sourceIndent: indent,
             entries: [],
         };
 
@@ -142,15 +156,13 @@ function detectBlock(text: string, breadcrumb: Block[]) {
             return false;
         }
 
-        // Only consider enumeration if a.) we are already in same type of enumeration, or b.) the marker is the first
-        // element of the enumeration (e.g. "1." or "i.")
-        if (!breadcrumb.find(block => block.kind === kind)) {
-            if (marker !== `${startsWith}.`) {
-                return false;
-            }
+        // A marker is an enumeration if a list of its kind is open, whatever the indent, or if it is the list's first
+        // value (e.g. "1." or "i.")
+        if (!breadcrumb.some(block => block.kind === kind) && marker !== `${startsWith}.`) {
+            return false;
         }
 
-        enterBlock(kind);
+        enterList(kind);
         return true;
     }
 }

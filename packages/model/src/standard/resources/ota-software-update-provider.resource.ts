@@ -155,11 +155,11 @@ Resource.add(
                             "exactly 16 characters to encode the network byte order value of the NodeID, in a similar " +
                             "fashion as the Node Identifier portion of the Operational Instance Name." +
                             "\n" +
-                            "  1. The Operational Node ID in the host field shall match the NodeID of the OTA Provider responding " +
-                            "with the QueryImageResponse. The usage of a different Node ID than that of the provider is " +
-                            "reserved for future use. This constraint reduces the number of independent CASE secure channel " +
-                            "sessions that have to be maintained to proceed with OTA software updates, thus reducing energy " +
-                            "and resource utilization for the software update process." +
+                            "    1. The Operational Node ID in the host field shall match the NodeID of the OTA Provider " +
+                            "responding with the QueryImageResponse. The usage of a different Node ID than that of the " +
+                            "provider is reserved for future use. This constraint reduces the number of independent CASE " +
+                            "secure channel sessions that have to be maintained to proceed with OTA software updates, thus " +
+                            "reducing energy and resource utilization for the software update process." +
                             "\n" +
                             "  4. The user section of the authority field shall be absent, as there are no \"users\" to be " +
                             "considered." +
@@ -178,7 +178,7 @@ Resource.add(
                             "escape sequences. Rather, the exact octets of the path, as received shall be the values used by " +
                             "both client and server in handling the file designator." +
                             "\n" +
-                            "  1. The path shall only contain valid URI characters." +
+                            "    1. The path shall only contain valid URI characters." +
                             "\n" +
                             "These rules above for BDX URIs simplify parsing for OTA Requestors receiving Image URIs. The " +
                             "following example procedure shows how the format constraints simplify the extraction of the " +
@@ -201,37 +201,37 @@ Resource.add(
                             "\n" +
                             "  - Synchronous or Asynchronous BDX Protocol:" +
                             "\n" +
-                            "  - Valid: bdx://8899AABBCCDDEEFF/the_file_designator123" +
+                            "    - Valid: bdx://8899AABBCCDDEEFF/the_file_designator123" +
                             "\n" +
-                            "  - Node ID: 0x8899AABBCCDDEEFF" +
+                            "      - Node ID: 0x8899AABBCCDDEEFF" +
                             "\n" +
-                            "  - File designator: the_file_designator123" +
+                            "      - File designator: the_file_designator123" +
                             "\n" +
-                            "  - Valid: bdx://0099AABBCCDDEE77/the%20file%20designator/some_more" +
+                            "    - Valid: bdx://0099AABBCCDDEE77/the%20file%20designator/some_more" +
                             "\n" +
-                            "  - Node ID: 0x0099AABBCCDDEE77" +
+                            "      - Node ID: 0x0099AABBCCDDEE77" +
                             "\n" +
-                            "  - File designator: the%20file%20designator/some_more. Note that the %20 are retained and not " +
-                            "converted to ASCII 0x20 (space). The file designator is the path as received verbatim, after the " +
-                            "first '/' (U+002F / SOLIDUS) following the host." +
+                            "      - File designator: the%20file%20designator/some_more. Note that the %20 are retained and not " +
+                            "converted to ASCII 0x20 (space). The file designator is the path as received verbatim, after " +
+                            "the first '/' (U+002F / SOLIDUS) following the host." +
                             "\n" +
-                            "  - Invalid: bdx://99AABBCCDDEE77/the_file_designator123" +
+                            "    - Invalid: bdx://99AABBCCDDEE77/the_file_designator123" +
                             "\n" +
-                            "  - Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading " +
+                            "      - Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading " +
                             "zeros." +
                             "\n" +
-                            "  - Invalid: bdx://0099aabbccddee77/the_file_designator123" +
+                            "    - Invalid: bdx://0099aabbccddee77/the_file_designator123" +
                             "\n" +
-                            "  - Node ID: Invalid since lowercase hexadecimal was used." +
+                            "      - Node ID: Invalid since lowercase hexadecimal was used." +
                             "\n" +
-                            "  - Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123" +
+                            "    - Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123" +
                             "\n" +
-                            "  - Invalid since bdx scheme does not contain an authority, that is, it does not have // after the " +
-                            "first :." +
+                            "      - Invalid since bdx scheme does not contain an authority, that is, it does not have // after " +
+                            "the first :." +
                             "\n" +
                             "  - HTTP over TLS:" +
                             "\n" +
-                            "  - Valid: https://example.domain:8466/software/image.bin" +
+                            "    - Valid: https://example.domain:8466/software/image.bin" +
                             "\n" +
                             "See Section 11.20.3.2, \"Querying the OTA Provider\" for additional details about the flow."
                     },

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { looksLikeListItem } from "@matter/general";
 import { SpecReference, Table } from "../spec-types.js";
 import { parseHeadingLine, stripMarkdown } from "./md-utils.js";
 import { parseHtmlTableBlock, parsePipeTable } from "./parse-tables.js";
@@ -143,10 +144,10 @@ export function* scanMarkdownDocument(docRef: SpecReference, content: string): G
             continue;
         }
 
-        // Regular prose (paragraphs, list items, nested lists)
+        // Regular prose (paragraphs, list items, nested lists).  A list item keeps its indent, which is its nesting depth
         const text = stripMarkdown(trimmed).trim();
         if (text) {
-            addProse(currentRef, text);
+            addProse(currentRef, looksLikeListItem(text) ? `${indentOf(lines[i])}${text}` : text);
         }
         i++;
     }
@@ -168,6 +169,10 @@ export function* scanMarkdownDocument(docRef: SpecReference, content: string): G
  */
 function isCaption(line: string): boolean {
     return /^\*\*(?:Table|Figure)\s+\d+\./.test(line);
+}
+
+function indentOf(line: string) {
+    return line.slice(0, line.length - line.trimStart().length);
 }
 
 function isPipeTableLine(line: string): boolean {

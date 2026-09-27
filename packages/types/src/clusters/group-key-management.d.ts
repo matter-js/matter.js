@@ -62,21 +62,21 @@ export declare namespace GroupKeyManagement {
          *
          *   - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):
          *
-         *   - This attribute shall be empty.
+         *     - This attribute shall be empty.
          *
-         *   - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code.
+         *     - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code.
          *
          *   - Otherwise (Groupcast is not adopted or the entry is missing):
          *
-         *   - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's Membership
-         *     attribute (one mapping per group per fabric).
+         *     - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's Membership
+         *       attribute (one mapping per group per fabric).
          *
-         *   - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership attribute (by
-         *     GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for a given GroupID in the
-         *     GroupKeyMap, which exists in the Groupcast cluster's Membership attribute for a given fabric, then the
-         *     Groupcast cluster's membership attribute shall use placeholder value 65535 for the KeySetID. While this
-         *     KeySetID is technically valid, administrators SHOULD avoid allocating it for actual usage to avoid value
-         *     aliasing for this field.
+         *     - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership attribute (by
+         *       GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for a given GroupID in
+         *       the GroupKeyMap, which exists in the Groupcast cluster's Membership attribute for a given fabric, then
+         *       the Groupcast cluster's membership attribute shall use placeholder value 65535 for the KeySetID. While
+         *       this KeySetID is technically valid, administrators SHOULD avoid allocating it for actual usage to avoid
+         *       value aliasing for this field.
          *
          * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
          * particular group key set.
@@ -165,21 +165,21 @@ export declare namespace GroupKeyManagement {
          *
          *   - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):
          *
-         *   - This attribute shall be empty.
+         *     - This attribute shall be empty.
          *
-         *   - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code.
+         *     - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code.
          *
          *   - Otherwise (Groupcast is not adopted or the entry is missing):
          *
-         *   - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's Membership
-         *     attribute (one mapping per group per fabric).
+         *     - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's Membership
+         *       attribute (one mapping per group per fabric).
          *
-         *   - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership attribute (by
-         *     GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for a given GroupID in the
-         *     GroupKeyMap, which exists in the Groupcast cluster's Membership attribute for a given fabric, then the
-         *     Groupcast cluster's membership attribute shall use placeholder value 65535 for the KeySetID. While this
-         *     KeySetID is technically valid, administrators SHOULD avoid allocating it for actual usage to avoid value
-         *     aliasing for this field.
+         *     - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership attribute (by
+         *       GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for a given GroupID in
+         *       the GroupKeyMap, which exists in the Groupcast cluster's Membership attribute for a given fabric, then
+         *       the Groupcast cluster's membership attribute shall use placeholder value 65535 for the KeySetID. While
+         *       this KeySetID is technically valid, administrators SHOULD avoid allocating it for actual usage to avoid
+         *       value aliasing for this field.
          *
          * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
          * particular group key set.

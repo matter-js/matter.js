@@ -882,19 +882,19 @@ export declare namespace JointFabricDatastore {
          *
          *   3. If any fields are changed as a result of this command:
          *
-         *   1. Iterate through each DatastoreNodeInformationEntryStruct:
+         *     1. Iterate through each DatastoreNodeInformationEntryStruct:
          *
-         *   1. If the NodeKeySetList contains an entry with the given GroupKeySetID:
+         *       1. If the NodeKeySetList contains an entry with the given GroupKeySetID:
          *
-         *   1. Update the Status on the given DatastoreNodeKeySetEntryStruct tp Pending.
+         *         1. Update the Status on the given DatastoreNodeKeySetEntryStruct tp Pending.
          *
-         *   2. Update the GroupKeySet on the given Node with the new values.
+         *         2. Update the GroupKeySet on the given Node with the new values.
          *
-         *   1. If successful, update the Status on this DatastoreNodeKeySetEntryStruct to Committed.
+         *           1. If successful, update the Status on this DatastoreNodeKeySetEntryStruct to Committed.
          *
-         *   2. If not successful, update the State field of the StatusEntry on this DatastoreNodeKeySetEntryStruct to
-         *      CommitFailed and FailureCode code to the returned error. The pending change shall be applied in a
-         *      subsequent Node Refresh.
+         *           2. If not successful, update the State field of the StatusEntry on this
+         *              DatastoreNodeKeySetEntryStruct to CommitFailed and FailureCode code to the returned error. The
+         *              pending change shall be applied in a subsequent Node Refresh.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.7.2.1
          */
@@ -921,10 +921,10 @@ export declare namespace JointFabricDatastore {
          *
          *   2. Ensure there are no Nodes using this KeySet. To do this:
          *
-         *   1. Iterate through each DatastoreNodeInformationEntryStruct:
+         *     1. Iterate through each DatastoreNodeInformationEntryStruct:
          *
-         *   1. If the NodeKeySetList list contains an entry with the given GroupKeySetID, and the entry does NOT have
-         *      Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code.
+         *       1. If the NodeKeySetList list contains an entry with the given GroupKeySetID, and the entry does NOT
+         *          have Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code.
          *
          *   3. Remove the DatastoreGroupKeySetStruct for the given GroupKeySetID from the GroupKeySetList attribute.
          *
@@ -1058,49 +1058,50 @@ export declare namespace JointFabricDatastore {
          *
          *   3. If any fields are changed as a result of this command:
          *
-         *   1. Iterate through each DatastoreNodeInformationEntryStruct:
+         *     1. Iterate through each DatastoreNodeInformationEntryStruct:
          *
-         *   1. If the GroupKeySetID changed:
+         *       1. If the GroupKeySetID changed:
          *
-         *   1. Add a DatastoreNodeKeySetEntryStruct with the new GroupKeySetID, and Status set to Pending.
+         *         1. Add a DatastoreNodeKeySetEntryStruct with the new GroupKeySetID, and Status set to Pending.
          *
-         *   2. Add this KeySet to the Node.
+         *         2. Add this KeySet to the Node.
          *
-         *   1. If successful, Set the Status to Committed for this entry in the NodeKeySetList.
+         *           1. If successful, Set the Status to Committed for this entry in the NodeKeySetList.
          *
-         *   2. If not successful, Set the Status to CommitFailed and the FailureCode to the returned error. The pending
-         *      change shall be applied in a subsequent Node Refresh.
+         *           2. If not successful, Set the Status to CommitFailed and the FailureCode to the returned error. The
+         *              pending change shall be applied in a subsequent Node Refresh.
          *
-         *   1. If the NodeKeySetList list contains an entry with the previous GroupKeySetID:
+         *             1. If the NodeKeySetList list contains an entry with the previous GroupKeySetID:
          *
-         *   3. Set the Status set to DeletePending.
+         *         3. Set the Status set to DeletePending.
          *
-         *   4. Remove this KeySet from the Node.
+         *         4. Remove this KeySet from the Node.
          *
-         *   1. If successful, Remove this entry from the NodeKeySetList.
+         *           1. If successful, Remove this entry from the NodeKeySetList.
          *
-         *   2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
+         *           2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
          *
-         *   2. If the GroupCAT, GroupCATVersion or GroupPermission changed:
+         *       2. If the GroupCAT, GroupCATVersion or GroupPermission changed:
          *
-         *   1. If the ACLList contains an entry for this Group, update the ACL List Entry in the Datastore with the new
-         *      values and Status Pending, update the ACL attribute on the given Node with the new values. If the update
-         *      succeeds, set the Status to Committed on the ACLList Entry in the Datastore.
+         *         1. If the ACLList contains an entry for this Group, update the ACL List Entry in the Datastore with
+         *            the new values and Status Pending, update the ACL attribute on the given Node with the new values.
+         *            If the update succeeds, set the Status to Committed on the ACLList Entry in the Datastore.
          *
-         *   3. If the FriendlyName changed:
+         *       3. If the FriendlyName changed:
          *
-         *   1. Iterate through each DatastoreEndpointGroupIDEntryStruct in the EndpointGroupIDList attribute:
+         *         1. Iterate through each DatastoreEndpointGroupIDEntryStruct in the EndpointGroupIDList attribute:
          *
-         *   1. If the DatastoreEndpointGroupIDEntryStruct contains an entry with the given GroupID:
+         *           1. If the DatastoreEndpointGroupIDEntryStruct contains an entry with the given GroupID:
          *
-         *   1. Update the DatastoreEndpointGroupIDEntryStruct Entry in the Datastore with the new values and Status
-         *      Pending
+         *             1. Update the DatastoreEndpointGroupIDEntryStruct Entry in the Datastore with the new values and
+         *                Status Pending
          *
-         *   2. Update the Groups on the given Node with the new values.
+         *             2. Update the Groups on the given Node with the new values.
          *
-         *   1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the Datastore.
+         *               1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the
+         *                  Datastore.
          *
-         *   2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
+         *               2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.7.5.6
          */
@@ -1128,10 +1129,10 @@ export declare namespace JointFabricDatastore {
          *
          *   2. Ensure there are no Nodes in this group. To do this:
          *
-         *   1. Iterate through each DatastoreNodeInformationEntryStruct:
+         *     1. Iterate through each DatastoreNodeInformationEntryStruct:
          *
-         *   1. If the GroupIDList contains an entry with the given GroupID, and the entry does NOT have Status
-         *      DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code.
+         *       1. If the GroupIDList contains an entry with the given GroupID, and the entry does NOT have Status
+         *          DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code.
          *
          *   3. Remove the DatastoreGroupInformationEntryStruct for the Group with the given GroupID from the GroupList
          *      attribute.
@@ -1300,128 +1301,128 @@ export declare namespace JointFabricDatastore {
          *   3. Ensure the Endpoint List for the DatastoreNodeInformationEntryStruct with the given NodeID matches
          *      Endpoint list on the given Node. This involves the following steps:
          *
-         *   1. Read the PartsList of the Descriptor cluster from the Node.
+         *     1. Read the PartsList of the Descriptor cluster from the Node.
          *
-         *   2. For each DatastoreEndpointEntryStruct in the NodeEndpointList attribute with the given NodeID that does
-         *      not match an Endpoint ID in the PartsList, remove the DatastoreEndpointEntryStruct.
+         *     2. For each DatastoreEndpointEntryStruct in the NodeEndpointList attribute with the given NodeID that
+         *        does not match an Endpoint ID in the PartsList, remove the DatastoreEndpointEntryStruct.
          *
-         *   3. For each DatastoreEndpointEntryStruct in the NodeEndpointList attribute with the given NodeID that
-         *      matches an Endpoint ID in the PartsList:
+         *     3. For each DatastoreEndpointEntryStruct in the NodeEndpointList attribute with the given NodeID that
+         *        matches an Endpoint ID in the PartsList:
          *
-         *   1. Check that each entry in Node's Group List occurs in the EndpointGroupIDList attribute.
+         *       1. Check that each entry in Node's Group List occurs in the EndpointGroupIDList attribute.
          *
-         *   1. Add any missing entries to the EndpointGroupIDList.
+         *         1. Add any missing entries to the EndpointGroupIDList.
          *
-         *   2. For any entries in the EndpointGroupIDList attribute with the given NodeId and EndpointId with Status of
-         *      Pending:
+         *         2. For any entries in the EndpointGroupIDList attribute with the given NodeId and EndpointId with
+         *            Status of Pending:
          *
-         *   1. Add the corresponding change to the Node's Group List.
+         *           1. Add the corresponding change to the Node's Group List.
          *
-         *   1. If successful, mark the Status to Committed.
+         *             1. If successful, mark the Status to Committed.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *             2. If not successful, update the Status to CommitFailed and the FailureCode to the returned
+         *                error. The error shall be handled in a subsequent Node Refresh.
          *
-         *   3. For any entries in the EndpointGroupIDList attribute with the given NodeID and EndpointID with Status of
-         *      DeletePending:
+         *         3. For any entries in the EndpointGroupIDList attribute with the given NodeID and EndpointID with
+         *            Status of DeletePending:
          *
-         *   1. If successful, remove the corresponding entry from the Node's Group List.
+         *           1. If successful, remove the corresponding entry from the Node's Group List.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *           2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
+         *              The error shall be handled in a subsequent Node Refresh.
          *
-         *   4. For any entries in the EndpointGroupIDList attribute with the given NodeID and EndpointID with Status of
-         *      CommitFailure:
+         *         4. For any entries in the EndpointGroupIDList attribute with the given NodeID and EndpointID with
+         *            Status of CommitFailure:
          *
-         *   1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from the
-         *      GroupIDList.
+         *           1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from
+         *              the GroupIDList.
          *
-         *   2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a subsequent Node
-         *      Refresh.
+         *           2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a
+         *              subsequent Node Refresh.
          *
-         *   2. Check that each entry in Node's Binding List occurs in the EndpointBindingList attribute with the given
-         *      NodeId and EndpointId.
+         *       2. Check that each entry in Node's Binding List occurs in the EndpointBindingList attribute with the
+         *          given NodeId and EndpointId.
          *
-         *   1. Add any missing entries to the EndpointBindingList attribute.
+         *         1. Add any missing entries to the EndpointBindingList attribute.
          *
-         *   2. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with Status of
-         *      Pending:
+         *         2. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with
+         *            Status of Pending:
          *
-         *   1. Add the corresponding change to the Node's Binding List.
+         *           1. Add the corresponding change to the Node's Binding List.
          *
-         *   1. If successful, mark the Status to Committed.
+         *             1. If successful, mark the Status to Committed.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *             2. If not successful, update the Status to CommitFailed and the FailureCode to the returned
+         *                error. The error shall be handled in a subsequent Node Refresh.
          *
-         *   3. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with Status of
-         *      DeletePending:
+         *         3. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with
+         *            Status of DeletePending:
          *
-         *   1. If successful, remove the corresponding entry from the Node's BindingList.
+         *           1. If successful, remove the corresponding entry from the Node's BindingList.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *           2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
+         *              The error shall be handled in a subsequent Node Refresh.
          *
-         *   4. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with Status of
-         *      CommitFailure:
+         *         4. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with
+         *            Status of CommitFailure:
          *
-         *   1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from the
-         *      BindingList.
+         *           1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from
+         *              the BindingList.
          *
-         *   2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a subsequent Node
-         *      Refresh.
+         *           2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a
+         *              subsequent Node Refresh.
          *
          *   4. Ensure the GroupKeySetList entries with the given NodeID match the Group Keys on the given Node. This
          *      involves the following steps:
          *
-         *   1. Read the Group Keys from the Node.
+         *     1. Read the Group Keys from the Node.
          *
-         *   2. For each DatastoreGroupKeySetStruct in the GroupKeySetList attribute for the given NodeID with a Pending
-         *      Status:
+         *     2. For each DatastoreGroupKeySetStruct in the GroupKeySetList attribute for the given NodeID with a
+         *        Pending Status:
          *
-         *   1. Add the corresponding DatastoreGroupKeySetStruct to the Node's Group Key list.
+         *       1. Add the corresponding DatastoreGroupKeySetStruct to the Node's Group Key list.
          *
-         *   1. If successful, mark the Status to Committed.
+         *         1. If successful, mark the Status to Committed.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *         2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
+         *            The error shall be handled in a subsequent Node Refresh.
          *
-         *   3. For each DatastoreGroupKeySetStruct in the GroupKeySetList attribute for the given NodeID with a
-         *      CommitFailure Status:
+         *     3. For each DatastoreGroupKeySetStruct in the GroupKeySetList attribute for the given NodeID with a
+         *        CommitFailure Status:
          *
-         *   1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from the
-         *      GroupKeySetList.
+         *       1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from the
+         *          GroupKeySetList.
          *
-         *   2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a subsequent Node
-         *      Refresh.
+         *       2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a subsequent
+         *          Node Refresh.
          *
-         *   4. All remaining entries in the GroupKeySetList attribute for the given NodeId should be replaced by the
-         *      remaining entries on the Node.
+         *     4. All remaining entries in the GroupKeySetList attribute for the given NodeId should be replaced by the
+         *        remaining entries on the Node.
          *
          *   5. Ensure the NodeACLList attribute for the given NodeID matches the ACL attribute on the given Node. This
          *      involves the following steps:
          *
-         *   1. Read the ACL attribute on the Node.
+         *     1. Read the ACL attribute on the Node.
          *
-         *   2. For each DatastoreACLEntryStruct in the ACLList attribute with the given NodeID with a Pending Status:
+         *     2. For each DatastoreACLEntryStruct in the ACLList attribute with the given NodeID with a Pending Status:
          *
-         *   1. Add the corresponding DatastoreACLEntryStruct to the Node's ACL attribute.
+         *       1. Add the corresponding DatastoreACLEntryStruct to the Node's ACL attribute.
          *
-         *   1. If successful, mark the Status to Committed.
+         *         1. If successful, mark the Status to Committed.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *         2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error.
+         *            The error shall be handled in a subsequent Node Refresh.
          *
-         *   3. For each DatastoreACLEntryStruct in the ACLList attribute with the given NodeID with a CommitFailure
-         *      Status:
+         *     3. For each DatastoreACLEntryStruct in the ACLList attribute with the given NodeID with a CommitFailure
+         *        Status:
          *
-         *   1. A CommitFailure with an unrecoverable FailureCode (i.e. RESOURCE_EXHAUSTED, CONSTRAINT_ERROR) shall be
-         *      handled by removing the entry from the ACLList.
+         *       1. A CommitFailure with an unrecoverable FailureCode (i.e. RESOURCE_EXHAUSTED, CONSTRAINT_ERROR) shall
+         *          be handled by removing the entry from the ACLList.
          *
-         *   2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a subsequent Node
-         *      Refresh.
+         *       2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a subsequent
+         *          Node Refresh.
          *
-         *   4. All remaining entries in the ACLList should be replaced by the remaining entries on the Node.
+         *     4. All remaining entries in the ACLList should be replaced by the remaining entries on the Node.
          *
          *   6. Update the CommissioningStatusEntry for the DatastoreNodeInformationEntryStruct to Committed.
          *
@@ -1560,27 +1561,27 @@ export declare namespace JointFabricDatastore {
          *   2. Ensure the Group Key List for the DatastoreNodeInformationEntryStruct with the given NodeID includes the
          *      KeySet for the given Group ID. If it does not:
          *
-         *   1. Add an entry for the KeySet of the given Group ID to the Group Key List for the Node. The new entry's
-         *      status shall be set to Pending.
+         *     1. Add an entry for the KeySet of the given Group ID to the Group Key List for the Node. The new entry's
+         *        status shall be set to Pending.
          *
-         *   2. Add a Group Key Entry for this KeySet to the given Node ID.
+         *     2. Add a Group Key Entry for this KeySet to the given Node ID.
          *
-         *   1. If this succeeds, update the new KeySet entry in the Datastore to Committed.
+         *       1. If this succeeds, update the new KeySet entry in the Datastore to Committed.
          *
-         *   2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
+         *       2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
          *
          *   3. Ensure the Group List for the DatastoreNodeInformationEntryStruct with the given NodeID and EndpointID
          *      includes an entry for the given Group. If it does not:
          *
-         *   1. Add a Group entry for the given Group ID to the Group List for the Endpoint and Node. The new entry's
-         *      status shall be set to Pending.
+         *     1. Add a Group entry for the given Group ID to the Group List for the Endpoint and Node. The new entry's
+         *        status shall be set to Pending.
          *
-         *   2. Add this Group entry to the given Endpoint ID on the given Node ID.
+         *     2. Add this Group entry to the given Endpoint ID on the given Node ID.
          *
-         *   1. If this succeeds, update the new Group entry in the Datastore to Committed.
+         *       1. If this succeeds, update the new Group entry in the Datastore to Committed.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *       2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
+         *          error shall be handled in a subsequent Node Refresh.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.7.15.3
          */
@@ -1622,27 +1623,27 @@ export declare namespace JointFabricDatastore {
          *   2. Ensure the EndpointGroupIDList entries with the given NodeID and EndpointID does not include an entry
          *      for the given Group. If it does:
          *
-         *   1. Update the status to DeletePending of the Group entry for the given Group ID in the Group List.
+         *     1. Update the status to DeletePending of the Group entry for the given Group ID in the Group List.
          *
-         *   2. Remove this Group entry for the given Endpoint ID on the given Node ID.
+         *     2. Remove this Group entry for the given Endpoint ID on the given Node ID.
          *
-         *   1. If this succeeds, remove the Group entry for the given Group ID in the Group List for this NodeID and
-         *      EndpointID in the Datastore.
+         *       1. If this succeeds, remove the Group entry for the given Group ID in the Group List for this NodeID
+         *          and EndpointID in the Datastore.
          *
-         *   2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
+         *       2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
          *
          *   3. Ensure the Group Key List for the DatastoreNodeInformationEntryStruct with the given NodeID does not
          *      include the KeySet for the given Group ID. If it does:
          *
-         *   1. Update the status to DeletePending for the entry for the KeySet of the given Group ID in the Node Group
-         *      Key List.
+         *     1. Update the status to DeletePending for the entry for the KeySet of the given Group ID in the Node
+         *        Group Key List.
          *
-         *   2. Remove the Group Key Entry for this KeySet from the given Node ID.
+         *     2. Remove the Group Key Entry for this KeySet from the given Node ID.
          *
-         *   1. If this succeeds, remove the KeySet entry for the given Node ID.
+         *       1. If this succeeds, remove the KeySet entry for the given Node ID.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *       2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
+         *          error shall be handled in a subsequent Node Refresh.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.7.16.3
          */
@@ -1684,15 +1685,15 @@ export declare namespace JointFabricDatastore {
          *   2. Ensure the Binding List for the DatastoreNodeInformationEntryStruct with the given NodeID includes the
          *      given Binding. If it does not:
          *
-         *   1. Add the DatastoreEndpointBindingEntryStruct entry to the EndpointBindingList attribute for the given
-         *      NodeID and EndpointID. The new entry's status shall be set to Pending.
+         *     1. Add the DatastoreEndpointBindingEntryStruct entry to the EndpointBindingList attribute for the given
+         *        NodeID and EndpointID. The new entry's status shall be set to Pending.
          *
-         *   2. Add this Binding to the given Node ID.
+         *     2. Add this Binding to the given Node ID.
          *
-         *   1. If this succeeds, update the new Binding in the Datastore to Committed.
+         *       1. If this succeeds, update the new Binding in the Datastore to Committed.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *       2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
+         *          error shall be handled in a subsequent Node Refresh.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.7.17.3
          */
@@ -1735,14 +1736,14 @@ export declare namespace JointFabricDatastore {
          *   2. Ensure the EndpointBindingList entries with the given NodeID does not include an entry with the given
          *      ListID. If it does:
          *
-         *   1. Update the status to DeletePending for the given Binding in the Binding List.
+         *     1. Update the status to DeletePending for the given Binding in the Binding List.
          *
-         *   2. Remove this Binding from the given Node ID.
+         *     2. Remove this Binding from the given Node ID.
          *
-         *   1. If this succeeds, remove the given Binding from the Binding List.
+         *       1. If this succeeds, remove the given Binding from the Binding List.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *       2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
+         *          error shall be handled in a subsequent Node Refresh.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.7.18.3
          */
@@ -1774,14 +1775,14 @@ export declare namespace JointFabricDatastore {
          *
          *   2. Ensure the ACL List for the given NodeID includes the given ACLEntry. If it does not:
          *
-         *   1. Add the ACLEntry to the ACL List for the given NodeID. The new entry's status shall be set to Pending.
+         *     1. Add the ACLEntry to the ACL List for the given NodeID. The new entry's status shall be set to Pending.
          *
-         *   2. Add this ACLEntry to the given Node ID.
+         *     2. Add this ACLEntry to the given Node ID.
          *
-         *   1. If this succeeds, update the new ACLEntry in the Datastore to Committed.
+         *       1. If this succeeds, update the new ACLEntry in the Datastore to Committed.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *       2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
+         *          error shall be handled in a subsequent Node Refresh.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.7.19.2
          */
@@ -1814,14 +1815,14 @@ export declare namespace JointFabricDatastore {
          *
          *   2. Ensure the ACL List for the given NodeID does not include the given ACLEntry. If it does:
          *
-         *   1. Update the status to DeletePending for the given ACLEntry in the ACL List.
+         *     1. Update the status to DeletePending for the given ACLEntry in the ACL List.
          *
-         *   2. Remove this ACLEntry from the given Node ID.
+         *     2. Remove this ACLEntry from the given Node ID.
          *
-         *   1. If this succeeds, remove the given ACLEntry from the Node ACL List.
+         *       1. If this succeeds, remove the given ACLEntry from the Node ACL List.
          *
-         *   2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
-         *      error shall be handled in a subsequent Node Refresh.
+         *       2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
+         *          error shall be handled in a subsequent Node Refresh.
          *
          * @see {@link MatterSpecification.v16.Core} § 11.24.7.20.2
          */

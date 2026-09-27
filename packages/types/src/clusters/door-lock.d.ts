@@ -1276,14 +1276,14 @@ export declare namespace DoorLock {
          *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
          *     LockOperation event with LockOperationType set to Unlock.
          *
-         *   - If it fails before reaching the unlocked state, the door lock server shall generate only a
-         *     LockOperationError event with LockOperationType set to Unlock.
+         *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+         *       LockOperationError event with LockOperationType set to Unlock.
          *
          *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
          *
-         *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+         *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
          *
-         *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+         *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3
          */
@@ -1353,14 +1353,14 @@ export declare namespace DoorLock {
          *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
          *     LockOperation event with LockOperationType set to Unlock.
          *
-         *   - If it fails before reaching the unlocked state, the door lock server shall generate only a
-         *     LockOperationError event with LockOperationType set to Unlock.
+         *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+         *       LockOperationError event with LockOperationType set to Unlock.
          *
          *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
          *
-         *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+         *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
          *
-         *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+         *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
          *
          * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3
          */
@@ -2460,10 +2460,12 @@ export declare namespace DoorLock {
          *   - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to resource
          *     constraints such as:
          *
-         *   - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials associated.
+         *     - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials
+         *       associated.
          *
-         *   - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it would
-         *     cause the total number of credentials of those two types to exceed NumberOfAliroEndpointKeysSupported.
+         *     - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it
+         *       would cause the total number of credentials of those two types to exceed
+         *       NumberOfAliroEndpointKeysSupported.
          *
          *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid.
          *
@@ -3165,14 +3167,14 @@ export declare namespace DoorLock {
      *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
      *     LockOperation event with LockOperationType set to Unlock.
      *
-     *   - If it fails before reaching the unlocked state, the door lock server shall generate only a LockOperationError
-     *     event with LockOperationType set to Unlock.
+     *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+     *       LockOperationError event with LockOperationType set to Unlock.
      *
      *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
      *
-     *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+     *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
      *
-     *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+     *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
      *
      * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3
      */
