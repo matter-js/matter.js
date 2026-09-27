@@ -317,6 +317,11 @@ export class AllClustersTestInstance extends NodeTestInstance {
                   UserLabelServer,
               );
 
+        if (!this.groupcast) {
+            // Without Groupcast the root cannot meet the 1.6.1 RootNode requirements its light devices assert
+            this.env.vars.set("endpoint.validation", "off");
+        }
+
         const serverNode = await ServerNode.create(rootEndpoint, {
             id: this.id,
             environment: this.env,

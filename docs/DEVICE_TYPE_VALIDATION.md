@@ -117,7 +117,6 @@ A name matter.js does not recognize is reported rather than silently ignored.
 - A construction is refused after the endpoint's `ready` and `partsReady` lifecycle events. Listeners of these
   events may already have run for an endpoint that is then refused, such as the node initialization of
   `CommissioningServer` or application logic started from `partsReady`.
-- A refused essential endpoint is rolled back, but its number stays allocated in its ancestors' `PartsList`s and in
-  storage until a separate fix lands, so a retry with the same ID gets a different number — a pre-existing gap in
-  endpoint rollback that `strict` mode reaches more often. A refused non-essential endpoint is not rolled
-  back at all; it stays in its parent, crashed.
+- A refused essential endpoint is rolled back, but its number stays listed in its ancestors' `PartsList`s and stays
+  allocated, so a retry with the same ID gets a different number. A refused non-essential endpoint is not rolled back;
+  it stays in its parent, crashed.

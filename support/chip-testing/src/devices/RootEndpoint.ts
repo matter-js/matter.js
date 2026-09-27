@@ -95,6 +95,11 @@ export async function buildRootNode(opts: RootNodeOptions): Promise<ServerNode> 
           )
         : ServerNode.RootEndpointWithoutGroupcast.with(AccessControlServer.with("Extension"), ...commonBehaviors);
 
+    if (!opts.groupcast) {
+        // Without Groupcast the root cannot meet the 1.6.1 RootNode requirements its light devices assert
+        opts.env.vars.set("endpoint.validation", "off");
+    }
+
     return ServerNode.create(rootEndpoint, {
         id: opts.id,
         environment: opts.env,
