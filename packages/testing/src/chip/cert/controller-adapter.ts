@@ -478,14 +478,22 @@ export interface OtaBdxTransfer {
 /**
  * An answer the controller's OTA provider gives in place of the one it would compute.
  *
- * A plan step may be about a status the provider reaches only in a state the harness cannot arrange —
- * `Busy` while consent is outstanding, an `ApplyUpdateResponse` deferring the apply. The provider is
- * the DUT here, and a vendor's provider is likewise free to answer these; what the case proves is that
- * the cluster server states them the way the specification requires, and that the requestor acts on
- * them. An absent field leaves the provider's own answer standing.
+ * A plan step may be about an answer the provider gives only in a state the harness cannot arrange —
+ * `Busy` while consent is outstanding, an `ApplyUpdateResponse` deferring the apply, an offer a
+ * requestor must refuse. Where the controller is the DUT, the case proves that the cluster server
+ * states these the way the specification requires; where the controller is the TH, that the requestor
+ * acts on them. An absent field leaves the provider's own answer standing, except as {@link status}
+ * describes for a scripted `UpdateAvailable`.
  */
 export interface OtaScriptedQueryAnswer {
-    /** `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.6). */
+    /**
+     * `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.6).
+     *
+     * A scripted `UpdateAvailable` (0) offers an image the provider does not hold, so a node that starts
+     * the transfer is refused. Its mandatory fields are filled for a conformant offer unless
+     * {@link softwareVersion} or {@link imageUri} state otherwise, which is how a case offers an update
+     * the node must turn down.
+     */
     status?: number;
 
     /** `DelayedActionTime` in seconds, which a `Busy` answer carries. */
@@ -493,6 +501,12 @@ export interface OtaScriptedQueryAnswer {
 
     /** `UserConsentNeeded` to set on the answer the provider computed. */
     userConsentNeeded?: boolean;
+
+    /** `SoftwareVersion` of a scripted `UpdateAvailable`; absent, one newer than the node reported. */
+    softwareVersion?: number;
+
+    /** `ImageURI` of a scripted `UpdateAvailable`; absent, a BDX URI naming the provider. */
+    imageUri?: string;
 }
 
 /**
