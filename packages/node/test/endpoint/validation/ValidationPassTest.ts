@@ -5,20 +5,20 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { conditionScopeOf } from "#endpoint/validation/ConditionAssertions.js";
-import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { ImplementationError } from "@matter/general";
 import {
     ClusterModel,
     ConditionModel,
+    conditionScopeOf,
     DeviceTypeModel,
+    DeviceTypeValidationPass,
     FeatureMap,
     FieldModel,
     Matter,
     MatterModel,
     RequirementModel,
 } from "@matter/model";
-import { createNode, violationsOf } from "./validation-helpers.js";
+import { createNode, serverPass, violationsOf } from "./validation-helpers.js";
 
 function requireDeviceType(name: string) {
     const deviceType = Matter.deviceTypes(name);
@@ -56,9 +56,9 @@ function lightingFeatureModel(conformance: string) {
     return model;
 }
 
-describe("ValidationPass.ModelMemo", () => {
+describe("DeviceTypeValidationPass.ModelMemo", () => {
     it("does not share entries between model instances", () => {
-        const memo = new ValidationPass.ModelMemo<string, number>();
+        const memo = new DeviceTypeValidationPass.ModelMemo<string, number>();
         const modelA = new MatterModel({}, new DeviceTypeModel({ name: "Base", classification: "base" }));
         const modelB = new MatterModel({}, new DeviceTypeModel({ name: "Base", classification: "base" }));
 
@@ -82,8 +82,8 @@ describe("ValidationPass.ModelMemo", () => {
 
         // RequirementResolver.conditionsOf() allocates a fresh Map on every call, so identity here proves the second
         // pass reused the first pass's cache entry instead of resolving again.
-        const first = conditionScopeOf(deviceType, new ValidationPass(Matter));
-        const second = conditionScopeOf(deviceType, new ValidationPass(Matter));
+        const first = conditionScopeOf(deviceType, serverPass(Matter));
+        const second = conditionScopeOf(deviceType, serverPass(Matter));
         expect(second).equals(first);
     });
 
@@ -102,10 +102,10 @@ describe("ValidationPass.ModelMemo", () => {
     });
 });
 
-describe("ValidationPass.Memory", () => {
+describe("DeviceTypeValidationPass.Memory", () => {
     it("weighs only the changes noted while it holds a value", async () => {
         const node = await createNode();
-        const memory = new ValidationPass.Memory();
+        const memory = new DeviceTypeValidationPass.Memory();
 
         memory.changed(node);
         memory.hold([]);
@@ -121,7 +121,7 @@ describe("ValidationPass.Memory", () => {
 
     it("weighs each noted change once", async () => {
         const node = await createNode();
-        const memory = new ValidationPass.Memory();
+        const memory = new DeviceTypeValidationPass.Memory();
         memory.hold([]);
 
         memory.changed(node);
@@ -135,7 +135,7 @@ describe("ValidationPass.Memory", () => {
     it("forgets what it noted and watched once it discards", async () => {
         const node = await createNode();
         const light = await node.add(OnOffLightDevice, { id: "light" });
-        const memory = new ValidationPass.Memory();
+        const memory = new DeviceTypeValidationPass.Memory();
         memory.hold([light]);
         memory.changed(light);
         memory.changed(node);
@@ -155,7 +155,7 @@ describe("ValidationPass.Memory", () => {
     it("discards what it holds on a change to a watched endpoint whatever the test says", async () => {
         const node = await createNode();
         const light = await node.add(OnOffLightDevice, { id: "light" });
-        const memory = new ValidationPass.Memory();
+        const memory = new DeviceTypeValidationPass.Memory();
         memory.hold([light]);
 
         memory.changed(node);

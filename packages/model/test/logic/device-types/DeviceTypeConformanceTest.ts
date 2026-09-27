@@ -1,0 +1,311 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import {
+    AttributeModel,
+    ClusterModel,
+    ConditionModel,
+    DeviceTypeConformance,
+    DeviceTypeFacts,
+    DeviceTypeModel,
+    DeviceTypeValidationPass,
+    DeviceTypeViolation,
+    FeatureMap,
+    FieldModel,
+    MatterModel,
+    NodeCondition,
+    RequirementModel,
+} from "#index.js";
+import { ConditionAssertions } from "#logic/device-types/ConditionAssertions.js";
+import { ImplementationError } from "@matter/general";
+
+const ROOT_ID = 0x16;
+const LIGHT_ID = 0xfff1_0001;
+const COMPOSER_ID = 0xfff1_0002;
+const ON_OFF_ID = 6;
+const SINGLETON_ID = 0x7ff0;
+
+/**
+ * An endpoint of a tree that exists only as data, so the evaluator runs without any node.
+ */
+interface FakeEndpoint {
+    name: string;
+    parent?: FakeEndpoint;
+    parts: FakeEndpoint[];
+    deviceTypes: number[];
+    servers: ClusterModel[];
+    elements: Map<ClusterModel, DeviceTypeFacts.Elements>;
+}
+
+class FakeFacts implements DeviceTypeFacts<FakeEndpoint> {
+    nodeConditions = new Array<NodeCondition>();
+
+    parentOf(endpoint: FakeEndpoint) {
+        return endpoint.parent;
+    }
+
+    partsOf(endpoint: FakeEndpoint) {
+        return endpoint.parts;
+    }
+
+    isPresent() {
+        return true;
+    }
+
+    isAttached(endpoint: FakeEndpoint) {
+        return endpoint.parent !== undefined;
+    }
+
+    deviceTypeIdsOf(endpoint: FakeEndpoint) {
+        return endpoint.deviceTypes;
+    }
+
+    serverClustersOf(endpoint: FakeEndpoint) {
+        return endpoint.servers;
+    }
+
+    clientClustersOf() {
+        return [];
+    }
+
+    elementsOf(endpoint: FakeEndpoint, cluster: ClusterModel) {
+        return endpoint.elements.get(cluster) ?? { attributes: new Set(), commands: new Set(), events: new Set() };
+    }
+
+    statedConditionsOf() {
+        return [];
+    }
+
+    nodeConditionsOf() {
+        return this.nodeConditions;
+    }
+
+    describe(endpoint: FakeEndpoint) {
+        return endpoint.name;
+    }
+}
+
+function endpoint(
+    name: string,
+    deviceType: number,
+    { parent, servers = [] }: { parent?: FakeEndpoint; servers?: ClusterModel[] } = {},
+): FakeEndpoint {
+    const created: FakeEndpoint = { name, parent, parts: [], deviceTypes: [deviceType], servers, elements: new Map() };
+    parent?.parts.push(created);
+    return created;
+}
+
+/**
+ * A model whose Light requires OnOff, OnOff's Lighting feature under {@link lighting} and OnOff's Pending attribute,
+ * which the cluster itself defines under {@link pending}. Composer requires at least two Lights. RootNode declares
+ * the Singleton cluster a singleton.
+ */
+function fixtureModel({ lighting = "O", pending = "P, O" }: { lighting?: string; pending?: string } = {}) {
+    const featureMap = FeatureMap.clone();
+    featureMap.children = [
+        new FieldModel({ name: "LT", title: "Lighting", constraint: "0" }),
+        new FieldModel({ name: "OFFONLY", title: "OffOnly", constraint: "2" }),
+    ];
+
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel(
+            { name: "Base", classification: "base" },
+            new ConditionModel({ name: "CustomNetworkConfig" }),
+        ),
+        new DeviceTypeModel(
+            { name: "RootNode", id: ROOT_ID, classification: "node" },
+            new RequirementModel({
+                name: "Singleton",
+                id: SINGLETON_ID,
+                element: "serverCluster",
+                conformance: "O",
+                quality: "I",
+            }),
+        ),
+        new DeviceTypeModel(
+            { name: "Light", id: LIGHT_ID, classification: "simple" },
+            new ConditionModel({ name: "Wanted" }),
+            new RequirementModel(
+                { name: "OnOff", id: ON_OFF_ID, element: "serverCluster", conformance: "M" },
+                new RequirementModel({ name: "LT", element: "feature", conformance: lighting }),
+                new RequirementModel({ name: "Pending", element: "attribute", conformance: "M" }),
+            ),
+        ),
+        new DeviceTypeModel(
+            { name: "Composer", id: COMPOSER_ID, classification: "simple" },
+            new RequirementModel({
+                name: "Light",
+                id: LIGHT_ID,
+                element: "deviceType",
+                conformance: "M",
+                constraint: "min 2",
+            }),
+        ),
+        new ClusterModel({
+            name: "OnOff",
+            id: ON_OFF_ID,
+            children: [
+                featureMap,
+                new AttributeModel({ name: "Pending", id: 0x7ff0, type: "bool", conformance: pending }),
+            ],
+        }),
+        new ClusterModel({ name: "Singleton", id: SINGLETON_ID }),
+    );
+    model.finalize();
+    return model;
+}
+
+/**
+ * The OnOff server of an endpoint, as the endpoint implements it.
+ */
+function onOffOf(model: MatterModel, supportedFeatures: { [name: string]: boolean } = {}) {
+    const cluster = model.clusters(ON_OFF_ID);
+    if (cluster === undefined) {
+        throw new ImplementationError("Fixture model lacks OnOff");
+    }
+    const variant = cluster.clone();
+    variant.supportedFeatures = supportedFeatures;
+    return variant;
+}
+
+function singletonOf(model: MatterModel) {
+    const cluster = model.clusters(SINGLETON_ID);
+    if (cluster === undefined) {
+        throw new ImplementationError("Fixture model lacks Singleton");
+    }
+    return cluster;
+}
+
+function kindsOf(violations: DeviceTypeViolation<FakeEndpoint>[]) {
+    return violations.map(({ kind, requirement }) => [kind, requirement]);
+}
+
+describe("DeviceTypeConformance with facts that are not a node", () => {
+    it("reports a mandatory server cluster that is missing and accepts it when present", () => {
+        const model = fixtureModel();
+        const root = endpoint("root", ROOT_ID);
+        const bare = endpoint("bare", LIGHT_ID, { parent: root });
+        const equipped = endpoint("equipped", LIGHT_ID, { parent: root, servers: [onOffOf(model)] });
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+
+        expect(kindsOf(DeviceTypeConformance.check(bare, pass))).deep.equals([["missing", "OnOff"]]);
+        expect(DeviceTypeConformance.check(equipped, pass)).deep.equals([]);
+    });
+
+    it("reports a feature a feature term disallows but not one only a condition disallows", () => {
+        const byFeature = fixtureModel({ lighting: "OFFONLY" });
+        const byFeatureRoot = endpoint("root", ROOT_ID);
+        const byFeatureLight = endpoint("light", LIGHT_ID, {
+            parent: byFeatureRoot,
+            servers: [onOffOf(byFeature, { LT: true })],
+        });
+
+        expect(
+            kindsOf(
+                DeviceTypeConformance.check(byFeatureLight, new DeviceTypeValidationPass(new FakeFacts(), byFeature)),
+            ),
+        ).deep.equals([["disallowed", "OnOff.LT"]]);
+
+        const byCondition = fixtureModel({ lighting: "Wanted | OFFONLY" });
+        const byConditionRoot = endpoint("root", ROOT_ID);
+        const byConditionLight = endpoint("light", LIGHT_ID, {
+            parent: byConditionRoot,
+            servers: [onOffOf(byCondition, { LT: true })],
+        });
+
+        expect(
+            DeviceTypeConformance.check(byConditionLight, new DeviceTypeValidationPass(new FakeFacts(), byCondition)),
+        ).deep.equals([]);
+    });
+
+    it("does not report a mandatory element its own definition marks provisional as missing", () => {
+        const provisional = fixtureModel({ pending: "P, O" });
+        const provisionalLight = endpoint("light", LIGHT_ID, {
+            parent: endpoint("root", ROOT_ID),
+            servers: [onOffOf(provisional)],
+        });
+        expect(
+            DeviceTypeConformance.check(provisionalLight, new DeviceTypeValidationPass(new FakeFacts(), provisional)),
+        ).deep.equals([]);
+
+        const optional = fixtureModel({ pending: "O" });
+        const optionalLight = endpoint("light", LIGHT_ID, {
+            parent: endpoint("root", ROOT_ID),
+            servers: [onOffOf(optional)],
+        });
+        expect(
+            kindsOf(
+                DeviceTypeConformance.check(optionalLight, new DeviceTypeValidationPass(new FakeFacts(), optional)),
+            ),
+        ).deep.equals([["missing", "OnOff.Pending"]]);
+
+        const [onOff] = optionalLight.servers;
+        optionalLight.elements.set(onOff, { attributes: new Set(["pending"]), commands: new Set(), events: new Set() });
+        expect(
+            DeviceTypeConformance.check(optionalLight, new DeviceTypeValidationPass(new FakeFacts(), optional)),
+        ).deep.equals([]);
+    });
+
+    it("reports a component device type with fewer endpoints than its constraint requires", () => {
+        const model = fixtureModel();
+        const root = endpoint("root", ROOT_ID);
+        const lonely = endpoint("lonely", COMPOSER_ID, { parent: root });
+        endpoint("light", LIGHT_ID, { parent: lonely, servers: [onOffOf(model)] });
+        const complete = endpoint("complete", COMPOSER_ID, { parent: root });
+        endpoint("light1", LIGHT_ID, { parent: complete, servers: [onOffOf(model)] });
+        endpoint("light2", LIGHT_ID, { parent: complete, servers: [onOffOf(model)] });
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+
+        const found = DeviceTypeConformance.check(lonely, pass);
+        expect(kindsOf(found)).deep.equals([["instanceCount", "device:Light"]]);
+        expect(found[0].detail).equals(
+            "Component device type Light requires min 2 endpoint(s) in the composition; found 1",
+        );
+        expect(DeviceTypeConformance.check(complete, pass)).deep.equals([]);
+    });
+
+    it("reports a singleton of the node endpoint on another endpoint of its node scope", () => {
+        const model = fixtureModel();
+        const root = endpoint("root", ROOT_ID, { servers: [singletonOf(model)] });
+        const light = endpoint("light", LIGHT_ID, { parent: root, servers: [onOffOf(model), singletonOf(model)] });
+        const facts = new FakeFacts();
+
+        const misplaced = DeviceTypeConformance.misplacedSingletons(root, new DeviceTypeValidationPass(facts, model));
+        expect(
+            misplaced.map(({ endpoint, deviceType, kind, requirement }) => [
+                endpoint.name,
+                deviceType,
+                kind,
+                requirement,
+            ]),
+        ).deep.equals([["light", "RootNode", "singletonMisplaced", "Singleton"]]);
+
+        const pass = new DeviceTypeValidationPass(facts, model);
+        expect(kindsOf(DeviceTypeConformance.check(light, pass))).deep.equals([["singletonMisplaced", "Singleton"]]);
+        expect(DeviceTypeConformance.check(root, pass)).deep.equals([]);
+    });
+
+    it("takes the node conditions the facts state for every endpoint of the node scope", () => {
+        const model = fixtureModel();
+        const root = endpoint("root", ROOT_ID);
+        const light = endpoint("light", LIGHT_ID, { parent: root, servers: [onOffOf(model)] });
+        const facts = new FakeFacts();
+
+        expect(
+            ConditionAssertions.collect(root, new DeviceTypeValidationPass(facts, model))
+                .conditionsOf(light)
+                .has(NodeCondition.CustomNetworkConfig),
+        ).false;
+
+        facts.nodeConditions.push(NodeCondition.CustomNetworkConfig);
+        expect(
+            ConditionAssertions.collect(root, new DeviceTypeValidationPass(facts, model))
+                .conditionsOf(light)
+                .has(NodeCondition.CustomNetworkConfig),
+        ).true;
+    });
+});

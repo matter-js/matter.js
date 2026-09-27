@@ -5,13 +5,18 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
-import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
-import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
+import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
 import { Environment, ImplementationError, LogLevel } from "@matter/general";
-import { ClusterModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
+import {
+    ClusterModel,
+    ConditionAssertions,
+    DeviceTypeModel,
+    MatterModel,
+    RequirementModel,
+    ResolvedEndpoint,
+} from "@matter/model";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import {
     captureLog,
@@ -22,6 +27,7 @@ import {
     lightWithGroupKeyManagement,
     lightWithoutIdentify,
     lightWithoutIdentifyAndScenes,
+    serverPass,
 } from "./validation-helpers.js";
 
 function serviceOf(node: MockServerNode) {
@@ -34,11 +40,11 @@ function serviceOf(node: MockServerNode) {
  */
 function judgeOf(node: MockServerNode, mode?: DeviceTypeConformanceService.Mode) {
     if (mode === undefined) {
-        return new DeviceTypeConformanceService(node, node.env);
+        return new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts());
     }
     const environment = new Environment("test");
     environment.vars.set("endpoint.validation", mode);
-    return new DeviceTypeConformanceService(node, environment);
+    return new DeviceTypeConformanceService(node, environment, new ServerEndpointFacts());
 }
 
 /**
@@ -138,7 +144,7 @@ describe("DeviceTypeConformanceService", () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
-        const service = new DeviceTypeConformanceService(node, new Environment("test"));
+        const service = new DeviceTypeConformanceService(node, new Environment("test"), new ServerEndpointFacts());
 
         expect(service.mode).equals("warn");
         expect(captureLog(() => service.validate(light)).length).equals(1);
@@ -151,7 +157,7 @@ describe("DeviceTypeConformanceService", () => {
         const environment = new Environment("test");
         environment.vars.addUnixEnvStyle({ MATTER_ENDPOINT_VALIDATION: "off" });
 
-        expect(new DeviceTypeConformanceService(node, environment).mode).equals("off");
+        expect(new DeviceTypeConformanceService(node, environment, new ServerEndpointFacts()).mode).equals("off");
 
         await node.close();
     });
@@ -161,7 +167,7 @@ describe("DeviceTypeConformanceService", () => {
         const environment = new Environment("test");
         environment.vars.set("endpoint.validation", "loud");
 
-        expect(() => new DeviceTypeConformanceService(node, environment)).throws(
+        expect(() => new DeviceTypeConformanceService(node, environment, new ServerEndpointFacts())).throws(
             ImplementationError,
             'Variable endpoint.validation (environment variable MATTER_ENDPOINT_VALIDATION) is "loud" but must be one of "off", "warn", "strict"',
         );
@@ -338,7 +344,12 @@ describe("DeviceTypeConformanceService", () => {
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
         // RootNode is not a node here, so nothing is judged, though OnOffLight requires the missing Identify
-        const service = new DeviceTypeConformanceService(node, node.env, modelWithoutNodes());
+        const service = new DeviceTypeConformanceService(
+            node,
+            node.env,
+            new ServerEndpointFacts(),
+            modelWithoutNodes(),
+        );
 
         expect(captureLog(() => service.validate(light))).deep.equals([]);
         expect(service.knows(light)).false;
@@ -349,7 +360,12 @@ describe("DeviceTypeConformanceService", () => {
     it("validates no node scope for an endpoint in none", async () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = new DeviceTypeConformanceService(node, node.env, modelWithoutNodes());
+        const service = new DeviceTypeConformanceService(
+            node,
+            node.env,
+            new ServerEndpointFacts(),
+            modelWithoutNodes(),
+        );
 
         expect(captureLog(() => service.validateNodeScope(light))).deep.equals([]);
         expect(service.knows(light)).false;
@@ -395,20 +411,20 @@ describe("ValidationPass", () => {
 
     it("reads each endpoint once per pass", async () => {
         const { node, light } = await createPair();
-        const pass = new ValidationPass();
+        const pass = serverPass();
 
-        expect(EndpointFacts.of(light, pass)).equals(EndpointFacts.of(light, pass));
-        expect(EndpointFacts.of(light, pass)).not.equals(EndpointFacts.of(light, new ValidationPass()));
+        expect(ResolvedEndpoint.of(light, pass)).equals(ResolvedEndpoint.of(light, pass));
+        expect(ResolvedEndpoint.of(light, pass)).not.equals(ResolvedEndpoint.of(light, serverPass()));
 
         await node.close();
     });
 
     it("collects each node scope once per pass", async () => {
         const { node } = await createPair();
-        const pass = new ValidationPass();
+        const pass = serverPass();
 
         expect(ConditionAssertions.collect(node, pass)).equals(ConditionAssertions.collect(node, pass));
-        expect(ConditionAssertions.collect(node, pass)).not.equals(ConditionAssertions.collect(node));
+        expect(ConditionAssertions.collect(node, pass)).not.equals(ConditionAssertions.collect(node, serverPass()));
 
         await node.close();
     });

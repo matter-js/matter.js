@@ -20,20 +20,19 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { SupportedClientClusters } from "#endpoint/properties/SupportedClientClusters.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { ConditionAssertions } from "#endpoint/validation/ConditionAssertions.js";
-import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
-import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
-import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
+import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
 import { ImplementationError, MatterAggregateError } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
     CommandModel,
+    ConditionAssertions,
     ConditionModel,
+    DeviceTypeConformance,
     DeviceTypeModel,
     FeatureMap,
     FieldModel,
@@ -41,6 +40,7 @@ import {
     MatterModel,
     RequirementModel,
     RequirementResolver,
+    ResolvedEndpoint,
 } from "@matter/model";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
@@ -50,6 +50,7 @@ import {
     createUnjudgedNode,
     deviceTypeList,
     RootWithWiFi,
+    serverPass,
     violationsOf,
 } from "./validation-helpers.js";
 
@@ -310,8 +311,8 @@ describe("DeviceTypeConformance", () => {
         const node = await MockServerNode.createOnline();
 
         expect(String(requirementOf("RootNode", "AccessControl", "Extension").conformance)).equals("AclExtensionCond");
-        expect(EndpointFacts.of(node).features("AccessControl").has("EXTS")).true;
-        expect(ConditionAssertions.collect(node).conditionsOf(node).has("AclExtensionCond")).false;
+        expect(ResolvedEndpoint.of(node, serverPass()).features("AccessControl").has("EXTS")).true;
+        expect(ConditionAssertions.collect(node, serverPass()).conditionsOf(node).has("AclExtensionCond")).false;
 
         expect(violationsOf(node).map(v => v.requirement)).not.includes("AccessControl.Extension");
 
@@ -392,7 +393,7 @@ describe("DeviceTypeConformance", () => {
         const endpoint = await node.add(rainSensorWithoutChangeEvent, { id: "rain" });
 
         expect(String(requirementOf("RainSensor", "BooleanState", "CHANGEEVENT").conformance)).equals("Rev >= v2");
-        expect(EndpointFacts.of(endpoint).features("BooleanState").has("CHGEVENT")).false;
+        expect(ResolvedEndpoint.of(endpoint, serverPass()).features("BooleanState").has("CHGEVENT")).false;
 
         expect(violationsOf(endpoint).map(v => v.requirement)).not.includes("BooleanState.CHGEVENT");
 
@@ -556,7 +557,7 @@ describe("DeviceTypeConformance", () => {
                     .filter(v => v.requirement === "Descriptor.TAGLIST")
                     .map(v => v.deviceType);
             for (const endpoint of bridged) {
-                expect(ConditionAssertions.collect(node).conditionsOf(endpoint).has("Duplicate")).true;
+                expect(ConditionAssertions.collect(node, serverPass()).conditionsOf(endpoint).has("Duplicate")).true;
                 expect(tagList(endpoint)).deep.equals([]);
             }
             for (const endpoint of composed) {
@@ -717,7 +718,10 @@ describe("DeviceTypeConformance", () => {
     it("constructs an endpoint carrying an outer singleton below a nested node endpoint", async () => {
         const node = await createNode();
         const model = singletonModel({ bridgedNodeIsNode: true });
-        node.env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, node.env, model));
+        node.env.set(
+            DeviceTypeConformanceService,
+            new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), model),
+        );
         const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
 
         // Stand-in model: BridgedNode is a node, so RootNode's GroupKeyManagement singleton does not reach below it
@@ -779,7 +783,7 @@ describe("DeviceTypeConformance", () => {
 
         const node = await createNode();
         const light = await node.add(OnOffLightDevice, { id: "light" });
-        const pass = new ValidationPass(model);
+        const pass = serverPass(model);
 
         expect(DeviceTypeConformance.check(light, pass)).deep.equals([]);
 

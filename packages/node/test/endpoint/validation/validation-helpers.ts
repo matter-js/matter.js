@@ -13,10 +13,8 @@ import { TemperatureControlledCabinetDevice } from "#devices/temperature-control
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
-import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
-import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
+import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
@@ -29,7 +27,14 @@ import {
     LogLevel,
     Transport,
 } from "@matter/general";
-import { DeviceTypeModel, Matter, MatterModel } from "@matter/model";
+import {
+    DeviceTypeConformance,
+    DeviceTypeModel,
+    DeviceTypeValidationPass,
+    Matter,
+    MatterModel,
+    ResolvedEndpoint,
+} from "@matter/model";
 import { Ble, BlePeripheralInterface, Scanner } from "@matter/protocol";
 import { DeviceTypeId } from "@matter/types";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
@@ -163,7 +168,7 @@ export const RootWithEthernet = MockServerNode.RootEndpoint.with(EthernetCommiss
 export function unjudgedServiceOf(node: ServerNode) {
     const model = new MatterModel({}, new DeviceTypeModel({ name: "Base", classification: "base" }));
     model.finalize();
-    return new DeviceTypeConformanceService(node, node.env, model);
+    return new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), model);
 }
 
 /**
@@ -218,10 +223,17 @@ export async function addCabinet(parent: Endpoint, id: string) {
 }
 
 /**
+ * A validation pass over a server node's endpoints, resolved in {@link model}.
+ */
+export function serverPass(model: MatterModel = Matter) {
+    return new DeviceTypeValidationPass<Endpoint>(new ServerEndpointFacts(), model);
+}
+
+/**
  * The violations {@link DeviceTypeConformance.check} finds on {@link endpoint}, resolved in {@link model}.
  */
 export function violationsOf(endpoint: Endpoint, model: MatterModel = Matter) {
-    return DeviceTypeConformance.check(endpoint, new ValidationPass(model));
+    return DeviceTypeConformance.check(endpoint, serverPass(model));
 }
 
 /**
@@ -288,7 +300,9 @@ export function recordingChecks() {
     const judged = new Array<Endpoint>();
 
     DeviceTypeConformance.check = (endpoint, pass) => {
-        judged.push(endpoint);
+        if (endpoint instanceof Endpoint) {
+            judged.push(endpoint);
+        }
         return check(endpoint, pass);
     };
 
@@ -302,22 +316,24 @@ export function recordingChecks() {
 }
 
 /**
- * Records every endpoint whose {@link EndpointFacts} a pass asks for until disposed.
+ * Records every endpoint whose {@link ResolvedEndpoint} a pass asks for until disposed.
  */
 export function recordingReads() {
-    const { of } = EndpointFacts;
+    const { of } = ResolvedEndpoint;
     const read = new Set<Endpoint>();
 
-    EndpointFacts.of = (endpoint, pass) => {
-        read.add(endpoint);
-        return of.call(EndpointFacts, endpoint, pass);
+    ResolvedEndpoint.of = <E>(endpoint: E, pass: DeviceTypeValidationPass<E>) => {
+        if (endpoint instanceof Endpoint) {
+            read.add(endpoint);
+        }
+        return of(endpoint, pass);
     };
 
     return {
         read,
 
         [Symbol.dispose]() {
-            EndpointFacts.of = of;
+            ResolvedEndpoint.of = of;
         },
     };
 }

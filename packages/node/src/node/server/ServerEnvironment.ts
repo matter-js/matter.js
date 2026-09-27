@@ -10,6 +10,7 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
@@ -169,7 +170,7 @@ class NodeServices {
 
             env.set(EndpointInitializer, new ServerEndpointInitializer(env));
             env.set(IdentityService, new IdentityService(node));
-            const conformance = new DeviceTypeConformanceService(node, env);
+            const conformance = new DeviceTypeConformanceService(node, env, new ServerEndpointFacts());
             env.set(DeviceTypeConformanceService, conformance);
             if (conformance.mode !== "off") {
                 const followLifecycle = (change: EndpointLifecycle.Change, endpoint: Endpoint) =>

@@ -15,17 +15,29 @@ import { MeterReferencePointDevice } from "#devices/meter-reference-point";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { DeviceTypeConformance } from "#endpoint/validation/DeviceTypeConformance.js";
-import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceEnergyManagementEndpoint } from "#endpoints/device-energy-management";
 import { ElectricalSensorEndpoint } from "#endpoints/electrical-sensor";
 import { PowerSourceEndpoint } from "#endpoints/power-source";
-import { ClusterModel, ConditionModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
+import {
+    ClusterModel,
+    ConditionModel,
+    DeviceTypeConformance,
+    DeviceTypeModel,
+    MatterModel,
+    RequirementModel,
+} from "@matter/model";
 import { MeasurementType } from "@matter/types";
 import { DeviceEnergyManagement } from "@matter/types/clusters/device-energy-management";
 import { ElectricalPowerMeasurement } from "@matter/types/clusters/electrical-power-measurement";
 import { PowerSource } from "@matter/types/clusters/power-source";
-import { addCabinet, addRefrigerator, createNode, deviceTypeList, violationsOf } from "./validation-helpers.js";
+import {
+    addCabinet,
+    addRefrigerator,
+    createNode,
+    deviceTypeList,
+    serverPass,
+    violationsOf,
+} from "./validation-helpers.js";
 
 const DescribedLight = OnOffLightDevice.with(DescriptorServer);
 const TaggedDescriptor = DescriptorServer.with("TagList");
@@ -387,7 +399,7 @@ describe("composition", () => {
         });
         const innerLight = await addStandIn(inner, "light", "OnOffLight");
 
-        const pass = new ValidationPass(nestedScopeModel());
+        const pass = serverPass(nestedScopeModel());
         DeviceTypeConformance.check(innerLight, pass);
 
         const violations = DeviceTypeConformance.check(composer, pass);

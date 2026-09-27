@@ -16,6 +16,7 @@ import { EndpointPartsError } from "#endpoint/errors.js";
 import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { DeviceTypeConformanceError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
 import { Environment, ImplementationError } from "@matter/general";
 import { ClusterModel, ConditionModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
 import { NodeId } from "@matter/types";
@@ -181,7 +182,10 @@ function wiFiGatedModel() {
  */
 async function createGuardedNode() {
     const node = await createNode();
-    node.env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, node.env, guardedRootModel()));
+    node.env.set(
+        DeviceTypeConformanceService,
+        new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), guardedRootModel()),
+    );
     const widget = await addStandIn(node, "widget", WIDGET_ID);
     return { node, widget };
 }
@@ -760,7 +764,7 @@ describe("device type validation after construction", () => {
             const node = await createNode();
             node.env.set(
                 DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, onOffSingletonModel()),
+                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), onOffSingletonModel()),
             );
             const shelf = await addStandIn(node, "shelf", "OnOffLight");
             const stored = [
@@ -782,7 +786,7 @@ describe("device type validation after construction", () => {
             const node = await createNode();
             node.env.set(
                 DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, onOffSingletonModel()),
+                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), onOffSingletonModel()),
             );
             const shelf = await addStandIn(node, "shelf", "OnOffLight");
             const stored = [
@@ -843,7 +847,7 @@ describe("device type validation after construction", () => {
             const node = await createNode();
             node.env.set(
                 DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, wiFiGatedModel()),
+                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), wiFiGatedModel()),
             );
             const light = await addStandIn(node, "light", "OnOffLight");
             const other = await addStandIn(node, "other", "OnOffLight");
@@ -862,7 +866,12 @@ describe("device type validation after construction", () => {
                 const node = await createStrictNode();
                 node.env.set(
                     DeviceTypeConformanceService,
-                    new DeviceTypeConformanceService(node, strictEnvironment(), guardedRootModel()),
+                    new DeviceTypeConformanceService(
+                        node,
+                        strictEnvironment(),
+                        new ServerEndpointFacts(),
+                        guardedRootModel(),
+                    ),
                 );
                 const widget = await addStandIn(node, "widget", WIDGET_ID);
 
@@ -914,7 +923,7 @@ describe("device type validation after construction", () => {
             const node = await createNode();
             node.env.set(
                 DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, onOffSingletonModel()),
+                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), onOffSingletonModel()),
             );
             await addStandIn(node, "light", "OnOffLight");
 
@@ -1010,7 +1019,12 @@ describe("device type validation after construction", () => {
             const node = await createStrictNode();
             node.env.set(
                 DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, strictEnvironment(), singleComponentModel()),
+                new DeviceTypeConformanceService(
+                    node,
+                    strictEnvironment(),
+                    new ServerEndpointFacts(),
+                    singleComponentModel(),
+                ),
             );
             const composer = await node.add(OnOffLightDevice.with(DescriptorServer), {
                 id: "composer",
@@ -1117,7 +1131,7 @@ describe("device type validation after construction", () => {
             const node = await createOffNode();
             node.env.set(
                 DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, wiFiGatedModel()),
+                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), wiFiGatedModel()),
             );
             const light = await addStandIn(node, "light", "OnOffLight");
             expect(captureLog(() => serviceOf(node).validate(light)).length).equals(0);

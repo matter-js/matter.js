@@ -7,11 +7,15 @@
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { Diagnostic, Environment, ImplementationError, Lifecycle, Logger } from "@matter/general";
-import { Matter, MatterModel } from "@matter/model";
-import { ConditionAssertions } from "./ConditionAssertions.js";
-import { DeviceTypeConformance } from "./DeviceTypeConformance.js";
-import { EndpointFacts } from "./EndpointFacts.js";
-import { ValidationPass } from "./ValidationPass.js";
+import {
+    ConditionAssertions,
+    DeviceTypeConformance,
+    DeviceTypeFacts,
+    DeviceTypeValidationPass,
+    Matter,
+    MatterModel,
+    ResolvedEndpoint,
+} from "@matter/model";
 import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from "./Violation.js";
 
 /**
@@ -43,7 +47,7 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  * report.
  *
  * The passes of a service share what they derive from a whole node scope until a change the node reports through
- * {@link lifecycleChanged} or {@link deviceTypesChanged} may alter it; see {@link ValidationPass.Memory}.
+ * {@link lifecycleChanged} or {@link deviceTypesChanged} may alter it; see {@link DeviceTypeValidationPass.Memory}.
  *
  * An addition, a `DeviceTypeList` change and a removal each judge, in one pass, the endpoints whose judgement the
  * change can alter. A judgement of an endpoint reads the endpoint, its composition, its ancestors, its siblings only
@@ -96,16 +100,24 @@ export class DeviceTypeConformanceService {
     readonly #logger: Logger;
     readonly #reported = new Map<Endpoint, Map<string, Violation>>();
     readonly #footprints = new Map<Endpoint, Footprint>();
-    readonly #memory = new ValidationPass.Memory();
+    readonly #facts: DeviceTypeFacts<Endpoint>;
+    readonly #memory = new DeviceTypeValidationPass.Memory<Endpoint>();
 
     /**
      * @param node the node whose endpoints are validated
      * @param environment the node's environment, which supplies `endpoint.validation` and the log origin
+     * @param facts what validation reads of the node's endpoints
      * @param model the model device types resolve in
      * @throws {ImplementationError} when `endpoint.validation` is not a {@link DeviceTypeConformanceService.Mode mode}
      */
-    constructor(node: Endpoint, environment: Environment, model: MatterModel = Matter) {
+    constructor(
+        node: Endpoint,
+        environment: Environment,
+        facts: DeviceTypeFacts<Endpoint>,
+        model: MatterModel = Matter,
+    ) {
         this.#node = node;
+        this.#facts = facts;
         this.#mode = modeOf(environment);
         this.#model = model;
         this.#logger = environment.logger("DeviceTypeConformance");
@@ -247,8 +259,8 @@ export class DeviceTypeConformanceService {
      * and follow a destruction with {@link endpointDestroyed}.
      *
      * Passes keep what they derive from a whole node scope until a noted change may alter it; see
-     * {@link ValidationPass.Memory}. A change that emits no lifecycle change and no `DeviceTypeList` change is not
-     * noted.
+     * {@link DeviceTypeValidationPass.Memory}. A change that emits no lifecycle change and no `DeviceTypeList` change
+     * is not noted.
      */
     lifecycleChanged(change: EndpointLifecycle.Change, endpoint: Endpoint) {
         this.#memory.changed(endpoint);
@@ -284,7 +296,7 @@ export class DeviceTypeConformanceService {
 
     #validate(
         endpoints: Iterable<Endpoint>,
-        pass: ValidationPass,
+        pass: DeviceTypeValidationPass<Endpoint>,
         options: DeviceTypeConformanceService.ValidateOptions | undefined,
         atomic: boolean,
     ) {
@@ -378,7 +390,7 @@ export class DeviceTypeConformanceService {
      * The violations of {@link endpoint} not reported before, and the keys of all it violates now. Undefined for an
      * endpoint in no node scope, which is not judged.
      */
-    #judge(endpoint: Endpoint, pass: ValidationPass) {
+    #judge(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>) {
         const nodeEndpoint = ConditionAssertions.nodeEndpointOf(endpoint, pass);
         if (nodeEndpoint === undefined) {
             return;
@@ -403,11 +415,11 @@ export class DeviceTypeConformanceService {
      * whose `Duplicate` condition the change leaves as it was is not judged however many siblings share its device
      * type. A footprint that is missing counts as changed.
      */
-    #affectedBy(change: Change, pass: ValidationPass): Endpoint[] {
+    #affectedBy(change: Change, pass: DeviceTypeValidationPass<Endpoint>): Endpoint[] {
         const affected = new Set<Endpoint>();
         const addSubtree = (endpoint: Endpoint) => {
             affected.add(endpoint);
-            for (const child of EndpointFacts.of(endpoint, pass).children) {
+            for (const child of ResolvedEndpoint.of(endpoint, pass).children) {
                 addSubtree(child);
             }
         };
@@ -444,7 +456,7 @@ export class DeviceTypeConformanceService {
 
         if (owner !== undefined) {
             const changed = change.kind === "removed" ? undefined : change.endpoint;
-            for (const sibling of EndpointFacts.of(owner, pass).children) {
+            for (const sibling of ResolvedEndpoint.of(owner, pass).children) {
                 if (sibling === changed || sibling.construction.status !== Lifecycle.Status.Active) {
                     continue;
                 }
@@ -512,7 +524,7 @@ export class DeviceTypeConformanceService {
     }
 
     #pass() {
-        return new ValidationPass(this.#model, this.#mode === "off" ? undefined : this.#memory);
+        return new DeviceTypeValidationPass(this.#facts, this.#model, this.#mode === "off" ? undefined : this.#memory);
     }
 
     /**
@@ -602,8 +614,8 @@ interface Footprint {
     reach: Reach;
 }
 
-function footprintOf(endpoint: Endpoint, pass: ValidationPass): Footprint {
-    const isNodeEndpoint = EndpointFacts.of(endpoint, pass).isNodeEndpoint;
+function footprintOf(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>): Footprint {
+    const isNodeEndpoint = ResolvedEndpoint.of(endpoint, pass).isNodeEndpoint;
     return {
         duplicate: ConditionAssertions.isDuplicate(endpoint, pass),
         isNodeEndpoint,
@@ -611,7 +623,7 @@ function footprintOf(endpoint: Endpoint, pass: ValidationPass): Footprint {
     };
 }
 
-function reachOf(endpoint: Endpoint, pass: ValidationPass) {
+function reachOf(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>) {
     if (
         ConditionAssertions.reachesNodeScope(endpoint, pass) ||
         DeviceTypeConformance.declaresSingleton(endpoint, pass)
@@ -624,8 +636,8 @@ function reachOf(endpoint: Endpoint, pass: ValidationPass) {
 /**
  * The widest reach of {@link endpoint} and its descendants in the node scope of its owner.
  */
-function subtreeReachOf(endpoint: Endpoint, pass: ValidationPass): Reach {
-    const facts = EndpointFacts.of(endpoint, pass);
+function subtreeReachOf(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>): Reach {
+    const facts = ResolvedEndpoint.of(endpoint, pass);
     if (facts.isNodeEndpoint) {
         return Reach.None;
     }

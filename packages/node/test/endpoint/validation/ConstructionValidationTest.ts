@@ -21,6 +21,7 @@ import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeCon
 import { DeviceTypeConformanceError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
+import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Environment, ImplementationError } from "@matter/general";
 import { AttributeModel, ClusterModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
@@ -336,7 +337,7 @@ describe("device type validation at construction", () => {
         const node = await createNode();
         node.env.set(
             DeviceTypeConformanceService,
-            new DeviceTypeConformanceService(node, node.env, onOffComponentModel()),
+            new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), onOffComponentModel()),
         );
         const composer = await node.add(lightWithoutIdentify.with(DescriptorServer), {
             id: "composer",
@@ -365,7 +366,10 @@ describe("device type validation at construction", () => {
 
     it("judges nothing in a tree without a node endpoint", async () => {
         const node = await createNode();
-        node.env.set(DeviceTypeConformanceService, new DeviceTypeConformanceService(node, node.env, nodelessModel()));
+        node.env.set(
+            DeviceTypeConformanceService,
+            new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), nodelessModel()),
+        );
 
         const logged = await captureLogOf(() =>
             node.add(lightWith(Groups, OnOff, ScenesManagement, GroupKeyManagementBehavior), { id: "light" }),
