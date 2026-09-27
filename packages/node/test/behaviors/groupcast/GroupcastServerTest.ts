@@ -1465,6 +1465,55 @@ describe("GroupcastServer", () => {
         });
     });
 
+    describe("MaxMcastAddrCount", () => {
+        async function nodeWithAddrLimit() {
+            const node = await MockServerNode.createOnline(GroupcastRootEndpoint, {
+                device: undefined,
+                groupcast: { maxMcastAddrCount: 4 },
+            });
+            const fabric = await node.addFabric();
+            const join = (groupId: number, mcastAddrPolicy: Groupcast.MulticastAddrPolicy) =>
+                node.online({ exchange: fabricExchange(fabric.fabricIndex), command: true }, agent =>
+                    agent.get(GroupcastServer).joinGroup({
+                        groupId: GroupId(groupId),
+                        endpoints: [EndpointNumber(1)],
+                        keySetId: 1,
+                        key: groupId === 1 ? TEST_KEY : undefined,
+                        mcastAddrPolicy,
+                    }),
+                );
+            // Three per-group addresses plus the shared IANA address: at the limit
+            for (const groupId of [1, 2, 3]) {
+                await join(groupId, Groupcast.MulticastAddrPolicy.PerGroup);
+            }
+            await join(4, Groupcast.MulticastAddrPolicy.IanaAddr);
+            await join(5, Groupcast.MulticastAddrPolicy.IanaAddr);
+            expect(node.stateOf(GroupcastServer).usedMcastAddrCount).equal(4);
+            return { node, join };
+        }
+
+        it("rejects a new per-group address beyond the limit and accepts another IANA group", async () => {
+            const { node, join } = await nodeWithAddrLimit();
+            await using _node = node;
+
+            await expect(Promise.resolve().then(() => join(6, Groupcast.MulticastAddrPolicy.PerGroup))).rejectedWith(
+                "MaxMcastAddrCount limit reached",
+            );
+            await join(6, Groupcast.MulticastAddrPolicy.IanaAddr);
+            expect(node.stateOf(GroupcastServer).usedMcastAddrCount).equal(4);
+        });
+
+        it("rejects switching an existing group to a per-group address beyond the limit", async () => {
+            const { node, join } = await nodeWithAddrLimit();
+            await using _node = node;
+
+            await expect(Promise.resolve().then(() => join(5, Groupcast.MulticastAddrPolicy.PerGroup))).rejectedWith(
+                "MaxMcastAddrCount limit reached",
+            );
+            expect(node.stateOf(GroupcastServer).usedMcastAddrCount).equal(4);
+        });
+    });
+
     describe("multicast join failures", () => {
         it("retries a failed multicast join without another group change", async () => {
             await using node = await MockServerNode.createOnline(IanaOnlyRootEndpoint, { device: undefined });

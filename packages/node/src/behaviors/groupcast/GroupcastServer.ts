@@ -232,19 +232,20 @@ export class GroupcastServer extends GroupcastBase {
             if (membership.length >= this.state.maxMembershipCount) {
                 throw new StatusResponseError("Total membership limit reached", Status.ResourceExhausted);
             }
+        }
 
-            // Check MaxMcastAddrCount for new multicast address allocation
-            if (policy === Groupcast.MulticastAddrPolicy.PerGroup) {
-                if (this.#computeUsedMcastAddrCount(membership) >= this.state.maxMcastAddrCount) {
-                    throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
-                }
-            } else if (policy === Groupcast.MulticastAddrPolicy.IanaAddr) {
-                // IanaAddr pool counts as 1 address; only check if pool not yet allocated
-                const hasIanaAddr = membership.some(m => m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.IanaAddr);
-                if (!hasIanaAddr && this.#computeUsedMcastAddrCount(membership) >= this.state.maxMcastAddrCount) {
-                    throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
-                }
-            }
+        // UsedMcastAddrCount SHALL NOT exceed MaxMcastAddrCount (core§11.27.6.4), for a new group and for a policy
+        // change of an existing one alike
+        const projected = [
+            ...membership.filter(m => !(m.groupId === groupId && m.fabricIndex === fabricIndex)),
+            { mcastAddrPolicy: policy },
+        ];
+        const projectedAddrCount = this.#computeUsedMcastAddrCount(projected);
+        if (
+            projectedAddrCount > this.state.maxMcastAddrCount &&
+            projectedAddrCount > this.#computeUsedMcastAddrCount(membership)
+        ) {
+            throw new StatusResponseError("MaxMcastAddrCount limit reached", Status.ResourceExhausted);
         }
 
         // Installs key material in the fabric's operational key store, which a failed transaction does not roll back,
@@ -289,8 +290,7 @@ export class GroupcastServer extends GroupcastBase {
 
         this.#deriveMembership();
 
-        // Marked only once the method is committing successfully, so a throw earlier in this method never leaves
-        // a leaked mark for the offline groupTable$Changed prune to wrongly consume later.
+        // Marked last, so a throw earlier in this method leaves no mark for the offline groupTable$Changed prune
         if (keepsSenderOnly) {
             this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
         }
@@ -852,7 +852,7 @@ export class GroupcastServer extends GroupcastBase {
      * - Each PerGroup group contributes 1 unique address
      * - All IanaAddr groups together share 1 address
      */
-    #computeUsedMcastAddrCount(membership: Groupcast.Membership[]): number {
+    #computeUsedMcastAddrCount(membership: readonly { mcastAddrPolicy: Groupcast.MulticastAddrPolicy }[]): number {
         const perGroupCount = membership.filter(
             m => m.mcastAddrPolicy === Groupcast.MulticastAddrPolicy.PerGroup,
         ).length;
