@@ -52,7 +52,7 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  * An addition, a `DeviceTypeList` change and a removal each judge, in one pass, the endpoints whose judgement the
  * change can alter. A judgement of an endpoint reads the endpoint, its composition, its ancestors, its siblings only
  * through the Base `Duplicate` condition, and the facts of its node scope that
- * {@link ConditionAssertions.reachesNodeScope} and {@link DeviceTypeConformance.declaresSingleton} name. Among the
+ * {@link ConditionAssertions.reachesNodeScope} and {@link ConditionAssertions.declaresSingleton} name. Among the
  * ancestors' conditions, those of the node endpoint also hold what any endpoint of the scope asserts there through
  * {@link ConditionAssertions.assertsOnNodeEndpoint a condition requirement located at the node endpoint}.
  *
@@ -399,9 +399,9 @@ export class DeviceTypeConformanceService {
         const violations = DeviceTypeConformance.check(endpoint, pass);
 
         // The kind and requirement path identify a violation on its endpoint; check() reports each pair once
-        const current = new Map(violations.map(violation => [keyOf(violation), violation]));
+        const current = new Map(violations.map(violation => [Violation.keyOf(violation), violation]));
         const previous = this.#reported.get(endpoint);
-        const fresh = violations.filter(violation => !previous?.has(keyOf(violation)));
+        const fresh = violations.filter(violation => !previous?.has(Violation.keyOf(violation)));
 
         return { fresh, current };
     }
@@ -624,10 +624,7 @@ function footprintOf(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint
 }
 
 function reachOf(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>) {
-    if (
-        ConditionAssertions.reachesNodeScope(endpoint, pass) ||
-        DeviceTypeConformance.declaresSingleton(endpoint, pass)
-    ) {
+    if (ConditionAssertions.reachesNodeScope(endpoint, pass) || ConditionAssertions.declaresSingleton(endpoint, pass)) {
         return Reach.NodeScope;
     }
     return ConditionAssertions.assertsOnNodeEndpoint(endpoint, pass) ? Reach.NodeEndpoint : Reach.None;
@@ -667,10 +664,6 @@ function refusalOf([first, ...others]: Judged[]) {
 
 function violationErrorsOf({ fresh }: Judged) {
     return fresh.map(violation => new DeviceTypeViolationError(violation));
-}
-
-function keyOf({ kind, requirement }: Violation) {
-    return `${kind} ${requirement}`;
 }
 
 function isEndpoint(value: Endpoint | Iterable<Endpoint>): value is Endpoint {

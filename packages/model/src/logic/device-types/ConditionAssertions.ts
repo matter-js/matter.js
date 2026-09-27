@@ -9,12 +9,9 @@ import { DeviceClassification } from "../../common/DeviceClassification.js";
 import { RequirementElement } from "../../elements/RequirementElement.js";
 import { ConditionModel, DeviceTypeModel, RequirementModel } from "../../models/index.js";
 import { requirementApplicability } from "../RequirementApplicability.js";
-import { RequirementResolver } from "../RequirementResolver.js";
 import { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
+import { lookupsFor } from "./ModelLookups.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
-
-const conditionScopes = new DeviceTypeValidationPass.ModelMemo<DeviceTypeModel, Map<string, ConditionModel>>();
-const assertedConditions = new DeviceTypeValidationPass.ModelMemo<RequirementModel, ConditionModel | undefined>();
 
 /**
  * The conditions that hold for the endpoints of a node scope.
@@ -173,9 +170,38 @@ export namespace ConditionAssertions {
             deviceType.requirements.some(
                 requirement =>
                     requirement.location === RequirementElement.Location.Root &&
-                    assertedConditions.get(pass.model, requirement, () =>
-                        RequirementResolver.conditionOf(requirement),
-                    ) !== undefined,
+                    lookupsFor(pass.model).assertedConditionOf(requirement) !== undefined,
+            ),
+        );
+    }
+
+    /**
+     * Whether {@link endpoint} reaches its node scope: it {@link reachesNodeScope supports a network interface}, it
+     * {@link assertsOnNodeEndpoint asserts a condition on the node endpoint}, or one of its device types states a
+     * server cluster requirement with the singleton quality — whether or not that cluster resolves in the model.
+     *
+     * Reads only device types and server clusters, whose changes the owner of a {@link DeviceTypeValidationPass.Memory}
+     * must note; a kept list stays correct only while that holds.
+     */
+    export function reaches<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): boolean {
+        return (
+            reachesNodeScope(endpoint, pass) ||
+            assertsOnNodeEndpoint(endpoint, pass) ||
+            declaresSingleton(endpoint, pass)
+        );
+    }
+
+    /**
+     * Whether a device type of {@link endpoint} states a server cluster requirement with the singleton quality,
+     * whether or not the cluster resolves in the model. `DeviceTypeConformance.check` judges a resolved singleton's
+     * placement; this only decides whether the declaration itself makes {@link endpoint} reach its node scope.
+     */
+    export function declaresSingleton<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): boolean {
+        return ResolvedEndpoint.of(endpoint, pass).deviceTypes.some(deviceType =>
+            deviceType.requirements.some(
+                requirement =>
+                    requirement.element === RequirementElement.ElementType.ServerCluster &&
+                    requirement.quality.singleton,
             ),
         );
     }
@@ -402,9 +428,7 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
             const knownNames = new Set([...conditionScopeOf(deviceType, pass).values()].map(c => c.name));
 
             for (const requirement of deviceType.requirements) {
-                const condition = assertedConditions.get(pass.model, requirement, () =>
-                    RequirementResolver.conditionOf(requirement),
-                );
+                const condition = lookupsFor(pass.model).assertedConditionOf(requirement);
                 if (
                     condition !== undefined &&
                     requirementApplicability(requirement, names, knownNames) === Conformance.Applicability.Mandatory
@@ -460,7 +484,7 @@ function reachingIn<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
     const boundaries = new Array<E>();
 
     const visit = (endpoint: E) => {
-        if (reaches(endpoint, pass)) {
+        if (ConditionAssertions.reaches(endpoint, pass)) {
             reaching.push(endpoint);
         }
         for (const child of ResolvedEndpoint.of(endpoint, pass).children) {
@@ -474,28 +498,6 @@ function reachingIn<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
     visit(nodeEndpoint);
 
     return { reaching, boundaries };
-}
-
-/**
- * Whether {@link endpoint} is a {@link ConditionAssertions.reachingEndpointsOf reaching endpoint} of its node scope.
- * A server cluster requirement that declares a singleton counts whether or not the cluster resolves, so the caller
- * that reads the declarations decides.
- *
- * Reads only device types and server clusters, whose changes the owner of a memory must note; a kept list stays
- * correct only while that holds.
- */
-function reaches<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
-    return (
-        ConditionAssertions.reachesNodeScope(endpoint, pass) ||
-        ConditionAssertions.assertsOnNodeEndpoint(endpoint, pass) ||
-        ResolvedEndpoint.of(endpoint, pass).deviceTypes.some(deviceType =>
-            deviceType.requirements.some(
-                requirement =>
-                    requirement.element === RequirementElement.ElementType.ServerCluster &&
-                    requirement.quality.singleton,
-            ),
-        )
-    );
 }
 
 /**
@@ -664,13 +666,13 @@ function conditionScopesOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
 }
 
 /**
- * {@link RequirementResolver.conditionsOf}, which walks every device type of the model, once per device type and
- * model instance.
+ * {@link deviceType}'s conditions, resolved once per device type and model instance, shared by every pass resolved
+ * in {@link pass}'s model.
  *
  * @internal
  */
 export function conditionScopeOf<E>(deviceType: DeviceTypeModel, pass: DeviceTypeValidationPass<E>) {
-    return conditionScopes.get(pass.model, deviceType, () => RequirementResolver.conditionsOf(deviceType));
+    return lookupsFor(pass.model).conditionScopeOf(deviceType);
 }
 
 function resolveStated(scopes: Map<string, ConditionModel>[], name: string) {

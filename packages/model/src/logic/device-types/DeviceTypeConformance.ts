@@ -7,19 +7,14 @@
 import { Conformance } from "../../aspects/Conformance.js";
 import { DeviceClassification } from "../../common/DeviceClassification.js";
 import { RequirementElement } from "../../elements/RequirementElement.js";
-import { ClusterModel, DeviceTypeModel, Model, RequirementModel, ValueModel } from "../../models/index.js";
+import { DeviceTypeModel, Model, RequirementModel, ValueModel } from "../../models/index.js";
 import { requirementApplicability } from "../RequirementApplicability.js";
 import { RequirementResolver } from "../RequirementResolver.js";
-import { ConditionAssertions, conditionScopeOf } from "./ConditionAssertions.js";
+import { ConditionAssertions } from "./ConditionAssertions.js";
 import { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
 import { DeviceTypeViolation } from "./DeviceTypeViolation.js";
+import { lookupsFor } from "./ModelLookups.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
-
-const clusterMemo = new DeviceTypeValidationPass.ModelMemo<RequirementModel, ClusterModel | undefined>();
-const referentMemo = new DeviceTypeValidationPass.ModelMemo<RequirementModel, Model | undefined>();
-const baseMemo = new DeviceTypeValidationPass.ModelMemo<undefined, DeviceTypeModel[]>();
-const aggregatorMemo = new DeviceTypeValidationPass.ModelMemo<undefined, DeviceTypeModel | undefined>();
-const knownNameMemo = new DeviceTypeValidationPass.ModelMemo<RequirementModel, KnownNames>();
 
 /**
  * Judge a constructed endpoint against the device types it declares.
@@ -87,11 +82,7 @@ export namespace DeviceTypeConformance {
         if (deviceTypes.length) {
             // Every device type derives from Base, so its requirements apply once per endpoint rather than once per
             // device type
-            deviceTypes.push(
-                ...baseMemo.get(model, undefined, () =>
-                    model.deviceTypes.filter(deviceType => deviceType.classification === DeviceClassification.Base),
-                ),
-            );
+            deviceTypes.push(...lookupsFor(model).baseDeviceTypes);
         }
 
         for (const deviceType of deviceTypes) {
@@ -108,7 +99,7 @@ export namespace DeviceTypeConformance {
         // Base and a device type may state the same requirement; the device type's own report is kept
         const unique = new Map<string, DeviceTypeViolation<E>>();
         for (const violation of violations) {
-            const key = `${violation.kind} ${violation.requirement}`;
+            const key = DeviceTypeViolation.keyOf(violation);
             if (!unique.has(key)) {
                 unique.set(key, violation);
             }
@@ -165,18 +156,6 @@ export namespace DeviceTypeConformance {
                 : undefined,
         );
         return violations;
-    }
-
-    /**
-     * Whether a device type of {@link endpoint} declares a server cluster a singleton, which {@link check} then judges
-     * on every endpoint of the endpoint's node scope.
-     *
-     * @see {@link MatterSpecification.v16.Core} § 7.7.3
-     *
-     * @internal
-     */
-    export function declaresSingleton<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
-        return pass.declarations.get(endpoint, () => singletonsOf([endpoint], pass)).size > 0;
     }
 
     /**
@@ -252,7 +231,8 @@ function checkClusters<E>(context: Context<E>, requirements: RequirementModel[])
 
 function checkCluster<E>(context: Context<E>, requirement: RequirementModel, side: "server" | "client") {
     const { pass } = context;
-    const cluster = clusterMemo.get(pass.model, requirement, () => RequirementResolver.clusterOf(requirement));
+    const lookups = lookupsFor(pass.model);
+    const cluster = lookups.clusterOf(requirement);
     if (cluster?.id === undefined) {
         return;
     }
@@ -282,14 +262,14 @@ function checkCluster<E>(context: Context<E>, requirement: RequirementModel, sid
 
         switch (nested.element) {
             case RequirementElement.ElementType.Feature:
-                referent = referentMemo.get(pass.model, nested, () => RequirementResolver.featureOf(nested));
+                referent = lookups.referentOf(nested);
                 present = referent !== undefined && features.has(referent.name);
                 break;
 
             case RequirementElement.ElementType.Attribute:
             case RequirementElement.ElementType.Command:
             case RequirementElement.ElementType.Event:
-                referent = referentMemo.get(pass.model, nested, () => RequirementResolver.elementOf(nested));
+                referent = lookups.referentOf(nested);
                 present = referent !== undefined && context.facts.supports(name, referent);
                 break;
 
@@ -368,7 +348,7 @@ function isProvisional(definition: Model) {
  * not judged.
  */
 function applicabilityOf<E>(requirement: RequirementModel, trueNames: Set<string>, pass: DeviceTypeValidationPass<E>) {
-    const { all, features } = knownNamesOf(requirement, pass);
+    const { all, features } = lookupsFor(pass.model).knownNamesOf(requirement);
     const applicability = requirementApplicability(requirement, trueNames, all);
 
     // A condition is a maker's statement, so only an X or a feature term disallows
@@ -380,43 +360,6 @@ function applicabilityOf<E>(requirement: RequirementModel, trueNames: Set<string
     }
 
     return applicability;
-}
-
-/**
- * The declared names a requirement's conformance may reference.
- */
-interface KnownNames {
-    /**
-     * The conditions reachable unqualified from the requirement's {@link RequirementResolver.EndpointScope} and the
-     * features of its cluster. A name outside them leaves the requirement unjudged.
-     */
-    all: Set<string>;
-
-    /**
-     * The features of the requirement's cluster.
-     */
-    features: Set<string>;
-}
-
-function knownNamesOf<E>(requirement: RequirementModel, pass: DeviceTypeValidationPass<E>) {
-    return knownNameMemo.get(pass.model, requirement, () => knownNamesIn(requirement, pass));
-}
-
-function knownNamesIn<E>(requirement: RequirementModel, pass: DeviceTypeValidationPass<E>): KnownNames {
-    const { deviceType, cluster } = RequirementResolver.endpointScopeOf(requirement);
-    const features = new Set((cluster?.features ?? []).map(({ name }) => name));
-    const all = new Set(features);
-
-    if (deviceType !== undefined) {
-        for (const [key, condition] of conditionScopeOf(deviceType, pass)) {
-            // A qualified entry names a condition of any device type, which the requirement cannot reach
-            if (!key.includes(".")) {
-                all.add(condition.name);
-            }
-        }
-    }
-
-    return { all, features };
 }
 
 /**
@@ -959,9 +902,7 @@ function singletonsOf<E>(declarers: Iterable<E>, pass: DeviceTypeValidationPass<
                     continue;
                 }
 
-                const cluster = clusterMemo.get(pass.model, requirement, () =>
-                    RequirementResolver.clusterOf(requirement),
-                );
+                const cluster = lookupsFor(pass.model).clusterOf(requirement);
                 if (cluster?.id === undefined) {
                     continue;
                 }
@@ -1021,8 +962,7 @@ const AGGREGATED: ReadonlySet<string> = new Set(["Descriptor.TAGLIST"]);
  */
 function baseWaiversOf<E>(facts: ResolvedEndpoint<E>, pass: DeviceTypeValidationPass<E>) {
     const owner = pass.facts.parentOf(facts.endpoint);
-    const { model } = pass;
-    const aggregator = aggregatorMemo.get(model, undefined, () => model.deviceTypes("Aggregator"));
+    const aggregator = lookupsFor(pass.model).aggregator;
     if (owner === undefined || aggregator === undefined) {
         return NONE;
     }

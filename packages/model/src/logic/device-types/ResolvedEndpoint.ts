@@ -11,8 +11,7 @@ import { ClusterElement } from "../../elements/ClusterElement.js";
 import { AttributeModel, ClusterModel, CommandModel, DeviceTypeModel, EventModel, Model } from "../../models/index.js";
 import { Scope } from "../Scope.js";
 import { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
-
-const deviceTypeMemo = new DeviceTypeValidationPass.ModelMemo<number, DeviceTypeModel | undefined>();
+import { lookupsFor } from "./ModelLookups.js";
 
 /**
  * The facts about an endpoint that a device type's requirements are judged against, as {@link DeviceTypeFacts}
@@ -33,6 +32,11 @@ export class ResolvedEndpoint<E> {
     #deviceTypes?: DeviceTypeModel[];
     #servers?: Map<string, ClusterModel>;
     #clients?: Map<string, ClusterModel>;
+    #serverNames?: ReadonlySet<string>;
+    #clientNames?: ReadonlySet<string>;
+    #serverNamesById?: Map<number, string>;
+    #clientNamesById?: Map<number, string>;
+    readonly #features = new Map<string, ReadonlySet<string>>();
     #compositionScope?: E[];
     #compositionMembers?: Set<E>;
 
@@ -60,10 +64,9 @@ export class ResolvedEndpoint<E> {
     get deviceTypes(): DeviceTypeModel[] {
         if (this.#deviceTypes === undefined) {
             this.#deviceTypes = new Array<DeviceTypeModel>();
-            for (const deviceType of this.#pass.facts.deviceTypeIdsOf(this.#endpoint)) {
-                const model = deviceTypeMemo.get(this.#pass.model, deviceType, () =>
-                    this.#pass.model.deviceTypes(deviceType),
-                );
+            const lookups = lookupsFor(this.#pass.model);
+            for (const id of this.#pass.facts.deviceTypeIdsOf(this.#endpoint)) {
+                const model = lookups.deviceTypeOf(id);
                 if (model !== undefined) {
                     this.#deviceTypes.push(model);
                 }
@@ -76,14 +79,16 @@ export class ResolvedEndpoint<E> {
      * Names of the server clusters on the endpoint.
      */
     get servers(): ReadonlySet<string> {
-        return new Set(this.#serverClusters.keys());
+        this.#serverNames ??= new Set(this.#serverClusters.keys());
+        return this.#serverNames;
     }
 
     /**
      * Names of the client clusters on the endpoint.
      */
     get clients(): ReadonlySet<string> {
-        return new Set(this.#clientClusters.keys());
+        this.#clientNames ??= new Set(this.#clientClusters.keys());
+        return this.#clientNames;
     }
 
     /**
@@ -91,12 +96,12 @@ export class ResolvedEndpoint<E> {
      * or undefined when the endpoint has no such cluster.
      */
     clusterName(side: "server" | "client", id: number): string | undefined {
-        const clusters = side === "server" ? this.#serverClusters : this.#clientClusters;
-        for (const [name, cluster] of clusters) {
-            if (cluster.id === id) {
-                return name;
-            }
+        if (side === "server") {
+            this.#serverNamesById ??= byId(this.#serverClusters);
+            return this.#serverNamesById.get(id);
         }
+        this.#clientNamesById ??= byId(this.#clientClusters);
+        return this.#clientNamesById.get(id);
     }
 
     /**
@@ -116,7 +121,12 @@ export class ResolvedEndpoint<E> {
      * The codes of the features the endpoint's server {@link cluster} supports; empty when there is no such server.
      */
     features(cluster: string): ReadonlySet<string> {
-        return new Set(this.#serverClusters.get(cluster)?.supportedFeatures ?? []);
+        let features = this.#features.get(cluster);
+        if (features === undefined) {
+            features = new Set(this.#serverClusters.get(cluster)?.supportedFeatures ?? []);
+            this.#features.set(cluster, features);
+        }
+        return features;
     }
 
     /**
@@ -234,4 +244,14 @@ function byName(clusters: Iterable<ClusterModel>) {
         named.set(cluster.name, cluster);
     }
     return named;
+}
+
+function byId(clusters: ReadonlyMap<string, ClusterModel>) {
+    const ids = new Map<number, string>();
+    for (const [name, cluster] of clusters) {
+        if (cluster.id !== undefined && !ids.has(cluster.id)) {
+            ids.set(cluster.id, name);
+        }
+    }
+    return ids;
 }

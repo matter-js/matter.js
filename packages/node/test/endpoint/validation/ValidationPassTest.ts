@@ -56,27 +56,7 @@ function lightingFeatureModel(conformance: string) {
     return model;
 }
 
-describe("DeviceTypeValidationPass.ModelMemo", () => {
-    it("does not share entries between model instances", () => {
-        const memo = new DeviceTypeValidationPass.ModelMemo<string, number>();
-        const modelA = new MatterModel({}, new DeviceTypeModel({ name: "Base", classification: "base" }));
-        const modelB = new MatterModel({}, new DeviceTypeModel({ name: "Base", classification: "base" }));
-
-        let computations = 0;
-        const computeFor = (value: number) => () => {
-            computations++;
-            return value;
-        };
-
-        expect(memo.get(modelA, "key", computeFor(1))).equals(1);
-        expect(memo.get(modelB, "key", computeFor(2))).equals(2);
-        expect(computations).equals(2);
-
-        expect(memo.get(modelA, "key", computeFor(999))).equals(1);
-        expect(memo.get(modelB, "key", computeFor(999))).equals(2);
-        expect(computations).equals(2);
-    });
-
+describe("model-scoped lookups", () => {
     it("resolves a device type's conditions once per model, shared by every pass resolved in it", () => {
         const deviceType = requireDeviceType("OnOffLight");
 

@@ -70,4 +70,12 @@ export namespace DeviceTypeViolation {
      * first departure from the closest instance.
      */
     export type Kind = "missing" | "disallowed" | "instanceCount" | "singletonMisplaced" | "unknownCondition";
+
+    /**
+     * The key that identifies {@link violation} on its endpoint: its kind and requirement path. Two violations with
+     * the same key report the same departure, so a caller deduplicating a violation list keys it by this.
+     */
+    export function keyOf<E>({ kind, requirement }: Pick<DeviceTypeViolation<E>, "kind" | "requirement">): string {
+        return `${kind} ${requirement}`;
+    }
 }

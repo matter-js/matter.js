@@ -6,7 +6,7 @@
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { Diagnostic, ImplementationError, MatterAggregateError } from "@matter/general";
-import type { DeviceTypeViolation } from "@matter/model";
+import { DeviceTypeViolation } from "@matter/model";
 
 /**
  * A {@link DeviceTypeViolation} of an {@link Endpoint}.
@@ -15,6 +15,7 @@ export type Violation = DeviceTypeViolation<Endpoint>;
 
 export namespace Violation {
     export type Kind = DeviceTypeViolation.Kind;
+    export const keyOf = DeviceTypeViolation.keyOf;
 }
 
 /**
