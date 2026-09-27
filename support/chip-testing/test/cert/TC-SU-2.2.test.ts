@@ -17,6 +17,7 @@ import { certTest, UnsupportedByControllerError } from "@matter/testing";
 import { SPEC_INTERVALS_ARG } from "../../src/OtaRequestorTestInstance.js";
 import { BDX_RECEIVER_ROLES, serveOtaTransfer } from "./tc-bdx-support.js";
 import {
+    latestRequestorStateChange,
     OtaQueryStatus,
     queryStatusName,
     recordRequestorIdle,
@@ -256,11 +257,7 @@ async function recordNoTransferOf(
     offered: (response: OtaQueryImageResponseRecord) => CheckRecord,
 ) {
     const node = cx.controllers.th.node(commissioned.require("th", "the DUT"));
-    const before = await requestorStateChanges(node);
-    const after = before.reduce<bigint | undefined>(
-        (latest, { eventNumber }) => (latest === undefined || eventNumber > latest ? eventNumber : latest),
-        undefined,
-    );
+    const after = await latestRequestorStateChange(node);
 
     const { exchanges, observedMs } = await announceWith(cx, [offer, { status: OtaQueryStatus.NotAvailable }], {
         timeoutMs: SPACED_QUERY_TIMEOUT,
@@ -408,7 +405,6 @@ certTest("TC-SU-2.2", {
         'DUT sends a QueryImage command to the TH/OTA-P. TH/OTA-P sends a QueryImageResponse back to DUT. QueryStatus is set to "UpdateAvailable", ImageURI should have the https url from where the image can be downloaded. (11.19.6.8)',
         async () => {},
         {
-            pics: "MCORE.OTA.HTTPS",
             notApplicable:
                 "the TH's provider offers images over BDX only, so it cannot give the https ImageURI this step needs",
             expected: "Verify that the DUT queries the https url and downloads the software image.",
