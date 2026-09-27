@@ -358,6 +358,11 @@ export class GroupcastServer extends GroupcastBase {
             }
         }
 
+        if (keepsSenderOnly) {
+            // A group created through the Groups cluster exists only in the group table, which is about to lose its
+            // last endpoint; groupProperties keeps it a member
+            this.#upsertGroupProperties(fabricIndex, groupId, { mcastAddrPolicy: entry.mcastAddrPolicy });
+        }
         for (const ep of removedEndpoints) {
             gkm.removeEndpoint(fabric, ep, groupId);
         }
@@ -368,8 +373,7 @@ export class GroupcastServer extends GroupcastBase {
 
         this.#deriveMembership();
 
-        // Marked only once the method is committing successfully, so a throw earlier in this method never leaves
-        // a leaked mark for the offline groupTable$Changed prune to wrongly consume later.
+        // Marked last, so a throw earlier in this method leaves no mark for the offline groupTable$Changed prune
         if (keepsSenderOnly) {
             this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
         }

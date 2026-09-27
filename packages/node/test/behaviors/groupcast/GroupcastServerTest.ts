@@ -5,7 +5,7 @@
  */
 
 import { AccessControlServer } from "#behaviors/access-control";
-import { GroupKeyManagementServer } from "#behaviors/group-key-management";
+import { GroupKeyManagementClient, GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastClient, GroupcastServer } from "#behaviors/groupcast";
 import { GroupsClient } from "#behaviors/groups";
 import { ServerNode } from "#node/ServerNode.js";
@@ -892,6 +892,51 @@ describe("GroupcastServer", () => {
             expect(
                 node.stateOf(AccessControlServer).auxiliaryAcl?.some(e => e.subjects?.includes(NodeId(BigInt(0x0103)))),
             ).equals(false);
+        });
+
+        it("LeaveGroup of all endpoints keeps a group created through the Groups cluster as sender-only", async () => {
+            const GroupcastRoot = ServerNode.RootEndpoint.with(
+                GroupcastServer.with("Listener", "Sender", "PerGroup"),
+                GroupKeyManagementServer,
+                AccessControlServer.with("Extension", "Auxiliary"),
+            );
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({ device: { type: GroupcastRoot } });
+            const peer = controller.peers.get("peer1")!;
+            const [fabric] = [...device.env.get(FabricManager)];
+            const groupId = GroupId(0x0105);
+
+            await MockTime.resolve(
+                peer.commandsOf(GroupKeyManagementClient).keySetWrite({
+                    groupKeySet: {
+                        groupKeySetId: 1,
+                        groupKeySecurityPolicy: 0,
+                        epochKey0: TEST_KEY,
+                        epochStartTime0: 18446744073709551612n,
+                        epochKey1: null,
+                        epochStartTime1: null,
+                        epochKey2: null,
+                        epochStartTime2: null,
+                    },
+                }),
+            );
+            await MockTime.resolve(
+                peer.setStateOf(GroupKeyManagementClient, {
+                    groupKeyMap: [{ groupId, groupKeySetId: 1, fabricIndex: fabric.fabricIndex }],
+                }),
+            );
+            await MockTime.resolve(peer.endpoints.for(1).commandsOf(GroupsClient).addGroup({ groupId, groupName: "" }));
+            expect(device.stateOf(GroupcastServer).groupProperties.some(p => p.groupId === groupId)).equals(false);
+
+            const response = await MockTime.resolve(
+                peer.commandsOf(GroupcastClient).leaveGroup({ groupId, endpoints: [EndpointNumber(1)] }),
+            );
+
+            expect(response.endpoints).deep.equal([EndpointNumber(1)]);
+            // The groupTable$Changed prune runs offline after the command; the group must survive it
+            await MockTime.advance(1000);
+            const member = device.stateOf(GroupcastServer).membership.find(m => m.groupId === groupId);
+            expect(member?.endpoints).deep.equal([]);
         });
 
         it("legacy RemoveAllGroups does not touch a sender-only group", async () => {
