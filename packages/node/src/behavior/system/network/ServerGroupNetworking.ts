@@ -4,16 +4,42 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Construction, Environment, InternalError, Logger, ObserverGroup, UdpTransport } from "@matter/general";
+import {
+    Construction,
+    Duration,
+    Environment,
+    InternalError,
+    Logger,
+    ObserverGroup,
+    Seconds,
+    Time,
+    UdpTransport,
+} from "@matter/general";
 import { Fabric, FabricManager } from "@matter/protocol";
 import { FabricIndex, GroupId } from "@matter/types";
 
 const logger = Logger.get("ServerGroupNetworking");
 
+const JOIN_RETRY_INTERVAL = Seconds(30);
+
+/**
+ * Joins the multicast address of every group the fabrics use on the node's UDP transport and follows group changes.
+ * An address stays joined while any fabric still uses it.
+ */
 export class ServerGroupNetworking {
     #construction: Construction<ServerGroupNetworking>;
     #udpInterface: UdpTransport;
-    #activeGroupMemberships = new Map<FabricIndex, Map<GroupId, string>>();
+
+    /** Address each group of each fabric wants to receive on.  Updated synchronously by the group observers. */
+    #desired = new Map<FabricIndex, Map<GroupId, string>>();
+
+    /** Addresses the socket has actually joined.  Changed only after addMembership/dropMembership succeeded. */
+    #joined = new Set<string>();
+
+    #reconciling?: Promise<void>;
+    #reconcileRequested = false;
+    #closed = false;
+    #joinRetry = Time.getTimer("Retry multicast joins", JOIN_RETRY_INTERVAL, () => this.#reconcile());
     #fabricObservers = new Map<FabricIndex, ObserverGroup>();
     #observers = new ObserverGroup(this);
 
@@ -21,10 +47,6 @@ export class ServerGroupNetworking {
         return this.#construction;
     }
 
-    /**
-     * The server group networking is not implemented in the Node.js environment.
-     * This class is a placeholder to maintain compatibility with the Matter.js architecture.
-     */
     constructor(env: Environment, udpInterface: UdpTransport) {
         this.#udpInterface = udpInterface;
         this.#construction = Construction(this);
@@ -35,97 +57,136 @@ export class ServerGroupNetworking {
         const fabrics = env.get(FabricManager);
 
         for (const fabric of fabrics) {
-            if (this.#activeGroupMemberships.has(fabric.fabricIndex)) {
+            if (this.#desired.has(fabric.fabricIndex)) {
                 throw new InternalError("Group transport interfaces already initialized for this fabric.");
             }
-            for (const groupId of fabric.groups.groupKeyIdMap.keys()) {
-                await this.#addGroupMembership(groupId, fabric);
+            for (const groupId of fabric.groups.endpoints.keys()) {
+                this.#want(groupId, fabric);
             }
-
             this.#registerFabricGroupObserver(fabric);
         }
 
         // When new fabric is added we register for group changes - new fabrics cannot have groups already configured
-        this.#observers.on(fabrics.events.added, async fabric => this.#registerFabricGroupObserver(fabric));
+        this.#observers.on(fabrics.events.added, fabric => this.#registerFabricGroupObserver(fabric));
 
-        // When fabric is deleted, we remove the group memberships
-        this.#observers.on(fabrics.events.deleting, async fabric => {
+        this.#observers.on(fabrics.events.deleting, fabric => {
             const fabricIndex = fabric.fabricIndex;
             this.#observersForFabric(fabricIndex).close();
             this.#fabricObservers.delete(fabricIndex);
-
-            const memberships = this.#activeGroupMemberships.get(fabricIndex);
-            if (memberships === undefined || memberships.size === 0) {
-                this.#activeGroupMemberships.delete(fabricIndex);
-                return;
-            }
-            for (const groupId of memberships.keys()) {
-                await this.#dropGroupMembership(groupId, fabric);
-            }
-            this.#activeGroupMemberships.delete(fabricIndex);
+            this.#desired.delete(fabricIndex);
+            return this.#reconcile();
         });
 
-        this.#observers.on(fabrics.events.replaced, async fabric => {
+        this.#observers.on(fabrics.events.replaced, fabric => {
             const fabricIndex = fabric.fabricIndex;
-
             this.#observersForFabric(fabricIndex).close();
             this.#fabricObservers.delete(fabricIndex);
             this.#registerFabricGroupObserver(fabric);
 
-            // Sync (add or remove as needed) by new group configuration
-            const { groupKeyIdMap } = fabric.groups;
-            for (const groupId of groupKeyIdMap.keys()) {
-                await this.#addGroupMembership(groupId, fabric);
+            this.#desired.delete(fabricIndex);
+            for (const groupId of fabric.groups.endpoints.keys()) {
+                this.#want(groupId, fabric);
             }
-            const memberships = this.#activeGroupMemberships.get(fabricIndex) ?? new Map<GroupId, string>();
-            if (memberships.size !== 0) {
-                for (const groupId of memberships.keys()) {
-                    if (!groupKeyIdMap.has(groupId)) {
-                        await this.#dropGroupMembership(groupId, fabric);
+            return this.#reconcile();
+        });
+
+        await this.#reconcile();
+    }
+
+    #want(groupId: GroupId, fabric: Fabric) {
+        const fabricIndex = fabric.fabricIndex;
+        let groups = this.#desired.get(fabricIndex);
+        if (groups === undefined) {
+            groups = new Map<GroupId, string>();
+            this.#desired.set(fabricIndex, groups);
+        }
+        groups.set(groupId, fabric.groups.multicastAddressFor(groupId));
+    }
+
+    #unwant(groupId: GroupId, fabricIndex: FabricIndex) {
+        const groups = this.#desired.get(fabricIndex);
+        groups?.delete(groupId);
+        if (groups?.size === 0) {
+            this.#desired.delete(fabricIndex);
+        }
+    }
+
+    /**
+     * Bring the joined addresses in line with the desired ones.  Runs serialized: a request while a run is active
+     * repeats the run once it completes, so every change is applied and no two runs touch the socket concurrently.
+     */
+    #reconcile(): Promise<void> {
+        this.#reconcileRequested = true;
+        // The run starts on the next microtask so this assignment precedes the run's own reset in its finally block
+        this.#reconciling ??= Promise.resolve().then(() => this.#runReconcile());
+        return this.#reconciling;
+    }
+
+    async #runReconcile() {
+        try {
+            await this.#reconcileUntilSettled();
+        } finally {
+            this.#reconciling = undefined;
+        }
+    }
+
+    async #reconcileUntilSettled() {
+        let failedJoin = false;
+        while (this.#reconcileRequested && !this.#closed) {
+            failedJoin = false;
+            this.#reconcileRequested = false;
+
+            const wanted = new Set<string>();
+            for (const groups of this.#desired.values()) {
+                for (const address of groups.values()) {
+                    wanted.add(address);
+                }
+            }
+
+            for (const address of [...this.#joined]) {
+                if (!wanted.has(address)) {
+                    await this.#leave(address);
+                }
+            }
+            for (const address of wanted) {
+                if (!this.#joined.has(address) && !this.#closed) {
+                    if (!(await this.#join(address))) {
+                        failedJoin = true;
                     }
                 }
             }
-        });
+        }
+        if (failedJoin && !this.#closed && !this.#joinRetry.isRunning) {
+            this.#joinRetry.start();
+        }
     }
 
-    async #addGroupMembership(groupId: GroupId, fabric: Fabric) {
-        const fabricIndex = fabric.fabricIndex;
-        const memberships = this.#activeGroupMemberships.get(fabricIndex) ?? new Map<GroupId, string>();
-        if (memberships.has(groupId)) {
-            return;
-        }
-        const address = fabric.groups.multicastAddressFor(groupId);
-        // Only join the multicast group if no other group in this fabric already uses the same address
-        // (multiple IanaAddr groups all share ff05::fa)
-        if (!Array.from(memberships.values()).includes(address)) {
-            logger.debug(
-                `Adding membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
-            );
+    async #join(address: string) {
+        logger.debug(`Joining multicast address ${address}`);
+        try {
             await this.#udpInterface.addMembership(address);
+            this.#joined.add(address);
+            return true;
+        } catch (error) {
+            logger.warn(
+                `Failed to join multicast address ${address}, retrying in ${Duration.format(JOIN_RETRY_INTERVAL)}`,
+                error,
+            );
+            return false;
         }
-        memberships.set(groupId, address);
-        this.#activeGroupMemberships.set(fabricIndex, memberships);
     }
 
-    async #dropGroupMembership(groupId: GroupId, fabric: Fabric) {
-        const fabricIndex = fabric.fabricIndex;
-        const memberships = this.#activeGroupMemberships.get(fabricIndex);
-        if (memberships === undefined || memberships.size === 0) {
-            return;
-        }
-        // Use the stored address (safer than re-deriving, policy may have changed)
-        const address = memberships.get(groupId) ?? fabric.groups.multicastAddressFor(groupId);
-        memberships.delete(groupId);
-        // Only leave the multicast group if no other group in this fabric still uses the same address
-        // (multiple IanaAddr groups all share ff05::fa)
-        if (!Array.from(memberships.values()).includes(address)) {
-            logger.debug(
-                `Dropping membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
-            );
+    async #leave(address: string) {
+        logger.debug(`Leaving multicast address ${address}`);
+        try {
             await this.#udpInterface.dropMembership(address);
-        }
-        if (!memberships.size) {
-            this.#activeGroupMemberships.delete(fabricIndex);
+            this.#joined.delete(address);
+        } catch (error) {
+            if (this.#closed) {
+                logger.debug(`Failed to leave multicast address ${address} during close`, error);
+            } else {
+                logger.warn(`Failed to leave multicast address ${address}`, error);
+            }
         }
     }
 
@@ -141,20 +202,47 @@ export class ServerGroupNetworking {
     #registerFabricGroupObserver(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
 
+        // Multicast membership follows group existence (groups with endpoints to receive for), not key availability:
+        // a group whose key mapping was removed still receives datagrams so Groupcast testing can report NoAvailableKey
         const observers = this.#observersForFabric(fabricIndex);
-        observers.on(
-            fabric.groups.groupKeyIdMap.added,
-            async groupId => await this.#addGroupMembership(groupId, fabric),
-        );
+        observers.on(fabric.groups.endpoints.added, groupId => {
+            this.#want(groupId, fabric);
+            return this.#reconcile();
+        });
+        observers.on(fabric.groups.endpoints.deleted, groupId => {
+            this.#unwant(groupId, fabricIndex);
+            return this.#reconcile();
+        });
 
-        observers.on(fabric.groups.groupKeyIdMap.deleted, async groupId => this.#dropGroupMembership(groupId, fabric));
+        // A group's resolved address can change independent of endpoint add/remove (e.g. Groupcast applying its
+        // policy after GKM has already restored endpoints on reload/fabric-replace).  The policy map emits before it
+        // commits the value, so the address is read after a yield.
+        const rebind = async (groupId: GroupId) => {
+            await Promise.resolve();
+            // A replaced fabric registers new observers; the old fabric's pending rebind must not overwrite its address
+            if (this.#fabricObservers.get(fabricIndex) === observers && this.#desired.get(fabricIndex)?.has(groupId)) {
+                this.#want(groupId, fabric);
+                await this.#reconcile();
+            }
+        };
+        observers.on(fabric.groups.multicastPolicy.added, rebind);
+        observers.on(fabric.groups.multicastPolicy.changed, rebind);
+        observers.on(fabric.groups.multicastPolicy.deleted, rebind);
     }
 
-    close() {
+    async close() {
         this.#construction.close();
         this.#observers.close();
         this.#fabricObservers.forEach(observer => observer.close());
-        this.#activeGroupMemberships.clear();
         this.#fabricObservers.clear();
+
+        // A Node dgram socket left with active memberships can hang on close() and block the runtime shutdown
+        this.#closed = true;
+        this.#joinRetry.stop();
+        this.#desired.clear();
+        await this.#reconciling;
+        for (const address of [...this.#joined]) {
+            await this.#leave(address);
+        }
     }
 }

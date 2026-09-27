@@ -1383,7 +1383,7 @@ export declare namespace DeviceEnergyManagement {
      */
     export enum Cause {
         /**
-         * The ESA completed the power adjustment as requested
+         * The ESA completed the adjustment as requested
          */
         NormalCompletion = 0,
 

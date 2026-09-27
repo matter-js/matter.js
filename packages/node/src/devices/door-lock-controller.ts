@@ -56,7 +56,7 @@ export namespace DoorLockControllerRequirements {
 export const DoorLockControllerDeviceDefinition = MutableEndpoint({
     name: "DoorLockController",
     deviceType: 0xb,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: DoorLockControllerRequirements,
     behaviors: SupportedBehaviors()
 });

@@ -135,9 +135,17 @@ export interface ActiveSessionInformation {
 export interface GroupMessageEventInfo {
     result: Groupcast.GroupcastTestResult;
     fabric?: Fabric;
+
+    /** Authenticated group id.  Only set when the message decoded successfully for a known fabric. */
     groupId?: GroupId;
+
+    /**
+     * Group id taken from the unauthenticated wire header of a message that failed decode.  Suitable to derive the
+     * multicast destination address for reporting, but must not be reported as the authenticated GroupID.
+     */
+    headerGroupId?: GroupId;
+
     sourceIp?: string;
-    destIp?: string;
     endpointId?: EndpointNumber;
     clusterId?: ClusterId;
     elementId?: number;
@@ -253,7 +261,7 @@ export class SessionManager {
         }
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
         assertActiveThreshold(this.#sessionParameters.activeThreshold);
-        this.#nextSessionId = crypto.randomUint16;
+        this.#nextSessionId = (crypto.randomUint16 % ID_SPACE_UPPER_BOUND) + 1;
         this.#globalUnencryptedMessageCounter = new MessageCounter(crypto);
 
         // When fabric is removed, also remove the resumption record
@@ -514,14 +522,18 @@ export class SessionManager {
         return oldest;
     }
 
+    /**
+     * Allocates a local ID for a new secure unicast session, PASE or CASE.  The ID is never 0 because 0 identifies the
+     * unsecured session.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 4.4.1.3.4
+     * @see {@link MatterSpecification.v16.Core} § 4.13.2.4
+     */
     async getNextAvailableSessionId() {
         await this.#construction;
 
         for (let i = 0; i < this.#idUpperBound; i++) {
-            const id = this.#nextSessionId;
-            this.#nextSessionId = (this.#nextSessionId + 1) & this.#idUpperBound;
-            if (this.#nextSessionId === 0) this.#nextSessionId++;
-
+            const id = this.#takeSessionId();
             if (this.getSession(id) === undefined) {
                 return id;
             }
@@ -534,7 +546,14 @@ export class SessionManager {
             await oldestSession.closeSubscriptions(true);
         });
         this.#nextSessionId = oldestSession.id;
-        return this.#nextSessionId++;
+        return this.#takeSessionId();
+    }
+
+    /** Returns the next candidate ID and advances the cursor, cycling through 1..{@link #idUpperBound}. */
+    #takeSessionId() {
+        const id = this.#nextSessionId;
+        this.#nextSessionId = (id % this.#idUpperBound) + 1;
+        return id;
     }
 
     getSession(sessionId: number) {
@@ -729,18 +748,34 @@ export class SessionManager {
      * Note that the resulting session is non-operational in the sense that attempting outbound communication will
      * result in an error.
      */
-    groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
+    groupSessionFromPacket(packet: DecodedPacket, aad: Bytes, sourceIp?: string) {
         this.#construction.assert();
         let decoded;
         try {
             decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
         } catch (error) {
-            // Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.  A failed
-            // decode is unauthenticated, so per the Groupcast spec we report only the result, never a group id.
+            // Per the Groupcast spec a failed decode reports only the result, never a group id.  The header group id is passed
+            // separately so the listener can derive the multicast address: from the plain wire header, or — when
+            // privacy obfuscates the header — from a key set that authenticated the message but is not mapped to any
+            // group, which also names that key set's fabric.
+            const headerGroupId =
+                !packet.header.hasPrivacyEnhancements && packet.header.destGroupId !== undefined
+                    ? GroupId(packet.header.destGroupId)
+                    : undefined;
             if (causedBy(error, GroupSessionNoKeyError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey });
+                const noKey = error instanceof GroupSessionNoKeyError ? error : undefined;
+                this.#onGroupMessage.emit({
+                    result: Groupcast.GroupcastTestResult.NoAvailableKey,
+                    fabric: noKey?.fabric,
+                    headerGroupId: headerGroupId ?? noKey?.groupId,
+                    sourceIp,
+                });
             } else if (causedBy(error, GroupSessionDecodeError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth });
+                this.#onGroupMessage.emit({
+                    result: Groupcast.GroupcastTestResult.FailedAuth,
+                    headerGroupId,
+                    sourceIp,
+                });
             }
             throw error;
         }
@@ -1043,7 +1078,6 @@ export class SessionManager {
      */
     compressIdRange(upperBound: number) {
         this.#idUpperBound = upperBound;
-        this.#nextSessionId = this.#context.fabrics.crypto.randomUint32 % upperBound;
-        if (this.#nextSessionId === 0) this.#nextSessionId++;
+        this.#nextSessionId = (this.#context.fabrics.crypto.randomUint32 % upperBound) + 1;
     }
 }

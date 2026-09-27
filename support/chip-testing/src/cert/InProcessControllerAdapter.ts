@@ -16,6 +16,7 @@ import {
     Endpoint,
     Environment,
     Filesystem,
+    IcdClient,
     ImplementationError,
     InternalError,
     Logger,
@@ -30,6 +31,7 @@ import {
     Seconds,
     ServerNode,
     Time,
+    TimeoutError,
     Timer,
     UnexpectedDataError,
 } from "@matter/main";
@@ -108,6 +110,9 @@ import type {
     BatchCommandResult,
     BatchCommandSpec,
     CertGroupApi,
+    CertIcdClientApi,
+    CertIcdEvent,
+    CertIcdRegistration,
     CertNodeApi,
     ClientAttributePath,
     ClientEndpointEntry,
@@ -132,6 +137,7 @@ import type {
     OtaAnnouncementRecord,
     OtaProviderExchanges,
     OtaProviderScript,
+    OtaScriptedQueryAnswer,
     OtaQueryImageExchange,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -198,6 +204,11 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "G.C.C04.Tx": 1,
     "G.C.C05.Tx": 1,
 
+    // The IcdManagement client commands `CertIcdClientApi` sends. The CHIP PICS file does not answer these.
+    "ICDM.C.C00.Tx": 1,
+    "ICDM.C.C02.Tx": 1,
+    "ICDM.C.C03.Tx": 1,
+
     // Every ScenesManagement client command TC-S-3.1 sends. The CHIP PICS file answers 0 for the
     // cluster and each command because it describes a device, which is not a scenes client.
     "S.C": 1,
@@ -217,6 +228,10 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "TBRM.C.C01.Tx": 1,
     "TBRM.C.C03.Tx": 1,
     "TBRM.C.C04.Tx": 1,
+
+    // The controller registers as an ICD Check-In client and refreshes its key (TC-ICDB-1.3). The CHIP
+    // PICS file answers only the server side.
+    "ICDB.C": 1,
 
     // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
     // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
@@ -428,9 +443,9 @@ export class OtaTransferError extends MatterError {}
  * both of which the SU cases whose DUT is the provider assert on. So the provider records what it
  * answered, and the requestor's log is what corroborates that the answer reached it.
  *
- * Recording only: every answer is `super`'s, so a case reads the provider matter.js ships rather than
- * one this harness shaped for it. An answer is recorded once `super` has produced it, so a command
- * this provider rejected leaves nothing in the record.
+ * Unless a case scripted it (`CertNodeApi.scriptOtaProvider`), every answer is `super`'s, so a case reads
+ * the provider matter.js ships rather than one this harness shaped for it. An answer is recorded once it
+ * was produced, so a command this provider rejected leaves nothing in the record.
  *
  * {@link OtaExchangeRecording} owns the record's lifetime; nothing else clears it or reads it live.
  */
@@ -483,6 +498,7 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
     }
 
     override async queryImage(request: OtaSoftwareUpdateProvider.QueryImageRequest) {
+        const receivedAtMs = Time.nowUs;
         const peer = this.#commandPeer;
         const scripted = this.#scriptFor(peer).queryImage.shift();
 
@@ -493,11 +509,13 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const response: OtaSoftwareUpdateProvider.QueryImageResponse =
             scripted?.status === undefined
                 ? withUserConsent(await super.queryImage(request), scripted?.userConsentNeeded)
-                : {
-                      status: scripted.status,
-                      delayedActionTime: scripted.delayedActionTime,
-                      userConsentNeeded: scripted.userConsentNeeded,
-                  };
+                : scripted.status === OtaSoftwareUpdateProvider.Status.UpdateAvailable
+                  ? this.#unheldUpdate(request, scripted)
+                  : {
+                        status: scripted.status,
+                        delayedActionTime: scripted.delayedActionTime,
+                        userConsentNeeded: scripted.userConsentNeeded,
+                    };
 
         this.#exchangesFor(peer).queryImage.push({
             request: {
@@ -520,9 +538,34 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 userConsentNeeded: response.userConsentNeeded,
                 metadataForRequestor: hexOrUndefined(response.metadataForRequestor),
             },
+            receivedAtMs,
         });
         this.internal.recorded.emit(peer);
         return response;
+    }
+
+    /**
+     * An `UpdateAvailable` for an image this provider does not hold, with the fields a script left open
+     * filled as the provider's own answer fills them.
+     */
+    #unheldUpdate(
+        request: OtaSoftwareUpdateProvider.QueryImageRequest,
+        scripted: OtaScriptedQueryAnswer,
+    ): OtaSoftwareUpdateProvider.QueryImageResponse {
+        assertRemoteActor(this.context);
+        const session = this.context.session;
+        NodeSession.assert(session);
+        const softwareVersion = scripted.softwareVersion ?? request.softwareVersion + 1;
+        return {
+            status: OtaSoftwareUpdateProvider.Status.UpdateAvailable,
+            imageUri:
+                scripted.imageUri ??
+                new FileDesignator(`ota/unheld-${softwareVersion}`).asBdxUri(session.associatedFabric.rootNodeId),
+            softwareVersion,
+            softwareVersionString: `${softwareVersion}.0.0`,
+            updateToken: this.env.get(Crypto).randomBytes(UNHELD_UPDATE_TOKEN_LENGTH),
+            userConsentNeeded: scripted.userConsentNeeded,
+        };
     }
 
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
@@ -587,23 +630,17 @@ class OtaExchangeRecording {
     #provider: Endpoint;
     #peer: string;
     #observers = new ObserverGroup();
-    #queried: Promise<void>;
-    #queryResolver: () => void;
+    #queried = createPromise<void>();
+    #notified = createPromise<void>();
 
-    private constructor(provider: Endpoint, peer: string, queried: Promise<void>, queryResolver: () => void) {
+    private constructor(provider: Endpoint, peer: string) {
         this.#provider = provider;
         this.#peer = peer;
-        this.#queried = queried;
-        this.#queryResolver = queryResolver;
-
-        // The race in `awaitQueryImage` stops awaiting when the budget expires first
-        queried.catch(() => {});
     }
 
     static async open(provider: Endpoint, peer: PeerAddress): Promise<OtaExchangeRecording> {
-        const { promise, resolver } = createPromise<void>();
         const key = peer.toString();
-        const recording = new OtaExchangeRecording(provider, key, promise, resolver);
+        const recording = new OtaExchangeRecording(provider, key);
 
         await provider.act(agent => {
             const behavior = agent.get(RecordingOtaProviderServer);
@@ -612,8 +649,15 @@ class OtaExchangeRecording {
             // Only this peer's answers: one provider endpoint serves every node the controller holds,
             // so another requestor's periodic query would otherwise settle this wait.
             recording.#observers.on(behavior.internal.recorded, recorded => {
-                if (recorded === key && (behavior.internal.exchanges.get(key)?.queryImage.length ?? 0) > 0) {
-                    recording.#queryResolver();
+                const exchanges = recorded === key ? behavior.internal.exchanges.get(key) : undefined;
+                if (exchanges === undefined) {
+                    return;
+                }
+                if (exchanges.queryImage.length > 0) {
+                    recording.#queried.resolver();
+                }
+                if (exchanges.notifyUpdateApplied.length > 0) {
+                    recording.#notified.resolver();
                 }
             });
         });
@@ -621,12 +665,22 @@ class OtaExchangeRecording {
         return recording;
     }
 
+    /** Resolves once the provider has recorded a `NotifyUpdateApplied`, or once `timeout` has passed. */
+    async awaitNotifyApplied(timeout: Duration) {
+        const expiry = Time.sleep("cert OTA notify applied", timeout);
+        try {
+            await Promise.race([this.#notified.promise, expiry]);
+        } finally {
+            expiry.cancel();
+        }
+    }
+
     /** Resolves once the provider has answered a `QueryImage`, rejecting where it never does. */
     async awaitQueryImage(nodeId: NodeId, timeout: Duration) {
         const expiry = Time.sleep("cert OTA query", timeout);
         try {
             await Promise.race([
-                this.#queried,
+                this.#queried.promise,
                 expiry.then(() => {
                     throw new OtaTransferError(
                         `Node id ${nodeId} did not query the announced OTA provider within ${timeout}`,
@@ -657,6 +711,9 @@ class OtaExchangeRecording {
         this.#observers.close();
     }
 }
+
+/** Token length the provider's own answers use, the top of the 8 to 32 bytes `UpdateToken` allows. */
+const UNHELD_UPDATE_TOKEN_LENGTH = 32;
 
 /** `response` with `UserConsentNeeded` set, where a script asked for it. */
 function withUserConsent(
@@ -1024,17 +1081,166 @@ function transportNameOf(type: ChannelType): CertSessionInfo["transport"] {
     }
 }
 
+/**
+ * The controller's {@link IcdClient} for one peer, recording the Check-Ins and key refreshes it accepts.
+ *
+ * One per peer {@link ClientNode}: a case registers in one step and waits for Check-Ins in later ones, and each step
+ * obtains a fresh {@link InProcessCertNodeApi}.
+ */
+class InProcessIcdClient implements CertIcdClientApi {
+    readonly peer: ClientNode;
+    readonly #adapterId: string;
+    readonly #ownNodeId: NodeId;
+    readonly #events = new Array<CertIcdEvent>();
+    readonly #waiters = new Set<() => void>();
+
+    constructor(adapterId: string, peer: ClientNode, ownNodeId: NodeId) {
+        this.#adapterId = adapterId;
+        this.#ownNodeId = ownNodeId;
+        this.peer = peer;
+
+        const events = peer.eventsOf(IcdClient);
+        events.checkedIn.on(({ counter }) => this.#push({ kind: "checkIn", counter }));
+
+        // A refresh replaces one starting counter with another; registration sets the first and clearing removes it.
+        // Committed by the time this fires, so state holds the new key
+        events.counterStart$Changed.on((counterStart, previous) => {
+            if (counterStart === undefined || previous === undefined) {
+                return;
+            }
+            const { key } = peer.stateOf(IcdClient);
+            if (key === undefined) {
+                logger.error(`IcdClient for ${peer} committed a new starting counter without a key`);
+                return;
+            }
+            this.#push({ kind: "keyRefresh", key: Bytes.of(key), counterStart });
+        });
+    }
+
+    register(options?: { allowMultiAdmin?: boolean }): Promise<CertIcdRegistration> {
+        return runTagged(this.#adapterId, async () => {
+            await this.peer.act("cert-icd-register", agent =>
+                agent.get(IcdClient).register({ allowMultiAdmin: options?.allowMultiAdmin }),
+            );
+            const { key, counterStart } = this.peer.stateOf(IcdClient);
+            if (key === undefined || counterStart === undefined) {
+                throw new InternalError(
+                    "IcdClient registered without recording what it sent and what the peer answered",
+                );
+            }
+            return { key: Bytes.of(key), nodeId: BigInt(this.#ownNodeId), icdCounter: counterStart };
+        });
+    }
+
+    unregister(): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            // IcdClient.unregister() is a silent no-op without a registration
+            if (!this.peer.stateOf(IcdClient).registered) {
+                throw new ImplementationError(`No ICD registration with ${this.peer} to unregister`);
+            }
+            await this.peer.act("cert-icd-unregister", agent => agent.get(IcdClient).unregister());
+        });
+    }
+
+    stayActive(durationMs: number): Promise<number> {
+        return runTagged(this.#adapterId, async () => {
+            const promised = await this.peer.act("cert-icd-stay-active", agent =>
+                agent.get(IcdClient).stayActive(Millis(durationMs)),
+            );
+            return Millis.of(promised);
+        });
+    }
+
+    stopSubscription(): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            await this.peer.set({ network: { autoSubscribe: false } });
+        });
+    }
+
+    events(): CertIcdEvent[] {
+        return [...this.#events];
+    }
+
+    waitFor<K extends CertIcdEvent["kind"]>(
+        kind: K,
+        from: number,
+        timeoutMs: number,
+    ): Promise<{ event: Extract<CertIcdEvent, { kind: K }>; index: number }> {
+        const isKind = (event: CertIcdEvent): event is Extract<CertIcdEvent, { kind: K }> => event.kind === kind;
+        const find = () => {
+            for (let index = from; index < this.#events.length; index++) {
+                const event = this.#events[index];
+                if (isKind(event)) {
+                    return { event, index };
+                }
+            }
+            return undefined;
+        };
+
+        const already = find();
+        if (already !== undefined) {
+            return Promise.resolve(already);
+        }
+
+        return new Promise((resolve, reject) => {
+            const waiter = () => {
+                const found = find();
+                if (found !== undefined) {
+                    timer.stop();
+                    this.#waiters.delete(waiter);
+                    resolve(found);
+                }
+            };
+            const timer = Time.getTimer("icd event wait", Millis(timeoutMs), () => {
+                this.#waiters.delete(waiter);
+                reject(
+                    new TimeoutError(
+                        `No ICD ${kind} recorded within ${Duration.format(Millis(timeoutMs))} (recorded: ${this.#events.length})`,
+                    ),
+                );
+            });
+            this.#waiters.add(waiter);
+            timer.start();
+        });
+    }
+
+    #push(event: CertIcdEvent) {
+        this.#events.push(event);
+        for (const waiter of [...this.#waiters]) {
+            waiter();
+        }
+    }
+}
+
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
     readonly #fabric: Fabric;
     readonly #nodeId: NodeId;
+    readonly #icdClients: Map<NodeId, InProcessIcdClient>;
 
-    constructor(adapterId: string, controller: ServerNode, fabric: Fabric, ref: CertNodeRef) {
+    constructor(
+        adapterId: string,
+        controller: ServerNode,
+        fabric: Fabric,
+        ref: CertNodeRef,
+        icdClients: Map<NodeId, InProcessIcdClient>,
+    ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
         this.#fabric = fabric;
         this.#nodeId = NodeId(ref);
+        this.#icdClients = icdClients;
+    }
+
+    icdClient(): CertIcdClientApi {
+        const peer = this.#peer;
+        let client = this.#icdClients.get(this.#nodeId);
+        if (client?.peer !== peer) {
+            client = new InProcessIcdClient(this.#adapterId, peer, this.#fabric.nodeId);
+            this.#icdClients.set(this.#nodeId, client);
+        }
+        return client;
     }
 
     get #peer(): ClientNode {
@@ -1456,7 +1662,23 @@ class InProcessCertNodeApi implements CertNodeApi {
                     );
                 }
 
-                return { announcement, exchanges: (await recording?.read()) ?? emptyOtaExchanges() };
+                let observedMs = 0;
+                if (recording !== undefined && options?.observeMs !== undefined) {
+                    const observingSince = Time.nowUs;
+
+                    // A timer may fire a fraction of a millisecond before the monotonic clock says it is
+                    // due, and the window a caller checks has to have been covered in full
+                    while (observedMs < options.observeMs) {
+                        await Time.sleep("cert OTA observation", Millis(Math.ceil(options.observeMs - observedMs)));
+                        observedMs = Time.nowUs - observingSince;
+                    }
+                }
+
+                return {
+                    announcement,
+                    exchanges: (await recording?.read()) ?? emptyOtaExchanges(),
+                    observedMs,
+                };
             } finally {
                 recording?.close();
             }
@@ -1586,6 +1808,10 @@ class InProcessCertNodeApi implements CertNodeApi {
         // out its own unreachable-peer budget. The caller tears this controller down when the case
         // ends, so the exchange has to be over before this resolves.
         const applyAcknowledged = applied === undefined ? false : await applied.settled();
+
+        if (applyAcknowledged && options?.notifyAppliedTimeoutMs !== undefined) {
+            await recording.awaitNotifyApplied(Millis(options.notifyAppliedTimeoutMs));
+        }
 
         // After the apply wait, so a provider that answered an ApplyUpdateRequest while this was
         // waiting reports that answer rather than the state before it.
@@ -2184,6 +2410,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     #webRtcRequestor?: InProcessWebRtcRequestorApi;
     readonly #judgesAttestation: boolean;
     #attestation?: InProcessAttestationApi;
+    readonly #icdClients = new Map<NodeId, InProcessIcdClient>();
 
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
@@ -2365,7 +2592,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     }
 
     node(ref: CertNodeRef): CertNodeApi {
-        return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref);
+        return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref, this.#icdClients);
     }
 
     group(groupId: number): CertGroupApi {

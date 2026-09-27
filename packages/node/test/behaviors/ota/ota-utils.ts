@@ -10,7 +10,7 @@ import { OtaSoftwareUpdateRequestorServer } from "#behaviors/ota-software-update
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { ServerNode } from "#node/ServerNode.js";
-import { Bytes, createPromise, Crypto, MaybePromise, StandardCrypto } from "@matter/general";
+import { Bytes, createPromise, Crypto, Environment, MaybePromise, StandardCrypto } from "@matter/general";
 import {
     DclOtaUpdateService,
     OtaImageWriter,
@@ -203,10 +203,15 @@ export async function initOtaSite(
     TestOtaRequestorServer: typeof OtaSoftwareUpdateRequestorServer,
 ) {
     const site = new MockSite();
+
+    // Kept so a test can restart the device on the same network host and storage
+    const deviceEnvironment = new Environment("ota-device");
+
     // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
     const { controller, device } = await site.addCommissionedPair({
         device: {
             type: ServerNode.RootEndpoint,
+            environment: deviceEnvironment,
             parts: [{ id: "ota-requestor", type: OtaRequestorEndpoint.with(TestOtaRequestorServer) }],
         },
         controller: {
@@ -227,12 +232,44 @@ export async function initOtaSite(
         su.state.announceAsDefaultProvider = true;
     });
 
-    return { site, device, controller, otaProvider, otaRequestor };
+    return { site, device, controller, otaProvider, otaRequestor, deviceEnvironment };
+}
+
+/**
+ * Replaces `device` with a new node reading the storage the old one wrote, as a device restarting into new firmware
+ * does.  Nothing the old node held in memory reaches the new one.
+ *
+ * `deviceEnvironment` still holds the storage service, network host and crypto the site installed for the device.  The
+ * new node is not started, so a test can observe what it does on its first start, and the caller closes it.
+ */
+export async function restartDeviceFromStorage(
+    device: ServerNode,
+    deviceEnvironment: Environment,
+    TestOtaRequestorServer: typeof OtaSoftwareUpdateRequestorServer,
+    softwareVersion: number,
+) {
+    const { id } = device;
+    await MockTime.resolve(device.close());
+
+    const restarted = new ServerNode({
+        type: ServerNode.RootEndpoint,
+        id,
+        environment: deviceEnvironment,
+        basicInformation: { softwareVersion },
+        parts: [{ id: "ota-requestor", type: OtaRequestorEndpoint.with(TestOtaRequestorServer) }],
+    });
+    try {
+        await MockTime.resolve(restarted.construction);
+    } catch (error) {
+        await MockTime.resolve(restarted.close());
+        throw error;
+    }
+    return restarted;
 }
 
 export function InstrumentedOtaRequestorServer(
     expectedCalls: { applyUpdate?: boolean; announceOtaProvider?: boolean; requestUserConsent?: boolean },
-    data?: { expectedOtaImage: Bytes },
+    data?: { expectedOtaImage: Bytes; duringApply?: () => void },
 ): {
     applyUpdatePromise: Promise<void>;
     announceOtaProviderPromise: Promise<void>;
@@ -296,6 +333,7 @@ export function InstrumentedOtaRequestorServer(
                 expect(receivedData.byteLength).equals(data!.expectedOtaImage.byteLength);
                 expect(Bytes.areEqual(receivedData, data!.expectedOtaImage)).equals(true);
 
+                data?.duringApply?.();
                 applyUpdateResolver();
             } catch (error) {
                 applyUpdateRejecter(error);
@@ -325,8 +363,12 @@ export function InstrumentedOtaProviderServer(expectedCalls: {
     notifyUpdateAppliedPromise: Promise<void>;
     requestUserConsentForUpdatePromise: Promise<void>;
     checkUpdateAvailablePromise: Promise<void>;
+    queryImageResponses: OtaSoftwareUpdateProvider.QueryImageResponse[];
+    notifyUpdateAppliedRequests: OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest[];
     TestOtaProviderServer: typeof OtaSoftwareUpdateProviderServer;
 } {
+    const queryImageResponses = new Array<OtaSoftwareUpdateProvider.QueryImageResponse>();
+    const notifyUpdateAppliedRequests = new Array<OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest>();
     const {
         resolver: queryImageResolver,
         rejecter: queryImageRejecter,
@@ -362,7 +404,9 @@ export function InstrumentedOtaProviderServer(expectedCalls: {
                     queryImageRejecter(new Error("Unexpected call to queryImage"));
                 }
                 queryImageResolver();
-                return super.queryImage(request);
+                const response = await super.queryImage(request);
+                queryImageResponses.push(response);
+                return response;
             } catch (error) {
                 queryImageRejecter(error);
                 throw error;
@@ -389,6 +433,7 @@ export function InstrumentedOtaProviderServer(expectedCalls: {
                 if (expectedCalls.notifyUpdateApplied === false) {
                     notifyUpdateAppliedRejecter(new Error("Unexpected call to notifyUpdateApplied"));
                 }
+                notifyUpdateAppliedRequests.push(request);
                 notifyUpdateAppliedResolver();
                 return super.notifyUpdateApplied(request);
             } catch (error) {
@@ -437,6 +482,8 @@ export function InstrumentedOtaProviderServer(expectedCalls: {
         notifyUpdateAppliedPromise,
         requestUserConsentForUpdatePromise,
         checkUpdateAvailablePromise,
+        queryImageResponses,
+        notifyUpdateAppliedRequests,
         TestOtaProviderServer,
     };
 }

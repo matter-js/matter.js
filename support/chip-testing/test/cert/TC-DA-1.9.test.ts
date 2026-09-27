@@ -5,7 +5,7 @@
  */
 
 import { Duration, InternalError, Seconds } from "@matter/main";
-import type { CertStepContext, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
+import type { CertStepWiring, CertStepDefinition, PromptHandler, StepVerdict, Subject } from "@matter/testing";
 import {
     chip,
     createControllerAdapter,
@@ -101,7 +101,7 @@ function commissioningHandler(state: CaseState, linesSoFar: () => readonly strin
     return {
         pattern: /press enter to confirm/,
 
-        async action(cx: CertStepContext, promptText: string) {
+        async action(cx: CertStepWiring, promptText: string) {
             const attempt = state.attempts++;
             const vector = VECTORS[attempt] ?? `an eighth vector this case does not know about`;
             const expectSuccess = attempt === VECTORS.length - 1;
@@ -275,7 +275,7 @@ describe("TC-DA-1.9", () => {
             matterJsCommit: "(not recorded)",
         });
 
-        const cx: CertStepContext = { controllers: { dut }, devices: {}, recorder };
+        const cx: CertStepWiring = { controllers: { dut }, devices: {}, recorder };
         let test: PromptDrivenPythonTest | undefined;
         test = new PromptDrivenPythonTest(
             DESCRIPTOR,

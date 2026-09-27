@@ -25,6 +25,9 @@ import {
     CertDeviceFactory,
     CertStepContext,
     CertStepDefinition,
+    appArgsFor,
+    CertAppArgs,
+    CertStepWiring,
     CertTestDefinition,
     DeviceFlavor,
     SelectableDeviceFlavor,
@@ -101,9 +104,11 @@ export interface CertTestOptions {
      * and chip's own certification material passes that flag for the apply cases alone. A matter.js
      * subject reaches its own equivalent through `TestInstanceConfig.appArgs`, and ignores an argument
      * it does not implement — the evidence bundle records what each role was started with, so a flag
-     * that meant nothing on the running flavor is visible rather than assumed.
+     * that meant nothing on the running flavor is visible rather than assumed. A flag only one
+     * implementation knows goes under its key ({@link CertAppArgs}), since a chip app will not start
+     * on an argument it does not know.
      */
-    appArgs?: Record<string, string[]>;
+    appArgs?: Record<string, CertAppArgs>;
 
     /**
      * How this test's controllers reach their peers. `"tcp"` asks for a TCP-backed session, which the
@@ -179,7 +184,7 @@ function assertUsableRoleName(tc: string, role: string) {
  * device started the default way while its declaration says otherwise — which is the whole failure
  * the option exists to prevent.
  */
-function assertAppArgsRoles(tc: string, deviceRoles: Record<string, string>, appArgs?: Record<string, string[]>) {
+function assertAppArgsRoles(tc: string, deviceRoles: Record<string, string>, appArgs?: Record<string, CertAppArgs>) {
     if (appArgs === undefined) {
         return;
     }
@@ -508,7 +513,13 @@ function defineCertTest(
                 this.skip();
             }
 
-            await State.activateSubject(factory, false, test, undefined, definition.appArgs?.[primaryRole]);
+            await State.activateSubject(
+                factory,
+                false,
+                test,
+                undefined,
+                appArgsFor(definition.appArgs?.[primaryRole], flavor),
+            );
         });
 
         mochaTest.descriptor = test.descriptor;
@@ -596,7 +607,7 @@ export async function deviceRecordsFor(
     flavor: DeviceFlavor,
     deviceRoles: Record<string, string>,
     devices: Record<string, Pick<CertDevice, "appVariant" | "appArgs">>,
-    appArgs?: Record<string, string[]>,
+    appArgs?: Record<string, CertAppArgs>,
 ): Promise<RunDeviceRecord[]> {
     const refs = new Map<string, Promise<string | undefined>>();
 
@@ -618,7 +629,7 @@ export async function deviceRecordsFor(
                 // What the device reports having started with, as `appVariant` is: the harness adds
                 // what an app cannot start without, and a bundle naming only the declaration would
                 // omit an argument that changed the app's behaviour.
-                appArgs: device.appArgs ?? appArgs?.[role],
+                appArgs: device.appArgs ?? appArgsFor(appArgs?.[role], flavor),
                 chipRef: await ref,
             };
         }),
@@ -700,7 +711,7 @@ class WiredCertTest extends CertTest {
     #primaryRole: string;
     #controllerRoles: Record<string, "dut" | "helper">;
     #deviceRoles: Record<string, string>;
-    #cx?: CertStepContext;
+    #cx?: CertStepWiring;
     /** Held apart from {@link #cx} so teardown does not depend on how long the context lives. */
     #openControllers: Record<string, ControllerAdapter> = {};
     #extraDevices = new Array<CertDevice>();
@@ -753,14 +764,14 @@ class WiredCertTest extends CertTest {
         return this.#flavor;
     }
 
-    protected override contextFor(_subject: Subject): CertStepContext {
+    protected override contextFor(_subject: Subject): CertStepWiring {
         if (!this.#cx) {
             throw new Error("WiredCertTest.contextFor() called outside invoke()");
         }
         return this.#cx;
     }
 
-    async #buildContext(subject: Subject): Promise<CertStepContext> {
+    async #buildContext(subject: Subject): Promise<CertStepWiring> {
         if (!isCertDevice(subject)) {
             throw new Error(
                 `Cert-test subject for "${this.descriptor.name}" does not implement CertDevice ` +
@@ -791,7 +802,7 @@ class WiredCertTest extends CertTest {
                 // an endpoint id.
                 const device = factory(`${this.descriptor.kind ?? "cert"}-${role}`, {
                     identity: identityFor(++identityIndex),
-                    appArgs: this.definition.appArgs?.[role],
+                    appArgs: appArgsFor(this.definition.appArgs?.[role], this.#flavor),
                 });
                 extra.push(device);
                 await device.initialize();

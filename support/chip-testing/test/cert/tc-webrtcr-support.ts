@@ -9,7 +9,7 @@ import { StreamUsage } from "@matter/main/types";
 import type {
     CertNodeApi,
     CertNodeRef,
-    CertStepContext,
+    CertStepWiring,
     CertStepDefinition,
     PromptHandler,
     StepVerdict,
@@ -179,7 +179,7 @@ export interface CameraStep<S> {
      * the prompt that asks for a session id requires.
      */
     run(
-        cx: CertStepContext,
+        cx: CertStepWiring,
         session: CameraSession,
         state: S,
     ): Promise<StepVerdict | { verdict: StepVerdict; answer: string }>;
@@ -273,7 +273,7 @@ export function certCameraCase<S>(definition: CameraCase<S> & { begin?: () => S 
                 matterJsCommit: "(not recorded)",
             });
 
-            const cx: CertStepContext = { controllers: { dut }, devices: {}, recorder };
+            const cx: CertStepWiring = { controllers: { dut }, devices: {}, recorder };
 
             let test: PromptDrivenPythonTest | undefined;
             const startedAt = Time.nowUs;
@@ -427,7 +427,7 @@ function commissionHandler(definition: Pick<CameraCase, "commissioning">, state:
             : // Not anchored at the end: the scripts that print no pairing code end the line there today,
               // and a trailing space would otherwise stop the handler firing at all
               /Please commission the server app from DUT:(?! manual code)/,
-        async action(cx: CertStepContext, promptText: string) {
+        async action(cx: CertStepWiring, promptText: string) {
             const stepDef: CertStepDefinition = {
                 number: byManualCode ? "3" : "1",
                 text: promptText,
@@ -478,7 +478,7 @@ function stepHandler<S>(
 ): PromptHandler {
     return {
         pattern: step.prompt,
-        async action(cx: CertStepContext, promptText: string) {
+        async action(cx: CertStepWiring, promptText: string) {
             const number = typeof step.step === "string" ? step.step : step.step(state);
             const stepDef: CertStepDefinition = { number, text: promptText, run: async () => {} };
             cx.recorder.beginStep(stepDef);
@@ -698,7 +698,7 @@ async function exchangeCandidates(session: CameraSession, id: number): Promise<b
  * Records whether the session reached a connected peer connection, which is the plan's own wording,
  * and where it stopped when it did not.
  */
-export function expectEstablished(cx: CertStepContext, session: CameraSession, established: Established): boolean {
+export function expectEstablished(cx: CertStepWiring, session: CameraSession, established: Established): boolean {
     const stage = {
         "no-offer": "the provider sent no Offer the DUT accepted",
         "no-answer": "the provider sent no Answer the DUT accepted",
@@ -757,7 +757,7 @@ export async function endSession(session: CameraSession, id: number, reason: num
 
 /** Records the sessions the DUT's requestor cluster holds, which `CurrentSessions` reports. */
 export async function expectSessions(
-    cx: CertStepContext,
+    cx: CertStepWiring,
     session: CameraSession,
     expected: readonly number[],
 ): Promise<boolean> {
@@ -810,7 +810,7 @@ async function registerSession(session: CameraSession, id: number): Promise<void
  * throws instead.
  */
 export async function expectRefusal(
-    cx: CertStepContext,
+    cx: CertStepWiring,
     session: CameraSession,
     kind: WebRtcSignalRecord["kind"],
     held: number,
@@ -860,7 +860,7 @@ export async function expectRefusal(
  * says nothing about the DUT and throws rather than recording one.
  */
 export async function expectConstraintRefusal(
-    cx: CertStepContext,
+    cx: CertStepWiring,
     session: CameraSession,
     from: number,
     timeout: Duration = SIGNAL_TIMEOUT,
@@ -897,7 +897,7 @@ export async function expectConstraintRefusal(
  * establishes the session, so the registration may land after the refusal. What separates "refuses by
  * session id" from "refuses everything" is {@link expectControlAccepted}.
  */
-export async function expectSessionHeld(cx: CertStepContext, session: CameraSession, held: number): Promise<boolean> {
+export async function expectSessionHeld(cx: CertStepWiring, session: CameraSession, held: number): Promise<boolean> {
     const tracked = await session.requestor.sessions();
     const keptSession = tracked.some(entry => entry.id === held);
 
@@ -929,7 +929,7 @@ export async function expectSessionHeld(cx: CertStepContext, session: CameraSess
  * held; the response then confirms which id the provider actually chose.
  */
 export async function expectControlAccepted(
-    cx: CertStepContext,
+    cx: CertStepWiring,
     session: CameraSession,
     kind: WebRtcSignalRecord["kind"],
     held: number,
@@ -982,7 +982,7 @@ export async function expectControlAccepted(
  * so later batches naming the session the DUT holds are accepted by a conforming DUT.
  */
 export function expectNoneAccepted(
-    cx: CertStepContext,
+    cx: CertStepWiring,
     session: CameraSession,
     kind: WebRtcSignalRecord["kind"],
     refusedId: number,

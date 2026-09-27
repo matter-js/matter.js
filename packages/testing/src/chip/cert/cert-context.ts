@@ -210,7 +210,26 @@ export interface CertStepContext {
     controllers: Record<string, ControllerAdapter>;
     devices: Record<string, CertDevice>;
     recorder: StepRecorder;
+
+    /**
+     * Whether a PICS expression holds for this run, against the same PICS a step's own `pics` gate
+     * reads.
+     *
+     * For a plan step whose expected outcome depends on a PICS answer ("IF (X) … Otherwise …"): the
+     * step runs either way, and its check needs to know which outcome it is owed. A malformed
+     * expression throws, and so does a run with no active PICS, where a gate would treat every
+     * expression as met.
+     */
+    picsMet(expression: string): boolean;
 }
+
+/**
+ * What a run's wiring provides before {@link CertTest} adds what only it can answer.
+ *
+ * {@link CertStepContext.picsMet} rests on the PICS the run resolves once it starts, so the wiring cannot
+ * supply it.
+ */
+export type CertStepWiring = Omit<CertStepContext, "picsMet">;
 
 /**
  * A single step of a cert test plan.
@@ -261,5 +280,22 @@ export interface CertTestDefinition {
      */
     transport?: ControllerTransport;
     /** Role name → arguments that role's app starts with (see `cert-dsl.ts`'s `CertTestOptions`). */
-    appArgs?: Record<string, string[]>;
+    appArgs?: Record<string, CertAppArgs>;
+}
+
+/**
+ * Arguments one role's app starts with.
+ *
+ * A list goes to every flavor. A flag only one implementation understands goes under that
+ * implementation's key instead: chip's apps refuse to start on an argument they do not know, where a
+ * matter.js subject ignores one.
+ */
+export type CertAppArgs = string[] | { chip?: string[]; matterjs?: string[] };
+
+/** The arguments {@link CertAppArgs} gives the app a run of `flavor` starts. */
+export function appArgsFor(args: CertAppArgs | undefined, flavor: DeviceFlavor): string[] | undefined {
+    if (args === undefined || Array.isArray(args)) {
+        return args;
+    }
+    return flavor === "matterjs" ? args.matterjs : args.chip;
 }

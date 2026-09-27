@@ -949,25 +949,25 @@ export declare namespace ServiceArea {
      */
     export enum SelectAreasStatus {
         /**
-         * Attempting to operate in the areas identified by the entries of the NewAreas field is allowed and possible.
-         * The SelectedAreas attribute is set to the value of the NewAreas field.
+         * Attempting to operate in the areas identified by the entries of the NewAreas field is allowed and possible,
+         * the SelectedAreas attribute is set to the value of the NewAreas field
          */
         Success = 0,
 
         /**
          * The value of at least one of the entries of the NewAreas field doesn't match any entries in the
-         * SupportedAreas attribute.
+         * SupportedAreas attribute
          */
         UnsupportedArea = 1,
 
         /**
-         * The received request cannot be handled due to the current mode of the device.
+         * The received request cannot be handled due to the current mode of the device
          */
         InvalidInMode = 2,
 
         /**
          * The set of values is invalid. For example, areas on different floors, that a robot knows it can't reach on
-         * its own.
+         * its own
          */
         InvalidSet = 3
     }
@@ -978,7 +978,7 @@ export declare namespace ServiceArea {
     export enum SkipAreaStatus {
         /**
          * Skipping the area is allowed and possible, or the device was operating at the last available area and has
-         * stopped.
+         * stopped
          */
         Success = 0,
 
@@ -989,12 +989,12 @@ export declare namespace ServiceArea {
 
         /**
          * The received request cannot be handled due to the current mode of the device. For example, the CurrentArea
-         * attribute is null or the device is not operating.
+         * attribute is null or the device is not operating
          */
         InvalidInMode = 2,
 
         /**
-         * The SkippedArea field doesn't match an entry in the SupportedAreas list.
+         * The SkippedArea field doesn't match an entry in the SupportedAreas list
          */
         InvalidSkippedArea = 3
     }

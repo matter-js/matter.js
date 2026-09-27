@@ -17,6 +17,7 @@ import {
     CertDevice,
     CertStepContext,
     CertStepDefinition,
+    CertStepWiring,
     CertTestDefinition,
     CheckRecord,
     DeviceExitInfo,
@@ -65,7 +66,10 @@ export class CertTest extends BaseTest {
         _args: string[],
         _uncommissioned: boolean,
     ): Promise<void> {
-        const cx = this.contextFor(subject);
+        let picsFile: PicsFile | undefined;
+        const cx: CertStepContext = Object.assign(this.contextFor(subject), {
+            picsMet: (expression: string) => picsAnswer(expression, picsFile),
+        });
         const { devices } = cx;
 
         // A step's own checks are how the suite defines "something was observed" — AGENTS.md requires
@@ -157,7 +161,7 @@ export class CertTest extends BaseTest {
             // Inside the try: reading the subject's PICS, and resolving what the controller declares,
             // can both throw, and everything this run opened is closed by the teardown below.
             const subjectPics = resolvePicsFile(subject);
-            const picsFile = subjectPics && picsWithOverrides(subjectPics, this.#definition);
+            picsFile = subjectPics && picsWithOverrides(subjectPics, this.#definition);
 
             // Provenance reporting must never be why a run that would otherwise pass its steps
             // aborts before running any of them.
@@ -450,7 +454,7 @@ export class CertTest extends BaseTest {
      * Build the step context for a run.  Overridable so controller/device wiring can be layered on in
      * later tasks without changing {@link invoke}'s public contract.
      */
-    protected contextFor(_subject: Subject): CertStepContext {
+    protected contextFor(_subject: Subject): CertStepWiring {
         return {
             controllers: {},
             devices: {},
@@ -516,6 +520,28 @@ function stepPicsMet(stepDef: CertStepDefinition, picsFile: PicsFile | undefined
     }
 
     return new PicsExpression(stepDef.pics).evaluate(picsFile);
+}
+
+/**
+ * Thrown by {@link CertStepContext.picsMet} in a run with no active PICS, which fails the step.
+ *
+ * Its own type rather than {@link PicsUnavailableError}, which means the opposite to its catchers:
+ * that gating is inactive and the step may run. A plain `Error` because `packages/testing` carries no
+ * dependency on the library and therefore no `MatterError`.
+ */
+export class PicsUnansweredError extends Error {}
+
+/**
+ * {@link CertStepContext.picsMet}. Unlike a gate it cannot treat a missing PICS file as "met": a step
+ * asking which outcome it is owed would then be owed both `X` and `!X`.
+ */
+function picsAnswer(expression: string, picsFile: PicsFile | undefined): boolean {
+    const parsed = new PicsExpression(expression);
+    if (!picsFile) {
+        throw new PicsUnansweredError(`No active PICS answers "${expression}" for this step`);
+    }
+
+    return parsed.evaluate(picsFile);
 }
 
 const STEP_BANNER_RULE = "-".repeat(70);

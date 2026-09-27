@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FieldValue } from "@matter/model";
+import { FeatureMap, FieldValue } from "@matter/model";
 import { LocalMatter } from "../local.js";
 
 LocalMatter.children.push({
@@ -107,6 +107,30 @@ LocalMatter.children.push({
                 },
                 { tag: "field", id: 2, name: "Timeout", type: "uint16", conformance: "O" },
             ],
+        },
+        // The MatterScheduleConfiguration feature is provisional in fact although the specification does not mark it,
+        // so the feature and the elements it makes mandatory are marked provisional
+        {
+            tag: "attribute",
+            id: FeatureMap.id,
+            name: FeatureMap.name,
+            // Feature fields merge by bit (the constraint), which needs the bitmap type and the bit
+            type: "FeatureMap",
+            children: [{ tag: "field", name: "MSCH", constraint: "7", conformance: "P, O", asOf: "1.4" }],
+        },
+        { tag: "attribute", id: 0x49, name: "ScheduleTypes", conformance: "P, MSCH", asOf: "1.4" },
+        { tag: "attribute", id: 0x4b, name: "NumberOfSchedules", conformance: "P, MSCH", asOf: "1.4" },
+        { tag: "attribute", id: 0x4c, name: "NumberOfScheduleTransitions", conformance: "P, MSCH", asOf: "1.4" },
+        { tag: "attribute", id: 0x4d, name: "NumberOfScheduleTransitionPerDay", conformance: "P, MSCH", asOf: "1.4" },
+        { tag: "attribute", id: 0x4f, name: "ActiveScheduleHandle", conformance: "P, MSCH", asOf: "1.4" },
+        { tag: "attribute", id: 0x51, name: "Schedules", conformance: "P, MSCH", asOf: "1.4" },
+        {
+            tag: "command",
+            id: 0x5,
+            name: "SetActiveScheduleRequest",
+            direction: "request",
+            conformance: "P, MSCH",
+            asOf: "1.4",
         },
     ],
 });

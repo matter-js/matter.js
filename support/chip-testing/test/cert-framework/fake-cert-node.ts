@@ -17,6 +17,9 @@ import type { CertNodeApi } from "@matter/testing";
 export function fakeCertNode(overrides: Partial<CertNodeApi> = {}): CertNodeApi {
     const unused = () => Promise.reject(new InternalError("not used by these tests"));
     return {
+        icdClient: () => {
+            throw new InternalError("not used by these tests");
+        },
         invoke: unused,
         invokeBatch: unused,
         readAttribute: unused,

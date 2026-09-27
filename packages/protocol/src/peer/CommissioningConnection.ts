@@ -142,8 +142,9 @@ export async function CommissioningConnection(
                 if (!abort.aborted && !deviceAc.signal.aborted) {
                     const asErr = asError(error);
                     if (causedBy(asErr, UnexpectedDataError)) {
-                        // Wrong passcode — all addresses of this device will fail identically; cancel them now.
-                        logger.info(`Dropping device ${candidate.device.deviceIdentifier} due to invalid credentials`);
+                        // Wrong passcode or invalid PASE data — all addresses of this device will fail identically;
+                        // cancel them now.
+                        logger.info(`Dropping device ${candidate.device.deviceIdentifier}:`, asErr.message);
                         lastNonRetryableError = asErr;
                         deviceAc.abort(asErr);
                         pool.markInvalidCredentials(candidate.deviceKey);

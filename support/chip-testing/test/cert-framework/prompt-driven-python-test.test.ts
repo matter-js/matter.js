@@ -5,7 +5,7 @@
  */
 
 import type {
-    CertStepContext,
+    CertStepWiring,
     Container,
     Docker,
     PromptHandler,
@@ -136,7 +136,7 @@ function stubSubject(): Subject {
     };
 }
 
-function stubCx(): CertStepContext {
+function stubCx(): CertStepWiring {
     return {
         controllers: {},
         devices: {},
@@ -172,7 +172,7 @@ describe("PromptDrivenPythonTest", () => {
         );
 
         const cx = stubCx();
-        const calls = new Array<{ cx: CertStepContext; promptText: string }>();
+        const calls = new Array<{ cx: CertStepWiring; promptText: string }>();
         const handlers: PromptHandler[] = [
             {
                 pattern: /Manual Pairing Code:.*\(chip-tool: pairing onnetwork \d+ (\d+)\)/,

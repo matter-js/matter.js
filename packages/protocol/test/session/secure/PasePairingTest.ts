@@ -4,10 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { SecureChannelStatusMessage } from "#securechannel/SecureChannelStatusMessageSchema.js";
 import { PaseClient } from "#session/pase/PaseClient.js";
 import { SPAKE_CONTEXT } from "#session/pase/PaseMessenger.js";
 import { PaseServer } from "#session/pase/PaseServer.js";
-import { Bytes, MatterFlowError, Spake2p, StandardCrypto } from "@matter/general";
+import { Bytes, MatterFlowError, Spake2p, StandardCrypto, UnexpectedDataError } from "@matter/general";
+import {
+    SecureChannelStatusCode,
+    SecureMessageType,
+    TlvByteString,
+    TlvField,
+    TlvObject,
+    TlvUInt16,
+    TlvUInt32,
+    ValidationOutOfBoundsError,
+} from "@matter/types";
 
 describe("PasePairing", () => {
     const crypto = new StandardCrypto();
@@ -90,6 +101,90 @@ describe("PasePairing", () => {
                 "Unable to generate valid passcode in 100 tries; entropy source is broken",
             );
         });
+    });
+
+    describe("PBKDF iterations from the responder", () => {
+        // TlvPbkdfParamResponse without its field bounds and responderSessionParams, to emit out-of-range iterations
+        const TlvUnboundedPbkdfParamResponse = TlvObject({
+            initiatorRandom: TlvField(1, TlvByteString),
+            responderRandom: TlvField(2, TlvByteString),
+            responderSessionId: TlvField(3, TlvUInt16),
+            pbkdfParameters: TlvField(
+                4,
+                TlvObject({ iterations: TlvField(1, TlvUInt32), salt: TlvField(2, TlvByteString) }),
+            ),
+        });
+
+        class CountingCrypto extends StandardCrypto {
+            pbkdfIterations = new Array<number>();
+
+            override async createPbkdf2Key(_secret: Bytes, _salt: Bytes, iteration: number, keyLength: number) {
+                this.pbkdfIterations.push(iteration);
+                return new ArrayBuffer(keyLength);
+            }
+        }
+
+        async function pairWithIterations(iterations: number) {
+            const crypto = new CountingCrypto();
+            const sent = new Array<{ type: number; payload: Bytes }>();
+            const response = TlvUnboundedPbkdfParamResponse.encode({
+                initiatorRandom: new Uint8Array(32),
+                responderRandom: new Uint8Array(32),
+                responderSessionId: 1,
+                pbkdfParameters: { iterations, salt: new Uint8Array(16) },
+            });
+
+            const exchange = {
+                hasUnackedMessage: false,
+                session: { parameters: {} },
+                send: async (type: number, payload: Bytes) => {
+                    sent.push({ type, payload });
+                },
+                nextMessage: async () => {
+                    if (sent.length > 1) {
+                        throw new UnexpectedDataError("Test stops after Pake1");
+                    }
+                    return { payloadHeader: { messageType: SecureMessageType.PbkdfParamResponse }, payload: response };
+                },
+                close: async () => {},
+            };
+            const sessions = { crypto, getNextAvailableSessionId: async () => 1 };
+
+            const error = await new PaseClient(sessions as any)
+                .pair({} as any, exchange as any, {} as any, 20202021)
+                .then(
+                    () => undefined,
+                    (e: unknown) => e,
+                );
+
+            const statusReports = sent
+                .filter(({ type }) => type === SecureMessageType.StatusReport)
+                .map(({ payload }) => SecureChannelStatusMessage.decode(payload).protocolStatus);
+
+            return { error, pbkdfIterations: crypto.pbkdfIterations, statusReports };
+        }
+
+        for (const iterations of [999, 100_001, 2 ** 31, 0xffff_ffff]) {
+            it(`rejects ${iterations} before running PBKDF2 and answers InvalidParam`, async () => {
+                const { error, pbkdfIterations, statusReports } = await pairWithIterations(iterations);
+
+                expect(error).instanceOf(UnexpectedDataError);
+                expect(error).property("cause").instanceOf(ValidationOutOfBoundsError);
+                expect(error)
+                    .property("message")
+                    .equal("Malformed PbkdfParamResponse field pbkdfParameters.iterations from peer");
+                expect(pbkdfIterations).deep.equal([]);
+                expect(statusReports).deep.equal([SecureChannelStatusCode.InvalidParam]);
+            });
+        }
+
+        for (const iterations of [1000, 100_000]) {
+            it(`accepts ${iterations}`, async () => {
+                const { pbkdfIterations } = await pairWithIterations(iterations);
+
+                expect(pbkdfIterations).deep.equal([iterations]);
+            });
+        }
     });
 
     describe("Test PASE Spake2 process", () => {

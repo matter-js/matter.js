@@ -10,10 +10,12 @@
 // support/chip-testing's own cert-framework tests (a separate package, `@matter/testing` consumer)
 // need them and can only reach this module's `.` entrypoint.
 export type {
+    CertAppArgs,
     CertDevice,
     CertDeviceFactory,
     CertStepContext,
     CertStepDefinition,
+    CertStepWiring,
     CertTestDefinition,
     CheckRecord,
     DeviceExitInfo,
@@ -37,6 +39,7 @@ export { subjectFactoryFor } from "./cert/cert-dsl.js";
 export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
+export { PicsUnansweredError } from "./cert/cert-test.js";
 /** @internal Test seam — not API. The wired test a `certTest()` declaration registered. */
 export { createRegisteredCertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
@@ -71,6 +74,9 @@ export type {
     BdxTransferAccept,
     BdxTransferProposal,
     CertGroupApi,
+    CertIcdClientApi,
+    CertIcdEvent,
+    CertIcdRegistration,
     GroupKeySetSpec,
     CertNodeApi,
     AttestationApi,

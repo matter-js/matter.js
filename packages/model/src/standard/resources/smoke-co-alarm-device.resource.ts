@@ -29,12 +29,13 @@ Resource.add({
         "endpoint. See the Power Source cluster for more information.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§7.9.5" },
-        { tag: "requirement", name: "Groups", xref: "device§7.9.5" },
-        { tag: "requirement", name: "SmokeCoAlarm", xref: "device§7.9.5" },
-        { tag: "requirement", name: "RelativeHumidityMeasurement", xref: "device§7.9.5" },
-        { tag: "requirement", name: "TemperatureMeasurement", xref: "device§7.9.5" },
-        { tag: "requirement", name: "CarbonMonoxideConcentrationMeasurement", xref: "device§7.9.5" },
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§7.9.5" },
+        { tag: "requirement", name: "Identify", xref: "device§7.9.6" },
+        { tag: "requirement", name: "Groups", xref: "device§7.9.6" },
+        { tag: "requirement", name: "SmokeCoAlarm", xref: "device§7.9.6" },
+        { tag: "requirement", name: "RelativeHumidityMeasurement", xref: "device§7.9.6" },
+        { tag: "requirement", name: "TemperatureMeasurement", xref: "device§7.9.6" },
+        { tag: "requirement", name: "CarbonMonoxideConcentrationMeasurement", xref: "device§7.9.6" },
         { tag: "requirement", name: "PowerSource", xref: "device§7.9.4" }
     ]
 });

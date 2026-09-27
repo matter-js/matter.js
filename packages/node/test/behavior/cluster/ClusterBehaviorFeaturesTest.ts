@@ -11,12 +11,13 @@ import { PowerSourceServer } from "#behaviors/power-source";
 import { ServiceAreaBaseServer, ServiceAreaServer } from "#behaviors/service-area";
 import { ThermostatBaseServer, ThermostatServer } from "#behaviors/thermostat";
 import { WindowCoveringBaseServer, WindowCoveringServer } from "#behaviors/window-covering";
-import { camelize, ImplementationError, MatterAggregateError } from "@matter/general";
+import { camelize, ImplementationError } from "@matter/general";
 import { ClusterModel } from "@matter/model";
 import { ClusterType } from "@matter/types";
 import { LevelControl } from "@matter/types/clusters/level-control";
 import * as behaviors from "../../../src/behaviors/index.js";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
+import { causeMessagesOf } from "../../node/node-helpers.js";
 import { MockEndpointType } from "../mock-behavior.js";
 
 /**
@@ -27,35 +28,13 @@ const INTENTIONALLY_ENABLED: Record<string, string[]> = {
     AccessControlServer: ["extension"],
     BooleanStateServer: ["changeEvent"],
     GeneralDiagnosticsServer: ["dataModelTest"],
+    GroupcastServer: ["listener", "sender", "perGroup"],
     GroupsServer: ["groupNames"],
     IcdManagementServer: ["checkInProtocolSupport"],
     ScenesManagementServer: ["sceneNames"],
     TimeFormatLocalizationServer: ["calendarFormat"],
     UnitLocalizationServer: ["temperatureUnit"],
 };
-
-/**
- * Endpoint construction reports behavior failures as an aggregate, so assert against the whole cause chain.
- */
-async function causeChainOf(promise: Promise<unknown>) {
-    try {
-        await promise;
-    } catch (error) {
-        const messages = new Array<string>();
-        const pending = [error];
-        while (pending.length) {
-            const next = pending.shift();
-            if (!(next instanceof Error)) {
-                continue;
-            }
-            messages.push(next.message);
-            pending.push(next.cause, ...(next instanceof MatterAggregateError ? next.errors : []));
-        }
-        return messages.join(" / ");
-    }
-
-    throw new Error("Expected endpoint construction to fail");
-}
 
 function enabledFeaturesOf(type: { features: Record<string, boolean> }) {
     return Object.entries(type.features)
@@ -196,11 +175,11 @@ describe("cluster behavior feature selection", () => {
             const powerSource = { status: 1, order: 1, description: "test" };
 
             expect(
-                await causeChainOf(MockEndpoint.create(MockEndpointType.with(PowerSourceServer), { powerSource })),
+                await causeMessagesOf(MockEndpoint.create(MockEndpointType.with(PowerSourceServer), { powerSource })),
             ).match(/select at least one of Wired or Battery/);
 
             expect(
-                await causeChainOf(
+                await causeMessagesOf(
                     MockEndpoint.create(MockEndpointType.with(PowerSourceServer.with("Wired", "Battery")), {
                         powerSource: {
                             ...powerSource,

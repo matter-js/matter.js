@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Endpoint, ImplementationError, ServerNode } from "@matter/main";
+import { CommonNumberTag, Endpoint, ImplementationError, ServerNode } from "@matter/main";
 import { AdministratorCommissioningServer } from "@matter/main/behaviors/administrator-commissioning";
 import { BridgedDeviceBasicInformationServer } from "@matter/main/behaviors/bridged-device-basic-information";
 import { DescriptorServer } from "@matter/main/behaviors/descriptor";
@@ -159,8 +159,12 @@ export class BridgeTestInstance extends NodeTestInstance {
         // The composed device's own sensors are its parts, not the aggregator's, and carry no bridged
         // device information of their own — the composed endpoint above them is what the bridge
         // describes
-        await composed.add(this.#temperatureSensor(ENDPOINT.composedTempSensor1, "composed-temp-1"));
-        await composed.add(this.#temperatureSensor(ENDPOINT.composedTempSensor2, "composed-temp-2"));
+        await composed.add(
+            this.#temperatureSensor(ENDPOINT.composedTempSensor1, "composed-temp-1", CommonNumberTag.One),
+        );
+        await composed.add(
+            this.#temperatureSensor(ENDPOINT.composedTempSensor2, "composed-temp-2", CommonNumberTag.Two),
+        );
 
         await aggregator.add(this.#bridgedLight(ENDPOINT.actionLight1, "Action Light 1"));
         await aggregator.add(this.#bridgedLight(ENDPOINT.actionLight2, "Action Light 2"));
@@ -299,10 +303,15 @@ export class BridgeTestInstance extends NodeTestInstance {
         });
     }
 
-    #temperatureSensor(number: number, id: string) {
-        return new Endpoint(TemperatureSensorDevice, {
+    /**
+     * A sensor of the composed device. Its sibling has the same device type, so each carries a number tag that tells
+     * them apart.
+     */
+    #temperatureSensor(number: number, id: string, tag: typeof CommonNumberTag.One) {
+        return new Endpoint(TemperatureSensorDevice.with(DescriptorServer.with("TagList")), {
             id,
             number,
+            descriptor: { tagList: [tag] },
             temperatureMeasurement: MEASUREMENT_STATE,
         });
     }

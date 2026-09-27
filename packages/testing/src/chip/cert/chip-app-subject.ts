@@ -235,7 +235,10 @@ function portArgs(identity?: Subject.Identity): string[] {
  * The apps whose CHIP executable is not named `chip-<app>-app`. These are CHIP's own names, which both the
  * chip-cert-bins image and this project's image keep.
  */
-const APP_BINARY_NAMES = new Map([["network-manager", "matter-network-manager-app"]]);
+const APP_BINARY_NAMES = new Map([
+    ["lit-icd", "lit-icd-app"],
+    ["network-manager", "matter-network-manager-app"],
+]);
 
 /**
  * CHIP builds a variant of an app as its own binary beside the plain one — `nlfaultinject` adds the
