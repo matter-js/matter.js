@@ -57,8 +57,12 @@ async function createStrictNode() {
 }
 
 function strictEnvironment() {
+    return environmentWith("strict");
+}
+
+function environmentWith(mode: string) {
     const environment = new Environment("test");
-    environment.vars.set("endpoint.validation.strict", true);
+    environment.vars.set("endpoint.validation", mode);
     return environment;
 }
 
@@ -246,7 +250,7 @@ describe("device type validation at construction", () => {
 
     it("refuses a misplaced singleton before the behaviors initialize", async () => {
         const node = await createNode();
-        expect(node.env.get(DeviceTypeConformanceService).strict).false;
+        expect(node.env.get(DeviceTypeConformanceService).mode).equals("warn");
 
         await expect(node.add(OnOffLightDevice.with(GroupKeyManagementServer), { id: "light" })).rejectedWith(
             DeviceTypeConformanceError,
@@ -433,6 +437,55 @@ describe("device type validation at construction", () => {
         expect(error)
             .nested.property("cause.errors[0].message")
             .match(/^RootNode NetworkCommissioning: /);
+
+        await node.close();
+    });
+
+    describe("in off mode", () => {
+        it("judges neither the initial tree nor an addition", async () => {
+            using counting = countingValidations();
+
+            const logged = await captureLogOf(async () => {
+                const node = new MockServerNode(undefined, {
+                    environment: environmentWith("off"),
+                    device: undefined,
+                    parts: lights(3),
+                });
+                await node.start();
+                const fridge = await node.add(Fridge, { id: "fridge" });
+                expect(node.env.get(DeviceTypeConformanceService).knows(fridge)).false;
+                await node.close();
+            });
+
+            expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 0, validateAddition: 0 });
+            expect(logged).deep.equals([]);
+        });
+
+        it("still refuses a misplaced singleton before the behaviors initialize", async () => {
+            const node = await MockServerNode.createOnline(undefined, {
+                environment: environmentWith("off"),
+                device: undefined,
+            });
+
+            await expect(node.add(OnOffLightDevice.with(GroupKeyManagementServer), { id: "light" })).rejectedWith(
+                DeviceTypeConformanceError,
+            );
+            expect(node.parts.has("light")).false;
+
+            await node.close();
+        });
+    });
+
+    it("fails the node's construction for an unknown mode", async () => {
+        const node = new MockServerNode(undefined, { environment: environmentWith("loud"), device: undefined });
+
+        const error = await node.construction.then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).property("cause").instanceOf(ImplementationError);
+        expect(error).nested.property("cause.message").contains('is "loud"');
 
         await node.close();
     });

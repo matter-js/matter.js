@@ -42,28 +42,36 @@ side.
   refused before that endpoint's behaviors initialize. Once the endpoint's parts have initialized, the whole tree is
   checked in one pass for the node endpoint, or what an addition to an already-constructed tree may change for
   everything added later. A new misplaced singleton found then is refused; every other new violation is refused only
-  in strict mode and otherwise logged.
+  in `strict` mode and otherwise logged.
 - **After construction.** Destroying an endpoint or a device type list change (a `Descriptor` cluster's
   `DeviceTypeList` attribute changing) re-checks what the change may affect. This only ever logs and records —
-  never refuses — even with strict mode on and even for a misplaced singleton, because nothing can roll back a
+  never refuses — even in `strict` mode and even for a misplaced singleton, because nothing can roll back a
   change once construction has finished.
 
-## Warnings and strict mode
+## Validation modes
 
-By default a violation only logs a warning, once per endpoint, listing everything newly found; a violation that
-was already reported and still holds is not repeated.
+The `endpoint.validation` variable (environment variable `MATTER_ENDPOINT_VALIDATION`) selects one of three modes.
+The value is read once, when the node's environment is built, so changing it after the node exists has no effect. Any
+other value fails the node's construction with an `ImplementationError` as the cause.
 
-Set `endpoint.validation.strict` (environment variable `MATTER_ENDPOINT_VALIDATION_STRICT`) to `true` to refuse
-construction instead — any new violation that a construction check finds then throws instead of just logging. An
-addition checks more than the added endpoints: their ancestors, siblings whose `Duplicate` condition changes, and in
-some cases the whole node scope. So a strict refusal can name an endpoint other than the one added, such as its parent
-when the addition breaks the parent's composition. The value is read once, when the node's environment is built, so
-changing it after the node exists has no effect.
-Strict mode only changes what happens at construction; changes after construction has finished are always only
-logged, as above.
+- **`warn`** (default). A violation only logs a warning, once per endpoint, listing everything newly found; a
+  violation that was already reported and still holds is not repeated.
+- **`strict`**. Any new violation that a construction check finds throws instead of just logging. An addition checks
+  more than the added endpoints: their ancestors, siblings whose `Duplicate` condition changes, and in some cases the
+  whole node scope. So a strict refusal can name an endpoint other than the one added, such as its parent when the
+  addition breaks the parent's composition. Changes after construction has finished are still only logged, as above.
+- **`off`**. The node checks no device types, neither at construction nor after it. Only the misplaced-singleton check
+  before an endpoint's behaviors initialize still runs, because a behavior that works only on the root endpoint
+  otherwise fails with an untyped error. `DeviceTypeConformanceService.validate()` and the other methods of the
+  service still check when an application calls them, as in `warn` mode; what they report stays recorded until the
+  application calls `forget()` or `reset()`.
 
-A misplaced singleton is refused at construction even without strict mode, because the placement is unambiguous —
-a singleton cluster is allowed only on the endpoints that declare it.
+During development keep `warn`, or use `strict` to refuse a non-conforming structure. In production, `off` skips the
+checks for performance.
+
+A misplaced singleton is refused at construction also in `warn` mode, because the placement is unambiguous — a
+singleton cluster is allowed only on the endpoints that declare it. In `off` mode only a singleton declared by a device
+type above the endpoint is refused.
 
 A refused construction logs nothing and records nothing. The `DeviceTypeConformanceError` it throws names the first
 refused endpoint with its new violations and carries each other refused endpoint as a nested
@@ -102,7 +110,7 @@ A name matter.js does not recognize is reported rather than silently ignored.
 - For an endpoint still being constructed, the check that refuses a misplaced singleton before behaviors initialize
   reads the device types the endpoint is configured with. So after a restart, a device type added at runtime
   (`DescriptorServer.addDeviceTypes`) and persisted is not seen by that check, and a singleton it declares is refused
-  only once the declaring endpoint's parts have initialized.
+  only once the declaring endpoint's parts have initialized, and not at all in `off` mode.
 - The initial check of a node scope covers only that scope; a node scope nested inside the initial tree (only
   `RootNode` is classified a node, so this does not occur in a standard tree) is checked only by later changes
   within it.
@@ -111,5 +119,5 @@ A name matter.js does not recognize is reported rather than silently ignored.
   `CommissioningServer` or application logic started from `partsReady`.
 - A refused essential endpoint is rolled back, but its number stays allocated in its ancestors' `PartsList`s and in
   storage until a separate fix lands, so a retry with the same ID gets a different number — a pre-existing gap in
-  endpoint rollback that strict-mode refusal now reaches more often. A refused non-essential endpoint is not rolled
+  endpoint rollback that `strict` mode reaches more often. A refused non-essential endpoint is not rolled
   back at all; it stays in its parent, crashed.

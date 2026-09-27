@@ -125,7 +125,8 @@ export class ServerEndpointInitializer extends EndpointInitializer {
     /**
      * Judge the device types of the tree that completed construction: the whole node scope once the node endpoint's
      * parts are initialized, or an endpoint added to a constructed tree together with what it joins. An endpoint
-     * constructed with its parent is judged with the parent's tree, so a tree is judged in one pass.
+     * constructed with its parent is judged with the parent's tree, so a tree is judged in one pass. Judges nothing in
+     * {@link DeviceTypeConformanceService.mode mode} `"off"`.
      */
     override partsInitialized(endpoint: Endpoint) {
         if (!isConstructionRoot(endpoint)) {
@@ -133,6 +134,9 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         }
 
         const service = endpoint.env.get(DeviceTypeConformanceService);
+        if (service.mode === "off") {
+            return;
+        }
         if (endpoint.owner === undefined) {
             service.validateNodeScope(endpoint);
         } else {

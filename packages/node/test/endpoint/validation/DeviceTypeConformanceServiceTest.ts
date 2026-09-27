@@ -10,7 +10,7 @@ import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeCon
 import { EndpointFacts } from "#endpoint/validation/EndpointFacts.js";
 import { ValidationPass } from "#endpoint/validation/ValidationPass.js";
 import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
-import { Environment, LogLevel } from "@matter/general";
+import { Environment, ImplementationError, LogLevel } from "@matter/general";
 import { ClusterModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import {
@@ -29,15 +29,15 @@ function serviceOf(node: MockServerNode) {
 }
 
 /**
- * A service of {@link node} that has reported nothing yet, strict as {@link strict} says or as the node's environment
- * says without it.
+ * A service of {@link node} that has reported nothing yet, in the {@link mode} given or the one the node's environment
+ * sets without it.
  */
-function judgeOf(node: MockServerNode, strict?: boolean) {
-    if (strict === undefined) {
+function judgeOf(node: MockServerNode, mode?: DeviceTypeConformanceService.Mode) {
+    if (mode === undefined) {
         return new DeviceTypeConformanceService(node, node.env);
     }
     const environment = new Environment("test");
-    environment.vars.set("endpoint.validation.strict", strict);
+    environment.vars.set("endpoint.validation", mode);
     return new DeviceTypeConformanceService(node, environment);
 }
 
@@ -134,14 +134,48 @@ describe("DeviceTypeConformanceService", () => {
         await node.close();
     });
 
-    it("is not strict unless the environment says so", async () => {
+    it("is in warn mode unless the environment says otherwise", async () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
-        const service = judgeOf(node, false);
+        const service = new DeviceTypeConformanceService(node, new Environment("test"));
 
-        expect(service.strict).false;
+        expect(service.mode).equals("warn");
         expect(captureLog(() => service.validate(light)).length).equals(1);
+
+        await node.close();
+    });
+
+    it("reads the mode from MATTER_ENDPOINT_VALIDATION", async () => {
+        const node = await createUnjudgedNode();
+        const environment = new Environment("test");
+        environment.vars.addUnixEnvStyle({ MATTER_ENDPOINT_VALIDATION: "off" });
+
+        expect(new DeviceTypeConformanceService(node, environment).mode).equals("off");
+
+        await node.close();
+    });
+
+    it("rejects an unknown mode, naming the variable, the value and the modes", async () => {
+        const node = await createUnjudgedNode();
+        const environment = new Environment("test");
+        environment.vars.set("endpoint.validation", "loud");
+
+        expect(() => new DeviceTypeConformanceService(node, environment)).throws(
+            ImplementationError,
+            'Variable endpoint.validation (environment variable MATTER_ENDPOINT_VALIDATION) is "loud" but must be one of "off", "warn", "strict"',
+        );
+
+        await node.close();
+    });
+
+    it("judges on request in off mode, like warn mode", async () => {
+        const node = await createUnjudgedNode();
+        const light = await node.add(lightWithoutIdentify, { id: "light" });
+        const service = judgeOf(node, "off");
+
+        expect(captureLog(() => service.validate(light)).length).equals(1);
+        expect(service.knows(light)).true;
 
         await node.close();
     });
@@ -149,9 +183,9 @@ describe("DeviceTypeConformanceService", () => {
     it("throws when validation is strict", async () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = judgeOf(node, true);
+        const service = judgeOf(node, "strict");
 
-        expect(service.strict).true;
+        expect(service.mode).equals("strict");
 
         let error: unknown;
         const logged = captureLog(() => {
@@ -176,7 +210,7 @@ describe("DeviceTypeConformanceService", () => {
     it("refuses an endpoint again until it conforms", async () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = judgeOf(node, true);
+        const service = judgeOf(node, "strict");
 
         expect(() => service.validate(light)).throws(DeviceTypeConformanceError);
         expect(service.knows(light)).false;
@@ -188,7 +222,7 @@ describe("DeviceTypeConformanceService", () => {
     it("keeps what it reported for an endpoint it refuses", async () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = judgeOf(node, true);
+        const service = judgeOf(node, "strict");
         expect(captureLog(() => service.validate(light, { refuse: false })).length).equals(1);
 
         // DimmableLight adds the mandatory LevelControl server the light lacks
@@ -219,7 +253,7 @@ describe("DeviceTypeConformanceService", () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
-        expect(captureLog(() => judgeOf(node, true).validate(light, { refuse: false })).length).equals(1);
+        expect(captureLog(() => judgeOf(node, "strict").validate(light, { refuse: false })).length).equals(1);
 
         await node.close();
     });
@@ -229,7 +263,7 @@ describe("DeviceTypeConformanceService", () => {
         const light = await node.add(lightWithGroupKeyManagement, { id: "light" });
         const service = judgeOf(node);
 
-        expect(service.strict).false;
+        expect(service.mode).equals("warn");
         expect(() => service.validate(light)).throws(DeviceTypeConformanceError);
 
         await node.close();
@@ -239,7 +273,7 @@ describe("DeviceTypeConformanceService", () => {
         const node = await createUnjudgedNode();
         const first = await node.add(lightWithoutIdentify, { id: "first" });
         const second = await node.add(lightWithoutIdentify, { id: "second" });
-        const service = judgeOf(node, true);
+        const service = judgeOf(node, "strict");
 
         let error: unknown;
         const logged = captureLog(() => {
@@ -275,7 +309,7 @@ describe("DeviceTypeConformanceService", () => {
         const node = await createUnjudgedNode();
         const parent = await node.add(lightWithoutIdentify, { id: "parent" });
         const child = await parent.add(lightWithoutIdentify, { id: "child" });
-        const service = judgeOf(node, true);
+        const service = judgeOf(node, "strict");
 
         captureLog(() => expect(() => service.validateAddition(child)).throws(DeviceTypeConformanceError));
 

@@ -204,7 +204,7 @@ class CrashingBehavior extends Behavior {
 
 function strictEnvironment() {
     const environment = new Environment("test");
-    environment.vars.set("endpoint.validation.strict", true);
+    environment.vars.set("endpoint.validation", "strict");
     return environment;
 }
 
@@ -219,6 +219,12 @@ async function addFridge(parent: Endpoint) {
     };
     const fridge = await parent.add({ type: Fridge, id: "fridge", parts: [cabinet] });
     return { fridge, cabinet: fridge.parts.require("cabinet") };
+}
+
+async function createOffNode() {
+    const environment = new Environment("test");
+    environment.vars.set("endpoint.validation", "off");
+    return MockServerNode.createOnline(undefined, { environment, device: undefined });
 }
 
 async function createStrictNode() {
@@ -1083,6 +1089,43 @@ describe("device type validation after construction", () => {
             expect(() => service.validateAddition(endpoint)).throws(ImplementationError);
 
             expect(recording.judged).deep.equals([]);
+
+            await node.close();
+        });
+    });
+
+    describe("in off mode", () => {
+        it("judges nothing when a device type list changes or an endpoint is destroyed", async () => {
+            const node = await createOffNode();
+            const { fridge, cabinet } = await addFridge(node);
+            const light = await node.add(DescribedLight, { id: "light" });
+
+            using recording = recordingChecks();
+            const logged = await captureLogOf(async () => {
+                await addDeviceTypes(light, "TemperatureSensor");
+                await cabinet.close();
+            });
+
+            expect(recording.judged).deep.equals([]);
+            expect(logged).deep.equals([]);
+            expect(requirementsOf(node, fridge)).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("judges on request with what the node scope holds now", async () => {
+            const node = await createOffNode();
+            node.env.set(
+                DeviceTypeConformanceService,
+                new DeviceTypeConformanceService(node, node.env, wiFiGatedModel()),
+            );
+            const light = await addStandIn(node, "light", "OnOffLight");
+            expect(captureLog(() => serviceOf(node).validate(light)).length).equals(0);
+
+            await node.add(WiFiLight, { id: "wifi" });
+
+            expect(captureLog(() => serviceOf(node).validate(light)).length).equals(1);
+            expect(requirementsOf(node, light)).deep.equals(["missing ColorControl"]);
 
             await node.close();
         });

@@ -51,7 +51,9 @@ export class DescriptorServer extends DescriptorBehavior {
         // Initialize DeviceTypeList
         this.#initializeDeviceTypeList();
 
-        this.reactTo(this.events.deviceTypeList$Changed, this.#deviceTypesChanged);
+        if (this.env.maybeGet(DeviceTypeConformanceService)?.mode !== "off") {
+            this.reactTo(this.events.deviceTypeList$Changed, this.#deviceTypesChanged);
+        }
     }
 
     #deviceTypesChanged() {

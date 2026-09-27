@@ -17,10 +17,11 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
 /**
  * Reports where the endpoints of a node depart from the device types they declare.
  *
- * Reporting is one warning per endpoint by default, because departing from a device type is a certification problem
- * rather than a runtime fault. Two cases refuse the endpoint with a {@link DeviceTypeConformanceError}: a new misplaced
- * singleton, which is unambiguous, and any new violation when the `endpoint.validation.strict` variable (environment
- * variable `MATTER_ENDPOINT_VALIDATION_STRICT`) is set.
+ * The `endpoint.validation` variable (environment variable `MATTER_ENDPOINT_VALIDATION`) sets the {@link mode}.
+ * Reporting is one warning per endpoint in the default mode, `"warn"`, because departing from a device type is a
+ * certification problem rather than a runtime fault. Two cases refuse the endpoint with a
+ * {@link DeviceTypeConformanceError}: a new misplaced singleton, which is unambiguous, and any new violation in mode
+ * `"strict"`. In mode `"off"` the node judges no device types on its own; see {@link mode}.
  *
  * Each violation is logged once per endpoint and recorded while it persists; a later pass logs only the violations not
  * recorded. A violation that disappears and returns is logged again, because it is a new departure.
@@ -77,7 +78,8 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  *   only when a later change judges that endpoint, such as a change to it or an addition below it.
  * - {@link assertPlacement} reads the device types an endpoint still being constructed is configured with, not a
  *   `DeviceTypeList` persisted from an earlier run. So when a restart constructs the tree again, a singleton declared
- *   only by a device type added at runtime is refused only once the declaring endpoint's parts have initialized.
+ *   only by a device type added at runtime is refused only once the declaring endpoint's parts have initialized, and
+ *   not at all in mode `"off"`.
  * - {@link validateNodeScope} judges only the node scope the endpoint it is called for belongs to, so a node scope
  *   nested in the initial tree is judged only by later changes in it. Only RootNode is classified a node,
  *   so no standard tree nests one.
@@ -89,7 +91,7 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from 
  */
 export class DeviceTypeConformanceService {
     readonly #node: Endpoint;
-    readonly #strict: boolean;
+    readonly #mode: DeviceTypeConformanceService.Mode;
     readonly #model: MatterModel;
     readonly #logger: Logger;
     readonly #reported = new Map<Endpoint, Map<string, Violation>>();
@@ -98,22 +100,30 @@ export class DeviceTypeConformanceService {
 
     /**
      * @param node the node whose endpoints are validated
-     * @param environment the node's environment, which supplies `endpoint.validation.strict` and the log origin
+     * @param environment the node's environment, which supplies `endpoint.validation` and the log origin
      * @param model the model device types resolve in
+     * @throws {ImplementationError} when `endpoint.validation` is not a {@link DeviceTypeConformanceService.Mode mode}
      */
     constructor(node: Endpoint, environment: Environment, model: MatterModel = Matter) {
         this.#node = node;
-        this.#strict = environment.vars.boolean("endpoint.validation.strict") ?? false;
+        this.#mode = modeOf(environment);
         this.#model = model;
         this.#logger = environment.logger("DeviceTypeConformance");
     }
 
     /**
-     * Whether any new violation refuses the endpoint, as set by `endpoint.validation.strict` when the service was
-     * created.
+     * The mode `endpoint.validation` set when the service was created.
+     *
+     * In mode `"off"` the node runs no pass other than {@link assertPlacement}: no construction pass, no pass after a
+     * `DeviceTypeList` change or a removal, and it does not follow its endpoints' lifecycle. It keeps
+     * {@link assertPlacement}, because a behavior that works only on its node endpoint otherwise fails with an untyped
+     * error. The methods of the service still judge when called, as in mode `"warn"`, so an application can check its
+     * tree on request. Their passes keep nothing of a node scope, because no change reaches the service to discard it,
+     * but what they report is recorded until the application calls {@link forget} or {@link reset}, because the node
+     * does not report a destroyed endpoint.
      */
-    get strict() {
-        return this.#strict;
+    get mode() {
+        return this.#mode;
     }
 
     /**
@@ -123,7 +133,7 @@ export class DeviceTypeConformanceService {
      * endpoints, which validating them in separate calls repeats per call. An endpoint in no node scope is not judged.
      *
      * With {@link DeviceTypeConformanceService.ValidateOptions.refuse} (the default) an endpoint with a new misplaced
-     * singleton, or with any new violation when {@link strict}, throws. The error names the first refused endpoint and
+     * singleton, or with any new violation in mode `"strict"`, throws. The error names the first refused endpoint and
      * carries the others; none of them is logged or recorded. Every other endpoint with new violations logs one warning
      * listing them.
      *
@@ -289,7 +299,11 @@ export class DeviceTypeConformanceService {
             }
 
             const { fresh, current } = judgement;
-            if (refuse && fresh.length && (this.#strict || fresh.some(({ kind }) => kind === "singletonMisplaced"))) {
+            if (
+                refuse &&
+                fresh.length &&
+                (this.#mode === "strict" || fresh.some(({ kind }) => kind === "singletonMisplaced"))
+            ) {
                 // Left as it was, so the endpoint is refused again until it conforms
                 refused.push({ endpoint, fresh });
             } else {
@@ -498,7 +512,7 @@ export class DeviceTypeConformanceService {
     }
 
     #pass() {
-        return new ValidationPass(this.#model, this.#memory);
+        return new ValidationPass(this.#model, this.#mode === "off" ? undefined : this.#memory);
     }
 
     /**
@@ -510,10 +524,16 @@ export class DeviceTypeConformanceService {
 }
 
 export namespace DeviceTypeConformanceService {
+    /**
+     * How the node judges the device types of its endpoints: `"off"` judges nothing on its own, `"warn"` logs each
+     * violation and `"strict"` refuses the construction of an endpoint with any new violation.
+     */
+    export type Mode = (typeof modes)[number];
+
     export interface ValidateOptions {
         /**
-         * Whether an endpoint with a new misplaced singleton, or with any new violation in strict mode, throws. Defaults
-         * to true. Off, those violations log and are recorded like any other, a misplaced singleton included.
+         * Whether an endpoint with a new misplaced singleton, or with any new violation in mode `"strict"`, throws.
+         * Defaults to true. Off, those violations log and are recorded like any other, a misplaced singleton included.
          * {@link DeviceTypeConformanceService.deviceTypesChanged} and
          * {@link DeviceTypeConformanceService.endpointDestroyed} judge with it off, because nothing rolls back a change
          * after construction.
@@ -522,6 +542,20 @@ export namespace DeviceTypeConformanceService {
          */
         refuse?: boolean;
     }
+}
+
+const modes = ["off", "warn", "strict"] as const;
+
+function modeOf(environment: Environment): DeviceTypeConformanceService.Mode {
+    const value = environment.vars.string("endpoint.validation") ?? "warn";
+    const mode = modes.find(mode => mode === value);
+    if (mode === undefined) {
+        const allowed = modes.map(mode => `"${mode}"`).join(", ");
+        throw new ImplementationError(
+            `Variable endpoint.validation (environment variable MATTER_ENDPOINT_VALIDATION) is "${value}" but must be one of ${allowed}`,
+        );
+    }
+    return mode;
 }
 
 /**
