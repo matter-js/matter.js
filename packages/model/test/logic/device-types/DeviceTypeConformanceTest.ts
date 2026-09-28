@@ -299,6 +299,22 @@ describe("DeviceTypeValidationPass with a scope index", () => {
     });
 });
 
+describe("ReachingEndpoints", () => {
+    it("reads a member's contribution again when it is added again", () => {
+        const members = new ReachingEndpoints(["member"]);
+        let interfaces = ["WiFi"];
+        const read = () => ({ interfaces, declares: false });
+        expect([...members.interfaceConditions(read)]).deep.equals(["WiFi"]);
+
+        interfaces = ["Thread"];
+        expect([...members.interfaceConditions(read)]).deep.equals(["WiFi"]);
+
+        members.add("member");
+        expect([...members.interfaceConditions(read)]).deep.equals(["Thread"]);
+        expect(members.size).equals(1);
+    });
+});
+
 describe("device type model lookups", () => {
     it("resolves a device type's conditions once per model, shared by every pass resolved in it", () => {
         const deviceType = Matter.deviceTypes("OnOffLight");

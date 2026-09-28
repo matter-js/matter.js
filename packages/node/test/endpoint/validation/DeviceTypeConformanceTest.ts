@@ -656,13 +656,14 @@ describe("DeviceTypeConformance", () => {
             await node.close();
         });
 
-        it("reports a RootNode singleton on a bridged node", async () => {
-            // A bridged node is inside the root's node scope until Bridged Node is classified as a node
+        it("accepts a RootNode singleton on a bridged node whose device type lists it", async () => {
             const node = await createUnjudgedNode();
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
             const bridged = await aggregator.add(bridgedNodeWithAdministratorCommissioning, { id: "bridged" });
 
-            expect(singletonViolationsOf(bridged)).deep.equals([["RootNode", "AdministratorCommissioning"]]);
+            expect(requirementOf("RootNode", "AdministratorCommissioning").quality.singleton).true;
+
+            expect(singletonViolationsOf(bridged)).deep.equals([]);
 
             await node.close();
         });

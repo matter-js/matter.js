@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
 import {
@@ -18,6 +19,7 @@ import { RefrigeratorDevice } from "#devices/refrigerator";
 import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
 import { EndpointPartsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { DeviceTypeConformanceError } from "#node/server/DeviceTypeConformanceError.js";
 import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
@@ -272,6 +274,32 @@ describe("device type validation at construction", () => {
 
         await node.close();
     });
+
+    for (const mode of ["warn", "strict"]) {
+        it(`accepts a RootNode singleton on a bridged node whose device type lists it, in ${mode} mode`, async () => {
+            const node = await MockServerNode.createOnline(undefined, {
+                environment: environmentWith(mode),
+                device: undefined,
+            });
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+
+            // A Fabric Synchronization bridged node, which carries AdministratorCommissioning for its bridged node
+            const logged = await captureLogOf(() =>
+                aggregator.add(
+                    BridgedNodeEndpoint.with(BridgedDeviceBasicInformationServer, AdministratorCommissioningServer),
+                    {
+                        id: "bridged",
+                        bridgedDeviceBasicInformation: { nodeLabel: "bridged" },
+                    },
+                ),
+            );
+
+            expect(aggregator.parts.has("bridged")).true;
+            expect(logged).deep.equals([]);
+
+            await node.close();
+        });
+    }
 
     it("refuses a misplaced singleton below an added endpoint before any behavior initializes", async () => {
         const node = await createNode();

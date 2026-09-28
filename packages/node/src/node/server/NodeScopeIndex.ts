@@ -13,8 +13,8 @@ import { Presence, ServerEndpointFacts } from "./ServerEndpointFacts.js";
  * judged endpoint, the reaching endpoints of each node scope and the parts of each endpoint by device type.
  *
  * The owner reports every lifecycle change of the node's endpoints and every `DeviceTypeList` change through
- * {@link noteChanged}, a recording pass through {@link recorded}, a destroyed or reset endpoint through
- * {@link removed} and a factory reset through {@link clear}.
+ * {@link noteChanged}, a change to what a recorded entry read through {@link invalidate}, a recording pass through
+ * {@link recorded}, a destroyed or reset endpoint through {@link removed} and a factory reset through {@link clear}.
  *
  * The reaching endpoints of a node scope are collected by a walk of the scope on first request and then kept equal to
  * what a walk would find: at the first read after noted changes, each noted endpoint and its descendants leave the
@@ -51,8 +51,24 @@ export class NodeScopeIndex implements DeviceTypeScopeIndex<Endpoint> {
     }
 
     /**
+     * Drop the recorded entry of {@link endpoint}, whose device types or server clusters changed, and
+     * suspect it until a pass records it again. An entry is kept only while a fresh judgement would record the same, or a
+     * reach {@link widen widened} beyond it.
+     *
+     * @returns the entry recorded before the change
+     */
+    invalidate(endpoint: Endpoint) {
+        const entry = this.#entries.get(endpoint);
+        this.#entries.delete(endpoint);
+        this.#listingOfOwner(endpoint)?.suspects.add(endpoint);
+        return entry;
+    }
+
+    /**
      * Drop the recorded entry of {@link endpoint}, as if no pass had recorded it. Condition readers are no longer known
      * to be judged under any conditions.
+     *
+     * @internal tests only
      */
     forget(endpoint: Endpoint) {
         this.#entries.delete(endpoint);
@@ -146,15 +162,17 @@ export class NodeScopeIndex implements DeviceTypeScopeIndex<Endpoint> {
     }
 
     partsListing(parent: Endpoint, deviceTypeId: number): Iterable<Endpoint> {
-        return this.listingsOf(parent).get(deviceTypeId) ?? [];
+        return this.#listingOf(parent).byId.get(deviceTypeId) ?? [];
     }
 
     /**
      * The parts of {@link parent} by the device types the facts answer for each, without parts that are detached or
-     * crashed, whose device types validation does not read.
+     * crashed, whose device types validation does not read; undefined while none are kept.
+     *
+     * @internal tests only
      */
-    listingsOf(parent: Endpoint): ReadonlyMap<number, ReadonlySet<Endpoint>> {
-        return this.#listingOf(parent).byId;
+    listingsOf(parent: Endpoint): ReadonlyMap<number, ReadonlySet<Endpoint>> | undefined {
+        return this.#listings.get(parent)?.byId;
     }
 
     /**
@@ -178,6 +196,8 @@ export class NodeScopeIndex implements DeviceTypeScopeIndex<Endpoint> {
      * The reaching endpoints kept for {@link nodeEndpoint} in tree order, undefined while none are kept, as the last
      * read left them; changes noted since are applied by the next read. The same array while no change applied since
      * altered what is kept of the scope.
+     *
+     * @internal tests only
      */
     keptOf(nodeEndpoint: Endpoint): readonly Endpoint[] | undefined {
         const scope = this.#scopes.get(nodeEndpoint);
@@ -191,6 +211,8 @@ export class NodeScopeIndex implements DeviceTypeScopeIndex<Endpoint> {
     /**
      * The endpoints of the node scope kept for {@link nodeEndpoint} by device type, undefined while none are kept, as
      * the last read left them.
+     *
+     * @internal tests only
      */
     keptListingOf(nodeEndpoint: Endpoint): ReadonlyMap<number, ReadonlySet<Endpoint>> | undefined {
         return this.#scopes.get(nodeEndpoint)?.listing.byId;
@@ -252,7 +274,7 @@ export class NodeScopeIndex implements DeviceTypeScopeIndex<Endpoint> {
         }
 
         for (const [nodeEndpoint, scope] of this.#scopes) {
-            if (nodeEndpoint !== endpoint && isAbove(nodeEndpoint, endpoint)) {
+            if (isAbove(nodeEndpoint, endpoint)) {
                 this.#withdraw(scope, endpoint);
             }
         }

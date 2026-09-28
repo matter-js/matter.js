@@ -25,7 +25,7 @@ import {
 import { MdnsAdvertiser } from "@matter/main/protocol";
 import { DeviceTypeId, VendorId } from "@matter/main/types";
 import { TestGeneralDiagnosticsServer } from "../cluster/TestGeneralDiagnosticsServer.js";
-import { NodeTestInstance } from "../NodeTestInstance.js";
+import { disableEndpointValidation, NodeTestInstance } from "../NodeTestInstance.js";
 
 export interface RootNodeOptions {
     id: string;
@@ -97,7 +97,7 @@ export async function buildRootNode(opts: RootNodeOptions): Promise<ServerNode> 
 
     if (!opts.groupcast) {
         // Without Groupcast the root cannot meet the 1.6.1 RootNode requirements its light devices assert
-        opts.env.vars.set("endpoint.validation", "off");
+        disableEndpointValidation(opts.env);
     }
 
     return ServerNode.create(rootEndpoint, {

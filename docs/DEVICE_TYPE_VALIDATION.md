@@ -27,10 +27,12 @@ endpoint lists at least one such device type:
   endpoint per instance), choice conformance across component requirements that share a choice, and — on the
   component endpoint itself — that it satisfies the nested requirements of at least one instance it can fill. A
   `Descendant` condition requirement is checked the same way, against how many endpoints it reaches.
-- **Singleton placement.** A server cluster that a device type in the node scope declares a singleton (§ 7.7.3)
-  must appear only on an endpoint that declares it. For example, `BridgedNodeEndpoint` offers
-  `AdministratorCommissioningServer` and `PowerSourceConfigurationServer` as optional, but both are RootNode
-  singletons, so a bridged node carrying either is refused.
+- **Singleton placement.** A server cluster that a device type in the node scope declares a singleton
+  (Core § 7.7.3) must appear only on an endpoint that declares it, or on an endpoint whose own device types list
+  that cluster as a server cluster, with any conformance. So a bridged node may carry the RootNode singletons
+  Bridged Node lists: `AdministratorCommissioningServer`, which a Fabric Synchronized bridged node requires, and the
+  deprecated `PowerSourceConfigurationServer`. This reading is interim, until the specification settles whether a
+  Bridged Node is a node scope of its own.
 - **Stated conditions.** A name in an endpoint's `deviceConditions` (see below) that matches no condition in its
   scope is reported as an `unknownCondition` violation.
 
@@ -109,7 +111,8 @@ its `kind` (`missing`, `disallowed`, `instanceCount`, `singletonMisplaced` or `u
 
 A refusal throws a `DeviceTypeConformanceError`, a `MatterAggregateError`. Its message names the refused endpoints,
 the first refused first. Its `errors` are one `DeviceTypeViolationError` per new violation of a refused endpoint, each
-an `ImplementationError` carrying its `endpoint` and its `violation`.
+an `ImplementationError` carrying its `endpoint` and its `violation`. The singleton check before behaviors initialize
+stops at the first endpoint in tree order that misplaces a singleton, so its error names only that endpoint.
 
 A refused construction logs nothing and records nothing. New violations of endpoints the same check does not refuse
 are dropped.
@@ -134,7 +137,8 @@ new Endpoint(SomeDeviceType, { deviceConditions: ["PhysicalInputs"] });
 ```
 
 A stated condition holds in addition to the derived ones; stating a name never makes a condition false. A name
-matter.js does not recognize is reported as an `unknownCondition` violation.
+matter.js does not recognize is reported as an `unknownCondition` violation wherever the endpoint is checked; in
+`off` mode only a `validate()` or `validateNodeScope()` call checks it.
 
 ## Limits
 

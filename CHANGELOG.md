@@ -15,6 +15,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Upgraded to Matter specification version 1.6.1. The Groupcast cluster and the Access Control auxiliary ACL are no longer provisional, and the device types that gained a Groupcast condition report their new revision. `BasicInformation.specificationVersion` defaults to 1.6.1 (`0x01060100`)
     - Breaking: `Status.UnreportableAttribute` (0x8c) and `Status.NoUpstreamSubscription` (0xc5) are removed, as Matter 1.6.1 deletes both status codes
 
+- @matter/model
+    - Feature: `DeviceTypeConformance.check()` and `DeviceTypeConformance.misplacedSingletons()` judge endpoints of any tree that a `DeviceTypeFacts` provider describes against their device types, within a `DeviceTypeValidationPass`, and report `DeviceTypeViolation`s
 - @matter/types
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 - @matter/protocol
@@ -46,7 +48,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The Descriptor `PartsList` now reports a replacement of an endpoint that leaves the number of parts unchanged, and lists parts in numeric order
     - Fix: Closing or erasing an endpoint whose parts never received a number, such as the parts of a non-essential endpoint that failed to initialize, no longer logs `uninitialized-dependency` errors, and erasing removes their persisted state
     - Enhancement: A server endpoint's structure is checked against the device types it declares, at construction and as it changes afterward, and each violation is logged as a warning; `endpoint.validation` (`MATTER_ENDPOINT_VALIDATION`: `off`, `warn` or `strict`, default `warn`) turns the checks off or refuses construction instead, `DeviceTypeConformanceService.validate()` checks on request and returns the violations per endpoint, and `Endpoint.Options.deviceConditions` states conditions the structure does not show
-    - Breaking: A server cluster on an endpoint where a device type's singleton rule forbids it refuses construction with `DeviceTypeConformanceError`, including the optional `AdministratorCommissioningServer` and `PowerSourceConfigurationServer` of `BridgedNodeEndpoint`, which are RootNode singletons; with `endpoint.validation` `off` only when a device type above the endpoint declares the singleton
+    - Breaking: A server cluster that a device type of the node declares a singleton refuses construction with `DeviceTypeConformanceError` on an endpoint whose device types neither declare the singleton nor list the cluster as a server cluster; with `endpoint.validation` `off` only when a device type above the endpoint declares the singleton
 - @matter/testing
     - Enhancement: `CertNodeApi.scriptOtaProvider()` can have the controller's provider answer `UpdateAvailable` for an image it does not hold, with the `softwareVersion` and `imageUri` the case names, so a case can offer an update a node must refuse
     - Enhancement: `CertNodeApi.serveOtaUpdate()` can wait for the node's `NotifyUpdateApplied` after allowing the apply, via `ServeOtaUpdateOptions.notifyAppliedTimeoutMs`

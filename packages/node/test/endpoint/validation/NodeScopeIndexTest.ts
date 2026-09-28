@@ -20,6 +20,7 @@ import {
     DeviceTypeConformance,
     DeviceTypeModel,
     DeviceTypeValidationPass,
+    DeviceTypeViolation,
     MatterModel,
     RequirementModel,
 } from "@matter/model";
@@ -223,6 +224,28 @@ describe("NodeScopeIndex", () => {
         await node.close();
     });
 
+    it("trusts no kept scope once applying the noted changes failed, and walks the scope again", async () => {
+        const node = await createNode(declarerModel());
+        const light = await addLight(node, "light", "OnOffLight");
+        const { index, pass } = standaloneIndex();
+        index.reachingOf(node, pass());
+        expect(index.keptOf(node)).not.undefined;
+        index.noteChanged(light);
+
+        const failing = pass();
+        failing.isInScope = () => {
+            throw new ImplementationError("Fails on purpose");
+        };
+        expect(() => index.reachingOf(node, failing)).throws("Fails on purpose");
+        expect(index.keptOf(node)).undefined;
+
+        using scans = countingScans(node);
+        index.reachingOf(node, pass());
+        expect(scans.count).equals(1);
+
+        await node.close();
+    });
+
     it("drops what it keeps on a reset of the service", async () => {
         const node = await createNode(declarerModel());
         await addLight(node, "declarer", DECLARER_ID);
@@ -242,7 +265,7 @@ describe("NodeScopeIndex", () => {
         const node = await createNode(declarerModel());
         const light = await addLight(node, "light", "OnOffLight");
         const { index } = standaloneIndex();
-        index.listingsOf(node);
+        index.suspectsOf(node);
         index.recorded(light, { duplicate: false, isNodeEndpoint: false, reach: DeviceTypeValidationPass.Reach.None });
 
         index.forget(light);
@@ -421,7 +444,8 @@ describe("NodeScopeIndex", () => {
             const pass = new DeviceTypeValidationPass(facts, node.matter, requireIndex(node));
             const scope = pass.nodeScopeOf(node);
             expect(scope.includes(peer) || scope.includes(endpoint)).false;
-            for (const listed of requireIndex(node).listingsOf(node).values()) {
+            requireIndex(node).suspectsOf(node);
+            for (const listed of requireIndex(node).listingsOf(node)?.values() ?? []) {
                 expect(listed.has(peer)).false;
             }
 
@@ -431,7 +455,10 @@ describe("NodeScopeIndex", () => {
 });
 
 function requireIndex(node: MockServerNode) {
-    const { index } = node.env.get(DeviceTypeConformanceService);
+    return requireIndexOf(node.env.get(DeviceTypeConformanceService));
+}
+
+function requireIndexOf({ index }: DeviceTypeConformanceService) {
     if (index === undefined) {
         throw new ImplementationError("Test node keeps no scope index");
     }
@@ -440,9 +467,11 @@ function requireIndex(node: MockServerNode) {
 
 /**
  * Asserts that what the index of {@link node} keeps equals what a rescan of the tree finds: the parts of every endpoint
- * by device type, and the reaching endpoints of the node scope.
+ * by device type where a listing is kept, the reaching endpoints of the node scope, and the recorded violations of
+ * every endpoint of the scope. Creates no listing.
  */
 function expectConsistent(node: MockServerNode) {
+    const service = node.env.get(DeviceTypeConformanceService);
     const index = requireIndex(node);
     const facts = new ServerEndpointFacts();
 
@@ -460,8 +489,11 @@ function expectConsistent(node: MockServerNode) {
             }
         }
 
-        const actual = new Map([...index.listingsOf(parent)].map(([id, parts]) => [id, [...parts]]));
-        expect(listingText(actual), `listings of ${parent}`).deep.equals(listingText(expected));
+        const kept = index.listingsOf(parent);
+        if (kept !== undefined) {
+            const actual = new Map([...kept].map(([id, parts]) => [id, [...parts]]));
+            expect(listingText(actual), `listings of ${parent}`).deep.equals(listingText(expected));
+        }
 
         for (const part of facts.partsOf(parent)) {
             visit(part);
@@ -472,7 +504,7 @@ function expectConsistent(node: MockServerNode) {
     const pass = new DeviceTypeValidationPass(facts, node.matter, index);
     const rescan = new DeviceTypeValidationPass(facts, node.matter);
     index.reachingOf(node, pass);
-    expectScopeConsistent(node, index, pass, rescan);
+    expectScopeConsistent(node, service, pass, rescan);
 
     // A nested node scope is compared only once a pass read it
     const nested = (endpoint: Endpoint): Endpoint[] =>
@@ -482,16 +514,17 @@ function expectConsistent(node: MockServerNode) {
         ]);
     for (const nodeEndpoint of nested(node)) {
         index.reachingOf(nodeEndpoint, pass);
-        expectScopeConsistent(nodeEndpoint, index, pass, rescan);
+        expectScopeConsistent(nodeEndpoint, service, pass, rescan);
     }
 }
 
 function expectScopeConsistent(
     node: Endpoint,
-    index: NodeScopeIndex,
+    service: DeviceTypeConformanceService,
     pass: DeviceTypeValidationPass<Endpoint>,
     rescan: DeviceTypeValidationPass<Endpoint>,
 ) {
+    const index = requireIndexOf(service);
     const facts = pass.facts;
     const kept = index.keptOf(node) ?? [];
     expect(kept.map(String), `reaching endpoints of ${node}`).deep.equals(
@@ -512,12 +545,18 @@ function expectScopeConsistent(
         [...rescan.nodeEndpointConditionsOf(node)].sort(),
     );
     for (const endpoint of scope) {
-        expect(verdictText(endpoint, pass), `verdict of ${endpoint}`).deep.equals(verdictText(endpoint, rescan));
+        const fresh = verdictText(endpoint, rescan);
+        expect(verdictText(endpoint, pass), `verdict of ${endpoint}`).deep.equals(fresh);
+        expect(violationText(service.violationsOf(endpoint)), `recorded violations of ${endpoint}`).deep.equals(fresh);
     }
 }
 
 function verdictText(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>) {
-    return DeviceTypeConformance.check(endpoint, pass).map(
+    return violationText(DeviceTypeConformance.check(endpoint, pass));
+}
+
+function violationText(violations: DeviceTypeViolation[]) {
+    return violations.map(
         ({ kind, deviceType, requirement, detail }) => `${kind} ${deviceType} ${requirement}: ${detail}`,
     );
 }

@@ -34,6 +34,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     #reported = new WeakMap<Endpoint, Map<string, DeviceTypeViolation>>();
     readonly #index?: NodeScopeIndex;
     readonly #followed = new Map<Endpoint, ObserverGroup>();
+    readonly #destroying = new WeakSet<Endpoint>();
 
     /**
      * @param node the node whose endpoints are validated, in the model {@link ServerNode.matter} answers
@@ -167,9 +168,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      * Drop what was reported and recorded for {@link endpoint}, so a later {@link validate} reports all its violations
      * again and a later change counts it unrecorded. The endpoint stays followed and listed.
      *
-     * Only tests call this, to stand in for an endpoint no pass recorded.
-     *
-     * @internal
+     * @internal tests only
      */
     forget(endpoint: Endpoint) {
         this.#reported.delete(endpoint);
@@ -236,10 +235,32 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     }
 
     #lifecycleChanged(change: EndpointLifecycle.Change, endpoint: Endpoint) {
+        switch (change) {
+            case EndpointLifecycle.Change.Destroying:
+                this.#destroying.add(endpoint);
+                break;
+
+            case EndpointLifecycle.Change.ServersChanged:
+                this.#index?.invalidate(endpoint);
+                break;
+        }
+
         this.#index?.noteChanged(endpoint);
         if (change === EndpointLifecycle.Change.Destroyed) {
             this.#endpointDestroyed(endpoint);
         }
+    }
+
+    /**
+     * Whether {@link endpoint} or an ancestor is being destroyed.
+     */
+    #isInDestruction(endpoint: Endpoint) {
+        for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
+            if (this.#destroying.has(current)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -255,13 +276,14 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 
         // The emitter is the commit of the change, which must not fail for a report
         try {
+            const previous = index.invalidate(endpoint);
             index.noteChanged(endpoint);
             if (!this.#isSettled(endpoint)) {
                 return;
             }
 
             const pass = this.#pass();
-            const change: Change = { kind: "changed", endpoint, previous: index.entryOf(endpoint) };
+            const change: Change = { kind: "changed", endpoint, previous };
             this.#validate(this.#affectedBy(change, pass, index), pass, { refuse: false }, false);
         } catch (error) {
             this.#logger.error(`Cannot judge the device types of ${endpoint} after they changed:`, error);
@@ -299,23 +321,33 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 
         // The owner lists the endpoint until the endpoint's destruction completes
         endpoint.lifecycle.destroyed.once(() => {
-            const pass = this.#pass();
-            this.#validate(
-                this.#affectedBy({ kind: "removed", owner, previous }, pass, index),
-                pass,
-                { refuse: false },
-                false,
-            );
+            // The emitter is the destruction, which must not fail for a report
+            try {
+                const pass = this.#pass();
+                this.#validate(
+                    this.#affectedBy({ kind: "removed", owner, previous }, pass, index),
+                    pass,
+                    { refuse: false },
+                    false,
+                );
+            } catch (error) {
+                this.#logger.error(`Cannot judge what the removal of ${endpoint} from ${owner} changes:`, error);
+            }
         });
     }
 
     /**
-     * Stop following {@link endpoint}, which a rollback or a factory reset returns to its unconstructed state. A
-     * factory reset constructs it again, which follows it again.
+     * Stop following {@link endpoint}, which a rollback, a factory reset or its deletion returns to its unconstructed
+     * state. A factory reset constructs it again, which follows it again.
+     *
+     * An endpoint being destroyed keeps its recorded entry until it is destroyed, because its removal must answer for
+     * what the recorded judgements read of it.
      */
     #endpointReset(endpoint: Endpoint) {
         this.#release(endpoint);
-        this.#index?.removed(endpoint);
+        if (!this.#isInDestruction(endpoint)) {
+            this.#index?.removed(endpoint);
+        }
     }
 
     #assertPlacement(endpoint: Endpoint) {

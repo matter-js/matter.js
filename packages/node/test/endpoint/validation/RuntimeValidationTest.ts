@@ -142,6 +142,42 @@ function guardedRootModel() {
 
 const unguardedWidget = "missing device:RootNode/Widget";
 
+const WIFI_ASSERTER_ID = 0xfff1_0036;
+
+/**
+ * A model whose RootNode requires a Widget component carrying ColorControl, which an OnOffLight lacks, only under its
+ * condition Guarded, which WiFiAsserter asserts on the node endpoint while the node supports Wi-Fi.
+ */
+function wiFiGuardedRootModel() {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "Base", classification: "base" }, new ConditionModel({ name: "WiFi" })),
+        new DeviceTypeModel(
+            { name: "RootNode", id: 0x16, classification: "node" },
+            new ConditionModel({ name: "Guarded" }),
+            new RequirementModel(
+                { name: "Widget", id: WIDGET_ID, element: "deviceType", conformance: "Guarded" },
+                new RequirementModel({ name: "ColorControl", id: 0x300, element: "serverCluster", conformance: "M" }),
+            ),
+        ),
+        new DeviceTypeModel({ name: "Widget", id: WIDGET_ID, classification: "simple" }),
+        new DeviceTypeModel(
+            { name: "WiFiAsserter", id: WIFI_ASSERTER_ID, classification: "simple" },
+            new RequirementModel({
+                name: "Guarded",
+                type: "RootNode.Guarded",
+                element: "condition",
+                conformance: "WiFi",
+                location: "Root",
+            }),
+        ),
+        new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+        new ClusterModel({ name: "ColorControl", id: 0x300 }),
+    );
+    model.finalize();
+    return model;
+}
+
 const NEEDY_ID = 0xfff1_0035;
 
 /**
@@ -366,6 +402,26 @@ describe("device type validation after construction", () => {
             await node.close();
         });
 
+        it("logs rather than fails the destruction when judging it throws", async () => {
+            const node = await createNode();
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+
+            const { check } = DeviceTypeConformance;
+            DeviceTypeConformance.check = () => {
+                throw new ImplementationError("Judges on purpose badly");
+            };
+            const errors = await captureErrorsOf(() => light.close()).finally(() => {
+                DeviceTypeConformance.check = check;
+            });
+
+            const text = errors.map(({ text }) => text).join("\n");
+            expect(text).contains("Cannot judge what the removal of node0.light from node0 changes");
+            expect(text).contains("Judges on purpose badly");
+            expect(node.parts.has(light)).false;
+
+            await node.close();
+        });
+
         it("logs rather than refuses in strict mode", async () => {
             const node = await createStrictNode();
             const { fridge, cabinet } = await addFridge(node);
@@ -434,6 +490,7 @@ describe("device type validation after construction", () => {
 
         it("logs rather than fails the change when judging it throws", async () => {
             const node = await createNode();
+            const bystander = await node.add(AggregatorEndpoint, { id: "bystander" });
             const light = await node.add(OnOffLightDevice, { id: "light" });
 
             const { check } = DeviceTypeConformance;
@@ -446,6 +503,11 @@ describe("device type validation after construction", () => {
 
             expect(errors.map(({ text }) => text).join("\n")).contains("Judges on purpose badly");
             expect(light.stateOf(DescriptorServer).deviceTypeList.length).equals(2);
+
+            // Its recorded judgement predates the change, so its removal judges the whole node scope
+            using recording = recordingChecks();
+            await captureLogOf(() => light.close());
+            expect(recording.judged).contains(bystander);
 
             await node.close();
         });
@@ -527,6 +589,43 @@ describe("device type validation after construction", () => {
             using recording = recordingChecks();
             await aggregator.parts.require("light50").close();
             expect(recording.judged).deep.equals([aggregator, node]);
+
+            await node.close();
+        });
+
+        it("judges only above the owner when a bridged device with a part is deleted", async () => {
+            const node = await createNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            await addBridgedLight(aggregator, "light1");
+            await addBridgedLight(aggregator, "light2");
+            const bridged = await captureLogOf(() =>
+                aggregator.add({
+                    type: BridgedLight,
+                    id: "bridged",
+                    bridgedDeviceBasicInformation: { nodeLabel: "bridged" },
+                    parts: [{ type: OnOffLightDevice, id: "part" }],
+                }),
+            ).then(() => aggregator.parts.require("bridged"));
+
+            using recording = recordingChecks();
+            await captureLogOf(() => bridged.delete());
+            expect(recording.judged.map(String)).deep.equals([String(aggregator), String(node)]);
+
+            await node.close();
+        });
+
+        it("judges a constant number of endpoints per deleted bridged light", async () => {
+            const node = await createNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            for (let i = 1; i <= 20; i++) {
+                await addBridgedLight(aggregator, `light${i}`);
+            }
+
+            for (let i = 1; i <= 10; i++) {
+                using recording = recordingChecks();
+                await aggregator.parts.require(`light${i}`).delete();
+                expect(recording.judged).deep.equals([aggregator, node]);
+            }
 
             await node.close();
         });
@@ -832,6 +931,27 @@ describe("device type validation after construction", () => {
             await node.close();
         });
 
+        it("judges them when a condition returns to what they were last judged under after one was judged apart", async () => {
+            const node = await createNode(wiFiGuardedRootModel());
+            const widget = await addStandIn(node, "widget", WIDGET_ID);
+            await addStandIn(node, "asserter1", WIFI_ASSERTER_ID);
+            const shelf = await addStandIn(node, "shelf", "OnOffLight");
+            const light = await addStandIn(node, "light", "OnOffLight");
+            expect(requirementsOf(node, widget)).deep.equals([]);
+
+            // Server cluster changes are not judged on their own, so the widget alone is judged under Wi-Fi
+            light.behaviors.require(WiFiCommissioningServer);
+            captureLog(() => serviceOf(node).validate(widget));
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+            await light.behaviors.drop(WiFiCommissioningServer.id);
+
+            await captureLogOf(() => addStandIn(shelf, "asserter2", WIFI_ASSERTER_ID));
+
+            expect(requirementsOf(node, widget)).deep.equals([]);
+
+            await node.close();
+        });
+
         it("judges them when an asserting endpoint is destroyed", async () => {
             const { node, widget } = await createGuardedNode();
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
@@ -936,6 +1056,26 @@ describe("device type validation after construction", () => {
             await node.close();
         });
 
+        for (const removal of ["close", "delete"] as const) {
+            it(`judges the whole node scope when an endpoint whose server clusters changed is removed with ${removal}()`, async () => {
+                const node = await createNode(wiFiGatedModel());
+                const light = await addStandIn(node, "light", "OnOffLight");
+                const shelf = await addStandIn(node, "shelf", "OnOffLight");
+
+                // Below another parent, so its removal changes no Duplicate condition the light reads
+                const other = await addStandIn(shelf, "other", "OnOffLight");
+                other.behaviors.require(WiFiCommissioningServer);
+                captureLog(() => serviceOf(node).validate(light));
+                expect(requirementsOf(node, light)).deep.equals(["missing ColorControl"]);
+
+                await captureLogOf(() => other[removal]());
+
+                expect(requirementsOf(node, light)).deep.equals([]);
+
+                await node.close();
+            });
+        }
+
         for (const isEssential of [true, false]) {
             it(`drops an endpoint whose addition it refused, ${isEssential ? "rolled back" : "left crashed"}`, async () => {
                 const node = await createStrictNode(guardedRootModel());
@@ -1014,7 +1154,8 @@ describe("device type validation after construction", () => {
             expect(node.parts.has(declarer)).false;
             const index = serviceOf(node).index;
             expect(index?.keptOf(node)?.includes(declarer)).not.true;
-            for (const listed of index?.listingsOf(node).values() ?? []) {
+            expect(index?.listingsOf(node)).not.undefined;
+            for (const listed of index?.listingsOf(node)?.values() ?? []) {
                 expect(listed.has(declarer)).false;
             }
             expect(declarer.eventsOf(DescriptorServer).deviceTypeList$Changed.isObserved).false;

@@ -127,7 +127,7 @@ export namespace DeviceTypeConformance {
             const singletons = scope && withDeclarationsOf(current, scope, pass);
             if (singletons !== undefined) {
                 const violations = new Array<DeviceTypeViolation>();
-                reportMisplaced(violations, facts, singletons);
+                reportMisplaced(violations, facts, singletons, pass);
                 if (violations.length) {
                     misplaced.set(current, violations);
                 }
@@ -876,9 +876,9 @@ function describeInstance(component: Component, instance: RequirementModel) {
 /**
  * Report each server cluster of the endpoint that a device type elsewhere in its node scope declares a singleton.
  *
- * The quality lets the declaring endpoint carry the cluster and forbids it on every other endpoint of the scope. It
- * does not make the cluster required on the declaring endpoint; conformance decides that. An endpoint in no node scope
- * is not judged.
+ * The quality lets the declaring endpoint carry the cluster and forbids it on every other endpoint of the scope whose
+ * device types do not list it. It does not make the cluster required on the declaring endpoint; conformance decides
+ * that. An endpoint in no node scope is not judged.
  *
  * @see {@link MatterSpecification.v16.Core} § 7.7.3
  */
@@ -895,16 +895,31 @@ function checkSingletons<E>(
     const singletons = pass.singletons.get(nodeEndpoint, () =>
         singletonsOf(ConditionAssertions.singletonDeclarersOf(nodeEndpoint, pass), pass),
     );
-    reportMisplaced(violations, facts, singletons);
+    reportMisplaced(violations, facts, singletons, pass);
 }
 
+/**
+ * Report each server cluster of the endpoint of {@link facts} that {@link singletons} holds and that neither a
+ * declaring endpoint nor a device type of the endpoint's own lists.
+ *
+ * A device type listing the cluster as a server cluster, with any conformance, admits it on its endpoint. This reading
+ * lets a Bridged Node carry the RootNode singletons it lists, such as the AdministratorCommissioning a Fabric
+ * Synchronized bridged node requires; it is interim until the spec settles whether a Bridged Node is a node scope of
+ * its own.
+ */
 function reportMisplaced<E>(
     violations: DeviceTypeViolation[],
     facts: ResolvedEndpoint<E>,
     singletons: Map<number, Singleton<E>>,
+    pass: DeviceTypeValidationPass<E>,
 ) {
+    let listed: Set<number> | undefined;
     for (const [id, { cluster, deviceType, endpoints }] of singletons) {
         if (endpoints.has(facts.endpoint) || facts.clusterName("server", id) === undefined) {
+            continue;
+        }
+        listed ??= listedServerClustersOf(facts, pass);
+        if (listed.has(id)) {
             continue;
         }
 
@@ -912,9 +927,29 @@ function reportMisplaced<E>(
             deviceType,
             requirement: cluster,
             kind: "singletonMisplaced",
-            detail: `Server cluster ${cluster} is a singleton of ${deviceType} in this node scope, so it may appear only on an endpoint that lists that device type`,
+            detail: `Server cluster ${cluster} is a singleton of ${deviceType} in this node scope, so it may appear only on an endpoint that lists that device type or a device type listing the cluster`,
         });
     }
+}
+
+/**
+ * The IDs of the server clusters the device types of the endpoint of {@link facts} list, with any conformance.
+ */
+function listedServerClustersOf<E>(facts: ResolvedEndpoint<E>, pass: DeviceTypeValidationPass<E>) {
+    const lookups = lookupsFor(pass.model);
+    const listed = new Set<number>();
+    for (const deviceType of facts.deviceTypes) {
+        for (const requirement of lookups.requirementsOf(deviceType)) {
+            if (requirement.element !== RequirementElement.ElementType.ServerCluster) {
+                continue;
+            }
+            const id = lookups.clusterOf(requirement)?.id;
+            if (id !== undefined) {
+                listed.add(id);
+            }
+        }
+    }
+    return listed;
 }
 
 /**
