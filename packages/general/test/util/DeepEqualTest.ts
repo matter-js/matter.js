@@ -56,6 +56,7 @@ describe("DeepEqual", () => {
         expect(!isDeepEqual({ at: new Date(0) }, { at: new Date(1) })).ok;
         expect(!isDeepEqual(new Date(0), {})).ok;
         expect(!isDeepEqual({}, new Date(0))).ok;
+        expect(!isDeepEqual(Object.assign(new Date(0), { zone: "UTC" }), new Date(0))).ok;
     });
 
     it("Equality of maps", () => {
@@ -73,6 +74,7 @@ describe("DeepEqual", () => {
         ).ok;
         expect(!isDeepEqual(new Map([[1, undefined]]), new Map([[2, undefined]]))).ok;
         expect(!isDeepEqual(new Map(), {})).ok;
+        expect(!isDeepEqual(Object.assign(new Map([[1, 2]]), { label: "a" }), new Map([[1, 2]]))).ok;
     });
 
     it("Equality of sets", () => {
@@ -81,6 +83,7 @@ describe("DeepEqual", () => {
         expect(!isDeepEqual(new Set([1]), new Set([2]))).ok;
         expect(!isDeepEqual(new Set([{ a: 1 }, { a: 1 }]), new Set([{ a: 1 }, { a: 2 }]))).ok;
         expect(!isDeepEqual(new Set(), [])).ok;
+        expect(!isDeepEqual(Object.assign(new Set([1]), { label: "a" }), new Set([1]))).ok;
     });
 
     it("Equality of special Matter objects", () => {

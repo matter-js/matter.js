@@ -39,15 +39,19 @@ export function isDeepEqual(a: unknown, b: unknown, ignoreUndefinedProperties = 
         return a === b;
     }
 
-    // These hold their state in internal slots, so they have no own properties to compare
+    // These hold their content in internal slots, which the own properties compared below do not reach
     if (a instanceof Date || b instanceof Date) {
-        return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
-    }
-    if (a instanceof Map || b instanceof Map) {
-        return a instanceof Map && b instanceof Map && isDeepEqualMap(a, b, ignoreUndefinedProperties);
-    }
-    if (a instanceof Set || b instanceof Set) {
-        return a instanceof Set && b instanceof Set && isDeepEqualSet(a, b, ignoreUndefinedProperties);
+        if (!(a instanceof Date && b instanceof Date && a.getTime() === b.getTime())) {
+            return false;
+        }
+    } else if (a instanceof Map || b instanceof Map) {
+        if (!(a instanceof Map && b instanceof Map && isDeepEqualMap(a, b, ignoreUndefinedProperties))) {
+            return false;
+        }
+    } else if (a instanceof Set || b instanceof Set) {
+        if (!(a instanceof Set && b instanceof Set && isDeepEqualSet(a, b, ignoreUndefinedProperties))) {
+            return false;
+        }
     }
 
     // Create arrays of property names
