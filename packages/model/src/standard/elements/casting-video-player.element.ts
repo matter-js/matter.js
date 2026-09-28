@@ -32,7 +32,7 @@ export const CastingVideoPlayerDt = DeviceType(
     Requirement({ name: "AudioOutput", id: 0x50b, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "ApplicationLauncher", id: 0x50c, conformance: "ContentAppPlatform", element: "serverCluster" },
-        Requirement({ name: "APPLICATIONPLATFORM", conformance: "M", element: "feature" })
+        Requirement({ name: "AP", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "AccountLogin", id: 0x50e, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "ContentControl", id: 0x50f, conformance: "P, [Rev >= v2]", element: "serverCluster" }),

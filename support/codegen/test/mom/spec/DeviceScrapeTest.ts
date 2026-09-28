@@ -84,6 +84,7 @@ The table below lists qualities and conformance that override the cluster specif
 | Device Type ID | Device Type Name | Cluster ID | Cluster Name | Element | Name | Conformance |
 | --- | --- | --- | --- | --- | --- | --- |
 | 0x0231 | Closure Panel | 0x0104 | Closure Control | attribute | CountdownTime | M |
+| 0x0231 | Closure Panel | 0x0104 | Closure Control | Feature | Positioning | M |
 
 ## 8.5.7. Cluster Usage
 
@@ -313,8 +314,17 @@ describe("scrape of a device type chapter", () => {
 
     it("gives an element requirement the section its table came from", () => {
         const descriptor = requirementNamed(scrapeClosure(), "Descriptor");
-        const tagList = requirementNamed(descriptor, "TAGLIST");
+        const tagList = requirementNamed(descriptor, "TagList");
         expect(tagList.xref).deep.equal({ document: "device", section: "8.5.5" });
+    });
+
+    it("keeps the specification's spelling of a feature an element requirement names", () => {
+        const descriptor = requirementNamed(scrapeClosure(), "Descriptor");
+        expect(requirementNamed(descriptor, "TagList").element).equal("feature");
+
+        const panel = requirementNamed(scrapeClosure(), "ClosurePanel");
+        const control = requirementNamed(panel, "ClosureControl");
+        expect(requirementNamed(control, "Positioning").element).equal("feature");
     });
 
     it("gives a component device type's element requirement the section its table came from", () => {

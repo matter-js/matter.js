@@ -1394,7 +1394,7 @@ export const SpecMatter = Matter(
                 "> [!NOTE]" +
                 "\n" +
                 "> NOTE: This value is constrained by all lighting device types to 1, and its Conformance is " +
-                "  Mandatory. As such, when the Lighting feature is supported this value shall be 1."
+                "Mandatory. As such, when the Lighting feature is supported this value shall be 1."
         }),
 
         Attribute({
@@ -1406,7 +1406,7 @@ export const SpecMatter = Matter(
                 "> [!NOTE]" +
                 "\n" +
                 "> NOTE: This value is constrained by all lighting device types to 254, and its Conformance is " +
-                "  Mandatory. As such, when the Lighting feature is supported this value shall be 254."
+                "Mandatory. As such, when the Lighting feature is supported this value shall be 254."
         }),
 
         Attribute({
@@ -2653,22 +2653,22 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  - When the AS feature flag is set, this event:" +
                     "\n" +
-                    "  - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
+                    "    - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
                     "from any multi-press cycles);" +
                     "\n" +
-                    "  - shall only be generated after the first InitialPress following a MultiPressComplete when a long " +
-                    "press is detected after the idle time." +
+                    "    - shall only be generated after the first InitialPress following a MultiPressComplete when a " +
+                    "long press is detected after the idle time." +
                     "\n" +
                     "  - Else, when the MSM feature flag is set, this event:" +
                     "\n" +
-                    "  - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
+                    "    - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
                     "from any multi-press cycles);" +
                     "\n" +
-                    "  - shall only be generated after the first InitialPress following a MultiPressComplete when a long " +
-                    "press is detected after the idle time;" +
+                    "    - shall only be generated after the first InitialPress following a MultiPressComplete when a " +
+                    "long press is detected after the idle time;" +
                     "\n" +
-                    "  - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete " +
-                    "event." +
+                    "    - shall NOT be generated after a MultiPressOngoing event without an intervening " +
+                    "MultiPressComplete event." +
                     "\n" +
                     "The above constraints imply that for a given activity detection cycle of a switch having MSM and/or " +
                     "MSL feature flags set, the entire activity is either a single long press detection cycle of " +
@@ -4511,27 +4511,27 @@ export const SpecMatter = Matter(
                 "  - If both PercentMax and FixedMax are indicated, then for a given true value in the range between " +
                 "RangeMin and RangeMax," +
                 "\n" +
-                "  - the reported value shall be less than or equal to the sum of the true value, FixedMax and " +
+                "    - the reported value shall be less than or equal to the sum of the true value, FixedMax and " +
                 "PercentMax percent of the true value." +
                 "\n" +
-                "  - the reported value shall be greater than or equal to the true value minus the sum of FixedMax " +
+                "    - the reported value shall be greater than or equal to the true value minus the sum of FixedMax " +
                 "and PercentMax percent of the true value." +
                 "\n" +
                 "  - If only PercentMax is indicated, then for a given true value in the range between RangeMin and " +
                 "RangeMax," +
                 "\n" +
-                "  - the reported value shall be less than or equal to the sum of the true value and PercentMax " +
+                "    - the reported value shall be less than or equal to the sum of the true value and PercentMax " +
                 "percent of the true value." +
                 "\n" +
-                "  - the reported value shall be greater than or equal to the true value minus PercentMax percent of " +
-                "the true value." +
+                "    - the reported value shall be greater than or equal to the true value minus PercentMax percent " +
+                "of the true value." +
                 "\n" +
                 "  - If only FixedMax is indicated, then for a given true value in the range between RangeMin and " +
                 "RangeMax," +
                 "\n" +
-                "  - the reported value shall be less than or equal to the sum of the true value and FixedMax." +
+                "    - the reported value shall be less than or equal to the sum of the true value and FixedMax." +
                 "\n" +
-                "  - the reported value shall be greater than or equal to the true value minus FixedMax."
+                "    - the reported value shall be greater than or equal to the true value minus FixedMax."
         },
 
         Field({
@@ -7685,7 +7685,7 @@ export const SpecMatter = Matter(
                     "Sound Namespace."
             },
 
-            Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+            Field({ name: "entry", type: "semtag" })
         ),
 
         Attribute({
@@ -7886,7 +7886,7 @@ export const SpecMatter = Matter(
                         "include more than two ambient context events."
                 },
 
-                Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+                Field({ name: "entry", type: "semtag" })
             )
         ),
 
@@ -7898,8 +7898,7 @@ export const SpecMatter = Matter(
             },
 
             Field({
-                name: "CountingObject", id: 0x0, type: "ModeSelect.SemanticTagStruct", conformance: "P, M",
-                xref: "cluster§2.16.6.3.1",
+                name: "CountingObject", id: 0x0, type: "semtag", conformance: "P, M", xref: "cluster§2.16.6.3.1",
                 details: "This field shall indicate the object to be detected and counted. If the MfgCode field in " +
                     "CountingObject is NULL, the object shall be specified by ObjectIdentified namespace ID and its tag " +
                     "ID available from the AmbientContextTypeSupported attribute."
@@ -7937,7 +7936,7 @@ export const SpecMatter = Matter(
                         "time period."
                 },
 
-                Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+                Field({ name: "entry", type: "semtag" })
             ),
 
             Field({
@@ -9924,13 +9923,13 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  - If the LTNE feature is not supported:" +
                 "\n" +
-                "  - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall " +
+                "    - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall " +
                 "report null." +
                 "\n" +
-                "  - If the LocalTemperatureCalibration is valid, the attribute shall report that value." +
+                "    - If the LocalTemperatureCalibration is valid, the attribute shall report that value." +
                 "\n" +
                 "  - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the " +
-                "    LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report " +
+                "LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report " +
                 "null."
         }),
 
@@ -10478,23 +10477,23 @@ export const SpecMatter = Matter(
                     "  1. If the PresetHandle field is null, the PresetStruct shall be treated as an added preset, and " +
                     "the device shall create a new unique value for the PresetHandle field." +
                     "\n" +
-                    "  1. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be " +
+                    "    1. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be " +
                     "returned." +
                     "\n" +
                     "  2. If the PresetHandle field is not null, the PresetStruct shall be treated as a modification of " +
                     "an existing preset." +
                     "\n" +
-                    "  1. If the value of the PresetHandle field does not match any of the existing presets, a response " +
+                    "    1. If the value of the PresetHandle field does not match any of the existing presets, a response " +
                     "with the status code NOT_FOUND shall be returned." +
                     "\n" +
-                    "  2. If the value of the PresetHandle field is duplicated on multiple presets in the updated list, a " +
-                    "response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "    2. If the value of the PresetHandle field is duplicated on multiple presets in the updated list, " +
+                    "a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  3. If the BuiltIn field is true, and the PresetStruct in the current value with a matching " +
+                    "    3. If the BuiltIn field is true, and the PresetStruct in the current value with a matching " +
                     "PresetHandle field has a BuiltIn field set to false, a response with the status code " +
                     "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  4. If the BuiltIn field is false, and the PresetStruct in the current value with a matching " +
+                    "    4. If the BuiltIn field is false, and the PresetStruct in the current value with a matching " +
                     "PresetHandle field has a BuiltIn field set to true, a response with the status code " +
                     "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
@@ -10517,49 +10516,50 @@ export const SpecMatter = Matter(
                     "  7. Otherwise, the write shall be pended until receipt of a commit request, and the status code " +
                     "SUCCESS shall be returned." +
                     "\n" +
-                    "  1. If the BuiltIn field is null:" +
+                    "    1. If the BuiltIn field is null:" +
                     "\n" +
-                    "  1. If there is a PresetStruct in the current value with a matching PresetHandle field, the BuiltIn " +
-                    "field on the pending PresetStruct shall be set to the value of the BuiltIn on the matching " +
-                    "PresetStruct." +
+                    "      1. If there is a PresetStruct in the current value with a matching PresetHandle field, the " +
+                    "BuiltIn field on the pending PresetStruct shall be set to the value of the BuiltIn on the " +
+                    "matching PresetStruct." +
                     "\n" +
-                    "  2. Otherwise, the BuiltIn field on the pending PresetStruct shall be set to false." +
+                    "      2. Otherwise, the BuiltIn field on the pending PresetStruct shall be set to false." +
                     "\n" +
                     "On an attempt to commit, the status of this attribute shall be determined as follows:" +
                     "\n" +
                     "  1. For all existing presets:" +
                     "\n" +
-                    "  1. If, after applying all pending changes, the updated value of the Presets attribute would not " +
+                    "    1. If, after applying all pending changes, the updated value of the Presets attribute would not " +
                     "contain a PresetStruct with a matching PresetHandle field, indicating the removal of the " +
                     "PresetStruct, the server shall check for invalid removal of the PresetStruct:" +
                     "\n" +
-                    "  1. If the BuiltIn field is true on the removed PresetStruct, the attribute status shall be " +
+                    "      1. If the BuiltIn field is true on the removed PresetStruct, the attribute status shall be " +
                     "CONSTRAINT_ERROR." +
                     "\n" +
-                    "  2. If the MSCH feature is supported and the removed PresetHandle would be referenced by any " +
-                    "PresetHandle on any ScheduleTransitionStruct on any ScheduleStruct in the updated value of the " +
-                    "Schedules attribute, the attribute status shall be INVALID_IN_STATE." +
+                    "      2. If the MSCH feature is supported and the removed PresetHandle would be referenced by any " +
+                    "PresetHandle on any ScheduleTransitionStruct on any ScheduleStruct in the updated value of " +
+                    "the Schedules attribute, the attribute status shall be INVALID_IN_STATE." +
                     "\n" +
-                    "  3. If the removed PresetHandle is equal to the value of the ActivePresetHandle attribute, the " +
+                    "      3. If the removed PresetHandle is equal to the value of the ActivePresetHandle attribute, the " +
                     "attribute status shall be INVALID_IN_STATE." +
                     "\n" +
                     "  2. If the attribute status has not yet been determined:" +
                     "\n" +
-                    "  1. The attribute status shall be SUCCESS." +
+                    "    1. The attribute status shall be SUCCESS." +
                     "\n" +
-                    "  2. For all existing presets:" +
+                    "    2. For all existing presets:" +
                     "\n" +
-                    "  1. If, after applying all pending changes, the updated value of the Presets attribute would not " +
-                    "contain a PresetStruct with a matching PresetHandle field, indicating the removal of the " +
-                    "PresetStruct, the server shall ensure that the preset being removed is unused, as follows:" +
+                    "      1. If, after applying all pending changes, the updated value of the Presets attribute would " +
+                    "not contain a PresetStruct with a matching PresetHandle field, indicating the removal of " +
+                    "the PresetStruct, the server shall ensure that the preset being removed is unused, as " +
+                    "follows:" +
                     "\n" +
-                    "  1. If the PresetHandle field of the removed preset is equal to the value of the PresetHandle field " +
-                    "of the CurrentThermostatSuggestion attribute's value, the CurrentThermostatSuggestion attribute " +
-                    "shall be set to null." +
+                    "        1. If the PresetHandle field of the removed preset is equal to the value of the PresetHandle " +
+                    "field of the CurrentThermostatSuggestion attribute's value, the " +
+                    "CurrentThermostatSuggestion attribute shall be set to null." +
                     "\n" +
-                    "  2. If the PresetHandle field of the removed preset is equal to the value of the PresetHandle field " +
-                    "of one or more of the entries in the ThermostatSuggestions attribute, the server shall delete " +
-                    "any such entries from the ThermostatSuggestions attribute."
+                    "        2. If the PresetHandle field of the removed preset is equal to the value of the PresetHandle " +
+                    "field of one or more of the entries in the ThermostatSuggestions attribute, the server " +
+                    "shall delete any such entries from the ThermostatSuggestions attribute."
             },
 
             Field({ name: "entry", type: "PresetStruct" })
@@ -10576,71 +10576,72 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  1. For all schedules in the write request:" +
                     "\n" +
-                    "  1. If the ScheduleHandle field is null, the ScheduleStruct shall be treated as an added schedule, " +
-                    "and the device shall create a new unique value for the ScheduleHandle field." +
+                    "    1. If the ScheduleHandle field is null, the ScheduleStruct shall be treated as an added " +
+                    "schedule, and the device shall create a new unique value for the ScheduleHandle field." +
                     "\n" +
-                    "  1. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be " +
+                    "      1. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be " +
                     "returned." +
                     "\n" +
-                    "  2. Otherwise, if the ScheduleHandle field is not null, the ScheduleStruct shall be treated as a " +
+                    "    2. Otherwise, if the ScheduleHandle field is not null, the ScheduleStruct shall be treated as a " +
                     "modification of an existing schedule." +
                     "\n" +
-                    "  1. If the value of the ScheduleHandle field does not match any of the existing schedules, a " +
+                    "      1. If the value of the ScheduleHandle field does not match any of the existing schedules, a " +
                     "response with the status code NOT_FOUND shall be returned." +
                     "\n" +
-                    "  2. If the BuiltIn field is true, and the ScheduleStruct in the current value with a matching " +
+                    "      2. If the BuiltIn field is true, and the ScheduleStruct in the current value with a matching " +
                     "ScheduleHandle field has a BuiltIn field set to false, a response with the status code " +
                     "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  3. If the BuiltIn field is false, and the ScheduleStruct in the current value with a matching " +
+                    "      3. If the BuiltIn field is false, and the ScheduleStruct in the current value with a matching " +
                     "ScheduleHandle field has a BuiltIn field set to true, a response with the status code " +
                     "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  3. If the specified SystemMode does not exist in ScheduleTypes, a response with the status code " +
+                    "    3. If the specified SystemMode does not exist in ScheduleTypes, a response with the status code " +
                     "CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  4. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the " +
-                    "status code RESOURCE_EXHAUSTED shall be returned." +
+                    "    4. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with " +
+                    "the status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
-                    "  5. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of " +
-                    "transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, a " +
-                    "response with the status code RESOURCE_EXHAUSTED shall be returned." +
+                    "    5. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of " +
+                    "transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, " +
+                    "a response with the status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
-                    "  6. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the " +
+                    "    6. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the " +
                     "SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  7. If the PresetHandle field is present, but after applying all pending changes, the Presets " +
+                    "    7. If the PresetHandle field is present, but after applying all pending changes, the Presets " +
                     "attribute would not contain a PresetStruct whose PresetHandle field matches the value of the " +
                     "PresetHandle field, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  8. If the Name is set, but the associated ScheduleTypeStruct does not have the SupportsNames bit " +
+                    "    8. If the Name is set, but the associated ScheduleTypeStruct does not have the SupportsNames bit " +
                     "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  9. For all transitions in all schedules in the write request:" +
+                    "    9. For all transitions in all schedules in the write request:" +
                     "\n" +
-                    "  1. If the PresetHandle field is present, but the ScheduleTypeStruct matching the value of the " +
-                    "SystemMode field on the encompassing ScheduleStruct does not have the SupportsPresets bit set, " +
-                    "a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "      1. If the PresetHandle field is present, but the ScheduleTypeStruct matching the value of the " +
+                    "SystemMode field on the encompassing ScheduleStruct does not have the SupportsPresets bit " +
+                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  10. If the PresetHandle field is present, but after applying all pending changes, the Presets " +
+                    "    10. If the PresetHandle field is present, but after applying all pending changes, the Presets " +
                     "attribute would not contain a PresetStruct whose PresetHandle field matches the value of the " +
                     "PresetHandle field, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  1. If the SystemMode field is present, but the ScheduleTypeStruct matching the value of the " +
+                    "      1. If the SystemMode field is present, but the ScheduleTypeStruct matching the value of the " +
                     "SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
                     "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  2. If the SystemMode field is has a value of SystemModeOff, but the ScheduleTypeStruct matching " +
-                    "the value of the SystemMode field on the encompassing ScheduleStruct does not have the " +
-                    "SupportsOff bit set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "      2. If the SystemMode field is has a value of SystemModeOff, but the ScheduleTypeStruct " +
+                    "matching the value of the SystemMode field on the encompassing ScheduleStruct does not have " +
+                    "the SupportsOff bit set, a response with the status code CONSTRAINT_ERROR shall be " +
+                    "returned." +
                     "\n" +
-                    "  11. If the HeatingSetpoint field is present, but the ScheduleTypeStruct matching the value of the " +
-                    "SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
-                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "    11. If the HeatingSetpoint field is present, but the ScheduleTypeStruct matching the value of " +
+                    "the SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints " +
+                    "bit set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
-                    "  12. If the CoolingSetpoint field is present, but the ScheduleTypeStruct matching the value of the " +
-                    "SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit " +
-                    "set, a response with the status code CONSTRAINT_ERROR shall be returned." +
+                    "    12. If the CoolingSetpoint field is present, but the ScheduleTypeStruct matching the value of " +
+                    "the SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints " +
+                    "bit set, a response with the status code CONSTRAINT_ERROR shall be returned." +
                     "\n" +
                     "  2. If appending the received ScheduleStruct to the pending list of Schedules would cause the total " +
                     "number of pending schedules to exceed the value of the NumberOfSchedules attribute, a response " +
@@ -10655,27 +10656,27 @@ export const SpecMatter = Matter(
                     "  4. Otherwise, the write shall be pended until receipt of a commit request, and the attribute " +
                     "status shall be SUCCESS." +
                     "\n" +
-                    "  1. If the BuiltIn field is null:" +
+                    "    1. If the BuiltIn field is null:" +
                     "\n" +
-                    "  1. If there is a ScheduleStruct in the current value with a matching ScheduleHandle field, the " +
+                    "      1. If there is a ScheduleStruct in the current value with a matching ScheduleHandle field, the " +
                     "BuiltIn field on the pending ScheduleStruct shall be set to the value of the BuiltIn on the " +
                     "matching ScheduleStruct." +
                     "\n" +
-                    "  2. Otherwise, the BuiltIn field on the pending ScheduleStruct shall be set to false." +
+                    "      2. Otherwise, the BuiltIn field on the pending ScheduleStruct shall be set to false." +
                     "\n" +
                     "On an attempt to commit, the status of this attribute shall be determined as follows:" +
                     "\n" +
                     "  1. For all existing schedules:" +
                     "\n" +
-                    "  1. If, after applying all pending changes, the updated value of the Schedules attribute would not " +
-                    "contain a ScheduleStruct with a matching ScheduleHandle field, indicating the removal of the " +
-                    "ScheduleStruct, the server shall check for invalid removal of the ScheduleStruct:" +
+                    "    1. If, after applying all pending changes, the updated value of the Schedules attribute would " +
+                    "not contain a ScheduleStruct with a matching ScheduleHandle field, indicating the removal of " +
+                    "the ScheduleStruct, the server shall check for invalid removal of the ScheduleStruct:" +
                     "\n" +
-                    "  1. If the BuiltIn field is true on the removed ScheduleStruct, the attribute status shall be " +
+                    "      1. If the BuiltIn field is true on the removed ScheduleStruct, the attribute status shall be " +
                     "CONSTRAINT_ERROR." +
                     "\n" +
-                    "  2. If the removed ScheduleHandle is equal to the value of the ActiveScheduleHandle attribute, the " +
-                    "attribute status shall be INVALID_IN_STATE." +
+                    "      2. If the removed ScheduleHandle is equal to the value of the ActiveScheduleHandle attribute, " +
+                    "the attribute status shall be INVALID_IN_STATE." +
                     "\n" +
                     "  2. Otherwise, the attribute status shall be SUCCESS."
             },
@@ -11615,10 +11616,10 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  2. If either the HeatingSetpoint or CoolingSetpoint is provided, then it shall be used" +
                     "\n" +
-                    "  1. If the SystemMode field is provided, the HeatingSetpoint and CoolingSetpoint fields shall be " +
+                    "    1. If the SystemMode field is provided, the HeatingSetpoint and CoolingSetpoint fields shall be " +
                     "interpreted using the SystemMode field" +
                     "\n" +
-                    "  2. If the SystemMode field is not provided, the HeatingSetpoint and CoolingSetpoint fields shall " +
+                    "    2. If the SystemMode field is not provided, the HeatingSetpoint and CoolingSetpoint fields shall " +
                     "be interpreted using the SystemMode field on the parent ScheduleStruct" +
                     "\n" +
                     "  3. If neither the PresetHandle field or any Setpoint field is provided, then the PresetHandle " +
@@ -13081,15 +13082,15 @@ export const SpecMatter = Matter(
                     "the door lock server shall generate a LockOperationError event with LockOperationType set to " +
                     "Unlatch and a LockOperation event with LockOperationType set to Unlock." +
                     "\n" +
-                    "  - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
+                    "    - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
                     "LockOperationError event with LockOperationType set to Unlock." +
                     "\n" +
                     "  - Upon manual actuation, a door lock server that supports the Unbolting feature:" +
                     "\n" +
-                    "  - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "outside." +
                     "\n" +
-                    "  - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "inside."
             },
 
@@ -14066,11 +14067,11 @@ export const SpecMatter = Matter(
                     "  - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to " +
                     "resource constraints such as:" +
                     "\n" +
-                    "  - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
+                    "    - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
                     "associated." +
                     "\n" +
-                    "  - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding " +
-                    "it would cause the total number of credentials of those two types to exceed " +
+                    "    - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and " +
+                    "adding it would cause the total number of credentials of those two types to exceed " +
                     "NumberOfAliroEndpointKeysSupported." +
                     "\n" +
                     "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid." +
@@ -14325,9 +14326,9 @@ export const SpecMatter = Matter(
                 details: "> [!NOTE]" +
                     "\n" +
                     "> WARNING: For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT " +
-                    "  supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
+                    "supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
                     "bitmaps in this specification, and it is recommended that clients carefully take this into " +
-                    "  consideration. See SupportedOperatingModes."
+                    "consideration. See SupportedOperatingModes."
             },
 
             Field({ name: "Normal", conformance: "M", constraint: "0", description: "Normal operation mode" }),
@@ -24465,7 +24466,7 @@ export const SpecMatter = Matter(
                     "> NOTE: The electrical energy required to heat the water depends on the heating system used to heat " +
                     "the water. For example, a direct electric immersion heating element can be close to 100% " +
                     "efficient, so the electrical energy needed to heat the hot water is nearly the same as the " +
-                    "  EstimatedHeatEnergyRequired. However some forms of heating, such as an air-source heat pump which " +
+                    "EstimatedHeatEnergyRequired. However some forms of heating, such as an air-source heat pump which " +
                     "extracts heat from ambient air, requires much less electrical energy to heat hot water. Heat pumps " +
                     "can be produce 3kWh of heat output for 1kWh of electrical energy input. The conversion between " +
                     "heat energy and electrical energy is outside the scope of this cluster."
@@ -25797,20 +25798,20 @@ export const SpecMatter = Matter(
                     "  1. If this identifier is included in the DayEntryIDs associated with a DayPatternStruct, then the " +
                     "identifier shall be unique to the combination of:" +
                     "\n" +
-                    "  1. the StartTime" +
+                    "    1. the StartTime" +
                     "\n" +
-                    "  2. the Duration, if indicated" +
+                    "    2. the Duration, if indicated" +
                     "\n" +
-                    "  3. the DaysOfWeek field in the containing DayPatternStruct" +
+                    "    3. the DaysOfWeek field in the containing DayPatternStruct" +
                     "\n" +
                     "  2. Otherwise, if this identifier is included in the DayEntryIDs associated with a DayStruct, then " +
                     "the identifier shall be unique to the combination of:" +
                     "\n" +
-                    "  1. the StartTime" +
+                    "    1. the StartTime" +
                     "\n" +
-                    "  2. the Duration, if indicated" +
+                    "    2. the Duration, if indicated" +
                     "\n" +
-                    "  3. the Date field in the containing DayStruct" +
+                    "    3. the Date field in the containing DayStruct" +
                     "\n" +
                     "Once an identifier has been used for a given combination above, it shall never be used for any other " +
                     "combination of these values."
@@ -26363,9 +26364,9 @@ export const SpecMatter = Matter(
                 "> [!NOTE]" +
                 "\n" +
                 "> NOTE: The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not " +
-                "  specified. Implementations must be careful to support transferring these byte strings without " +
+                "specified. Implementations must be careful to support transferring these byte strings without " +
                 "requiring a particular encoding. The most common encoding is UTF-8, however this is just a " +
-                "  convention. Some configurations may use Latin-1 or other character sets."
+                "convention. Some configurations may use Latin-1 or other character sets."
         }),
 
         Attribute({
@@ -30694,7 +30695,7 @@ export const SpecMatter = Matter(
             "> [!NOTE]" +
             "\n" +
             "> For example: Derived data types defined here: | Name | Type | Constraint | Quality | ... | | --- | " +
-            "  --- | --- | --- | --- | | MonthNameString | string | 3 | F | ... | | MonthNumber | uint8 | 1 to 12 " +
+            "--- | --- | --- | --- | | MonthNameString | string | 3 | F | ... | | MonthNumber | uint8 | 1 to 12 " +
             "| | ... | SummerStruct defined here: | ID | Name | Type | Constraint | Quality | ... | | --- | --- " +
             "| --- | --- | --- | --- | | 0 | Year | int16 | -1000 to 3000 | | ... | | 1 | SummerMonths | " +
             "list[MonthNumber] | max 12 | N | ... | Used Here: | ID | Name | Type | Constraint | Quality | ... " +
@@ -32211,21 +32212,21 @@ export const SpecMatter = Matter(
                         "\n" +
                         "  - A manufacturer contemplating using this flow should realize that" +
                         "\n" +
-                        "  - This flow typically requires internet access to access the URL, and access extension may fail " +
+                        "    - This flow typically requires internet access to access the URL, and access extension may fail " +
                         "when internet connectivity is not available." +
                         "\n" +
-                        "  - If the flow prefers to redirect the user to an app which is available on popular platforms, it " +
+                        "    - If the flow prefers to redirect the user to an app which is available on popular platforms, it " +
                         "SHOULD also provide a fallback option such as a web browser interface to ensure users can " +
                         "complete access extension." +
                         "\n" +
-                        "  - A malicious Administrator could tamper with the URL (including any parameters it contains) in " +
+                        "    - A malicious Administrator could tamper with the URL (including any parameters it contains) in " +
                         "order to reduce restrictions for another Fabric. A well-implemented web service or app SHOULD " +
-                        "validate that the VID in flow URL invocations match recent requests for review by comparing with " +
-                        "VID and token pairs from recent ReviewFabricRestrictions requests." +
+                        "validate that the VID in flow URL invocations match recent requests for review by comparing " +
+                        "with VID and token pairs from recent ReviewFabricRestrictions requests." +
                         "\n" +
                         "  - An Administrator supporting this flow should realize that if the device serving this cluster is " +
                         "malicious, it could send dangerous URLs to the client which could take the user to malicious " +
-                        "    sites. The Administrator SHOULD provide details, such as the VID, to the user about the device " +
+                        "sites. The Administrator SHOULD provide details, such as the VID, to the user about the device " +
                         "sending the event so that the user can make an informed decision about whether to trust the URL."
                 }
             ),
@@ -32436,7 +32437,7 @@ export const SpecMatter = Matter(
                     "\n" +
                     "> E.g. A Fan Control Cluster may be included in a more industrial device type. To ensure proper " +
                     "operation, this device type may restrict configuration of fan level RPM settings to require Manage " +
-                    "  privilege. Clients granted Manage privilege will have sufficient privilege to configure each " +
+                    "privilege. Clients granted Manage privilege will have sufficient privilege to configure each " +
                     "level's RPM; clients granted Operate privilege will not be able to perform such configuration, but " +
                     "will still be able to change the level. This additional restriction would apply only to the Fan " +
                     "Control Cluster as included in this particular device type; a client granted Operate privilege may " +
@@ -32817,7 +32818,7 @@ export const SpecMatter = Matter(
                     "  - The server shall enter a \"pending active\" state for the associated device when the KeepActive " +
                     "command is received. The server \"pending active\" state shall expire after the amount of time " +
                     "defined by the TimeoutMs field, in milliseconds, if no subsequent KeepActive command is " +
-                    "    received. When a KeepActive command is received, the \"pending active\" state is set, the " +
+                    "received. When a KeepActive command is received, the \"pending active\" state is set, the " +
                     "StayActiveDuration is updated to the greater of the new value and the previously stored value, " +
                     "and the TimeoutMs is updated to the greater of the new value and the remaining time until the " +
                     "prior \"pending active\" state expires." +
@@ -32934,9 +32935,9 @@ export const SpecMatter = Matter(
                     "  - When used without suffix, it shall provide information about the various actions which the " +
                     "cluster provides." +
                     "\n" +
-                    "  - Example: SetupURL could take the value of example://Actions or " +
-                    "https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to " +
-                    "use actions provided by this cluster)." +
+                    "    - Example: SetupURL could take the value of example://Actions or " +
+                    "https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how " +
+                    "to use actions provided by this cluster)." +
                     "\n" +
                     "  - When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
                     "may provide information about that particular action. This could be a deeplink to " +
@@ -32944,9 +32945,9 @@ export const SpecMatter = Matter(
                     "information/edit-screen for this action so that the user can view and update details of the " +
                     "action, e.g. edit the scene, or change the wake-up experience time period." +
                     "\n" +
-                    "  - Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
-                    "https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of " +
-                    "the action with ActionID 0x3039."
+                    "    - Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
+                    "https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing " +
+                    "of the action with ActionID 0x3039."
             }
         ),
 
@@ -33910,7 +33911,7 @@ export const SpecMatter = Matter(
                     "  - It is on the associated fabric of this entry, and" +
                     "\n" +
                     "  - The subject of this entry matches the ISD of the SubscriptionRequest message that created the " +
-                    "    subscription. Matching shall be determined using the subject_matches function defined in the " +
+                    "subscription. Matching shall be determined using the subject_matches function defined in the " +
                     "Access Control Privilege Granting Algorithm." +
                     "\n" +
                     "For example, if the MonitoredSubject is Node ID 0x1111_2222_3333_AAAA, and one of the subscribers to " +
@@ -33951,7 +33952,7 @@ export const SpecMatter = Matter(
                 "This augments the Bridged Device Basic Information Cluster in the following ways:" +
                 "\n" +
                 "  - The Ecosystem Information Cluster adds support for providing a name and location for individual " +
-                "    endpoints. (The endpoints do not need to be present on the Bridge for their name and location " +
+                "endpoints. (The endpoints do not need to be present on the Bridge for their name and location " +
                 "information to be present.)" +
                 "\n" +
                 "  - The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple " +
@@ -34659,21 +34660,22 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):" +
                     "\n" +
-                    "  - This attribute shall be empty." +
+                    "    - This attribute shall be empty." +
                     "\n" +
-                    "  - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code." +
+                    "    - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code." +
                     "\n" +
                     "  - Otherwise (Groupcast is not adopted or the entry is missing):" +
                     "\n" +
-                    "  - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's " +
+                    "    - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's " +
                     "Membership attribute (one mapping per group per fabric)." +
                     "\n" +
-                    "  - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership " +
-                    "attribute (by GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for " +
-                    "a given GroupID in the GroupKeyMap, which exists in the Groupcast cluster's Membership attribute " +
-                    "for a given fabric, then the Groupcast cluster's membership attribute shall use placeholder " +
-                    "value 65535 for the KeySetID. While this KeySetID is technically valid, administrators SHOULD " +
-                    "avoid allocating it for actual usage to avoid value aliasing for this field." +
+                    "    - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership " +
+                    "attribute (by GroupID) to be updated with the provided GroupKeySetID. If an entry is missing " +
+                    "for a given GroupID in the GroupKeyMap, which exists in the Groupcast cluster's Membership " +
+                    "attribute for a given fabric, then the Groupcast cluster's membership attribute shall use " +
+                    "placeholder value 65535 for the KeySetID. While this KeySetID is technically valid, " +
+                    "administrators SHOULD avoid allocating it for actual usage to avoid value aliasing for this " +
+                    "field." +
                     "\n" +
                     "This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with " +
                     "a particular group key set."
@@ -36313,7 +36315,7 @@ export const SpecMatter = Matter(
                     "  - Success: Scanning succeeded." +
                     "\n" +
                     "  - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
-                    "    scan. This error cannot occur if no network identifier was provided, such as when scanning for " +
+                    "scan. This error cannot occur if no network identifier was provided, such as when scanning for " +
                     "all available networks." +
                     "\n" +
                     "  - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
@@ -36739,18 +36741,18 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  - ErrorValue interpretation for Wi-Fi association errors:" +
                     "\n" +
-                    "  - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
+                    "    - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
                     "the Status Code value that was present in the last frame related to association where Status " +
-                    "Code was not equal to zero and which caused the failure of a final retry attempt, if this final " +
-                    "failure was due to one of the following Management frames:" +
+                    "Code was not equal to zero and which caused the failure of a final retry attempt, if this " +
+                    "final failure was due to one of the following Management frames:" +
                     "\n" +
-                    "  - Association Response (Type 0, Subtype 1)" +
+                    "      - Association Response (Type 0, Subtype 1)" +
                     "\n" +
-                    "  - Reassociation Response (Type 0, Subtype 3)" +
+                    "      - Reassociation Response (Type 0, Subtype 3)" +
                     "\n" +
-                    "  - Authentication (Type 0, Subtype 11)" +
+                    "      - Authentication (Type 0, Subtype 11)" +
                     "\n" +
-                    "  - Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
+                    "    - Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
                     "which can unambiguously be used to determine the cause, such as an invalid security type, " +
                     "unsupported rate, etc." +
                     "\n" +
@@ -40924,24 +40926,25 @@ export const SpecMatter = Matter(
                     "attestation_challenge || fabric_index || vendor_fabric_binding_message || " +
                     "<vid_verification_statement>" +
                     "\n" +
-                    "  - fabric_binding_version is the value from the FabricBindingVersion field of this " +
+                    "    - fabric_binding_version is the value from the FabricBindingVersion field of this " +
                     "SignVIDVerificationResponse." +
                     "\n" +
-                    "  - client_challenge is the 32-octet ClientChallenge from the SignVIDVerificationRequest." +
+                    "    - client_challenge is the 32-octet ClientChallenge from the SignVIDVerificationRequest." +
                     "\n" +
-                    "  - attestation_challenge is the AttestationChallenge from a CASE session, resumed CASE session, or " +
-                    "PASE session depending on the method used to establish the current secure session context over " +
-                    "which the response will be sent." +
+                    "    - attestation_challenge is the AttestationChallenge from a CASE session, resumed CASE session, " +
+                    "or PASE session depending on the method used to establish the current secure session context " +
+                    "over which the response will be sent." +
                     "\n" +
-                    "  - fabric_index is the 1-octet value of FabricIndex from the SignVIDVerificationRequest." +
+                    "    - fabric_index is the 1-octet value of FabricIndex from the SignVIDVerificationRequest." +
                     "\n" +
-                    "  - vendor_fabric_binding_message is the octet string of the vendor_fabric_binding_message defined " +
+                    "    - vendor_fabric_binding_message is the octet string of the vendor_fabric_binding_message defined " +
                     "in Section 6.4.10.1, \"Algorithm\"." +
                     "\n" +
-                    "  - vid_verification_statement is the 85-octet (for cryptographic primitives mapping 1.0) value from " +
-                    "the VIDVerificationStatement field of the entry in the Fabrics attribute associated with the " +
-                    "fabric_index, if present. If there is no such field in the Fabrics attribute for the " +
-                    "fabric_index specified, this field shall be omitted from the vendor_id_verification_tbs message."
+                    "    - vid_verification_statement is the 85-octet (for cryptographic primitives mapping 1.0) value " +
+                    "from the VIDVerificationStatement field of the entry in the Fabrics attribute associated with " +
+                    "the fabric_index, if present. If there is no such field in the Fabrics attribute for the " +
+                    "fabric_index specified, this field shall be omitted from the vendor_id_verification_tbs " +
+                    "message."
             },
 
             Field({ name: "FabricIndex", id: 0x0, type: "fabric-idx", conformance: "M", constraint: "1 to 254" }),
@@ -41556,11 +41559,11 @@ export const SpecMatter = Matter(
                         "exactly 16 characters to encode the network byte order value of the NodeID, in a similar " +
                         "fashion as the Node Identifier portion of the Operational Instance Name." +
                         "\n" +
-                        "  1. The Operational Node ID in the host field shall match the NodeID of the OTA Provider responding " +
-                        "with the QueryImageResponse. The usage of a different Node ID than that of the provider is " +
-                        "reserved for future use. This constraint reduces the number of independent CASE secure channel " +
-                        "sessions that have to be maintained to proceed with OTA software updates, thus reducing energy " +
-                        "and resource utilization for the software update process." +
+                        "    1. The Operational Node ID in the host field shall match the NodeID of the OTA Provider " +
+                        "responding with the QueryImageResponse. The usage of a different Node ID than that of the " +
+                        "provider is reserved for future use. This constraint reduces the number of independent CASE " +
+                        "secure channel sessions that have to be maintained to proceed with OTA software updates, thus " +
+                        "reducing energy and resource utilization for the software update process." +
                         "\n" +
                         "  4. The user section of the authority field shall be absent, as there are no \"users\" to be " +
                         "considered." +
@@ -41579,7 +41582,7 @@ export const SpecMatter = Matter(
                         "escape sequences. Rather, the exact octets of the path, as received shall be the values used by " +
                         "both client and server in handling the file designator." +
                         "\n" +
-                        "  1. The path shall only contain valid URI characters." +
+                        "    1. The path shall only contain valid URI characters." +
                         "\n" +
                         "These rules above for BDX URIs simplify parsing for OTA Requestors receiving Image URIs. The " +
                         "following example procedure shows how the format constraints simplify the extraction of the " +
@@ -41602,37 +41605,37 @@ export const SpecMatter = Matter(
                         "\n" +
                         "  - Synchronous or Asynchronous BDX Protocol:" +
                         "\n" +
-                        "  - Valid: bdx://8899AABBCCDDEEFF/the_file_designator123" +
+                        "    - Valid: bdx://8899AABBCCDDEEFF/the_file_designator123" +
                         "\n" +
-                        "  - Node ID: 0x8899AABBCCDDEEFF" +
+                        "      - Node ID: 0x8899AABBCCDDEEFF" +
                         "\n" +
-                        "  - File designator: the_file_designator123" +
+                        "      - File designator: the_file_designator123" +
                         "\n" +
-                        "  - Valid: bdx://0099AABBCCDDEE77/the%20file%20designator/some_more" +
+                        "    - Valid: bdx://0099AABBCCDDEE77/the%20file%20designator/some_more" +
                         "\n" +
-                        "  - Node ID: 0x0099AABBCCDDEE77" +
+                        "      - Node ID: 0x0099AABBCCDDEE77" +
                         "\n" +
-                        "  - File designator: the%20file%20designator/some_more. Note that the %20 are retained and not " +
-                        "converted to ASCII 0x20 (space). The file designator is the path as received verbatim, after the " +
-                        "first '/' (U+002F / SOLIDUS) following the host." +
+                        "      - File designator: the%20file%20designator/some_more. Note that the %20 are retained and not " +
+                        "converted to ASCII 0x20 (space). The file designator is the path as received verbatim, after " +
+                        "the first '/' (U+002F / SOLIDUS) following the host." +
                         "\n" +
-                        "  - Invalid: bdx://99AABBCCDDEE77/the_file_designator123" +
+                        "    - Invalid: bdx://99AABBCCDDEE77/the_file_designator123" +
                         "\n" +
-                        "  - Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading " +
+                        "      - Node ID: Invalid since it is not exactly 16 characters long, due to having omitted leading " +
                         "zeros." +
                         "\n" +
-                        "  - Invalid: bdx://0099aabbccddee77/the_file_designator123" +
+                        "    - Invalid: bdx://0099aabbccddee77/the_file_designator123" +
                         "\n" +
-                        "  - Node ID: Invalid since lowercase hexadecimal was used." +
+                        "      - Node ID: Invalid since lowercase hexadecimal was used." +
                         "\n" +
-                        "  - Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123" +
+                        "    - Invalid: bdx:8899AABBCCDDEEFF/the_file_designator123" +
                         "\n" +
-                        "  - Invalid since bdx scheme does not contain an authority, that is, it does not have // after the " +
-                        "first :." +
+                        "      - Invalid since bdx scheme does not contain an authority, that is, it does not have // after " +
+                        "the first :." +
                         "\n" +
                         "  - HTTP over TLS:" +
                         "\n" +
-                        "  - Valid: https://example.domain:8466/software/image.bin" +
+                        "    - Valid: https://example.domain:8466/software/image.bin" +
                         "\n" +
                         "See Section 11.20.3.2, \"Querying the OTA Provider\" for additional details about the flow."
                 }
@@ -42474,19 +42477,19 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  3. If any fields are changed as a result of this command:" +
                     "\n" +
-                    "  1. Iterate through each DatastoreNodeInformationEntryStruct:" +
+                    "    1. Iterate through each DatastoreNodeInformationEntryStruct:" +
                     "\n" +
-                    "  1. If the NodeKeySetList contains an entry with the given GroupKeySetID:" +
+                    "      1. If the NodeKeySetList contains an entry with the given GroupKeySetID:" +
                     "\n" +
-                    "  1. Update the Status on the given DatastoreNodeKeySetEntryStruct tp Pending." +
+                    "        1. Update the Status on the given DatastoreNodeKeySetEntryStruct tp Pending." +
                     "\n" +
-                    "  2. Update the GroupKeySet on the given Node with the new values." +
+                    "        2. Update the GroupKeySet on the given Node with the new values." +
                     "\n" +
-                    "  1. If successful, update the Status on this DatastoreNodeKeySetEntryStruct to Committed." +
+                    "          1. If successful, update the Status on this DatastoreNodeKeySetEntryStruct to Committed." +
                     "\n" +
-                    "  2. If not successful, update the State field of the StatusEntry on this " +
-                    "DatastoreNodeKeySetEntryStruct to CommitFailed and FailureCode code to the returned error. The " +
-                    "pending change shall be applied in a subsequent Node Refresh."
+                    "          2. If not successful, update the State field of the StatusEntry on this " +
+                    "DatastoreNodeKeySetEntryStruct to CommitFailed and FailureCode code to the returned " +
+                    "error. The pending change shall be applied in a subsequent Node Refresh."
             })
         ),
 
@@ -42512,11 +42515,11 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  2. Ensure there are no Nodes using this KeySet. To do this:" +
                     "\n" +
-                    "  1. Iterate through each DatastoreNodeInformationEntryStruct:" +
+                    "    1. Iterate through each DatastoreNodeInformationEntryStruct:" +
                     "\n" +
-                    "  1. If the NodeKeySetList list contains an entry with the given GroupKeySetID, and the entry does " +
-                    "NOT have Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR status " +
-                    "code." +
+                    "      1. If the NodeKeySetList list contains an entry with the given GroupKeySetID, and the entry " +
+                    "does NOT have Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR " +
+                    "status code." +
                     "\n" +
                     "  3. Remove the DatastoreGroupKeySetStruct for the given GroupKeySetID from the GroupKeySetList " +
                     "attribute."
@@ -42639,50 +42642,54 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  3. If any fields are changed as a result of this command:" +
                     "\n" +
-                    "  1. Iterate through each DatastoreNodeInformationEntryStruct:" +
+                    "    1. Iterate through each DatastoreNodeInformationEntryStruct:" +
                     "\n" +
-                    "  1. If the GroupKeySetID changed:" +
+                    "      1. If the GroupKeySetID changed:" +
                     "\n" +
-                    "  1. Add a DatastoreNodeKeySetEntryStruct with the new GroupKeySetID, and Status set to Pending." +
+                    "        1. Add a DatastoreNodeKeySetEntryStruct with the new GroupKeySetID, and Status set to " +
+                    "Pending." +
                     "\n" +
-                    "  2. Add this KeySet to the Node." +
+                    "        2. Add this KeySet to the Node." +
                     "\n" +
-                    "  1. If successful, Set the Status to Committed for this entry in the NodeKeySetList." +
+                    "          1. If successful, Set the Status to Committed for this entry in the NodeKeySetList." +
                     "\n" +
-                    "  2. If not successful, Set the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The pending change shall be applied in a subsequent Node Refresh." +
+                    "          2. If not successful, Set the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The pending change shall be applied in a subsequent Node Refresh." +
                     "\n" +
-                    "  1. If the NodeKeySetList list contains an entry with the previous GroupKeySetID:" +
+                    "            1. If the NodeKeySetList list contains an entry with the previous GroupKeySetID:" +
                     "\n" +
-                    "  3. Set the Status set to DeletePending." +
+                    "        3. Set the Status set to DeletePending." +
                     "\n" +
-                    "  4. Remove this KeySet from the Node." +
+                    "        4. Remove this KeySet from the Node." +
                     "\n" +
-                    "  1. If successful, Remove this entry from the NodeKeySetList." +
+                    "          1. If successful, Remove this entry from the NodeKeySetList." +
                     "\n" +
-                    "  2. If not successful, the pending change shall be applied in a subsequent Node Refresh." +
+                    "          2. If not successful, the pending change shall be applied in a subsequent Node Refresh." +
                     "\n" +
-                    "  2. If the GroupCAT, GroupCATVersion or GroupPermission changed:" +
+                    "      2. If the GroupCAT, GroupCATVersion or GroupPermission changed:" +
                     "\n" +
-                    "  1. If the ACLList contains an entry for this Group, update the ACL List Entry in the Datastore " +
-                    "with the new values and Status Pending, update the ACL attribute on the given Node with the new " +
-                    "     values. If the update succeeds, set the Status to Committed on the ACLList Entry in the " +
+                    "        1. If the ACLList contains an entry for this Group, update the ACL List Entry in the " +
+                    "Datastore with the new values and Status Pending, update the ACL attribute on the given " +
+                    "Node with the new values. If the update succeeds, set the Status to Committed on the " +
+                    "ACLList Entry in the Datastore." +
+                    "\n" +
+                    "      3. If the FriendlyName changed:" +
+                    "\n" +
+                    "        1. Iterate through each DatastoreEndpointGroupIDEntryStruct in the EndpointGroupIDList " +
+                    "attribute:" +
+                    "\n" +
+                    "          1. If the DatastoreEndpointGroupIDEntryStruct contains an entry with the given GroupID:" +
+                    "\n" +
+                    "            1. Update the DatastoreEndpointGroupIDEntryStruct Entry in the Datastore with the new " +
+                    "values and Status Pending" +
+                    "\n" +
+                    "            2. Update the Groups on the given Node with the new values." +
+                    "\n" +
+                    "              1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the " +
                     "Datastore." +
                     "\n" +
-                    "  3. If the FriendlyName changed:" +
-                    "\n" +
-                    "  1. Iterate through each DatastoreEndpointGroupIDEntryStruct in the EndpointGroupIDList attribute:" +
-                    "\n" +
-                    "  1. If the DatastoreEndpointGroupIDEntryStruct contains an entry with the given GroupID:" +
-                    "\n" +
-                    "  1. Update the DatastoreEndpointGroupIDEntryStruct Entry in the Datastore with the new values and " +
-                    "Status Pending" +
-                    "\n" +
-                    "  2. Update the Groups on the given Node with the new values." +
-                    "\n" +
-                    "  1. If the update succeeds, set the Status to Committed on the GroupIDList Entry in the Datastore." +
-                    "\n" +
-                    "  2. If not successful, the pending change shall be applied in a subsequent Node Refresh."
+                    "              2. If not successful, the pending change shall be applied in a subsequent Node " +
+                    "Refresh."
             })
         ),
 
@@ -42709,10 +42716,10 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  2. Ensure there are no Nodes in this group. To do this:" +
                     "\n" +
-                    "  1. Iterate through each DatastoreNodeInformationEntryStruct:" +
+                    "    1. Iterate through each DatastoreNodeInformationEntryStruct:" +
                     "\n" +
-                    "  1. If the GroupIDList contains an entry with the given GroupID, and the entry does NOT have Status " +
-                    "DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code." +
+                    "      1. If the GroupIDList contains an entry with the given GroupID, and the entry does NOT have " +
+                    "Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code." +
                     "\n" +
                     "  3. Remove the DatastoreGroupInformationEntryStruct for the Group with the given GroupID from the " +
                     "GroupList attribute."
@@ -42859,129 +42866,129 @@ export const SpecMatter = Matter(
                     "  3. Ensure the Endpoint List for the DatastoreNodeInformationEntryStruct with the given NodeID " +
                     "matches Endpoint list on the given Node. This involves the following steps:" +
                     "\n" +
-                    "  1. Read the PartsList of the Descriptor cluster from the Node." +
+                    "    1. Read the PartsList of the Descriptor cluster from the Node." +
                     "\n" +
-                    "  2. For each DatastoreEndpointEntryStruct in the NodeEndpointList attribute with the given NodeID " +
+                    "    2. For each DatastoreEndpointEntryStruct in the NodeEndpointList attribute with the given NodeID " +
                     "that does not match an Endpoint ID in the PartsList, remove the DatastoreEndpointEntryStruct." +
                     "\n" +
-                    "  3. For each DatastoreEndpointEntryStruct in the NodeEndpointList attribute with the given NodeID " +
+                    "    3. For each DatastoreEndpointEntryStruct in the NodeEndpointList attribute with the given NodeID " +
                     "that matches an Endpoint ID in the PartsList:" +
                     "\n" +
-                    "  1. Check that each entry in Node's Group List occurs in the EndpointGroupIDList attribute." +
+                    "      1. Check that each entry in Node's Group List occurs in the EndpointGroupIDList attribute." +
                     "\n" +
-                    "  1. Add any missing entries to the EndpointGroupIDList." +
+                    "        1. Add any missing entries to the EndpointGroupIDList." +
                     "\n" +
-                    "  2. For any entries in the EndpointGroupIDList attribute with the given NodeId and EndpointId with " +
-                    "Status of Pending:" +
+                    "        2. For any entries in the EndpointGroupIDList attribute with the given NodeId and EndpointId " +
+                    "with Status of Pending:" +
                     "\n" +
-                    "  1. Add the corresponding change to the Node's Group List." +
+                    "          1. Add the corresponding change to the Node's Group List." +
                     "\n" +
-                    "  1. If successful, mark the Status to Committed." +
+                    "            1. If successful, mark the Status to Committed." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh." +
+                    "            2. If not successful, update the Status to CommitFailed and the FailureCode to the " +
+                    "returned error. The error shall be handled in a subsequent Node Refresh." +
                     "\n" +
-                    "  3. For any entries in the EndpointGroupIDList attribute with the given NodeID and EndpointID with " +
-                    "Status of DeletePending:" +
+                    "        3. For any entries in the EndpointGroupIDList attribute with the given NodeID and EndpointID " +
+                    "with Status of DeletePending:" +
                     "\n" +
-                    "  1. If successful, remove the corresponding entry from the Node's Group List." +
+                    "          1. If successful, remove the corresponding entry from the Node's Group List." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh." +
+                    "          2. If not successful, update the Status to CommitFailed and the FailureCode to the " +
+                    "returned error. The error shall be handled in a subsequent Node Refresh." +
                     "\n" +
-                    "  4. For any entries in the EndpointGroupIDList attribute with the given NodeID and EndpointID with " +
-                    "Status of CommitFailure:" +
+                    "        4. For any entries in the EndpointGroupIDList attribute with the given NodeID and EndpointID " +
+                    "with Status of CommitFailure:" +
                     "\n" +
-                    "  1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from " +
-                    "the GroupIDList." +
+                    "          1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the " +
+                    "entry from the GroupIDList." +
                     "\n" +
-                    "  2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
-                    "subsequent Node Refresh." +
+                    "          2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in " +
+                    "a subsequent Node Refresh." +
                     "\n" +
-                    "  2. Check that each entry in Node's Binding List occurs in the EndpointBindingList attribute with " +
-                    "the given NodeId and EndpointId." +
+                    "      2. Check that each entry in Node's Binding List occurs in the EndpointBindingList attribute " +
+                    "with the given NodeId and EndpointId." +
                     "\n" +
-                    "  1. Add any missing entries to the EndpointBindingList attribute." +
+                    "        1. Add any missing entries to the EndpointBindingList attribute." +
                     "\n" +
-                    "  2. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with " +
-                    "Status of Pending:" +
+                    "        2. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID " +
+                    "with Status of Pending:" +
                     "\n" +
-                    "  1. Add the corresponding change to the Node's Binding List." +
+                    "          1. Add the corresponding change to the Node's Binding List." +
                     "\n" +
-                    "  1. If successful, mark the Status to Committed." +
+                    "            1. If successful, mark the Status to Committed." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh." +
+                    "            2. If not successful, update the Status to CommitFailed and the FailureCode to the " +
+                    "returned error. The error shall be handled in a subsequent Node Refresh." +
                     "\n" +
-                    "  3. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with " +
-                    "Status of DeletePending:" +
+                    "        3. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID " +
+                    "with Status of DeletePending:" +
                     "\n" +
-                    "  1. If successful, remove the corresponding entry from the Node's BindingList." +
+                    "          1. If successful, remove the corresponding entry from the Node's BindingList." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh." +
+                    "          2. If not successful, update the Status to CommitFailed and the FailureCode to the " +
+                    "returned error. The error shall be handled in a subsequent Node Refresh." +
                     "\n" +
-                    "  4. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID with " +
-                    "Status of CommitFailure:" +
+                    "        4. For any entries in the EndpointBindingList attribute with the given NodeID and EndpointID " +
+                    "with Status of CommitFailure:" +
                     "\n" +
-                    "  1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from " +
-                    "the BindingList." +
+                    "          1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the " +
+                    "entry from the BindingList." +
                     "\n" +
-                    "  2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
-                    "subsequent Node Refresh." +
+                    "          2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in " +
+                    "a subsequent Node Refresh." +
                     "\n" +
                     "  4. Ensure the GroupKeySetList entries with the given NodeID match the Group Keys on the given " +
-                    "     Node. This involves the following steps:" +
+                    "Node. This involves the following steps:" +
                     "\n" +
-                    "  1. Read the Group Keys from the Node." +
+                    "    1. Read the Group Keys from the Node." +
                     "\n" +
-                    "  2. For each DatastoreGroupKeySetStruct in the GroupKeySetList attribute for the given NodeID with " +
-                    "a Pending Status:" +
+                    "    2. For each DatastoreGroupKeySetStruct in the GroupKeySetList attribute for the given NodeID " +
+                    "with a Pending Status:" +
                     "\n" +
-                    "  1. Add the corresponding DatastoreGroupKeySetStruct to the Node's Group Key list." +
+                    "      1. Add the corresponding DatastoreGroupKeySetStruct to the Node's Group Key list." +
                     "\n" +
-                    "  1. If successful, mark the Status to Committed." +
+                    "        1. If successful, mark the Status to Committed." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh." +
+                    "        2. If not successful, update the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The error shall be handled in a subsequent Node Refresh." +
                     "\n" +
-                    "  3. For each DatastoreGroupKeySetStruct in the GroupKeySetList attribute for the given NodeID with " +
-                    "a CommitFailure Status:" +
+                    "    3. For each DatastoreGroupKeySetStruct in the GroupKeySetList attribute for the given NodeID " +
+                    "with a CommitFailure Status:" +
                     "\n" +
-                    "  1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry from " +
-                    "the GroupKeySetList." +
+                    "      1. A CommitFailure with an unrecoverable FailureCode shall be handled by removing the entry " +
+                    "from the GroupKeySetList." +
                     "\n" +
-                    "  2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
+                    "      2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
                     "subsequent Node Refresh." +
                     "\n" +
-                    "  4. All remaining entries in the GroupKeySetList attribute for the given NodeId should be replaced " +
-                    "by the remaining entries on the Node." +
+                    "    4. All remaining entries in the GroupKeySetList attribute for the given NodeId should be " +
+                    "replaced by the remaining entries on the Node." +
                     "\n" +
                     "  5. Ensure the NodeACLList attribute for the given NodeID matches the ACL attribute on the given " +
-                    "     Node. This involves the following steps:" +
+                    "Node. This involves the following steps:" +
                     "\n" +
-                    "  1. Read the ACL attribute on the Node." +
+                    "    1. Read the ACL attribute on the Node." +
                     "\n" +
-                    "  2. For each DatastoreACLEntryStruct in the ACLList attribute with the given NodeID with a Pending " +
-                    "Status:" +
+                    "    2. For each DatastoreACLEntryStruct in the ACLList attribute with the given NodeID with a " +
+                    "Pending Status:" +
                     "\n" +
-                    "  1. Add the corresponding DatastoreACLEntryStruct to the Node's ACL attribute." +
+                    "      1. Add the corresponding DatastoreACLEntryStruct to the Node's ACL attribute." +
                     "\n" +
-                    "  1. If successful, mark the Status to Committed." +
+                    "        1. If successful, mark the Status to Committed." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh." +
+                    "        2. If not successful, update the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The error shall be handled in a subsequent Node Refresh." +
                     "\n" +
-                    "  3. For each DatastoreACLEntryStruct in the ACLList attribute with the given NodeID with a " +
+                    "    3. For each DatastoreACLEntryStruct in the ACLList attribute with the given NodeID with a " +
                     "CommitFailure Status:" +
                     "\n" +
-                    "  1. A CommitFailure with an unrecoverable FailureCode (i.e. RESOURCE_EXHAUSTED, CONSTRAINT_ERROR) " +
-                    "shall be handled by removing the entry from the ACLList." +
+                    "      1. A CommitFailure with an unrecoverable FailureCode (i.e. RESOURCE_EXHAUSTED, " +
+                    "CONSTRAINT_ERROR) shall be handled by removing the entry from the ACLList." +
                     "\n" +
-                    "  2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
+                    "      2. A CommitFailure with a recoverable FailureCode (i.e. TIMEOUT, BUSY) shall be handle in a " +
                     "subsequent Node Refresh." +
                     "\n" +
-                    "  4. All remaining entries in the ACLList should be replaced by the remaining entries on the Node." +
+                    "    4. All remaining entries in the ACLList should be replaced by the remaining entries on the Node." +
                     "\n" +
                     "  6. Update the CommissioningStatusEntry for the DatastoreNodeInformationEntryStruct to Committed."
             })
@@ -43105,27 +43112,27 @@ export const SpecMatter = Matter(
                     "  2. Ensure the Group Key List for the DatastoreNodeInformationEntryStruct with the given NodeID " +
                     "includes the KeySet for the given Group ID. If it does not:" +
                     "\n" +
-                    "  1. Add an entry for the KeySet of the given Group ID to the Group Key List for the Node. The new " +
+                    "    1. Add an entry for the KeySet of the given Group ID to the Group Key List for the Node. The new " +
                     "entry's status shall be set to Pending." +
                     "\n" +
-                    "  2. Add a Group Key Entry for this KeySet to the given Node ID." +
+                    "    2. Add a Group Key Entry for this KeySet to the given Node ID." +
                     "\n" +
-                    "  1. If this succeeds, update the new KeySet entry in the Datastore to Committed." +
+                    "      1. If this succeeds, update the new KeySet entry in the Datastore to Committed." +
                     "\n" +
-                    "  2. If not successful, the pending change shall be applied in a subsequent Node Refresh." +
+                    "      2. If not successful, the pending change shall be applied in a subsequent Node Refresh." +
                     "\n" +
                     "  3. Ensure the Group List for the DatastoreNodeInformationEntryStruct with the given NodeID and " +
                     "EndpointID includes an entry for the given Group. If it does not:" +
                     "\n" +
-                    "  1. Add a Group entry for the given Group ID to the Group List for the Endpoint and Node. The new " +
+                    "    1. Add a Group entry for the given Group ID to the Group List for the Endpoint and Node. The new " +
                     "entry's status shall be set to Pending." +
                     "\n" +
-                    "  2. Add this Group entry to the given Endpoint ID on the given Node ID." +
+                    "    2. Add this Group entry to the given Endpoint ID on the given Node ID." +
                     "\n" +
-                    "  1. If this succeeds, update the new Group entry in the Datastore to Committed." +
+                    "      1. If this succeeds, update the new Group entry in the Datastore to Committed." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh."
+                    "      2. If not successful, update the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The error shall be handled in a subsequent Node Refresh."
             })
         ),
 
@@ -43161,27 +43168,28 @@ export const SpecMatter = Matter(
                     "  2. Ensure the EndpointGroupIDList entries with the given NodeID and EndpointID does not include an " +
                     "entry for the given Group. If it does:" +
                     "\n" +
-                    "  1. Update the status to DeletePending of the Group entry for the given Group ID in the Group List." +
+                    "    1. Update the status to DeletePending of the Group entry for the given Group ID in the Group " +
+                    "List." +
                     "\n" +
-                    "  2. Remove this Group entry for the given Endpoint ID on the given Node ID." +
+                    "    2. Remove this Group entry for the given Endpoint ID on the given Node ID." +
                     "\n" +
-                    "  1. If this succeeds, remove the Group entry for the given Group ID in the Group List for this " +
+                    "      1. If this succeeds, remove the Group entry for the given Group ID in the Group List for this " +
                     "NodeID and EndpointID in the Datastore." +
                     "\n" +
-                    "  2. If not successful, the pending change shall be applied in a subsequent Node Refresh." +
+                    "      2. If not successful, the pending change shall be applied in a subsequent Node Refresh." +
                     "\n" +
                     "  3. Ensure the Group Key List for the DatastoreNodeInformationEntryStruct with the given NodeID " +
                     "does not include the KeySet for the given Group ID. If it does:" +
                     "\n" +
-                    "  1. Update the status to DeletePending for the entry for the KeySet of the given Group ID in the " +
+                    "    1. Update the status to DeletePending for the entry for the KeySet of the given Group ID in the " +
                     "Node Group Key List." +
                     "\n" +
-                    "  2. Remove the Group Key Entry for this KeySet from the given Node ID." +
+                    "    2. Remove the Group Key Entry for this KeySet from the given Node ID." +
                     "\n" +
-                    "  1. If this succeeds, remove the KeySet entry for the given Node ID." +
+                    "      1. If this succeeds, remove the KeySet entry for the given Node ID." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh."
+                    "      2. If not successful, update the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The error shall be handled in a subsequent Node Refresh."
             })
         ),
 
@@ -43218,15 +43226,15 @@ export const SpecMatter = Matter(
                     "  2. Ensure the Binding List for the DatastoreNodeInformationEntryStruct with the given NodeID " +
                     "includes the given Binding. If it does not:" +
                     "\n" +
-                    "  1. Add the DatastoreEndpointBindingEntryStruct entry to the EndpointBindingList attribute for the " +
-                    "given NodeID and EndpointID. The new entry's status shall be set to Pending." +
+                    "    1. Add the DatastoreEndpointBindingEntryStruct entry to the EndpointBindingList attribute for " +
+                    "the given NodeID and EndpointID. The new entry's status shall be set to Pending." +
                     "\n" +
-                    "  2. Add this Binding to the given Node ID." +
+                    "    2. Add this Binding to the given Node ID." +
                     "\n" +
-                    "  1. If this succeeds, update the new Binding in the Datastore to Committed." +
+                    "      1. If this succeeds, update the new Binding in the Datastore to Committed." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh."
+                    "      2. If not successful, update the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The error shall be handled in a subsequent Node Refresh."
             })
         ),
 
@@ -43263,14 +43271,14 @@ export const SpecMatter = Matter(
                     "  2. Ensure the EndpointBindingList entries with the given NodeID does not include an entry with the " +
                     "given ListID. If it does:" +
                     "\n" +
-                    "  1. Update the status to DeletePending for the given Binding in the Binding List." +
+                    "    1. Update the status to DeletePending for the given Binding in the Binding List." +
                     "\n" +
-                    "  2. Remove this Binding from the given Node ID." +
+                    "    2. Remove this Binding from the given Node ID." +
                     "\n" +
-                    "  1. If this succeeds, remove the given Binding from the Binding List." +
+                    "      1. If this succeeds, remove the given Binding from the Binding List." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh."
+                    "      2. If not successful, update the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The error shall be handled in a subsequent Node Refresh."
             })
         ),
 
@@ -43300,15 +43308,15 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  2. Ensure the ACL List for the given NodeID includes the given ACLEntry. If it does not:" +
                     "\n" +
-                    "  1. Add the ACLEntry to the ACL List for the given NodeID. The new entry's status shall be set to " +
+                    "    1. Add the ACLEntry to the ACL List for the given NodeID. The new entry's status shall be set to " +
                     "Pending." +
                     "\n" +
-                    "  2. Add this ACLEntry to the given Node ID." +
+                    "    2. Add this ACLEntry to the given Node ID." +
                     "\n" +
-                    "  1. If this succeeds, update the new ACLEntry in the Datastore to Committed." +
+                    "      1. If this succeeds, update the new ACLEntry in the Datastore to Committed." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh."
+                    "      2. If not successful, update the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The error shall be handled in a subsequent Node Refresh."
             })
         ),
 
@@ -43338,14 +43346,14 @@ export const SpecMatter = Matter(
                     "\n" +
                     "  2. Ensure the ACL List for the given NodeID does not include the given ACLEntry. If it does:" +
                     "\n" +
-                    "  1. Update the status to DeletePending for the given ACLEntry in the ACL List." +
+                    "    1. Update the status to DeletePending for the given ACLEntry in the ACL List." +
                     "\n" +
-                    "  2. Remove this ACLEntry from the given Node ID." +
+                    "    2. Remove this ACLEntry from the given Node ID." +
                     "\n" +
-                    "  1. If this succeeds, remove the given ACLEntry from the Node ACL List." +
+                    "      1. If this succeeds, remove the given ACLEntry from the Node ACL List." +
                     "\n" +
-                    "  2. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. " +
-                    "The error shall be handled in a subsequent Node Refresh."
+                    "      2. If not successful, update the Status to CommitFailed and the FailureCode to the returned " +
+                    "error. The error shall be handled in a subsequent Node Refresh."
             })
         ),
 
@@ -44189,7 +44197,8 @@ export const SpecMatter = Matter(
                     "minimum number of entries needed to fully encode the Endpoints list while respecting that no " +
                     "entry has more than 255 Endpoints listed." +
                     "\n" +
-                    "  - Therefore, the maximum number of entries for that group shall be ceil(length(Endpoints) / 255)." +
+                    "    - Therefore, the maximum number of entries for that group shall be ceil(length(Endpoints) / " +
+                    "255)." +
                     "\n" +
                     "The actual number of entries in the list across all fabrics shall be at most " +
                     "ceil(num_endpoints_in_node / 255) * MaxMembershipCount." +
@@ -45562,13 +45571,11 @@ export const SpecMatter = Matter(
                 xref: "device§2.1.5"
             },
             Requirement({
-                name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature",
+                name: "MNGD", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature",
                 xref: "device§2.1.6"
             }),
-            Requirement(
-                { name: "AUXILIARY", conformance: "GroupcastListenerCond", element: "feature", xref: "device§2.1.6" }
-            ),
-            Requirement({ name: "Extension", conformance: "ACLExtensionCond", element: "attribute", xref: "device§2.1.6" })
+            Requirement({ name: "AUX", conformance: "GroupcastListenerCond", element: "feature", xref: "device§2.1.6" }),
+            Requirement({ name: "Extension", conformance: "AclExtensionCond", element: "attribute", xref: "device§2.1.6" })
         ),
 
         Requirement({
@@ -45627,21 +45634,18 @@ export const SpecMatter = Matter(
         Requirement(
             {
                 name: "TimeSynchronization", id: 0x38,
-                conformance: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNTPCCond, TimeSyncWithTZCond, TLSClientCond, TLSCertificatesCond, O",
+                conformance: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNtpcCond, TimeSyncWithTzCond, TlsClientCond, TlsCertificatesCond, O",
                 element: "serverCluster", quality: "I", xref: "device§2.1.5"
             },
             Requirement({
-                name: "TIMESYNCCLIENT",
-                conformance: "TimeSyncWithClientCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+                name: "TSC", conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
                 element: "feature", xref: "device§2.1.6"
             }),
             Requirement({
-                name: "NTPCLIENT", conformance: "TimeSyncWithNTPCCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+                name: "NTPC", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
                 element: "feature", xref: "device§2.1.6"
             }),
-            Requirement(
-                { name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature", xref: "device§2.1.6" }
-            )
+            Requirement({ name: "TZ", conformance: "TimeSyncWithTzCond, O", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement(
@@ -45650,17 +45654,14 @@ export const SpecMatter = Matter(
                 element: "clientCluster", quality: "I", xref: "device§2.1.5"
             },
             Requirement({
-                name: "TIMESYNCCLIENT",
-                conformance: "TimeSyncWithClientCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+                name: "TSC", conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
                 element: "feature", xref: "device§2.1.6"
             }),
             Requirement({
-                name: "NTPCLIENT", conformance: "TimeSyncWithNTPCCond, [TLSCertificatesCond | TLSClientCond].a+, O",
+                name: "NTPC", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
                 element: "feature", xref: "device§2.1.6"
             }),
-            Requirement(
-                { name: "TIMEZONE", conformance: "TimeSyncWithTZCond, O", element: "feature", xref: "device§2.1.6" }
-            )
+            Requirement({ name: "TZ", conformance: "TimeSyncWithTzCond, O", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement({
@@ -45678,17 +45679,17 @@ export const SpecMatter = Matter(
                 xref: "device§2.1.5"
             },
             Requirement({
-                name: "GROUPCAST", conformance: "GroupcastListenerCond | GroupcastSenderCond, O",
-                element: "feature", xref: "device§2.1.6"
+                name: "GCAST", conformance: "GroupcastListenerCond | GroupcastSenderCond, O", element: "feature",
+                xref: "device§2.1.6"
             })
         ),
 
         Requirement(
             {
-                name: "IcdManagement", id: 0x46, conformance: "SIT | LIT", element: "serverCluster", quality: "I",
+                name: "IcdManagement", id: 0x46, conformance: "Sit | Lit", element: "serverCluster", quality: "I",
                 xref: "device§2.1.5"
             },
-            Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "LIT", element: "feature", xref: "device§2.1.6" })
+            Requirement({ name: "LITS", conformance: "Lit", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement(
@@ -45696,20 +45697,16 @@ export const SpecMatter = Matter(
                 name: "Groupcast", id: 0x65, conformance: "GroupcastListenerCond, GroupcastSenderCond, O",
                 element: "serverCluster", quality: "I", xref: "device§2.1.5"
             },
-            Requirement(
-                { name: "LISTENER", conformance: "GroupcastListenerCond, O", element: "feature", xref: "device§2.1.6" }
-            ),
-            Requirement(
-                { name: "SENDER", conformance: "GroupcastSenderCond, O", element: "feature", xref: "device§2.1.6" }
-            )
+            Requirement({ name: "LN", conformance: "GroupcastListenerCond, O", element: "feature", xref: "device§2.1.6" }),
+            Requirement({ name: "SD", conformance: "GroupcastSenderCond, O", element: "feature", xref: "device§2.1.6" })
         ),
 
         Requirement({
-            name: "TlsCertificateManagement", id: 0x801, conformance: "TLSCertificatesCond, O",
+            name: "TlsCertificateManagement", id: 0x801, conformance: "TlsCertificatesCond, O",
             element: "serverCluster", quality: "I", xref: "device§2.1.5"
         }),
         Requirement({
-            name: "TlsClientManagement", id: 0x802, conformance: "TLSClientCond, O", element: "serverCluster",
+            name: "TlsClientManagement", id: 0x802, conformance: "TlsClientCond, O", element: "serverCluster",
             quality: "I", xref: "device§2.1.5"
         }),
         Requirement({
@@ -45805,21 +45802,22 @@ export const SpecMatter = Matter(
                 "types, i.e. the full-family pattern defined in the System Model specification. This is used for " +
                 "the following cases:" +
                 "\n" +
-                "  - Exposing a compound device - the child endpoints each have a part of the functionality of the " +
+                "    - Exposing a compound device - the child endpoints each have a part of the functionality of the " +
                 "bridged device. See endpoints 31-34 in the example below; the bridged device is a PIR sensor " +
                 "which also has temperature and illuminance measurement. Endpoints 32-34 host the associated " +
                 "application device types and clusters. Endpoint 31 (the endpoint with the Bridged Node device " +
                 "type) functions as parent for these endpoints and has no application device types." +
                 "\n" +
-                "  - Exposing a composed device type - a child endpoint of the endpoint with the Bridged Node device " +
-                "type has the composed device type; this endpoint with the composed device type has child " +
-                "endpoints for the device type(s) that are mandatory or optional for the composed device type. " +
-                "See endpoints 41-43 in the example below; this is a refrigerator, which is a composed device " +
-                "type, hosted on endpoint 42, with the associated temperature controlled cabinet device type on " +
-                "child endpoint 43. Endpoint 41 (the endpoint with the Bridged Node device type) functions as " +
-                "parent for the endpoint hosting the composed device type and has no application clusters." +
+                "    - Exposing a composed device type - a child endpoint of the endpoint with the Bridged Node " +
+                "device type has the composed device type; this endpoint with the composed device type has " +
+                "child endpoints for the device type(s) that are mandatory or optional for the composed device " +
+                "type. See endpoints 41-43 in the example below; this is a refrigerator, which is a composed " +
+                "device type, hosted on endpoint 42, with the associated temperature controlled cabinet device " +
+                "type on child endpoint 43. Endpoint 41 (the endpoint with the Bridged Node device type) " +
+                "functions as parent for the endpoint hosting the composed device type and has no application " +
+                "clusters." +
                 "\n" +
-                "  - Combinations of the above." +
+                "    - Combinations of the above." +
                 "\n" +
                 "  - One Endpoint: Both the Bridged Node and one or more application device types are supported on " +
                 "the same endpoint (following application device type rules). The PartsList attribute in the " +
@@ -45827,7 +45825,7 @@ export const SpecMatter = Matter(
                 "more than one endpoint to expose their functionality, they cannot use the \"One Endpoint\" pattern " +
                 "and need to use the \"Separate Endpoints\" model described above." +
                 "\n" +
-                "  - Example in the figure below: endpoint 21 hosts the Bridged Node utility device type, plus the " +
+                "    - Example in the figure below: endpoint 21 hosts the Bridged Node utility device type, plus the " +
                 "application device type for a dimmable light on same endpoint. Since the dimmable light device " +
                 "type is a superset of on/off light, that subset device type may be added here as well." +
                 "\n" +
@@ -45930,26 +45928,15 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x98, conformance: "M", element: "serverCluster",
                 xref: "device§2.7.4"
             },
-            Requirement({ name: "POWERADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature", xref: "device§2.7.5" }),
-            Requirement({
-                name: "STARTTIMEADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
-                xref: "device§2.7.5"
-            }),
-            Requirement(
-                { name: "PAUSABLE", conformance: "[ControllableESA].a+", element: "feature", xref: "device§2.7.5" }
-            ),
-            Requirement({
-                name: "FORECASTADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
-                xref: "device§2.7.5"
-            }),
-            Requirement({
-                name: "CONSTRAINTBASEDADJUSTMENT", conformance: "[ControllableESA].a+", element: "feature",
-                xref: "device§2.7.5"
-            })
+            Requirement({ name: "PA", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({ name: "STA", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({ name: "PAU", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({ name: "FA", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" }),
+            Requirement({ name: "CON", conformance: "[ControllableEsa].a+", element: "feature", xref: "device§2.7.5" })
         ),
 
         Requirement({
-            name: "DeviceEnergyManagementMode", id: 0x9f, conformance: "ControllableESA, O",
+            name: "DeviceEnergyManagementMode", id: 0x9f, conformance: "ControllableEsa, O",
             element: "serverCluster", xref: "device§2.7.4"
         }),
         Requirement({
@@ -46067,13 +46054,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.1.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.1.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.1.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.1.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§4.1.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.1.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.1.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§4.1.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.1.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.1.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.1.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.1.6" })
@@ -46112,13 +46099,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.2.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.2.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.2.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.2.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.2.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.2.6" }),
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.2.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.2.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§4.2.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.2.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.2.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.2.6" })
@@ -46157,13 +46144,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.3.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.3.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.3.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.3.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.3.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§4.3.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.3.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.3.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.3.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.3.6" })
@@ -46175,7 +46162,7 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.3.5" },
-            Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature", xref: "device§4.3.6" }),
+            Requirement({ name: "CT", conformance: "M", element: "feature", xref: "device§4.3.6" }),
             Requirement({ name: "RemainingTime", conformance: "M", element: "attribute", xref: "device§4.3.6" })
         ),
         Requirement(
@@ -46209,13 +46196,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§4.4.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.4.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.4.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§4.4.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§4.4.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§4.4.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§4.4.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§4.4.6" })
@@ -46228,11 +46215,11 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster", xref: "device§4.4.5" },
-            Requirement({ name: "HUESATURATION", conformance: "O", element: "feature", xref: "device§4.4.6" }),
-            Requirement({ name: "ENHANCEDHUE", conformance: "O", element: "feature", xref: "device§4.4.6" }),
-            Requirement({ name: "COLORLOOP", conformance: "O", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "HS", conformance: "O", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "EHUE", conformance: "O", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "CL", conformance: "O", element: "feature", xref: "device§4.4.6" }),
             Requirement({ name: "XY", conformance: "M", element: "feature", xref: "device§4.4.6" }),
-            Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature", xref: "device§4.4.6" }),
+            Requirement({ name: "CT", conformance: "M", element: "feature", xref: "device§4.4.6" }),
             Requirement({ name: "RemainingTime", conformance: "M", element: "attribute", xref: "device§4.4.6" })
         ),
 
@@ -46293,13 +46280,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.1.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.1.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.1.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.1.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.1.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.1.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.1.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§5.1.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.1.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.1.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.1.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.1.6" })
@@ -46352,13 +46339,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.2.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.2.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.2.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.2.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.2.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.2.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.2.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§5.2.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.2.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.2.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.2.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.2.6" })
@@ -46426,13 +46413,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.3.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.3.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.3.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.3.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster", xref: "device§5.3.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.3.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.3.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§5.3.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.3.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.3.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.3.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.3.6" })
@@ -46485,13 +46472,13 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster", xref: "device§5.4.5" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§5.4.5" },
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.4.6" })
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.4.6" })
         ),
 
         Requirement(
             { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster", xref: "device§5.4.5" },
-            Requirement({ name: "ONOFF", conformance: "M", element: "feature", xref: "device§5.4.6" }),
-            Requirement({ name: "LIGHTING", conformance: "M", element: "feature", xref: "device§5.4.6" }),
+            Requirement({ name: "OO", conformance: "M", element: "feature", xref: "device§5.4.6" }),
+            Requirement({ name: "LT", conformance: "M", element: "feature", xref: "device§5.4.6" }),
             Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute", xref: "device§5.4.6" }),
             Requirement({ name: "MinLevel", constraint: "1", element: "attribute", xref: "device§5.4.6" }),
             Requirement({ name: "MaxLevel", constraint: "254", element: "attribute", xref: "device§5.4.6" })
@@ -46897,15 +46884,15 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  - endpoint 11 has device type Generic Switch and contains" +
                 "\n" +
-                "  - cluster Switch (feature flags: LS) exposing the state and events of the left button" +
+                "    - cluster Switch (feature flags: LS) exposing the state and events of the left button" +
                 "\n" +
-                "  - cluster Descriptor with its TagList containing two tags: Position.Left and Number.One" +
+                "    - cluster Descriptor with its TagList containing two tags: Position.Left and Number.One" +
                 "\n" +
                 "  - endpoint 12 has device type Generic Switch and contains" +
                 "\n" +
-                "  - cluster Switch (feature flags: LS) exposing the state and events of the right button" +
+                "    - cluster Switch (feature flags: LS) exposing the state and events of the right button" +
                 "\n" +
-                "  - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two" +
+                "    - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two" +
                 "\n" +
                 "If this device were to have labeling on the buttons like an \"up\" and \"down\" icon, the TagList would " +
                 "have a third tag (from the Switches Namespace) with values Switches.Up and Switches.Down " +
@@ -46916,33 +46903,33 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  - endpoint 21 has device type Generic Switch and contains" +
                 "\n" +
-                "  - cluster Switch (feature flags: MS) exposing the events of the top-left button" +
+                "    - cluster Switch (feature flags: MS) exposing the events of the top-left button" +
                 "\n" +
-                "  - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Left, " +
+                "    - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Left, " +
                 "Number.One and (Tag=Switches.Custom, Label=\"watch tv\")" +
                 "\n" +
-                "  - This last tag is a Switches.Custom tag accompanied with a label (the other three tags do not " +
+                "      - This last tag is a Switches.Custom tag accompanied with a label (the other three tags do not " +
                 "need a Label field)." +
                 "\n" +
                 "  - endpoint 22 has device type Generic Switch and contains" +
                 "\n" +
-                "  - cluster Switch (feature flags: MS) exposing the events of the top-right button" +
+                "    - cluster Switch (feature flags: MS) exposing the events of the top-right button" +
                 "\n" +
-                "  - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Right, " +
+                "    - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Right, " +
                 "Number.Two and (Tag=Switches.Custom, Label=\"dinner\")" +
                 "\n" +
                 "  - endpoint 23 has device type Generic Switch and contains" +
                 "\n" +
-                "  - cluster Switch (feature flags: MS) exposing the events of the bottom-left button" +
+                "    - cluster Switch (feature flags: MS) exposing the events of the bottom-left button" +
                 "\n" +
-                "  - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Left, " +
+                "    - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Left, " +
                 "Number.Three and (Tag=Switches.Custom, Label=\"reading\")" +
                 "\n" +
                 "  - endpoint 24 has device type Generic Switch and contains" +
                 "\n" +
-                "  - cluster Switch (feature flags: MS) exposing the events of the bottom-right button" +
+                "    - cluster Switch (feature flags: MS) exposing the events of the bottom-right button" +
                 "\n" +
-                "  - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Right, " +
+                "    - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Right, " +
                 "Number.Four and (Tag=Switches.Custom, Label=\"nightlight\")" +
                 "\n" +
                 "### Relation with other Switch device types (informative)" +
@@ -46952,7 +46939,7 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  - The On/Off Light Switch will send On/Off/Toggle commands from its On/Off (client) cluster to a " +
                 "device implementing the On/Off (server) cluster to control the on/off functionality of that " +
-                "    device. An On/Off Light Switch device can also implement Groups and Scenes Management clusters " +
+                "device. An On/Off Light Switch device can also implement Groups and Scenes Management clusters " +
                 "and thus send group and scene commands. Basically, it is targeted at directly sending control " +
                 "commands to other devices. The binding table is used to tell the device where to send the " +
                 "commands." +
@@ -46961,7 +46948,7 @@ export const SpecMatter = Matter(
                 "events to subscribed parties which implement the Switch client cluster, as indications of " +
                 "interaction with the switch - leaving the interpretation (e.g. which device should be actuated " +
                 "because of the interaction) to the subscribed party. So it can be compared to a sensor-type " +
-                "    device. This allows a more comprehensive controller to combine the information from the switch " +
+                "device. This allows a more comprehensive controller to combine the information from the switch " +
                 "with other inputs or information sources (e.g. time of day, user presence) to determine which " +
                 "control commands (e.g. on/off, scene recall, attribute change) are sent to other devices in the " +
                 "network." +
@@ -46971,11 +46958,11 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  - endpoint 31 with device type On/Off Light Switch which contains" +
                 "\n" +
-                "  - (client) cluster On/Off exposing the On/Off/Toggle commands" +
+                "    - (client) cluster On/Off exposing the On/Off/Toggle commands" +
                 "\n" +
                 "  - endpoint 32 with device type Generic Switch which contains" +
                 "\n" +
-                "  - (server) cluster Switch (feature flags: LS) exposing the state and events of the switch" +
+                "    - (server) cluster Switch (feature flags: LS) exposing the state and events of the switch" +
                 "\n" +
                 "When this device is used in a particular setup, binding tables and subscriptions can be used to " +
                 "determine how it is used:" +
@@ -47080,24 +47067,24 @@ export const SpecMatter = Matter(
                 "  - A single endpoint with an Occupancy Sensing cluster which has two or more of these feature bits " +
                 "set to 1." +
                 "\n" +
-                "  - This requires reporting the combination the sensing results as a single bit in the Occupancy " +
+                "    - This requires reporting the combination the sensing results as a single bit in the Occupancy " +
                 "attribute (and the OccupancyChanged event, when supported), with a single set of timing " +
                 "parameters applied." +
                 "\n" +
-                "  - Sensitivity setting (via a Boolean State Configuration cluster on the same endpoint) applies to " +
-                "all the sensing modalities together via a manufacturer-specific mapping." +
+                "    - Sensitivity setting (via a Boolean State Configuration cluster on the same endpoint) applies " +
+                "to all the sensing modalities together via a manufacturer-specific mapping." +
                 "\n" +
                 "  - Multiple endpoints each hosting an Occupancy Sensing cluster (each with one feature bit set):" +
                 "\n" +
-                "  - The sensing result of each modality is reported separately in the Occupancy attribute (and the " +
+                "    - The sensing result of each modality is reported separately in the Occupancy attribute (and the " +
                 "OccupancyChanged event, when supported) of each endpoint, governed by the set of timing " +
                 "parameters provided in the cluster on that endpoint." +
                 "\n" +
-                "  - This implies some of these attributes can have a different values than their counterparts on " +
+                "      - This implies some of these attributes can have a different values than their counterparts on " +
                 "other endpoints and that a client may have to combine these values if it wants to derive a " +
                 "single value." +
                 "\n" +
-                "  - Each modality can be provided with an independent sensitivity setting via a Boolean State " +
+                "    - Each modality can be provided with an independent sensitivity setting via a Boolean State " +
                 "Configuration cluster located on one or more of the endpoints."
         },
 
@@ -47364,7 +47351,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.11.4" },
             Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.11.5" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.11.5" })
+            Requirement({ name: "CHGEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.11.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -47404,7 +47391,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.12.4" },
             Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.12.5" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.12.5" })
+            Requirement({ name: "CHGEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.12.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -47444,7 +47431,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster", xref: "device§7.13.4" },
             Requirement({ name: "StateChange", conformance: "M", element: "event", xref: "device§7.13.5" }),
-            Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.13.5" })
+            Requirement({ name: "CHGEVENT", conformance: "Rev >= v2", element: "feature", xref: "device§7.13.5" })
         ),
         Requirement({
             name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster",
@@ -47757,15 +47744,15 @@ export const SpecMatter = Matter(
                 "\n" +
                 "  - Basic Level (Closure Control Cluster):" +
                 "\n" +
-                "  - Used for simple controller with buttons like wall switches." +
+                "    - Used for simple controller with buttons like wall switches." +
                 "\n" +
-                "  - Also all the general status and information remain at this level." +
+                "    - Also all the general status and information remain at this level." +
                 "\n" +
                 "  - Advanced Level (Closure Dimension Cluster):" +
                 "\n" +
-                "  - Provides advanced information, controls and settings." +
+                "    - Provides advanced information, controls and settings." +
                 "\n" +
-                "  - Used for advanced controller."
+                "    - Used for advanced controller."
         },
 
         Requirement(
@@ -47808,11 +47795,11 @@ export const SpecMatter = Matter(
                 "directly applied, in order to let the thermostat evaluate the change in state with any other " +
                 "suggestion provided by other clients." +
                 "\n" +
-                "  - If the resulting action from the context provided by the Ambient Context Sensing client can not " +
-                "be translated into a supported Thermostat Suggestion, the Thermostat may apply the change " +
-                "directly, but should be aware that it might impact the evaluation of any current suggestions and " +
-                "the behavior related to conflict resolution between the current suggestions and the input from " +
-                "the Ambient Context Sensing client is manufacturer specific." +
+                "    - If the resulting action from the context provided by the Ambient Context Sensing client can " +
+                "not be translated into a supported Thermostat Suggestion, the Thermostat may apply the change " +
+                "directly, but should be aware that it might impact the evaluation of any current suggestions " +
+                "and the behavior related to conflict resolution between the current suggestions and the input " +
+                "from the Ambient Context Sensing client is manufacturer specific." +
                 "\n" +
                 "  - The thermostat may prioritize the data provided by the Ambient Context Sensing server, in case " +
                 "there are multiple suggestions present, and use this as input when deciding which suggestion to " +
@@ -48095,7 +48082,7 @@ export const SpecMatter = Matter(
                 name: "ApplicationLauncher", id: 0x50c, conformance: "ContentAppPlatform", element: "serverCluster",
                 xref: "device§10.3.4"
             },
-            Requirement({ name: "APPLICATIONPLATFORM", conformance: "M", element: "feature", xref: "device§10.3.5" })
+            Requirement({ name: "AP", conformance: "M", element: "feature", xref: "device§10.3.5" })
         ),
 
         Requirement({ name: "AccountLogin", id: 0x50e, conformance: "O", element: "serverCluster", xref: "device§10.3.4" }),
@@ -48176,7 +48163,7 @@ export const SpecMatter = Matter(
                 name: "ApplicationLauncher", id: 0x50c, conformance: "M", element: "serverCluster",
                 xref: "device§10.5.4"
             },
-            Requirement({ name: "APPLICATIONPLATFORM", conformance: "X", element: "feature", xref: "device§10.5.5" })
+            Requirement({ name: "AP", conformance: "X", element: "feature", xref: "device§10.5.5" })
         ),
 
         Requirement(
@@ -48322,23 +48309,23 @@ export const SpecMatter = Matter(
                 "  - No overlap: The endpoints in the PartsList attribute of Aggregator A do not appear in the " +
                 "PartsList attribute of Aggregator B, and vice versa." +
                 "\n" +
-                "  - Example: A Node which bridges to two non-Matter independent technologies (e.g. Zigbee and " +
+                "    - Example: A Node which bridges to two non-Matter independent technologies (e.g. Zigbee and " +
                 "Z-Wave), see the aggregators on endpoints 11 and 31 in the figure below - their lists of " +
                 "endpoints (12-14, 21-23 versus 32-33) do not overlap." +
                 "\n" +
                 "  - Strict subset: The endpoint where aggregator B is exposed and all endpoints in its PartsList " +
                 "attribute (the subset) are included in the PartsList attribute of Aggregator A (the superset)." +
                 "\n" +
-                "  - This maintains the rule that there shall be a single path from the Root Node to each endpoint " +
+                "    - This maintains the rule that there shall be a single path from the Root Node to each endpoint " +
                 "(see System Model)." +
                 "\n" +
-                "  - Example: A Node which implements a bridge to Zigbee, and one of those Zigbee devices is " +
+                "    - Example: A Node which implements a bridge to Zigbee, and one of those Zigbee devices is " +
                 "connected to a string of DALI lights, which can be addressed individually and thus this " +
                 "Zigbee/DALI device functions as a bridge from Zigbee to DALI; in the figure below one can see " +
                 "that the endpoints for the Zigbee/DALI bridge listed in the PartsList of the aggregator on " +
-                "endpoint 14 (21-23) form a strict subset of the endpoints for the Zigbee bridge in the PartsList " +
-                "of the aggregator on endpoint 11 (12-14, 21-23), and the endpoint 14 of the \"subset\" aggregator " +
-                "is included in the PartsList of the \"superset\" aggregator on endpoint 11." +
+                "endpoint 14 (21-23) form a strict subset of the endpoints for the Zigbee bridge in the " +
+                "PartsList of the aggregator on endpoint 11 (12-14, 21-23), and the endpoint 14 of the \"subset\" " +
+                "aggregator is included in the PartsList of the \"superset\" aggregator on endpoint 11." +
                 "\n" +
                 "### Disambiguation" +
                 "\n" +
@@ -48560,11 +48547,11 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.1.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.1.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.1.6" })
+            Requirement({ name: "DF", conformance: "M", element: "feature", xref: "device§13.1.6" })
         ),
         Requirement(
             { name: "LaundryWasherMode", id: 0x51, conformance: "O", element: "serverCluster", xref: "device§13.1.4" },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.1.6" }),
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.1.6" }),
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.1.6" })
         ),
         Requirement({ name: "LaundryWasherControls", id: 0x53, conformance: "O", element: "serverCluster", xref: "device§13.1.4" }),
@@ -48628,7 +48615,7 @@ export const SpecMatter = Matter(
                 name: "RefrigeratorAndTemperatureControlledCabinetMode", id: 0x52, conformance: "O",
                 element: "serverCluster", xref: "device§13.2.7"
             },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.2.8" }),
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.2.8" }),
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.2.8" })
         ),
 
@@ -48706,7 +48693,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster", xref: "device§13.3.7" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster", xref: "device§13.3.7" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.3.9" })
+            Requirement({ name: "DF", conformance: "M", element: "feature", xref: "device§13.3.9" })
         ),
         Requirement(
             { name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster", xref: "device§13.3.7" }
@@ -48768,8 +48755,8 @@ export const SpecMatter = Matter(
         Condition({ name: "Heater", description: "The device has heating functionality.", xref: "device§13.4.3" }),
         Requirement(
             { name: "TemperatureControl", id: 0x56, conformance: "M", element: "serverCluster", xref: "device§13.4.4" },
-            Requirement({ name: "TEMPERATURENUMBER", conformance: "M", element: "feature", xref: "device§13.4.5" }),
-            Requirement({ name: "TEMPERATURELEVEL", conformance: "X", element: "feature", xref: "device§13.4.5" })
+            Requirement({ name: "TN", conformance: "M", element: "feature", xref: "device§13.4.5" }),
+            Requirement({ name: "TL", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
         Requirement({
             name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster",
@@ -48782,13 +48769,13 @@ export const SpecMatter = Matter(
                 element: "serverCluster", xref: "device§13.4.4"
             },
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.4.5" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
 
         Requirement(
             { name: "OvenMode", id: 0x49, conformance: "[Heater]", element: "serverCluster", xref: "device§13.4.4" },
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.4.5" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.4.5" })
         ),
 
         Requirement(
@@ -48855,7 +48842,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.5.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.5.6" })
+            Requirement({ name: "DF", conformance: "M", element: "feature", xref: "device§13.5.6" })
         ),
         Requirement(
             { name: "TemperatureControl", id: 0x56, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }
@@ -48863,7 +48850,7 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "DishwasherMode", id: 0x59, conformance: "O", element: "serverCluster", xref: "device§13.5.4" },
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.5.6" }),
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.5.6" })
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.5.6" })
         ),
         Requirement(
             { name: "DishwasherAlarm", id: 0x5d, conformance: "O", element: "serverCluster", xref: "device§13.5.4" }
@@ -48916,12 +48903,12 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster", xref: "device§13.6.4" }),
         Requirement(
             { name: "LaundryWasherMode", id: 0x51, conformance: "O", element: "serverCluster", xref: "device§13.6.4" },
-            Requirement({ name: "ONOFF", conformance: "X", element: "feature", xref: "device§13.6.6" }),
+            Requirement({ name: "DEPONOFF", conformance: "X", element: "feature", xref: "device§13.6.6" }),
             Requirement({ name: "StartUpMode", conformance: "X", element: "attribute", xref: "device§13.6.6" })
         ),
         Requirement(
             { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster", xref: "device§13.6.4" },
-            Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature", xref: "device§13.6.6" })
+            Requirement({ name: "DF", conformance: "M", element: "feature", xref: "device§13.6.6" })
         ),
         Requirement({ name: "LaundryDryerControls", id: 0x4a, conformance: "O", element: "serverCluster", xref: "device§13.6.4" }),
         Requirement(
@@ -48972,8 +48959,8 @@ export const SpecMatter = Matter(
                 name: "TemperatureControl", id: 0x56, conformance: "O.a+", element: "serverCluster",
                 xref: "device§13.7.4"
             },
-            Requirement({ name: "TEMPERATURELEVEL", conformance: "M", element: "feature", xref: "device§13.7.6" }),
-            Requirement({ name: "TEMPERATURENUMBER", conformance: "X", element: "feature", xref: "device§13.7.6" })
+            Requirement({ name: "TL", conformance: "M", element: "feature", xref: "device§13.7.6" }),
+            Requirement({ name: "TN", conformance: "X", element: "feature", xref: "device§13.7.6" })
         ),
 
         Requirement({
@@ -49130,9 +49117,9 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster", xref: "device§13.10.5" },
-            Requirement({ name: "ROCKING", conformance: "X", element: "feature", xref: "device§13.10.6" }),
-            Requirement({ name: "WIND", conformance: "X", element: "feature", xref: "device§13.10.6" }),
-            Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature", xref: "device§13.10.6" })
+            Requirement({ name: "RCK", conformance: "X", element: "feature", xref: "device§13.10.6" }),
+            Requirement({ name: "WND", conformance: "X", element: "feature", xref: "device§13.10.6" }),
+            Requirement({ name: "DIR", conformance: "X", element: "feature", xref: "device§13.10.6" })
         ),
 
         Requirement({ name: "OnOffLight", id: 0x100, conformance: "O", element: "deviceType", xref: "device§13.10.4" })
@@ -49237,8 +49224,8 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "FanControl", id: 0x202, conformance: "O", element: "serverCluster", xref: "device§13.11.6" },
-            Requirement({ name: "WIND", conformance: "X", element: "feature", xref: "device§13.11.7" }),
-            Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature", xref: "device§13.11.7" })
+            Requirement({ name: "WND", conformance: "X", element: "feature", xref: "device§13.11.7" }),
+            Requirement({ name: "DIR", conformance: "X", element: "feature", xref: "device§13.11.7" })
         ),
         Requirement(
             { name: "MicrowaveOvenMode", id: 0x5e, conformance: "M", element: "serverCluster", xref: "device§13.11.6" }
@@ -49312,13 +49299,10 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", constraint: "min 1",
                 element: "deviceType", xref: "device§14.1.6"
             },
-
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement(
-                    { name: "POWERFORECASTREPORTING", conformance: "M", element: "feature", xref: "device§14.1.6.2" }
-                ),
-                Requirement({ name: "POWERADJUSTMENT", conformance: "desc", element: "feature", xref: "device§14.1.6.2" })
+                Requirement({ name: "PFR", conformance: "M", element: "feature", xref: "device§14.1.6.2" }),
+                Requirement({ name: "PA", conformance: "desc", element: "feature", xref: "device§14.1.6.2" })
             )
         ),
 
@@ -49407,7 +49391,7 @@ export const SpecMatter = Matter(
         ),
         Requirement(
             { name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster", xref: "device§14.2.5" },
-            Requirement({ name: "HEATING", conformance: "M", element: "feature", xref: "device§14.2.6" })
+            Requirement({ name: "HEAT", conformance: "M", element: "feature", xref: "device§14.2.6" })
         ),
         Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType", xref: "device§14.2.7" }),
         Requirement(
@@ -49419,12 +49403,9 @@ export const SpecMatter = Matter(
                 name: "DeviceEnergyManagement", id: 0x50d, conformance: "O", element: "deviceType",
                 xref: "device§14.2.7"
             },
-
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement(
-                    { name: "POWERFORECASTREPORTING", conformance: "M", element: "feature", xref: "device§14.2.7.3" }
-                )
+                Requirement({ name: "PFR", conformance: "M", element: "feature", xref: "device§14.2.7.3" })
             )
         ),
 
@@ -49556,7 +49537,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
+                Requirement({ name: "PA", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             )
         ),
 
@@ -49573,7 +49554,7 @@ export const SpecMatter = Matter(
             ),
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
+                Requirement({ name: "EXPE", conformance: "M", element: "feature", xref: "device§14.3.6.3" })
             )
         )
     ),
@@ -49669,14 +49650,14 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "ALTC", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
                 Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
                 Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.4.6.2" })
             ),
 
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
+                Requirement({ name: "EXPE", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             ),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
@@ -49692,14 +49673,14 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "DIRECTCURRENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "DIRC", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
                 Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
                 Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.4.6.2" })
             ),
 
             Requirement(
                 { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
+                Requirement({ name: "EXPE", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             ),
             Requirement(
                 { name: "Descriptor", id: 0x1d, element: "serverCluster" },
@@ -49734,7 +49715,7 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "PowerSource", id: 0x2f, element: "serverCluster" },
-                Requirement({ name: "BATTERY", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
+                Requirement({ name: "BAT", conformance: "M", element: "feature", xref: "device§14.4.6.2" }),
                 Requirement({ name: "BatVoltage", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }),
                 Requirement(
                     { name: "BatPercentRemaining", conformance: "M", element: "attribute", xref: "device§14.4.6.2" }
@@ -49771,7 +49752,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
+                Requirement({ name: "PA", conformance: "M", element: "feature", xref: "device§14.4.6.2" })
             )
         )
     ),
@@ -49885,7 +49866,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-                Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
+                Requirement({ name: "PA", conformance: "M", element: "feature", xref: "device§14.5.6.2" })
             )
         ),
 
@@ -49899,7 +49880,7 @@ export const SpecMatter = Matter(
 
             Requirement(
                 { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-                Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature", xref: "device§14.5.6.2" }),
+                Requirement({ name: "ALTC", conformance: "M", element: "feature", xref: "device§14.5.6.2" }),
                 Requirement({ name: "Voltage", conformance: "M", element: "attribute", xref: "device§14.5.6.2" }),
                 Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute", xref: "device§14.5.6.2" })
             ),
@@ -50177,9 +50158,9 @@ export const SpecMatter = Matter(
                 "  - Extended Sleep Time with a sleep time support up to at least 60 minutes, which includes the " +
                 "following IEEE 802.11 features:" +
                 "\n" +
-                "  - Basic Service Set (BSS) Max Idle Period" +
+                "    - Basic Service Set (BSS) Max Idle Period" +
                 "\n" +
-                "  - dot11BSSMaxIdlePeriodIndicationByNonAPSTA" +
+                "    - dot11BSSMaxIdlePeriodIndicationByNonAPSTA" +
                 "\n" +
                 "  - IPv6 Proxy Neighbor Discovery Protocol (NDP) including IPv6 duplicate address detection" +
                 "\n" +
@@ -50506,9 +50487,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.1.6"
             },
-            Requirement({ name: "VIDEO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
-            Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature", xref: "device§16.1.7" })
+            Requirement({ name: "VDO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
+            Requirement({ name: "ADO", conformance: "M", element: "feature", xref: "device§16.1.7" }),
+            Requirement({ name: "SNP", conformance: "M", element: "feature", xref: "device§16.1.7" })
         ),
 
         Requirement({
@@ -50532,14 +50513,10 @@ export const SpecMatter = Matter(
             name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster",
             xref: "device§16.1.6"
         }),
-
         Requirement(
             { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster", xref: "device§16.1.6" },
-            Requirement(
-                { name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature", xref: "device§16.1.7" }
-            )
+            Requirement({ name: "TWODCART", conformance: "M", element: "feature", xref: "device§16.1.7" })
         ),
-
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster", xref: "device§16.1.6" }
         ),
@@ -50667,9 +50644,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.4.6"
             },
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.4.7" }),
-            Requirement({ name: "VIDEO", conformance: "O", element: "feature", xref: "device§16.4.7" }),
-            Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature", xref: "device§16.4.7" })
+            Requirement({ name: "ADO", conformance: "M", element: "feature", xref: "device§16.4.7" }),
+            Requirement({ name: "VDO", conformance: "O", element: "feature", xref: "device§16.4.7" }),
+            Requirement({ name: "SNP", conformance: "X", element: "feature", xref: "device§16.4.7" })
         ),
 
         Requirement({
@@ -50701,7 +50678,7 @@ export const SpecMatter = Matter(
             },
             Requirement(
                 { name: "Switch", id: 0x3b, element: "serverCluster" },
-                Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature", xref: "device§16.4.8" })
+                Requirement({ name: "MS", conformance: "M", element: "feature", xref: "device§16.4.8" })
             )
         )
     ),
@@ -50740,9 +50717,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.5.4"
             },
-            Requirement({ name: "AUDIO", conformance: "M", element: "feature", xref: "device§16.5.5" }),
-            Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature", xref: "device§16.5.5" }),
-            Requirement({ name: "VIDEO", conformance: "X", element: "feature", xref: "device§16.5.5" })
+            Requirement({ name: "ADO", conformance: "M", element: "feature", xref: "device§16.5.5" }),
+            Requirement({ name: "SNP", conformance: "X", element: "feature", xref: "device§16.5.5" }),
+            Requirement({ name: "VDO", conformance: "X", element: "feature", xref: "device§16.5.5" })
         ),
 
         Requirement({
@@ -50807,12 +50784,9 @@ export const SpecMatter = Matter(
         Requirement(
             { name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster", xref: "device§16.6.6" }
         ),
-
         Requirement(
             { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster", xref: "device§16.6.6" },
-            Requirement(
-                { name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature", xref: "device§16.6.7" }
-            )
+            Requirement({ name: "TWODCART", conformance: "M", element: "feature", xref: "device§16.6.7" })
         ),
 
         Requirement(
@@ -50820,9 +50794,9 @@ export const SpecMatter = Matter(
                 name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster",
                 xref: "device§16.6.6"
             },
-            Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature", xref: "device§16.6.7" }),
-            Requirement({ name: "VIDEO", conformance: "X", element: "feature", xref: "device§16.6.7" }),
-            Requirement({ name: "AUDIO", conformance: "X", element: "feature", xref: "device§16.6.7" })
+            Requirement({ name: "SNP", conformance: "M", element: "feature", xref: "device§16.6.7" }),
+            Requirement({ name: "VDO", conformance: "X", element: "feature", xref: "device§16.6.7" }),
+            Requirement({ name: "ADO", conformance: "X", element: "feature", xref: "device§16.6.7" })
         ),
 
         Requirement({
@@ -50866,7 +50840,7 @@ export const SpecMatter = Matter(
                 "    > [!NOTE]" +
                 "\n" +
                 "    > NOTE: The Chime device type also includes the Chime server cluster, which has an Enabled " +
-                "      attribute. This attribute completely disables the Chime, which also means that any visual " +
+                "attribute. This attribute completely disables the Chime, which also means that any visual " +
                 "indicators would also be disabled, and also acts as a form of global muting. For example, if " +
                 "the On/Off cluster of the child Speaker device is set to from On (not muted) to Off (muted) " +
                 "and the Chime cluster's Enabled attribute is already set to true, the Enabled attribute would " +
@@ -50947,7 +50921,7 @@ export const SpecMatter = Matter(
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§16.9.2.1" }),
         Requirement(
             { name: "Switch", id: 0x3b, conformance: "M", element: "serverCluster", xref: "device§16.9.2.1" },
-            Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature", xref: "device§16.9.2.2" })
+            Requirement({ name: "MS", conformance: "M", element: "feature", xref: "device§16.9.2.2" })
         ),
         Requirement({ name: "Chime", id: 0x556, conformance: "M", element: "clientCluster", xref: "device§16.9.2.1" })
     ),

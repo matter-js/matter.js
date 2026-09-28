@@ -13,9 +13,6 @@ import { Aspect } from "./Aspect.js";
 /**
  * An operational view of conformance as defined by the Matter Specification.
  *
- * We extend the specification's syntax to add ">", "<", ">=" and "<=".  These are required to encode some portions of
- * the specification that are described in prose.
- *
  * "Conformance" controls when a data field or cluster element is allowed or required.
  */
 export class Conformance extends Aspect<Conformance.Definition> {

@@ -10,6 +10,7 @@ LocalMatter.children.push({
     tag: "cluster",
     name: "ElectricalPowerMeasurement",
     asOf: "1.3",
+    until: "1.4.2",
 
     children: [
         {
@@ -21,9 +22,9 @@ LocalMatter.children.push({
                     tag: "field",
                     name: "Ranges",
 
-                    // 1.3 spec mislabels the "access" column as "default" (still present in 1.4 as well)
+                    // Before 1.4.2 the field table labels its access column "Default", so the scrape reads the
+                    // access "RV" as the default value
                     default: [],
-                    access: "R V",
                 },
             ],
         },

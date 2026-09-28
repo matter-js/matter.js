@@ -19,15 +19,15 @@ Resource.add({
         "\n" +
         "  - Basic Level (Closure Control Cluster):" +
         "\n" +
-        "  - Used for simple controller with buttons like wall switches." +
+        "    - Used for simple controller with buttons like wall switches." +
         "\n" +
-        "  - Also all the general status and information remain at this level." +
+        "    - Also all the general status and information remain at this level." +
         "\n" +
         "  - Advanced Level (Closure Dimension Cluster):" +
         "\n" +
-        "  - Provides advanced information, controls and settings." +
+        "    - Provides advanced information, controls and settings." +
         "\n" +
-        "  - Used for advanced controller.",
+        "    - Used for advanced controller.",
 
     children: [
         { tag: "requirement", name: "GroupcastSenderCond", xref: "device§8.7.5" },

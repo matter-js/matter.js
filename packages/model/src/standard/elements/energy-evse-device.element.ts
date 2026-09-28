@@ -25,8 +25,8 @@ export const EnergyEvseDt = DeviceType(
         { name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", constraint: "min 1", element: "deviceType" },
         Requirement(
             { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-            Requirement({ name: "POWERFORECASTREPORTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "POWERADJUSTMENT", conformance: "desc", element: "feature" })
+            Requirement({ name: "PFR", conformance: "M", element: "feature" }),
+            Requirement({ name: "PA", conformance: "desc", element: "feature" })
         )
     ),
 
