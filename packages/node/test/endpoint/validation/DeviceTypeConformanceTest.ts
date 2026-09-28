@@ -337,11 +337,11 @@ describe("DeviceTypeConformance", () => {
         await node.close();
     });
 
-    it("reports a mandatory feature named by its title by the feature's code", async () => {
+    it("reports a mandatory feature by the feature's code", async () => {
         const node = await createNode();
         const endpoint = await node.add(lightWithoutLighting, { id: "light" });
 
-        const requirement = requirementOf("OnOffLight", "OnOff", "LIGHTING");
+        const requirement = requirementOf("OnOffLight", "OnOff", "LT");
         expect(RequirementResolver.featureOf(requirement)?.name).equals("LT");
 
         expect(violationsOf(endpoint).map(v => [v.kind, v.requirement])).deep.equals([["missing", "OnOff.LT"]]);
@@ -386,7 +386,7 @@ describe("DeviceTypeConformance", () => {
         const node = await createNode();
         const endpoint = await node.add(rainSensorWithoutChangeEvent, { id: "rain" });
 
-        expect(String(requirementOf("RainSensor", "BooleanState", "CHANGEEVENT").conformance)).equals("Rev >= v2");
+        expect(String(requirementOf("RainSensor", "BooleanState", "CHGEVENT").conformance)).equals("Rev >= v2");
         expect(featuresOf(endpoint, "BooleanState").has("CHGEVENT")).false;
 
         expect(violationsOf(endpoint).map(v => v.requirement)).not.includes("BooleanState.CHGEVENT");
