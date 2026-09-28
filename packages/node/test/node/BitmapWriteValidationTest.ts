@@ -15,12 +15,14 @@ import { MockServerNode } from "./mock-server-node.js";
 const TestWindowCoveringDevice = WindowCoveringDevice.with(
     WindowCoveringServer.with("Lift", "Tilt", "PositionAwareLift", "PositionAwareTilt").set({
         type: WindowCovering.WindowCoveringType.TiltBlindLift,
+        endProductType: WindowCovering.EndProductType.InteriorVenetianBlind,
     }),
 );
 
 const TiltOnlyWindowCoveringDevice = WindowCoveringDevice.with(
     WindowCoveringServer.with("Tilt", "PositionAwareTilt").set({
         type: WindowCovering.WindowCoveringType.TiltBlindTiltOnly,
+        endProductType: WindowCovering.EndProductType.TiltOnlyInteriorBlind,
     }),
 );
 

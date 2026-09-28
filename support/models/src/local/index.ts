@@ -6,7 +6,9 @@
 
 // Local override files included here.  Local overrides need not contain full
 // element definitions.  The ID or name is enough to match existing entries,
-// then only fields present will override during merge.
+// then only fields present will override during merge.  A quality is the
+// exception: it adds flags to or removes them ("!N") from the quality it
+// overrides rather than replacing it.
 //
 // Note that for many cluster elements the data structures require both the
 // ID and name so we provide both even though only one is required for
@@ -42,6 +44,8 @@ import "./ModeSelectOverrides.js";
 import "./namespace.js";
 import "./OperationalCredentialsOverrides.js";
 import "./OtaSoftwareUpdateRequestor.js";
+import "./percent.js";
+import "./percent100ths.js";
 import "./PumpConfigurationAndControlOverrides.js";
 import "./ScenesManagementOverrides.js";
 import "./ScenesOverrides.js";
