@@ -23,10 +23,11 @@ import {
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import { env } from "node:process";
-import { AllClustersTestInstance } from "../AllClustersTestInstance.js";
+import { AllClustersNoGroupcastTestInstance, AllClustersTestInstance } from "../AllClustersTestInstance.js";
 import { BridgeTestInstance } from "../BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../GenericTestApp.js";
 import { IcdTestInstance } from "../IcdTestInstance.js";
+import { LightSwitchNoGroupcastTestInstance, LightSwitchTestInstance } from "../LightSwitchTestInstance.js";
 import { NodeTestInstance } from "../NodeTestInstance.js";
 import { OtaProviderTestInstance } from "../OtaProviderTestInstance.js";
 import { OtaRequestorTestInstance } from "../OtaRequestorTestInstance.js";
@@ -229,8 +230,11 @@ function MatterJsCertSubject(implementation: DeviceTestInstanceConstructor<NodeT
 }
 
 registerMatterJsCertSubject("all-clusters", MatterJsCertSubject(AllClustersTestInstance));
+registerMatterJsCertSubject("all-clusters-no-groupcast", MatterJsCertSubject(AllClustersNoGroupcastTestInstance));
 registerMatterJsCertSubject("bridge", MatterJsCertSubject(BridgeTestInstance));
 registerMatterJsCertSubject("lit-icd", MatterJsCertSubject(IcdTestInstance));
+registerMatterJsCertSubject("light-switch", MatterJsCertSubject(LightSwitchTestInstance));
+registerMatterJsCertSubject("light-switch-no-groupcast", MatterJsCertSubject(LightSwitchNoGroupcastTestInstance));
 registerMatterJsCertSubject("ota-requestor", MatterJsCertSubject(OtaRequestorTestInstance));
 registerMatterJsCertSubject("ota-provider", MatterJsCertSubject(OtaProviderTestInstance));
 
@@ -290,3 +294,19 @@ const CHIP_OTA_REQUESTOR = {
 
 registerCertAppPics("chip-local", "ota-requestor", CHIP_OTA_REQUESTOR);
 registerCertAppPics("chip-docker", "ota-requestor", CHIP_OTA_REQUESTOR);
+
+// A binding client that sends OnOff On and Off. The shared PICS file answers `BIND.C`, `OO.C` and
+// `MCORE.ROLE.CONTROLLER` `0`, so without these the TC-BIND cases would skip. The OnOff command keys and
+// `MCORE.DT_SW_COMP` are stated too, although the shared file answers them the same way. `GRPKEY.C`, which TC-BIND-2.3
+// gates on, comes from the shared file only: the switch has no GroupKeyManagement client, because TH1 provisions it.
+const LIGHT_SWITCH_PICS = {
+    "BIND.C": 1,
+    "OO.C": 1,
+    "OO.C.C00.Tx": 1,
+    "OO.C.C01.Tx": 1,
+    "MCORE.ROLE.CONTROLLER": 1,
+    "MCORE.DT_SW_COMP": 0,
+} as const;
+
+registerCertAppPics("matterjs", "light-switch", LIGHT_SWITCH_PICS);
+registerCertAppPics("matterjs", "light-switch-no-groupcast", LIGHT_SWITCH_PICS);

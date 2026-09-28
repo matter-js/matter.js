@@ -30,7 +30,13 @@ import { BindingManager, type BindingResolution } from "./BindingManager.js";
  *
  * - **`kind: "group"`** — the entry targets a Matter group (multicast).  The framework provides a
  *   {@link ClientGroup} with the materialized endpoint carrying the declared client behaviors;
- *   command invocations and writes on it are sent as group multicast. Read and subscribe is not available.
+ *   commands invoked on it are sent as group multicast, with no endpoint in their paths.  Nobody
+ *   answers a group message: a command with a response resolves to `undefined`.  To write an
+ *   attribute to the group, use `resolution.node.interaction.write(...)` with a group path (cluster
+ *   and attribute, no endpoint); writing state on the endpoint is not supported yet.  Read and
+ *   subscribe are not available.  Sending needs the group's key on this node (GroupKeyManagement
+ *   KeySetWrite and GroupKeyMap, or Groupcast JoinGroup); without it a send fails with a
+ *   `NoUsableGroupKeyError`.
  *
  * - **`kind: "server"`** — the entry targets a different endpoint of *this same node* (a
  *   "self-binding", typical for bridges).  The resolution endpoint IS the local target endpoint;
@@ -165,7 +171,8 @@ export namespace BindingServer {
          * when the event fires.  Attribute changes require an explicit subscription (see class doc).
          *
          * **`kind: "group"`** — `resolution.node` is a {@link ClientGroup} keyed by
-         * `(fabricIndex, groupId)`; command invocations are sent as group multicast.  Attribute
+         * `(fabricIndex, groupId)`; command invocations are sent as group multicast and nobody answers
+         * them.  Attribute writes go through `resolution.node.interaction.write` with a group path;
          * reads and subscriptions are not available for groups.
          *
          * **`kind: "server"`** — `resolution.node` is our own {@link ServerNode};

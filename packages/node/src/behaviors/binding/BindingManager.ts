@@ -226,15 +226,7 @@ export class BindingManager {
                 logger.warn("Group binding fabric unknown", Diagnostic.dict({ entry }));
                 return;
             }
-            const fabric = this.#fabrics.for(entry.fabricIndex);
-            const memberEndpoints = fabric.groups.endpoints.get(entry.group!) ?? [];
-            if (!memberEndpoints.includes(sourceEp.number)) {
-                logger.warn(
-                    "Group binding source endpoint is not a member of the bound group",
-                    Diagnostic.dict({ entry, sourceEndpoint: sourceEp.number }),
-                );
-                return;
-            }
+            // Membership is for receiving; a sender needs only the group's key, which the send looks up when it runs
             const addr = PeerAddress({
                 fabricIndex: entry.fabricIndex,
                 nodeId: NodeId.fromGroupId(entry.group!),

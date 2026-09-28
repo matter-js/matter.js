@@ -8,6 +8,7 @@ import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { InvalidGroupOperationError } from "#endpoint/errors.js";
 import {
     ClientInvoke,
+    Invoke,
     ClientSubscription,
     DecodedInvokeResult,
     Read,
@@ -20,6 +21,20 @@ import { ClientNodeInteraction } from "./ClientNodeInteraction.js";
 
 export { InvalidGroupOperationError };
 
+/**
+ * The interaction of a {@link ClientGroup}: every request through it is a group request.
+ *
+ * A group message names no endpoint, because it reaches every endpoint of each receiving node that is a member of the
+ * group, has the addressed cluster and is admitted by the node's Group ACL entry. So the endpoint of an invoke path is
+ * removed before the command is sent, whichever endpoint of the group the caller used.  A write must already name a
+ * group path (cluster and attribute, no endpoint); one naming an endpoint is refused.
+ *
+ * Nobody answers a group message. A write resolves without statuses, and a command resolves without a response even
+ * where the command has one, so its typed result is always `undefined`. Reads, subscriptions and timed requests are
+ * refused.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.16
+ */
 export class ClientGroupInteraction extends ClientNodeInteraction {
     /** Groups do not support reading or subscribing to attributes */
     override read(_request: Read, _context?: ActionContext): ReadResult {
@@ -58,15 +73,23 @@ export class ClientGroupInteraction extends ClientNodeInteraction {
     }
 
     override invoke(request: ClientInvoke, context?: ActionContext): DecodedInvokeResult {
-        if (request.invokeRequests.some(({ commandPath: { endpointId } }) => endpointId !== undefined)) {
-            throw new InvalidGroupOperationError("Invoking a concrete command on a group address is not supported.");
-        }
-        if (request.timedRequest) {
+        // The wire paths, the command table and the logged request must all name no endpoint, so all three are built
+        // from the commands afresh
+        const groupInvoke = Invoke({
+            commands: [...request.commands.values()].map(command => ({ ...command, endpoint: undefined })),
+            suppressResponse: true,
+            timed: request.timedRequest,
+            timeout: request.timeout,
+            expectedProcessingTime: request.expectedProcessingTime,
+            useExtendedFailSafeMessageResponseTimeout: request.useExtendedFailSafeMessageResponseTimeout,
+            interactionModelRevision: request.interactionModelRevision,
+            skipValidation: request.skipValidation,
+        });
+
+        if (groupInvoke.timedRequest) {
             throw new InvalidGroupOperationError("Timed requests are not supported for group address invokes.");
         }
 
-        request.suppressResponse = true; // Invoking on a group does not yield a response by definition
-
-        return super.invoke(request, context);
+        return super.invoke({ ...request, ...groupInvoke }, context);
     }
 }

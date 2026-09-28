@@ -266,9 +266,6 @@ describe("BindingManager", () => {
             fabricIndex: fabric.fabricIndex,
         });
 
-        // Source endpoint must be a member of the bound group on the fabric.
-        fabric.groups.endpoints.set(GroupId(7), [sourceEp.number]);
-
         // Pre-warm the group ClientGroup so manager.register's forAddress hits the cache.
         await node.peers.forAddress({
             fabricIndex: fabric.fabricIndex,
@@ -301,8 +298,6 @@ describe("BindingManager", () => {
             group: GroupId(7),
             fabricIndex: fabric.fabricIndex,
         });
-
-        fabric.groups.endpoints.set(GroupId(7), [sourceEp.number]);
 
         await node.peers.forAddress({
             fabricIndex: fabric.fabricIndex,
@@ -339,8 +334,6 @@ describe("BindingManager", () => {
             fabricIndex: fabric.fabricIndex,
         });
 
-        fabric.groups.endpoints.set(GroupId(8), [sourceEp.number]);
-
         await node.peers.forAddress({
             fabricIndex: fabric.fabricIndex,
             nodeId: NodeId.fromGroupId(GroupId(8)),
@@ -375,8 +368,6 @@ describe("BindingManager", () => {
             group: GroupId(9),
             fabricIndex: fabric.fabricIndex,
         });
-
-        fabric.groups.endpoints.set(GroupId(9), [sourceEp.number]);
 
         await node.peers.forAddress({
             fabricIndex: fabric.fabricIndex,
@@ -544,7 +535,7 @@ describe("BindingManager", () => {
         await node.close();
     });
 
-    it("kind=group rejects when source endpoint is not a group member", async () => {
+    it("kind=group resolves although the source endpoint is not a member of the group", async () => {
         const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
         const fabric = await node.addFabric();
         const manager = node.env.get(BindingManager);
@@ -558,12 +549,18 @@ describe("BindingManager", () => {
             fabricIndex: fabric.fabricIndex,
         });
 
-        // Deliberately do NOT register sourceEp as member of group 42.
+        await node.peers.forAddress({
+            fabricIndex: fabric.fabricIndex,
+            nodeId: NodeId.fromGroupId(GroupId(42)),
+        });
 
         manager.register(server, sourceEp, entry);
         await Promise.resolve();
         await Promise.resolve();
-        expect(fakeEmitted(server)).deep.equals([]);
+
+        const emitted = fakeEmitted(server);
+        expect(emitted).has.length(1);
+        expect(emitted[0].kind).equals("group");
 
         await node.close();
     });
