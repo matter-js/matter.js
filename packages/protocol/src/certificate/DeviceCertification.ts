@@ -72,22 +72,19 @@ export class DeviceCertification {
             this.#intermediateCertificate = config.intermediateCertificate;
             this.#declaration = config.declaration;
 
+            this.#assertServable();
             if (product !== undefined) {
                 this.#validateCertification(product);
             }
         });
     }
 
-    #validateCertification(product: ProductDescription) {
+    #assertServable() {
         const certificate = this.#certificate;
         const intermediateCertificate = this.#intermediateCertificate;
         if (certificate === undefined || intermediateCertificate === undefined) {
             return;
         }
-
-        // Parse DAC and PAI
-        const dac = Dac.fromAsn1(certificate);
-        const pai = Pai.fromAsn1(intermediateCertificate);
 
         // A larger chain needs the segmented CertificateChainResponse of PQC Phase 1 (Matter Core §18.18.7.4)
         for (const [name, der] of [
@@ -100,6 +97,18 @@ export class DeviceCertification {
                 );
             }
         }
+    }
+
+    #validateCertification(product: ProductDescription) {
+        const certificate = this.#certificate;
+        const intermediateCertificate = this.#intermediateCertificate;
+        if (certificate === undefined || intermediateCertificate === undefined) {
+            return;
+        }
+
+        // Parse DAC and PAI
+        const dac = Dac.fromAsn1(certificate);
+        const pai = Pai.fromAsn1(intermediateCertificate);
 
         // Validate vendorId from DAC matches product
         const dacVendorId = dac.cert.subject.vendorId;

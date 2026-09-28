@@ -25,6 +25,7 @@ import {
     Crypto,
     CryptoVerifyError,
     DerCodec,
+    DerBitString,
     DerObject,
     DerType,
     EcdsaSignature,
@@ -33,6 +34,7 @@ import {
     MlDsa,
     MockFetch,
     MockStorageService,
+    ObjectId,
     Pem,
     PrivateKey,
     StandardCrypto,
@@ -229,6 +231,65 @@ describe("PQC Phase 1 attestation certificates", () => {
             expect(() => Pai.fromAsn1(altered)).throws(CertificateError, /Invalid ML-DSA-44 public key/);
         });
 
+        async function ecSignedPai(alter: (cert: X509.UnsignedCertificate, key: Bytes) => X509.UnsignedCertificate) {
+            const { paaKey, paaDer, paiDer } = await buildChain({ paa: "ECDSA-P256", pai: "ECDSA-P256" });
+            if (MlDsa.isPrivateKey(paaKey)) {
+                throw new ImplementationError("Expected an EC PAA key");
+            }
+            const original = Pai.fromAsn1(paiDer);
+            const { signature: _signature, ...unsigned } = x509Of(original);
+            const signed = await X509.sign(crypto, paaKey, alter(unsigned, original.cert.ellipticCurvePublicKey));
+            return { pai: Pai.fromAsn1(X509.certificateToDer(signed)), paa: Paa.fromAsn1(paaDer) };
+        }
+
+        it("refuses a public key of an unsupported algorithm", async () => {
+            const { pai } = await ecSignedPai((cert, key) => ({
+                ...cert,
+                publicKey: {
+                    type: { algorithm: ObjectId("2a0304"), curve: X962.PublicKeyAlgorithmEcPublicKeyP256 },
+                    bytes: DerBitString(key),
+                },
+            }));
+
+            expect(() => pai.publicKey).throws(CertificateError, /neither EC P-256 nor ML-DSA/);
+        });
+
+        it("refuses an EC key on an unsupported curve", async () => {
+            const { pai } = await ecSignedPai((cert, key) => ({
+                ...cert,
+                publicKey: {
+                    type: { algorithm: X962.PublicKeyAlgorithmEcPublicKey, curve: ObjectId("2b81040022") },
+                    bytes: DerBitString(key),
+                },
+            }));
+
+            expect(() => pai.publicKey).throws(CertificateError, /neither EC P-256 nor ML-DSA/);
+        });
+
+        it("refuses to verify a signature of an unsupported algorithm", async () => {
+            // ecdsa-with-SHA384 declared, while X509.sign still signs with SHA-256
+            const { pai, paa } = await ecSignedPai(cert => ({
+                ...cert,
+                signatureAlgorithm: DerObject("2a8648ce3d040303"),
+            }));
+
+            await expect(pai.verifySignature(crypto, paa.publicKey)).rejectedWith(
+                CertificateError,
+                /neither ecdsa-with-SHA256 nor ML-DSA/,
+            );
+        });
+
+        it("rejects a signature algorithm that is not an OBJECT IDENTIFIER", async () => {
+            const { paiDer } = await buildChain({ paa: "ECDSA-P256", pai: "ECDSA-P256" });
+            const hex = Bytes.toHex(paiDer);
+            const algorithm = "300a06082a8648ce3d040302";
+            expect(hex.split(algorithm).length).equals(3);
+
+            const altered = Bytes.fromHex(hex.replaceAll(algorithm, "300a02082a8648ce3d040302"));
+
+            expect(() => Pai.fromAsn1(altered)).throws(CertificateError, /Invalid signature algorithm structure/);
+        });
+
         it("rejects a traditional attestation certificate larger than 600 bytes", async () => {
             const { paaKey, paiDer } = await buildChain({ paa: "ECDSA-P256", pai: "ECDSA-P256" });
             if (MlDsa.isPrivateKey(paaKey)) {
@@ -369,6 +430,23 @@ describe("PQC Phase 1 attestation certificates", () => {
     });
 
     describe("device certification", () => {
+        it("refuses an unservable chain even without product information", async () => {
+            const chain = await buildChain({ paa: "ML-DSA-65", pai: "ML-DSA-44" });
+            const certification = new DeviceCertification(crypto, {
+                privateKey: chain.dacKey,
+                certificate: chain.dacDer,
+                intermediateCertificate: chain.paiDer,
+                declaration: await CertificationDeclaration.generate(crypto, VENDOR_ID, PRODUCT_ID),
+            });
+
+            const failure = await certification.construction.then(
+                () => undefined,
+                (error: unknown) => asError(error),
+            );
+
+            expect(asError(failure?.cause).message).match(/DAC of \d+ bytes exceeds the 600 bytes/);
+        });
+
         it("refuses a chain it cannot serve without segmented responses", async () => {
             const chain = await buildChain({ paa: "ML-DSA-65", pai: "ML-DSA-44" });
             const certification = new DeviceCertification(

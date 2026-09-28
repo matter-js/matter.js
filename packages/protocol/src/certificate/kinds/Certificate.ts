@@ -137,12 +137,17 @@ export abstract class Certificate<CT extends MatterCertificate> {
     /**
      * The certificate's public key, tagged by algorithm.
      *
+     * @throws CertificateError if the key algorithm is not supported
      * @throws KeyInputError if an EC key is malformed
      */
     get publicKey(): CertificatePublicKey {
-        const { mlDsaPublicKey, ellipticCurvePublicKey } = this.#cert;
+        const { mlDsaPublicKey, ellipticCurvePublicKey, publicKeyAlgorithm, ellipticCurveIdentifier } = this.#cert;
         if (mlDsaPublicKey !== undefined) {
             return { algorithm: mlDsaPublicKey.parameterSet, key: mlDsaPublicKey.key };
+        }
+        // 1 is ecPublicKey and prime256v1 (Matter Core §13.5.8, §13.5.9)
+        if (publicKeyAlgorithm !== 1 || ellipticCurveIdentifier !== 1) {
+            throw new CertificateError("Certificate public key is neither EC P-256 nor ML-DSA");
         }
         return { algorithm: "ECDSA-P256", key: PublicKey(ellipticCurvePublicKey) };
     }
@@ -150,7 +155,8 @@ export abstract class Certificate<CT extends MatterCertificate> {
     /**
      * Verify the issuer's signature over this certificate with the issuer's public key.
      *
-     * @throws CertificateError if the issuer's key algorithm cannot have produced this certificate's signature
+     * @throws CertificateError if the signature algorithm is not supported, or the issuer's key algorithm cannot
+     *   have produced this certificate's signature
      * @throws CryptoVerifyError if the signature does not verify
      * @throws KeyInputError if the issuer key is malformed
      * @see Matter Core §10.12.3 (PQC Phase 1) for ML-DSA
@@ -166,6 +172,10 @@ export abstract class Certificate<CT extends MatterCertificate> {
             return crypto.verifyMlDsa(signature.parameterSet, issuerKey.key, this.asUnsignedDer(), signature.bytes);
         }
 
+        // 1 is ecdsa-with-SHA256 (Matter Core §13.5.5)
+        if (this.#cert.signatureAlgorithm !== 1) {
+            throw new CertificateError("Certificate signature algorithm is neither ecdsa-with-SHA256 nor ML-DSA");
+        }
         if (issuerKey.algorithm !== "ECDSA-P256") {
             throw new CertificateError(
                 `Certificate is signed with ecdsa-with-SHA256 but the issuer key is ${issuerKey.algorithm}`,
@@ -650,7 +660,9 @@ export namespace Certificate {
 
         // Signature algorithm
         const signatureAlgorithmNode = certElements[idx++];
-        const signatureAlgorithmOid = signatureAlgorithmNode._elements?.[0]?._bytes;
+        const signatureAlgorithmOidNode = signatureAlgorithmNode._elements?.[0];
+        const signatureAlgorithmOid =
+            signatureAlgorithmOidNode?._tag === DerType.ObjectIdentifier ? signatureAlgorithmOidNode._bytes : undefined;
         if (!signatureAlgorithmOid) {
             throw new CertificateError("Invalid signature algorithm structure");
         }
