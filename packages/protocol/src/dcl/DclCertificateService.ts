@@ -38,6 +38,7 @@ import {
 import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
 import { Certificate } from "../certificate/kinds/Certificate.js";
+import type { CertificatePublicKey } from "../certificate/kinds/CertificateSignature.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
@@ -317,9 +318,11 @@ export class DclCertificateService {
     /** Parse error of a DER certificate, or undefined if it parses, using the extension set for its kind. */
     #certificateParseError(der: Bytes, kind?: DclCertificateService.CertificateKind): Error | undefined {
         try {
+            const isPaa = (kind ?? "PAA") === "PAA";
             Certificate.parseAsn1Certificate(
                 der,
-                (kind ?? "PAA") === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+                isPaa ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+                { postQuantum: isPaa },
             );
             return undefined;
         } catch (error) {
@@ -643,6 +646,7 @@ export class DclCertificateService {
         const cert = Certificate.parseAsn1Certificate(
             derBytes,
             kind === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+            { postQuantum: kind === "PAA" },
         );
         const skid = this.#normalizeSubjectKeyId(cert.extensions.subjectKeyIdentifier);
 
@@ -1190,6 +1194,7 @@ export class DclCertificateService {
                     const parsed = Certificate.parseAsn1Certificate(
                         der,
                         isPaa ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
+                        { postQuantum: isPaa },
                     );
                     const skidFromDer = this.#normalizeSubjectKeyId(parsed.extensions.subjectKeyIdentifier);
                     const entrySkid = this.#normalizeSubjectKeyId(entry.subjectKeyId);
@@ -1420,7 +1425,7 @@ export class DclCertificateService {
 
             // CRL signer trust anchor honors test PAAs that the validator already accepted upstream.
             const trustAllPaas: DclCertificateService.GetCertificateOptions = { considerTestCertificates: true };
-            let issuerPublicKey: Bytes | undefined;
+            let issuerPublicKey: CertificatePublicKey | undefined;
             if (delegatorCert !== undefined) {
                 // Delegated signer: verify delegator is signed by a trusted PAA
                 const delegatorAkid = delegatorCert.cert.extensions.authorityKeyIdentifier;
@@ -1432,16 +1437,12 @@ export class DclCertificateService {
                 }
                 const paaDer = await this.#getCertificateDer(delegatorAkid, trustAllPaas);
                 const paa = Paa.fromAsn1(paaDer);
-                await this.#crypto.verifyEcdsa(
-                    PublicKey(paa.cert.ellipticCurvePublicKey),
-                    delegatorCert.asUnsignedDer(),
-                    delegatorCert.signature,
-                );
-                issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
+                await delegatorCert.verifySignature(this.#crypto, paa.publicKey);
+                issuerPublicKey = delegatorCert.publicKey;
             } else if (this.#certificateIndex.has(signerAkidNorm)) {
                 const paaDer = await this.#getCertificateDer(signerAkid, trustAllPaas);
                 const paa = Paa.fromAsn1(paaDer);
-                issuerPublicKey = paa.cert.ellipticCurvePublicKey;
+                issuerPublicKey = paa.publicKey;
             }
 
             if (issuerPublicKey === undefined) {
@@ -1450,13 +1451,15 @@ export class DclCertificateService {
                 );
             }
 
-            await this.#crypto.verifyEcdsa(
-                PublicKey(issuerPublicKey),
-                signerCert.asUnsignedDer(),
-                signerCert.signature,
-            );
+            await signerCert.verifySignature(this.#crypto, issuerPublicKey);
         }
 
+        const { mlDsaPublicKey } = signerCert.cert;
+        if (mlDsaPublicKey !== undefined) {
+            throw new MatterDclError(
+                `CRL signer uses ${mlDsaPublicKey.parameterSet}; revocation lists signed with ML-DSA are not supported`,
+            );
+        }
         return signerCert.cert.ellipticCurvePublicKey;
     }
 

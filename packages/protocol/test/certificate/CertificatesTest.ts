@@ -688,14 +688,18 @@ describe("Certificates", () => {
             expect(() => Vvsc.fromTlv(oversized)).throw(/400/);
         });
 
-        it("rejects a DER certificate larger than 600 bytes (NOC and DAC chains)", () => {
+        it("rejects a DER operational certificate larger than 600 bytes before parsing", () => {
             const oversized = new Uint8Array(601);
             expect(() => Noc.fromAsn1(oversized)).throw(/600/);
             expect(() => Rcac.fromAsn1(oversized)).throw(/600/);
             expect(() => Icac.fromAsn1(oversized)).throw(/600/);
-            expect(() => Paa.fromAsn1(oversized)).throw(/600/);
-            expect(() => Pai.fromAsn1(oversized)).throw(/600/);
-            expect(() => Dac.fromAsn1(oversized)).throw(/600/);
+        });
+
+        it("rejects a DER attestation certificate larger than the PQC limit before parsing", () => {
+            const oversized = new Uint8Array(10241);
+            expect(() => Paa.fromAsn1(oversized)).throw(/10240/);
+            expect(() => Pai.fromAsn1(oversized)).throw(/10240/);
+            expect(() => Dac.fromAsn1(oversized)).throw(/10240/);
         });
     });
 

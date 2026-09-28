@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DerBitString, DerCodec, DerNode, DerObject, DerType } from "#codec/DerCodec.js";
+import { DerBitString, DerCodec, DerNode, DerObject, DerSequenceDefinition, DerType } from "#codec/DerCodec.js";
 import { Bytes } from "#util/Bytes.js";
 import { KeyInputError, SignatureEncodingError } from "./CryptoError.js";
 
@@ -47,6 +47,11 @@ export namespace MlDsa {
         readonly publicKey: Bytes;
     }
 
+    /** Distinguish an ML-DSA private key from the JWK of an EC key. */
+    export function isPrivateKey(key: PrivateKey | JsonWebKey): key is PrivateKey {
+        return "parameterSet" in key && "seed" in key;
+    }
+
     // Only the OIDs above may resolve, which an object literal cannot promise: it answers for Object.prototype too
     const parameterSetsByOid = new Map<string, ParameterSet>([
         [PARAMETERS["ML-DSA-44"].oid, "ML-DSA-44"],
@@ -67,8 +72,14 @@ export namespace MlDsa {
         return DerObject(PARAMETERS[parameterSet].oid);
     }
 
+    /** SubjectPublicKeyInfo of an ML-DSA key, as a DER definition. */
+    export interface PublicKeyInfo extends DerSequenceDefinition {
+        algorithm: DerObject;
+        publicKey: DerBitString;
+    }
+
     /** The SubjectPublicKeyInfo definition for a raw ML-DSA public key, for DER encoding. */
-    export function SubjectPublicKeyInfo(parameterSet: ParameterSet, publicKey: Bytes) {
+    export function SubjectPublicKeyInfo(parameterSet: ParameterSet, publicKey: Bytes): PublicKeyInfo {
         assertPublicKey(parameterSet, publicKey);
         return {
             algorithm: AlgorithmIdentifier(parameterSet),
