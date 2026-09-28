@@ -12,7 +12,7 @@ import { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { BasicMultiplex, Diagnostic, Environment, Environmental, InternalError, Logger } from "@matter/general";
-import { Fabric, FabricManager, NoUsableGroupKeyError, PeerAddress, PeerSet } from "@matter/protocol";
+import { Fabric, FabricManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
 import { BindingServer } from "./BindingServer.js";
@@ -426,7 +426,7 @@ export class BindingManager {
 
     /**
      * Resolves registered group entries whose group now has a key. An established entry stays until it is unregistered:
-     * after its key is gone, a send through it fails with a {@link NoUsableGroupKeyError}.
+     * after its key is gone, a send through it fails with a `NoUsableGroupKeyError`.
      */
     #recheckGroups(fabricIndex: FabricIndex): void {
         if (this.#cachedNode === undefined) {
