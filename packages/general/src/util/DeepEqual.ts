@@ -39,6 +39,17 @@ export function isDeepEqual(a: unknown, b: unknown, ignoreUndefinedProperties = 
         return a === b;
     }
 
+    // These hold their state in internal slots, so they have no own properties to compare
+    if (a instanceof Date || b instanceof Date) {
+        return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+    }
+    if (a instanceof Map || b instanceof Map) {
+        return a instanceof Map && b instanceof Map && isDeepEqualMap(a, b, ignoreUndefinedProperties);
+    }
+    if (a instanceof Set || b instanceof Set) {
+        return a instanceof Set && b instanceof Set && isDeepEqualSet(a, b, ignoreUndefinedProperties);
+    }
+
     // Create arrays of property names
     const aProps = Object.getOwnPropertyNames(a);
     const bProps = Object.getOwnPropertyNames(b);
@@ -70,5 +81,37 @@ export function isDeepEqual(a: unknown, b: unknown, ignoreUndefinedProperties = 
     }
 
     // If we made it this far, objects are considered equal
+    return true;
+}
+
+function isDeepEqualMap(a: Map<unknown, unknown>, b: Map<unknown, unknown>, ignoreUndefinedProperties: boolean) {
+    if (a.size !== b.size) {
+        return false;
+    }
+    for (const [key, value] of a) {
+        if (!b.has(key) || !isDeepEqual(value, b.get(key), ignoreUndefinedProperties)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function isDeepEqualSet(a: Set<unknown>, b: Set<unknown>, ignoreUndefinedProperties: boolean) {
+    if (a.size !== b.size) {
+        return false;
+    }
+    const unmatched = new Set(b);
+    outer: for (const entry of a) {
+        if (unmatched.delete(entry)) {
+            continue;
+        }
+        for (const candidate of unmatched) {
+            if (isDeepEqual(entry, candidate, ignoreUndefinedProperties)) {
+                unmatched.delete(candidate);
+                continue outer;
+            }
+        }
+        return false;
+    }
     return true;
 }

@@ -17,6 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
+    - Fix: `isDeepEqual` compares `Date` values by their time and `Map` and `Set` values by their entries; it treated any two dates, any two maps and any two sets as equal
 
 - @matter/model
     - Enhancement: Generated documentation keeps the nesting of lists in the specification
