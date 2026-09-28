@@ -16,6 +16,7 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Environment, InternalError, Logger, MaybePromise } from "@matter/general";
 import { FabricManager } from "@matter/protocol";
 import { DescriptorServer } from "../../behaviors/descriptor/DescriptorServer.js";
+import { DeviceTypeConformanceService } from "./DeviceTypeConformanceService.js";
 
 const logger = Logger.get("BehaviorInit");
 
@@ -39,6 +40,8 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         if (!(DescriptorServer.id in endpoint.behaviors.supported)) {
             endpoint.behaviors.inject(DescriptorServer, undefined, false);
         }
+
+        endpoint.env.get(DeviceTypeConformanceService).constructing(endpoint);
     }
 
     async eraseDescendant(endpoint: Endpoint) {
@@ -114,6 +117,10 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         logger.warn(`Using fallback ID of ${id} for child of ${endpoint.owner}; assign ID to remove this warning`);
 
         return id;
+    }
+
+    override partsInitialized(endpoint: Endpoint) {
+        endpoint.env.get(DeviceTypeConformanceService).constructed(endpoint);
     }
 
     override behaviorsInitialized(agent: Agent): MaybePromise {
