@@ -679,11 +679,9 @@ function statedConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
 }
 
 function conditionScopesOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
-    let deviceTypes = ResolvedEndpoint.of(endpoint, pass).deviceTypes;
+    let deviceTypes: readonly DeviceTypeModel[] = ResolvedEndpoint.of(endpoint, pass).deviceTypes;
     if (!deviceTypes.length) {
-        deviceTypes = pass.model.deviceTypes.filter(
-            deviceType => deviceType.classification === DeviceClassification.Base,
-        );
+        deviceTypes = lookupsFor(pass.model).baseDeviceTypes;
     }
     return deviceTypes.map(deviceType => conditionScopeOf(deviceType, pass));
 }

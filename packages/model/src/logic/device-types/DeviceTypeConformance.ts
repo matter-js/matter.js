@@ -7,9 +7,8 @@
 import { Conformance } from "../../aspects/Conformance.js";
 import { DeviceClassification } from "../../common/DeviceClassification.js";
 import { RequirementElement } from "../../elements/RequirementElement.js";
-import { DeviceTypeModel, Model, RequirementModel, ValueModel } from "../../models/index.js";
+import { DeviceTypeModel, MatterModel, Model, RequirementModel, ValueModel } from "../../models/index.js";
 import { requirementApplicability } from "../RequirementApplicability.js";
-import { RequirementResolver } from "../RequirementResolver.js";
 import { ConditionAssertions } from "./ConditionAssertions.js";
 import type { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
 import { DeviceTypeViolation } from "./DeviceTypeViolation.js";
@@ -77,7 +76,7 @@ export namespace DeviceTypeConformance {
         }
 
         checkComponentOf(violations, facts, collection, pass);
-        checkDescendantCounts(violations, collection.descendantAssertionsOf(endpoint));
+        checkDescendantCounts(violations, collection.descendantAssertionsOf(endpoint), model);
         checkSingletons(violations, facts, pass);
 
         // Several device types, Base included, may state the same requirement; the first report is kept, never Base's
@@ -851,6 +850,7 @@ function checkComponentOf<E>(
 function checkDescendantCounts<E>(
     violations: DeviceTypeViolation[],
     descendantAssertions: ConditionAssertions.DescendantAssertion<E>[],
+    model: MatterModel,
 ) {
     for (const { requirement, matches } of descendantAssertions) {
         const range = requirement.componentCountRange;
@@ -858,7 +858,7 @@ function checkDescendantCounts<E>(
             continue;
         }
 
-        const condition = RequirementResolver.conditionOf(requirement);
+        const condition = lookupsFor(model).assertedConditionOf(requirement);
         violations.push({
             deviceType: requirement.parent?.name ?? "",
             requirement: `condition:${requirement.name}`,
