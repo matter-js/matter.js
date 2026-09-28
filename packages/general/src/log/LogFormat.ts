@@ -181,8 +181,8 @@ LogFormat.formats.plain = function plain(diagnostic: unknown, indents = 0) {
         error: producer => creator.text(producer()),
         status: (status, producer) => `${creator.text(statusIcon(status))}${producer()}`,
         via: text => creator.text(text),
-        added: producer => creator.text(`+${producer()}`),
-        deleted: producer => creator.text(`-${producer()}`),
+        added: producer => `${creator.text("+")}${producer()}`,
+        deleted: producer => `${creator.text("-")}${producer()}`,
     } satisfies Formatter;
 
     return renderDiagnostic(diagnostic, formatter);

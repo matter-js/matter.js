@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LogFormat, MatterError } from "@matter/general";
+import { ImplementationError, ImportError, LogFormat } from "@matter/general";
 import { AnyElement, ElementTag, Model, ModelDiff, Specification } from "@matter/model";
 import { Command } from "./command.js";
 
@@ -37,53 +37,100 @@ Command({
         if (to === undefined) {
             to = Specification.REVISION;
         }
-        const toModel = await loadModel(to);
-
         if (from === undefined) {
-            let toRevision: string;
-            if ("revision" in toModel && typeof toModel.revision === "string") {
-                toRevision = toModel.revision;
-            } else {
-                toRevision = Specification.REVISION;
-            }
-            from = (Number.parseFloat(toRevision) - 0.1).toFixed(1);
+            from = await previousRevisionOf(isRevisionArg(to) ? String(to) : Specification.REVISION);
         }
-        const fromModel = await loadModel(from);
 
-        const diff = ModelDiff(fromModel, toModel, depth);
-        this.out(LogFormat.formats.ansi(ModelDiff.diagnosticOf(diff)));
+        const diff = ModelDiff(await loadModel(from), await loadModel(to), depth);
+        if (isRevisionArg(from) && isRevisionArg(to)) {
+            this.out(`${from} → ${to}\n`);
+        }
+        this.out(LogFormat.formats.ansi(ModelDiff.diagnosticOf(diff)), "\n");
     },
 });
 
+/**
+ * The latest revision before {@link revision} that has an intermediate model: the previous patch level of the same
+ * release, otherwise the latest patch level of the previous release.
+ */
+async function previousRevisionOf(revision: string) {
+    const [major, minor, patch = 0] = revision.split(".").map(Number);
+
+    const candidates =
+        patch > 0
+            ? [`${major}.${minor}.${patch - 1}`]
+            : Array.from(
+                  { length: MAX_PATCH_LEVEL + 1 },
+                  (_, level) => `${major}.${minor - 1}.${MAX_PATCH_LEVEL - level}`,
+              );
+
+    for (const candidate of candidates) {
+        if (await isImportable(intermediateModelName(candidate))) {
+            return candidate;
+        }
+    }
+
+    throw new ImportError(`No intermediate model precedes revision ${revision}`);
+}
+
+const MAX_PATCH_LEVEL = 9;
+
+function isRevision(source: string) {
+    return /^\d+\.\d+(\.\d+)?$/.test(source);
+}
+
+/** Intermediate models are stored by revision with a trailing ".0" dropped */
+function intermediateModelName(revision: string) {
+    return `@matter/intermediate-models/v${revision.replace(/\.0$/, "")}/spec`;
+}
+
+async function isImportable(name: string) {
+    try {
+        await import(name);
+        return true;
+    } catch (cause) {
+        if (cause instanceof Error && "code" in cause && cause.code === "ERR_MODULE_NOT_FOUND") {
+            return false;
+        }
+        throw cause;
+    }
+}
+
+/** The command line parses "1.6" as a number */
+function isRevisionArg(source: unknown) {
+    return typeof source === "number" || (typeof source === "string" && isRevision(source));
+}
+
 async function loadModel(source: unknown): Promise<Model> {
+    if (typeof source === "number") {
+        source = source.toString();
+    }
+
     if (typeof source !== "string") {
         const model = asModel(source);
         if (model === undefined) {
-            throw new MatterError(`Input models must be Model, AnyElement, or a string import specifier`);
+            throw new ImplementationError(`Input models must be Model, AnyElement, or a string import specifier`);
         }
         return model;
     }
 
-    let importName;
-    if (source.match(/^\d+\.\d+$/)) {
-        importName = `@matter/intermediate-models/v${source}/spec`;
-    } else {
-        importName = source;
-    }
+    const importName = isRevision(source) ? intermediateModelName(source) : source;
+
+    let module: Record<string, unknown>;
     try {
-        const module = await import(importName);
-
-        for (const value of Object.values(module)) {
-            const model = asModel(value);
-            if (model) {
-                return model;
-            }
-        }
-
-        throw new MatterError(`Could not find an exported model in "${importName}"`);
+        module = await import(importName);
     } catch (cause) {
-        throw new MatterError(`Could not import "${importName}"`, { cause });
+        throw new ImportError(`Could not import "${importName}"`, { cause });
     }
+
+    for (const value of Object.values(module)) {
+        const model = asModel(value);
+        if (model) {
+            return model;
+        }
+    }
+
+    throw new ImportError(`Could not find an exported model in "${importName}"`);
 }
 
 function asModel(value: unknown) {
