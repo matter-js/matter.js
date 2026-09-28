@@ -21,6 +21,7 @@ import {
     OtaQueryStatus,
     queryStatusName,
     recordRequestorIdle,
+    requestorIdleEntry,
     requestorStateChanges,
     UPDATE_STATE_DOWNLOADING,
 } from "./tc-su-support.js";
@@ -298,8 +299,8 @@ async function recordNoTransferOf(
                     (unreadable.length === 0 ? "" : ` and ${unreadable.length} without a readable NewState`),
             }),
         },
+        requestorIdleEntry(node),
     ]);
-    await recordRequestorIdle(cx, node);
 }
 
 async function recordOlderVersionRefused(cx: CertStepContext) {

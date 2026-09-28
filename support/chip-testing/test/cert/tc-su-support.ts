@@ -468,23 +468,36 @@ export async function latestRequestorStateChange(node: CertNodeApi): Promise<big
 }
 
 /**
- * Records the Test Setup every requestor plan shares: "reading the UpdateState Attribute of the OTA
- * Requestor should return the value as Idle".
+ * The Test Setup every requestor plan shares, as a check: "reading the UpdateState Attribute of the
+ * OTA Requestor should return the value as Idle".
  *
  * Read on every endpoint, because the two requestors this suite runs carry the cluster on different
  * ones, and a requestor carrying it twice would leave "the" UpdateState undefined.
+ *
+ * A step that records other checks besides this one passes this to {@link recordAll} rather than
+ * calling {@link recordRequestorIdle} after it: that call is never reached once an earlier check has
+ * failed, which drops one of the artifacts the step claims exactly on the run that needed it.
  */
-export async function recordRequestorIdle(cx: CertStepContext, node: CertNodeApi) {
+export async function requestorIdleCheck(node: CertNodeApi): Promise<CheckRecord> {
     const entries = await node.readAttributes([{ cluster: OTA_REQUESTOR_ID, attribute: UPDATE_STATE_ID }]);
     const states = entries.map(({ endpoint, value }) => `${value} on endpoint ${endpoint}`);
 
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: entries.length === 1 && entries[0].value === UPDATE_STATE_IDLE ? "pass" : "fail",
-            detail: `the DUT reported UpdateState ${states.join(", ") || "on no endpoint"}, where Idle is ${UPDATE_STATE_IDLE}`,
-        },
-        "the DUT's OTA requestor is Idle",
-    );
+    return {
+        type: "response",
+        verdict: entries.length === 1 && entries[0].value === UPDATE_STATE_IDLE ? "pass" : "fail",
+        detail: `the DUT reported UpdateState ${states.join(", ") || "on no endpoint"}, where Idle is ${UPDATE_STATE_IDLE}`,
+    };
+}
+
+/** {@link requestorIdleCheck} recorded on its own, for a step whose only claim it is. */
+export async function recordRequestorIdle(cx: CertStepContext, node: CertNodeApi) {
+    record(cx, await requestorIdleCheck(node), "the DUT's OTA requestor is Idle");
+}
+
+/** {@link requestorIdleCheck} as an entry for a {@link recordAll} list. */
+export function requestorIdleEntry(node: CertNodeApi) {
+    return {
+        what: "the DUT's OTA requestor is Idle",
+        check: () => requestorIdleCheck(node),
+    };
 }
