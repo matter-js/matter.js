@@ -11,6 +11,7 @@ import type { DeviceTypeFacts } from "./DeviceTypeFacts.js";
 import type { DeviceTypeScopeIndex } from "./DeviceTypeScopeIndex.js";
 import type { DeviceTypeViolation } from "./DeviceTypeViolation.js";
 import { Memo } from "./Memo.js";
+import type { ReachingEndpoints } from "./ReachingEndpoints.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
 
 /**
@@ -24,8 +25,9 @@ import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
  * A pass must not outlive one synchronous run. The tree may change between runs, and nothing a pass memoizes of it is
  * invalidated. A lookup that reads only {@link model} — the cluster, feature or element a requirement names, for
  * example — outlives the pass and is shared with every other pass resolved in the same model; see
- * `ModelLookups`. A pass created with an {@link index} reads the reaching endpoints of a node scope and the device
- * types of siblings from it rather than from the tree.
+ * `ModelLookups`. A pass created with an {@link index} reads the reaching endpoints of a node scope, what each contributes
+ * to the scope, the endpoints of a node scope by device type and the device types of siblings from it rather than from
+ * the tree.
  *
  * Mutating a model in place after it has validated an endpoint is unsupported: `ModelLookups` keys its entries by
  * model instance, not content, so a mutated model keeps serving lookups from before the mutation. Build a new model
@@ -45,7 +47,7 @@ export class DeviceTypeValidationPass<E> {
     readonly collections = new Memo<E, ConditionAssertions.Collection<E>>();
 
     /** @internal */
-    readonly reaching = new Memo<E, readonly E[]>();
+    readonly reaching = new Memo<E, ReachingEndpoints<E>>();
 
     /** @internal */
     readonly applicationDeviceTypeCounts = new Memo<E, Map<number, number>>();
@@ -168,6 +170,25 @@ export class DeviceTypeValidationPass<E> {
      */
     nodeConditionReadersOf(nodeEndpoint: E) {
         return DeviceTypeConformance.nodeConditionReadersOf(nodeEndpoint, this);
+    }
+
+    /**
+     * Whether {@link endpoint} may be one of the {@link nodeConditionReadersOf condition readers} of
+     * {@link nodeEndpoint}.
+     *
+     * @internal
+     */
+    mayReadNodeConditions(endpoint: E, nodeEndpoint: E) {
+        return DeviceTypeConformance.mayReadNodeConditions(endpoint, nodeEndpoint, this);
+    }
+
+    /**
+     * The conditions true for {@link nodeEndpoint}, a node endpoint.
+     *
+     * @internal
+     */
+    nodeEndpointConditionsOf(nodeEndpoint: E): ReadonlySet<string> {
+        return ConditionAssertions.collect(nodeEndpoint, this).conditionsOf(nodeEndpoint);
     }
 }
 

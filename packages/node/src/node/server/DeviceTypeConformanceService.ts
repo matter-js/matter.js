@@ -58,9 +58,10 @@ import Reach = DeviceTypeValidationPass.Reach;
  * - the ancestors of the added, changed or removed endpoint;
  * - each sibling whose `Duplicate` condition differs from what the sibling's last recorded judgement read, and the
  *   sibling's descendants;
- * - the node endpoint and its {@link DeviceTypeValidationPass.nodeConditionReadersOf condition readers} when a changed
- *   endpoint, before or after the change, or such a sibling states a condition requirement located at the node
- *   endpoint;
+ * - the node endpoint when a changed endpoint, before or after the change, or such a sibling states a condition
+ *   requirement located at the node endpoint, and then also its
+ *   {@link DeviceTypeValidationPass.nodeConditionReadersOf condition readers} unless the node endpoint's conditions
+ *   are those every recorded reader was last judged under;
  * - the whole node scope when a changed endpoint, before or after the change, carries a fact that reaches the node
  *   scope, when a `DeviceTypeList` change makes the endpoint a node endpoint or stops it being one, or when the
  *   endpoint whose `DeviceTypeList` changed or that was removed, or a destroyed descendant, has no recorded judgement.
@@ -150,7 +151,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         for (const endpoint of list) {
             this.#assertOwn(endpoint);
         }
-        return this.#validate(list, this.#pass(), options, false);
+        return this.#validate({ endpoints: list }, this.#pass(), options, false);
     }
 
     /**
@@ -168,7 +169,12 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         if (nodeEndpoint === undefined) {
             return new Map<Endpoint, Violation[]>();
         }
-        return this.#validate(pass.nodeScopeOf(nodeEndpoint), pass, options, true);
+        return this.#validate(
+            { endpoints: pass.nodeScopeOf(nodeEndpoint), readersOf: nodeEndpoint },
+            pass,
+            options,
+            true,
+        );
     }
 
     /**
@@ -219,7 +225,8 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      * @internal
      */
     constructed(endpoint: Endpoint) {
-        if (this.#mode === "off" || !isConstructionRoot(endpoint)) {
+        const index = this.#index;
+        if (index === undefined || !isConstructionRoot(endpoint)) {
             return;
         }
 
@@ -230,7 +237,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 
         this.#assertOwn(endpoint);
         const pass = this.#pass();
-        this.#validate(this.#affectedBy({ kind: "added", endpoint }, pass), pass, undefined, true);
+        this.#validate(this.#affectedBy({ kind: "added", endpoint }, pass, index), pass, undefined, true);
     }
 
     /**
@@ -330,7 +337,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 
             const pass = this.#pass();
             const change: Change = { kind: "changed", endpoint, previous: index.entryOf(endpoint) };
-            this.#validate(this.#affectedBy(change, pass), pass, { refuse: false }, false);
+            this.#validate(this.#affectedBy(change, pass, index), pass, { refuse: false }, false);
         } catch (error) {
             this.#logger.error(`Cannot judge the device types of ${endpoint} after they changed:`, error);
         }
@@ -369,7 +376,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         endpoint.lifecycle.destroyed.once(() => {
             const pass = this.#pass();
             this.#validate(
-                this.#affectedBy({ kind: "removed", owner, previous }, pass),
+                this.#affectedBy({ kind: "removed", owner, previous }, pass, index),
                 pass,
                 { refuse: false },
                 false,
@@ -402,7 +409,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     }
 
     #validate(
-        endpoints: Iterable<Endpoint>,
+        { endpoints, readersOf }: Affected,
         pass: DeviceTypeValidationPass<Endpoint>,
         options: DeviceTypeValidation.ValidateOptions | undefined,
         atomic: boolean,
@@ -441,6 +448,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 
             if (this.#index !== undefined) {
                 this.#index.recorded(endpoint, entryOf(endpoint, pass));
+                this.#noteReaderRecorded(endpoint, pass, this.#index);
                 if (current.size) {
                     this.#reported.set(endpoint, current);
                 } else {
@@ -465,7 +473,30 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
             throw refusalOf(refused);
         }
 
+        if (readersOf !== undefined) {
+            this.#index?.readersJudged(readersOf, conditionsKeyOf(readersOf, pass));
+        }
+
         return verdict;
+    }
+
+    /**
+     * Stop trusting what the condition readers of {@link endpoint}'s node endpoint were judged under when
+     * {@link endpoint}, which may be one of them, was recorded under other conditions of the node endpoint.
+     */
+    #noteReaderRecorded(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>, index: NodeScopeIndex) {
+        const nodeEndpoint = pass.nodeEndpointOf(endpoint);
+        if (
+            nodeEndpoint === undefined ||
+            nodeEndpoint === endpoint ||
+            index.readersJudgedUnder(nodeEndpoint) === undefined ||
+            !pass.mayReadNodeConditions(endpoint, nodeEndpoint)
+        ) {
+            return;
+        }
+        if (index.readersJudgedUnder(nodeEndpoint) !== conditionsKeyOf(nodeEndpoint, pass)) {
+            index.readersJudged(nodeEndpoint, undefined);
+        }
     }
 
     /**
@@ -494,9 +525,10 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      *
      * A sibling is compared with its recorded entry, which records what its last recorded judgement read, so a sibling
      * whose `Duplicate` condition the change leaves as it was is not judged however many siblings share its device
-     * type. An entry that is missing counts as changed.
+     * type. An entry that is missing counts as changed. Only the index's {@link NodeScopeIndex.suspectsOf suspects} are
+     * compared; every other sibling's entry matches it.
      */
-    #affectedBy(change: Change, pass: DeviceTypeValidationPass<Endpoint>): Endpoint[] {
+    #affectedBy(change: Change, pass: DeviceTypeValidationPass<Endpoint>, index: NodeScopeIndex): Affected {
         const affected = new Set<Endpoint>();
         const addSubtree = (endpoint: Endpoint) => {
             affected.add(endpoint);
@@ -537,14 +569,20 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 
         if (owner !== undefined) {
             const changed = change.kind === "removed" ? undefined : change.endpoint;
-            for (const sibling of pass.childrenOf(owner)) {
+            const flipped = new Array<Endpoint>();
+            for (const sibling of [...index.suspectsOf(owner)]) {
                 if (sibling === changed || this.#facts.presenceOf(sibling) !== Presence.Active) {
                     continue;
                 }
-                const recorded = this.#index?.entryOf(sibling)?.duplicate;
+                const recorded = index.entryOf(sibling)?.duplicate;
                 if (recorded !== undefined && recorded === pass.isDuplicate(sibling)) {
+                    index.settled(sibling);
                     continue;
                 }
+                flipped.push(sibling);
+            }
+
+            for (const sibling of inPartsOrder(owner, flipped)) {
                 addSubtree(sibling);
                 if (pass.assertsOnNodeEndpoint(sibling)) {
                     reach = widerOf(reach, Reach.NodeEndpoint);
@@ -557,21 +595,29 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         }
 
         if (reach === Reach.None) {
-            return [...affected];
+            return { endpoints: [...affected] };
         }
 
         const nodeEndpoint = pass.nodeEndpointOf(anchor);
-        if (nodeEndpoint !== undefined) {
-            const reached =
-                reach === Reach.NodeScope
-                    ? pass.nodeScopeOf(nodeEndpoint)
-                    : [nodeEndpoint, ...pass.nodeConditionReadersOf(nodeEndpoint)];
-            for (const endpoint of reached) {
-                affected.add(endpoint);
-            }
+        if (nodeEndpoint === undefined) {
+            return { endpoints: [...affected] };
         }
 
-        return [...affected];
+        if (reach === Reach.NodeScope) {
+            for (const endpoint of pass.nodeScopeOf(nodeEndpoint)) {
+                affected.add(endpoint);
+            }
+            return { endpoints: [...affected], readersOf: nodeEndpoint };
+        }
+
+        affected.add(nodeEndpoint);
+        if (index.readersJudgedUnder(nodeEndpoint) === conditionsKeyOf(nodeEndpoint, pass)) {
+            return { endpoints: [...affected] };
+        }
+        for (const endpoint of pass.nodeConditionReadersOf(nodeEndpoint)) {
+            affected.add(endpoint);
+        }
+        return { endpoints: [...affected], readersOf: nodeEndpoint };
     }
 
     /**
@@ -636,6 +682,21 @@ function isConstructionRoot(endpoint: Endpoint) {
 }
 
 /**
+ * The endpoints a pass judges, and the node endpoint whose condition readers are all among them.
+ */
+interface Affected {
+    endpoints: Iterable<Endpoint>;
+    readersOf?: Endpoint;
+}
+
+/**
+ * The conditions of {@link nodeEndpoint} in {@link pass} as one comparable value.
+ */
+function conditionsKeyOf(nodeEndpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>) {
+    return [...pass.nodeEndpointConditionsOf(nodeEndpoint)].sort().join();
+}
+
+/**
  * A change {@link DeviceTypeConformanceService} judges the effects of.
  */
 type Change =
@@ -688,6 +749,17 @@ function refusalOf([first, ...others]: Judged[]) {
 
 function violationErrorsOf({ fresh }: Judged) {
     return fresh.map(violation => new DeviceTypeViolationError(violation));
+}
+
+/**
+ * {@link parts} in the order {@link owner} lists them.
+ */
+function inPartsOrder(owner: Endpoint, parts: Endpoint[]) {
+    if (parts.length < 2) {
+        return parts;
+    }
+    const included = new Set(parts);
+    return [...owner.parts].filter(part => included.has(part));
 }
 
 function isEndpoint(value: Endpoint | Iterable<Endpoint>): value is Endpoint {

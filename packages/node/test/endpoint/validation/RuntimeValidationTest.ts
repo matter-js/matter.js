@@ -23,6 +23,7 @@ import {
     ConditionModel,
     DeviceTypeConformance,
     DeviceTypeModel,
+    DeviceTypeValidationPass,
     MatterModel,
     RequirementModel,
 } from "@matter/model";
@@ -39,6 +40,7 @@ import {
     lightWithGroupKeyManagement,
     recordingChecks,
     recordingReads,
+    serverPass,
     WiFiCommissioningServer,
 } from "./validation-helpers.js";
 
@@ -530,6 +532,27 @@ describe("device type validation after construction", () => {
         });
     });
 
+    describe("a bridge of identical lights", () => {
+        it("reads no earlier light when a light asserting a condition on the node endpoint is added", async () => {
+            const node = await createNode();
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            const lights = [await addBridgedLight(aggregator, "light1"), await addBridgedLight(aggregator, "light2")];
+            expect(serverPass().reachOf(lights[0])).equals(DeviceTypeValidationPass.Reach.NodeEndpoint);
+
+            for (let i = 3; i <= 30; i++) {
+                using reads = recordingReads();
+                using recording = recordingChecks();
+                const light = await addBridgedLight(aggregator, `light${i}`);
+
+                expect(recording.judged).deep.equals([light, aggregator, node]);
+                expect(lights.filter(earlier => reads.read.has(earlier)).map(String)).deep.equals([]);
+                lights.push(light);
+            }
+
+            await node.close();
+        });
+    });
+
     describe("a fact that reaches the node scope", () => {
         it("judges the whole node scope when an endpoint supporting a network interface is added", async () => {
             const node = await createNode();
@@ -720,6 +743,36 @@ describe("device type validation after construction", () => {
                 light.set({ descriptor: { deviceTypeList: deviceTypeList("OnOffLight", ASSERTER_ID) } }),
             );
 
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await node.close();
+        });
+
+        it("judges no reader when another endpoint asserts a condition that already holds", async () => {
+            const { node, widget } = await createGuardedNode();
+            await captureLogOf(() => addStandIn(node, "asserter1", ASSERTER_ID));
+
+            // The first asserter becomes a duplicate, which is judged as a sibling
+            using recording = recordingChecks();
+            await captureLogOf(() => addStandIn(node, "asserter2", ASSERTER_ID));
+
+            expect(recording.judged.map(String)).deep.equals(["node0.asserter2", "node0.asserter1", "node0"]);
+            expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
+
+            await node.close();
+        });
+
+        it("judges a reader whose recorded judgement was forgotten", async () => {
+            const { node, widget } = await createGuardedNode();
+            await captureLogOf(() => addStandIn(node, "asserter1", ASSERTER_ID));
+            const shelf = await addStandIn(node, "shelf", "OnOffLight");
+            serviceOf(node).forget(widget);
+
+            // Added below another parent, so the widget is judged as a reader rather than as a sibling
+            using recording = recordingChecks();
+            await captureLogOf(() => addStandIn(shelf, "asserter2", ASSERTER_ID));
+
+            expect(recording.judged).contains(widget);
             expect(requirementsOf(node, widget)).deep.equals([unguardedWidget]);
 
             await node.close();

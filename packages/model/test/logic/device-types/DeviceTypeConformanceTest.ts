@@ -19,6 +19,7 @@ import {
     Matter,
     MatterModel,
     NodeCondition,
+    ReachingEndpoints,
     RequirementModel,
 } from "#index.js";
 import { ConditionAssertions, conditionScopeOf, StructuralCondition } from "#logic/device-types/ConditionAssertions.js";
@@ -317,7 +318,11 @@ class FakeIndex implements DeviceTypeScopeIndex<FakeEndpoint> {
     listings = new Map<number, FakeEndpoint[]>();
 
     reachingOf() {
-        return this.reaching;
+        return new ReachingEndpoints(this.reaching);
+    }
+
+    scopeListing(): FakeEndpoint[] {
+        throw new ImplementationError("Fake index keeps no scope listing");
     }
 
     partsListing(_parent: FakeEndpoint, deviceTypeId: number) {

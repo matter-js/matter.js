@@ -14,10 +14,25 @@ import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformance
 import { NodeScopeIndex } from "#node/server/NodeScopeIndex.js";
 import { Presence, ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
 import { ImplementationError } from "@matter/general";
-import { ClusterModel, DeviceTypeModel, DeviceTypeValidationPass, MatterModel, RequirementModel } from "@matter/model";
+import {
+    ClusterModel,
+    ConditionModel,
+    DeviceTypeConformance,
+    DeviceTypeModel,
+    DeviceTypeValidationPass,
+    MatterModel,
+    RequirementModel,
+} from "@matter/model";
 import { NodeId } from "@matter/types";
 import { MockServerNode } from "../../node/mock-server-node.js";
-import { captureLogOf, createNode, deviceTypeList } from "./validation-helpers.js";
+import {
+    addCabinet,
+    addRefrigerator,
+    captureLogOf,
+    createNode,
+    deviceTypeList,
+    WiFiCommissioningServer,
+} from "./validation-helpers.js";
 
 const DescribedLight = OnOffLightDevice.with(DescriptorServer);
 const BridgedLight = OnOffLightDevice.with(DescriptorServer, BridgedDeviceBasicInformationServer);
@@ -43,6 +58,53 @@ function declarerModel() {
     model.finalize();
     return model;
 }
+
+const DUPLICATE_ASSERTER_ID = 0xfff1_0051;
+const WIFI_ASSERTER_ID = 0xfff1_0052;
+
+/**
+ * A model in which DuplicateAsserter asserts RootNode's Guarded while it shares an application device type with a
+ * sibling, WiFiAsserter asserts it while the node supports Wi-Fi, and Declarer declares ColorControl, which no light
+ * carries, a singleton.
+ */
+function assertingModel() {
+    const guarded = (conformance: string) =>
+        new RequirementModel({
+            name: "Guarded",
+            type: "RootNode.Guarded",
+            element: "condition",
+            conformance,
+            location: "Root",
+        });
+
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel(
+            { name: "Base", classification: "base" },
+            new ConditionModel({ name: "Duplicate" }),
+            new ConditionModel({ name: "WiFi" }),
+        ),
+        new DeviceTypeModel(
+            { name: "RootNode", id: 0x16, classification: "node" },
+            new ConditionModel({ name: "Guarded" }),
+        ),
+        new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+        new DeviceTypeModel(
+            { name: "DuplicateAsserter", id: DUPLICATE_ASSERTER_ID, classification: "simple" },
+            guarded("Duplicate"),
+        ),
+        new DeviceTypeModel({ name: "WiFiAsserter", id: WIFI_ASSERTER_ID, classification: "simple" }, guarded("WiFi")),
+        new DeviceTypeModel(
+            { name: "Declarer", id: DECLARER_ID, classification: "simple" },
+            new RequirementModel({ name: "ColorControl", id: 0x300, element: "serverCluster", quality: "I" }),
+        ),
+        new ClusterModel({ name: "ColorControl", id: 0x300 }),
+    );
+    model.finalize();
+    return model;
+}
+
+const WiFiLight = OnOffLightDevice.with(DescriptorServer, WiFiCommissioningServer);
 
 class CrashingBehavior extends Behavior {
     static override readonly id = "crashing";
@@ -216,6 +278,11 @@ describe("NodeScopeIndex", () => {
             }
             expectConsistent(node);
 
+            // A full-family composer whose component device type also appears outside its composition
+            await captureLogOf(() => addRefrigerator(node, { cabinets: 0, fullFamily: true }));
+            await captureLogOf(() => addCabinet(node, "looseCabinet"));
+            expectConsistent(node);
+
             // Addition
             lights.push(
                 await aggregator.add(BridgedLight, {
@@ -263,6 +330,75 @@ describe("NodeScopeIndex", () => {
             expectConsistent(node);
             await setDeviceTypes(lights[3], "OnOffLight", "BridgedNode", "TemperatureSensor");
             expectConsistent(node);
+
+            await node.close();
+        });
+
+        it("keeps a node scope equal to a rescan through changes in several tree positions without walking it again", async () => {
+            const node = await createNode(assertingModel());
+            const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
+            const lights = new Array<Endpoint>();
+            for (const id of ["light1", "light2", "light3"]) {
+                lights.push(
+                    await aggregator.add(BridgedLight, { id, bridgedDeviceBasicInformation: { nodeLabel: id } }),
+                );
+            }
+            const shelf = await addLight(node, "shelf", "OnOffLight");
+            const stored = await addLight(shelf, "stored", "OnOffLight");
+            expectConsistent(node);
+
+            using scans = countingScans(node);
+            const step = async (change: () => Promise<unknown>) => {
+                await captureLogOf(change);
+                expectConsistent(node);
+            };
+
+            // A reaching endpoint is added at depth three, and a Duplicate-gated asserter starts asserting
+            const asserter = await addLight(stored, "asserter", DUPLICATE_ASSERTER_ID, "OnOffLight");
+            expectConsistent(node);
+            await step(() => addLight(stored, "twin", "OnOffLight"));
+
+            // The twin goes away, so the asserter stops asserting
+            await step(() => stored.parts.require("twin").delete());
+
+            // A declarer is added directly below the node endpoint and one below the aggregator
+            await step(() => addLight(node, "declarer1", DECLARER_ID));
+            await step(() => addLight(aggregator, "declarer2", DECLARER_ID));
+
+            // An endpoint supporting Wi-Fi turns on the Wi-Fi-gated assertion of an endpoint that did not change
+            await step(() => addLight(aggregator, "wiFiAsserter", WIFI_ASSERTER_ID));
+            await step(() =>
+                shelf.add(WiFiLight, {
+                    id: "wiFi",
+                    descriptor: { deviceTypeList: deviceTypeList("OnOffLight") },
+                }),
+            );
+            await step(() => shelf.parts.require("wiFi").delete());
+
+            // DeviceTypeList changes to and from a reaching device type
+            await step(() => setDeviceTypes(lights[1], DECLARER_ID, "OnOffLight"));
+            await step(() => setDeviceTypes(lights[1], "OnOffLight", "BridgedNode"));
+
+            // A nested node endpoint appears above reaching endpoints, gains a reaching part and goes away again
+            await step(() => setDeviceTypes(shelf, "RootNode"));
+            await step(() => addLight(shelf, "nestedDeclarer", DECLARER_ID));
+            expect(requireIndex(node).keptOf(shelf)).not.undefined;
+            await step(() => addLight(shelf, "nestedAsserter", DUPLICATE_ASSERTER_ID, "OnOffLight"));
+            await step(() => setDeviceTypes(shelf, "OnOffLight"));
+
+            // A nested node endpoint below the aggregator, removed with its subtree
+            await step(() => setDeviceTypes(lights[2], "RootNode"));
+            await step(() => addLight(lights[2], "inner", DUPLICATE_ASSERTER_ID));
+            await step(() => lights[2].delete());
+
+            // The node endpoint's own device types start and stop reaching
+            await step(() => setDeviceTypes(node, "RootNode", DECLARER_ID));
+            await step(() => setDeviceTypes(node, "RootNode"));
+
+            // A reaching endpoint and the subtree above one are destroyed
+            await step(() => asserter.delete());
+            await step(() => shelf.delete());
+            expect(scans.count).equals(0);
 
             await node.close();
         });
@@ -334,9 +470,80 @@ function expectConsistent(node: MockServerNode) {
     visit(node);
 
     const pass = new DeviceTypeValidationPass(facts, node.matter, index);
-    const kept = index.reachingOf(node, pass).filter(e => pass.reachOf(e) !== DeviceTypeValidationPass.Reach.None);
-    const rescanned = new DeviceTypeValidationPass(facts, node.matter).scanReaching(node).reaching;
-    expect(kept.map(String)).deep.equals(rescanned.map(String));
+    const rescan = new DeviceTypeValidationPass(facts, node.matter);
+    index.reachingOf(node, pass);
+    expectScopeConsistent(node, index, pass, rescan);
+
+    // A nested node scope is compared only once a pass read it
+    const nested = (endpoint: Endpoint): Endpoint[] =>
+        [...facts.partsOf(endpoint)].flatMap(part => [
+            ...(part !== node && pass.isNodeEndpoint(part) && index.keptOf(part) !== undefined ? [part] : []),
+            ...nested(part),
+        ]);
+    for (const nodeEndpoint of nested(node)) {
+        index.reachingOf(nodeEndpoint, pass);
+        expectScopeConsistent(nodeEndpoint, index, pass, rescan);
+    }
+}
+
+function expectScopeConsistent(
+    node: Endpoint,
+    index: NodeScopeIndex,
+    pass: DeviceTypeValidationPass<Endpoint>,
+    rescan: DeviceTypeValidationPass<Endpoint>,
+) {
+    const facts = pass.facts;
+    const kept = index.keptOf(node) ?? [];
+    expect(kept.map(String), `reaching endpoints of ${node}`).deep.equals(
+        rescan.scanReaching(node).reaching.map(String),
+    );
+
+    const scope = rescan.nodeScopeOf(node);
+    const expected = new Map<number, Endpoint[]>();
+    for (const endpoint of scope) {
+        for (const id of facts.deviceTypeIdsOf(endpoint)) {
+            expected.set(id, [...(expected.get(id) ?? []), endpoint]);
+        }
+    }
+    const listing = new Map([...(index.keptListingOf(node) ?? [])].map(([id, endpoints]) => [id, [...endpoints]]));
+    expect(listingText(listing), "node scope listing").deep.equals(listingText(expected));
+
+    expect([...pass.nodeEndpointConditionsOf(node)].sort(), "node conditions").deep.equals(
+        [...rescan.nodeEndpointConditionsOf(node)].sort(),
+    );
+    for (const endpoint of scope) {
+        expect(verdictText(endpoint, pass), `verdict of ${endpoint}`).deep.equals(verdictText(endpoint, rescan));
+    }
+}
+
+function verdictText(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpoint>) {
+    return DeviceTypeConformance.check(endpoint, pass).map(
+        ({ kind, deviceType, requirement, detail }) => `${kind} ${deviceType} ${requirement}: ${detail}`,
+    );
+}
+
+/**
+ * Counts the walks of the node scope of {@link node} that passes with a scope index make to collect its reaching
+ * endpoints, until disposed.
+ */
+function countingScans(node: Endpoint) {
+    const { scanReaching } = DeviceTypeValidationPass.prototype;
+    const counter = {
+        count: 0,
+
+        [Symbol.dispose]() {
+            DeviceTypeValidationPass.prototype.scanReaching = scanReaching;
+        },
+    };
+
+    DeviceTypeValidationPass.prototype.scanReaching = function (this: DeviceTypeValidationPass<unknown>, nodeEndpoint) {
+        if (this.index !== undefined && nodeEndpoint === node) {
+            counter.count++;
+        }
+        return scanReaching.call(this, nodeEndpoint);
+    };
+
+    return counter;
 }
 
 function listingText(listings: Map<number, Endpoint[]>) {

@@ -11,6 +11,7 @@ import { ConditionModel, DeviceTypeModel, RequirementModel } from "../../models/
 import { requirementApplicability } from "../RequirementApplicability.js";
 import type { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
 import { lookupsFor } from "./ModelLookups.js";
+import { FactsContribution, ReachingEndpoints } from "./ReachingEndpoints.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
 
 /**
@@ -84,7 +85,7 @@ export namespace ConditionAssertions {
      * A condition requirement asserts its condition rather than testing it, and it may assert on another endpoint:
      * on the asserting endpoint itself, on the node endpoint, or on endpoints of the asserting endpoint's composition
      * scope. So an endpoint's conditions are those its own requirements, its ancestors' and, for the node endpoint,
-     * those of the {@link reachingEndpointsOf reaching endpoints} assert on it. A requirement asserts when its
+     * those of the {@link reachingOf reaching endpoints} assert on it. A requirement asserts when its
      * conformance is mandatory for the structural, node and stated conditions of the asserting endpoint.
      *
      * One {@link pass} collects each node scope once.
@@ -99,20 +100,29 @@ export namespace ConditionAssertions {
      * The endpoints of the node scope of {@link nodeEndpoint} whose facts enter the judgement of endpoints beyond their
      * own subtree, their ancestors and their siblings: those that {@link reachesNodeScope support a network interface},
      * {@link assertsOnNodeEndpoint assert a condition on the node endpoint} or state a server cluster requirement that
-     * declares a singleton. In the order of {@link nodeScopeOf}.
+     * declares a singleton.
      *
-     * A pass with a {@link DeviceTypeValidationPass.index scope index} reads them from the index, which may list
-     * endpoints that reach nothing now; what each one contributes is read again by every pass.
+     * A pass with a {@link DeviceTypeValidationPass.index scope index} reads them from the index, which keeps what each
+     * one contributes across passes.
      */
-    export function reachingEndpointsOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): readonly E[] {
+    export function reachingOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): ReachingEndpoints<E> {
         return pass.reaching.get(
             nodeEndpoint,
-            () => pass.index?.reachingOf(nodeEndpoint, pass) ?? scanReaching(nodeEndpoint, pass).reaching,
+            () =>
+                pass.index?.reachingOf(nodeEndpoint, pass) ??
+                new ReachingEndpoints(scanReaching(nodeEndpoint, pass).reaching),
         );
     }
 
     /**
-     * The {@link reachingEndpointsOf reaching endpoints} of the node scope of {@link nodeEndpoint} as a walk of the
+     * The endpoints of the node scope of {@link nodeEndpoint} that declare a singleton, in tree order.
+     */
+    export function singletonDeclarersOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): readonly E[] {
+        return reachingOf(nodeEndpoint, pass).declarers(endpoint => factsContributionOf(endpoint, pass), pass.facts);
+    }
+
+    /**
+     * The {@link reachingOf reaching endpoints} of the node scope of {@link nodeEndpoint} as a walk of the
      * scope finds them, and the node endpoints below it that bound the scope.
      */
     export function scanReaching<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
@@ -183,12 +193,15 @@ export namespace ConditionAssertions {
      * other endpoint.
      */
     export function assertsOnNodeEndpoint<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
+        const lookups = lookupsFor(pass.model);
         return ResolvedEndpoint.of(endpoint, pass).deviceTypes.some(deviceType =>
-            deviceType.requirements.some(
-                requirement =>
-                    requirement.location === RequirementElement.Location.Root &&
-                    lookupsFor(pass.model).assertedConditionOf(requirement) !== undefined,
-            ),
+            lookups
+                .requirementsOf(deviceType)
+                .some(
+                    requirement =>
+                        requirement.location === RequirementElement.Location.Root &&
+                        lookups.assertedConditionOf(requirement) !== undefined,
+                ),
         );
     }
 
@@ -214,12 +227,15 @@ export namespace ConditionAssertions {
      * placement; this only decides whether the declaration itself makes {@link endpoint} reach its node scope.
      */
     export function declaresSingleton<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): boolean {
+        const lookups = lookupsFor(pass.model);
         return ResolvedEndpoint.of(endpoint, pass).deviceTypes.some(deviceType =>
-            deviceType.requirements.some(
-                requirement =>
-                    requirement.element === RequirementElement.ElementType.ServerCluster &&
-                    requirement.quality.singleton,
-            ),
+            lookups
+                .requirementsOf(deviceType)
+                .some(
+                    requirement =>
+                        requirement.element === RequirementElement.ElementType.ServerCluster &&
+                        requirement.quality.singleton,
+                ),
         );
     }
 
@@ -393,12 +409,12 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
         }
 
         if (endpoint === this.#nodeEndpoint) {
-            for (const asserting of ConditionAssertions.reachingEndpointsOf(endpoint, pass)) {
-                for (const { requirement, condition } of this.#assertionsOf(asserting)) {
-                    if (requirement.location === RequirementElement.Location.Root) {
-                        conditions.add(condition.name);
-                    }
-                }
+            const asserted = ConditionAssertions.reachingOf(endpoint, pass).assertedConditions(
+                this.#nodeConditionsOf(),
+                asserting => this.#assertedAtRootBy(asserting),
+            );
+            for (const name of asserted) {
+                conditions.add(name);
             }
         }
 
@@ -439,13 +455,14 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
         }
 
         const pass = this.#pass;
+        const lookups = lookupsFor(pass.model);
         assertions = new Array<Assertion>();
         const names = this.#underivedOf(endpoint);
         for (const deviceType of ResolvedEndpoint.of(endpoint, pass).deviceTypes) {
             const knownNames = new Set([...conditionScopeOf(deviceType, pass).values()].map(c => c.name));
 
-            for (const requirement of deviceType.requirements) {
-                const condition = lookupsFor(pass.model).assertedConditionOf(requirement);
+            for (const requirement of lookups.requirementsOf(deviceType)) {
+                const condition = lookups.assertedConditionOf(requirement);
                 if (
                     condition !== undefined &&
                     requirementApplicability(requirement, names, knownNames) === Conformance.Applicability.Mandatory
@@ -459,22 +476,32 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
         return assertions;
     }
 
+    #assertedAtRootBy(endpoint: E) {
+        const names = new Array<string>();
+        for (const { requirement, condition } of this.#assertionsOf(endpoint)) {
+            if (requirement.location === RequirementElement.Location.Root) {
+                names.push(condition.name);
+            }
+        }
+        return names;
+    }
+
     #underivedOf(endpoint: E) {
         let names = this.#underived.get(endpoint);
         if (names === undefined) {
-            this.#nodeConditions ??= nodeConditionsOf(
-                this.#nodeEndpoint,
-                ConditionAssertions.reachingEndpointsOf(this.#nodeEndpoint, this.#pass),
-                this.#pass,
-            );
             names = new Set([
                 ...structuralConditionsOf(endpoint, this.#pass),
-                ...this.#nodeConditions,
+                ...this.#nodeConditionsOf(),
                 ...statedConditionsOf(endpoint, this.#pass),
             ]);
             this.#underived.set(endpoint, names);
         }
         return names;
+    }
+
+    #nodeConditionsOf() {
+        this.#nodeConditions ??= nodeConditionsOf(this.#nodeEndpoint, this.#pass);
+        return this.#nodeConditions;
     }
 }
 
@@ -523,7 +550,7 @@ function structuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E
                 break;
         }
 
-        if (deviceType.requirements.some(r => r.element === RequirementElement.ElementType.DeviceType)) {
+        if (lookupsFor(pass.model).componentsDeclaredBy(deviceType)) {
             conditions.add(StructuralCondition.Composed);
         }
     }
@@ -552,19 +579,30 @@ function structuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E
  * @see {@link MatterSpecification.v16.Device} § 1.1.3.1
  * @see {@link MatterSpecification.v16.Device} § 2.1.3
  */
-function nodeConditionsOf<E>(nodeEndpoint: E, reaching: readonly E[], pass: DeviceTypeValidationPass<E>) {
+function nodeConditionsOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
     const conditions = new Set<string>(pass.facts.nodeConditionsOf(nodeEndpoint));
+    const interfaces = ConditionAssertions.reachingOf(nodeEndpoint, pass).interfaceConditions(endpoint =>
+        factsContributionOf(endpoint, pass),
+    );
+    for (const condition of interfaces) {
+        conditions.add(condition);
+    }
+    return conditions;
+}
 
-    for (const endpoint of reaching) {
-        for (const feature of ResolvedEndpoint.of(endpoint, pass).features("NetworkCommissioning")) {
-            const condition = interfaceConditions.get(feature);
-            if (condition !== undefined) {
-                conditions.add(condition);
-            }
+/**
+ * What {@link endpoint}, a reaching endpoint, contributes to its node scope through its own facts: the network
+ * interfaces its NetworkCommissioning server supports and whether it declares a singleton.
+ */
+function factsContributionOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): FactsContribution {
+    const interfaces = new Array<string>();
+    for (const feature of ResolvedEndpoint.of(endpoint, pass).features("NetworkCommissioning")) {
+        const condition = interfaceConditions.get(feature);
+        if (condition !== undefined) {
+            interfaces.push(condition);
         }
     }
-
-    return conditions;
+    return { interfaces, declares: ConditionAssertions.declaresSingleton(endpoint, pass) };
 }
 
 /**

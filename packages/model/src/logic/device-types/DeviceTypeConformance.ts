@@ -14,6 +14,7 @@ import { ConditionAssertions } from "./ConditionAssertions.js";
 import type { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
 import { DeviceTypeViolation } from "./DeviceTypeViolation.js";
 import { lookupsFor } from "./ModelLookups.js";
+import { ReachingEndpoints } from "./ReachingEndpoints.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
 
 /**
@@ -88,7 +89,7 @@ export namespace DeviceTypeConformance {
         for (const deviceType of deviceTypes) {
             const waived = deviceType.classification === DeviceClassification.Base ? baseWaiversOf(facts, pass) : NONE;
             const context = { violations, facts, deviceType, conditions, pass, waived };
-            checkClusters(context, deviceType.requirements);
+            checkClusters(context, lookupsFor(model).requirementsOf(deviceType));
             checkComposition(context, collection);
         }
 
@@ -167,21 +168,45 @@ export namespace DeviceTypeConformance {
      * @internal
      */
     export function nodeConditionReadersOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): E[] {
-        const facts = ResolvedEndpoint.of(nodeEndpoint, pass);
-        const components = new Set<number>();
-        for (const deviceType of facts.deviceTypes) {
-            for (const requirement of deviceType.requirements) {
-                const component = RequirementResolver.deviceTypeOf(requirement);
-                if (component !== undefined) {
-                    components.add(component.id);
-                }
-            }
+        const components = componentIdsOf(nodeEndpoint, pass);
+        if (!components.size) {
+            return [];
         }
-
-        return facts.compositionScope.filter(endpoint =>
+        return ResolvedEndpoint.of(nodeEndpoint, pass).compositionScope.filter(endpoint =>
             ResolvedEndpoint.of(endpoint, pass).deviceTypes.some(deviceType => components.has(deviceType.id)),
         );
     }
+
+    /**
+     * Whether {@link endpoint} lists a component device type of the device types of {@link nodeEndpoint}, as every
+     * {@link nodeConditionReadersOf condition reader} of {@link nodeEndpoint} does.
+     *
+     * @internal
+     */
+    export function mayReadNodeConditions<E>(endpoint: E, nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
+        const components = componentIdsOf(nodeEndpoint, pass);
+        return (
+            components.size > 0 &&
+            ResolvedEndpoint.of(endpoint, pass).deviceTypes.some(deviceType => components.has(deviceType.id))
+        );
+    }
+}
+
+/**
+ * The IDs of the component device types the device types of {@link endpoint} require.
+ */
+function componentIdsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
+    const lookups = lookupsFor(pass.model);
+    const components = new Set<number>();
+    for (const deviceType of ResolvedEndpoint.of(endpoint, pass).deviceTypes) {
+        for (const requirement of lookups.requirementsOf(deviceType)) {
+            const component = lookups.componentOf(requirement);
+            if (component !== undefined) {
+                components.add(component.id);
+            }
+        }
+    }
+    return components;
 }
 
 function treeRootOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
@@ -215,7 +240,7 @@ interface Context<E> {
  * The requirements are a device type's own, judged against its endpoint, or those nested in a component requirement,
  * judged against an endpoint of the component device type.
  */
-function checkClusters<E>(context: Context<E>, requirements: RequirementModel[]) {
+function checkClusters<E>(context: Context<E>, requirements: readonly RequirementModel[]) {
     for (const requirement of requirements) {
         switch (requirement.element) {
             case RequirementElement.ElementType.ServerCluster:
@@ -256,7 +281,7 @@ function checkCluster<E>(context: Context<E>, requirement: RequirementModel, sid
     const features = context.facts.features(name);
     const trueNames = new Set([...context.conditions, ...features]);
 
-    for (const nested of requirement.requirements) {
+    for (const nested of lookups.requirementsOf(requirement)) {
         let referent: Model | undefined;
         let present: boolean;
 
@@ -396,9 +421,10 @@ function componentsOf<E>(
         return found;
     }
 
+    const lookups = lookupsFor(pass.model);
     const byId = new Map<number, Component>();
-    for (const requirement of deviceType.requirements) {
-        const component = RequirementResolver.deviceTypeOf(requirement);
+    for (const requirement of lookups.requirementsOf(deviceType)) {
+        const component = lookups.componentOf(requirement);
         if (component === undefined) {
             continue;
         }
@@ -444,9 +470,36 @@ function strongerOf(a: Conformance.Applicability, b: Conformance.Applicability) 
  * candidate.
  */
 function candidatesOf<E>(facts: ResolvedEndpoint<E>, component: Component, pass: DeviceTypeValidationPass<E>) {
+    const { index } = pass;
+    const nodeEndpoint =
+        index && facts.composesFullFamily ? ConditionAssertions.nodeEndpointOf(facts.endpoint, pass) : undefined;
+    if (
+        index !== undefined &&
+        nodeEndpoint !== undefined &&
+        ConditionAssertions.isInScope(facts.endpoint, nodeEndpoint, pass)
+    ) {
+        // A full-family composition scope is every endpoint of the node scope below the composing endpoint
+        const below = new Array<E>();
+        for (const endpoint of index.scopeListing(nodeEndpoint, component.deviceType.id, pass)) {
+            if (isBelow(endpoint, facts.endpoint, pass)) {
+                below.push(endpoint);
+            }
+        }
+        return ReachingEndpoints.inTreeOrder(below, pass.facts).map(endpoint => ResolvedEndpoint.of(endpoint, pass));
+    }
+
     return facts.compositionScope
         .map(endpoint => ResolvedEndpoint.of(endpoint, pass))
         .filter(candidate => candidate.deviceTypes.some(deviceType => deviceType.id === component.deviceType.id));
+}
+
+function isBelow<E>(endpoint: E, ancestor: E, pass: DeviceTypeValidationPass<E>) {
+    for (let current = pass.facts.parentOf(endpoint); current !== undefined; current = pass.facts.parentOf(current)) {
+        if (current === ancestor) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -471,7 +524,7 @@ function failuresOf<E>(
         const conditions = collection.conditionsOf(candidate.endpoint);
         checkClusters(
             { violations, facts: candidate, deviceType: composing, conditions, pass, waived: NONE },
-            instance.requirements,
+            lookupsFor(pass.model).requirementsOf(instance),
         );
         byInstance.set(instance, violations);
     }
@@ -860,7 +913,7 @@ function checkSingletons<E>(
     }
 
     const singletons = pass.singletons.get(nodeEndpoint, () =>
-        singletonsOf(ConditionAssertions.reachingEndpointsOf(nodeEndpoint, pass), pass),
+        singletonsOf(ConditionAssertions.singletonDeclarersOf(nodeEndpoint, pass), pass),
     );
     reportMisplaced(violations, facts, singletons);
 }
@@ -894,7 +947,7 @@ function singletonsOf<E>(declarers: Iterable<E>, pass: DeviceTypeValidationPass<
 
     for (const endpoint of declarers) {
         for (const deviceType of ResolvedEndpoint.of(endpoint, pass).deviceTypes) {
-            for (const requirement of deviceType.requirements) {
+            for (const requirement of lookupsFor(pass.model).requirementsOf(deviceType)) {
                 if (
                     requirement.element !== RequirementElement.ElementType.ServerCluster ||
                     !requirement.quality.singleton

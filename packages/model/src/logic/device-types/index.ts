@@ -13,4 +13,5 @@ export * from "./DeviceTypeViolation.js";
 // @internal: for @matter/node's scope index and the tests of its conformance service only, not API
 export { ConditionAssertions } from "./ConditionAssertions.js";
 export type { DeviceTypeScopeIndex } from "./DeviceTypeScopeIndex.js";
+export { ReachingEndpoints } from "./ReachingEndpoints.js";
 export { ResolvedEndpoint } from "./ResolvedEndpoint.js";

@@ -5,6 +5,7 @@
  */
 
 import { DeviceClassification } from "../../common/DeviceClassification.js";
+import { EndpointComposition } from "../../common/EndpointComposition.js";
 import { RequirementElement } from "../../elements/RequirementElement.js";
 import {
     ClusterModel,
@@ -68,6 +69,10 @@ class ModelLookups {
     readonly #conditionScopes = new Memo<DeviceTypeModel, Map<string, ConditionModel>>();
     readonly #assertedConditions = new Memo<RequirementModel, ConditionModel | undefined>();
     readonly #knownNames = new Memo<RequirementModel, KnownNames>();
+    readonly #requirements = new Memo<DeviceTypeModel | RequirementModel, RequirementModel[]>();
+    readonly #components = new Memo<RequirementModel, DeviceTypeModel | undefined>();
+    readonly #composed = new Memo<DeviceTypeModel, boolean>();
+    readonly #compositions = new Memo<DeviceTypeModel, EndpointComposition>();
     readonly #base = new Memo<undefined, DeviceTypeModel[]>();
     readonly #aggregator = new Memo<undefined, DeviceTypeModel | undefined>();
 
@@ -80,6 +85,39 @@ class ModelLookups {
      */
     deviceTypeOf(id: number): DeviceTypeModel | undefined {
         return this.#deviceTypes.get(id, () => this.#model.deviceTypes(id));
+    }
+
+    /**
+     * The requirements {@link parent}, a device type or a requirement, states directly.
+     */
+    requirementsOf(parent: DeviceTypeModel | RequirementModel): readonly RequirementModel[] {
+        return this.#requirements.get(parent, () => parent.requirements);
+    }
+
+    /**
+     * The component device type {@link requirement} names, undefined when it is no device type requirement or names
+     * no device type of the model.
+     */
+    componentOf(requirement: RequirementModel): DeviceTypeModel | undefined {
+        return this.#components.get(requirement, () => RequirementResolver.deviceTypeOf(requirement));
+    }
+
+    /**
+     * Whether {@link deviceType} states a device type requirement, which makes its endpoints composed.
+     */
+    componentsDeclaredBy(deviceType: DeviceTypeModel): boolean {
+        return this.#composed.get(deviceType, () =>
+            this.requirementsOf(deviceType).some(
+                ({ element }) => element === RequirementElement.ElementType.DeviceType,
+            ),
+        );
+    }
+
+    /**
+     * {@link DeviceTypeModel.effectiveComposition}, resolved once per device type.
+     */
+    compositionOf(deviceType: DeviceTypeModel): EndpointComposition {
+        return this.#compositions.get(deviceType, () => deviceType.effectiveComposition);
     }
 
     /**

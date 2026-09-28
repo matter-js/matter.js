@@ -5,6 +5,7 @@
  */
 
 import type { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
+import type { ReachingEndpoints } from "./ReachingEndpoints.js";
 
 /**
  * What the owner of a tree keeps of it across validation passes, so a pass does not walk a whole node scope or a whole
@@ -17,11 +18,18 @@ import type { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
  */
 export interface DeviceTypeScopeIndex<E> {
     /**
-     * The endpoints of the node scope of {@link nodeEndpoint} that reach beyond their subtree, in tree order: those
-     * whose {@link DeviceTypeValidationPass.reachOf reach} is not `None`. It may also list endpoints of the scope whose
-     * reach is `None` now; a pass reads each listed endpoint's facts anew.
+     * The endpoints of the node scope of {@link nodeEndpoint} that reach beyond their subtree: exactly those whose
+     * {@link DeviceTypeValidationPass.reachOf reach} is not `None`, as a walk of the scope finds them. The owner adds
+     * and removes members as the tree changes, and invalidates a member whose contribution may have changed without a
+     * change to the member itself, such as its Base `Duplicate` condition.
      */
-    reachingOf(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): readonly E[];
+    reachingOf(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): ReachingEndpoints<E>;
+
+    /**
+     * The endpoints of the node scope of {@link nodeEndpoint}, the node endpoint included, whose device types include
+     * {@link deviceTypeId}, exactly as a walk of the scope finds them, in no particular order.
+     */
+    scopeListing(nodeEndpoint: E, deviceTypeId: number, pass: DeviceTypeValidationPass<E>): Iterable<E>;
 
     /**
      * The parts of {@link parent} whose device types include {@link deviceTypeId}. It may leave out parts that are not

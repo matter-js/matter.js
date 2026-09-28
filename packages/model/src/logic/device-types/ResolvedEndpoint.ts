@@ -37,6 +37,7 @@ export class ResolvedEndpoint<E> {
     #serverNamesById?: Map<number, string>;
     #clientNamesById?: Map<number, string>;
     readonly #features = new Map<string, ReadonlySet<string>>();
+    #children?: E[];
     #compositionScope?: E[];
     #compositionMembers?: Set<E>;
 
@@ -166,8 +167,11 @@ export class ResolvedEndpoint<E> {
      * The endpoint's direct children.
      */
     get children(): E[] {
-        const { facts } = this.#pass;
-        return [...facts.partsOf(this.#endpoint)].filter(part => facts.isPresent(part));
+        if (this.#children === undefined) {
+            const { facts } = this.#pass;
+            this.#children = [...facts.partsOf(this.#endpoint)].filter(part => facts.isPresent(part));
+        }
+        return this.#children;
     }
 
     /**
@@ -183,7 +187,10 @@ export class ResolvedEndpoint<E> {
      * @see {@link MatterSpecification.v16.Core} § 9.2.3
      */
     get composesFullFamily() {
-        return this.deviceTypes.some(deviceType => deviceType.effectiveComposition === EndpointComposition.FullFamily);
+        const lookups = lookupsFor(this.#pass.model);
+        return this.deviceTypes.some(
+            deviceType => lookups.compositionOf(deviceType) === EndpointComposition.FullFamily,
+        );
     }
 
     /**
