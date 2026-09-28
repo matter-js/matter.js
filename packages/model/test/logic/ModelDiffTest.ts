@@ -141,6 +141,19 @@ describe("ModelDiff", () => {
         ).deep.equals({ "Matter.DiffFixture.A": { default: { from: "5", to: "5" } } });
     });
 
+    it("compares a structured value regardless of the order of its keys", () => {
+        expect(
+            diff(
+                matter(
+                    fixtureCluster(attribute(1, "A", { default: { type: "properties", properties: { a: 0, b: 1 } } })),
+                ),
+                matter(
+                    fixtureCluster(attribute(1, "A", { default: { type: "properties", properties: { b: 1, a: 0 } } })),
+                ),
+            ),
+        ).undefined;
+    });
+
     it("ignores documentation", () => {
         expect(
             diff(

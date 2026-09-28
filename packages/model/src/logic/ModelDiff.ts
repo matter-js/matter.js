@@ -11,7 +11,7 @@ import { Model } from "#models/Model.js";
 import { RequirementModel } from "#models/RequirementModel.js";
 import { ValueModel } from "#models/ValueModel.js";
 import { FeatureMap } from "#standard/elements/feature-map.element.js";
-import { Diagnostic, serialize } from "@matter/general";
+import { Diagnostic, isDeepEqual, serialize } from "@matter/general";
 import { ModelVariantTraversal, VariantDetail } from "./ModelVariantTraversal.js";
 import { RequirementResolver } from "./RequirementResolver.js";
 
@@ -86,7 +86,7 @@ function propertyChangesOf(from: Model, to: Model) {
     for (const key of new Set([...fromProperties.keys(), ...toProperties.keys()])) {
         const fromProperty = fromProperties.get(key);
         const toProperty = toProperties.get(key);
-        if (fromProperty?.key !== toProperty?.key) {
+        if (!isDeepEqual(fromProperty?.compared, toProperty?.compared)) {
             (changes ??= {})[key] = { from: fromProperty?.value, to: toProperty?.value };
         }
     }
@@ -108,11 +108,11 @@ const IGNORED_PROPERTIES = new Set([
 ]);
 
 /**
- * A property as written, and the key it compares by.
+ * A property as written, and the value it compares by.
  */
 interface ComparedProperty {
     value?: string;
-    key: string;
+    compared: unknown;
 }
 
 function comparedPropertiesOf(model: Model) {
@@ -121,8 +121,7 @@ function comparedPropertiesOf(model: Model) {
         if (IGNORED_PROPERTIES.has(name) || value === undefined || name === "conformance") {
             continue;
         }
-        const text = typeof value === "string" ? value : serialize(value);
-        properties.set(name, { value: text, key: `${typeof value}:${text}` });
+        properties.set(name, { value: typeof value === "string" ? value : serialize(value), compared: value });
     }
 
     const conformance = comparedConformanceOf(model);
@@ -141,7 +140,7 @@ function comparedConformanceOf(model: Model): ComparedProperty | undefined {
     const { conformance } = model;
     if (conformance.isEmpty) {
         // 1.6.1 states "O" for every feature earlier revisions left blank
-        return isFeature(model) ? { key: JSON.stringify({ type: Conformance.Flag.Optional }) } : undefined;
+        return isFeature(model) ? { compared: { type: Conformance.Flag.Optional } } : undefined;
     }
 
     const ast =
@@ -149,7 +148,7 @@ function comparedConformanceOf(model: Model): ComparedProperty | undefined {
             ? (RequirementResolver.declaredConformanceOf(model) ?? conformance.ast)
             : conformance.ast;
 
-    return { value: conformance.toString(), key: JSON.stringify(withJoinedEntries(ast)) };
+    return { value: conformance.toString(), compared: withJoinedEntries(ast) };
 }
 
 function isFeature(model: Model) {
