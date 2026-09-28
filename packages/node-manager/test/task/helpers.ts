@@ -12,6 +12,7 @@ import { TaskCancellation, TaskHandle, TaskManagerBehavior } from "#task/TaskMan
 import { PlannedChange, RunId, TaskPhase, TaskStatus } from "#task/types.js";
 import { Immutable, InternalError, MaybePromise, Observable } from "@matter/general";
 import {
+    CapacityInfo,
     ClientNode,
     CommissioningClient,
     DesiredStateBehavior,
@@ -357,8 +358,13 @@ export class FakePeer {
             : { subscriptionStatusChanged: this.subscriptionStatusChanged };
     }
 
+    /** The capacity snapshot a reconciler refresh would have left, which admission reads. */
+    readonly capacities: Record<string, CapacityInfo> = {};
+
     stateOf(type: unknown): unknown {
-        return type === DesiredStateBehavior ? { items: this.items } : { isDisabled: this.networkDisabled };
+        return type === DesiredStateBehavior
+            ? { items: this.items, capacities: this.capacities }
+            : { isDisabled: this.networkDisabled };
     }
 
     #addressed = true;
@@ -375,7 +381,7 @@ export class FakePeer {
 
     maybeStateOf(type: unknown): unknown {
         if (type === DesiredStateBehavior) {
-            return { items: this.items };
+            return { items: this.items, capacities: this.capacities };
         }
         return type === CommissioningClient ? { peerAddress: this.address } : undefined;
     }

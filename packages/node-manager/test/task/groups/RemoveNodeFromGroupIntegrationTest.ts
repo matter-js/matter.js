@@ -193,4 +193,35 @@ describe("RemoveNodeFromGroup task integration (single peer)", () => {
         expect(itemState(peer, "groupKeyMap", String(overGroup))).equals(undefined);
         expect(itemState(peer, "endpointGroupMembership", membershipKey(overGroup, 1))).equals(undefined);
     });
+
+    it("admits an add again once a removal has freed a group slot", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            controller: { type: ControllerRoot },
+            device: {
+                type: MockServerNode.RootEndpoint,
+                device: OnOffLightSwitchDevice.with(GroupsServer),
+                groupKeyManagement: { maxGroupsPerFabric: 4 },
+            },
+        });
+        const peer = await subscribedPeer(controller, "peer1");
+        for (let i = 0; i < 4; i++) {
+            const groupId = 0x201 + i;
+            await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(peer, groupId, 50 + i)));
+            await awaitState(controller, addTaskId(peer, groupId), "completed");
+        }
+
+        // The removal's own write refreshes the count before it concludes, so the add that follows it is admitted
+        // without waiting for anything else to refresh it.
+        await controller.act(a =>
+            a
+                .get(TaskManagerBehavior)
+                .run(RemoveNodeFromGroup, { peer: addressOfNode(peer), endpoint: 1, groupId: 0x201 }),
+        );
+        await awaitState(controller, removeTaskId(peer, 0x201), "completed");
+
+        await controller.act(a => a.get(TaskManagerBehavior).run(AddNodeToGroup, addParams(peer, 0x205, 54)));
+        await awaitState(controller, addTaskId(peer, 0x205), "completed");
+        expect(isMember(device, 0x205)).equals(true);
+    });
 });

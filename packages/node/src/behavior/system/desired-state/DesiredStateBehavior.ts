@@ -8,7 +8,7 @@ import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
 import { Observable } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { assertCapacity, CapacityCache } from "./capacity.js";
+import { assertCanAddItems, CapacityCache } from "./capacity.js";
 import type { CapacityInfo } from "./ItemKind.js";
 import { itemMapKey, ItemMode, ItemState, ManagedItem, newStatus } from "./types.js";
 
@@ -127,8 +127,9 @@ export class DesiredStateBehavior extends Behavior {
         return this.state.capacities[kind];
     }
 
-    assertCanAdd(kind: string, requested = 1): void {
-        assertCapacity(kind, this.state.capacities, requested);
+    /** See {@link assertCanAddItems}. */
+    assertCanAdd(kind: string, keys: readonly string[]): void {
+        assertCanAddItems(this.state, kind, keys);
     }
 }
 

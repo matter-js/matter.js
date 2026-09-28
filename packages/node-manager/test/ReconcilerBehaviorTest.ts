@@ -12,6 +12,7 @@
 
 import { executeActions, ReconcileTarget } from "#reconcile/executeActions.js";
 import { planActions } from "#reconcile/planActions.js";
+import { refreshCapacities } from "#ReconcilerBehavior.js";
 import { ClientNode, ItemKind, ItemKindRegistry, itemMapKey, ManagedItem } from "@matter/node";
 import { Status, StatusResponseError } from "@matter/types";
 
@@ -50,11 +51,15 @@ class FakeKind implements ItemKind {
 // Executor never dereferences the node; FakeKind ignores it. Stub avoids commissioning a real peer (covered in 2a-2).
 const STUB_NODE = {} as ClientNode;
 
-function makeTarget(items: Record<string, ManagedItem> = {}): ReconcileTarget & { items: Record<string, ManagedItem> } {
+function makeTarget(
+    items: Record<string, ManagedItem> = {},
+): ReconcileTarget & { items: Record<string, ManagedItem>; log: string[] } {
     const state = { ...items };
+    const log = new Array<string>();
     return {
         node: STUB_NODE,
         items: state,
+        log,
         // Mirrors DesiredStateBehavior: the generation is compared where the write happens, so a replacement
         // that landed while the action ran keeps its own status.
         async updateStatus(kind, key, itemState, code, ifGeneration) {
@@ -63,6 +68,7 @@ function makeTarget(items: Record<string, ManagedItem> = {}): ReconcileTarget & 
             if (existing === undefined || (ifGeneration !== undefined && existing.generation !== ifGeneration)) {
                 return;
             }
+            log.push(`status ${id} ${itemState}`);
             state[id] = { ...existing, status: { state: itemState, updateTimestamp: 0, failureCode: code } };
         },
         async dropItem(kind, key, ifGeneration) {
@@ -71,10 +77,14 @@ function makeTarget(items: Record<string, ManagedItem> = {}): ReconcileTarget & 
             if (existing === undefined || (ifGeneration !== undefined && existing.generation !== ifGeneration)) {
                 return;
             }
+            log.push(`drop ${id}`);
             delete state[id];
         },
         currentItem(kind, key) {
             return state[`${kind}:${key}`];
+        },
+        async refreshCapacity(kind) {
+            log.push(`refresh ${kind}`);
         },
     };
 }
@@ -139,6 +149,66 @@ describe("executeActions (executor)", () => {
 
         expect(fake.applied).deep.equals(["key1"]);
         expect(target.items[id]?.status.state).equals("committed");
+    });
+
+    it("refreshes a kind's capacity after its device write and before the status that write earns", async () => {
+        const fake = new FakeKind();
+        const registry = new ItemKindRegistry();
+        registry.register(fake);
+        const target = makeTarget({
+            "fake:add": pendingItem("fake", "add"),
+            "fake:rem": deletePendingItem("fake", "rem"),
+        });
+
+        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        await executeActions(target, planned, registry);
+
+        // The status is what lets a waiting task finish and the next be admitted, so the count must lead it.
+        expect(target.log).deep.equals(["refresh fake", "status fake:add committed", "refresh fake", "drop fake:rem"]);
+    });
+
+    it("refreshes capacity after a write the device refused, so admission learns the device is full", async () => {
+        const fake = new FakeKind();
+        fake.failOn = "bad";
+        const registry = new ItemKindRegistry();
+        registry.register(fake);
+        const target = makeTarget({ "fake:bad": pendingItem("fake", "bad") });
+
+        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        await executeActions(target, planned, registry);
+
+        expect(target.log).deep.equals(["refresh fake", "status fake:bad commitFailed"]);
+    });
+
+    it("refreshes capacity after a removal the device says it never had", async () => {
+        const kind = new FakeKind();
+        kind.remove = async () => {
+            throw new StatusResponseError("gone", Status.NotFound);
+        };
+        const registry = new ItemKindRegistry();
+        registry.register(kind);
+        const target = makeTarget({ "fake:rem": deletePendingItem("fake", "rem") });
+
+        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        await executeActions(target, planned, registry);
+
+        expect(target.log).deep.equals(["refresh fake", "drop fake:rem"]);
+    });
+
+    it("refreshes capacity after a write whose intent was replaced meanwhile, and records nothing for it", async () => {
+        const kind = new FakeKind();
+        const registry = new ItemKindRegistry();
+        registry.register(kind);
+        const target = makeTarget({ "fake:swap": pendingItem("fake", "swap") });
+        kind.apply = async () => {
+            target.items["fake:swap"] = { ...target.items["fake:swap"], generation: 2 };
+        };
+
+        const planned = planActions(Object.values(target.items), { verify: false, recoverable: () => false });
+        await executeActions(target, planned, registry);
+
+        // The device changed either way; only the status belongs to the intent that is gone.
+        expect(target.log).deep.equals(["refresh fake"]);
     });
 
     it("apply failure → commitFailed with code", async () => {
@@ -399,5 +469,32 @@ describe("executeActions (failure paths)", () => {
         // Absence is what a waiting task reads as "removed", so an unremovable item may never become absent.
         expect(target.items[id]).not.equals(undefined);
         expect(target.items[id]?.outstanding).equals("remove");
+    });
+});
+
+describe("refreshCapacities", () => {
+    function counted(kind: string, reads: string[]): ItemKind {
+        return {
+            kind,
+            priority: 0,
+            async apply() {},
+            async capacity() {
+                reads.push(kind);
+                return { limit: 4, used: 1 };
+            },
+        };
+    }
+
+    it("refreshes only the kind named, so a write of one kind costs no device read of another", async () => {
+        const reads = new Array<string>();
+        const registry = new ItemKindRegistry();
+        registry.register(counted("one", reads));
+        registry.register(counted("two", reads));
+        const written = new Array<string>();
+
+        await refreshCapacities(STUB_NODE, registry, kind => written.push(kind), "two");
+
+        expect(reads).deep.equals(["two"]);
+        expect(written).deep.equals(["two"]);
     });
 });

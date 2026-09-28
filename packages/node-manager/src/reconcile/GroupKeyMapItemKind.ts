@@ -34,7 +34,11 @@ export class GroupKeyMapItemKind implements ItemKind<GroupKeyMapGrant> {
     readonly priority = PRIORITY_BANDS.group;
 
     async #read(node: ClientNode): Promise<Entry[]> {
-        const { groupKeyMap } = await node.getStateOf(GroupKeyManagementClient, ["groupKeyMap"]);
+        // `groupKeyMap` has the `C` quality, so the subscription never reports its changes. A version filter would
+        // let the device answer "unchanged" and hand back that stale cache.
+        const { groupKeyMap } = await node.getStateOf(GroupKeyManagementClient, ["groupKeyMap"], {
+            includeKnownVersions: true,
+        });
         return groupKeyMap ?? [];
     }
 
@@ -86,9 +90,9 @@ export class GroupKeyMapItemKind implements ItemKind<GroupKeyMapGrant> {
     }
 
     async capacity(node: ClientNode): Promise<CapacityInfo> {
-        // Capacity reads the subscription-cached state — no live device read just to count.
-        const { groupKeyMap, maxGroupsPerFabric } = node.stateOf(GroupKeyManagementClient);
-        return { limit: maxGroupsPerFabric ?? MIN_GROUPS_PER_FABRIC, used: (groupKeyMap ?? []).length };
+        const used = (await this.#read(node)).length;
+        const { maxGroupsPerFabric } = node.stateOf(GroupKeyManagementClient);
+        return { limit: maxGroupsPerFabric ?? MIN_GROUPS_PER_FABRIC, used };
     }
 
     recoverable(code: number): boolean {

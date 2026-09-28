@@ -48,6 +48,12 @@ export interface ReconcileTarget {
      * what tells a replacement from a status change.
      */
     currentItem(kind: string, key: string): ManagedItem | undefined;
+    /**
+     * Refresh the capacity snapshot of `kind` after a device call for it, whatever the call's outcome, and before
+     * any status is recorded: that status is what lets a waiting task finish and the next one be admitted, and
+     * admission must not read a count that predates the call. Never throws.
+     */
+    refreshCapacity(kind: string): Promise<void>;
 }
 
 /**
@@ -70,66 +76,62 @@ export async function executeActions(
     for (const { item, action } of [...others, ...removes]) {
         switch (action) {
             case "apply":
-            case "retry":
-                try {
-                    await registry.require(item.kind).apply(target.node, item);
-                    // A rollback that flipped the intent to delete during this apply must win: a status
-                    // write here would resurrect the item the rollback is trying to remove.
-                    if (!stillPlanned(target, item)) {
-                        break;
-                    }
-                    await target.updateStatus(item.kind, item.key, "committed", undefined, item.generation);
-                } catch (e) {
-                    if (!stillPlanned(target, item)) {
-                        break;
-                    }
-                    // Every apply failure: the item carries away a status code at most, so this log is the only
-                    // place the cause survives — and a local schema refusal and a device's own status read
-                    // identically once it is gone.
-                    logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, e);
-                    await target.updateStatus(
-                        item.kind,
-                        item.key,
-                        "commitFailed",
-                        extractStatusCode(e),
-                        item.generation,
-                    );
+            case "retry": {
+                const failure = await attempt(() => registry.require(item.kind).apply(target.node, item));
+                await target.refreshCapacity(item.kind);
+                // A rollback that flipped the intent to delete during this apply must win: a status write here
+                // would resurrect the item the rollback is trying to remove.
+                if (!stillPlanned(target, item)) {
+                    break;
                 }
+                if (failure === undefined) {
+                    await target.updateStatus(item.kind, item.key, "committed", undefined, item.generation);
+                    break;
+                }
+                // Every apply failure: the item carries away a status code at most, so this log is the only
+                // place the cause survives — and a local schema refusal and a device's own status read
+                // identically once it is gone.
+                logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not commit:`, failure.error);
+                await target.updateStatus(
+                    item.kind,
+                    item.key,
+                    "commitFailed",
+                    extractStatusCode(failure.error),
+                    item.generation,
+                );
                 break;
+            }
 
-            case "remove":
-                try {
+            case "remove": {
+                const failure = await attempt(async () => {
                     const kind = registry.require(item.kind);
                     if (kind.remove !== undefined) {
                         await kind.remove(target.node, item);
                     }
-                    // A re-add that flipped the intent back during this remove must win: dropping here
-                    // would discard the freshly re-applied intent.
-                    if (!stillPlanned(target, item)) {
-                        break;
-                    }
-                    await target.dropItem(item.kind, item.key, item.generation);
-                } catch (e) {
-                    if (!stillPlanned(target, item)) {
-                        break;
-                    }
-                    // A device that says it does not have the thing has given the removal what it asked for.
-                    // The rule belongs to removal rather than to any one kind: stated per kind, a kind added
-                    // later states it or reports a failure for work that is already done.
-                    if (extractStatusCode(e) === Status.NotFound) {
-                        await target.dropItem(item.kind, item.key, item.generation);
-                        break;
-                    }
-                    logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not be removed:`, e);
-                    await target.updateStatus(
-                        item.kind,
-                        item.key,
-                        "commitFailed",
-                        extractStatusCode(e),
-                        item.generation,
-                    );
+                });
+                await target.refreshCapacity(item.kind);
+                // A re-add that flipped the intent back during this remove must win: dropping here would discard
+                // the freshly re-applied intent.
+                if (!stillPlanned(target, item)) {
+                    break;
                 }
+                // A device that says it does not have the thing has given the removal what it asked for. The
+                // rule belongs to removal rather than to any one kind: stated per kind, a kind added later states
+                // it or reports a failure for work that is already done.
+                if (failure === undefined || extractStatusCode(failure.error) === Status.NotFound) {
+                    await target.dropItem(item.kind, item.key, item.generation);
+                    break;
+                }
+                logger.warn(`${item.kind}:${item.key} on ${target.node.id} will not be removed:`, failure.error);
+                await target.updateStatus(
+                    item.kind,
+                    item.key,
+                    "commitFailed",
+                    extractStatusCode(failure.error),
+                    item.generation,
+                );
                 break;
+            }
 
             case "abandon": {
                 if (!stillPlanned(target, item)) {
@@ -167,6 +169,16 @@ export async function executeActions(
 function stillPlanned(target: ReconcileTarget, item: ManagedItem): boolean {
     const current = target.currentItem(item.kind, item.key);
     return current !== undefined && current.generation === item.generation;
+}
+
+/** Run a device call, handing back its failure as a value so the caller decides what it means. */
+async function attempt(call: () => Promise<void>): Promise<{ error: unknown } | undefined> {
+    try {
+        await call();
+        return undefined;
+    } catch (error) {
+        return { error };
+    }
 }
 
 function priority(item: ManagedItem, registry: ItemKindRegistry): number {

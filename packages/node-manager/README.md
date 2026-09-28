@@ -146,8 +146,9 @@ const feasibility = manager.assess(AddNodeToGroup, params, { externalId: "provis
 ```
 
 `assess` answers from the admission rules themselves, so it reports exactly what `run` would do about
-contention. It does not ask the devices about capacity — that happens once the run starts — and it reserves
-nothing, so a caller still handles the refusals `run` throws.
+contention. It does not answer capacity — that is checked once the run starts, against the capacity each peer
+last reported, never by asking the device then — and it reserves nothing, so a caller still handles the
+refusals `run` throws.
 
 ## Stopping and undoing
 

@@ -17,7 +17,16 @@ import {
     Observable,
 } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { Agent, Behavior, ClientNode, DesiredStateBehavior, itemMapKey, Node, ServerNode } from "@matter/node";
+import {
+    Agent,
+    assertCanAddItems,
+    Behavior,
+    CapacityExceededError,
+    ClientNode,
+    DesiredStateBehavior,
+    Node,
+    ServerNode,
+} from "@matter/node";
 import { FabricManager, PeerAddress } from "@matter/protocol";
 import { GlobalFabricId } from "@matter/types";
 import {
@@ -1899,7 +1908,9 @@ export class TaskManagerBehavior extends Behavior {
     }
 
     /**
-     * Reject a task before any node mutation if its planned changes would overflow a target's device capacity.
+     * Reject a task before any node mutation if its planned changes would overflow a target's device capacity, as
+     * the peer's capacity snapshot records it. Reads no device: a read here would hold the run, not yet persisted,
+     * for as long as a sleeping or unreachable peer takes to answer.
      * Runs before the first persist/phase; the thrown error ends the task `failed` with an empty changeSet.
      */
     async #admit(execution: Execution): Promise<void> {
@@ -1937,15 +1948,19 @@ export class TaskManagerBehavior extends Behavior {
             if (peer === undefined) {
                 continue; // unresolvable peer: the phase gate will park; capacity is re-checked on device write
             }
-            const capacity = await itemKind.capacity?.(peer);
-            if (capacity === undefined) {
-                continue; // kind reports no capacity limit (e.g. groupKey) — the device write is the gate
-            }
-            const items = peer.stateOf(DesiredStateBehavior).items;
-            const added = group.filter(pc => items[itemMapKey(pc.kind.kind, pc.key)] === undefined).length;
-            if (capacity.used + added > capacity.limit) {
+            try {
+                assertCanAddItems(
+                    peer.stateOf(DesiredStateBehavior),
+                    kind.kind,
+                    group.map(pc => pc.key),
+                );
+            } catch (e) {
+                if (!(e instanceof CapacityExceededError)) {
+                    throw e;
+                }
                 throw new TaskCapacityExceededError(
-                    `${runLabel(execution.runId)}: ${kind.kind} on ${addressLabel(address)} exceeds capacity — needs ${added} slot(s) but only ${capacity.limit - capacity.used} free`,
+                    `${runLabel(execution.runId)}: ${kind.kind} on ${addressLabel(address)} exceeds capacity — needs ${e.requested} slot(s) but only ${Math.max(0, e.limit - e.used)} free`,
+                    { cause: e },
                 );
             }
         }
