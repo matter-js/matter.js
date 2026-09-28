@@ -25,7 +25,7 @@ import {
     NetworkSimulator,
     StorageService,
 } from "@matter/general";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, MatterModel } from "@matter/model";
 import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "./mock-exchange.js";
@@ -33,6 +33,7 @@ import { MockExchange } from "./mock-exchange.js";
 export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint> extends ServerNode<T> {
     #newExchanges = new DataReadQueue<MockExchange>();
     #simulator: NetworkSimulator;
+    #matter?: MatterModel;
 
     constructor(type?: T, options?: MockServerNode.Options<T>);
     constructor(config: Partial<MockServerNode.Configuration<T>>);
@@ -74,6 +75,11 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         super(config);
 
         this.#simulator = simulator;
+        this.#matter = config.matter;
+    }
+
+    override get matter() {
+        return this.#matter ?? super.matter;
     }
 
     get simulator() {
@@ -196,6 +202,11 @@ export namespace MockServerNode {
         device?: Endpoint.Definition;
         index?: number;
         simulator?: NetworkSimulator;
+
+        /**
+         * The model the node validates its device types in, instead of the standard model.
+         */
+        matter?: MatterModel;
     }
     export type Options<T extends RootEndpoint = RootEndpoint> = Endpoint.Options<T, MockOptions>;
 

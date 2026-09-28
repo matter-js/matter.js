@@ -21,6 +21,8 @@ const logger = Logger.get("DescriptorServer");
 export class DescriptorServer extends DescriptorBehavior {
     static override dependencies = [IndexBehavior];
 
+    declare protected internal: DescriptorServer.Internal;
+
     override async initialize() {
         // We update PartsList differently if there's an index
         if (this.endpoint.behaviors.has(IndexBehavior)) {
@@ -223,7 +225,7 @@ export class DescriptorServer extends DescriptorBehavior {
 
         let numbers: number[];
 
-        if (this.#composesFullFamily && this.agent.has(IndexBehavior)) {
+        if (this.agent.has(IndexBehavior) && this.#composesFullFamily) {
             const index = this.agent.get(IndexBehavior);
             numbers = Object.keys(index.partsByNumber).map(n => Number.parseInt(n));
 
@@ -258,9 +260,17 @@ export class DescriptorServer extends DescriptorBehavior {
             ? this.state.deviceTypeList.map(entry => entry.deviceType)
             : [this.endpoint.type.deviceType];
 
-        return deviceTypes.some(
+        // The model lookup rebuilds a scope on every call, and this runs on every PartsList update
+        const cached = this.internal.fullFamily;
+        if (cached !== undefined && isDeepEqual(cached.deviceTypes, deviceTypes)) {
+            return cached.composes;
+        }
+
+        const composes = deviceTypes.some(
             deviceType => Matter.deviceTypes(deviceType)?.effectiveComposition === EndpointComposition.FullFamily,
         );
+        this.internal.fullFamily = { deviceTypes, composes };
+        return composes;
     }
 
     /**
@@ -294,4 +304,9 @@ export class DescriptorServer extends DescriptorBehavior {
 
 export namespace DescriptorServer {
     export type DeviceType = Descriptor.DeviceType;
+
+    export class Internal {
+        /** Full-family composition, with the device types it was derived from. */
+        fullFamily?: { deviceTypes: DeviceTypeId[]; composes: boolean };
+    }
 }
