@@ -105,7 +105,7 @@ import { TestOperationalStateServer } from "./cluster/TestOperationalStateServer
 import { TestOvenCavityOperationalStateServer } from "./cluster/TestOvenCavityOperationalStateServer.js";
 import { TestWindowCoveringServer } from "./cluster/TestWindowCoveringServer.js";
 import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
-import { NodeTestInstance } from "./NodeTestInstance.js";
+import { disableEndpointValidation, NodeTestInstance } from "./NodeTestInstance.js";
 import { SwitchSimulator } from "./simulators/SwitchSimulator.js";
 
 const logger = Logger.get("AllClustersTestInstance");
@@ -316,6 +316,11 @@ export class AllClustersTestInstance extends NodeTestInstance {
                   UnitLocalizationServer.with("TemperatureUnit"),
                   UserLabelServer,
               );
+
+        if (!this.groupcast) {
+            // Without Groupcast the root cannot meet the 1.6.1 RootNode requirements its light devices assert
+            disableEndpointValidation(this.env);
+        }
 
         const serverNode = await ServerNode.create(rootEndpoint, {
             id: this.id,
