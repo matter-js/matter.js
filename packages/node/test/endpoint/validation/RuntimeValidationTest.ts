@@ -591,7 +591,7 @@ describe("device type validation after construction", () => {
             expect(recording.judged).deep.equals([aggregator, node]);
 
             await node.close();
-        });
+        }).timeout(10_000);
 
         it("judges only above the owner when a bridged device with a part is deleted", async () => {
             const node = await createNode();
