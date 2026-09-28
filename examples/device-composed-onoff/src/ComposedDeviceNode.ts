@@ -185,7 +185,8 @@ async function getConfiguration() {
     const discriminator = environment.vars.number("discriminator") ?? (await deviceStorage.get("discriminator", 3840));
     // product name / id and vendor id should match what is in the device certificate
     const vendorId = environment.vars.number("vendorid") ?? (await deviceStorage.get("vendorid", 0xfff1));
-    const productName = `node-matter OnOff ${isSocket ? "Socket" : "Light"}`;
+    const kind = isSocket.every(socket => socket) ? "Socket" : isSocket.some(socket => socket) ? "Composed" : "Light";
+    const productName = `node-matter OnOff ${kind}`;
     const productId = environment.vars.number("productid") ?? (await deviceStorage.get("productid", 0x8000));
 
     const port = environment.vars.number("port") ?? 5540;
