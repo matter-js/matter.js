@@ -17,6 +17,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
+    - Feature: `Crypto` creates, signs and verifies ML-DSA-44 and ML-DSA-65 (FIPS 204), the algorithms Matter 1.7 allows for PAA and PAI certificates. Node.js signs and verifies natively where its crypto supports ML-DSA; key generation and all other runtimes use `@noble/post-quantum`. `MlDsa` encodes and decodes the RFC 9881 public keys and algorithm identifiers, and `NodeJsCryptoApiLike` gains optional `sign` and `verify` members for the native path
+    - Fix: `StandardCrypto` computes SHA3-256, SHA-512/224 and SHA-512/256 without Web Crypto, which lacks SHA-512/224 and SHA-512/256 and, on some runtimes, SHA3-256, so a DCL CRL or OTA image with a SHA3-256 digest verifies wherever `StandardCrypto` is in use
 
 - @matter/model
     - Enhancement: Generated documentation keeps the nesting of lists in the specification

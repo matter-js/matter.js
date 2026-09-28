@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Base64 } from "#codec/Base64Codec.js";
 import { Environment } from "#environment/Environment.js";
 import { Logger } from "#log/Logger.js";
 import { ImplementationError } from "#MatterError.js";
@@ -23,9 +24,10 @@ import {
     HashAlgorithm,
 } from "./Crypto.js";
 import { CRYPTO_AEAD_NONCE_LENGTH_BYTES } from "./CryptoConstants.js";
-import { CryptoDecryptError, CryptoInputError, CryptoVerifyError } from "./CryptoError.js";
+import { CryptoDecryptError, CryptoError, CryptoInputError, CryptoVerifyError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { PrivateKey, PublicKey } from "./Key.js";
+import { MlDsa } from "./MlDsa.js";
 
 const logger = Logger.get("NodeJsStyleCrypto");
 
@@ -143,6 +145,20 @@ export interface NodeJsCryptoApiLike {
 
     /** Node.js reports a restricted cryptographic provider here; absent from most emulations. */
     getFips?(): number | boolean;
+
+    /** One-shot signatures; optional because only runtimes with native ML-DSA need to offer them. */
+    sign?(
+        algorithm: null,
+        data: NodeJsCryptoApiLike.BinaryLike,
+        key: NodeJsCryptoApiLike.JwkKeyInput,
+    ): NodeJsCryptoApiLike.BinaryLike;
+
+    verify?(
+        algorithm: null,
+        data: NodeJsCryptoApiLike.BinaryLike,
+        key: NodeJsCryptoApiLike.SpkiKeyInput,
+        signature: NodeJsCryptoApiLike.BinaryLike,
+    ): boolean;
 }
 
 export namespace NodeJsCryptoApiLike {
@@ -193,6 +209,18 @@ export namespace NodeJsCryptoApiLike {
         update(data: BinaryLike): this;
         verify(key: CipherKey, signature: BinaryLike): boolean;
     }
+
+    export interface SpkiKeyInput {
+        key: BinaryLike;
+        format: "der";
+        type: "spki";
+    }
+
+    /** An "AKP" JWK (draft-ietf-cose-dilithium) carrying the ML-DSA seed as `priv`. */
+    export interface JwkKeyInput {
+        key: { kty: "AKP"; alg: string; priv: string; pub: string };
+        format: "jwk";
+    }
 }
 
 /**
@@ -221,6 +249,7 @@ export class NodeJsStyleCrypto extends Crypto {
     static providesDefault = false;
 
     #crypto: NodeJsCryptoApiLike;
+    #nativeMlDsa = new Map<MlDsa.ParameterSet, MlDsa.Implementation | false>();
 
     constructor(crypto?: NodeJsCryptoApiLike) {
         super();
@@ -401,6 +430,35 @@ export class NodeJsStyleCrypto extends Crypto {
         if (!success) throw new CryptoVerifyError("Signature verification failed");
     }
 
+    override createMlDsaKeyPair(parameterSet: MlDsa.ParameterSet): MaybePromise<MlDsa.PrivateKey> {
+        // Key expansion is portable, and a restricted provider must not be bypassed
+        if (this.#providerIsRestricted) {
+            throw new CryptoError(`Cannot create ${parameterSet} keys under a restricted cryptographic provider`);
+        }
+        return super.createMlDsaKeyPair(parameterSet);
+    }
+
+    protected override mlDsaImplementation(parameterSet: MlDsa.ParameterSet): MlDsa.Implementation {
+        let native = this.#nativeMlDsa.get(parameterSet);
+        if (native === undefined) {
+            native = nativeMlDsa(this.#crypto, parameterSet, super.mlDsaImplementation(parameterSet)) ?? false;
+            this.#nativeMlDsa.set(parameterSet, native);
+        }
+        if (native !== false) {
+            return native;
+        }
+
+        // Substituting our own implementation would evade the operator's deliberate restriction
+        if (this.#providerIsRestricted) {
+            throw new CryptoError(`${parameterSet} is unavailable from the restricted cryptographic provider`);
+        }
+        return super.mlDsaImplementation(parameterSet);
+    }
+
+    get #providerIsRestricted() {
+        return Boolean(this.#crypto.getFips?.());
+    }
+
     createKeyPair() {
         // Note that we this key may be used for DH or DSA but we use an ECDH to generate
         const ecdh = this.#crypto.createECDH(CRYPTO_EC_CURVE);
@@ -469,6 +527,64 @@ export class NodeJsStyleCrypto extends Crypto {
         result.set(Bytes.of(Bytes.fromBigInt(p - ry, 32)), 33);
         return result;
     }
+}
+
+function spkiKeyInput(parameterSet: MlDsa.ParameterSet, publicKey: Bytes): NodeJsCryptoApiLike.SpkiKeyInput {
+    return { key: Bytes.of(MlDsa.encodeSubjectPublicKeyInfo(parameterSet, publicKey)), format: "der", type: "spki" };
+}
+
+/**
+ * The native ML-DSA implementation, if the runtime supports the parameter set.  Node.js has ML-DSA from 24.7 with
+ * OpenSSL 3.5; older releases and most emulations reject the key type.
+ */
+function nativeMlDsa(
+    api: NodeJsCryptoApiLike,
+    parameterSet: MlDsa.ParameterSet,
+    portable: MlDsa.Implementation,
+): MlDsa.Implementation | undefined {
+    const { sign, verify } = api;
+    if (typeof sign !== "function" || typeof verify !== "function") {
+        return;
+    }
+
+    // Every byte string of the right length is a well-formed ML-DSA public key, so zeros suffice
+    const { publicKeyLength, signatureLength } = MlDsa.PARAMETERS[parameterSet];
+    try {
+        verify.call(
+            api,
+            null,
+            new Uint8Array(),
+            spkiKeyInput(parameterSet, new Uint8Array(publicKeyLength)),
+            new Uint8Array(signatureLength),
+        );
+    } catch (error) {
+        logger.debug(`Native crypto rejects ${parameterSet}: ${asError(error).message}`);
+        return;
+    }
+
+    return {
+        publicKeyOf: portable.publicKeyOf,
+
+        sign(privateKey, message) {
+            const key = {
+                kty: "AKP",
+                alg: privateKey.parameterSet,
+                priv: Base64.encode(Bytes.of(privateKey.seed), true),
+                pub: Base64.encode(Bytes.of(privateKey.publicKey), true),
+            } as const;
+            return Bytes.of(sign.call(api, null, Bytes.of(message), { key, format: "jwk" }));
+        },
+
+        verify(parameterSet, publicKey, message, signature) {
+            return verify.call(
+                api,
+                null,
+                Bytes.of(message),
+                spkiKeyInput(parameterSet, publicKey),
+                Bytes.of(signature),
+            );
+        },
+    };
 }
 
 // Auto-detect Node.js crypto and self-install

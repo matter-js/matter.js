@@ -12,10 +12,13 @@ import { MaybePromise } from "#util/Promises.js";
 import * as mod from "@noble/curves/abstract/modular.js";
 import { p256 } from "@noble/curves/nist.js";
 import * as utils from "@noble/curves/utils.js";
+import { ml_dsa44, ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { Entropy } from "../util/Entropy.js";
 import { cmac } from "./aes/Cmac.js";
+import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import type { PrivateKey, PublicKey } from "./Key.js";
+import { MlDsa } from "./MlDsa.js";
 
 export const ec = {
     p256,
@@ -47,8 +50,7 @@ export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
 /**
  * Identifiers from the IANA Named Information (NI) Hash Algorithm Registry (RFC 6920), used as the OTA
  * image digest type (Matter Core §11.21.2.4.9) and the DCL data digest type. Limited to the registry
- * algorithms the Matter crypto primitives can compute; SHA3-256 availability is backend-dependent (no
- * browser Web Crypto support).
+ * algorithms the Matter crypto primitives can compute.
  */
 export enum HashAlgorithmId {
     "SHA-256" = 1,
@@ -73,6 +75,26 @@ export function hashAlgorithmForId(id: number): IdentifiedHashAlgorithm | undefi
 }
 
 const logger = Logger.get("Crypto");
+
+const nobleMlDsa = {
+    "ML-DSA-44": ml_dsa44,
+    "ML-DSA-65": ml_dsa65,
+} satisfies Record<MlDsa.ParameterSet, unknown>;
+
+const portableMlDsa: MlDsa.Implementation = {
+    publicKeyOf(parameterSet, seed) {
+        return nobleMlDsa[parameterSet].keygen(Bytes.of(seed)).publicKey;
+    },
+
+    sign({ parameterSet, seed }, message, entropy) {
+        const dsa = nobleMlDsa[parameterSet];
+        return dsa.sign(Bytes.of(message), dsa.keygen(Bytes.of(seed)).secretKey, { extraEntropy: Bytes.of(entropy) });
+    },
+
+    verify(parameterSet, publicKey, message, signature) {
+        return nobleMlDsa[parameterSet].verify(Bytes.of(signature), Bytes.of(message), Bytes.of(publicKey));
+    },
+};
 
 /**
  * These are the cryptographic primitives required to implement the Matter protocol.
@@ -143,6 +165,89 @@ export abstract class Crypto extends Entropy {
      * Authenticate an ECDSA signature.
      */
     abstract verifyEcdsa(publicKey: JsonWebKey, data: Bytes, signature: EcdsaSignature): MaybePromise<void>;
+
+    /**
+     * Create an ML-DSA key pair (FIPS 204 §5.1, Matter Core §10.12.1).
+     *
+     * The seed comes from {@link randomBytes}, so a deterministic entropy source yields deterministic keys.
+     *
+     * @throws CryptoError if this backend cannot create ML-DSA keys
+     * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
+     */
+    createMlDsaKeyPair(parameterSet: MlDsa.ParameterSet): MaybePromise<MlDsa.PrivateKey> {
+        const seed = Bytes.of(this.randomBytes(MlDsa.SEED_LENGTH));
+        const publicKey = this.mlDsaImplementation(parameterSet).publicKeyOf(parameterSet, seed);
+        return { parameterSet, seed, publicKey };
+    }
+
+    /**
+     * Create a hedged ML-DSA signature with an empty context (FIPS 204 §5.2, Matter Core §10.12.2).
+     *
+     * The portable implementation hedges with {@link randomBytes}; a native one uses the runtime's own entropy, so
+     * only the former signs reproducibly under a deterministic entropy source.
+     *
+     * @throws KeyInputError if the private key is malformed or its public key does not belong to its seed
+     * @throws CryptoError if this backend cannot offer ML-DSA
+     * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
+     */
+    signMlDsa(privateKey: MlDsa.PrivateKey, data: Bytes | Bytes[]): MaybePromise<Bytes> {
+        MlDsa.assertPrivateKey(privateKey);
+        const { parameterSet, publicKey } = privateKey;
+        const implementation = this.mlDsaImplementation(parameterSet);
+        const message = Bytes.of(Array.isArray(data) ? Bytes.concat(...data) : data);
+
+        let signature: Bytes;
+        let valid: boolean;
+        try {
+            signature = implementation.sign(privateKey, message, this.randomBytes(32));
+
+            // Native signing ignores the public key, so only this check catches one that does not belong to the seed
+            valid = implementation.verify(parameterSet, publicKey, message, signature);
+        } catch (cause) {
+            throw new KeyInputError(`Cannot sign with this ${parameterSet} private key`, { cause });
+        }
+
+        if (!valid) {
+            throw new KeyInputError(`${parameterSet} public key does not belong to the private key seed`);
+        }
+
+        return signature;
+    }
+
+    /**
+     * Authenticate an ML-DSA signature with an empty context (FIPS 204 §5.3, Matter Core §10.12.3).
+     *
+     * @param publicKey the raw public key, as carried in the SubjectPublicKeyInfo BIT STRING
+     * @throws KeyInputError if the public key has the wrong length
+     * @throws CryptoVerifyError if the signature does not verify; {@link SignatureEncodingError} if its length is wrong
+     * @throws CryptoError if this backend cannot offer ML-DSA
+     * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
+     */
+    verifyMlDsa(parameterSet: MlDsa.ParameterSet, publicKey: Bytes, data: Bytes, signature: Bytes): MaybePromise<void> {
+        MlDsa.assertPublicKey(parameterSet, publicKey);
+        MlDsa.assertSignature(parameterSet, signature);
+
+        const implementation = this.mlDsaImplementation(parameterSet);
+        let valid: boolean;
+        try {
+            valid = implementation.verify(parameterSet, publicKey, data, signature);
+        } catch (cause) {
+            throw new CryptoVerifyError(`${parameterSet} signature verification failed`, { cause });
+        }
+
+        if (!valid) {
+            throw new CryptoVerifyError(`${parameterSet} signature verification failed`);
+        }
+    }
+
+    /**
+     * The ML-DSA primitive behind {@link createMlDsaKeyPair}, {@link signMlDsa} and {@link verifyMlDsa}.
+     *
+     * Defaults to the portable `@noble/post-quantum` implementation; backends with a native one override this.
+     */
+    protected mlDsaImplementation(_parameterSet: MlDsa.ParameterSet): MlDsa.Implementation {
+        return portableMlDsa;
+    }
 
     /**
      * Create a general-purpose EC key.
