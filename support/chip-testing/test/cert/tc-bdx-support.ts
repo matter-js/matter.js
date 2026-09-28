@@ -89,6 +89,12 @@ export interface OtaTransferRoles {
     notifyAppliedTimeoutMs?: number;
 
     /**
+     * How long to keep recording once the exchange settles, for a case whose claim is that the
+     * receiver sent nothing more. {@link OtaBdxTransfer.observedMs} reports what was covered.
+     */
+    observeAfterMs?: number;
+
+    /**
      * How long the whole exchange may take, for a case whose provider defers the query.
      *
      * Absent, {@link OTA_TRANSFER_TIMEOUT}, which covers an announcement the receiver acts on at once.
@@ -116,6 +122,7 @@ export async function serveOtaTransfer(
         expectApply: expectApplyOverride,
         applyTimeoutMs,
         notifyAppliedTimeoutMs,
+        observeAfterMs,
         timeoutMs,
     }: OtaTransferRoles,
 ): Promise<BdxTransferEvidence> {
@@ -137,6 +144,7 @@ export async function serveOtaTransfer(
             expectApply,
             applyTimeoutMs,
             notifyAppliedTimeoutMs,
+            observeAfterMs,
         });
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
