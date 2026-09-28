@@ -39,24 +39,24 @@ Resource.add({
         "  - A single endpoint with an Occupancy Sensing cluster which has two or more of these feature bits " +
         "set to 1." +
         "\n" +
-        "  - This requires reporting the combination the sensing results as a single bit in the Occupancy " +
+        "    - This requires reporting the combination the sensing results as a single bit in the Occupancy " +
         "attribute (and the OccupancyChanged event, when supported), with a single set of timing " +
         "parameters applied." +
         "\n" +
-        "  - Sensitivity setting (via a Boolean State Configuration cluster on the same endpoint) applies to " +
-        "all the sensing modalities together via a manufacturer-specific mapping." +
+        "    - Sensitivity setting (via a Boolean State Configuration cluster on the same endpoint) applies " +
+        "to all the sensing modalities together via a manufacturer-specific mapping." +
         "\n" +
         "  - Multiple endpoints each hosting an Occupancy Sensing cluster (each with one feature bit set):" +
         "\n" +
-        "  - The sensing result of each modality is reported separately in the Occupancy attribute (and the " +
+        "    - The sensing result of each modality is reported separately in the Occupancy attribute (and the " +
         "OccupancyChanged event, when supported) of each endpoint, governed by the set of timing " +
         "parameters provided in the cluster on that endpoint." +
         "\n" +
-        "  - This implies some of these attributes can have a different values than their counterparts on " +
+        "      - This implies some of these attributes can have a different values than their counterparts on " +
         "other endpoints and that a client may have to combine these values if it wants to derive a " +
         "single value." +
         "\n" +
-        "  - Each modality can be provided with an independent sensitivity setting via a Boolean State " +
+        "    - Each modality can be provided with an independent sensitivity setting via a Boolean State " +
         "Configuration cluster located on one or more of the endpoints.",
 
     children: [

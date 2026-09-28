@@ -51,9 +51,9 @@ Resource.add({
         {
             tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.4.6",
             children: [
-                { tag: "requirement", name: "AUDIO", xref: "device§16.4.7" },
-                { tag: "requirement", name: "VIDEO", xref: "device§16.4.7" },
-                { tag: "requirement", name: "SNAPSHOT", xref: "device§16.4.7" }
+                { tag: "requirement", name: "ADO", xref: "device§16.4.7" },
+                { tag: "requirement", name: "VDO", xref: "device§16.4.7" },
+                { tag: "requirement", name: "SNP", xref: "device§16.4.7" }
             ]
         },
 
@@ -80,7 +80,7 @@ Resource.add({
             tag: "requirement", name: "GenericSwitch", xref: "device§16.4.4",
             children: [{
                 tag: "requirement", name: "Switch",
-                children: [{ tag: "requirement", name: "MOMENTARYSWITCH", xref: "device§16.4.8" }]
+                children: [{ tag: "requirement", name: "MS", xref: "device§16.4.8" }]
             }]
         }
     ]

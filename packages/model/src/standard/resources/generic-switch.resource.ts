@@ -67,15 +67,15 @@ Resource.add({
         "\n" +
         "  - endpoint 11 has device type Generic Switch and contains" +
         "\n" +
-        "  - cluster Switch (feature flags: LS) exposing the state and events of the left button" +
+        "    - cluster Switch (feature flags: LS) exposing the state and events of the left button" +
         "\n" +
-        "  - cluster Descriptor with its TagList containing two tags: Position.Left and Number.One" +
+        "    - cluster Descriptor with its TagList containing two tags: Position.Left and Number.One" +
         "\n" +
         "  - endpoint 12 has device type Generic Switch and contains" +
         "\n" +
-        "  - cluster Switch (feature flags: LS) exposing the state and events of the right button" +
+        "    - cluster Switch (feature flags: LS) exposing the state and events of the right button" +
         "\n" +
-        "  - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two" +
+        "    - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two" +
         "\n" +
         "If this device were to have labeling on the buttons like an \"up\" and \"down\" icon, the TagList would " +
         "have a third tag (from the Switches Namespace) with values Switches.Up and Switches.Down " +
@@ -86,33 +86,33 @@ Resource.add({
         "\n" +
         "  - endpoint 21 has device type Generic Switch and contains" +
         "\n" +
-        "  - cluster Switch (feature flags: MS) exposing the events of the top-left button" +
+        "    - cluster Switch (feature flags: MS) exposing the events of the top-left button" +
         "\n" +
-        "  - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Left, " +
+        "    - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Left, " +
         "Number.One and (Tag=Switches.Custom, Label=\"watch tv\")" +
         "\n" +
-        "  - This last tag is a Switches.Custom tag accompanied with a label (the other three tags do not " +
+        "      - This last tag is a Switches.Custom tag accompanied with a label (the other three tags do not " +
         "need a Label field)." +
         "\n" +
         "  - endpoint 22 has device type Generic Switch and contains" +
         "\n" +
-        "  - cluster Switch (feature flags: MS) exposing the events of the top-right button" +
+        "    - cluster Switch (feature flags: MS) exposing the events of the top-right button" +
         "\n" +
-        "  - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Right, " +
+        "    - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Right, " +
         "Number.Two and (Tag=Switches.Custom, Label=\"dinner\")" +
         "\n" +
         "  - endpoint 23 has device type Generic Switch and contains" +
         "\n" +
-        "  - cluster Switch (feature flags: MS) exposing the events of the bottom-left button" +
+        "    - cluster Switch (feature flags: MS) exposing the events of the bottom-left button" +
         "\n" +
-        "  - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Left, " +
+        "    - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Left, " +
         "Number.Three and (Tag=Switches.Custom, Label=\"reading\")" +
         "\n" +
         "  - endpoint 24 has device type Generic Switch and contains" +
         "\n" +
-        "  - cluster Switch (feature flags: MS) exposing the events of the bottom-right button" +
+        "    - cluster Switch (feature flags: MS) exposing the events of the bottom-right button" +
         "\n" +
-        "  - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Right, " +
+        "    - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Right, " +
         "Number.Four and (Tag=Switches.Custom, Label=\"nightlight\")" +
         "\n" +
         "### Relation with other Switch device types (informative)" +
@@ -122,7 +122,7 @@ Resource.add({
         "\n" +
         "  - The On/Off Light Switch will send On/Off/Toggle commands from its On/Off (client) cluster to a " +
         "device implementing the On/Off (server) cluster to control the on/off functionality of that " +
-        "    device. An On/Off Light Switch device can also implement Groups and Scenes Management clusters " +
+        "device. An On/Off Light Switch device can also implement Groups and Scenes Management clusters " +
         "and thus send group and scene commands. Basically, it is targeted at directly sending control " +
         "commands to other devices. The binding table is used to tell the device where to send the " +
         "commands." +
@@ -131,7 +131,7 @@ Resource.add({
         "events to subscribed parties which implement the Switch client cluster, as indications of " +
         "interaction with the switch - leaving the interpretation (e.g. which device should be actuated " +
         "because of the interaction) to the subscribed party. So it can be compared to a sensor-type " +
-        "    device. This allows a more comprehensive controller to combine the information from the switch " +
+        "device. This allows a more comprehensive controller to combine the information from the switch " +
         "with other inputs or information sources (e.g. time of day, user presence) to determine which " +
         "control commands (e.g. on/off, scene recall, attribute change) are sent to other devices in the " +
         "network." +
@@ -141,11 +141,11 @@ Resource.add({
         "\n" +
         "  - endpoint 31 with device type On/Off Light Switch which contains" +
         "\n" +
-        "  - (client) cluster On/Off exposing the On/Off/Toggle commands" +
+        "    - (client) cluster On/Off exposing the On/Off/Toggle commands" +
         "\n" +
         "  - endpoint 32 with device type Generic Switch which contains" +
         "\n" +
-        "  - (server) cluster Switch (feature flags: LS) exposing the state and events of the switch" +
+        "    - (server) cluster Switch (feature flags: LS) exposing the state and events of the switch" +
         "\n" +
         "When this device is used in a particular setup, binding tables and subscriptions can be used to " +
         "determine how it is used:" +

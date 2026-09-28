@@ -33,9 +33,9 @@ export const AudioDoorbellDt = DeviceType(
 
     Requirement(
         { name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "AUDIO", conformance: "M", element: "feature" }),
-        Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature" }),
-        Requirement({ name: "VIDEO", conformance: "X", element: "feature" })
+        Requirement({ name: "ADO", conformance: "M", element: "feature" }),
+        Requirement({ name: "SNP", conformance: "X", element: "feature" }),
+        Requirement({ name: "VDO", conformance: "X", element: "feature" })
     ),
 
     Requirement({ name: "WebRtcTransportProvider", id: 0x553, conformance: "M", element: "serverCluster" }),

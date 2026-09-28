@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "@matter/general";
+import { asJson, Diagnostic } from "@matter/general";
 import { DclClient, DclConfig } from "@matter/protocol";
 import type { Argv } from "yargs";
 
@@ -207,7 +207,7 @@ export default function commands() {
                                 softwareVersion,
                             );
                             console.log("Software version information:");
-                            console.log(JSON.stringify(versionInfo, null, 2));
+                            console.log(asJson(versionInfo, 2));
                         } catch (error) {
                             console.error("Error fetching version details:", error);
                         }

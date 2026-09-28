@@ -1796,6 +1796,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -1873,6 +1874,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -1949,6 +1951,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -2071,6 +2074,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });

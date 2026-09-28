@@ -21,8 +21,8 @@ export const CookSurfaceDt = DeviceType(
     ),
     Requirement(
         { name: "TemperatureControl", id: 0x56, conformance: "O.a+", element: "serverCluster" },
-        Requirement({ name: "TEMPERATURELEVEL", conformance: "M", element: "feature" }),
-        Requirement({ name: "TEMPERATURENUMBER", conformance: "X", element: "feature" })
+        Requirement({ name: "TL", conformance: "M", element: "feature" }),
+        Requirement({ name: "TN", conformance: "X", element: "feature" })
     ),
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O.a+", element: "serverCluster" })
 );

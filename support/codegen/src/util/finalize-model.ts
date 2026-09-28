@@ -23,17 +23,29 @@ import {
     ValidateModel,
     ValueModel,
 } from "#model";
+import { canonicalizeConditionReferences } from "./canonicalize-condition-references.js";
+import { canonicalizeFeatureRequirements } from "./canonicalize-feature-requirements.js";
+import { GlobalDatatypeAliases } from "./global-datatype-aliases.js";
 
 const logger = Logger.get("create-model");
 
 /**
- * Create and validate the final model for export
+ * Repair a model assembled from its sources, then validate it.
+ *
+ * Applies to intermediate models as well as to the final model for export.  Device type requirements name features by
+ * code and conditions as declared, references resolve to the datatypes the specification means, events without a
+ * priority get one, Zigbee-only elements are removed, and redundant cross-references are dropped.
  **/
 export function finalizeModel(matter: MatterModel) {
     // Generation emits what validation normalizes, and validation cannot normalize a frozen model
     if (matter.isFinal) {
         throw new InternalError(`Cannot generate from ${matter.name} because it is final`);
     }
+
+    canonicalizeFeatureRequirements(matter);
+    canonicalizeConditionReferences(matter);
+
+    resolveGlobalDatatypeAliases(matter);
 
     const scopedDatatypes = collectScopedDatatypes(matter);
 
@@ -146,6 +158,23 @@ function childrenIdentity(model: ValueModel) {
         delete properties.xref;
         delete (properties as any).conformance;
         return properties;
+    });
+}
+
+/**
+ * Point references to a global datatype by its specification struct name at the global, unless a datatype of that name
+ * is in scope.
+ */
+function resolveGlobalDatatypeAliases(matter: MatterModel) {
+    matter.visit(model => {
+        if (model.type === undefined || model.base !== undefined) {
+            return;
+        }
+
+        const global = GlobalDatatypeAliases.get(model.type);
+        if (global !== undefined) {
+            model.type = global;
+        }
     });
 }
 

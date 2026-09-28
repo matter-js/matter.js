@@ -259,7 +259,7 @@ Resource.add({
                         "  - Success: Scanning succeeded." +
                         "\n" +
                         "  - NetworkNotFound: No instance of an explicitly-provided network identifier was found during the " +
-                        "    scan. This error cannot occur if no network identifier was provided, such as when scanning for " +
+                        "scan. This error cannot occur if no network identifier was provided, such as when scanning for " +
                         "all available networks." +
                         "\n" +
                         "  - OutOfRange: Network identifier was invalid (e.g. empty, too long, etc)." +
@@ -656,18 +656,18 @@ Resource.add({
                         "\n" +
                         "  - ErrorValue interpretation for Wi-Fi association errors:" +
                         "\n" +
-                        "  - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
+                        "    - On any association failure during enabling of a network, the ErrorValue field shall be set to " +
                         "the Status Code value that was present in the last frame related to association where Status " +
-                        "Code was not equal to zero and which caused the failure of a final retry attempt, if this final " +
-                        "failure was due to one of the following Management frames:" +
+                        "Code was not equal to zero and which caused the failure of a final retry attempt, if this " +
+                        "final failure was due to one of the following Management frames:" +
                         "\n" +
-                        "  - Association Response (Type 0, Subtype 1)" +
+                        "      - Association Response (Type 0, Subtype 1)" +
                         "\n" +
-                        "  - Reassociation Response (Type 0, Subtype 3)" +
+                        "      - Reassociation Response (Type 0, Subtype 3)" +
                         "\n" +
-                        "  - Authentication (Type 0, Subtype 11)" +
+                        "      - Authentication (Type 0, Subtype 11)" +
                         "\n" +
-                        "  - Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
+                        "    - Table 9-50 \"Status Codes\" in IEEE 802.11-2020 contains a description of all values possible, " +
                         "which can unambiguously be used to determine the cause, such as an invalid security type, " +
                         "unsupported rate, etc." +
                         "\n" +

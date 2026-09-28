@@ -216,14 +216,13 @@ describe("RequirementValidator", () => {
             ).deep.equals([]);
         });
 
-        // The specification's tables name a feature by its title, which is how the model states most of them
-        it("accepts a feature named by its title", () => {
+        it("reports a feature named by its title", () => {
             expect(
                 withClusterRequirement(
                     "M",
-                    new RequirementModel({ name: "LIGHTING", element: "feature", conformance: "M" }),
+                    new RequirementModel({ name: "Lighting", element: "feature", conformance: "M" }),
                 ),
-            ).deep.equals([]);
+            ).deep.equals(["UNSATISFIABLE_REQUIREMENT"]);
         });
 
         it("reports a feature the cluster does not define", () => {

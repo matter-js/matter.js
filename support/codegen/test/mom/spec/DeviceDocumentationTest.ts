@@ -104,6 +104,37 @@ describe("documentation of a scraped device type", () => {
         );
     });
 
+    it("keeps the indent of a nested list item", () => {
+        expect(
+            documented(
+                [],
+                [subsection("Cluster Usage", "8.5.6", "- cluster Switch exposing:", "  - feature SHALL be LS")],
+            ),
+        ).equal("### Cluster Usage\n- cluster Switch exposing:\n  - feature shall be LS");
+    });
+
+    it("starts a new block after a nested list item rather than continuing it", () => {
+        expect(
+            documented(
+                [],
+                [
+                    subsection(
+                        "Cluster Usage",
+                        "8.5.6",
+                        "- the device exposes:",
+                        "  - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two",
+                        "If this device were to have labeling on the buttons, a second tag applies.",
+                    ),
+                ],
+            ),
+        ).equal(
+            "### Cluster Usage\n" +
+                "- the device exposes:\n" +
+                "  - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two\n" +
+                "If this device were to have labeling on the buttons, a second tag applies.",
+        );
+    });
+
     it("stops adding heading markers where they stop being a heading", () => {
         expect(documented([], [subsection("Detail", "8.5.6.1.2.3.4.5", "Nested deeply.")])).equal(
             "###### Detail\nNested deeply.",
