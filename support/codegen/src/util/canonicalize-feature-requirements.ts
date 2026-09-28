@@ -27,21 +27,8 @@ export function canonicalizeFeatureRequirements(matter: MatterModel) {
 }
 
 function canonicalizeRequirement(requirement: RequirementModel) {
-    const features = RequirementResolver.endpointScopeOf(requirement).cluster?.features;
-    if (features === undefined) {
-        return;
-    }
-
-    const key = keyOf(requirement.name);
-    const feature =
-        features.find(feature => keyOf(feature.name) === key) ??
-        features.find(feature => feature.title !== undefined && keyOf(feature.title) === key);
-
+    const feature = RequirementResolver.featureMatching(requirement);
     if (feature !== undefined) {
         requirement.name = feature.name;
     }
-}
-
-function keyOf(name: string) {
-    return name.toLowerCase().replace(/\s/g, "");
 }
