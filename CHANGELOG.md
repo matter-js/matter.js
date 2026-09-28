@@ -66,6 +66,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
     - Fix: The Descriptor `PartsList` now reports a replacement of an endpoint that leaves the number of parts unchanged, and lists parts in numeric order
     - Fix: Closing or erasing an endpoint whose parts never received a number, such as the parts of a non-essential endpoint that failed to initialize, no longer logs `uninitialized-dependency` errors, and erasing removes their persisted state
+    - Enhancement: The Descriptor `PartsList` update no longer looks up the endpoint's device types in the model on every change, so adding endpoints under an aggregator is about a third faster
 - @matter/testing
     - Enhancement: `CertNodeApi.scriptOtaProvider()` can have the controller's provider answer `UpdateAvailable` for an image it does not hold, with the `softwareVersion` and `imageUri` the case names, so a case can offer an update a node must refuse
     - Enhancement: `CertNodeApi.serveOtaUpdate()` can wait for the node's `NotifyUpdateApplied` after allowing the apply, via `ServeOtaUpdateOptions.notifyAppliedTimeoutMs`
