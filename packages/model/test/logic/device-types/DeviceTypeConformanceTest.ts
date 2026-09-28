@@ -30,6 +30,10 @@ const LIGHT_ID = 0xfff1_0001;
 const COMPOSER_ID = 0xfff1_0002;
 const COMPOSER2_ID = 0xfff1_0003;
 const COMPOSER3_ID = 0xfff1_0004;
+const COMPOSER4_ID = 0xfff1_0005;
+const COMPOSER5_ID = 0xfff1_0006;
+const PLUG_ID = 0xfff1_0007;
+const COMPOSER6_ID = 0xfff1_0008;
 const ON_OFF_ID = 6;
 const SINGLETON_ID = 0x7ff0;
 const GATE_CONDITION = "Gated";
@@ -138,6 +142,118 @@ function checkCountFixtureModel() {
             }),
         ),
         new ClusterModel({ name: "OnOff", id: ON_OFF_ID, children: [FeatureMap.clone()] }),
+    );
+    model.finalize();
+    return model;
+}
+
+/**
+ * A model whose Composer4 requires {@link choice} of Light, by conformance {@link light}, and Plug, under
+ * {@link GATE_CONDITION} and with the Lighting feature on its OnOff.
+ * Composer5 requires, listed first, an optional Light instance of at least two endpoints whose OnOff has the Lighting
+ * feature, then a mandatory Light instance whose OnOff has the Lighting feature and a Light instance of conformance
+ * {@link third} with no nested requirement. Composer6 requires exactly one of Light and Plug: Light by a tolerated
+ * instance of at most one endpoint listed before an optional one of at least two, and by an optional instance of at
+ * least three outside the choice; Plug by an optional instance listed before a tolerated one of at most one endpoint.
+ */
+function perInstanceFixtureModel({
+    light = "O",
+    choice = "a",
+    third = GATE_CONDITION,
+}: { light?: string; choice?: string; third?: string } = {}) {
+    const featureMap = FeatureMap.clone();
+    featureMap.children = [new FieldModel({ name: "LT", title: "Lighting", constraint: "0" })];
+    const onOff = () =>
+        new RequirementModel({ name: "OnOff", id: ON_OFF_ID, element: "serverCluster", conformance: "M" });
+    const lighting = () =>
+        new RequirementModel(
+            { name: "OnOff", id: ON_OFF_ID, element: "serverCluster", conformance: "M" },
+            new RequirementModel({ name: "LT", element: "feature", conformance: "M" }),
+        );
+
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel({ name: "RootNode", id: ROOT_ID, classification: "node" }),
+        new DeviceTypeModel({ name: "Light", id: LIGHT_ID, classification: "simple" }, onOff()),
+        new DeviceTypeModel({ name: "Plug", id: PLUG_ID, classification: "simple" }, onOff()),
+        new DeviceTypeModel(
+            { name: "Composer4", id: COMPOSER4_ID, classification: "simple" },
+            new ConditionModel({ name: GATE_CONDITION }),
+            new RequirementModel({
+                name: "Light",
+                id: LIGHT_ID,
+                element: "deviceType",
+                conformance: `${light}.${choice}`,
+            }),
+            new RequirementModel(
+                { name: "Plug", id: PLUG_ID, element: "deviceType", conformance: `${GATE_CONDITION}.${choice}` },
+                lighting(),
+            ),
+        ),
+        new DeviceTypeModel(
+            { name: "Composer5", id: COMPOSER5_ID, classification: "simple" },
+            new ConditionModel({ name: GATE_CONDITION }),
+            new RequirementModel(
+                {
+                    name: "Light",
+                    id: LIGHT_ID,
+                    element: "deviceType",
+                    conformance: "O",
+                    constraint: "min 2",
+                    instance: 1,
+                },
+                lighting(),
+            ),
+            new RequirementModel(
+                { name: "Light", id: LIGHT_ID, element: "deviceType", conformance: "M", instance: 2 },
+                lighting(),
+            ),
+            new RequirementModel({
+                name: "Light",
+                id: LIGHT_ID,
+                element: "deviceType",
+                conformance: third,
+                instance: 3,
+            }),
+        ),
+        new DeviceTypeModel(
+            { name: "Composer6", id: COMPOSER6_ID, classification: "simple" },
+            new ConditionModel({ name: GATE_CONDITION }),
+            new RequirementModel({
+                name: "Light",
+                id: LIGHT_ID,
+                element: "deviceType",
+                conformance: `${GATE_CONDITION}.b`,
+                constraint: "max 1",
+                instance: 1,
+            }),
+            new RequirementModel({
+                name: "Light",
+                id: LIGHT_ID,
+                element: "deviceType",
+                conformance: "O.b",
+                constraint: "min 2",
+                instance: 2,
+            }),
+            new RequirementModel({
+                name: "Light",
+                id: LIGHT_ID,
+                element: "deviceType",
+                conformance: "O",
+                constraint: "min 3",
+                instance: 3,
+            }),
+            new RequirementModel({ name: "Plug", id: PLUG_ID, element: "deviceType", conformance: "O.b", instance: 1 }),
+            new RequirementModel({
+                name: "Plug",
+                id: PLUG_ID,
+                element: "deviceType",
+                conformance: `${GATE_CONDITION}.b`,
+                constraint: "max 1",
+                instance: 2,
+            }),
+        ),
+        new ClusterModel({ name: "OnOff", id: ON_OFF_ID, children: [featureMap] }),
     );
     model.finalize();
     return model;
@@ -284,6 +400,126 @@ describe("DeviceTypeConformance with facts that are not a node", () => {
         expect(found[0].detail).equals(
             "Component device type Light requires max 1 endpoint(s) in the composition; found 2",
         );
+    });
+
+    it("judges a choice only over the members whose own requirement applies", () => {
+        const model = perInstanceFixtureModel();
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+        const root = endpoint("root", ROOT_ID);
+
+        const ungated = endpoint("ungated", COMPOSER4_ID, { parent: root });
+        endpoint("light1", LIGHT_ID, { parent: ungated, servers: [onOffOf(model)] });
+        endpoint("plug1", PLUG_ID, { parent: ungated, servers: [onOffOf(model)] });
+        expect(DeviceTypeConformance.check(ungated, pass)).deep.equals([]);
+
+        const gated = endpoint("gated", COMPOSER4_ID, { parent: root, stated: [GATE_CONDITION] });
+        endpoint("light2", LIGHT_ID, { parent: gated, servers: [onOffOf(model)] });
+        endpoint("plug2", PLUG_ID, { parent: gated, servers: [onOffOf(model, { lighting: true })] });
+        const found = DeviceTypeConformance.check(gated, pass);
+        expect(kindsOf(found)).deep.equals([["instanceCount", "device:Light|Plug"]]);
+        expect(found[0].detail).equals("Requires exactly 1 of component device types Light, Plug; found 2");
+    });
+
+    it("counts a choice member only a condition decides as a filler that is never needed", () => {
+        const model = perInstanceFixtureModel();
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+        const root = endpoint("root", ROOT_ID);
+
+        const plugOnly = endpoint("plugOnly", COMPOSER4_ID, { parent: root });
+        const plug1 = endpoint("plug1", PLUG_ID, { parent: plugOnly, servers: [onOffOf(model)] });
+        expect(DeviceTypeConformance.check(plugOnly, pass)).deep.equals([]);
+        expect(DeviceTypeConformance.check(plug1, pass)).deep.equals([]);
+
+        const empty = endpoint("empty", COMPOSER4_ID, { parent: root });
+        expect(DeviceTypeConformance.check(empty, pass).map(({ detail }) => detail)).deep.equals([
+            "Requires exactly 1 of component device types Light, Plug; found 0",
+        ]);
+
+        const gated = endpoint("gated", COMPOSER4_ID, { parent: root, stated: [GATE_CONDITION] });
+        endpoint("plug2", PLUG_ID, { parent: gated, servers: [onOffOf(model, { lighting: true })] });
+        expect(DeviceTypeConformance.check(gated, pass)).deep.equals([]);
+    });
+
+    it("lets a tolerated member fill an at-least choice and does not judge a choice no member of which applies", () => {
+        const root = endpoint("root", ROOT_ID);
+
+        const orMore = perInstanceFixtureModel({ choice: "a+" });
+        const plugOnly = endpoint("plugOnly", COMPOSER4_ID, { parent: root });
+        endpoint("plug1", PLUG_ID, { parent: plugOnly, servers: [onOffOf(orMore)] });
+        expect(
+            DeviceTypeConformance.check(plugOnly, new DeviceTypeValidationPass(new FakeFacts(), orMore)),
+        ).deep.equals([]);
+
+        const tolerated = perInstanceFixtureModel({ light: GATE_CONDITION });
+        const empty = endpoint("empty", COMPOSER4_ID, { parent: root });
+        expect(
+            DeviceTypeConformance.check(empty, new DeviceTypeValidationPass(new FakeFacts(), tolerated)),
+        ).deep.equals([]);
+    });
+
+    it("judges a choice member by the ranges of its applying choice requirements only", () => {
+        const model = perInstanceFixtureModel();
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+        const root = endpoint("root", ROOT_ID);
+
+        const twoLights = endpoint("twoLights", COMPOSER6_ID, { parent: root });
+        for (const name of ["light1", "light2"]) {
+            endpoint(name, LIGHT_ID, { parent: twoLights, servers: [onOffOf(model)] });
+        }
+        expect(DeviceTypeConformance.check(twoLights, pass).map(({ detail }) => detail)).deep.equals([
+            "Component device type Light requires min 3 endpoint(s) in the composition; found 2",
+        ]);
+
+        const oneLight = endpoint("oneLight", COMPOSER6_ID, { parent: root });
+        endpoint("light3", LIGHT_ID, { parent: oneLight, servers: [onOffOf(model)] });
+        expect(DeviceTypeConformance.check(oneLight, pass).map(({ detail }) => detail)).deep.equals([
+            "Component device type Light requires min 2 endpoint(s) in the composition; found 1",
+            "Requires exactly 1 of component device types Light, Plug; found 0",
+        ]);
+
+        const twoPlugs = endpoint("twoPlugs", COMPOSER6_ID, { parent: root });
+        for (const name of ["plug1", "plug2"]) {
+            endpoint(name, PLUG_ID, { parent: twoPlugs, servers: [onOffOf(model)] });
+        }
+        expect(DeviceTypeConformance.check(twoPlugs, pass)).deep.equals([]);
+    });
+
+    it("reports a component endpoint that fills only an instance its requirement disallows", () => {
+        const model = perInstanceFixtureModel({ third: "X" });
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+        const root = endpoint("root", ROOT_ID);
+
+        const composer = endpoint("composer", COMPOSER5_ID, { parent: root, stated: [GATE_CONDITION] });
+        const plain = endpoint("plain", LIGHT_ID, { parent: composer, servers: [onOffOf(model)] });
+        const found = DeviceTypeConformance.check(plain, pass);
+        expect(kindsOf(found)).deep.equals([["missing", "device:Composer5/Light"]]);
+        expect(found[0].detail).equals(
+            "Endpoint is component Light of Composer5 composer but satisfies none of its instances; instance 1, the closest, fails OnOff.LT",
+        );
+    });
+
+    it("does not report a component endpoint that fills an instance only a condition decides", () => {
+        const model = perInstanceFixtureModel();
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+        const root = endpoint("root", ROOT_ID);
+
+        const ungated = endpoint("ungated", COMPOSER5_ID, { parent: root });
+        const plain = endpoint("plain", LIGHT_ID, { parent: ungated, servers: [onOffOf(model)] });
+        expect(DeviceTypeConformance.check(plain, pass)).deep.equals([]);
+
+        const gated = endpoint("gated", COMPOSER5_ID, { parent: root, stated: [GATE_CONDITION] });
+        const gatedPlain = endpoint("gatedPlain", LIGHT_ID, { parent: gated, servers: [onOffOf(model)] });
+        expect(DeviceTypeConformance.check(gatedPlain, pass)).deep.equals([]);
+    });
+
+    it("applies an optional instance's count range only once the component has an endpoint", () => {
+        const model = perInstanceFixtureModel();
+        const empty = endpoint("empty", COMPOSER5_ID, { parent: endpoint("root", ROOT_ID) });
+
+        const found = DeviceTypeConformance.check(empty, new DeviceTypeValidationPass(new FakeFacts(), model));
+        expect(found.map(({ detail }) => detail)).deep.equals([
+            "Component device type Light requires min 1 endpoint(s) in the composition; found 0",
+        ]);
     });
 
     it("reports a singleton of the node endpoint on another endpoint of its node scope", () => {

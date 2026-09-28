@@ -378,26 +378,51 @@ function applicabilityOf<E>(requirement: RequirementModel, trueNames: Set<string
 }
 
 /**
- * The requirements of one device type for one component device type: one per instance, or a single one.
+ * One requirement of a device type for a component device type, with the applicability it has under the conditions
+ * of the composing endpoint.
  */
-export interface Component {
-    deviceType: DeviceTypeModel;
-    requirements: RequirementModel[];
-
-    /**
-     * The {@link requirements} that are mandatory; each needs an endpoint of its own.
-     */
-    mandatory: RequirementModel[];
-
-    /**
-     * The strongest applicability among {@link requirements}.
-     */
+export interface ComponentInstance {
+    requirement: RequirementModel;
     applicability: Conformance.Applicability;
 }
 
 /**
+ * The requirements of one device type for one component device type: one per instance, or a single one.
+ */
+export interface Component {
+    deviceType: DeviceTypeModel;
+
+    /**
+     * Every requirement for {@link deviceType}, each judged by its own applicability.
+     */
+    instances: ComponentInstance[];
+
+    /**
+     * Whether every one of {@link instances} is disallowed, so no endpoint of {@link deviceType} may fill it.
+     */
+    disallowed: boolean;
+}
+
+/**
+ * Whether the instance applies: it is mandatory or optional under the conditions it was judged with.
+ */
+function applies({ applicability }: ComponentInstance) {
+    return (
+        applicability === Conformance.Applicability.Mandatory || applicability === Conformance.Applicability.Optional
+    );
+}
+
+/**
+ * Whether the instance is tolerated: a condition that is not stated decides it, so an endpoint may fill it but nothing
+ * requires it, and a verdict that would depend on that condition takes the outcome that reports nothing.
+ */
+function isTolerated({ applicability }: ComponentInstance) {
+    return applicability === Conformance.Applicability.Conditional;
+}
+
+/**
  * The component requirements of {@link deviceType}, a device type of {@link composing}, grouped by component device
- * type, with their applicability under {@link conditions}, the conditions of {@link composing}.
+ * type, each with its applicability under {@link conditions}, the conditions of {@link composing}.
  */
 function componentsOf<E>(
     composing: E,
@@ -422,34 +447,18 @@ function componentsOf<E>(
         const applicability = applicabilityOf(requirement, conditions, pass);
         let entry = byId.get(component.id);
         if (entry === undefined) {
-            entry = { deviceType: component, requirements: [], mandatory: [], applicability };
+            entry = { deviceType: component, instances: [], disallowed: true };
             byId.set(component.id, entry);
-        } else {
-            entry.applicability = strongerOf(entry.applicability, applicability);
         }
-        entry.requirements.push(requirement);
-        if (applicability === Conformance.Applicability.Mandatory) {
-            entry.mandatory.push(requirement);
+        entry.instances.push({ requirement, applicability });
+        if (applicability !== Conformance.Applicability.None) {
+            entry.disallowed = false;
         }
     }
 
     found = [...byId.values()];
     byDeviceType.set(deviceType, found);
     return found;
-}
-
-/**
- * The applicability of a component whose instances state {@link a} and {@link b}: required when any instance is,
- * disallowed only when every instance is.
- */
-function strongerOf(a: Conformance.Applicability, b: Conformance.Applicability) {
-    const { Mandatory, Optional, Conditional, None } = Conformance.Applicability;
-    for (const applicability of [Mandatory, Optional, Conditional]) {
-        if (a === applicability || b === applicability) {
-            return applicability;
-        }
-    }
-    return None;
 }
 
 /**
@@ -522,10 +531,10 @@ function failuresOf<E>(
  * Judge the endpoint of {@link context} as the composing endpoint of the component device types its device type
  * requires.
  *
- * A mandatory component needs as many endpoints as its constraint states, at least one when it states none, and one
- * distinct endpoint per mandatory instance. An optional component needs none, but the constraint applies once there
- * is one. A disallowed component may have none. A component whose conformance depends on something unknown is not
- * judged.
+ * Each component requirement is judged by its own applicability. A mandatory one needs as many endpoints as its
+ * constraint states, at least one when it states none, and a distinct endpoint of its own. An optional one needs
+ * none, but its constraint applies once there is one. A component whose every requirement is disallowed may have no
+ * endpoint. A requirement whose conformance depends on something unknown is not judged.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.3
  */
@@ -537,32 +546,22 @@ function checkComposition<E>(context: Context<E>, collection: ConditionAssertion
     for (const component of components) {
         const found = candidatesOf(facts, component, pass);
         candidates.set(component, found);
-        const requirement = `device:${component.deviceType.name}`;
 
-        switch (component.applicability) {
-            case Conformance.Applicability.None:
-                if (found.length) {
-                    violations.push({
-                        deviceType: deviceType.name,
-                        requirement,
-                        kind: "disallowed",
-                        detail: `Disallowed component device type ${component.deviceType.name} is present on ${found.length} endpoint(s)`,
-                    });
-                }
-                continue;
+        if (component.disallowed) {
+            if (found.length) {
+                violations.push({
+                    deviceType: deviceType.name,
+                    requirement: `device:${component.deviceType.name}`,
+                    kind: "disallowed",
+                    detail: `Disallowed component device type ${component.deviceType.name} is present on ${found.length} endpoint(s)`,
+                });
+            }
+            continue;
+        }
 
-            case Conformance.Applicability.Optional:
-                if (found.length) {
-                    checkCount(context, component, found.length, undefined);
-                }
-                continue;
-
-            case Conformance.Applicability.Mandatory:
-                checkCount(context, component, found.length, { min: 1 });
-                if (found.length) {
-                    checkInstances(context, component, found, collection);
-                }
-                continue;
+        checkCount(context, component, found.length);
+        if (found.length) {
+            checkInstances(context, component, found, collection);
         }
     }
 
@@ -570,28 +569,18 @@ function checkComposition<E>(context: Context<E>, collection: ConditionAssertion
 }
 
 /**
- * Report a number of endpoints of {@link component} outside the range its constraint states, or outside
- * {@link implied} when it states none.
- *
- * Only a requirement whose own applicability is Mandatory or Optional contributes its range; {@link component}'s
- * aggregate applicability may be stronger than an individual requirement's.
+ * Report a number of endpoints of {@link component} outside the range an applying requirement's constraint states.
+ * A mandatory requirement that states none implies at least one; an optional one is judged only once there is one.
  */
-function checkCount<E>(
-    { violations, deviceType, conditions, pass }: Context<E>,
-    component: Component,
-    count: number,
-    implied: RequirementModel.CountRange | undefined,
-) {
-    for (const requirement of component.requirements) {
-        const applicability = applicabilityOf(requirement, conditions, pass);
-        if (
-            applicability !== Conformance.Applicability.Mandatory &&
-            applicability !== Conformance.Applicability.Optional
-        ) {
-            continue;
+function checkCount<E>({ violations, deviceType }: Context<E>, component: Component, count: number) {
+    for (const { requirement, applicability } of component.instances) {
+        let range;
+        if (applicability === Conformance.Applicability.Mandatory) {
+            range = requirement.componentCountRange ?? { min: 1 };
+        } else if (applicability === Conformance.Applicability.Optional && count > 0) {
+            range = requirement.componentCountRange;
         }
 
-        const range = requirement.componentCountRange ?? implied;
         if (range === undefined || isWithin(range, count)) {
             continue;
         }
@@ -615,7 +604,9 @@ function checkInstances<E>(
     candidates: ResolvedEndpoint<E>[],
     collection: ConditionAssertions.Collection<E>,
 ) {
-    const { mandatory } = component;
+    const mandatory = component.instances
+        .filter(({ applicability }) => applicability === Conformance.Applicability.Mandatory)
+        .map(({ requirement }) => requirement);
     const failures = mandatory.map(instance =>
         candidates.map(candidate => failuresOf(candidate, instance, deviceType, collection, pass)),
     );
@@ -684,69 +675,79 @@ function matchInstances(accepts: boolean[][]) {
 }
 
 /**
- * Judge choice conformance across the component requirements that name the same choice: once any of them applies,
- * the number of them with endpoints in range must meet the choice's count. A choice counts only at the top of a
- * conformance.
+ * Judge choice conformance across the component requirements that name the same choice: the number of their
+ * component device types with endpoints in range must meet the choice's count. A choice is judged once one of its
+ * members applies. A tolerated member counts when it is satisfied but is never needed, so the choice is reported only
+ * when no subset of its tolerated members meets the count. A disallowed requirement is no member. A choice counts only
+ * at the top of a conformance.
  *
- * A member counts as satisfied when it has endpoints in range, whether or not they meet its nested requirements,
- * because each endpoint that does not is reported on itself.
+ * A member counts as satisfied when it has endpoints in the ranges of its choice requirements, whether or not they
+ * meet its nested requirements, because each endpoint that does not is reported on itself. The ranges of a member that
+ * applies come only from its applying choice requirements.
  *
  * @see {@link MatterSpecification.v16.Core} § 7.3.14
  */
 function checkChoices<E>(
-    { violations, deviceType, conditions, pass }: Context<E>,
+    { violations, deviceType }: Context<E>,
     components: Component[],
     candidates: Map<Component, ResolvedEndpoint<E>[]>,
 ) {
-    const choices = new Map<string, { choice: Conformance.Ast.Choice; members: Component[]; applies: boolean }>();
+    const choices = new Map<string, { choice: Conformance.Ast.Choice; members: Map<Component, ChoiceMember> }>();
 
     for (const component of components) {
-        for (const requirement of component.requirements) {
-            const { ast } = requirement.conformance;
-            if (ast.type !== Conformance.Special.Choice) {
+        for (const instance of component.instances) {
+            const { ast } = instance.requirement.conformance;
+            if (ast.type !== Conformance.Special.Choice || !(applies(instance) || isTolerated(instance))) {
                 continue;
             }
 
             let entry = choices.get(ast.param.name);
             if (entry === undefined) {
-                entry = { choice: ast.param, members: [], applies: false };
+                entry = { choice: ast.param, members: new Map() };
                 choices.set(ast.param.name, entry);
             }
-            if (!entry.members.includes(component)) {
-                entry.members.push(component);
-            }
 
-            const applicability = applicabilityOf(requirement, conditions, pass);
-            if (
-                applicability === Conformance.Applicability.Mandatory ||
-                applicability === Conformance.Applicability.Optional
-            ) {
-                entry.applies = true;
+            const applying = applies(instance);
+            let member = entry.members.get(component);
+            if (member === undefined || (applying && !member.applies)) {
+                member = { applies: applying, ranges: new Array<RequirementModel.CountRange>() };
+                entry.members.set(component, member);
+            } else if (!applying && member.applies) {
+                continue;
+            }
+            const range = instance.requirement.componentCountRange;
+            if (range !== undefined) {
+                member.ranges.push(range);
             }
         }
     }
 
-    for (const { choice, members, applies } of choices.values()) {
-        if (!applies) {
+    for (const { choice, members } of choices.values()) {
+        let satisfied = 0;
+        let tolerated = 0;
+        let judged = false;
+        for (const [component, { applies, ranges }] of members) {
+            judged ||= applies;
+            const count = candidates.get(component)?.length ?? 0;
+            if (count > 0 && ranges.every(range => isWithin(range, count))) {
+                if (applies) {
+                    satisfied++;
+                } else {
+                    tolerated++;
+                }
+            }
+        }
+        if (!judged) {
             continue;
         }
-
-        const satisfied = members.filter(component => {
-            const count = candidates.get(component)?.length ?? 0;
-            return (
-                count > 0 &&
-                component.requirements.every(({ componentCountRange }) =>
-                    componentCountRange === undefined ? true : isWithin(componentCountRange, count),
-                )
-            );
-        }).length;
 
         const { num, orMore, orLess } = choice;
-        if (orMore ? satisfied >= num : orLess ? satisfied <= num : satisfied === num) {
+        const most = satisfied + tolerated;
+        if (orMore ? most >= num : orLess ? satisfied <= num : satisfied <= num && most >= num) {
             continue;
         }
 
-        const names = members.map(component => component.deviceType.name);
+        const names = [...members.keys()].map(component => component.deviceType.name);
         const bound = orMore ? "at least" : orLess ? "at most" : "exactly";
         violations.push({
             deviceType: deviceType.name,
@@ -758,9 +759,19 @@ function checkChoices<E>(
 }
 
 /**
+ * A component device type named by a choice, and whether it is a member because one of its requirements applies or
+ * only tolerated.
+ */
+interface ChoiceMember {
+    applies: boolean;
+    ranges: RequirementModel.CountRange[];
+}
+
+/**
  * Report {@link facts}'s endpoint where it fills a component requirement of an endpoint that composes it but
- * satisfies the nested requirements of none of its instances. The violation names the instance it comes closest to
- * and carries the composing device type.
+ * satisfies the nested requirements of none of its instances. A tolerated instance the endpoint satisfies is enough,
+ * but only an applying instance makes the endpoint a component to judge. The violation names the instance it comes
+ * closest to and carries the composing device type.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.3
  */
@@ -784,21 +795,19 @@ function checkComponentOf<E>(
         const conditions = collection.conditionsOf(composer);
 
         const filled = composerFacts.deviceTypes.flatMap(deviceType =>
-            componentsOf(composer, deviceType, conditions, pass)
-                .filter(
-                    ({ deviceType: component, applicability }) =>
-                        own.has(component.id) &&
-                        (applicability === Conformance.Applicability.Mandatory ||
-                            applicability === Conformance.Applicability.Optional),
-                )
-                .map(component => ({ deviceType, component })),
+            componentsOf(composer, deviceType, conditions, pass).flatMap(component => {
+                const instances = own.has(component.deviceType.id)
+                    ? component.instances.filter(instance => applies(instance) || isTolerated(instance))
+                    : [];
+                return instances.some(applies) ? [{ deviceType, component, instances }] : [];
+            }),
         );
 
         // Checked before the scope walk, so the many children of an aggregator do not each walk its whole family
         if (filled.length && composerFacts.composes(facts.endpoint)) {
-            for (const { deviceType, component } of filled) {
-                const failures = component.requirements.map(instance =>
-                    failuresOf(facts, instance, deviceType, collection, pass),
+            for (const { deviceType, component, instances } of filled) {
+                const failures = instances.map(({ requirement }) =>
+                    failuresOf(facts, requirement, deviceType, collection, pass),
                 );
                 if (failures.some(failed => !failed.length)) {
                     continue;
@@ -810,7 +819,7 @@ function checkComponentOf<E>(
                         closest = index;
                     }
                 });
-                const instance = component.requirements[closest];
+                const instance = instances[closest].requirement;
                 const failed = failures[closest].map(({ requirement }) => requirement).join(", ");
                 const role = `component ${component.deviceType.name} of ${deviceType.name} ${pass.facts.describe(composer)}`;
 
@@ -874,7 +883,8 @@ function describeRange({ min, max }: RequirementModel.CountRange) {
  * The path of one instance, which always carries a number so it never equals the path of the component's count.
  */
 function pathOf(component: Component, instance: RequirementModel) {
-    const number = instance.instanceNumber ?? component.requirements.indexOf(instance) + 1;
+    const number =
+        instance.instanceNumber ?? component.instances.findIndex(({ requirement }) => requirement === instance) + 1;
     return `device:${component.deviceType.name}#${number}`;
 }
 
