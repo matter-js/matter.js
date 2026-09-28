@@ -13,6 +13,7 @@ import {
     Crypto,
     DerCodec,
     DerObject,
+    DerType,
     Environment,
     MlDsa,
     MockFetch,
@@ -432,11 +433,29 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await dcl.isRevoked(hexOf(pai.skid), REVOKED, hexOf(DerCodec.encode(nameOf(delegate.name))))).false;
         });
 
-        const certificateIssuer = (commonName: string) =>
-            DerObject("551d1d", {
-                critical: true,
-                value: DerCodec.encode({ directoryName: ContextTagged(4, nameOf(commonName)) }),
+        const certificateIssuer = (commonName: string, options: { critical?: boolean; names?: number } = {}) => {
+            const names: Record<string, ReturnType<typeof ContextTagged>> = {};
+            for (let i = 0; i < (options.names ?? 1); i++) {
+                names[`directoryName${i}`] = ContextTagged(4, nameOf(commonName));
+            }
+            return DerObject("551d1d", {
+                ...(options.critical === false ? {} : { critical: true }),
+                value: DerCodec.encode(names),
             });
+        };
+
+        for (const [description, options] of [
+            ["is not critical", { critical: false }],
+            ["names more than one issuer", { names: 2 }],
+        ] as const) {
+            it(`ignores a CRL whose certificateIssuer ${description} (RFC 5280 §5.3.3)`, async () => {
+                // Naming the authority itself, so only the malformed shape can refuse the CRL
+                const crl = await crlBy(paa.crlSigner, {
+                    entryExtensions: { certificateIssuer: certificateIssuer(paa.name, options) },
+                });
+                expect(await revoked(paa.skid, [{ signer: paa, isPAA: true, crl }])).false;
+            });
+        }
 
         it("ignores entries whose certificateIssuer names another authority (step 10.1)", async () => {
             const crl = await crlBy(
@@ -594,6 +613,16 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             const pqc = await mlDsaPaa("ML-DSA-44");
             const other = await crypto.createMlDsaKeyPair("ML-DSA-44");
             const crl = await crlBy({ key: other, subjectKeyId: pqc.skid });
+            expect(await revoked(pqc.skid, [{ signer: pqc, isPAA: true, crl }], REVOKED, [pqc.der])).false;
+        });
+
+        it("ignores an ML-DSA CRL whose algorithm identifier carries parameters", async () => {
+            const pqc = await mlDsaPaa("ML-DSA-65");
+            const crl = await crlBy(pqc.crlSigner, {
+                signatureAlgorithm: DerObject(MlDsa.PARAMETERS["ML-DSA-65"].oid, {
+                    parameters: { _tag: DerType.Null, _bytes: new Uint8Array() },
+                }),
+            });
             expect(await revoked(pqc.skid, [{ signer: pqc, isPAA: true, crl }], REVOKED, [pqc.der])).false;
         });
 

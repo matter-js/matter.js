@@ -194,14 +194,17 @@ function isCritical(extension: DerNode) {
     return critical?._tag === DerType.Boolean && Bytes.of(critical._bytes)[0] !== 0;
 }
 
-/** The directoryName of a certificateIssuer CRL entry extension, as hex of its Name DER. */
+/** The single directoryName of a certificateIssuer CRL entry extension as hex of its Name DER, if it names exactly one. */
 function certificateIssuerOf(extension: DerNode) {
     const value = extension._elements?.[extension._elements.length - 1];
     if (value?._tag !== DerType.OctetString) {
         return;
     }
-    const directoryName = DerCodec.decode(value._bytes)._elements?.find(name => name._tag === DIRECTORY_NAME);
-    return directoryName === undefined ? undefined : Bytes.toHex(directoryName._bytes);
+    const names = DerCodec.decode(value._bytes)._elements;
+    if (names?.length !== 1 || names[0]._tag !== DIRECTORY_NAME) {
+        return;
+    }
+    return Bytes.toHex(names[0]._bytes);
 }
 
 /** [4] EXPLICIT Name: the directoryName choice of GeneralName. */
@@ -1683,13 +1686,9 @@ export class DclCertificateService {
         let signatureAlgorithm: Bytes | undefined;
         const outerAlgorithm = certListElements[1];
         const innerAlgorithm = tbsElements.find(element => element._tag === DerTag.Sequence);
-        const outerAlgorithmOid = outerAlgorithm._elements?.[0];
-        if (
-            innerAlgorithm !== undefined &&
-            outerAlgorithmOid?._tag === DerType.ObjectIdentifier &&
-            Bytes.areEqual(DerCodec.encode(outerAlgorithm), DerCodec.encode(innerAlgorithm))
-        ) {
-            signatureAlgorithm = Bytes.of(outerAlgorithmOid._bytes);
+        const outerAlgorithmDer = DerCodec.encode(outerAlgorithm);
+        if (innerAlgorithm !== undefined && Bytes.areEqual(outerAlgorithmDer, DerCodec.encode(innerAlgorithm))) {
+            signatureAlgorithm = Bytes.of(outerAlgorithmDer);
         }
 
         // tbsCertList fields: [version?, signature, issuer, thisUpdate, nextUpdate?, revokedCertificates?, crlExtensions?]
@@ -1830,7 +1829,13 @@ export class DclCertificateService {
             for (const ext of entryExtensions?._tag === DerTag.Sequence ? (entryExtensions._elements ?? []) : []) {
                 const oid = Bytes.toHex(ext._elements?.[0]?._bytes ?? new Uint8Array());
                 if (oid === CERTIFICATE_ISSUER_EXTENSION) {
-                    certificateIssuer = certificateIssuerOf(ext);
+                    // RFC 5280 §5.3.3: critical, naming exactly one directoryName
+                    const named = isCritical(ext) ? certificateIssuerOf(ext) : undefined;
+                    if (named === undefined) {
+                        unsupportedCriticalExtension ??= oid;
+                    } else {
+                        certificateIssuer = named;
+                    }
                 } else if (isCritical(ext) && !KNOWN_CRL_ENTRY_EXTENSIONS.has(oid)) {
                     unsupportedCriticalExtension ??= oid;
                 }
@@ -1994,7 +1999,7 @@ export namespace DclCertificateService {
         tbsDer?: Bytes;
 
         /**
-         * OID of the CRL's signature algorithm; absent if it is missing or differs from the one inside tbsCertList.
+         * DER of the CRL's signature AlgorithmIdentifier; absent if it differs from the one inside tbsCertList.
          */
         signatureAlgorithm?: Bytes;
 
@@ -2009,7 +2014,8 @@ export namespace DclCertificateService {
 
         /**
          * OID (hex) of a critical CRL or CRL entry extension the parser does not support, such as a delta CRL
-         * indicator; RFC 5280 §6.3.3 forbids using such a CRL.
+         * indicator, or of a certificateIssuer entry extension that is not critical or not a single directoryName;
+         * RFC 5280 §6.3.3 forbids using such a CRL.
          */
         unsupportedCriticalExtension?: string;
 

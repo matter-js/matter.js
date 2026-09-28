@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError, Crypto, EcdsaSignature, MlDsa, PublicKey, X962 } from "@matter/general";
+import {
+    Bytes,
+    CertificateError,
+    Crypto,
+    DerCodec,
+    DerType,
+    EcdsaSignature,
+    MlDsa,
+    PublicKey,
+    X962,
+} from "@matter/general";
 
 /** An ML-DSA signature over a certificate, as carried in its signatureValue BIT STRING. */
 export class MlDsaSignature {
@@ -49,14 +59,24 @@ export type CertificatePublicKey =
     | { readonly algorithm: MlDsa.ParameterSet; readonly key: Bytes };
 
 /**
- * The signature carried by a certificate or CRL, from its signatureAlgorithm OID and signatureValue BIT STRING
- * content.
+ * The signature carried by a certificate or CRL, from its signatureAlgorithm AlgorithmIdentifier DER and
+ * signatureValue BIT STRING content.
  *
- * @throws CertificateError if the algorithm is neither ecdsa-with-SHA256 nor ML-DSA-44/65, or the value is malformed
+ * @throws CertificateError if the algorithm is neither ecdsa-with-SHA256 nor ML-DSA-44/65, an ML-DSA identifier carries
+ *   parameters, or the value is malformed
  * @see {@link https://www.rfc-editor.org/rfc/rfc9881 RFC 9881} for the ML-DSA signature encoding
  */
-export function certificateSignatureOf(algorithmOid: Bytes, value: Bytes): CertificateSignature {
+export function certificateSignatureOf(algorithmIdentifier: Bytes, value: Bytes): CertificateSignature {
+    const elements = DerCodec.decode(algorithmIdentifier)._elements;
+    const oid = elements?.[0];
+    if (oid?._tag !== DerType.ObjectIdentifier) {
+        throw new CertificateError("Signature algorithm identifier holds no OID");
+    }
+    const algorithmOid = Bytes.of(oid._bytes);
     const parameterSet = MlDsa.parameterSetForOid(algorithmOid);
+    if (parameterSet !== undefined && elements?.length !== 1) {
+        throw new CertificateError(`${parameterSet} signature algorithm must not carry parameters`);
+    }
     try {
         if (parameterSet !== undefined) {
             return new MlDsaSignature(parameterSet, value);
