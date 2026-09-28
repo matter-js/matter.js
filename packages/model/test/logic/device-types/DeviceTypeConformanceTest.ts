@@ -22,7 +22,7 @@ import {
     RequirementModel,
 } from "#index.js";
 import { ConditionAssertions, conditionScopeOf, StructuralCondition } from "#logic/device-types/ConditionAssertions.js";
-import { ImplementationError } from "@matter/general";
+import { ImplementationError, InternalError } from "@matter/general";
 import { endpoint, FakeEndpoint, FakeFacts } from "./fake-facts.js";
 
 const ROOT_ID = 0x16;
@@ -640,7 +640,7 @@ describe("ReachingEndpoints", () => {
         let throwForSecond = true;
         const read = (member: string) => {
             if (member === "second" && throwForSecond) {
-                throw new Error("boom");
+                throw new InternalError("boom");
             }
             return { interfaces: member === "first" ? ["WiFi"] : [], declares: false };
         };
@@ -660,7 +660,7 @@ describe("ReachingEndpoints", () => {
         let throwForSecond = true;
         const read = (member: string) => {
             if (member === "second" && throwForSecond) {
-                throw new Error("boom");
+                throw new InternalError("boom");
             }
             return member === "first" ? ["Gated"] : [];
         };
