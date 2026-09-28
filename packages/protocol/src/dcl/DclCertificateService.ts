@@ -1600,7 +1600,8 @@ export class DclCertificateService {
         // Steps 3-4
         const vidHolder = point.isPAA ? signer : (delegator ?? signer);
         const vid = vidHolder.cert.subject.vendorId;
-        if (vid !== undefined && vid !== point.vid) {
+        // A PAA may omit its VendorID (step 3.1); a PAI states exactly one, which must match (step 4.1)
+        if ((vid !== undefined || !point.isPAA) && vid !== point.vid) {
             throw new CrlRejectedError(`CRL signer VendorID ${vid} does not match entry VendorID ${point.vid}`);
         }
         const pid = vidHolder instanceof Pai ? vidHolder.cert.subject.productId : undefined;
