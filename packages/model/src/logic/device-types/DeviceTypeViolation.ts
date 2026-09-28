@@ -5,16 +5,12 @@
  */
 
 /**
- * One departure of an endpoint from a device type requirement that applies to it.
+ * One departure of an endpoint from a device type requirement that applies to it. It names no endpoint: each
+ * result that holds violations is for one endpoint.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
-export interface DeviceTypeViolation<E> {
-    /**
-     * The endpoint that departs from the requirement.
-     */
-    endpoint: E;
-
+export interface DeviceTypeViolation {
     /**
      * The name of the device type whose requirement the endpoint violates: a device type the endpoint lists, or Base,
      * which applies once the endpoint lists a device type the model defines. For `singletonMisplaced` it is the device
@@ -75,7 +71,7 @@ export namespace DeviceTypeViolation {
      * The key that identifies {@link violation} on its endpoint: its kind and requirement path. Two violations with
      * the same key report the same departure, so a caller deduplicating a violation list keys it by this.
      */
-    export function keyOf<E>({ kind, requirement }: Pick<DeviceTypeViolation<E>, "kind" | "requirement">): string {
+    export function keyOf({ kind, requirement }: Pick<DeviceTypeViolation, "kind" | "requirement">): string {
         return `${kind} ${requirement}`;
     }
 }

@@ -10,3 +10,4 @@ export * from "./DeviceTypeValidation.js";
 export * from "./InteractionServer.js";
 export * from "./ServerEndpointInitializer.js";
 export * from "./ServerSubscription.js";
+export { DeviceTypeViolation } from "@matter/model";

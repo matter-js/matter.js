@@ -56,7 +56,7 @@ export class DeviceTypeValidationPass<E> {
     readonly components = new Memo<E, Map<DeviceTypeModel, Component[]>>();
 
     /** @internal */
-    readonly failures = new Memo<E, Map<RequirementModel, DeviceTypeViolation<E>[]>>();
+    readonly failures = new Memo<E, Map<RequirementModel, DeviceTypeViolation[]>>();
 
     /** @internal */
     readonly singletons = new Memo<E, Map<number, Singleton<E>>>();

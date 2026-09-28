@@ -5,7 +5,7 @@
  */
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import type { Violation } from "./DeviceTypeConformanceError.js";
+import type { DeviceTypeViolation } from "@matter/model";
 
 /**
  * What an application may ask of the device type validation of a server node, which
@@ -40,7 +40,7 @@ export interface DeviceTypeValidation {
      * The violations recorded for {@link endpoint}: those found by the last pass that judged it and recorded. Always
      * empty in mode `"off"`, which records nothing.
      */
-    violationsOf(endpoint: Endpoint): Violation[];
+    violationsOf(endpoint: Endpoint): DeviceTypeViolation[];
 }
 
 export namespace DeviceTypeValidation {
@@ -64,5 +64,5 @@ export namespace DeviceTypeValidation {
     /**
      * The violations of each endpoint a pass judged.
      */
-    export type Verdict = Map<Endpoint, Violation[]>;
+    export type Verdict = Map<Endpoint, DeviceTypeViolation[]>;
 }

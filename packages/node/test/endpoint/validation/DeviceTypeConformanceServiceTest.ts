@@ -314,12 +314,10 @@ describe("DeviceTypeConformanceService", () => {
 
         expect(error).instanceOf(DeviceTypeConformanceError);
         if (error instanceof DeviceTypeConformanceError) {
-            expect(error.message).contains("first");
-            const nested = error.errors.filter(cause => cause instanceof DeviceTypeConformanceError);
-            expect(nested.map(({ message }) => message)).deep.equals([
-                `Endpoint ${second} violates device type requirements`,
-            ]);
-            expect(nested[0].errors.map(({ message }: Error) => message)).contains(
+            expect(error.message).equals(`Endpoints ${first}, ${second} violate device type requirements`);
+            expect(error.errors.every(cause => cause instanceof DeviceTypeViolationError)).true;
+            expect([...new Set(error.errors.map(({ endpoint }) => endpoint.id))]).deep.equals(["first", "second"]);
+            expect(error.errors.filter(({ endpoint }) => endpoint === second).map(({ message }) => message)).contains(
                 "OnOffLight Identify: Mandatory server cluster Identify is missing",
             );
         }

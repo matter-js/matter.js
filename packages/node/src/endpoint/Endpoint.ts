@@ -1418,12 +1418,12 @@ export namespace Endpoint {
         isEssential?: boolean;
 
         /**
-         * Conditions this endpoint asserts that its structure does not state.
+         * Conditions of the product that this endpoint asserts, such as `PhysicalInputs` or `Cooler`.
          *
-         * A device type's requirements may depend on a condition — a named fact such as `Cooler` or
-         * `PhysicalInputs`.  Most conditions follow from the endpoint tree and matter.js derives those.
-         * State here only the ones that describe the product rather than the structure.  A condition
-         * matter.js does not know about is reported rather than ignored.
+         * A device type's requirements may depend on a condition. matter.js derives the conditions that follow from
+         * the endpoint tree and the node's configuration; state here only those that describe the product. A stated
+         * condition holds in addition to the derived ones, and stating one never makes a condition false. A name that
+         * names no condition of the endpoint's device types is reported as an `unknownCondition` violation.
          *
          * @see {@link MatterSpecification.v16.Core} § 9.2.6
          */

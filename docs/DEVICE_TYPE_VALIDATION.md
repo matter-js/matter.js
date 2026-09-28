@@ -62,9 +62,9 @@ other value fails the node's construction with an `ImplementationError` as the c
   addition breaks the parent's composition. Changes after construction has finished are still only logged, as above.
 - **`off`**. The node checks no device types, neither at construction nor after it. Only the misplaced-singleton check
   before an endpoint's behaviors initialize still runs, because a behavior that works only on the root endpoint
-  otherwise fails with an untyped error. `DeviceTypeConformanceService.validate()` and the other methods of the
-  service still check when an application calls them, as in `warn` mode; what they report stays recorded until the
-  application calls `forget()` or `reset()`.
+  otherwise fails with an untyped error. `DeviceTypeConformanceService.validate()` and `validateNodeScope()` still
+  check when an application calls them, as in `warn` mode, and return what they find, but record nothing: each call
+  logs every violation it finds, and `violationsOf()` stays empty.
 
 During development keep `warn`, or use `strict` to refuse a non-conforming structure. In production, `off` skips the
 checks for performance.
@@ -73,10 +73,11 @@ A misplaced singleton is refused at construction also in `warn` mode, because th
 singleton cluster is allowed only on the endpoints that declare it. In `off` mode only a singleton declared by a device
 type above the endpoint is refused.
 
-A refused construction logs nothing and records nothing. The `DeviceTypeConformanceError` it throws names the first
-refused endpoint with its new violations and carries each other refused endpoint as a nested
-`DeviceTypeConformanceError`. New violations of endpoints the same check does not refuse are dropped, because they
-were found in a tree the refused endpoint then leaves: it is rolled back, or left crashed if it is not essential.
+A refused construction logs nothing and records nothing. The `DeviceTypeConformanceError` it throws names the refused
+endpoints, the first refused first. Its `errors` are one `DeviceTypeViolationError` per new violation of a refused
+endpoint, each carrying its `endpoint` and its `violation` (a `DeviceTypeViolation`). New violations of endpoints the
+same check does not refuse are dropped, because they were found in a tree the refused endpoint then leaves: it is
+rolled back, or left crashed if it is not essential.
 
 ## Declaring conditions an endpoint asserts
 

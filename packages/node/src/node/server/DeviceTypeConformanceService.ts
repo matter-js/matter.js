@@ -8,9 +8,9 @@ import { DescriptorServer } from "#behaviors/descriptor";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Diagnostic, Environment, ImplementationError, Logger, ObserverGroup } from "@matter/general";
-import { DeviceTypeConformance, DeviceTypeValidationPass, MatterModel } from "@matter/model";
-import { DeviceTypeConformanceError, DeviceTypeViolationError, Violation } from "./DeviceTypeConformanceError.js";
+import { Diagnostic, Environment, ImplementationError, InternalError, Logger, ObserverGroup } from "@matter/general";
+import { DeviceTypeConformance, DeviceTypeValidationPass, DeviceTypeViolation, MatterModel } from "@matter/model";
+import { DeviceTypeConformanceError, DeviceTypeViolationError } from "./DeviceTypeConformanceError.js";
 import { DeviceTypeValidation } from "./DeviceTypeValidation.js";
 import { NodeScopeIndex } from "./NodeScopeIndex.js";
 import { Presence, ServerEndpointFacts } from "./ServerEndpointFacts.js";
@@ -95,7 +95,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     readonly #model?: MatterModel;
     readonly #logger: Logger;
     readonly #facts = new ServerEndpointFacts();
-    #reported = new WeakMap<Endpoint, Map<string, Violation>>();
+    #reported = new WeakMap<Endpoint, Map<string, DeviceTypeViolation>>();
     readonly #index?: NodeScopeIndex;
     readonly #followed = new Map<Endpoint, ObserverGroup>();
 
@@ -138,8 +138,8 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      * endpoints, which validating them in separate calls repeats per call. An endpoint in no node scope is not judged.
      *
      * With {@link DeviceTypeValidation.ValidateOptions.refuse} (the default) an endpoint with a new misplaced
-     * singleton, or with any new violation in mode `"strict"`, throws. The error names the first refused endpoint and
-     * carries the others; none of them is logged or recorded. Every other endpoint with new violations logs one warning
+     * singleton, or with any new violation in mode `"strict"`, throws. The error carries the new violations of every
+     * refused endpoint; none of them is logged or recorded. Every other endpoint with new violations logs one warning
      * listing them.
      *
      * @returns the violations of each judged endpoint
@@ -167,7 +167,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         const pass = this.#pass();
         const nodeEndpoint = pass.nodeEndpointOf(endpoint);
         if (nodeEndpoint === undefined) {
-            return new Map<Endpoint, Violation[]>();
+            return new Map<Endpoint, DeviceTypeViolation[]>();
         }
         return this.#validate(
             { endpoints: pass.nodeScopeOf(nodeEndpoint), readersOf: nodeEndpoint },
@@ -181,7 +181,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      * The violations recorded for {@link endpoint}: those found by the last pass that judged it and recorded, which a
      * pass refusing any endpoint of an addition or initial tree does not. Always empty in mode `"off"`.
      */
-    violationsOf(endpoint: Endpoint): Violation[] {
+    violationsOf(endpoint: Endpoint): DeviceTypeViolation[] {
         return [...(this.#reported.get(endpoint)?.values() ?? [])];
     }
 
@@ -394,18 +394,16 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     }
 
     #assertPlacement(endpoint: Endpoint) {
-        const violations = DeviceTypeConformance.misplacedSingletons(endpoint, this.#pass());
-        if (!violations.length) {
+        const [first] = DeviceTypeConformance.misplacedSingletons(endpoint, this.#pass());
+        if (first === undefined) {
             return;
         }
 
-        const misplacing = violations[0].endpoint;
-        throw new DeviceTypeConformanceError(
-            misplacing.toString(),
-            violations
-                .filter(violation => violation.endpoint === misplacing)
-                .map(violation => new DeviceTypeViolationError(violation)),
-        );
+        const [misplacing, [violation, ...others]] = first;
+        throw new DeviceTypeConformanceError([
+            new DeviceTypeViolationError(misplacing, violation),
+            ...others.map(other => new DeviceTypeViolationError(misplacing, other)),
+        ]);
     }
 
     #validate(
@@ -416,7 +414,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     ): DeviceTypeValidation.Verdict {
         const refuse = options?.refuse ?? true;
         const refused = new Array<Judged>();
-        const judged = new Array<Judged & { current: Map<string, Violation> }>();
+        const judged = new Array<Judged & { current: Map<string, DeviceTypeViolation> }>();
 
         for (const endpoint of endpoints) {
             const judgement = this.#judge(endpoint, pass);
@@ -511,9 +509,9 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         const violations = DeviceTypeConformance.check(endpoint, pass);
 
         // The kind and requirement path identify a violation on its endpoint; check() reports each pair once
-        const current = new Map(violations.map(violation => [Violation.keyOf(violation), violation]));
+        const current = new Map(violations.map(violation => [DeviceTypeViolation.keyOf(violation), violation]));
         const previous = this.#reported.get(endpoint);
-        const fresh = violations.filter(violation => !previous?.has(Violation.keyOf(violation)));
+        const fresh = violations.filter(violation => !previous?.has(DeviceTypeViolation.keyOf(violation)));
 
         return { fresh, current };
     }
@@ -734,21 +732,20 @@ function subtreeReachOf(endpoint: Endpoint, pass: DeviceTypeValidationPass<Endpo
  */
 interface Judged {
     endpoint: Endpoint;
-    fresh: Violation[];
+    fresh: DeviceTypeViolation[];
 }
 
 /**
- * The error refusing the first of {@link refused}, which carries each other refused endpoint as an error of its own.
+ * The error refusing {@link refused}, each of which has a new violation.
  */
-function refusalOf([first, ...others]: Judged[]) {
-    return new DeviceTypeConformanceError(first.endpoint.toString(), [
-        ...violationErrorsOf(first),
-        ...others.map(other => new DeviceTypeConformanceError(other.endpoint.toString(), violationErrorsOf(other))),
-    ]);
-}
-
-function violationErrorsOf({ fresh }: Judged) {
-    return fresh.map(violation => new DeviceTypeViolationError(violation));
+function refusalOf(refused: Judged[]) {
+    const [first, ...others] = refused.flatMap(({ endpoint, fresh }) =>
+        fresh.map(violation => new DeviceTypeViolationError(endpoint, violation)),
+    );
+    if (first === undefined) {
+        throw new InternalError("A refusal names no violation");
+    }
+    return new DeviceTypeConformanceError([first, ...others]);
 }
 
 /**

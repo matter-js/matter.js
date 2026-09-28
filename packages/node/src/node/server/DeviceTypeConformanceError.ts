@@ -6,48 +6,59 @@
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { Diagnostic, ImplementationError, MatterAggregateError } from "@matter/general";
-import { DeviceTypeViolation } from "@matter/model";
+import type { DeviceTypeViolation } from "@matter/model";
+import type { DeviceTypeValidation } from "./DeviceTypeValidation.js";
 
 /**
- * A {@link DeviceTypeViolation} of an {@link Endpoint}.
- */
-export type Violation = DeviceTypeViolation<Endpoint>;
-
-export namespace Violation {
-    export type Kind = DeviceTypeViolation.Kind;
-    export const keyOf = DeviceTypeViolation.keyOf;
-}
-
-/**
- * Thrown when an endpoint's structure departs from a device type requirement that applies to it: at construction, for
- * a new misplaced singleton always, and for any other new violation when validation is strict.
+ * Thrown when a pass refuses one or more endpoints for departing from a device type requirement that applies to them:
+ * at construction, for a new misplaced singleton always, and for any other new violation when validation is strict.
  *
- * Its errors are the endpoint's departures, followed by one such error for each other endpoint the same check refuses
- * for a new violation. Such an endpoint need not be the one being constructed, such as a sibling the new endpoint makes
- * a duplicate.
+ * Its {@link errors} are the new violations of every refused endpoint, in the order the pass judged them. A refused
+ * endpoint need not be the one being constructed, such as a sibling the new endpoint makes a duplicate. The message
+ * names the refused endpoints, the first refused first.
  */
 export class DeviceTypeConformanceError extends MatterAggregateError {
-    constructor(endpoint: string, errors: (DeviceTypeViolationError | DeviceTypeConformanceError)[]) {
+    declare readonly errors: DeviceTypeViolationError[];
+
+    constructor(errors: [DeviceTypeViolationError, ...DeviceTypeViolationError[]]) {
+        const endpoints = [...new Set(errors.map(({ endpoint }) => endpoint.toString()))];
+        const subject = endpoints.length === 1 ? "Endpoint" : "Endpoints";
+        const verb = endpoints.length === 1 ? "violates" : "violate";
         super(
             errors,
             Diagnostic.upgrade(
-                `Endpoint ${endpoint} violates device type requirements`,
-                Diagnostic.squash("Endpoint ", Diagnostic.strong(endpoint), " violates device type requirements"),
+                `${subject} ${endpoints.join(", ")} ${verb} device type requirements`,
+                Diagnostic.squash(
+                    `${subject} `,
+                    ...endpoints.flatMap((endpoint, index) =>
+                        index ? [", ", Diagnostic.strong(endpoint)] : [Diagnostic.strong(endpoint)],
+                    ),
+                    ` ${verb} device type requirements`,
+                ),
             ),
         );
     }
 }
 
 /**
- * One departure from a device type, as {@link DeviceTypeConformanceError} reports it.
+ * One violation of a refused endpoint, as {@link DeviceTypeConformanceError} reports it.
+ *
+ * An {@link ImplementationError} because what is refused is the application's own endpoint structure: an endpoint it
+ * constructs, or one it asks {@link DeviceTypeValidation.validate} to judge.
  */
 export class DeviceTypeViolationError extends ImplementationError {
-    constructor({ deviceType, requirement, detail }: Pick<Violation, "deviceType" | "requirement" | "detail">) {
+    readonly endpoint: Endpoint;
+    readonly violation: DeviceTypeViolation;
+
+    constructor(endpoint: Endpoint, violation: DeviceTypeViolation) {
+        const { deviceType, requirement, detail } = violation;
         super(
             Diagnostic.upgrade(
                 `${deviceType} ${requirement}: ${detail}`,
                 Diagnostic.squash(deviceType, " ", Diagnostic.strong(requirement), ": ", detail),
             ),
         );
+        this.endpoint = endpoint;
+        this.violation = violation;
     }
 }

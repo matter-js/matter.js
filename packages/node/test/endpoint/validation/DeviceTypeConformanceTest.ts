@@ -32,6 +32,7 @@ import {
     ConditionModel,
     DeviceTypeConformance,
     DeviceTypeModel,
+    DeviceTypeViolation,
     FeatureMap,
     FieldModel,
     Matter,
@@ -265,7 +266,6 @@ describe("DeviceTypeConformance", () => {
         const violations = violationsOf(endpoint);
 
         expect(violations.length).equals(1);
-        expect(violations[0].endpoint).equals(endpoint);
         expect(violations[0].deviceType).equals("OnOffLight");
         expect(violations[0].kind).equals("missing");
         expect(violations[0].requirement).equals("Identify");
@@ -654,7 +654,6 @@ describe("DeviceTypeConformance", () => {
 
             const violations = violationsOf(light).filter(v => v.kind === "singletonMisplaced");
             expect(violations.length).equals(1);
-            expect(violations[0].endpoint).equals(light);
             expect(violations[0].deviceType).equals("RootNode");
             expect(violations[0].requirement).equals("GroupKeyManagement");
 
@@ -783,18 +782,24 @@ describe("DeviceTypeConformance", () => {
         await node.close();
     });
 
-    it("aggregates violation errors", () => {
-        const error = new DeviceTypeConformanceError("light", [
-            new DeviceTypeViolationError({
-                deviceType: "OnOffLight",
-                requirement: "Identify",
-                detail: "Mandatory server cluster Identify is missing",
-            }),
-        ]);
+    it("aggregates violation errors", async () => {
+        const node = await createUnjudgedNode();
+        const light = await node.add(lightWithoutIdentify, { id: "light" });
+        const violation: DeviceTypeViolation = {
+            deviceType: "OnOffLight",
+            requirement: "Identify",
+            kind: "missing",
+            detail: "Mandatory server cluster Identify is missing",
+        };
+        const error = new DeviceTypeConformanceError([new DeviceTypeViolationError(light, violation)]);
 
         expect(error).instanceof(MatterAggregateError);
         expect(error.errors[0]).instanceof(ImplementationError);
-        expect(error.message).equals("Endpoint light violates device type requirements");
+        expect(error.message).equals(`Endpoint ${light} violates device type requirements`);
         expect(error.errors[0].message).equals("OnOffLight Identify: Mandatory server cluster Identify is missing");
+        expect(error.errors[0].endpoint).equals(light);
+        expect(error.errors[0].violation).equals(violation);
+
+        await node.close();
     });
 });

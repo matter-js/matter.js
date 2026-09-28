@@ -180,7 +180,7 @@ function singletonOf(model: MatterModel) {
     return cluster;
 }
 
-function kindsOf(violations: DeviceTypeViolation<FakeEndpoint>[]) {
+function kindsOf(violations: DeviceTypeViolation[]) {
     return violations.map(({ kind, requirement }) => [kind, requirement]);
 }
 
@@ -275,14 +275,10 @@ describe("DeviceTypeConformance with facts that are not a node", () => {
         const facts = new FakeFacts();
 
         const misplaced = DeviceTypeConformance.misplacedSingletons(root, new DeviceTypeValidationPass(facts, model));
+        expect([...misplaced.keys()].map(({ name }) => name)).deep.equals(["light"]);
         expect(
-            misplaced.map(({ endpoint, deviceType, kind, requirement }) => [
-                endpoint.name,
-                deviceType,
-                kind,
-                requirement,
-            ]),
-        ).deep.equals([["light", "RootNode", "singletonMisplaced", "Singleton"]]);
+            [...misplaced.values()].flat().map(({ deviceType, kind, requirement }) => [deviceType, kind, requirement]),
+        ).deep.equals([["RootNode", "singletonMisplaced", "Singleton"]]);
 
         const pass = new DeviceTypeValidationPass(facts, model);
         expect(kindsOf(DeviceTypeConformance.check(light, pass))).deep.equals([["singletonMisplaced", "Singleton"]]);

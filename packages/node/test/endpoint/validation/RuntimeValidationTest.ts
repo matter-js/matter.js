@@ -975,11 +975,8 @@ describe("device type validation after construction", () => {
             expect(requirementsOf(node, first)).deep.equals([]);
             expect(error).instanceOf(DeviceTypeConformanceError);
             if (error instanceof DeviceTypeConformanceError) {
-                expect(error.message).contains("second");
-                const nested = error.errors.filter(cause => cause instanceof DeviceTypeConformanceError);
-                expect(nested.map(({ message }) => message)).deep.equals([
-                    `Endpoint ${first} violates device type requirements`,
-                ]);
+                expect(error.message).equals(`Endpoints ${node}.second, ${first} violate device type requirements`);
+                expect([...new Set(error.errors.map(({ endpoint }) => endpoint.id))]).deep.equals(["second", "first"]);
             }
 
             await node.close();

@@ -288,6 +288,32 @@ describe("device type validation at construction", () => {
         await node.close();
     });
 
+    it("refuses only the first endpoint in tree order that misplaces a singleton", async () => {
+        const node = await createNode();
+
+        let error: unknown;
+        await node
+            .add({
+                type: AggregatorEndpoint,
+                id: "aggregator",
+                parts: [
+                    { type: OnOffLightDevice.with(GroupKeyManagementServer), id: "first" },
+                    { type: OnOffLightDevice.with(GroupKeyManagementServer), id: "second" },
+                ],
+            })
+            .catch(e => {
+                error = e;
+            });
+
+        expect(error).instanceOf(DeviceTypeConformanceError);
+        if (error instanceof DeviceTypeConformanceError) {
+            expect(error.message).equals(`Endpoint ${node}.aggregator.first violates device type requirements`);
+            expect(error.errors.map(({ endpoint }) => endpoint.id)).deep.equals(["first"]);
+        }
+
+        await node.close();
+    });
+
     it("accepts a singleton on an endpoint configured as a node endpoint of its own", async () => {
         const node = await createNode();
 
