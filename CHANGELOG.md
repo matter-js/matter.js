@@ -17,6 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
+    - Fix: The plain log format puts the `+` or `-` of an added or deleted list entry on that entry's line instead of at the end of the line before it
 
 - @matter/model
     - Enhancement: Generated documentation keeps the nesting of lists in the specification
@@ -26,6 +27,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `MergedModel` merges a local override's quality with the quality the specification states, so an override can add or remove a single flag
     - Fix: The Color Control `Primary1..6` X, Y and Intensity attributes are optional where `NumberOfPrimaries` does not require them, as the specification defines; a light that supplied one without enough primaries failed to start
     - Breaking: A device type's feature requirement names the feature by its code (`LITS`), not by its uppercased title (`LONGIDLETIMESUPPORT`), and `RequirementResolver.featureOf` matches only the exact code
+    - Breaking: `ModelDiff` reports changed properties of an element in both models, not only added and deleted elements, and its entries are `add`, `delete`, `change` and `summary`; a summary counts added, deleted and changed children separately. It ignores documentation, matches a feature requirement by the feature it names, and compares alike three spellings of one conformance: a feature without conformance and "O", adjacent entries of an otherwise list and their disjunction, and a condition reference in any case and the condition as declared
+    - Enhancement: `RequirementResolver.featureMatching` finds a feature requirement's feature by code or title, and `RequirementResolver.declaredConformanceOf` spells a requirement's condition references as declared
+
+- @matter/cli-tool
+    - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
 
 - @matter/types
     - Breaking: The DCL schema types follow Matter 1.6.1 and use the field names of the DCL REST API. A text or number field is optional where the specification makes it optional; the DCL sends such a field as `""` or `0` when unset, and `DclClient` returns it as `undefined`. Bitmaps and lists stay required, because `0` and `[]` are real values there. `DeviceSoftwareComplianceDclSchema` adds the compliance record fields except the four deprecated ones, requires `certificationType`, `date`, `owner`, `history` and `softwareVersionCertificationStatus`, has `specificationVersion` (absent in schema version 0 records), and renames `cdVersionNumber` and `cdCertificateId` to `cDVersionNumber` and `cDCertificateId`; the new `ComplianceHistoryItemDclSchema` types `history`. `DeviceModelDclSchema` renames `deviceTypeID` to `deviceTypeId` and `enhancedSetupFlowMaintenanceUrl` to `maintenanceUrl`, and adds `creator` and the ICD and factory reset hint fields. `VendorDclSchema` renames `vendorLandingPageUrl` to `vendorLandingPageURL` and adds `creator`. `ProductAttestationDclSchema` types `approvals` and `rejects` as lists, and requires `subject`, `subjectAsText` and `certificateType`. `OperationalCertificateDclSchema` replaces `isVidVerificationSigner` with `certificateType` (new type `DclCertificateType`) and adds `subjectAsText`. `DeviceSoftwareVersionModelDclSchema` adds `creator` and deprecates `specificationVersion`. `SoftwareVersionCertificationStatusEnum` is a deprecated alias of `SoftwareVersionCertificationStatus`
