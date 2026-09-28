@@ -150,7 +150,7 @@ export abstract class Certificate<CT extends MatterCertificate> {
         if (mlDsaPublicKey !== undefined) {
             return { algorithm: mlDsaPublicKey.parameterSet, key: mlDsaPublicKey.key };
         }
-        // 1 is ecPublicKey and prime256v1 (Matter Core §13.5.8, §13.5.9)
+        // 1 is ecPublicKey and prime256v1 (Matter Core §6.5.8, §6.5.9)
         if (publicKeyAlgorithm !== 1 || ellipticCurveIdentifier !== 1) {
             throw new CertificateError("Certificate public key is neither EC P-256 nor ML-DSA");
         }
@@ -168,7 +168,7 @@ export abstract class Certificate<CT extends MatterCertificate> {
      */
     async verifySignature(crypto: Crypto, issuerKey: CertificatePublicKey) {
         const signature = this.signature;
-        // 1 is ecdsa-with-SHA256 (Matter Core §13.5.5)
+        // 1 is ecdsa-with-SHA256 (Matter Core §6.5.5)
         if (!(signature instanceof MlDsaSignature) && this.#cert.signatureAlgorithm !== 1) {
             throw new CertificateError("Certificate signature algorithm is neither ecdsa-with-SHA256 nor ML-DSA");
         }

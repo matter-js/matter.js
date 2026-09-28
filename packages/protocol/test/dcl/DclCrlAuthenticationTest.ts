@@ -69,6 +69,8 @@ async function issue(
         productId?: number;
         /** Omit the cRLSign key usage */
         withoutCrlSign?: boolean;
+        /** Omit the keyCertSign key usage of a CA */
+        withoutKeyCertSign?: boolean;
         /** State another issuer name than the issuer's */
         issuerName?: string;
         serialNumber?: string;
@@ -93,7 +95,7 @@ async function issue(
             extensions: {
                 basicConstraints: options.ca ? { isCa: true, pathLen: issuer === undefined ? 1 : 0 } : { isCa: false },
                 keyUsage: options.ca
-                    ? { keyCertSign: true, cRLSign: !options.withoutCrlSign }
+                    ? { keyCertSign: !options.withoutKeyCertSign, cRLSign: !options.withoutCrlSign }
                     : { cRLSign: !options.withoutCrlSign, digitalSignature: options.withoutCrlSign },
                 subjectKeyIdentifier: skid,
                 ...(options.authorityKeyIdentifier === false ? {} : { authorityKeyIdentifier: akid }),
@@ -120,6 +122,8 @@ interface Point {
     pid?: number;
     /** The entry's IssuerSubjectKeyID where it should differ from the issuer looked up */
     issuerSkid?: Bytes;
+    /** The DCL's SHA-256 digest of the CRL, base64 */
+    dataDigest?: string;
     dataUrl?: string;
     crl: Bytes;
 }
@@ -148,7 +152,11 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
     });
 
     /** Register the distribution points for `issuerSkid` and start a service trusting `trusted`. */
-    async function serve(issuerSkid: Bytes, points: Point[], trusted: Bytes[] = [paa.der]) {
+    async function serve(
+        issuerSkid: Bytes,
+        points: Point[],
+        trusted: Array<Bytes | { der: Bytes; kind: DclCertificateService.CertificateKind }> = [paa.der],
+    ) {
         const skid = hexOf(issuerSkid);
         fetchMock.addResponse("/dcl/pki/root-certificates", {
             approvedRootCertificates: { schemaVersion: 0, certs: [] },
@@ -166,8 +174,8 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                     issuerSubjectKeyID: point.issuerSkid === undefined ? skid : hexOf(point.issuerSkid),
                     dataURL: point.dataUrl ?? `https://example.com/${index}.crl`,
                     dataFileSize: "",
-                    dataDigest: "",
-                    dataDigestType: 0,
+                    dataDigest: point.dataDigest ?? "",
+                    dataDigestType: point.dataDigest === undefined ? 0 : 1,
                     revocationType: 1,
                     schemaVersion: 0,
                 })),
@@ -181,13 +189,19 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
 
         service = new DclCertificateService(environment, { updateInterval: null });
         await service.construction;
-        for (const der of trusted) {
-            await service.addCertificate(der, "PAA", { isProduction: false });
+        for (const entry of trusted) {
+            const { der, kind } = Bytes.isBytes(entry) ? { der: entry, kind: "PAA" as const } : entry;
+            await service.addCertificate(der, kind, { isProduction: false });
         }
         return service;
     }
 
-    async function revoked(issuerSkid: Bytes, points: Point[], serial = REVOKED, trusted?: Bytes[]) {
+    async function revoked(
+        issuerSkid: Bytes,
+        points: Point[],
+        serial = REVOKED,
+        trusted?: Array<Bytes | { der: Bytes; kind: DclCertificateService.CertificateKind }>,
+    ) {
         return (await serve(issuerSkid, points, trusted)).isRevoked(hexOf(issuerSkid), serial);
     }
 
@@ -264,6 +278,18 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                 .false;
         });
 
+        it("ignores a delegated signer anchored at a CD signer rather than a PAA", async () => {
+            const delegate = await issue("PAA CRL signer", { issuer: paa, ca: false });
+            expect(
+                await revoked(
+                    paa.skid,
+                    [{ signer: delegate, isPAA: true, crl: await crlBy(delegate.crlSigner) }],
+                    REVOKED,
+                    [{ der: paa.der, kind: "CDSigner" }],
+                ),
+            ).false;
+        });
+
         it("ignores a PAA-delegated signer another PAA issued", async () => {
             const otherPaa = await issue("Other PAA", { ca: true });
             const delegate = await issue("PAA CRL signer", { issuer: otherPaa, ca: false });
@@ -323,6 +349,16 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             ).false;
         });
 
+        it("ignores a delegator that may not sign certificates", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, withoutKeyCertSign: true });
+            const delegate = await issue("PAI CRL signer", { issuer: pai, ca: false });
+            expect(
+                await revoked(pai.skid, [
+                    { signer: delegate, delegator: pai, isPAA: false, crl: await crlBy(delegate.crlSigner) },
+                ]),
+            ).false;
+        });
+
         it("ignores a PAI-delegated signer the delegator did not issue", async () => {
             const pai = await issue("Test PAI", { issuer: paa, ca: true });
             const otherPai = await issue("Other PAI", { issuer: paa, ca: true });
@@ -357,6 +393,13 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             ).true;
         });
 
+        it("accepts a PAI with product ID 0 on an entry the DCL states without product", async () => {
+            const pai = await issue("Test PAI", { issuer: paa, ca: true, vendorId: 0xfff1, productId: 0 });
+            expect(
+                await revoked(pai.skid, [{ signer: pai, isPAA: false, vid: 0xfff1, crl: await crlBy(pai.crlSigner) }]),
+            ).true;
+        });
+
         for (const [description, pid] of [
             ["another product", 0x8001],
             ["no product", undefined],
@@ -376,6 +419,12 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
         it("ignores a CRL whose authority key identifier names another signer (step 7.1)", async () => {
             const crl = await crlBy({ ...paa.crlSigner, subjectKeyId: new Uint8Array(20) });
             expect(await revoked(paa.skid, [{ signer: paa, isPAA: true, crl }])).false;
+        });
+
+        it("accepts a CRL whose issuer encodes the signer's name as another string type (RFC 5280 §7.1)", async () => {
+            const printable = Bytes.of(DerCodec.encode({ commonName: X520.CommonName(paa.name.toUpperCase(), true) }));
+            const crl = await crlBy(paa.crlSigner, { issuerDnDer: printable });
+            expect(await revoked(paa.skid, [{ signer: paa, isPAA: true, crl }])).true;
         });
 
         it("ignores a CRL whose issuer is not the signer (RFC 5280 §5.1.2.3)", async () => {
@@ -583,6 +632,23 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).true;
             expect(crlDownloads()).equals(4);
         });
+
+        for (const [description, setup] of [
+            ["a CRL the server does not have", (url: string) => fetchMock.addResponse(url, "gone", { status: 404 })],
+            ["a CRL that does not match the DCL's digest", undefined],
+        ] as const) {
+            it(`does not download ${description} again`, async () => {
+                const crl = await crlBy(paa.crlSigner);
+                const dcl = await serve(paa.skid, [
+                    { signer: paa, isPAA: true, crl, ...(setup === undefined ? { dataDigest: "AAAA" } : {}) },
+                ]);
+                setup?.("https://example.com/0.crl");
+
+                expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).false;
+                expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).false;
+                expect(crlDownloads()).equals(1);
+            });
+        }
 
         it("downloads again after a transient failure", async () => {
             const dcl = await serve(paa.skid, [{ signer: paa, isPAA: true, crl: await crlBy(paa.crlSigner) }]);

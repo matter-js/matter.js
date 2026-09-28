@@ -148,6 +148,25 @@ describe("PQC Phase 1 attestation certificates", () => {
             expect(() => Dac.fromAsn1(der("paiMlDsa44ByPaaMlDsa44"))).throws(CertificateError, /EC P-256/);
         });
 
+        it("rejects a DAC key of an unsupported algorithm", async () => {
+            const { paaKey, paiDer } = await buildChain({ paa: "ECDSA-P256", pai: "ECDSA-P256" });
+            if (MlDsa.isPrivateKey(paaKey)) {
+                throw new ImplementationError("Expected an EC PAA key");
+            }
+            // A PAI's DER re-signed with an unknown key algorithm OID is DAC-shaped enough for this check
+            const original = Pai.fromAsn1(paiDer);
+            const { signature: _signature, ...unsigned } = x509Of(original);
+            const signed = await X509.sign(crypto, paaKey, {
+                ...unsigned,
+                publicKey: {
+                    type: { algorithm: ObjectId("2a0304"), curve: X962.PublicKeyAlgorithmEcPublicKeyP256 },
+                    bytes: DerBitString(original.cert.ellipticCurvePublicKey),
+                },
+            });
+
+            expect(() => Dac.fromAsn1(X509.certificateToDer(signed))).throws(CertificateError, /neither EC P-256/);
+        });
+
         it("rejects ML-DSA certificates where only traditional certificates are allowed", () => {
             expect(() => Noc.fromAsn1(der("paaMlDsa44"))).throws(CertificateError, /600 byte limit/);
             expect(() => Certificate.parseAsn1Certificate(der("paiMlDsa44ByPaaMlDsa44"))).throws(

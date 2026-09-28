@@ -7,7 +7,6 @@
 import {
     asError,
     Bytes,
-    CertificateError,
     Crypto,
     Diagnostic,
     EcdsaSignature,
@@ -200,17 +199,11 @@ export namespace DeviceAttestationValidator {
         }
 
         // Step 7: Attestation Signature verification
-        const dacPublicKey = parsePeerValue(
-            DeviceAttestationCheck.CertificateUnparseable,
-            "Device returned a DAC whose public key cannot be read",
-            () => {
-                const { algorithm, key } = dac.publicKey;
-                if (algorithm !== "ECDSA-P256") {
-                    throw new CertificateError(`DAC key is ${algorithm}`);
-                }
-                return key;
-            },
-        );
+        const dacKey = dac.publicKey;
+        if (dacKey.algorithm !== "ECDSA-P256") {
+            throw new InternalError("A Dac admits only an EC P-256 key");
+        }
+        const dacPublicKey = dacKey.key;
         try {
             await crypto.verifyEcdsa(
                 dacPublicKey,

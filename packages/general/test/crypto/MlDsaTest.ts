@@ -331,6 +331,16 @@ if (nodeApi !== undefined) {
             });
         }
 
+        it("falls back to the portable implementation where native verification accepts a zero signature", async () => {
+            const crypto = new NodeJsStyleCrypto({ ...api, verify: () => true });
+            const { tbs, signature } = parse("paaMlDsa44");
+            const { parameterSet, publicKey } = MlDsa.decodeSubjectPublicKeyInfo(parse("paaMlDsa44").spki);
+
+            await expect(
+                attempt(() => crypto.verifyMlDsa(parameterSet, publicKey, flipBit(tbs, 20), signature)),
+            ).rejectedWith(CryptoVerifyError);
+        });
+
         it("falls back to the portable implementation where the runtime rejects ML-DSA keys", async () => {
             const crypto = new NodeJsStyleCrypto({
                 ...api,

@@ -163,7 +163,45 @@ function nameOf(certificate: Paa | Pai, field: "subject" | "issuer") {
     if (der === undefined) {
         throw new CrlRejectedError(`CRL signer chain certificate has no parsed ${field} name`);
     }
-    return Bytes.toHex(der);
+    return der;
+}
+
+/** DER string types whose values RFC 5280 §7.1 compares as characters rather than as encodings. */
+const DIRECTORY_STRING_TAGS = new Set<number>([
+    DerType.UTF8String,
+    DerType.PrintableString,
+    DerType.T16String,
+    DerType.IA5String,
+]);
+
+/**
+ * Whether two DER Names are the same name under RFC 5280 §7.1: string attributes compare ignoring case, surrounding and
+ * repeated whitespace, and whether they are encoded as PrintableString or UTF8String, as CAs mix those.
+ */
+function sameName(a: Bytes, b: Bytes) {
+    if (Bytes.areEqual(a, b)) {
+        return true;
+    }
+    const canonical = (der: Bytes) =>
+        (DerCodec.decode(der)._elements ?? []).map(rdn =>
+            (rdn._elements ?? [])
+                .map(attribute => {
+                    const [type, value] = attribute._elements ?? [];
+                    const text =
+                        value !== undefined && DIRECTORY_STRING_TAGS.has(value._tag)
+                            ? Bytes.toString(value._bytes).trim().replace(/\s+/g, " ").toLowerCase()
+                            : `${value?._tag}:${Bytes.toHex(value?._bytes ?? new Uint8Array())}`;
+                    return `${Bytes.toHex(type?._bytes ?? new Uint8Array())}=${text}`;
+                })
+                .sort()
+                .join("+"),
+        );
+    try {
+        const [left, right] = [canonical(a), canonical(b)];
+        return left.length === right.length && left.every((rdn, index) => rdn === right[index]);
+    } catch {
+        return false;
+    }
 }
 
 /** Whether an entry for the issuer names the serial; an entry or query without an issuer name matches any issuer. */
@@ -1374,22 +1412,31 @@ export class DclCertificateService {
         // Every entry contributes: an issuer may partition its revocations over several CRLs (§6.2.6.1)
         const entries = new Array<DclCertificateService.RevocationEntry>();
         let transientFailures = 0;
-        for (const point of crlPoints) {
-            // Step 7.2 applies to entries that share both VendorID and IssuerSubjectKeyID (§11.23.11.8)
-            const partitioned = crlPoints.filter(other => other.vid === point.vid).length > 1;
-            try {
-                entries.push(await this.#processRevocationPoint(point, revocationTimeout, partitioned));
-            } catch (error) {
-                const rejected = error instanceof CrlRejectedError;
-                if (!rejected) {
-                    transientFailures++;
-                }
-                logger.warn(
-                    `${rejected ? "Ignoring" : "Failed to process"} revocation point for ${point.issuerSubjectKeyId} at ${point.dataUrl}:`,
-                    Diagnostic.errorMessage(asError(error)),
-                );
+        const results = await Promise.allSettled(
+            crlPoints.map(point =>
+                // Step 7.2 applies to entries that share both VendorID and IssuerSubjectKeyID (§11.23.11.8)
+                this.#processRevocationPoint(
+                    point,
+                    revocationTimeout,
+                    crlPoints.filter(other => other.vid === point.vid).length > 1,
+                ),
+            ),
+        );
+        results.forEach((result, index) => {
+            if (result.status === "fulfilled") {
+                entries.push(result.value);
+                return;
             }
-        }
+            const point = crlPoints[index];
+            const rejected = result.reason instanceof CrlRejectedError;
+            if (!rejected) {
+                transientFailures++;
+            }
+            logger.warn(
+                `${rejected ? "Ignoring" : "Failed to process"} revocation point for ${point.issuerSubjectKeyId} at ${point.dataUrl}:`,
+                Diagnostic.errorMessage(asError(result.reason)),
+            );
+        });
 
         // Nothing usable because of transient failures — throw so it's not cached and will retry
         if (entries.length === 0 && transientFailures > 0) {
@@ -1421,7 +1468,9 @@ export class DclCertificateService {
             signal: AbortSignal.timeout(timeout),
         });
         if (!response.ok) {
-            throw new MatterDclError(`Failed to fetch CRL from ${point.dataUrl}: ${response.status}`);
+            // A client error will not heal on retry, a server error may
+            const Failure = response.status < 500 ? CrlRejectedError : MatterDclError;
+            throw new Failure(`Failed to fetch CRL from ${point.dataUrl}: ${response.status}`);
         }
         const crlBytes = new Uint8Array(await response.arrayBuffer());
 
@@ -1430,7 +1479,7 @@ export class DclCertificateService {
             const expectedSize =
                 typeof point.dataFileSize === "bigint" ? Number(point.dataFileSize) : point.dataFileSize;
             if (expectedSize > 0 && crlBytes.length !== expectedSize) {
-                throw new MatterDclError(`CRL size mismatch: expected ${expectedSize} bytes, got ${crlBytes.length}`);
+                throw new CrlRejectedError(`CRL size mismatch: expected ${expectedSize} bytes, got ${crlBytes.length}`);
             }
         }
         if (point.dataDigest !== undefined && point.dataDigestType !== undefined) {
@@ -1438,7 +1487,9 @@ export class DclCertificateService {
             if (algorithm !== undefined) {
                 const actualDigest = Bytes.toBase64(await this.#crypto.computeHash(crlBytes, algorithm));
                 if (actualDigest !== point.dataDigest) {
-                    throw new MatterDclError(`CRL digest mismatch: expected ${point.dataDigest}, got ${actualDigest}`);
+                    throw new CrlRejectedError(
+                        `CRL digest mismatch: expected ${point.dataDigest}, got ${actualDigest}`,
+                    );
                 }
             } else {
                 logger.info(`Skipping CRL digest verification: unsupported digest type ${point.dataDigestType}`);
@@ -1479,7 +1530,10 @@ export class DclCertificateService {
         }
 
         // RFC 5280 §5.1.2.3: the CRL names the signer as its issuer
-        if (crl.issuerDnDerHex?.toLowerCase() !== nameOf(signer, "subject")) {
+        if (
+            crl.issuerDnDerHex === undefined ||
+            !sameName(Bytes.fromHex(crl.issuerDnDerHex), nameOf(signer, "subject"))
+        ) {
             throw new CrlRejectedError("CRL issuer name is not the CRL signer's subject");
         }
 
@@ -1523,7 +1577,8 @@ export class DclCertificateService {
         const signerDer = Pem.asDer(point.crlSignerCertificate);
         const signer = point.isPAA ? Paa.fromAsn1(signerDer) : Pai.fromAsn1(signerDer);
         const delegator = point.crlSignerDelegator ? Pai.fromAsn1(Pem.asDer(point.crlSignerDelegator)) : undefined;
-        const selfSigned = nameOf(signer, "subject") === nameOf(signer, "issuer") && (await this.#signsItself(signer));
+        const selfSigned =
+            sameName(nameOf(signer, "subject"), nameOf(signer, "issuer")) && (await this.#signsItself(signer));
 
         // RFC 5280 §6.3.3(f) and the §11.23.11.6 formats: every signer may sign CRLs, and only a PAA or PAI signs as CA
         if (!signer.cert.extensions.keyUsage.cRLSign) {
@@ -1549,7 +1604,8 @@ export class DclCertificateService {
             throw new CrlRejectedError(`CRL signer VendorID ${vid} does not match entry VendorID ${point.vid}`);
         }
         const pid = vidHolder instanceof Pai ? vidHolder.cert.subject.productId : undefined;
-        if (pid !== undefined && pid !== point.pid) {
+        // The DCL client reads an entry's ProductID 0 as absent, and a PAI may state 0 as well
+        if (pid !== undefined && pid !== (point.pid ?? 0)) {
             throw new CrlRejectedError(`CRL signer ProductID ${pid} does not match entry ProductID ${point.pid}`);
         }
 
@@ -1593,7 +1649,7 @@ export class DclCertificateService {
             throw new CrlRejectedError(`CRL authority ${authoritySkid} is not the entry's issuer ${entrySkid}`);
         }
 
-        return { signer, name: Bytes.fromHex(nameOf(authority, "subject")) };
+        return { signer, name: nameOf(authority, "subject") };
     }
 
     /** Whether a certificate verifies with its own key, which with equal names makes it self-signed. */
@@ -1607,13 +1663,20 @@ export class DclCertificateService {
     }
 
     #trustedPaaDer(skid: string) {
+        if ((this.#certificateIndex.get(skid)?.kind ?? "PAA") !== "PAA") {
+            throw new CrlRejectedError(`CRL signer chain names ${skid}, which is not a PAA`);
+        }
         // The CRL chain honors test PAAs that the validator already accepted upstream
         return this.#getCertificateDer(skid, { considerTestCertificates: true });
     }
 
-    /** Verify that `issuer` issued `subject`: matching names and a signature by the issuer's key. */
+    /** Verify that `issuer` issued `subject`: an issuer that may sign certificates, matching names and its signature. */
     async #assertIssuedBy(subject: Paa | Pai, issuer: Paa | Pai) {
-        if (nameOf(subject, "issuer") !== nameOf(issuer, "subject")) {
+        // RFC 5280 §6.1.4(n)
+        if (!issuer.cert.extensions.keyUsage.keyCertSign) {
+            throw new CrlRejectedError("CRL signer chain issuer lacks the keyCertSign key usage");
+        }
+        if (!sameName(nameOf(subject, "issuer"), nameOf(issuer, "subject"))) {
             throw new CrlRejectedError("CRL signer chain names do not match");
         }
         try {

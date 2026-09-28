@@ -555,13 +555,16 @@ function nativeMlDsa(
     if (typeof verify === "function") {
         try {
             // Every byte string of the right length is a well-formed ML-DSA public key, so zeros suffice
-            verify.call(
+            const valid = verify.call(
                 api,
                 null,
                 new Uint8Array(),
                 spkiKeyInput(parameterSet, new Uint8Array(publicKeyLength)),
                 new Uint8Array(signatureLength),
             );
+            if (valid !== false) {
+                throw new CryptoError("Native verify accepted a zero signature for a zero key");
+            }
             native.verify = (parameterSet, publicKey, message, signature) =>
                 verify.call(api, null, Bytes.of(message), spkiKeyInput(parameterSet, publicKey), Bytes.of(signature));
         } catch (error) {

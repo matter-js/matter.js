@@ -221,7 +221,7 @@ describe("DeviceAttestationValidator", () => {
             ).to.be.rejectedWith(DeviceAttestationError, /Device returned an empty DAC certificate/);
         });
 
-        it("throws CertificateUnparseable when the DAC parses but its public key does not", async () => {
+        it("throws CertificateUnparseable when the DAC's public key is malformed", async () => {
             const dclService = await setupDclService();
 
             // Flip the uncompressed-point marker of the DAC's public key, leaving every DER length intact
@@ -231,7 +231,7 @@ describe("DeviceAttestationValidator", () => {
 
             await expect(
                 DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: brokenKeyDac })),
-            ).to.be.rejectedWith(DeviceAttestationError, /DAC whose public key cannot be read/);
+            ).to.be.rejectedWith(DeviceAttestationError, /DAC certificate that cannot be parsed/);
         });
 
         it("throws CertificateUnparseable when the PAI is signed but its public key is unreadable", async () => {

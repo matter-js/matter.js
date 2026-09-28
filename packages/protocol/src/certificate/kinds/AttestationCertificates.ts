@@ -43,11 +43,16 @@ export class Dac extends AttestationBaseCertificate<AttestationCertificate.Dac> 
         return new Dac(cert as AttestationCertificate.Dac);
     }
 
-    /** @see Matter Core §10.12 and §13.2.3.3: the DAC key stays on ECDSA P-256 under PQC Phase 1 */
+    /**
+     * @throws CertificateError if the key is not EC P-256
+     * @throws KeyInputError if the EC key is malformed
+     * @see Matter Core §10.12 and §13.2.3.3: the DAC key stays on ECDSA P-256 under PQC Phase 1
+     */
     constructor(cert: AttestationCertificate.Dac | Unsigned<AttestationCertificate.Dac>) {
-        if (cert.mlDsaPublicKey !== undefined) {
-            throw new CertificateError(`DAC public key must be EC P-256, not ${cert.mlDsaPublicKey.parameterSet}`);
-        }
         super(cert);
+        const { algorithm } = this.publicKey;
+        if (algorithm !== "ECDSA-P256") {
+            throw new CertificateError(`DAC public key must be EC P-256, not ${algorithm}`);
+        }
     }
 }
