@@ -41,7 +41,7 @@ export function StoredDefaultValue(scope: Scope, member: ValueModel): unknown {
         return undefined;
     }
 
-    if (member.default !== undefined) {
+    if (FieldValue.stated(member.default) !== undefined) {
         const value = DefaultValue(scope, member);
         if (value !== undefined) {
             return value;
@@ -96,7 +96,8 @@ export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting
 
     // A reference is resolved live by the consumer, not here; without this guard an unresolvable reference would
     // fall through to DefaultValue's constructed partial object
-    if (member.default !== undefined && FieldValue.referenced(member.default) === undefined) {
+    const stated = FieldValue.stated(member.default);
+    if (stated !== undefined && FieldValue.referenced(stated) === undefined) {
         const explicit = DefaultValue(scope, member);
         if (explicit !== undefined) {
             return metatype === Metatype.bitmap ? DecodedBitmap(member, explicit) : explicit;
