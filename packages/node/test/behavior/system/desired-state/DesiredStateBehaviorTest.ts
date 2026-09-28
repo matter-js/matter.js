@@ -104,8 +104,8 @@ describe("DesiredStateBehavior", () => {
             const ds = agent.get(DesiredStateBehavior);
             ds.setCapacity("acl", { limit: 4, used: 3 });
             expect(ds.getCapacity("acl")).deep.equals({ limit: 4, used: 3 });
-            expect(() => ds.assertCanAdd("acl", 1)).not.throws();
-            expect(() => ds.assertCanAdd("acl", 2)).throws(AclCapacityExceededError);
+            expect(() => ds.assertCanAdd("acl", ["a"])).not.throws();
+            expect(() => ds.assertCanAdd("acl", ["a", "b"])).throws(AclCapacityExceededError);
         });
     });
 });

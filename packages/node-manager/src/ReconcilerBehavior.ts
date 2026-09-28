@@ -48,15 +48,19 @@ export async function refreshCapacities(
     node: ClientNode,
     registry: ItemKindRegistry,
     setCapacity: (kind: string, info: CapacityInfo) => void,
+    only?: string,
 ): Promise<void> {
     for (const kind of registry.all()) {
-        if (kind.capacity === undefined) {
+        if (kind.capacity === undefined || (only !== undefined && kind.kind !== only)) {
             continue;
         }
         try {
             setCapacity(kind.kind, await kind.capacity(node));
         } catch (e) {
-            logger.notice(`Capacity refresh for "${kind.kind}" failed, skipping:`, e);
+            logger.warn(
+                `Capacity refresh for "${kind.kind}" on ${node.id} failed; admission keeps its previous count:`,
+                e,
+            );
         }
     }
 }
@@ -430,16 +434,23 @@ export class ReconcilerBehavior extends Behavior {
         this.internal.locks.delete(peer);
     }
 
-    async #refreshCapacity(peer: ClientNode) {
+    // Called between a device write and the status that write earns, so it may not throw: a failed refresh leaves
+    // the previous count, which the device's refusal of a later write still backs.
+    async #refreshCapacity(peer: ClientNode, only?: string) {
         const updates = new Array<[string, CapacityInfo]>();
-        await refreshCapacities(peer, this.internal.registry, (kind, info) => updates.push([kind, info]));
-        if (updates.length > 0) {
+        await refreshCapacities(peer, this.internal.registry, (kind, info) => updates.push([kind, info]), only);
+        if (updates.length === 0) {
+            return;
+        }
+        try {
             await peer.act(agent => {
                 const ds = agent.get(DesiredStateBehavior);
                 for (const [kind, info] of updates) {
                     ds.setCapacity(kind, info);
                 }
             });
+        } catch (e) {
+            logger.warn(`Cannot record capacity of ${peer.id}; admission keeps its previous count:`, e);
         }
     }
 
@@ -502,6 +513,7 @@ export class ReconcilerBehavior extends Behavior {
             currentItem(kind, key) {
                 return peer.stateOf(DesiredStateBehavior).items[itemMapKey(kind, key)];
             },
+            refreshCapacity: kind => this.#refreshCapacity(peer, kind),
         };
         await executeActions(target, planned, registry);
     }

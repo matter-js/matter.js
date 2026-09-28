@@ -86,7 +86,7 @@ describe("Reconciler integration (single peer)", () => {
             const ds = agent.get(DesiredStateBehavior);
             const current = ds.getCapacity("acl");
             ds.setCapacity("acl", { limit: current?.used ?? 1, used: current?.used ?? 1 });
-            expect(() => ds.assertCanAdd("acl")).throws(AclCapacityExceededError);
+            expect(() => ds.assertCanAdd("acl", ["another"])).throws(AclCapacityExceededError);
         });
     });
 

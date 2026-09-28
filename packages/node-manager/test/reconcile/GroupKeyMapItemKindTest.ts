@@ -11,16 +11,21 @@ import { GroupKeyManagement } from "@matter/types/clusters/group-key-management"
 
 type Entry = GroupKeyManagement.GroupKeyMap;
 
-function fakePeer(initial: Entry[], limit = 5) {
+function fakePeer(initial: Entry[], limit = 5, cached?: Entry[]) {
     const store = { groupKeyMap: [...initial], maxGroupsPerFabric: limit };
     const node = {
-        async getStateOf(_behavior: unknown, fields?: string[]) {
+        // Like a real client read: with known versions injected, an unchanged cluster answers from the cache.
+        async getStateOf(_behavior: unknown, fields?: string[], options?: { includeKnownVersions?: boolean }) {
+            const source =
+                cached !== undefined && options?.includeKnownVersions !== true
+                    ? { ...store, groupKeyMap: cached }
+                    : store;
             if (fields === undefined) {
-                return { ...store };
+                return { ...source };
             }
             const out: Record<string, unknown> = {};
             for (const f of fields) {
-                out[f] = store[f as keyof typeof store];
+                out[f] = source[f as keyof typeof source];
             }
             return out;
         },
@@ -28,7 +33,7 @@ function fakePeer(initial: Entry[], limit = 5) {
             store.groupKeyMap = values.groupKeyMap.map(e => ({ ...e, fabricIndex: FabricIndex(1) }));
         },
         stateOf() {
-            return { ...store };
+            return cached === undefined ? { ...store } : { ...store, groupKeyMap: cached };
         },
     } as unknown as ClientNode;
     return { node, store };
@@ -97,6 +102,12 @@ describe("GroupKeyMapItemKind", () => {
         const kind = new GroupKeyMapItemKind();
         const { node } = fakePeer([entry(0x101, 3)], 5);
         expect(await kind.capacity(node)).deep.equals({ limit: 5, used: 1 });
+    });
+
+    it("capacity counts the map as the device holds it, not as the subscription cached it", async () => {
+        const kind = new GroupKeyMapItemKind();
+        const { node } = fakePeer([entry(0x101, 3), entry(0x200, 7)], 5, [entry(0x101, 3)]);
+        expect(await kind.capacity(node)).deep.equals({ limit: 5, used: 2 });
     });
 
     it("apply rejects groupKeySetId 0 (IPK reserved)", async () => {

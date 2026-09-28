@@ -88,8 +88,8 @@ export class GroupKeyItemKind implements ItemKind<GroupKeyGrant> {
         );
     }
 
-    // No capacity(): the key-set count has no subscribed attribute (only the KeySetReadAllIndices command),
-    // and capacity must not live-read. The device's KeySetWrite RESOURCE_EXHAUSTED is the over-capacity gate.
+    // No capacity(): the key-set count has no subscribed attribute (only the KeySetReadAllIndices command). The
+    // device's KeySetWrite RESOURCE_EXHAUSTED is the over-capacity gate.
 
     recoverable(code: number): boolean {
         return code === Status.Timeout || code === Status.Busy;

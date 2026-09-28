@@ -33,7 +33,6 @@ import {
     requireRunIdOfSlot,
     requireStatusOfSlot,
     rollbackRecordOf,
-    runIdOfSlot,
     statusOfSlot,
     SyntheticTask,
 } from "./helpers.js";
@@ -181,29 +180,17 @@ function slowUnwindGatePhase(peerId: string, kind: ItemKind, key: string, unwind
     };
 }
 
-/**
- * A peer whose capacity read blocks until released, holding a task in the driver's pre-gate window
- * (admission and first persist, before a phase has built its gate).
- */
-function blockingAdmissionPeer(id: string) {
-    let release!: () => void;
-    const blocked = new Promise<void>(resolve => (release = resolve));
-    const state = { entered: false, release: () => release() };
+/** A peer whose "cap" kind calls `onAdmission` when admission looks it up, before the run's first persist. */
+function admissionHookPeer(id: string, onAdmission: () => void) {
     const peer = new FakePeer(id);
-    peer.itemKind = (kind: string): ItemKind | undefined =>
-        kind === "cap"
-            ? {
-                  kind: "cap",
-                  priority: 0,
-                  async apply() {},
-                  async capacity() {
-                      state.entered = true;
-                      await blocked;
-                      return { limit: 10, used: 0 };
-                  },
-              }
-            : undefined;
-    return { peer, state };
+    peer.itemKind = (kind: string): ItemKind | undefined => {
+        if (kind !== "cap") {
+            return undefined;
+        }
+        onAdmission();
+        return { kind: "cap", priority: 0, async apply() {} };
+    };
+    return peer;
 }
 
 describe("cancel robustness", () => {
@@ -211,7 +198,13 @@ describe("cancel robustness", () => {
 
     it("a cancel accepted before the task's first gate exists takes effect and settles", async () => {
         const environment = new Environment("test");
-        const { peer, state } = blockingAdmissionPeer("pg");
+        let manager: TestTaskManager | undefined;
+        let cancelling: Promise<TaskCancellation> | undefined;
+        const peer = admissionHookPeer("pg", () => {
+            if (manager !== undefined && cancelling === undefined) {
+                cancelling = cancelSlotOutcome(manager, "synthetic:pregate");
+            }
+        });
         TestTaskManager.peers.set("pg", peer);
         TestTaskManager.reconcilerPeer = peer;
 
@@ -223,22 +216,12 @@ describe("cancel robustness", () => {
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-pregate" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
         await node.act(a => {
-            const manager = a.get(TestTaskManager);
+            manager = a.get(TestTaskManager);
             traceRun(manager, manager.run(SyntheticTask, { tag: "pregate" }).status.runId);
         });
-        await pumpUntil("admission in flight", () => state.entered);
+        await pumpUntil("cancel issued during admission", () => cancelling !== undefined);
 
-        const cancelling = node.act(a => cancelSlotOutcome(a.get(TestTaskManager), "synthetic:pregate"));
-        await pumpUntil("cancel accepted", () =>
-            node.act(
-                a =>
-                    a.get(TestTaskManager).teardownOf(runIdOfSlot(a.get(TestTaskManager), "synthetic:pregate")!) ===
-                    "cancel",
-            ),
-        );
-        state.release();
-
-        const handle = await MockTime.resolve(cancelling);
+        const handle = await MockTime.resolve(cancelling!);
 
         // Nothing was written to the peer after the cancel was accepted, so there is nothing to rollback — and
         // the caller is told the device is untouched, not merely that no undo exists.
@@ -672,25 +655,27 @@ describe("cancel robustness", () => {
 
     it("shutdown suspends a task in the pre-gate window instead of failing it", async () => {
         const environment = new Environment("test");
-        const { peer, state } = blockingAdmissionPeer("pd");
+        const peer = new FakePeer("pd");
         TestTaskManager.peers.set("pd", peer);
         TestTaskManager.reconcilerPeer = peer;
 
-        SyntheticTask.plannedChangesByTag["predispose"] = [
-            { peer: testAddress("pd"), kind: kindOf("cap"), key: "x", intent: {} },
-        ];
+        SyntheticTask.phasesByTag["predispose-warm"] = [];
         SyntheticTask.phasesByTag["predispose"] = [gatePhase("pd", kindOf("groupMembership"), "Y")];
 
         const node = await MockServerNode.create(RootEndpoint, { environment, id: "cancel-predispose" });
         await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        // A run of its own first, so the persist mutex exists to be held.
+        const warm = await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "predispose-warm" }));
+        await MockTime.resolve(warm.settled());
+
+        // Hold the task's first persist, so it sits in the pre-gate window when shutdown begins.
+        const release = await node.act(a => a.get(TestTaskManager).holdPersistMutex());
         await node.act(a => {
             const manager = a.get(TestTaskManager);
             traceRun(manager, manager.run(SyntheticTask, { tag: "predispose" }).status.runId);
         });
-        await pumpUntil("admission in flight", () => state.entered);
 
-        // Release the task into the pre-gate window as shutdown begins, before the abort pass.
-        TestTaskManager.atShutdown = state.release;
+        TestTaskManager.atShutdown = release;
         try {
             await MockTime.resolve(node.close());
         } finally {

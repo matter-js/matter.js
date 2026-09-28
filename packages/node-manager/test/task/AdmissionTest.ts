@@ -5,7 +5,7 @@
  */
 
 import { TaskManagerBehavior } from "#task/TaskManagerBehavior.js";
-import { Environment } from "@matter/general";
+import { Environment, InternalError } from "@matter/general";
 import { CapacityInfo, ItemKind, ServerNode } from "@matter/node";
 import { MockServerNode } from "@matter/node/testing";
 import { testAddress, TestTaskManagerBase } from "./helpers.js";
@@ -34,17 +34,25 @@ async function awaitState(node: ServerNode, id: string, ...states: string[]): Pr
     throw new Error(`Task ${id} did not reach state ${states.join("|")}`);
 }
 
-/** A peer whose "cap" kind reports a fixed capacity, for admission tests. */
-function capPeer(id: string, capacity: CapacityInfo): FakePeer {
+/**
+ * A peer whose "cap" kind has the given capacity snapshot, as a reconciler refresh would have left it.
+ *
+ * The kind's own `capacity` throws: admission reads the snapshot and never the device, so a read would fail the
+ * test rather than pass it silently.
+ */
+function capPeer(id: string, capacity?: CapacityInfo): FakePeer {
     const peer = new FakePeer(id);
+    if (capacity !== undefined) {
+        peer.capacities.cap = capacity;
+    }
     peer.itemKind = (kind: string): ItemKind | undefined =>
         kind === "cap"
             ? {
                   kind: "cap",
                   priority: 0,
                   async apply() {},
-                  async capacity() {
-                      return capacity;
+                  async capacity(): Promise<CapacityInfo> {
+                      throw new InternalError("admission read the device instead of the snapshot");
                   },
               }
             : undefined;
@@ -136,17 +144,10 @@ describe("capacity admission", () => {
         const environment = new Environment("test");
         const peer = new FakePeer("p");
         // Mirrors membership: capacity is exhausted, but the kind opts out of admission (a coarser kind gates it).
+        peer.capacities.member = { limit: 4, used: 4 };
         peer.itemKind = (kind: string): ItemKind | undefined =>
             kind === "member"
-                ? {
-                      kind: "member",
-                      priority: 0,
-                      async apply() {},
-                      excludeFromAdmission: true,
-                      async capacity() {
-                          return { limit: 4, used: 4 };
-                      },
-                  }
+                ? { kind: "member", priority: 0, async apply() {}, excludeFromAdmission: true }
                 : undefined;
         TestTaskManager.peers.set("p", peer);
         TestTaskManager.reconcilerPeer = peer;
@@ -162,6 +163,27 @@ describe("capacity admission", () => {
         await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "member" }));
 
         await awaitState(node, "synthetic:member", "completed");
+        expect(ran).equals(true);
+        await node.close();
+    });
+
+    it("admits a task while its peer has no capacity snapshot yet, leaving the device write as the gate", async () => {
+        const environment = new Environment("test");
+        const peer = capPeer("p");
+        TestTaskManager.peers.set("p", peer);
+        TestTaskManager.reconcilerPeer = peer;
+
+        let ran = false;
+        SyntheticTask.plannedChangesByTag["unrefreshed"] = [
+            { peer: testAddress("p"), kind: kindOf("cap"), key: "x", intent: {} },
+        ];
+        SyntheticTask.phasesByTag["unrefreshed"] = [{ name: "runs", run: async () => void (ran = true) }];
+
+        const node = await MockServerNode.create(RootEndpoint, { environment, id: "adm-unrefreshed" });
+        await node.act(a => a.get(TestTaskManager).register(SyntheticTask));
+        await node.act(a => a.get(TestTaskManager).run(SyntheticTask, { tag: "unrefreshed" }));
+
+        await awaitState(node, "synthetic:unrefreshed", "completed");
         expect(ran).equals(true);
         await node.close();
     });
