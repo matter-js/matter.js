@@ -32,7 +32,12 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { CertificatePublicKey, CertificateSignature, MlDsaSignature } from "./CertificateSignature.js";
+import {
+    CertificatePublicKey,
+    CertificateSignature,
+    MlDsaSignature,
+    verifyCertificateSignature,
+} from "./CertificateSignature.js";
 import {
     assertCertificateDerSize,
     MAX_DER_CERTIFICATE_SIZE,
@@ -163,25 +168,11 @@ export abstract class Certificate<CT extends MatterCertificate> {
      */
     async verifySignature(crypto: Crypto, issuerKey: CertificatePublicKey) {
         const signature = this.signature;
-        if (signature instanceof MlDsaSignature) {
-            if (issuerKey.algorithm !== signature.parameterSet) {
-                throw new CertificateError(
-                    `Certificate is signed with ${signature.parameterSet} but the issuer key is ${issuerKey.algorithm}`,
-                );
-            }
-            return crypto.verifyMlDsa(signature.parameterSet, issuerKey.key, this.asUnsignedDer(), signature.bytes);
-        }
-
         // 1 is ecdsa-with-SHA256 (Matter Core §13.5.5)
-        if (this.#cert.signatureAlgorithm !== 1) {
+        if (!(signature instanceof MlDsaSignature) && this.#cert.signatureAlgorithm !== 1) {
             throw new CertificateError("Certificate signature algorithm is neither ecdsa-with-SHA256 nor ML-DSA");
         }
-        if (issuerKey.algorithm !== "ECDSA-P256") {
-            throw new CertificateError(
-                `Certificate is signed with ecdsa-with-SHA256 but the issuer key is ${issuerKey.algorithm}`,
-            );
-        }
-        return crypto.verifyEcdsa(issuerKey.key, this.asUnsignedDer(), signature);
+        return verifyCertificateSignature(crypto, issuerKey, this.asUnsignedDer(), signature);
     }
 
     /**
@@ -686,7 +677,7 @@ export namespace Certificate {
         const notBefore = parseDate(validityElements[0]);
         const notAfter = parseDate(validityElements[1]);
 
-        // Subject
+        const subjectDer = Bytes.of(DerCodec.encode(certElements[idx]));
         const subject = parseSubjectOrIssuer(certElements[idx++]);
 
         // Public key
@@ -770,6 +761,7 @@ export namespace Certificate {
             signatureAlgorithm,
             issuer,
             issuerDer,
+            subjectDer,
             tbsDer,
             notBefore,
             notAfter,

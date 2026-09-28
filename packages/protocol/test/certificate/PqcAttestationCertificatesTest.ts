@@ -116,14 +116,14 @@ describe("PQC Phase 1 attestation certificates", () => {
 
             await expect(pai.verifySignature(crypto, Paa.fromAsn1(der("paaMlDsa44")).publicKey)).rejectedWith(
                 CertificateError,
-                /ML-DSA-65 but the issuer key is ML-DSA-44/,
+                /Signature is ML-DSA-65 but the signer key is ML-DSA-44/,
             );
             await expect(
                 Dac.fromAsn1(der("dacByPaiMlDsa65")).verifySignature(
                     crypto,
                     Pai.fromAsn1(der("paiEcdsaByPaaMlDsa65")).publicKey,
                 ),
-            ).rejectedWith(CertificateError, /ML-DSA-65 but the issuer key is ECDSA-P256/);
+            ).rejectedWith(CertificateError, /Signature is ML-DSA-65 but the signer key is ECDSA-P256/);
         });
 
         it("rejects an ML-DSA issuer key for an ECDSA signature", async () => {
@@ -132,7 +132,7 @@ describe("PQC Phase 1 attestation certificates", () => {
 
             await expect(dac.verifySignature(crypto, Paa.fromAsn1(der("paaMlDsa65")).publicKey)).rejectedWith(
                 CertificateError,
-                /ecdsa-with-SHA256 but the issuer key is ML-DSA-65/,
+                /Signature is ecdsa-with-SHA256 but the signer key is ML-DSA-65/,
             );
         });
 

@@ -6,15 +6,19 @@
 
 import {
     Bytes,
+    ContextTagged,
     Crypto,
     DerCodec,
     DerType,
     MockCrypto,
     MockFetch,
-    ObjectId,
     Pem,
+    PrivateKey,
     Seconds,
+    StandardCrypto,
     StorageService,
+    X509,
+    X962,
 } from "@matter/general";
 import {
     AttestationFinding,
@@ -27,12 +31,17 @@ import {
     Paa,
     TestCert_PAA_FFF1_Cert,
     TestCert_PAA_NoVID_Cert,
+    TestCert_PAA_NoVID_PrivateKey,
+    TestCert_PAA_NoVID_PublicKey,
     TestCert_PAA_NoVID_SKID,
 } from "@matter/protocol";
 import { MockSite } from "./mock-site.js";
 
-/** Build a minimal DER-encoded CRL with the given revoked serial numbers (hex strings). */
-function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): Uint8Array {
+/**
+ * Build a CRL of the CHIP test PAA without vendor ID with the given revoked serial numbers (hex strings), signed and
+ * naming the PAA in its Authority Key Identifier as Matter Core §13.2.6.1 requires.
+ */
+async function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): Promise<Uint8Array> {
     const entries: Record<string, any> = {};
     for (let i = 0; i < revokedSerialHexes.length; i++) {
         entries[`e${i}`] = {
@@ -40,19 +49,24 @@ function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): Uint8A
             date: { _tag: DerType.UtcDate, _bytes: Bytes.fromString("250101000000Z") },
         } as any;
     }
-    const sig = { _objectId: ObjectId("2a8648ce3d040302") };
     const tbs: Record<string, any> = {
         version: { _tag: DerType.Integer, _bytes: Uint8Array.of(1) },
-        signature: sig,
+        signature: X962.EcdsaWithSHA256,
         issuer: issuerDnDer !== undefined ? DerCodec.decode(issuerDnDer) : { cn: ["Test Issuer"] },
         thisUpdate: { _tag: DerType.UtcDate, _bytes: Bytes.fromString("250101000000Z") },
     };
     if (revokedSerialHexes.length > 0) tbs.revokedCertificates = entries;
+    tbs.crlExtensions = ContextTagged(0, {
+        authorityKeyIdentifier: X509.AuthorityKeyIdentifier(TestCert_PAA_NoVID_SKID),
+    });
+
+    const paaKey = PrivateKey(TestCert_PAA_NoVID_PrivateKey, { publicKey: TestCert_PAA_NoVID_PublicKey });
+    const signature = await new StandardCrypto().signEcdsa(paaKey, DerCodec.encode(tbs));
     return Bytes.of(
         DerCodec.encode({
             tbs,
-            sig2: sig,
-            sigVal: { _tag: DerType.BitString, _bytes: new Uint8Array(0), _padding: 0 },
+            sig2: X962.EcdsaWithSHA256,
+            sigVal: { _tag: DerType.BitString, _bytes: signature.der, _padding: 0 },
         } as any),
     );
 }
@@ -69,7 +83,7 @@ function formatSkidWithColons(hexSkid: string): string {
 function setupDclFetchMock(
     fetchMock: MockFetch,
     paaCert: Bytes,
-    revocation?: { issuerSkid: string; revokedSerials: string[]; signerCertPem: string; issuerDnDer?: Bytes },
+    revocation?: { issuerSkid: string; signerCertPem: string; crl: Bytes },
 ) {
     const paa = Paa.fromAsn1(paaCert);
     const skid = Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase();
@@ -114,7 +128,7 @@ function setupDclFetchMock(
                     {
                         vid: 0xfff1,
                         pid: 0,
-                        isPAA: false,
+                        isPAA: true,
                         label: "test-revocation",
                         crlSignerDelegator: "",
                         crlSignerCertificate: revocation.signerCertPem,
@@ -130,11 +144,7 @@ function setupDclFetchMock(
                 schemaVersion: 0,
             },
         });
-        fetchMock.addResponse(
-            "https://example.com/test.crl",
-            buildTestCrl(revocation.revokedSerials, revocation.issuerDnDer),
-            { binary: true },
-        );
+        fetchMock.addResponse("https://example.com/test.crl", revocation.crl, { binary: true });
     }
 }
 
@@ -506,16 +516,15 @@ describe("device attestation during commissioning", () => {
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 onAttestationFailure: () => false,
                 expectRejection: /revoked/i,
-                setupBeforeCommission: ({ fetchMock }) => {
+                setupBeforeCommission: async ({ fetchMock }) => {
                     const paaSkid = Bytes.toHex(TestCert_PAA_NoVID_SKID).toUpperCase();
                     // PAI's issuer DN = PAA's subject DN. For the self-signed PAA, issuerDer = subjectDer.
                     const paa = Paa.fromAsn1(TestCert_PAA_NoVID_Cert);
                     // PAI serial is 01 (from toHex(BigInt(1)) in AttestationCertificateManager)
                     setupDclFetchMock(fetchMock, TestCert_PAA_NoVID_Cert, {
                         issuerSkid: paaSkid,
-                        revokedSerials: ["01"],
                         signerCertPem: Pem.encode(TestCert_PAA_NoVID_Cert),
-                        issuerDnDer: paa.cert.issuerDer,
+                        crl: await buildTestCrl(["01"], paa.cert.issuerDer),
                     });
                     fetchMock.install();
                 },
@@ -530,12 +539,12 @@ describe("device attestation during commissioning", () => {
             runAttestationTest({
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 onAttestationFailure: () => true,
-                setupBeforeCommission: ({ fetchMock }) => {
+                setupBeforeCommission: async ({ fetchMock }) => {
                     const paaSkid = Bytes.toHex(TestCert_PAA_NoVID_SKID).toUpperCase();
                     setupDclFetchMock(fetchMock, TestCert_PAA_NoVID_Cert, {
                         issuerSkid: paaSkid,
-                        revokedSerials: ["DEADBEEF", "CAFEBABE"],
                         signerCertPem: Pem.encode(TestCert_PAA_NoVID_Cert),
+                        crl: await buildTestCrl(["DEADBEEF", "CAFEBABE"]),
                     });
                     fetchMock.install();
                 },
@@ -556,12 +565,12 @@ describe("device attestation during commissioning", () => {
             return runAttestationTest({
                 dclPaaCert: TestCert_PAA_NoVID_Cert,
                 onAttestationFailure: () => true,
-                setupBeforeCommission: ({ fetchMock }) => {
+                setupBeforeCommission: async ({ fetchMock }) => {
                     capturedFetchMock = fetchMock;
                     setupDclFetchMock(fetchMock, TestCert_PAA_NoVID_Cert, {
                         issuerSkid: paaSkid,
-                        revokedSerials: [],
                         signerCertPem: Pem.encode(TestCert_PAA_NoVID_Cert),
+                        crl: await buildTestCrl([]),
                     });
                     fetchMock.install();
                 },

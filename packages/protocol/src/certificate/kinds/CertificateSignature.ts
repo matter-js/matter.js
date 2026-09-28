@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, EcdsaSignature, MlDsa, PublicKey } from "@matter/general";
+import { Bytes, CertificateError, Crypto, EcdsaSignature, MlDsa, PublicKey, X962 } from "@matter/general";
 
 /** An ML-DSA signature over a certificate, as carried in its signatureValue BIT STRING. */
 export class MlDsaSignature {
@@ -47,3 +47,56 @@ const STRENGTH: Record<CertificateKeyAlgorithm, number> = {
 export type CertificatePublicKey =
     | { readonly algorithm: "ECDSA-P256"; readonly key: PublicKey }
     | { readonly algorithm: MlDsa.ParameterSet; readonly key: Bytes };
+
+/**
+ * The signature carried by a certificate or CRL, from its signatureAlgorithm OID and signatureValue BIT STRING
+ * content.
+ *
+ * @throws CertificateError if the algorithm is neither ecdsa-with-SHA256 nor ML-DSA-44/65, or the value is malformed
+ * @see {@link https://www.rfc-editor.org/rfc/rfc9881 RFC 9881} for the ML-DSA signature encoding
+ */
+export function certificateSignatureOf(algorithmOid: Bytes, value: Bytes): CertificateSignature {
+    const parameterSet = MlDsa.parameterSetForOid(algorithmOid);
+    try {
+        if (parameterSet !== undefined) {
+            return new MlDsaSignature(parameterSet, value);
+        }
+        if (Bytes.areEqual(algorithmOid, X962.EcdsaWithSHA256._objectId._bytes)) {
+            return new EcdsaSignature(value, "der");
+        }
+    } catch (cause) {
+        throw new CertificateError("Malformed signature value", { cause });
+    }
+    throw new CertificateError(
+        `Signature algorithm ${Bytes.toHex(algorithmOid)} is neither ecdsa-with-SHA256 nor ML-DSA`,
+    );
+}
+
+/**
+ * Verify a signature over DER data with the signer's key.
+ *
+ * @throws CertificateError if the key algorithm cannot have produced the signature
+ * @throws CryptoVerifyError if the signature does not verify
+ * @throws KeyInputError if the key is malformed
+ * @see Matter Core §10.12.3 (PQC Phase 1) for ML-DSA
+ */
+export async function verifyCertificateSignature(
+    crypto: Crypto,
+    signerKey: CertificatePublicKey,
+    data: Bytes,
+    signature: CertificateSignature,
+) {
+    if (signature instanceof MlDsaSignature) {
+        if (signerKey.algorithm !== signature.parameterSet) {
+            throw new CertificateError(
+                `Signature is ${signature.parameterSet} but the signer key is ${signerKey.algorithm}`,
+            );
+        }
+        return crypto.verifyMlDsa(signature.parameterSet, signerKey.key, data, signature.bytes);
+    }
+
+    if (signerKey.algorithm !== "ECDSA-P256") {
+        throw new CertificateError(`Signature is ecdsa-with-SHA256 but the signer key is ${signerKey.algorithm}`);
+    }
+    return crypto.verifyEcdsa(signerKey.key, data, signature);
+}
