@@ -13,9 +13,7 @@ import { TemperatureControlledCabinetDevice } from "#devices/temperature-control
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
-import type { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     Diagnostic,
@@ -71,10 +69,11 @@ export const lightWithoutIdentify = lightWith(Groups, OnOff, ScenesManagement, D
 export const lightWithGroupKeyManagement = OnOffLightDevice.with(GroupKeyManagementBehavior);
 
 /**
- * A started node whose root carries no application endpoint, so each test builds exactly the tree it describes.
+ * A started node whose root carries no application endpoint, so each test builds exactly the tree it describes. It
+ * validates its device types in {@link matter}, the standard model by default.
  */
-export async function createNode() {
-    return MockServerNode.createOnline(undefined, { device: undefined });
+export async function createNode(matter?: MatterModel) {
+    return MockServerNode.createOnline(undefined, { device: undefined, matter });
 }
 
 /**
@@ -82,9 +81,7 @@ export async function createNode() {
  * construction would refuse and judge it itself.
  */
 export async function createUnjudgedNode() {
-    const node = await createNode();
-    node.env.set(DeviceTypeConformanceService, unjudgedServiceOf(node));
-    return node;
+    return createNode(unjudgedModel());
 }
 
 /**
@@ -163,12 +160,12 @@ export const RootWithThread = MockServerNode.RootEndpoint.with(ThreadCommissioni
 export const RootWithEthernet = MockServerNode.RootEndpoint.with(EthernetCommissioningServer);
 
 /**
- * A conformance service for {@link node} that judges nothing, because no device type of its model is a node.
+ * A model in which a node judges nothing, because none of its device types is a node.
  */
-export function unjudgedServiceOf(node: ServerNode) {
+export function unjudgedModel() {
     const model = new MatterModel({}, new DeviceTypeModel({ name: "Base", classification: "base" }));
     model.finalize();
-    return new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), model);
+    return model;
 }
 
 /**

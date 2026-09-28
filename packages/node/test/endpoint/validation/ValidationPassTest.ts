@@ -5,28 +5,16 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { ImplementationError } from "@matter/general";
 import {
     ClusterModel,
     ConditionModel,
-    conditionScopeOf,
     DeviceTypeModel,
-    DeviceTypeValidationPass,
     FeatureMap,
     FieldModel,
-    Matter,
     MatterModel,
     RequirementModel,
 } from "@matter/model";
-import { createNode, serverPass, violationsOf } from "./validation-helpers.js";
-
-function requireDeviceType(name: string) {
-    const deviceType = Matter.deviceTypes(name);
-    if (deviceType === undefined) {
-        throw new ImplementationError(`Test fixture names unknown device type ${name}`);
-    }
-    return deviceType;
-}
+import { createNode, violationsOf } from "./validation-helpers.js";
 
 /**
  * A model whose OnOffLight requires OnOff with its Lighting feature under {@link conformance}, sharing
@@ -57,16 +45,6 @@ function lightingFeatureModel(conformance: string) {
 }
 
 describe("model-scoped lookups", () => {
-    it("resolves a device type's conditions once per model, shared by every pass resolved in it", () => {
-        const deviceType = requireDeviceType("OnOffLight");
-
-        // RequirementResolver.conditionsOf() allocates a fresh Map on every call, so identity here proves the second
-        // pass reused the first pass's cache entry instead of resolving again.
-        const first = conditionScopeOf(deviceType, serverPass(Matter));
-        const second = conditionScopeOf(deviceType, serverPass(Matter));
-        expect(second).equals(first);
-    });
-
     it("does not leak a device type resolved in one model into a later pass resolved in another", async () => {
         const node = await createNode();
         const light = await node.add(OnOffLightDevice, { id: "light" });
@@ -77,74 +55,6 @@ describe("model-scoped lookups", () => {
             ["disallowed", "OnOff.LT"],
         ]);
         expect(violationsOf(light, lightingFeatureModel("Wanted | OFFONLY"))).deep.equals([]);
-
-        await node.close();
-    });
-});
-
-describe("DeviceTypeValidationPass.Memory", () => {
-    it("weighs only the changes noted while it holds a value", async () => {
-        const node = await createNode();
-        const memory = new DeviceTypeValidationPass.Memory();
-
-        memory.changed(node);
-        memory.hold([]);
-        memory.revise(() => true);
-        expect(memory.generation).equals(0);
-
-        memory.changed(node);
-        memory.revise(() => true);
-        expect(memory.generation).equals(1);
-
-        await node.close();
-    });
-
-    it("weighs each noted change once", async () => {
-        const node = await createNode();
-        const memory = new DeviceTypeValidationPass.Memory();
-        memory.hold([]);
-
-        memory.changed(node);
-        memory.revise(() => false);
-        memory.revise(() => true);
-        expect(memory.generation).equals(0);
-
-        await node.close();
-    });
-
-    it("forgets what it noted and watched once it discards", async () => {
-        const node = await createNode();
-        const light = await node.add(OnOffLightDevice, { id: "light" });
-        const memory = new DeviceTypeValidationPass.Memory();
-        memory.hold([light]);
-        memory.changed(light);
-        memory.changed(node);
-        memory.revise(() => true);
-        expect(memory.generation).equals(1);
-
-        memory.changed(node);
-        memory.hold([]);
-        memory.revise(() => true);
-        memory.changed(light);
-        memory.revise(() => false);
-        expect(memory.generation).equals(1);
-
-        await node.close();
-    });
-
-    it("discards what it holds on a change to a watched endpoint whatever the test says", async () => {
-        const node = await createNode();
-        const light = await node.add(OnOffLightDevice, { id: "light" });
-        const memory = new DeviceTypeValidationPass.Memory();
-        memory.hold([light]);
-
-        memory.changed(node);
-        memory.revise(() => false);
-        expect(memory.generation).equals(0);
-
-        memory.changed(light);
-        memory.revise(() => false);
-        expect(memory.generation).equals(1);
 
         await node.close();
     });

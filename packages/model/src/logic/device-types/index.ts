@@ -10,6 +10,7 @@ export * from "./DeviceTypeFacts.js";
 export * from "./DeviceTypeValidationPass.js";
 export * from "./DeviceTypeViolation.js";
 
-// @internal: for @matter/node's conformance service and its tests only, not API
-export { ConditionAssertions, conditionScopeOf, StructuralCondition } from "./ConditionAssertions.js";
+// @internal: for @matter/node's scope index and the tests of its conformance service only, not API
+export { ConditionAssertions } from "./ConditionAssertions.js";
+export type { DeviceTypeScopeIndex } from "./DeviceTypeScopeIndex.js";
 export { ResolvedEndpoint } from "./ResolvedEndpoint.js";

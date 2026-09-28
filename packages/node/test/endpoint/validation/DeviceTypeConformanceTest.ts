@@ -20,11 +20,9 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { SupportedClientClusters } from "#endpoint/properties/SupportedClientClusters.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
-import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
-import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
+import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#node/server/DeviceTypeConformanceError.js";
 import { ImplementationError, MatterAggregateError } from "@matter/general";
 import {
     AttributeModel,
@@ -716,12 +714,7 @@ describe("DeviceTypeConformance", () => {
     });
 
     it("constructs an endpoint carrying an outer singleton below a nested node endpoint", async () => {
-        const node = await createNode();
-        const model = singletonModel({ bridgedNodeIsNode: true });
-        node.env.set(
-            DeviceTypeConformanceService,
-            new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), model),
-        );
+        const node = await createNode(singletonModel({ bridgedNodeIsNode: true }));
         const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
 
         // Stand-in model: BridgedNode is a node, so RootNode's GroupKeyManagement singleton does not reach below it

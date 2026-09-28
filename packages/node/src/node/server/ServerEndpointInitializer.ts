@@ -12,11 +12,11 @@ import type { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointVariableService } from "#endpoint/EndpointVariableService.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Environment, InternalError, Logger, MaybePromise } from "@matter/general";
 import { FabricManager } from "@matter/protocol";
 import { DescriptorServer } from "../../behaviors/descriptor/DescriptorServer.js";
+import { DeviceTypeConformanceService } from "./DeviceTypeConformanceService.js";
 
 const logger = Logger.get("BehaviorInit");
 
@@ -41,10 +41,7 @@ export class ServerEndpointInitializer extends EndpointInitializer {
             endpoint.behaviors.inject(DescriptorServer, undefined, false);
         }
 
-        // Behaviors of a node endpoint fail with an untyped error on any other endpoint
-        if (isConstructionRoot(endpoint)) {
-            endpoint.env.get(DeviceTypeConformanceService).assertPlacement(endpoint);
-        }
+        endpoint.env.get(DeviceTypeConformanceService).constructing(endpoint);
     }
 
     async eraseDescendant(endpoint: Endpoint) {
@@ -122,26 +119,8 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         return id;
     }
 
-    /**
-     * Judge the device types of the tree that completed construction: the whole node scope once the node endpoint's
-     * parts are initialized, or an endpoint added to a constructed tree together with what it joins. An endpoint
-     * constructed with its parent is judged with the parent's tree, so a tree is judged in one pass. Judges nothing in
-     * {@link DeviceTypeConformanceService.mode mode} `"off"`.
-     */
     override partsInitialized(endpoint: Endpoint) {
-        if (!isConstructionRoot(endpoint)) {
-            return;
-        }
-
-        const service = endpoint.env.get(DeviceTypeConformanceService);
-        if (service.mode === "off") {
-            return;
-        }
-        if (endpoint.owner === undefined) {
-            service.validateNodeScope(endpoint);
-        } else {
-            service.validateAddition(endpoint);
-        }
+        endpoint.env.get(DeviceTypeConformanceService).constructed(endpoint);
     }
 
     override behaviorsInitialized(agent: Agent): MaybePromise {
@@ -153,12 +132,4 @@ export class ServerEndpointInitializer extends EndpointInitializer {
             }
         }
     }
-}
-
-/**
- * Whether {@link endpoint} is constructed on its own rather than as a part of an owner under construction, which
- * constructs it with the owner's tree.
- */
-function isConstructionRoot(endpoint: Endpoint) {
-    return endpoint.owner === undefined || endpoint.owner.lifecycle.isPartsReady;
 }

@@ -33,20 +33,42 @@ export class ServerEndpointFacts implements DeviceTypeFacts<Endpoint> {
     }
 
     isPresent(endpoint: Endpoint) {
-        if (!endpoint.lifecycle.isReady) {
-            return false;
-        }
-        const { status } = endpoint.construction;
-        return status === Lifecycle.Status.Active || status === Lifecycle.Status.Initializing;
+        const presence = this.presenceOf(endpoint);
+        return presence === Presence.Constructing || presence === Presence.Active;
     }
 
-    isAttached(endpoint: Endpoint) {
+    /**
+     * Where {@link endpoint} stands in the lifecycle of the tree it belongs to.
+     *
+     * An endpoint without an owner is the root of a tree, so it is not detached; the walks reach none other.
+     */
+    presenceOf(endpoint: Endpoint): Presence {
         const { status } = endpoint.construction;
-        return (
-            endpoint.owner !== undefined &&
-            status !== Lifecycle.Status.Destroying &&
-            status !== Lifecycle.Status.Destroyed
-        );
+        if (status === Lifecycle.Status.Destroying || status === Lifecycle.Status.Destroyed) {
+            return Presence.Detached;
+        }
+
+        const { owner } = endpoint;
+        if (owner !== undefined && !owner.parts.has(endpoint)) {
+            return Presence.Detached;
+        }
+
+        if (status === Lifecycle.Status.Crashed) {
+            return Presence.Crashed;
+        }
+        if (!endpoint.lifecycle.isReady) {
+            return Presence.Pending;
+        }
+        switch (status) {
+            case Lifecycle.Status.Initializing:
+                return Presence.Constructing;
+
+            case Lifecycle.Status.Active:
+                return Presence.Active;
+
+            default:
+                return Presence.Pending;
+        }
     }
 
     deviceTypeIdsOf(endpoint: Endpoint): number[] {
@@ -123,4 +145,34 @@ function clusterTypesOf(types: Behavior.Type[]) {
         }
     }
     return clusters;
+}
+
+/**
+ * Where an endpoint stands in the lifecycle of its tree, as {@link ServerEndpointFacts.presenceOf} answers it.
+ */
+export enum Presence {
+    /**
+     * Being destroyed or destroyed, or no longer a part of its owner.
+     */
+    Detached,
+
+    /**
+     * Its behaviors are not initialized.
+     */
+    Pending,
+
+    /**
+     * Its behaviors are initialized and its parts are still being constructed.
+     */
+    Constructing,
+
+    /**
+     * Constructed.
+     */
+    Active,
+
+    /**
+     * Its construction failed; it stays a part of its owner.
+     */
+    Crashed,
 }

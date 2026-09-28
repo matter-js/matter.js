@@ -11,7 +11,7 @@ import { DeviceTypeModel, Model, RequirementModel, ValueModel } from "../../mode
 import { requirementApplicability } from "../RequirementApplicability.js";
 import { RequirementResolver } from "../RequirementResolver.js";
 import { ConditionAssertions } from "./ConditionAssertions.js";
-import { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
+import type { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
 import { DeviceTypeViolation } from "./DeviceTypeViolation.js";
 import { lookupsFor } from "./ModelLookups.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";

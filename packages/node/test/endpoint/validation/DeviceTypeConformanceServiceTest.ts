@@ -5,14 +5,15 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
-import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#endpoint/validation/Violation.js";
-import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
+import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#node/server/DeviceTypeConformanceError.js";
+import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
+import { DeviceTypeValidation } from "#node/server/DeviceTypeValidation.js";
 import { Environment, ImplementationError, LogLevel } from "@matter/general";
 import {
     ClusterModel,
     ConditionAssertions,
     DeviceTypeModel,
+    Matter,
     MatterModel,
     RequirementModel,
     ResolvedEndpoint,
@@ -35,16 +36,16 @@ function serviceOf(node: MockServerNode) {
 }
 
 /**
- * A service of {@link node} that has reported nothing yet, in the {@link mode} given or the one the node's environment
- * sets without it.
+ * A service of {@link node} that has reported nothing yet and resolves in the standard model, in the {@link mode} given
+ * or the one the node's environment sets without it.
  */
-function judgeOf(node: MockServerNode, mode?: DeviceTypeConformanceService.Mode) {
+function judgeOf(node: MockServerNode, mode?: DeviceTypeValidation.Mode) {
     if (mode === undefined) {
-        return new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts());
+        return new DeviceTypeConformanceService(node, { model: Matter });
     }
     const environment = new Environment("test");
     environment.vars.set("endpoint.validation", mode);
-    return new DeviceTypeConformanceService(node, environment, new ServerEndpointFacts());
+    return new DeviceTypeConformanceService(node, { environment, model: Matter });
 }
 
 /**
@@ -78,7 +79,7 @@ describe("DeviceTypeConformanceService", () => {
         expect(logged[0].level).equals(LogLevel.WARN);
         expect(logged[0].text).contains("missing OnOffLight Identify: Mandatory server cluster Identify is missing");
         expect(logged[0].text).contains("missing OnOffLight ScenesManagement");
-        expect(service.knows(light)).true;
+        expect(service.violationsOf(light).length).not.equals(0);
 
         await node.close();
     });
@@ -132,7 +133,7 @@ describe("DeviceTypeConformanceService", () => {
         // Without a device type the endpoint violates nothing
         await light.set({ descriptor: { deviceTypeList: [] } });
         expect(captureLog(() => service.validate(light))).deep.equals([]);
-        expect(service.knows(light)).false;
+        expect(service.violationsOf(light)).deep.equals([]);
 
         await light.set({ descriptor: { deviceTypeList: deviceTypeList("OnOffLight") } });
         expect(captureLog(() => service.validate(light)).length).equals(1);
@@ -144,7 +145,7 @@ describe("DeviceTypeConformanceService", () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
-        const service = new DeviceTypeConformanceService(node, new Environment("test"), new ServerEndpointFacts());
+        const service = new DeviceTypeConformanceService(node, { environment: new Environment("test"), model: Matter });
 
         expect(service.mode).equals("warn");
         expect(captureLog(() => service.validate(light)).length).equals(1);
@@ -157,7 +158,7 @@ describe("DeviceTypeConformanceService", () => {
         const environment = new Environment("test");
         environment.vars.addUnixEnvStyle({ MATTER_ENDPOINT_VALIDATION: "off" });
 
-        expect(new DeviceTypeConformanceService(node, environment, new ServerEndpointFacts()).mode).equals("off");
+        expect(new DeviceTypeConformanceService(node, { environment }).mode).equals("off");
 
         await node.close();
     });
@@ -167,7 +168,7 @@ describe("DeviceTypeConformanceService", () => {
         const environment = new Environment("test");
         environment.vars.set("endpoint.validation", "loud");
 
-        expect(() => new DeviceTypeConformanceService(node, environment, new ServerEndpointFacts())).throws(
+        expect(() => new DeviceTypeConformanceService(node, { environment })).throws(
             ImplementationError,
             'Variable endpoint.validation (environment variable MATTER_ENDPOINT_VALIDATION) is "loud" but must be one of "off", "warn", "strict"',
         );
@@ -175,13 +176,34 @@ describe("DeviceTypeConformanceService", () => {
         await node.close();
     });
 
-    it("judges on request in off mode, like warn mode", async () => {
+    it("judges on request in off mode, like warn mode, but records nothing", async () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
         const service = judgeOf(node, "off");
 
+        let verdict: DeviceTypeValidation.Verdict | undefined;
+        expect(captureLog(() => (verdict = service.validate(light))).length).equals(1);
+        expect(verdict?.get(light)?.map(({ requirement }) => requirement)).deep.equals(["Identify"]);
+        expect(service.violationsOf(light)).deep.equals([]);
+
+        // Nothing recorded, so each call logs again
         expect(captureLog(() => service.validate(light)).length).equals(1);
-        expect(service.knows(light)).true;
+
+        await node.close();
+    });
+
+    it("returns every violation of each judged endpoint, reported before or not", async () => {
+        const node = await createUnjudgedNode();
+        const light = await node.add(lightWithoutIdentify, { id: "light" });
+        const service = judgeOf(node);
+        captureLog(() => service.validate(light));
+
+        let verdict: DeviceTypeValidation.Verdict | undefined;
+        expect(captureLog(() => (verdict = service.validate(light)))).deep.equals([]);
+
+        expect([...(verdict?.keys() ?? [])]).deep.equals([light]);
+        expect(verdict?.get(light)).deep.equals(service.violationsOf(light));
+        expect(service.violationsOf(light).map(({ requirement }) => requirement)).deep.equals(["Identify"]);
 
         await node.close();
     });
@@ -219,7 +241,7 @@ describe("DeviceTypeConformanceService", () => {
         const service = judgeOf(node, "strict");
 
         expect(() => service.validate(light)).throws(DeviceTypeConformanceError);
-        expect(service.knows(light)).false;
+        expect(service.violationsOf(light)).deep.equals([]);
         expect(() => service.validate(light)).throws(DeviceTypeConformanceError);
 
         await node.close();
@@ -304,7 +326,7 @@ describe("DeviceTypeConformanceService", () => {
         expect(logged).deep.equals([]);
 
         // Neither counts as reported, so both are refused again
-        expect(service.knows(first) || service.knows(second)).false;
+        expect(service.violationsOf(first).length || service.violationsOf(second).length).equals(0);
         expect(() => service.validate(first)).throws(DeviceTypeConformanceError);
         expect(() => service.validate(second)).throws(DeviceTypeConformanceError);
 
@@ -317,9 +339,9 @@ describe("DeviceTypeConformanceService", () => {
         const child = await parent.add(lightWithoutIdentify, { id: "child" });
         const service = judgeOf(node, "strict");
 
-        captureLog(() => expect(() => service.validateAddition(child)).throws(DeviceTypeConformanceError));
+        captureLog(() => expect(() => service.constructed(child)).throws(DeviceTypeConformanceError));
 
-        expect(service.knows(parent)).false;
+        expect(service.violationsOf(parent)).deep.equals([]);
 
         await node.close();
     });
@@ -334,7 +356,7 @@ describe("DeviceTypeConformanceService", () => {
 
         expect(logged.filter(({ text }) => text.includes("first")).length).equals(1);
         expect(logged.filter(({ text }) => text.includes("second")).length).equals(1);
-        expect(service.knows(first) && service.knows(second)).true;
+        expect(service.violationsOf(first).length && service.violationsOf(second).length).not.equals(0);
 
         await node.close();
     });
@@ -344,15 +366,10 @@ describe("DeviceTypeConformanceService", () => {
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
         // RootNode is not a node here, so nothing is judged, though OnOffLight requires the missing Identify
-        const service = new DeviceTypeConformanceService(
-            node,
-            node.env,
-            new ServerEndpointFacts(),
-            modelWithoutNodes(),
-        );
+        const service = new DeviceTypeConformanceService(node, { model: modelWithoutNodes() });
 
         expect(captureLog(() => service.validate(light))).deep.equals([]);
-        expect(service.knows(light)).false;
+        expect(service.violationsOf(light)).deep.equals([]);
 
         await node.close();
     });
@@ -360,15 +377,10 @@ describe("DeviceTypeConformanceService", () => {
     it("validates no node scope for an endpoint in none", async () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
-        const service = new DeviceTypeConformanceService(
-            node,
-            node.env,
-            new ServerEndpointFacts(),
-            modelWithoutNodes(),
-        );
+        const service = new DeviceTypeConformanceService(node, { model: modelWithoutNodes() });
 
         expect(captureLog(() => service.validateNodeScope(light))).deep.equals([]);
-        expect(service.knows(light)).false;
+        expect(service.violationsOf(light)).deep.equals([]);
 
         await node.close();
     });
@@ -381,7 +393,7 @@ describe("DeviceTypeConformanceService", () => {
 
         service.forget(light);
 
-        expect(service.knows(light)).false;
+        expect(service.violationsOf(light)).deep.equals([]);
         expect(captureLog(() => service.validate(light)).length).equals(1);
 
         await node.close();
@@ -391,7 +403,7 @@ describe("DeviceTypeConformanceService", () => {
         const node = await createNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
         const service = serviceOf(node);
-        expect(service.knows(light)).true;
+        expect(service.violationsOf(light).length).not.equals(0);
 
         const logged = await captureLogOf(() => MockTime.resolve(node.erase(), { macrotasks: true }));
 

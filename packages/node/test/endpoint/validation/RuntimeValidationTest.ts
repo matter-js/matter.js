@@ -13,12 +13,19 @@ import { TemperatureControlledCabinetDevice } from "#devices/temperature-control
 import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointPartsError } from "#endpoint/errors.js";
-import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
-import { DeviceTypeConformanceError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
-import { Environment, ImplementationError } from "@matter/general";
-import { ClusterModel, ConditionModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
+import { DeviceTypeConformanceError } from "#node/server/DeviceTypeConformanceError.js";
+import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
+import { DeviceTypeValidation } from "#node/server/DeviceTypeValidation.js";
+import { Environment, ImplementationError, ObserverGroup } from "@matter/general";
+import {
+    ClusterModel,
+    ConditionModel,
+    DeviceTypeConformance,
+    DeviceTypeModel,
+    MatterModel,
+    RequirementModel,
+} from "@matter/model";
 import { NodeId } from "@matter/types";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import {
@@ -181,11 +188,7 @@ function wiFiGatedModel() {
  * A node judged in {@link guardedRootModel}, with a Widget child.
  */
 async function createGuardedNode() {
-    const node = await createNode();
-    node.env.set(
-        DeviceTypeConformanceService,
-        new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), guardedRootModel()),
-    );
+    const node = await createNode(guardedRootModel());
     const widget = await addStandIn(node, "widget", WIDGET_ID);
     return { node, widget };
 }
@@ -225,14 +228,14 @@ async function addFridge(parent: Endpoint) {
     return { fridge, cabinet: fridge.parts.require("cabinet") };
 }
 
-async function createOffNode() {
+async function createOffNode(matter?: MatterModel) {
     const environment = new Environment("test");
     environment.vars.set("endpoint.validation", "off");
-    return MockServerNode.createOnline(undefined, { environment, device: undefined });
+    return MockServerNode.createOnline(undefined, { environment, device: undefined, matter });
 }
 
-async function createStrictNode() {
-    return MockServerNode.createOnline(undefined, { environment: strictEnvironment(), device: undefined });
+async function createStrictNode(matter?: MatterModel) {
+    return MockServerNode.createOnline(undefined, { environment: strictEnvironment(), device: undefined, matter });
 }
 
 function serviceOf(node: MockServerNode) {
@@ -298,11 +301,11 @@ describe("device type validation after construction", () => {
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
             const { fridge } = await addRefrigerator(aggregator, { cabinets: 0 });
             const service = serviceOf(node);
-            expect(service.knows(fridge)).true;
+            expect(service.violationsOf(fridge).length).not.equals(0);
 
             await aggregator.delete();
 
-            expect(service.knows(fridge)).false;
+            expect(service.violationsOf(fridge)).deep.equals([]);
 
             await node.close();
         });
@@ -332,7 +335,7 @@ describe("device type validation after construction", () => {
 
                 expect(recording.judged).deep.equals([node]);
                 expect(logged).deep.equals([]);
-                expect(serviceOf(node).knows(fridge)).false;
+                expect(serviceOf(node).violationsOf(fridge)).deep.equals([]);
 
                 await node.close();
             });
@@ -410,6 +413,37 @@ describe("device type validation after construction", () => {
             await captureLogOf(() => addDeviceTypes(cabinets[0], "RootNode"));
 
             expect(requirementsOf(node, fridge)).deep.equals(brokenFridge);
+
+            await node.close();
+        });
+
+        it("follows the list again after a factory reset", async () => {
+            const node = await createNode();
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+            await captureLogOf(() => MockTime.resolve(node.erase(), { macrotasks: true }));
+
+            const logged = await captureLogOf(() => addDeviceTypes(light, "TemperatureSensor"));
+
+            expect(logged.length).equals(1);
+            expect(requirementsOf(node, light)).deep.equals(["missing TemperatureMeasurement"]);
+
+            await node.close();
+        });
+
+        it("logs rather than fails the change when judging it throws", async () => {
+            const node = await createNode();
+            const light = await node.add(OnOffLightDevice, { id: "light" });
+
+            const { check } = DeviceTypeConformance;
+            DeviceTypeConformance.check = () => {
+                throw new ImplementationError("Judges on purpose badly");
+            };
+            const errors = await captureErrorsOf(() => addDeviceTypes(light, "TemperatureSensor")).finally(() => {
+                DeviceTypeConformance.check = check;
+            });
+
+            expect(errors.map(({ text }) => text).join("\n")).contains("Judges on purpose badly");
+            expect(light.stateOf(DescriptorServer).deviceTypeList.length).equals(2);
 
             await node.close();
         });
@@ -761,11 +795,7 @@ describe("device type validation after construction", () => {
 
     describe("what passes keep of a node scope", () => {
         it("leaves an unrelated sibling's descendants unread when an addition adds nothing that reaches the node scope", async () => {
-            const node = await createNode();
-            node.env.set(
-                DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), onOffSingletonModel()),
-            );
+            const node = await createNode(onOffSingletonModel());
             const shelf = await addStandIn(node, "shelf", "OnOffLight");
             const stored = [
                 await addStandIn(shelf, "stored1", "OnOffLight"),
@@ -783,11 +813,7 @@ describe("device type validation after construction", () => {
         });
 
         it("walks the node scope again after a reset instead of reusing what an earlier pass kept", async () => {
-            const node = await createNode();
-            node.env.set(
-                DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), onOffSingletonModel()),
-            );
+            const node = await createNode(onOffSingletonModel());
             const shelf = await addStandIn(node, "shelf", "OnOffLight");
             const stored = [
                 await addStandIn(shelf, "stored1", "OnOffLight"),
@@ -844,11 +870,7 @@ describe("device type validation after construction", () => {
         });
 
         it("reads a network interface of a server cluster added at runtime", async () => {
-            const node = await createNode();
-            node.env.set(
-                DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), wiFiGatedModel()),
-            );
+            const node = await createNode(wiFiGatedModel());
             const light = await addStandIn(node, "light", "OnOffLight");
             const other = await addStandIn(node, "other", "OnOffLight");
             expect(requirementsOf(node, light)).deep.equals([]);
@@ -863,16 +885,7 @@ describe("device type validation after construction", () => {
 
         for (const isEssential of [true, false]) {
             it(`drops an endpoint whose addition it refused, ${isEssential ? "rolled back" : "left crashed"}`, async () => {
-                const node = await createStrictNode();
-                node.env.set(
-                    DeviceTypeConformanceService,
-                    new DeviceTypeConformanceService(
-                        node,
-                        strictEnvironment(),
-                        new ServerEndpointFacts(),
-                        guardedRootModel(),
-                    ),
-                );
+                const node = await createStrictNode(guardedRootModel());
                 const widget = await addStandIn(node, "widget", WIDGET_ID);
 
                 await expect(
@@ -920,11 +933,7 @@ describe("device type validation after construction", () => {
         });
 
         it("logs nothing for an endpoint judged in the pass that it does not refuse", async () => {
-            const node = await createNode();
-            node.env.set(
-                DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), onOffSingletonModel()),
-            );
+            const node = await createNode(onOffSingletonModel());
             await addStandIn(node, "light", "OnOffLight");
 
             let error: unknown;
@@ -938,6 +947,27 @@ describe("device type validation after construction", () => {
             expect(error instanceof DeviceTypeConformanceError && error.message).contains("light");
             expect(node.parts.has("declarer")).false;
             expect(logged).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("keeps and follows nothing of an endpoint it rolled back", async () => {
+            const node = await createNode(onOffSingletonModel());
+            await addStandIn(node, "light", "OnOffLight");
+            const declarer = new Endpoint(DescribedLight, {
+                id: "declarer",
+                descriptor: { deviceTypeList: deviceTypeList(DECLARER_ID, NEEDY_ID) },
+            });
+
+            await captureLogOf(() => node.add(declarer).catch(() => undefined));
+
+            expect(node.parts.has(declarer)).false;
+            const index = serviceOf(node).index;
+            expect(index?.keptOf(node)?.includes(declarer)).not.true;
+            for (const listed of index?.listingsOf(node).values() ?? []) {
+                expect(listed.has(declarer)).false;
+            }
+            expect(declarer.eventsOf(DescriptorServer).deviceTypeList$Changed.isObserved).false;
 
             await node.close();
         });
@@ -1016,16 +1046,7 @@ describe("device type validation after construction", () => {
         });
 
         it("is refused in strict mode for an ancestor violation it causes", async () => {
-            const node = await createStrictNode();
-            node.env.set(
-                DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(
-                    node,
-                    strictEnvironment(),
-                    new ServerEndpointFacts(),
-                    singleComponentModel(),
-                ),
-            );
+            const node = await createStrictNode(singleComponentModel());
             const composer = await node.add(OnOffLightDevice.with(DescriptorServer), {
                 id: "composer",
                 descriptor: { deviceTypeList: deviceTypeList(COMPOSER_ID) },
@@ -1048,14 +1069,14 @@ describe("device type validation after construction", () => {
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
             const { fridge } = await addRefrigerator(aggregator, { cabinets: 0 });
             const service = serviceOf(node);
-            expect(service.knows(fridge)).true;
+            expect(service.violationsOf(fridge).length).not.equals(0);
 
             using recording = recordingChecks();
             const logged = await captureLogOf(() => node.close());
 
             expect(recording.judged).deep.equals([]);
             expect(logged).deep.equals([]);
-            expect(service.knows(fridge)).false;
+            expect(service.violationsOf(fridge)).deep.equals([]);
         });
     });
 
@@ -1074,16 +1095,13 @@ describe("device type validation after construction", () => {
             return { node, peer, endpoint };
         }
 
-        it("judges nothing when an endpoint of a peer changes or is destroyed", async () => {
+        it("judges nothing when an endpoint of a peer is destroyed", async () => {
             const { node, peer, endpoint } = await createNodeWithPeer();
-            const service = serviceOf(node);
 
             using recording = recordingChecks();
             const logged = await captureLogOf(async () => {
-                service.deviceTypesChanged(endpoint);
-                service.deviceTypesChanged(peer);
-                service.endpointDestroyed(endpoint);
                 await endpoint.close();
+                await peer.close();
             });
 
             expect(recording.judged).deep.equals([]);
@@ -1100,7 +1118,7 @@ describe("device type validation after construction", () => {
             expect(() => service.validate(endpoint)).throws(ImplementationError);
             expect(() => service.validate([node, peer])).throws(ImplementationError);
             expect(() => service.validateNodeScope(endpoint)).throws(ImplementationError);
-            expect(() => service.validateAddition(endpoint)).throws(ImplementationError);
+            expect(() => service.constructed(endpoint)).throws(ImplementationError);
 
             expect(recording.judged).deep.equals([]);
 
@@ -1109,6 +1127,41 @@ describe("device type validation after construction", () => {
     });
 
     describe("in off mode", () => {
+        it("follows no endpoint", async () => {
+            // Observers per observable the service follows in other modes; other subscribers are the same in any mode
+            const observersOf = async (create: () => Promise<MockServerNode>) => {
+                const { on } = ObserverGroup.prototype;
+                const observers = new Array<unknown>();
+                ObserverGroup.prototype.on = function (this: ObserverGroup, ...args: Parameters<ObserverGroup["on"]>) {
+                    observers.push(args[0]);
+                    return on.apply(this, args);
+                };
+
+                let node: MockServerNode;
+                let light: Endpoint;
+                try {
+                    node = await create();
+                    light = await node.add(DescribedLight, { id: "light" });
+                } finally {
+                    ObserverGroup.prototype.on = on;
+                }
+
+                const counts = [
+                    node.lifecycle.changed,
+                    node.lifecycle.reset,
+                    light.lifecycle.reset,
+                    light.eventsOf(DescriptorServer).deviceTypeList$Changed,
+                ].map(observable => observers.filter(observer => observer === observable).length);
+                await node.close();
+                return counts;
+            };
+
+            const on = await observersOf(() => createNode());
+            const off = await observersOf(() => createOffNode());
+
+            expect(on.map((count, index) => count - off[index])).deep.equals([1, 1, 1, 1]);
+        });
+
         it("judges nothing when a device type list changes or an endpoint is destroyed", async () => {
             const node = await createOffNode();
             const { fridge, cabinet } = await addFridge(node);
@@ -1128,18 +1181,18 @@ describe("device type validation after construction", () => {
         });
 
         it("judges on request with what the node scope holds now", async () => {
-            const node = await createOffNode();
-            node.env.set(
-                DeviceTypeConformanceService,
-                new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), wiFiGatedModel()),
-            );
+            const node = await createOffNode(wiFiGatedModel());
             const light = await addStandIn(node, "light", "OnOffLight");
             expect(captureLog(() => serviceOf(node).validate(light)).length).equals(0);
 
             await node.add(WiFiLight, { id: "wifi" });
 
-            expect(captureLog(() => serviceOf(node).validate(light)).length).equals(1);
-            expect(requirementsOf(node, light)).deep.equals(["missing ColorControl"]);
+            let verdict: DeviceTypeValidation.Verdict | undefined;
+            expect(captureLog(() => (verdict = serviceOf(node).validate(light))).length).equals(1);
+            expect(verdict?.get(light)?.map(({ kind, requirement }) => `${kind} ${requirement}`)).deep.equals([
+                "missing ColorControl",
+            ]);
+            expect(requirementsOf(node, light)).deep.equals([]);
 
             await node.close();
         });

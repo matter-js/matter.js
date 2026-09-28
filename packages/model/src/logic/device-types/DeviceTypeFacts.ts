@@ -31,11 +31,6 @@ export interface DeviceTypeFacts<E> {
     isPresent(endpoint: E): boolean;
 
     /**
-     * Whether {@link endpoint} has an owner and is neither being destroyed nor destroyed, whatever its other state.
-     */
-    isAttached(endpoint: E): boolean;
-
-    /**
      * The IDs of the device types {@link endpoint} lists, including device types the model does not define.
      */
     deviceTypeIdsOf(endpoint: E): Iterable<number>;

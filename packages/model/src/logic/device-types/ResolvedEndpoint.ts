@@ -10,7 +10,7 @@ import { EndpointComposition } from "../../common/EndpointComposition.js";
 import { ClusterElement } from "../../elements/ClusterElement.js";
 import { AttributeModel, ClusterModel, CommandModel, DeviceTypeModel, EventModel, Model } from "../../models/index.js";
 import { Scope } from "../Scope.js";
-import { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
+import type { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
 import { lookupsFor } from "./ModelLookups.js";
 
 /**

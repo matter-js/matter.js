@@ -5,12 +5,13 @@
  */
 
 import { DeviceTypeModel, MatterModel, RequirementModel } from "../../models/index.js";
-import type { ConditionAssertions } from "./ConditionAssertions.js";
-import type { Component, Singleton } from "./DeviceTypeConformance.js";
+import { ConditionAssertions } from "./ConditionAssertions.js";
+import { DeviceTypeConformance, type Component, type Singleton } from "./DeviceTypeConformance.js";
 import type { DeviceTypeFacts } from "./DeviceTypeFacts.js";
+import type { DeviceTypeScopeIndex } from "./DeviceTypeScopeIndex.js";
 import type { DeviceTypeViolation } from "./DeviceTypeViolation.js";
 import { Memo } from "./Memo.js";
-import type { ResolvedEndpoint } from "./ResolvedEndpoint.js";
+import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
 
 /**
  * One run of device type validation over one or more endpoints that {@link facts} describes, resolved in
@@ -23,8 +24,8 @@ import type { ResolvedEndpoint } from "./ResolvedEndpoint.js";
  * A pass must not outlive one synchronous run. The tree may change between runs, and nothing a pass memoizes of it is
  * invalidated. A lookup that reads only {@link model} — the cluster, feature or element a requirement names, for
  * example — outlives the pass and is shared with every other pass resolved in the same model; see
- * `ModelLookups`. What a pass created with a {@link memory} reads of a whole node scope outlives the pass too; see
- * {@link DeviceTypeValidationPass.Memory}.
+ * `ModelLookups`. A pass created with an {@link index} reads the reaching endpoints of a node scope and the device
+ * types of siblings from it rather than from the tree.
  *
  * Mutating a model in place after it has validated an endpoint is unsupported: `ModelLookups` keys its entries by
  * model instance, not content, so a mutated model keeps serving lookups from before the mutation. Build a new model
@@ -33,7 +34,9 @@ import type { ResolvedEndpoint } from "./ResolvedEndpoint.js";
 export class DeviceTypeValidationPass<E> {
     readonly facts: DeviceTypeFacts<E>;
     readonly model: MatterModel;
-    readonly memory?: DeviceTypeValidationPass.Memory<E>;
+
+    /** @internal */
+    readonly index?: DeviceTypeScopeIndex<E>;
 
     /** @internal */
     readonly resolved = new Memo<E, ResolvedEndpoint<E>>();
@@ -42,7 +45,7 @@ export class DeviceTypeValidationPass<E> {
     readonly collections = new Memo<E, ConditionAssertions.Collection<E>>();
 
     /** @internal */
-    readonly reaching = new Memo<E, E[]>();
+    readonly reaching = new Memo<E, readonly E[]>();
 
     /** @internal */
     readonly applicationDeviceTypeCounts = new Memo<E, Map<number, number>>();
@@ -59,94 +62,133 @@ export class DeviceTypeValidationPass<E> {
     /** @internal */
     readonly declarations = new Memo<E, Map<number, Singleton<E>>>();
 
-    constructor(
-        facts: DeviceTypeFacts<E>,
-        model: MatterModel = MatterModel.standard,
-        memory?: DeviceTypeValidationPass.Memory<E>,
-    ) {
+    /**
+     * @param index internal to matter.js
+     */
+    constructor(facts: DeviceTypeFacts<E>, model: MatterModel = MatterModel.standard, index?: DeviceTypeScopeIndex<E>) {
         this.facts = facts;
         this.model = model;
-        this.memory = memory;
+        this.index = index;
+    }
+
+    /**
+     * The closest endpoint at or above {@link endpoint} whose device type is classified as a node.
+     *
+     * @internal
+     */
+    nodeEndpointOf(endpoint: E) {
+        return ConditionAssertions.nodeEndpointOf(endpoint, this);
+    }
+
+    /**
+     * The node endpoint {@link nodeEndpoint} and its descendants, without a node endpoint below it and its subtree.
+     *
+     * @internal
+     */
+    nodeScopeOf(nodeEndpoint: E) {
+        return ConditionAssertions.nodeScopeOf(nodeEndpoint, this);
+    }
+
+    /**
+     * The parts of {@link endpoint} that are {@link DeviceTypeFacts.isPresent present}.
+     *
+     * @internal
+     */
+    childrenOf(endpoint: E) {
+        return ResolvedEndpoint.of(endpoint, this).children;
+    }
+
+    /**
+     * @internal
+     */
+    isNodeEndpoint(endpoint: E) {
+        return ResolvedEndpoint.of(endpoint, this).isNodeEndpoint;
+    }
+
+    /**
+     * Whether the Base `Duplicate` condition holds for {@link endpoint}.
+     *
+     * @internal
+     */
+    isDuplicate(endpoint: E) {
+        return ConditionAssertions.isDuplicate(endpoint, this);
+    }
+
+    /**
+     * Whether a device type of {@link endpoint} states a condition requirement located at the node endpoint.
+     *
+     * @internal
+     */
+    assertsOnNodeEndpoint(endpoint: E) {
+        return ConditionAssertions.assertsOnNodeEndpoint(endpoint, this);
+    }
+
+    /**
+     * How far beyond its own subtree, its ancestors and its siblings the facts of {@link endpoint} enter the judgement
+     * of other endpoints of its node scope.
+     *
+     * @internal
+     */
+    reachOf(endpoint: E): DeviceTypeValidationPass.Reach {
+        if (
+            ConditionAssertions.reachesNodeScope(endpoint, this) ||
+            ConditionAssertions.declaresSingleton(endpoint, this)
+        ) {
+            return DeviceTypeValidationPass.Reach.NodeScope;
+        }
+        return ConditionAssertions.assertsOnNodeEndpoint(endpoint, this)
+            ? DeviceTypeValidationPass.Reach.NodeEndpoint
+            : DeviceTypeValidationPass.Reach.None;
+    }
+
+    /**
+     * The endpoints of the node scope of {@link nodeEndpoint} whose {@link reachOf reach} is not `None`, in tree order,
+     * and the node endpoints below it that bound the scope.
+     *
+     * @internal
+     */
+    scanReaching(nodeEndpoint: E) {
+        return ConditionAssertions.scanReaching(nodeEndpoint, this);
+    }
+
+    /**
+     * Whether {@link endpoint} is in the node scope of {@link nodeEndpoint}, as {@link nodeScopeOf} lists it.
+     *
+     * @internal
+     */
+    isInScope(endpoint: E, nodeEndpoint: E) {
+        return ConditionAssertions.isInScope(endpoint, nodeEndpoint, this);
+    }
+
+    /**
+     * The endpoints other than {@link nodeEndpoint} whose verdict can depend on the conditions of
+     * {@link nodeEndpoint}.
+     *
+     * @internal
+     */
+    nodeConditionReadersOf(nodeEndpoint: E) {
+        return DeviceTypeConformance.nodeConditionReadersOf(nodeEndpoint, this);
     }
 }
 
 export namespace DeviceTypeValidationPass {
     /**
-     * Values derived from a tree that the passes created with this memory share, so a pass does not derive them again
-     * from a whole node scope when the tree has not changed in a way that alters them.
-     *
-     * The owner of the memory reports the changes to endpoints it observes through {@link changed}; the reader of a
-     * kept value must derive it only from facts whose changes the owner observes. A change is weighed only when a pass
-     * next asks for a kept value, through {@link revise}: a change to an endpoint the values watch (see {@link hold})
-     * discards them, and so does any change the reader's test says alters them. Discarded values are derived again on
-     * the next read.
+     * How far beyond its own subtree, its ancestors and its siblings an endpoint's facts enter the judgement of other
+     * endpoints of its node scope. Ordered, so the wider of two is the greater.
      *
      * @internal
      */
-    export class Memory<E> {
-        #generation = 0;
-        #holds = false;
-        readonly #watched = new Set<E>();
-        readonly #changed = new Set<E>();
-        readonly #reaching = new Map<E, E[]>();
+    export enum Reach {
+        None,
 
         /**
-         * Increases whenever the kept values are discarded.
+         * The node endpoint and its condition readers, through a condition the endpoint asserts on the node endpoint.
          */
-        get generation() {
-            return this.#generation;
-        }
+        NodeEndpoint,
 
         /**
-         * The kept reaching endpoints per node endpoint, emptied whenever the kept values are discarded.
+         * Every endpoint of the node scope, through a network interface or a singleton declaration.
          */
-        get reaching(): Map<E, E[]> {
-            return this.#reaching;
-        }
-
-        /**
-         * Record that a value of the current generation is kept, and the endpoints any change to which discards it.
-         */
-        hold(watched: Iterable<E>) {
-            this.#holds = true;
-            for (const endpoint of watched) {
-                this.#watched.add(endpoint);
-            }
-        }
-
-        /**
-         * Note a change to {@link endpoint}, to be weighed by the next {@link revise}. Ignored while no value is held,
-         * because the next read derives every value anew.
-         */
-        changed(endpoint: E) {
-            if (this.#holds) {
-                this.#changed.add(endpoint);
-            }
-        }
-
-        /**
-         * Discard the kept values when a change noted since the last revision is to a watched endpoint or
-         * {@link alters} them.
-         */
-        revise(alters: (endpoint: E) => boolean) {
-            for (const endpoint of this.#changed) {
-                if (this.#watched.has(endpoint) || alters(endpoint)) {
-                    this.clear();
-                    return;
-                }
-            }
-            this.#changed.clear();
-        }
-
-        /**
-         * Discard every kept value.
-         */
-        clear() {
-            this.#generation++;
-            this.#holds = false;
-            this.#watched.clear();
-            this.#changed.clear();
-            this.#reaching.clear();
-        }
+        NodeScope,
     }
 }

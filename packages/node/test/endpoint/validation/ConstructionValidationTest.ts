@@ -17,14 +17,21 @@ import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light"
 import { RefrigeratorDevice } from "#devices/refrigerator";
 import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
 import { EndpointPartsError } from "#endpoint/errors.js";
-import { DeviceTypeConformanceService } from "#endpoint/validation/DeviceTypeConformanceService.js";
-import { DeviceTypeConformanceError } from "#endpoint/validation/Violation.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
-import { ServerEndpointFacts } from "#node/server/ServerEndpointFacts.js";
+import { DeviceTypeConformanceError } from "#node/server/DeviceTypeConformanceError.js";
+import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Environment, ImplementationError } from "@matter/general";
-import { AttributeModel, ClusterModel, DeviceTypeModel, MatterModel, RequirementModel } from "@matter/model";
+import {
+    AttributeModel,
+    ClusterModel,
+    DeviceTypeConformance,
+    DeviceTypeModel,
+    DeviceTypeValidationPass,
+    MatterModel,
+    RequirementModel,
+} from "@matter/model";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
 import {
@@ -34,7 +41,7 @@ import {
     lightWith,
     lightWithGroupKeyManagement,
     lightWithoutIdentify,
-    unjudgedServiceOf,
+    unjudgedModel,
     withBle,
 } from "./validation-helpers.js";
 
@@ -68,12 +75,15 @@ function environmentWith(mode: string) {
 }
 
 /**
- * Counts the calls of the service's validation entry points until disposed.
+ * Counts the calls of the service's public validation entry points and the passes that judge an endpoint until
+ * disposed.
  */
 function countingValidations() {
     const { prototype } = DeviceTypeConformanceService;
-    const { validate, validateNodeScope, validateAddition } = prototype;
-    const calls = { validate: 0, validateNodeScope: 0, validateAddition: 0 };
+    const { validate, validateNodeScope } = prototype;
+    const { check } = DeviceTypeConformance;
+    const passes = new Set<DeviceTypeValidationPass<unknown>>();
+    const calls = { validate: 0, validateNodeScope: 0, passes: 0 };
 
     prototype.validate = function (...args: Parameters<DeviceTypeConformanceService["validate"]>) {
         calls.validate++;
@@ -83,16 +93,18 @@ function countingValidations() {
         calls.validateNodeScope++;
         return validateNodeScope.apply(this, args);
     };
-    prototype.validateAddition = function (...args: Parameters<DeviceTypeConformanceService["validateAddition"]>) {
-        calls.validateAddition++;
-        return validateAddition.apply(this, args);
+    DeviceTypeConformance.check = (endpoint, pass) => {
+        passes.add(pass);
+        calls.passes = passes.size;
+        return check(endpoint, pass);
     };
 
     return {
         calls,
 
         [Symbol.dispose]() {
-            Object.assign(prototype, { validate, validateNodeScope, validateAddition });
+            Object.assign(prototype, { validate, validateNodeScope });
+            DeviceTypeConformance.check = check;
         },
     };
 }
@@ -183,7 +195,7 @@ describe("device type validation at construction", () => {
             await node.close();
         });
 
-        expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 1, validateAddition: 0 });
+        expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 1, passes: 1 });
         expect(logged.filter(({ text }) => text.includes("Identify")).length).equals(100);
     });
 
@@ -195,7 +207,7 @@ describe("device type validation at construction", () => {
             node.add({ type: AggregatorEndpoint, id: "aggregator", parts: lights(50) }),
         );
 
-        expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 0, validateAddition: 1 });
+        expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 0, passes: 1 });
         expect(logged.filter(({ text }) => text.includes("Identify")).length).equals(50);
 
         await node.close();
@@ -240,11 +252,11 @@ describe("device type validation at construction", () => {
         const node = await createNode();
         const fridge = await node.add(Fridge, { id: "fridge" });
         const service = node.env.get(DeviceTypeConformanceService);
-        expect(service.knows(fridge)).true;
+        expect(service.violationsOf(fridge).length).not.equals(0);
 
         await fridge.add(cabinet());
 
-        expect(service.knows(fridge)).false;
+        expect(service.violationsOf(fridge)).deep.equals([]);
 
         await node.close();
     });
@@ -334,11 +346,7 @@ describe("device type validation at construction", () => {
     });
 
     it("reads nothing of a sibling whose behaviors are still initializing", async () => {
-        const node = await createNode();
-        node.env.set(
-            DeviceTypeConformanceService,
-            new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), onOffComponentModel()),
-        );
+        const node = await createNode(onOffComponentModel());
         const composer = await node.add(lightWithoutIdentify.with(DescriptorServer), {
             id: "composer",
             descriptor: { deviceTypeList: deviceTypeList(COMPOSER_ID) },
@@ -365,11 +373,7 @@ describe("device type validation at construction", () => {
     });
 
     it("judges nothing in a tree without a node endpoint", async () => {
-        const node = await createNode();
-        node.env.set(
-            DeviceTypeConformanceService,
-            new DeviceTypeConformanceService(node, node.env, new ServerEndpointFacts(), nodelessModel()),
-        );
+        const node = await createNode(nodelessModel());
 
         const logged = await captureLogOf(() =>
             node.add(lightWith(Groups, OnOff, ScenesManagement, GroupKeyManagementBehavior), { id: "light" }),
@@ -399,13 +403,15 @@ describe("device type validation at construction", () => {
 
     it("never refuses a peer's misplaced singleton", async () => {
         await using site = new MockSite();
-        const { controller, device } = await site.addCommissionedPair();
+
+        // The device would refuse the endpoint, so it judges in a model without a node
+        const { controller, device } = await site.addCommissionedPair({
+            device: { type: ServerNode.RootEndpoint, matter: unjudgedModel() },
+        });
         const peer = controller.peers.get("peer1");
         expect(peer).not.undefined;
 
-        // The device would refuse the endpoint, so it is built without judgement
         await MockTime.resolve(device.stop());
-        device.env.set(DeviceTypeConformanceService, unjudgedServiceOf(device));
         await device.add(lightWithGroupKeyManagement, { id: "misplaced" });
 
         const logged = await captureLogOf(async () => {
@@ -457,11 +463,11 @@ describe("device type validation at construction", () => {
                 });
                 await node.start();
                 const fridge = await node.add(Fridge, { id: "fridge" });
-                expect(node.env.get(DeviceTypeConformanceService).knows(fridge)).false;
+                expect(node.env.get(DeviceTypeConformanceService).violationsOf(fridge)).deep.equals([]);
                 await node.close();
             });
 
-            expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 0, validateAddition: 0 });
+            expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 0, passes: 0 });
             expect(logged).deep.equals([]);
         });
 

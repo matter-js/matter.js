@@ -9,7 +9,7 @@ import { DeviceClassification } from "../../common/DeviceClassification.js";
 import { RequirementElement } from "../../elements/RequirementElement.js";
 import { ConditionModel, DeviceTypeModel, RequirementModel } from "../../models/index.js";
 import { requirementApplicability } from "../RequirementApplicability.js";
-import { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
+import type { DeviceTypeValidationPass } from "./DeviceTypeValidationPass.js";
 import { lookupsFor } from "./ModelLookups.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
 
@@ -101,40 +101,57 @@ export namespace ConditionAssertions {
      * {@link assertsOnNodeEndpoint assert a condition on the node endpoint} or state a server cluster requirement that
      * declares a singleton. In the order of {@link nodeScopeOf}.
      *
-     * A pass with a {@link DeviceTypeValidationPass.memory memory} derives them from the whole node scope only when the
-     * memory holds none or a change it noted since may add one: a change to an endpoint that is now one of them, or to
-     * a node endpoint below {@link nodeEndpoint} whose subtree may join the scope. An endpoint that has left the scope
-     * since is dropped by every pass, and what each one contributes is read again by every pass.
+     * A pass with a {@link DeviceTypeValidationPass.index scope index} reads them from the index, which may list
+     * endpoints that reach nothing now; what each one contributes is read again by every pass.
      */
-    export function reachingEndpointsOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): E[] {
-        return pass.reaching.get(nodeEndpoint, () => {
-            const { memory, facts } = pass;
-            if (memory === undefined) {
-                return reachingIn(nodeEndpoint, pass).reaching;
-            }
+    export function reachingEndpointsOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): readonly E[] {
+        return pass.reaching.get(
+            nodeEndpoint,
+            () => pass.index?.reachingOf(nodeEndpoint, pass) ?? scanReaching(nodeEndpoint, pass).reaching,
+        );
+    }
 
-            memory.revise(endpoint => facts.isPresent(endpoint) && reaches(endpoint, pass));
+    /**
+     * The {@link reachingEndpointsOf reaching endpoints} of the node scope of {@link nodeEndpoint} as a walk of the
+     * scope finds them, and the node endpoints below it that bound the scope.
+     */
+    export function scanReaching<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
+        const reaching = new Array<E>();
+        const boundaries = new Array<E>();
 
-            const held = memory.reaching;
-            let reaching = held.get(nodeEndpoint);
-            if (reaching === undefined) {
-                const walked = reachingIn(nodeEndpoint, pass);
-                memory.hold(walked.boundaries);
-                reaching = walked.reaching;
-                held.set(nodeEndpoint, reaching);
+        const visit = (endpoint: E) => {
+            if (reaches(endpoint, pass)) {
+                reaching.push(endpoint);
             }
+            for (const child of ResolvedEndpoint.of(endpoint, pass).children) {
+                if (ResolvedEndpoint.of(child, pass).isNodeEndpoint) {
+                    boundaries.push(child);
+                } else {
+                    visit(child);
+                }
+            }
+        };
+        visit(nodeEndpoint);
 
-            const inScope = reaching.filter(endpoint => isInScope(endpoint, nodeEndpoint, pass));
-            if (inScope.length !== reaching.length) {
-                // An endpoint below a new node endpoint returns once that stops being one, which changes no watched
-                // endpoint
-                held.set(
-                    nodeEndpoint,
-                    reaching.filter(endpoint => inScope.includes(endpoint) || facts.isAttached(endpoint)),
-                );
+        return { reaching, boundaries };
+    }
+
+    /**
+     * Whether {@link endpoint} is in the node scope of {@link nodeEndpoint}, as {@link nodeScopeOf} lists it.
+     *
+     * An owner lists every endpoint it owns as a part until the endpoint is destroyed, except a peer's node, which is a
+     * node endpoint.
+     */
+    export function isInScope<E>(endpoint: E, nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
+        const { facts } = pass;
+        for (let current = endpoint; current !== nodeEndpoint;) {
+            const owner = facts.parentOf(current);
+            if (owner === undefined || !facts.isPresent(current) || ResolvedEndpoint.of(current, pass).isNodeEndpoint) {
+                return false;
             }
-            return inScope;
-        });
+            current = owner;
+        }
+        return true;
     }
 
     /**
@@ -180,8 +197,8 @@ export namespace ConditionAssertions {
      * {@link assertsOnNodeEndpoint asserts a condition on the node endpoint}, or one of its device types states a
      * server cluster requirement with the singleton quality — whether or not that cluster resolves in the model.
      *
-     * Reads only device types and server clusters, whose changes the owner of a {@link DeviceTypeValidationPass.Memory}
-     * must note; a kept list stays correct only while that holds.
+     * Reads only device types and server clusters, whose changes the owner of a {@link DeviceTypeScopeIndex} must
+     * observe; a kept list stays correct only while that holds.
      */
     export function reaches<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): boolean {
         return (
@@ -356,7 +373,7 @@ class ScopeConditions<E> implements ConditionAssertions.Collection<E> {
     }
 
     #isInScope(endpoint: E) {
-        return isInScope(endpoint, this.#nodeEndpoint, this.#pass);
+        return ConditionAssertions.isInScope(endpoint, this.#nodeEndpoint, this.#pass);
     }
 
     /**
@@ -476,50 +493,6 @@ function matchesOf<E>(facts: ResolvedEndpoint<E>, condition: ConditionModel, pas
 }
 
 /**
- * The {@link ConditionAssertions.reachingEndpointsOf reaching endpoints} of the node scope of {@link nodeEndpoint},
- * and the node endpoints below it that bound the scope.
- */
-function reachingIn<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
-    const reaching = new Array<E>();
-    const boundaries = new Array<E>();
-
-    const visit = (endpoint: E) => {
-        if (ConditionAssertions.reaches(endpoint, pass)) {
-            reaching.push(endpoint);
-        }
-        for (const child of ResolvedEndpoint.of(endpoint, pass).children) {
-            if (ResolvedEndpoint.of(child, pass).isNodeEndpoint) {
-                boundaries.push(child);
-            } else {
-                visit(child);
-            }
-        }
-    };
-    visit(nodeEndpoint);
-
-    return { reaching, boundaries };
-}
-
-/**
- * Whether {@link endpoint} is in the node scope of {@link nodeEndpoint}, as {@link ConditionAssertions.nodeScopeOf}
- * lists it.
- *
- * An owner lists every endpoint it owns as a part until the endpoint is destroyed, except a peer's node, which is a
- * node endpoint.
- */
-function isInScope<E>(endpoint: E, nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
-    const { facts } = pass;
-    for (let current = endpoint; current !== nodeEndpoint;) {
-        const owner = facts.parentOf(current);
-        if (owner === undefined || !facts.isPresent(current) || ResolvedEndpoint.of(current, pass).isNodeEndpoint) {
-            return false;
-        }
-        current = owner;
-    }
-    return true;
-}
-
-/**
  * The conditions the Base device type defines in structural terms, so the tree answers them rather than the developer.
  *
  * @see {@link MatterSpecification.v16.Device} § 1.1.5
@@ -579,7 +552,7 @@ function structuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E
  * @see {@link MatterSpecification.v16.Device} § 1.1.3.1
  * @see {@link MatterSpecification.v16.Device} § 2.1.3
  */
-function nodeConditionsOf<E>(nodeEndpoint: E, reaching: E[], pass: DeviceTypeValidationPass<E>) {
+function nodeConditionsOf<E>(nodeEndpoint: E, reaching: readonly E[], pass: DeviceTypeValidationPass<E>) {
     const conditions = new Set<string>(pass.facts.nodeConditionsOf(nodeEndpoint));
 
     for (const endpoint of reaching) {
@@ -607,6 +580,19 @@ function overlapsSibling<E>(facts: ResolvedEndpoint<E>, pass: DeviceTypeValidati
 
     const own = applicationDeviceTypeIdsOf(facts);
     if (!own.size) {
+        return false;
+    }
+
+    const { index } = pass;
+    if (index !== undefined) {
+        for (const id of own) {
+            let present = 0;
+            for (const part of index.partsListing(owner, id)) {
+                if (pass.facts.isPresent(part) && ++present > 1) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 

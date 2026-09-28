@@ -19,7 +19,6 @@ import {
     NodeCondition,
     RequirementModel,
     ResolvedEndpoint,
-    StructuralCondition,
 } from "@matter/model";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import {
@@ -284,15 +283,6 @@ describe("ConditionAssertions", () => {
     });
 
     describe("structural conditions", () => {
-        it("spells every structural condition as Base declares it", () => {
-            const base = Matter.deviceTypes("Base");
-            const declared = new Set(base?.all(ConditionModel).map(condition => condition.name));
-
-            for (const name of Object.values<string>(StructuralCondition)) {
-                expect(declared.has(name), `Base declares ${name}`).true;
-            }
-        });
-
         it("derives Node from a node device type", async () => {
             const node = await createNode();
             const light = await node.add(OnOffLightDevice, { id: "light" });

@@ -11,15 +11,17 @@ import {
     DeviceTypeConformance,
     DeviceTypeFacts,
     DeviceTypeModel,
+    DeviceTypeScopeIndex,
     DeviceTypeValidationPass,
     DeviceTypeViolation,
     FeatureMap,
     FieldModel,
+    Matter,
     MatterModel,
     NodeCondition,
     RequirementModel,
 } from "#index.js";
-import { ConditionAssertions } from "#logic/device-types/ConditionAssertions.js";
+import { ConditionAssertions, conditionScopeOf, StructuralCondition } from "#logic/device-types/ConditionAssertions.js";
 import { ImplementationError } from "@matter/general";
 
 const ROOT_ID = 0x16;
@@ -42,6 +44,7 @@ interface FakeEndpoint {
 
 class FakeFacts implements DeviceTypeFacts<FakeEndpoint> {
     nodeConditions = new Array<NodeCondition>();
+    absent = new Set<FakeEndpoint>();
 
     parentOf(endpoint: FakeEndpoint) {
         return endpoint.parent;
@@ -51,12 +54,8 @@ class FakeFacts implements DeviceTypeFacts<FakeEndpoint> {
         return endpoint.parts;
     }
 
-    isPresent() {
-        return true;
-    }
-
-    isAttached(endpoint: FakeEndpoint) {
-        return endpoint.parent !== undefined;
+    isPresent(endpoint: FakeEndpoint) {
+        return !this.absent.has(endpoint);
     }
 
     deviceTypeIdsOf(endpoint: FakeEndpoint) {
@@ -307,5 +306,85 @@ describe("DeviceTypeConformance with facts that are not a node", () => {
                 .conditionsOf(light)
                 .has(NodeCondition.CustomNetworkConfig),
         ).true;
+    });
+});
+
+/**
+ * An index answering from fixed lists rather than the tree.
+ */
+class FakeIndex implements DeviceTypeScopeIndex<FakeEndpoint> {
+    reaching = new Array<FakeEndpoint>();
+    listings = new Map<number, FakeEndpoint[]>();
+
+    reachingOf() {
+        return this.reaching;
+    }
+
+    partsListing(_parent: FakeEndpoint, deviceTypeId: number) {
+        return this.listings.get(deviceTypeId) ?? [];
+    }
+}
+
+describe("DeviceTypeValidationPass with a scope index", () => {
+    it("reads the singleton declarers of a node scope from the index", () => {
+        const model = fixtureModel();
+        const root = endpoint("root", ROOT_ID);
+        const light = endpoint("light", LIGHT_ID, { parent: root, servers: [onOffOf(model), singletonOf(model)] });
+        const index = new FakeIndex();
+
+        const misplaced = () =>
+            DeviceTypeConformance.check(light, new DeviceTypeValidationPass(new FakeFacts(), model, index)).filter(
+                ({ kind }) => kind === "singletonMisplaced",
+            );
+
+        expect(misplaced()).deep.equals([]);
+
+        index.reaching.push(root);
+        expect(misplaced().map(({ requirement }) => requirement)).deep.equals(["Singleton"]);
+    });
+
+    it("counts the siblings of the Duplicate condition from the index", () => {
+        const model = fixtureModel();
+        const root = endpoint("root", ROOT_ID);
+        const first = endpoint("first", LIGHT_ID, { parent: root });
+        const second = endpoint("second", LIGHT_ID, { parent: root });
+        const index = new FakeIndex();
+
+        const isDuplicate = () => new DeviceTypeValidationPass(new FakeFacts(), model, index).isDuplicate(first);
+
+        index.listings.set(LIGHT_ID, [first]);
+        expect(isDuplicate()).false;
+
+        index.listings.set(LIGHT_ID, [first, second]);
+        expect(isDuplicate()).true;
+
+        const facts = new FakeFacts();
+        facts.absent.add(second);
+        expect(new DeviceTypeValidationPass(facts, model, index).isDuplicate(first)).false;
+        expect(new DeviceTypeValidationPass(new FakeFacts(), model).isDuplicate(first)).true;
+    });
+});
+
+describe("device type model lookups", () => {
+    it("resolves a device type's conditions once per model, shared by every pass resolved in it", () => {
+        const deviceType = Matter.deviceTypes("OnOffLight");
+        if (deviceType === undefined) {
+            throw new ImplementationError("The standard model has no OnOffLight");
+        }
+
+        // RequirementResolver.conditionsOf() allocates a fresh Map on every call, so identity here proves the second
+        // pass reused the first pass's cache entry instead of resolving again.
+        const first = conditionScopeOf(deviceType, new DeviceTypeValidationPass(new FakeFacts(), Matter));
+        const second = conditionScopeOf(deviceType, new DeviceTypeValidationPass(new FakeFacts(), Matter));
+        expect(second).equals(first);
+    });
+
+    it("spells every structural condition as Base declares it", () => {
+        const base = Matter.deviceTypes("Base");
+        const declared = new Set(base?.all(ConditionModel).map(condition => condition.name));
+
+        for (const name of Object.values<string>(StructuralCondition)) {
+            expect(declared.has(name), `Base declares ${name}`).true;
+        }
     });
 });
