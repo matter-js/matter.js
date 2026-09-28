@@ -1474,6 +1474,11 @@ export class DclCertificateService {
             );
         }
 
+        // RFC 5280 §5.1.2.3: the CRL names the signer as its issuer
+        if (crl.issuerDnDerHex?.toLowerCase() !== nameOf(signer, "subject")) {
+            throw new CrlRejectedError("CRL issuer name is not the CRL signer's subject");
+        }
+
         // Step 7.2
         if (partitioned && crl.issuingDistributionPointUri !== point.dataUrl) {
             throw new CrlRejectedError(

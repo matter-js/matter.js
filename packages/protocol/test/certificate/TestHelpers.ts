@@ -147,10 +147,12 @@ export function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes):
     );
 }
 
-/** A CRL signer key and the subject key identifier of its certificate. */
+/** A CRL signer key and the subject key identifier and subject Name DER of its certificate. */
 export interface TestCrlSigner {
     key: PrivateKey | MlDsa.PrivateKey;
     subjectKeyId: Bytes;
+    /** The CRL's issuer unless the CRL states another */
+    subjectDer?: Bytes;
 }
 
 /** The private key of the CHIP test PAA without vendor ID. */
@@ -163,6 +165,7 @@ export function chipTestPaaCrlSigner(): TestCrlSigner {
     return {
         key: chipTestPaaKey(),
         subjectKeyId: Paa.fromAsn1(TestCert_PAA_NoVID_Cert).cert.extensions.subjectKeyIdentifier,
+        subjectDer: Paa.fromAsn1(TestCert_PAA_NoVID_Cert).cert.subjectDer,
     };
 }
 
@@ -215,7 +218,7 @@ export async function buildSignedTestCrl(
 
     const tbsCertList = crlTbs(
         revokedSerialHexes,
-        options.issuerDnDer,
+        options.issuerDnDer ?? signer.subjectDer,
         options.tbsSignatureAlgorithm ?? signatureAlgorithm,
         extensions,
         options.entryExtensions,

@@ -61,9 +61,13 @@ describe("DeviceAttestationValidator", () => {
         // Create the cert manager and generate PAI and DAC; the PAI key is kept to sign test CRLs
         const paiKey = await crypto.createKeyPair();
         const paiKeyIdentifier = Bytes.of(await crypto.computeHash(paiKey.publicKey, "SHA-1"));
-        paiCrlSigner = { key: paiKey, subjectKeyId: paiKeyIdentifier };
         certManager = new AttestationCertificateManager(crypto, vendorId, paiKey, paiKeyIdentifier);
         paiDer = await certManager.getPAICert();
+        paiCrlSigner = {
+            key: paiKey,
+            subjectKeyId: paiKeyIdentifier,
+            subjectDer: Pai.fromAsn1(paiDer).cert.subjectDer,
+        };
         const dacResult = await certManager.getDACert(productId);
         dacDer = dacResult.dac;
         dacPublicKey = dacResult.keyPair.publicKey;

@@ -106,7 +106,7 @@ async function issue(
         skid,
         name,
         ids: { vendorId: options.vendorId, productId: options.productId },
-        crlSigner: { key, subjectKeyId: skid },
+        crlSigner: { key, subjectKeyId: skid, subjectDer: Bytes.of(DerCodec.encode(nameOf(name, options))) },
     };
 }
 
@@ -372,7 +372,12 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
 
     describe("CRL checks", () => {
         it("ignores a CRL whose authority key identifier names another signer (step 7.1)", async () => {
-            const crl = await crlBy({ key: paa.key, subjectKeyId: new Uint8Array(20) });
+            const crl = await crlBy({ ...paa.crlSigner, subjectKeyId: new Uint8Array(20) });
+            expect(await revoked(paa.skid, [{ signer: paa, isPAA: true, crl }])).false;
+        });
+
+        it("ignores a CRL whose issuer is not the signer (RFC 5280 §5.1.2.3)", async () => {
+            const crl = await crlBy(paa.crlSigner, { issuerDnDer: Bytes.of(DerCodec.encode(nameOf("Someone else"))) });
             expect(await revoked(paa.skid, [{ signer: paa, isPAA: true, crl }])).false;
         });
 
@@ -399,7 +404,7 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
 
         it("ignores a CRL signed with a key other than the signer's (step 8)", async () => {
             const impostor = await crypto.createKeyPair();
-            const crl = await crlBy({ key: impostor, subjectKeyId: paa.skid });
+            const crl = await crlBy({ ...paa.crlSigner, key: impostor });
             expect(await revoked(paa.skid, [{ signer: paa, isPAA: true, crl }])).false;
         });
 
@@ -600,7 +605,8 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                 },
             });
             await cert.sign(crypto, key);
-            return { der: cert.asSignedDer(), skid, crlSigner: { key, subjectKeyId: skid } };
+            const der = cert.asSignedDer();
+            return { der, skid, crlSigner: { key, subjectKeyId: skid, subjectDer: Paa.fromAsn1(der).cert.subjectDer } };
         }
 
         it("verifies a CRL signed with ML-DSA", async () => {
@@ -612,7 +618,7 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
         it("ignores an ML-DSA CRL signed with another key", async () => {
             const pqc = await mlDsaPaa("ML-DSA-44");
             const other = await crypto.createMlDsaKeyPair("ML-DSA-44");
-            const crl = await crlBy({ key: other, subjectKeyId: pqc.skid });
+            const crl = await crlBy({ ...pqc.crlSigner, key: other });
             expect(await revoked(pqc.skid, [{ signer: pqc, isPAA: true, crl }], REVOKED, [pqc.der])).false;
         });
 
@@ -628,7 +634,7 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
 
         it("ignores an EC-signed CRL from an ML-DSA signer", async () => {
             const pqc = await mlDsaPaa("ML-DSA-65");
-            const crl = await crlBy({ key: paa.key, subjectKeyId: pqc.skid });
+            const crl = await crlBy({ ...pqc.crlSigner, key: paa.key });
             expect(await revoked(pqc.skid, [{ signer: pqc, isPAA: true, crl }], REVOKED, [pqc.der])).false;
         });
     });

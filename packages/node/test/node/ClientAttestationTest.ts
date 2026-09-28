@@ -52,7 +52,9 @@ async function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): 
     const tbs: Record<string, any> = {
         version: { _tag: DerType.Integer, _bytes: Uint8Array.of(1) },
         signature: X962.EcdsaWithSHA256,
-        issuer: issuerDnDer !== undefined ? DerCodec.decode(issuerDnDer) : { cn: ["Test Issuer"] },
+        issuer: DerCodec.decode(
+            issuerDnDer ?? Paa.fromAsn1(TestCert_PAA_NoVID_Cert).cert.subjectDer ?? new Uint8Array(),
+        ),
         thisUpdate: { _tag: DerType.UtcDate, _bytes: Bytes.fromString("250101000000Z") },
     };
     if (revokedSerialHexes.length > 0) tbs.revokedCertificates = entries;
