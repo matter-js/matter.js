@@ -290,6 +290,30 @@ describe("PQC Phase 1 attestation certificates", () => {
             expect(() => Pai.fromAsn1(altered)).throws(CertificateError, /Invalid signature algorithm structure/);
         });
 
+        for (const [description, from, to, message] of [
+            [
+                "a public key algorithm that is not an OBJECT IDENTIFIER",
+                "06072a8648ce3d0201",
+                "02072a8648ce3d0201",
+                /Invalid public key algorithm structure/,
+            ],
+            [
+                "a curve that is not an OBJECT IDENTIFIER",
+                "06082a8648ce3d030107",
+                "02082a8648ce3d030107",
+                /Invalid public key algorithm structure/,
+            ],
+            ["an EC key BIT STRING with unused bits", "0342000", "0342010", /without unused bits/],
+        ] as const) {
+            it(`rejects ${description}`, async () => {
+                const { paiDer } = await buildChain({ paa: "ECDSA-P256", pai: "ECDSA-P256" });
+                const hex = Bytes.toHex(paiDer);
+                expect(hex.split(from).length).equals(2);
+
+                expect(() => Pai.fromAsn1(Bytes.fromHex(hex.replace(from, to)))).throws(CertificateError, message);
+            });
+        }
+
         it("rejects a traditional attestation certificate larger than 600 bytes", async () => {
             const { paaKey, paiDer } = await buildChain({ paa: "ECDSA-P256", pai: "ECDSA-P256" });
             if (MlDsa.isPrivateKey(paaKey)) {

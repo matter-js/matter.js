@@ -459,13 +459,15 @@ if (nodeApi !== undefined) {
             expect(calls).deep.equals([...(canSign ? ["sign"] : []), ...(canVerify ? ["verify", "verify"] : [])]);
         });
 
-        it("signs under a restricted provider only where the provider can", async () => {
+        it("neither probes nor substitutes signing under a restricted provider", async () => {
             const key = await new StandardCrypto().createMlDsaKeyPair("ML-DSA-44");
+            let signCalls = 0;
             const crypto = new NodeJsStyleCrypto({
                 ...api,
                 getFips: () => 1,
                 sign() {
-                    throw new ImplementationError("Unsupported key type");
+                    signCalls++;
+                    throw new ImplementationError("Unexpected signing call");
                 },
             });
 
@@ -473,6 +475,7 @@ if (nodeApi !== undefined) {
                 CryptoError,
                 /signing is unavailable/,
             );
+            expect(signCalls).equals(0);
         });
     });
 }

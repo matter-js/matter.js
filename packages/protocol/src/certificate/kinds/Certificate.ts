@@ -660,9 +660,7 @@ export namespace Certificate {
 
         // Signature algorithm
         const signatureAlgorithmNode = certElements[idx++];
-        const signatureAlgorithmOidNode = signatureAlgorithmNode._elements?.[0];
-        const signatureAlgorithmOid =
-            signatureAlgorithmOidNode?._tag === DerType.ObjectIdentifier ? signatureAlgorithmOidNode._bytes : undefined;
+        const signatureAlgorithmOid = objectIdentifierOf(signatureAlgorithmNode._elements?.[0]);
         if (!signatureAlgorithmOid) {
             throw new CertificateError("Invalid signature algorithm structure");
         }
@@ -699,8 +697,11 @@ export namespace Certificate {
         }
 
         const { _elements: algorithmElements } = publicKeyElements[0];
-        const publicKeyParameterSet =
-            algorithmElements?.[0] === undefined ? undefined : MlDsa.parameterSetForOid(algorithmElements[0]._bytes);
+        const publicKeyAlgorithmOid = objectIdentifierOf(algorithmElements?.[0]);
+        if (publicKeyAlgorithmOid === undefined) {
+            throw new CertificateError("Invalid public key algorithm structure");
+        }
+        const publicKeyParameterSet = MlDsa.parameterSetForOid(publicKeyAlgorithmOid);
 
         let publicKeyAlgorithm = 0;
         let ellipticCurveIdentifier = 0;
@@ -714,15 +715,17 @@ export namespace Certificate {
                 throw new CertificateError(`Invalid ${publicKeyParameterSet} public key`, { cause });
             }
         } else {
-            if (!algorithmElements || algorithmElements.length !== 2) {
+            const ellipticCurveOid = objectIdentifierOf(algorithmElements?.[1]);
+            if (algorithmElements?.length !== 2 || ellipticCurveOid === undefined) {
                 throw new CertificateError("Invalid public key algorithm structure");
             }
+            const keyNode = publicKeyElements[1];
+            if (keyNode._tag !== DerType.BitString || keyNode._padding !== 0) {
+                throw new CertificateError("Public key must be a BIT STRING without unused bits");
+            }
 
-            const publicKeyAlgorithmOid = Bytes.toHex(algorithmElements[0]._bytes);
-            publicKeyAlgorithm = publicKeyAlgorithmOid === "2a8648ce3d0201" ? 1 : 0;
-
-            const ellipticCurveOid = Bytes.toHex(algorithmElements[1]._bytes);
-            ellipticCurveIdentifier = ellipticCurveOid === "2a8648ce3d030107" ? 1 : 0;
+            publicKeyAlgorithm = Bytes.toHex(publicKeyAlgorithmOid) === "2a8648ce3d0201" ? 1 : 0;
+            ellipticCurveIdentifier = Bytes.toHex(ellipticCurveOid) === "2a8648ce3d030107" ? 1 : 0;
 
             // Note: DerKey.Bytes for BIT STRING returns data without the padding byte
             // EC public keys in Matter format include the 0x04 uncompressed point format byte
@@ -880,6 +883,11 @@ function matterToX509(cert: Unsigned<MatterCertificate>): X509.UnsignedCertifica
                 ? X962.PublicKeyEcPrime256v1(ellipticCurvePublicKey)
                 : MlDsa.SubjectPublicKeyInfo(mlDsaPublicKey.parameterSet, mlDsaPublicKey.key),
     };
+}
+
+/** The content of an OBJECT IDENTIFIER node, or undefined for any other node. */
+function objectIdentifierOf(node: DerNode | undefined) {
+    return node?._tag === DerType.ObjectIdentifier ? Bytes.of(node._bytes) : undefined;
 }
 
 function maxDerSize({ mlDsaSignature, mlDsaPublicKey }: Unsigned<MatterCertificate>) {

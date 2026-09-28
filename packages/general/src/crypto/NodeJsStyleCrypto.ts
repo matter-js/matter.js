@@ -569,7 +569,8 @@ function nativeMlDsa(
         }
     }
 
-    if (typeof sign === "function") {
+    // The probe expands a key with the portable implementation, which a restricted provider must not run
+    if (typeof sign === "function" && !api.getFips?.()) {
         const seed = new Uint8Array(MlDsa.SEED_LENGTH);
         try {
             sign.call(
