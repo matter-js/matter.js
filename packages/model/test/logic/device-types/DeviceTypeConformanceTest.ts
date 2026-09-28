@@ -634,6 +634,47 @@ describe("ReachingEndpoints", () => {
         expect([...members.interfaceConditions(read)]).deep.equals(["Thread"]);
         expect(members.size).equals(1);
     });
+
+    it("counts each member's contribution exactly once across a batch a read fails partway through", () => {
+        const members = new ReachingEndpoints(["first", "second"]);
+        let throwForSecond = true;
+        const read = (member: string) => {
+            if (member === "second" && throwForSecond) {
+                throw new Error("boom");
+            }
+            return { interfaces: member === "first" ? ["WiFi"] : [], declares: false };
+        };
+
+        expect(() => members.interfaceConditions(read)).throws("boom");
+
+        throwForSecond = false;
+        expect([...members.interfaceConditions(read)]).deep.equals(["WiFi"]);
+
+        // deleting "first" must retract the one count the failed batch made
+        members.delete("first");
+        expect([...members.interfaceConditions(read)]).deep.equals([]);
+    });
+
+    it("counts each member's asserted conditions exactly once across a batch a read fails partway through", () => {
+        const members = new ReachingEndpoints(["first", "second"]);
+        let throwForSecond = true;
+        const read = (member: string) => {
+            if (member === "second" && throwForSecond) {
+                throw new Error("boom");
+            }
+            return member === "first" ? ["Gated"] : [];
+        };
+        const nodeConditions = new Set<string>();
+
+        expect(() => members.assertedConditions(nodeConditions, read)).throws("boom");
+
+        throwForSecond = false;
+        expect([...members.assertedConditions(nodeConditions, read)]).deep.equals(["Gated"]);
+
+        // deleting "first" must retract the one count the failed batch made
+        members.delete("first");
+        expect([...members.assertedConditions(nodeConditions, read)]).deep.equals([]);
+    });
 });
 
 describe("device type model lookups", () => {

@@ -134,8 +134,8 @@ export class ReachingEndpoints<E> implements Iterable<E> {
                 contribution.asserted = [...read(endpoint)];
                 this.#assertions.count(contribution.asserted);
             }
+            this.#unreadAssertions.delete(endpoint);
         }
-        this.#unreadAssertions.clear();
 
         return this.#assertions.names;
     }
@@ -191,6 +191,7 @@ export class ReachingEndpoints<E> implements Iterable<E> {
         for (const endpoint of this.#unreadFacts) {
             const contribution = this.#members.get(endpoint);
             if (contribution === undefined) {
+                this.#unreadFacts.delete(endpoint);
                 continue;
             }
             const { interfaces, declares } = read(endpoint);
@@ -200,8 +201,8 @@ export class ReachingEndpoints<E> implements Iterable<E> {
             if (declares) {
                 this.#declarers = undefined;
             }
+            this.#unreadFacts.delete(endpoint);
         }
-        this.#unreadFacts.clear();
     }
 
     #retract(contribution: Contribution) {
