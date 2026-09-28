@@ -51,7 +51,7 @@ describe("ValidateModel", () => {
     });
 
     describe("errors a model carries", () => {
-        // Characterization: unchanged by moving validation errors off the model
+        // Characterization: the deprecated error API still reaches the validation result
         it("reports an error recorded on the model beforehand", () => {
             const { matter, cluster } = modelWithUnknownType();
             cluster.error("RECORDED", "Recorded before validation");

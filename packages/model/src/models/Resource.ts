@@ -21,6 +21,9 @@ import type { RequirementModel } from "./RequirementModel.js";
  * You can load resources for the standard data model using `import "@matter/model/resources"`.
  */
 export class Resource {
+    /**
+     * @deprecated A resource does not carry errors; a model keeps the errors its definition states, see `Model.errors`
+     */
     errors?: DefinitionError[];
     asOf?: Specification.Revision;
     until?: Specification.Revision;
@@ -41,7 +44,6 @@ export class Resource {
         this.description = resources.description;
         this.details = resources.details;
         this.xref = resources.xref ? CrossReference.get(resources.xref) : undefined;
-        this.errors = resources.errors;
         this.asOf = resources.asOf;
         this.until = resources.until;
         this.matchTo = resources.matchTo;

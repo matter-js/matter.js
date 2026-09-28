@@ -92,7 +92,26 @@ describe("Resource", () => {
         cluster.error("TEST", "recorded");
 
         expect(cluster.errors?.map(error => error.code)).deep.equals(["TEST"]);
-        expect(cluster.resource?.errors).deep.equals([]);
+        expect(cluster.resource?.errors).equals(undefined);
+    });
+
+    it("keeps the errors a definition states on the model only", () => {
+        const model = new AttributeModel({
+            id: 3,
+            name: "Stated",
+            type: "uint8",
+            description: "Has a resource",
+            errors: [{ code: "STATED", source: "definition", message: "Stated by the definition" }],
+        });
+
+        expect(model.resource?.description).equals("Has a resource");
+        expect(model.resource?.errors).equals(undefined);
+        expect(model.errors?.map(error => error.code)).deep.equals(["STATED"]);
+
+        model.errors = undefined;
+
+        expect(model.errors).equals(undefined);
+        expect(model.resource?.errors).equals(undefined);
     });
 
     it("sets locally from resource", () => {
