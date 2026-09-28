@@ -495,7 +495,7 @@ export declare namespace ColorControl {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.22
          */
-        coupleColorTempToLevelMinMireds?: number;
+        coupleColorTempToLevelMinMireds: number;
 
         /**
          * Indicates the desired startup color temperature value the light shall use when it is supplied with power and
@@ -505,7 +505,7 @@ export declare namespace ColorControl {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.23
          */
-        startUpColorTemperatureMireds?: number | null;
+        startUpColorTemperatureMireds: number | null;
     }
 
     /**

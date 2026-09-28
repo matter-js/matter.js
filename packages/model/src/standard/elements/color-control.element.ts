@@ -63,76 +63,76 @@ export const ColorControl = Cluster(
         constraint: "max 6", quality: "X F"
     }),
     Attribute({
-        name: "Primary1X", id: 0x11, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 0",
+        name: "Primary1X", id: 0x11, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 0, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
-        name: "Primary1Y", id: 0x12, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 0",
+        name: "Primary1Y", id: 0x12, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 0, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
         name: "Primary1Intensity", id: 0x13, type: "uint8", access: "R V",
-        conformance: "NumberOfPrimaries > 0", quality: "X F"
+        conformance: "NumberOfPrimaries > 0, O", quality: "X F"
     }),
     Attribute({
-        name: "Primary2X", id: 0x15, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 1",
+        name: "Primary2X", id: 0x15, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 1, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
-        name: "Primary2Y", id: 0x16, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 1",
+        name: "Primary2Y", id: 0x16, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 1, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
         name: "Primary2Intensity", id: 0x17, type: "uint8", access: "R V",
-        conformance: "NumberOfPrimaries > 1", quality: "X F"
+        conformance: "NumberOfPrimaries > 1, O", quality: "X F"
     }),
     Attribute({
-        name: "Primary3X", id: 0x19, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 2",
+        name: "Primary3X", id: 0x19, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 2, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
-        name: "Primary3Y", id: 0x1a, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 2",
+        name: "Primary3Y", id: 0x1a, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 2, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
         name: "Primary3Intensity", id: 0x1b, type: "uint8", access: "R V",
-        conformance: "NumberOfPrimaries > 2", quality: "X F"
+        conformance: "NumberOfPrimaries > 2, O", quality: "X F"
     }),
     Attribute({
-        name: "Primary4X", id: 0x20, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 3",
+        name: "Primary4X", id: 0x20, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 3, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
-        name: "Primary4Y", id: 0x21, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 3",
+        name: "Primary4Y", id: 0x21, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 3, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
         name: "Primary4Intensity", id: 0x22, type: "uint8", access: "R V",
-        conformance: "NumberOfPrimaries > 3", quality: "X F"
+        conformance: "NumberOfPrimaries > 3, O", quality: "X F"
     }),
     Attribute({
-        name: "Primary5X", id: 0x24, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 4",
+        name: "Primary5X", id: 0x24, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 4, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
-        name: "Primary5Y", id: 0x25, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 4",
+        name: "Primary5Y", id: 0x25, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 4, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
         name: "Primary5Intensity", id: 0x26, type: "uint8", access: "R V",
-        conformance: "NumberOfPrimaries > 4", quality: "X F"
+        conformance: "NumberOfPrimaries > 4, O", quality: "X F"
     }),
     Attribute({
-        name: "Primary6X", id: 0x28, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 5",
+        name: "Primary6X", id: 0x28, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 5, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
-        name: "Primary6Y", id: 0x29, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 5",
+        name: "Primary6Y", id: 0x29, type: "uint16", access: "R V", conformance: "NumberOfPrimaries > 5, O",
         constraint: "max 65279", quality: "F"
     }),
     Attribute({
         name: "Primary6Intensity", id: 0x2a, type: "uint8", access: "R V",
-        conformance: "NumberOfPrimaries > 5", quality: "X F"
+        conformance: "NumberOfPrimaries > 5, O", quality: "X F"
     }),
     Attribute({ name: "WhitePointX", id: 0x30, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
     Attribute({ name: "WhitePointY", id: 0x31, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
@@ -181,12 +181,11 @@ export const ColorControl = Cluster(
     }),
     Attribute({
         name: "CoupleColorTempToLevelMinMireds", id: 0x400d, type: "uint16", access: "R V",
-        conformance: "CT & ColorTemperatureMireds",
-        constraint: "colorTempPhysicalMinMireds to colorTemperatureMireds"
+        conformance: "CT", constraint: "colorTempPhysicalMinMireds to colorTemperatureMireds"
     }),
     Attribute({
         name: "StartUpColorTemperatureMireds", id: 0x4010, type: "uint16", access: "RW VM",
-        conformance: "CT & ColorTemperatureMireds", constraint: "1 to 65279", quality: "X N"
+        conformance: "CT", constraint: "1 to 65279", quality: "X N"
     }),
 
     Command(
