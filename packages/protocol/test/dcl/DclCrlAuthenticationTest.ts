@@ -118,6 +118,8 @@ interface Point {
     isPAA: boolean;
     vid?: number;
     pid?: number;
+    /** The entry's IssuerSubjectKeyID where it should differ from the issuer looked up */
+    issuerSkid?: Bytes;
     dataUrl?: string;
     crl: Bytes;
 }
@@ -161,7 +163,7 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                     label: `point-${index}`,
                     crlSignerDelegator: point.delegator === undefined ? "" : pemEncode(point.delegator.der),
                     crlSignerCertificate: pemEncode(point.signer.der),
-                    issuerSubjectKeyID: skid,
+                    issuerSubjectKeyID: point.issuerSkid === undefined ? skid : hexOf(point.issuerSkid),
                     dataURL: point.dataUrl ?? `https://example.com/${index}.crl`,
                     dataFileSize: "",
                     dataDigest: "",
@@ -491,6 +493,18 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await dcl.isRevoked(hexOf(paa.skid), OTHER_REVOKED)).false;
             expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).true;
         });
+    });
+
+    it("ignores an entry for another issuer in the response (§11.23.11.7)", async () => {
+        // A genuine CRL of the other issuer, returned for the wrong lookup
+        const other = await issue("Other PAA", { ca: true });
+        const dcl = await serve(
+            paa.skid,
+            [{ signer: other, isPAA: true, issuerSkid: other.skid, crl: await crlBy(other.crlSigner) }],
+            [paa.der, other.der],
+        );
+
+        expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).false;
     });
 
     describe("partitioned revocation lists (step 7.2)", () => {

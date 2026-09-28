@@ -1361,8 +1361,12 @@ export class DclCertificateService {
             throw error;
         }
 
-        // Filter for CRL type only
-        const crlPoints = points.filter(p => p.revocationType === RevocationTypeEnum.Crl);
+        // CRL entries for exactly the issuer asked about (§11.23.11.7), whatever else the response holds
+        const crlPoints = points.filter(
+            p =>
+                p.revocationType === RevocationTypeEnum.Crl &&
+                this.#normalizeSubjectKeyId(p.issuerSubjectKeyId) === akid,
+        );
         if (crlPoints.length === 0) {
             return empty;
         }
