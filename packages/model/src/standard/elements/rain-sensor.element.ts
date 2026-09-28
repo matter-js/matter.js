@@ -19,7 +19,7 @@ export const RainSensorDt = DeviceType(
     Requirement(
         { name: "BooleanState", id: 0x45, conformance: "M", element: "serverCluster" },
         Requirement({ name: "StateChange", conformance: "M", element: "event" }),
-        Requirement({ name: "CHANGEEVENT", conformance: "Rev >= v2", element: "feature" })
+        Requirement({ name: "CHGEVENT", conformance: "Rev >= v2", element: "feature" })
     ),
     Requirement({ name: "BooleanStateConfiguration", id: 0x80, conformance: "O", element: "serverCluster" })
 );

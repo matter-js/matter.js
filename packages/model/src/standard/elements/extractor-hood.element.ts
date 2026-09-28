@@ -21,9 +21,9 @@ export const ExtractorHoodDt = DeviceType(
 
     Requirement(
         { name: "FanControl", id: 0x202, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "ROCKING", conformance: "X", element: "feature" }),
-        Requirement({ name: "WIND", conformance: "X", element: "feature" }),
-        Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature" })
+        Requirement({ name: "RCK", conformance: "X", element: "feature" }),
+        Requirement({ name: "WND", conformance: "X", element: "feature" }),
+        Requirement({ name: "DIR", conformance: "X", element: "feature" })
     ),
 
     Requirement({ name: "OnOffLight", id: 0x100, conformance: "O", element: "deviceType" })

@@ -18,13 +18,13 @@ export const DishwasherDt = DeviceType(
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
+        Requirement({ name: "DF", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "TemperatureControl", id: 0x56, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "DishwasherMode", id: 0x59, conformance: "O", element: "serverCluster" },
         Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" }),
-        Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
+        Requirement({ name: "DEPONOFF", conformance: "X", element: "feature" })
     ),
     Requirement({ name: "DishwasherAlarm", id: 0x5d, conformance: "O", element: "serverCluster" }),
     Requirement(

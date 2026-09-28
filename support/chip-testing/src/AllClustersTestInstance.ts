@@ -1141,6 +1141,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 },*/
                 windowCovering: {
                     type: WindowCovering.WindowCoveringType.TiltBlindLift,
+                    endProductType: WindowCovering.EndProductType.InteriorVenetianBlind,
                     currentPositionLiftPercent100ths: 0,
                     currentPositionTiltPercent100ths: 0,
                     safetyStatus: {},

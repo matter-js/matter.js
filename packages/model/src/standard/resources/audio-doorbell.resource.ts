@@ -24,9 +24,9 @@ Resource.add({
         {
             tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.5.4",
             children: [
-                { tag: "requirement", name: "AUDIO", xref: "device§16.5.5" },
-                { tag: "requirement", name: "SNAPSHOT", xref: "device§16.5.5" },
-                { tag: "requirement", name: "VIDEO", xref: "device§16.5.5" }
+                { tag: "requirement", name: "ADO", xref: "device§16.5.5" },
+                { tag: "requirement", name: "SNP", xref: "device§16.5.5" },
+                { tag: "requirement", name: "VDO", xref: "device§16.5.5" }
             ]
         },
 

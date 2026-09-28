@@ -5,6 +5,8 @@
  */
 
 import { WindowCoveringServer } from "#behaviors/window-covering";
+import { MatterAggregateError } from "@matter/general";
+import { EnumValueConformanceError } from "@matter/protocol";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 
@@ -15,6 +17,7 @@ class TestWindowCoveringServer extends WindowCoveringServer.with(
     "PositionAwareTilt",
 ).set({
     type: WindowCovering.WindowCoveringType.TiltBlindLift,
+    endProductType: WindowCovering.EndProductType.InteriorVenetianBlind,
 }) {
     override initialize() {
         this.state.currentPositionLiftPercent100ths = 5000; // Half open
@@ -94,5 +97,49 @@ describe("WindowCoveringServer", () => {
                 newValue: { global: 0, lift: 0, tilt: 0 },
             },
         ]);
+    });
+});
+
+async function creationError(type: Parameters<typeof MockEndpoint.createWith>[0]) {
+    const error = await MockEndpoint.createWith(type).then(
+        () => undefined,
+        (e: unknown) => e,
+    );
+    expect(error).instanceof(MatterAggregateError);
+    return error instanceof MatterAggregateError ? error.errors[0]?.cause : undefined;
+}
+
+describe("WindowCoveringServer type", () => {
+    const shutter = {
+        type: WindowCovering.WindowCoveringType.Shutter,
+        endProductType: WindowCovering.EndProductType.SwingingShutter,
+    };
+
+    it("accepts a shutter that lifts", async () => {
+        await MockEndpoint.createWith(WindowCoveringServer.with("Lift").set(shutter));
+    });
+
+    it("accepts a shutter that tilts", async () => {
+        await MockEndpoint.createWith(WindowCoveringServer.with("Tilt").set(shutter));
+    });
+
+    it("rejects a shutter that lifts and tilts", async () => {
+        const cause = await creationError(
+            WindowCoveringServer.with("Lift", "Tilt").set({
+                ...shutter,
+                endProductType: WindowCovering.EndProductType.InteriorVenetianBlind,
+            }),
+        );
+        expect(cause).instanceof(EnumValueConformanceError);
+    });
+
+    it("rejects an end product that only lifts on a covering that lifts and tilts", async () => {
+        const cause = await creationError(
+            WindowCoveringServer.with("Lift", "Tilt").set({
+                type: WindowCovering.WindowCoveringType.TiltBlindLift,
+                endProductType: WindowCovering.EndProductType.RollerShade,
+            }),
+        );
+        expect(cause).instanceof(EnumValueConformanceError);
     });
 });

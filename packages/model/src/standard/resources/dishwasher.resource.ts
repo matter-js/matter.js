@@ -54,7 +54,7 @@ Resource.add({
         { tag: "requirement", name: "Identify", xref: "device§13.5.4" },
         {
             tag: "requirement", name: "OnOff", xref: "device§13.5.4",
-            children: [{ tag: "requirement", name: "DEADFRONTBEHAVIOR", xref: "device§13.5.6" }]
+            children: [{ tag: "requirement", name: "DF", xref: "device§13.5.6" }]
         },
         { tag: "requirement", name: "TemperatureControl", xref: "device§13.5.4" },
 
@@ -62,7 +62,7 @@ Resource.add({
             tag: "requirement", name: "DishwasherMode", xref: "device§13.5.4",
             children: [
                 { tag: "requirement", name: "StartUpMode", xref: "device§13.5.6" },
-                { tag: "requirement", name: "ONOFF", xref: "device§13.5.6" }
+                { tag: "requirement", name: "DEPONOFF", xref: "device§13.5.6" }
             ]
         },
 

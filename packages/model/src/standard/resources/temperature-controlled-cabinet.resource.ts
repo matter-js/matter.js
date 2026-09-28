@@ -29,8 +29,8 @@ Resource.add({
         {
             tag: "requirement", name: "TemperatureControl", xref: "device§13.4.4",
             children: [
-                { tag: "requirement", name: "TEMPERATURENUMBER", xref: "device§13.4.5" },
-                { tag: "requirement", name: "TEMPERATURELEVEL", xref: "device§13.4.5" }
+                { tag: "requirement", name: "TN", xref: "device§13.4.5" },
+                { tag: "requirement", name: "TL", xref: "device§13.4.5" }
             ]
         },
 
@@ -40,7 +40,7 @@ Resource.add({
             tag: "requirement", name: "RefrigeratorAndTemperatureControlledCabinetMode", xref: "device§13.4.4",
             children: [
                 { tag: "requirement", name: "StartUpMode", xref: "device§13.4.5" },
-                { tag: "requirement", name: "ONOFF", xref: "device§13.4.5" }
+                { tag: "requirement", name: "DEPONOFF", xref: "device§13.4.5" }
             ]
         },
 
@@ -48,7 +48,7 @@ Resource.add({
             tag: "requirement", name: "OvenMode", xref: "device§13.4.4",
             children: [
                 { tag: "requirement", name: "StartUpMode", xref: "device§13.4.5" },
-                { tag: "requirement", name: "ONOFF", xref: "device§13.4.5" }
+                { tag: "requirement", name: "DEPONOFF", xref: "device§13.4.5" }
             ]
         },
 

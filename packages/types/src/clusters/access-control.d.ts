@@ -1058,17 +1058,17 @@ export declare namespace AccessControl {
          *
          *   - A manufacturer contemplating using this flow should realize that
          *
-         *   - This flow typically requires internet access to access the URL, and access extension may fail when
-         *     internet connectivity is not available.
+         *     - This flow typically requires internet access to access the URL, and access extension may fail when
+         *       internet connectivity is not available.
          *
-         *   - If the flow prefers to redirect the user to an app which is available on popular platforms, it SHOULD
-         *     also provide a fallback option such as a web browser interface to ensure users can complete access
-         *     extension.
+         *     - If the flow prefers to redirect the user to an app which is available on popular platforms, it SHOULD
+         *       also provide a fallback option such as a web browser interface to ensure users can complete access
+         *       extension.
          *
-         *   - A malicious Administrator could tamper with the URL (including any parameters it contains) in order to
-         *     reduce restrictions for another Fabric. A well-implemented web service or app SHOULD validate that the
-         *     VID in flow URL invocations match recent requests for review by comparing with VID and token pairs from
-         *     recent ReviewFabricRestrictions requests.
+         *     - A malicious Administrator could tamper with the URL (including any parameters it contains) in order to
+         *       reduce restrictions for another Fabric. A well-implemented web service or app SHOULD validate that the
+         *       VID in flow URL invocations match recent requests for review by comparing with VID and token pairs from
+         *       recent ReviewFabricRestrictions requests.
          *
          *   - An Administrator supporting this flow should realize that if the device serving this cluster is
          *     malicious, it could send dangerous URLs to the client which could take the user to malicious sites. The

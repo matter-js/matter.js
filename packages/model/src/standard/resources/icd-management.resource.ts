@@ -360,7 +360,7 @@ Resource.add({
                         "  - It is on the associated fabric of this entry, and" +
                         "\n" +
                         "  - The subject of this entry matches the ISD of the SubscriptionRequest message that created the " +
-                        "    subscription. Matching shall be determined using the subject_matches function defined in the " +
+                        "subscription. Matching shall be determined using the subject_matches function defined in the " +
                         "Access Control Privilege Granting Algorithm." +
                         "\n" +
                         "For example, if the MonitoredSubject is Node ID 0x1111_2222_3333_AAAA, and one of the subscribers to " +

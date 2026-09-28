@@ -20,7 +20,7 @@ export const WaterHeaterDt = DeviceType(
     Requirement({ name: "WaterHeaterMode", id: 0x9e, conformance: "M", element: "serverCluster" }),
     Requirement(
         { name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "HEATING", conformance: "M", element: "feature" })
+        Requirement({ name: "HEAT", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "PowerSource", id: 0x11, conformance: "O", element: "deviceType" }),
     Requirement({ name: "TemperatureSensor", id: 0x302, conformance: "O", element: "deviceType" }),
@@ -29,7 +29,7 @@ export const WaterHeaterDt = DeviceType(
         { name: "DeviceEnergyManagement", id: 0x50d, conformance: "O", element: "deviceType" },
         Requirement(
             { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-            Requirement({ name: "POWERFORECASTREPORTING", conformance: "M", element: "feature" })
+            Requirement({ name: "PFR", conformance: "M", element: "feature" })
         )
     ),
 

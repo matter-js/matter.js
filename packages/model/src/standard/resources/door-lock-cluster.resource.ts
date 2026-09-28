@@ -515,15 +515,15 @@ Resource.add(
                     "the door lock server shall generate a LockOperationError event with LockOperationType set to " +
                     "Unlatch and a LockOperation event with LockOperationType set to Unlock." +
                     "\n" +
-                    "  - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
+                    "    - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
                     "LockOperationError event with LockOperationType set to Unlock." +
                     "\n" +
                     "  - Upon manual actuation, a door lock server that supports the Unbolting feature:" +
                     "\n" +
-                    "  - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "outside." +
                     "\n" +
-                    "  - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "inside.",
 
                 children: [
@@ -1335,11 +1335,11 @@ Resource.add(
                             "  - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to " +
                             "resource constraints such as:" +
                             "\n" +
-                            "  - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
+                            "    - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
                             "associated." +
                             "\n" +
-                            "  - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding " +
-                            "it would cause the total number of credentials of those two types to exceed " +
+                            "    - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and " +
+                            "adding it would cause the total number of credentials of those two types to exceed " +
                             "NumberOfAliroEndpointKeysSupported." +
                             "\n" +
                             "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid." +
@@ -1564,9 +1564,9 @@ Resource.add(
                 details: "> [!NOTE]" +
                     "\n" +
                     "> WARNING: For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT " +
-                    "  supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
+                    "supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
                     "bitmaps in this specification, and it is recommended that clients carefully take this into " +
-                    "  consideration. See SupportedOperatingModes.",
+                    "consideration. See SupportedOperatingModes.",
 
                 children: [
                     { tag: "field", name: "Normal", description: "Normal operation mode is NOT supported" },

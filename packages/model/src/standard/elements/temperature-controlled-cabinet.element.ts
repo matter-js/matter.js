@@ -21,8 +21,8 @@ export const TemperatureControlledCabinetDt = DeviceType(
     ),
     Requirement(
         { name: "TemperatureControl", id: 0x56, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "TEMPERATURENUMBER", conformance: "M", element: "feature" }),
-        Requirement({ name: "TEMPERATURELEVEL", conformance: "X", element: "feature" })
+        Requirement({ name: "TN", conformance: "M", element: "feature" }),
+        Requirement({ name: "TL", conformance: "X", element: "feature" })
     ),
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster" }),
 
@@ -32,13 +32,13 @@ export const TemperatureControlledCabinetDt = DeviceType(
             element: "serverCluster"
         },
         Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" }),
-        Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
+        Requirement({ name: "DEPONOFF", conformance: "X", element: "feature" })
     ),
 
     Requirement(
         { name: "OvenMode", id: 0x49, conformance: "[Heater]", element: "serverCluster" },
         Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" }),
-        Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
+        Requirement({ name: "DEPONOFF", conformance: "X", element: "feature" })
     ),
 
     Requirement(

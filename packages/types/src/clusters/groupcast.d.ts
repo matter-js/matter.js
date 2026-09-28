@@ -88,7 +88,7 @@ export declare namespace Groupcast {
          *     number of entries needed to fully encode the Endpoints list while respecting that no entry has more than
          *     255 Endpoints listed.
          *
-         *   - Therefore, the maximum number of entries for that group shall be ceil(length(Endpoints) / 255).
+         *     - Therefore, the maximum number of entries for that group shall be ceil(length(Endpoints) / 255).
          *
          * The actual number of entries in the list across all fabrics shall be at most ceil(num_endpoints_in_node /
          * 255) * MaxMembershipCount.
@@ -185,7 +185,7 @@ export declare namespace Groupcast {
          *     number of entries needed to fully encode the Endpoints list while respecting that no entry has more than
          *     255 Endpoints listed.
          *
-         *   - Therefore, the maximum number of entries for that group shall be ceil(length(Endpoints) / 255).
+         *     - Therefore, the maximum number of entries for that group shall be ceil(length(Endpoints) / 255).
          *
          * The actual number of entries in the list across all fabrics shall be at most ceil(num_endpoints_in_node /
          * 255) * MaxMembershipCount.

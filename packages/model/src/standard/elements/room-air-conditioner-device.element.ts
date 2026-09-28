@@ -23,7 +23,7 @@ export const RoomAirConditionerDt = DeviceType(
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "DEADFRONTBEHAVIOR", conformance: "M", element: "feature" })
+        Requirement({ name: "DF", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "ScenesManagement", id: 0x62, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "HepaFilterMonitoring", id: 0x71, conformance: "O", element: "serverCluster" }),

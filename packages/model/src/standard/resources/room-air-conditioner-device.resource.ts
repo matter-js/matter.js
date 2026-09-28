@@ -61,7 +61,7 @@ Resource.add({
         { tag: "requirement", name: "Groups", xref: "device§13.3.7" },
         {
             tag: "requirement", name: "OnOff", xref: "device§13.3.7",
-            children: [{ tag: "requirement", name: "DEADFRONTBEHAVIOR", xref: "device§13.3.9" }]
+            children: [{ tag: "requirement", name: "DF", xref: "device§13.3.9" }]
         },
         { tag: "requirement", name: "ScenesManagement", xref: "device§13.3.7" },
         { tag: "requirement", name: "HepaFilterMonitoring", xref: "device§13.3.7" },

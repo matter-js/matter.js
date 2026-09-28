@@ -29,7 +29,7 @@ import { ModelTraversal } from "./ModelTraversal.js";
  * separate question, which model validation answers. A feature code in conformance must match exactly, so below a
  * cluster requirement whose cluster defines the feature `NODE`, the name `NODE` resolves to the feature while `Node`
  * resolves to the Base condition `Node`. {@link featureOf}, which answers what a feature requirement itself names,
- * follows its own rule.
+ * matches the code exactly as well.
  *
  * @see {@link MatterSpecification.v16.Core} § 9.2.6
  */
@@ -153,27 +153,16 @@ export namespace RequirementResolver {
      * The feature of its cluster that a feature requirement names, or undefined if it names none or is not a feature
      * requirement.
      *
-     * A requirement names a feature by its code or by its title in any case and spacing. The title match holds only
-     * while requirement names are not canonicalized to feature codes.
+     * A requirement names a feature by its code, which matches exactly.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.6
      */
     export function featureOf(requirement: RequirementModel): FieldModel | undefined {
         if (requirement.element !== RequirementElement.ElementType.Feature) {
             return undefined;
         }
 
-        const features = endpointScopeOf(requirement).cluster?.features;
-        if (features === undefined) {
-            return undefined;
-        }
-
-        const code = requirement.name.toLowerCase();
-        const byCode = features.find(feature => feature.name.toLowerCase() === code);
-        if (byCode !== undefined) {
-            return byCode;
-        }
-
-        const title = titleKey(requirement.name);
-        return features.find(feature => titleKey(feature.title) === title);
+        return endpointScopeOf(requirement).cluster?.features.find(feature => feature.name === requirement.name);
     }
 
     /**
@@ -289,10 +278,6 @@ function conditionsIn(matter: MatterModel | undefined, deviceType: DeviceTypeMod
 
 function qualifiedKey(declarer: DeviceTypeModel, condition: ConditionModel) {
     return `${declarer.name}.${condition.name}`.toLowerCase();
-}
-
-function titleKey(title: string | undefined) {
-    return title?.toLowerCase().replace(/\s/g, "");
 }
 
 function elementTagOf(element: RequirementElement.ElementType) {
