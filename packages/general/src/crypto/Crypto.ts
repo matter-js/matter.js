@@ -12,7 +12,6 @@ import { MaybePromise } from "#util/Promises.js";
 import * as mod from "@noble/curves/abstract/modular.js";
 import { p256 } from "@noble/curves/nist.js";
 import * as utils from "@noble/curves/utils.js";
-import { ml_dsa44, ml_dsa65 } from "@noble/post-quantum/ml-dsa.js";
 import { Entropy } from "../util/Entropy.js";
 import { cmac } from "./aes/Cmac.js";
 import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
@@ -76,23 +75,26 @@ export function hashAlgorithmForId(id: number): IdentifiedHashAlgorithm | undefi
 
 const logger = Logger.get("Crypto");
 
-const nobleMlDsa = {
-    "ML-DSA-44": ml_dsa44,
-    "ML-DSA-65": ml_dsa65,
-} satisfies Record<MlDsa.ParameterSet, unknown>;
+let nobleMlDsa: Promise<typeof import("@noble/post-quantum/ml-dsa.js")> | undefined;
+
+/** The portable ML-DSA implementation, loaded on first use so that crypto without ML-DSA does not pay for it. */
+async function nobleMlDsaFor(parameterSet: MlDsa.ParameterSet) {
+    const { ml_dsa44, ml_dsa65 } = await (nobleMlDsa ??= import("@noble/post-quantum/ml-dsa.js"));
+    return parameterSet === "ML-DSA-44" ? ml_dsa44 : ml_dsa65;
+}
 
 const portableMlDsa: MlDsa.Implementation = {
-    publicKeyOf(parameterSet, seed) {
-        return nobleMlDsa[parameterSet].keygen(Bytes.of(seed)).publicKey;
+    async publicKeyOf(parameterSet, seed) {
+        return (await nobleMlDsaFor(parameterSet)).keygen(Bytes.of(seed)).publicKey;
     },
 
-    sign({ parameterSet, seed }, message, entropy) {
-        const dsa = nobleMlDsa[parameterSet];
+    async sign({ parameterSet, seed }, message, entropy) {
+        const dsa = await nobleMlDsaFor(parameterSet);
         return dsa.sign(Bytes.of(message), dsa.keygen(Bytes.of(seed)).secretKey, { extraEntropy: Bytes.of(entropy) });
     },
 
-    verify(parameterSet, publicKey, message, signature) {
-        return nobleMlDsa[parameterSet].verify(Bytes.of(signature), Bytes.of(message), Bytes.of(publicKey));
+    async verify(parameterSet, publicKey, message, signature) {
+        return (await nobleMlDsaFor(parameterSet)).verify(Bytes.of(signature), Bytes.of(message), Bytes.of(publicKey));
     },
 };
 
@@ -174,9 +176,9 @@ export abstract class Crypto extends Entropy {
      * @throws CryptoError if this backend cannot create ML-DSA keys
      * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
      */
-    createMlDsaKeyPair(parameterSet: MlDsa.ParameterSet): MaybePromise<MlDsa.PrivateKey> {
+    async createMlDsaKeyPair(parameterSet: MlDsa.ParameterSet): Promise<MlDsa.PrivateKey> {
         const seed = Bytes.of(this.randomBytes(MlDsa.SEED_LENGTH));
-        const publicKey = this.mlDsaOperation(parameterSet, "publicKeyOf")(parameterSet, seed);
+        const publicKey = await (await this.mlDsaOperation(parameterSet, "publicKeyOf"))(parameterSet, seed);
         return { parameterSet, seed, publicKey };
     }
 
@@ -190,20 +192,20 @@ export abstract class Crypto extends Entropy {
      * @throws CryptoError if this backend cannot offer ML-DSA
      * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
      */
-    signMlDsa(privateKey: MlDsa.PrivateKey, data: Bytes | Bytes[]): MaybePromise<Bytes> {
+    async signMlDsa(privateKey: MlDsa.PrivateKey, data: Bytes | Bytes[]): Promise<Bytes> {
         MlDsa.assertPrivateKey(privateKey);
         const { parameterSet, publicKey } = privateKey;
-        const sign = this.mlDsaOperation(parameterSet, "sign");
-        const verify = this.mlDsaOperation(parameterSet, "verify");
+        const sign = await this.mlDsaOperation(parameterSet, "sign");
+        const verify = await this.mlDsaOperation(parameterSet, "verify");
         const message = Bytes.of(Array.isArray(data) ? Bytes.concat(...data) : data);
 
         let signature: Bytes;
         let valid: boolean;
         try {
-            signature = sign(privateKey, message, this.randomBytes(32));
+            signature = await sign(privateKey, message, this.randomBytes(32));
 
             // Native signing ignores the public key, so only this check catches one that does not belong to the seed
-            valid = verify(parameterSet, publicKey, message, signature);
+            valid = await verify(parameterSet, publicKey, message, signature);
         } catch (cause) {
             throw new KeyInputError(`Cannot sign with this ${parameterSet} private key`, { cause });
         }
@@ -224,14 +226,19 @@ export abstract class Crypto extends Entropy {
      * @throws CryptoError if this backend cannot offer ML-DSA
      * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
      */
-    verifyMlDsa(parameterSet: MlDsa.ParameterSet, publicKey: Bytes, data: Bytes, signature: Bytes): MaybePromise<void> {
+    async verifyMlDsa(
+        parameterSet: MlDsa.ParameterSet,
+        publicKey: Bytes,
+        data: Bytes,
+        signature: Bytes,
+    ): Promise<void> {
         MlDsa.assertPublicKey(parameterSet, publicKey);
         MlDsa.assertSignature(parameterSet, signature);
 
-        const verify = this.mlDsaOperation(parameterSet, "verify");
+        const verify = await this.mlDsaOperation(parameterSet, "verify");
         let valid: boolean;
         try {
-            valid = verify(parameterSet, publicKey, data, signature);
+            valid = await verify(parameterSet, publicKey, data, signature);
         } catch (cause) {
             throw new CryptoVerifyError(`${parameterSet} signature verification failed`, { cause });
         }
@@ -246,13 +253,13 @@ export abstract class Crypto extends Entropy {
      * {@link verifyMlDsa}.
      *
      * Defaults to the portable `@noble/post-quantum` implementation.  A backend overrides this per operation, because a
-     * runtime may offer native verification without native signing.  Throw here, not from the returned function, to
-     * report that the backend cannot offer the operation at all.
+     * runtime may offer native verification without native signing.  Throw (or reject) here, not from the returned
+     * function, to report that the backend cannot offer the operation at all.
      */
     protected mlDsaOperation<O extends keyof MlDsa.Implementation>(
         _parameterSet: MlDsa.ParameterSet,
         operation: O,
-    ): MlDsa.Implementation[O] {
+    ): MaybePromise<MlDsa.Implementation[O]> {
         return portableMlDsa[operation];
     }
 

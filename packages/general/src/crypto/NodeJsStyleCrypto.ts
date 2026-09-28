@@ -249,7 +249,7 @@ export class NodeJsStyleCrypto extends Crypto {
     static providesDefault = false;
 
     #crypto: NodeJsCryptoApiLike;
-    #nativeMlDsa = new Map<MlDsa.ParameterSet, Partial<MlDsa.Implementation>>();
+    #nativeMlDsa = new Map<MlDsa.ParameterSet, Promise<Partial<MlDsa.Implementation>>>();
 
     constructor(crypto?: NodeJsCryptoApiLike) {
         super();
@@ -430,17 +430,18 @@ export class NodeJsStyleCrypto extends Crypto {
         if (!success) throw new CryptoVerifyError("Signature verification failed");
     }
 
-    protected override mlDsaOperation<O extends keyof MlDsa.Implementation>(
+    protected override async mlDsaOperation<O extends keyof MlDsa.Implementation>(
         parameterSet: MlDsa.ParameterSet,
         operation: O,
-    ): MlDsa.Implementation[O] {
+    ): Promise<MlDsa.Implementation[O]> {
         let native = this.#nativeMlDsa.get(parameterSet);
         if (native === undefined) {
-            native = nativeMlDsa(this.#crypto, parameterSet, super.mlDsaOperation(parameterSet, "publicKeyOf"));
+            native = (async () =>
+                nativeMlDsa(this.#crypto, parameterSet, await super.mlDsaOperation(parameterSet, "publicKeyOf")))();
             this.#nativeMlDsa.set(parameterSet, native);
         }
 
-        const nativeOperation = native[operation];
+        const nativeOperation = (await native)[operation];
         if (nativeOperation !== undefined) {
             return nativeOperation;
         }
@@ -543,11 +544,11 @@ const OPERATION_NAMES: Record<keyof MlDsa.Implementation, string> = {
  * Node.js 22 with OpenSSL 3.5 verifies with an SPKI key but cannot import an ML-DSA private key; older releases and
  * most emulations offer neither.  Key generation stays portable so it follows {@link Crypto.randomBytes}.
  */
-function nativeMlDsa(
+async function nativeMlDsa(
     api: NodeJsCryptoApiLike,
     parameterSet: MlDsa.ParameterSet,
     publicKeyOf: MlDsa.Implementation["publicKeyOf"],
-): Partial<MlDsa.Implementation> {
+): Promise<Partial<MlDsa.Implementation>> {
     const { sign, verify } = api;
     const { publicKeyLength, signatureLength } = MlDsa.PARAMETERS[parameterSet];
     const native: Partial<MlDsa.Implementation> = {};
@@ -580,7 +581,7 @@ function nativeMlDsa(
                 api,
                 null,
                 new Uint8Array(),
-                jwkKeyInput({ parameterSet, seed, publicKey: publicKeyOf(parameterSet, seed) }),
+                jwkKeyInput({ parameterSet, seed, publicKey: await publicKeyOf(parameterSet, seed) }),
             );
             native.sign = (privateKey, message) =>
                 Bytes.of(sign.call(api, null, Bytes.of(message), jwkKeyInput(privateKey)));

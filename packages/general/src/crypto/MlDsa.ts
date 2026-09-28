@@ -6,6 +6,7 @@
 
 import { DerBitString, DerCodec, DerNode, DerObject, DerSequenceDefinition, DerType } from "#codec/DerCodec.js";
 import { Bytes } from "#util/Bytes.js";
+import type { MaybePromise } from "#util/Promises.js";
 import { KeyInputError, SignatureEncodingError } from "./CryptoError.js";
 
 /**
@@ -156,16 +157,16 @@ export namespace MlDsa {
      */
     export interface Implementation {
         /** Expand the public key from a seed (FIPS 204 Algorithm 6). */
-        publicKeyOf(parameterSet: ParameterSet, seed: Bytes): Bytes;
+        publicKeyOf(parameterSet: ParameterSet, seed: Bytes): MaybePromise<Bytes>;
 
         /**
          * Sign with an empty context.
          *
          * @param entropy randomness for hedged signing, which an implementation with its own source may ignore
          */
-        sign(privateKey: PrivateKey, message: Bytes, entropy: Bytes): Bytes;
+        sign(privateKey: PrivateKey, message: Bytes, entropy: Bytes): MaybePromise<Bytes>;
 
         /** Verify with an empty context; false for any signature that does not verify. */
-        verify(parameterSet: ParameterSet, publicKey: Bytes, message: Bytes, signature: Bytes): boolean;
+        verify(parameterSet: ParameterSet, publicKey: Bytes, message: Bytes, signature: Bytes): MaybePromise<boolean>;
     }
 }
