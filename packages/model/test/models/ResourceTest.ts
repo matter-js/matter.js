@@ -78,16 +78,52 @@ describe("Resource", () => {
         for (const key in LandingGearResource) {
             (cluster as any)[key] = LandingGearResource[key as keyof Resource];
         }
-        expect(cluster.resource).deep.equals(LandingGearResource);
-        expect(Object.keys(cluster.resource!).length).equals(8);
+        expect(cluster.resource).deep.equals(new Resource({ ...LandingGearResource, errors: undefined }));
+        expect(cluster.errors).equals(LandingGearResource.errors);
+    });
+
+    it("records an error on the model, not on a resource from the bundle", () => {
+        const matter = new MatterModel();
+        matter.resources = new ResourceBundle();
+        const cluster = LandingGear.clone();
+        matter.children.push(cluster);
+        matter.resources.add(LandingGearBundle);
+
+        cluster.error("TEST", "recorded");
+
+        expect(cluster.errors?.map(error => error.code)).deep.equals(["TEST"]);
+        expect(cluster.resource?.errors).equals(undefined);
+    });
+
+    it("keeps the errors a definition states on the model only", () => {
+        const model = new AttributeModel({
+            id: 3,
+            name: "Stated",
+            type: "uint8",
+            description: "Has a resource",
+            errors: [{ code: "STATED", source: "definition", message: "Stated by the definition" }],
+        });
+
+        expect(model.resource?.description).equals("Has a resource");
+        expect(model.resource?.errors).equals(undefined);
+        expect(model.errors?.map(error => error.code)).deep.equals(["STATED"]);
+
+        model.errors = undefined;
+
+        expect(model.errors).equals(undefined);
+        expect(model.resource?.errors).equals(undefined);
     });
 
     it("sets locally from resource", () => {
         const cluster = LandingGear.clone();
         cluster.resource = LandingGearResource;
         for (const key in LandingGearResource) {
+            if (key === "errors") {
+                continue;
+            }
             expect((cluster as any)[key]).deep.equals(LandingGearResource[key as keyof Resource]);
         }
+        expect(cluster.errors).equals(undefined);
     });
 
     it("has correct xref", () => {
