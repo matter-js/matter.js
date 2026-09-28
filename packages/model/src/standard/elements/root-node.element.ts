@@ -22,8 +22,8 @@ export const RootNodeDt = DeviceType(
 
     Requirement(
         { name: "AccessControl", id: 0x1f, conformance: "M", element: "serverCluster", quality: "I" },
-        Requirement({ name: "MANAGEDDEVICE", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" }),
-        Requirement({ name: "AUXILIARY", conformance: "GroupcastListenerCond", element: "feature" }),
+        Requirement({ name: "MNGD", conformance: "[ManagedAclAllowed]", constraint: "desc", element: "feature" }),
+        Requirement({ name: "AUX", conformance: "GroupcastListenerCond", element: "feature" }),
         Requirement({ name: "Extension", conformance: "AclExtensionCond", element: "attribute" })
     ),
 
@@ -55,15 +55,14 @@ export const RootNodeDt = DeviceType(
             element: "serverCluster", quality: "I"
         },
         Requirement({
-            name: "TIMESYNCCLIENT",
-            conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
+            name: "TSC", conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
             element: "feature"
         }),
         Requirement({
-            name: "NTPCLIENT", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
+            name: "NTPC", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
             element: "feature"
         }),
-        Requirement({ name: "TIMEZONE", conformance: "TimeSyncWithTzCond, O", element: "feature" })
+        Requirement({ name: "TZ", conformance: "TimeSyncWithTzCond, O", element: "feature" })
     ),
 
     Requirement(
@@ -72,30 +71,25 @@ export const RootNodeDt = DeviceType(
             element: "clientCluster", quality: "I"
         },
         Requirement({
-            name: "TIMESYNCCLIENT",
-            conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
+            name: "TSC", conformance: "TimeSyncWithClientCond, [TlsCertificatesCond | TlsClientCond].a+, O",
             element: "feature"
         }),
         Requirement({
-            name: "NTPCLIENT", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
+            name: "NTPC", conformance: "TimeSyncWithNtpcCond, [TlsCertificatesCond | TlsClientCond].a+, O",
             element: "feature"
         }),
-        Requirement({ name: "TIMEZONE", conformance: "TimeSyncWithTzCond, O", element: "feature" })
+        Requirement({ name: "TZ", conformance: "TimeSyncWithTzCond, O", element: "feature" })
     ),
 
     Requirement({ name: "AdministratorCommissioning", id: 0x3c, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement({ name: "OperationalCredentials", id: 0x3e, conformance: "M", element: "serverCluster", quality: "I" }),
-
     Requirement(
         { name: "GroupKeyManagement", id: 0x3f, conformance: "M", element: "serverCluster", quality: "I" },
-        Requirement(
-            { name: "GROUPCAST", conformance: "GroupcastListenerCond | GroupcastSenderCond, O", element: "feature" }
-        )
+        Requirement({ name: "GCAST", conformance: "GroupcastListenerCond | GroupcastSenderCond, O", element: "feature" })
     ),
-
     Requirement(
         { name: "IcdManagement", id: 0x46, conformance: "Sit | Lit", element: "serverCluster", quality: "I" },
-        Requirement({ name: "LONGIDLETIMESUPPORT", conformance: "Lit", element: "feature" })
+        Requirement({ name: "LITS", conformance: "Lit", element: "feature" })
     ),
 
     Requirement(
@@ -103,8 +97,8 @@ export const RootNodeDt = DeviceType(
             name: "Groupcast", id: 0x65, conformance: "GroupcastListenerCond, GroupcastSenderCond, O",
             element: "serverCluster", quality: "I"
         },
-        Requirement({ name: "LISTENER", conformance: "GroupcastListenerCond, O", element: "feature" }),
-        Requirement({ name: "SENDER", conformance: "GroupcastSenderCond, O", element: "feature" })
+        Requirement({ name: "LN", conformance: "GroupcastListenerCond, O", element: "feature" }),
+        Requirement({ name: "SD", conformance: "GroupcastSenderCond, O", element: "feature" })
     ),
 
     Requirement({

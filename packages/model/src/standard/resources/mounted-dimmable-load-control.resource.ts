@@ -37,15 +37,15 @@ Resource.add({
         { tag: "requirement", name: "Groups", xref: "device§5.4.5" },
         {
             tag: "requirement", name: "OnOff", xref: "device§5.4.5",
-            children: [{ tag: "requirement", name: "LIGHTING", xref: "device§5.4.6" }]
+            children: [{ tag: "requirement", name: "LT", xref: "device§5.4.6" }]
         },
 
         {
             tag: "requirement", name: "LevelControl", xref: "device§5.4.5",
 
             children: [
-                { tag: "requirement", name: "ONOFF", xref: "device§5.4.6" },
-                { tag: "requirement", name: "LIGHTING", xref: "device§5.4.6" },
+                { tag: "requirement", name: "OO", xref: "device§5.4.6" },
+                { tag: "requirement", name: "LT", xref: "device§5.4.6" },
                 { tag: "requirement", name: "CurrentLevel", xref: "device§5.4.6" },
                 { tag: "requirement", name: "MinLevel", xref: "device§5.4.6" },
                 { tag: "requirement", name: "MaxLevel", xref: "device§5.4.6" }

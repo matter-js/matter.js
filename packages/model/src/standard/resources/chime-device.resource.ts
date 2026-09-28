@@ -41,7 +41,7 @@ Resource.add({
         "    > [!NOTE]" +
         "\n" +
         "    > NOTE: The Chime device type also includes the Chime server cluster, which has an Enabled " +
-        "      attribute. This attribute completely disables the Chime, which also means that any visual " +
+        "attribute. This attribute completely disables the Chime, which also means that any visual " +
         "indicators would also be disabled, and also acts as a form of global muting. For example, if " +
         "the On/Off cluster of the child Speaker device is set to from On (not muted) to Off (muted) " +
         "and the Chime cluster's Enabled attribute is already set to true, the Enabled attribute would " +

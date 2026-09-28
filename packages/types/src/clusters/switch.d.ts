@@ -232,21 +232,21 @@ export declare namespace Switch {
          *
          *   - When the AS feature flag is set, this event:
          *
-         *   - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
-         *     multi-press cycles);
+         *     - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
+         *       multi-press cycles);
          *
-         *   - shall only be generated after the first InitialPress following a MultiPressComplete when a long press is
-         *     detected after the idle time.
+         *     - shall only be generated after the first InitialPress following a MultiPressComplete when a long press
+         *       is detected after the idle time.
          *
          *   - Else, when the MSM feature flag is set, this event:
          *
-         *   - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
-         *     multi-press cycles);
+         *     - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
+         *       multi-press cycles);
          *
-         *   - shall only be generated after the first InitialPress following a MultiPressComplete when a long press is
-         *     detected after the idle time;
+         *     - shall only be generated after the first InitialPress following a MultiPressComplete when a long press
+         *       is detected after the idle time;
          *
-         *   - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete event.
+         *     - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete event.
          *
          * The above constraints imply that for a given activity detection cycle of a switch having MSM and/or MSL
          * feature flags set, the entire activity is either a single long press detection cycle of (InitialPress,
@@ -376,21 +376,21 @@ export declare namespace Switch {
          *
          *   - When the AS feature flag is set, this event:
          *
-         *   - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
-         *     multi-press cycles);
+         *     - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
+         *       multi-press cycles);
          *
-         *   - shall only be generated after the first InitialPress following a MultiPressComplete when a long press is
-         *     detected after the idle time.
+         *     - shall only be generated after the first InitialPress following a MultiPressComplete when a long press
+         *       is detected after the idle time.
          *
          *   - Else, when the MSM feature flag is set, this event:
          *
-         *   - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
-         *     multi-press cycles);
+         *     - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
+         *       multi-press cycles);
          *
-         *   - shall only be generated after the first InitialPress following a MultiPressComplete when a long press is
-         *     detected after the idle time;
+         *     - shall only be generated after the first InitialPress following a MultiPressComplete when a long press
+         *       is detected after the idle time;
          *
-         *   - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete event.
+         *     - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete event.
          *
          * The above constraints imply that for a given activity detection cycle of a switch having MSM and/or MSL
          * feature flags set, the entire activity is either a single long press detection cycle of (InitialPress,
@@ -607,21 +607,21 @@ export declare namespace Switch {
      *
      *   - When the AS feature flag is set, this event:
      *
-     *   - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
-     *     multi-press cycles);
+     *     - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
+     *       multi-press cycles);
      *
-     *   - shall only be generated after the first InitialPress following a MultiPressComplete when a long press is
-     *     detected after the idle time.
+     *     - shall only be generated after the first InitialPress following a MultiPressComplete when a long press is
+     *       detected after the idle time.
      *
      *   - Else, when the MSM feature flag is set, this event:
      *
-     *   - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
-     *     multi-press cycles);
+     *     - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle from any
+     *       multi-press cycles);
      *
-     *   - shall only be generated after the first InitialPress following a MultiPressComplete when a long press is
-     *     detected after the idle time;
+     *     - shall only be generated after the first InitialPress following a MultiPressComplete when a long press is
+     *       detected after the idle time;
      *
-     *   - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete event.
+     *     - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete event.
      *
      * The above constraints imply that for a given activity detection cycle of a switch having MSM and/or MSL feature
      * flags set, the entire activity is either a single long press detection cycle of (InitialPress, LongPress,

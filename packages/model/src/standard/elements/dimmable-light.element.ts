@@ -26,13 +26,13 @@ export const DimmableLightDt = DeviceType(
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+        Requirement({ name: "LT", conformance: "M", element: "feature" })
     ),
 
     Requirement(
         { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
-        Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
+        Requirement({ name: "LT", conformance: "M", element: "feature" }),
+        Requirement({ name: "OO", conformance: "M", element: "feature" }),
         Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
         Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
         Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })

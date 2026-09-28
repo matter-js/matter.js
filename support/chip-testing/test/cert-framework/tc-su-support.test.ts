@@ -11,6 +11,7 @@ import type {
     CheckRecord,
     EventPathSpec,
     EventReadEntry,
+    OtaApplyUpdateExchange,
     OtaProviderExchanges,
     OtaQueryImageExchange,
     ReadEventOptions,
@@ -287,7 +288,8 @@ describe("singleApplyUpdate", () => {
         const exchange = {
             request: { updateToken: "00".repeat(32), newVersion: 2 },
             response: { action: 0, delayedActionTime: 0 },
-        };
+            receivedAtMs: 0,
+        } satisfies OtaApplyUpdateExchange;
         return {
             queryImage: [],
             applyUpdate: new Array<typeof exchange>(count).fill(exchange),

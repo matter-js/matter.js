@@ -571,6 +571,7 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
     }
 
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
+        const receivedAtMs = Time.nowUs;
         const peer = this.#commandPeer;
         const scripted = this.#scriptFor(peer).applyUpdate.shift();
 
@@ -592,22 +593,36 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
             }
             response = await super.applyUpdateRequest(request);
+
+            // Only over the answer the script named, and only where the provider allowed the apply: the
+            // delay tells the requestor when it may apply, so laying it over a Discontinue would name a
+            // time for something that is not going to happen.
+            if (
+                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed &&
+                scripted?.delayedActionTime !== undefined &&
+                response.action === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
+            ) {
+                response = { ...response, delayedActionTime: scripted.delayedActionTime };
+            }
         }
 
         this.#exchangesFor(peer).applyUpdate.push({
             request: { updateToken: Bytes.toHex(request.updateToken), newVersion: request.newVersion },
             response: { action: response.action, delayedActionTime: response.delayedActionTime },
+            receivedAtMs,
         });
         this.internal.recorded.emit(peer);
         return response;
     }
 
     override notifyUpdateApplied(request: OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest) {
+        const receivedAtMs = Time.nowUs;
         const peer = this.#commandPeer;
         return MaybePromise.then(super.notifyUpdateApplied(request), result => {
             this.#exchangesFor(peer).notifyUpdateApplied.push({
                 updateToken: Bytes.toHex(request.updateToken),
                 softwareVersion: request.softwareVersion,
+                receivedAtMs,
             });
             this.internal.recorded.emit(peer);
             return result;
@@ -1833,8 +1848,25 @@ class InProcessCertNodeApi implements CertNodeApi {
             await recording.awaitNotifyApplied(Millis(options.notifyAppliedTimeoutMs));
         }
 
-        // After the apply wait, so a provider that answered an ApplyUpdateRequest while this was
-        // waiting reports that answer rather than the state before it.
+        // Both waits above end on what this provider decided, which a node it refused has not had time
+        // to react to; a case whose claim is a negative asks for a window here and checks observedMs.
+        let observedMs = 0;
+        if (options?.observeAfterMs !== undefined) {
+            const observingSince = Time.nowUs;
+
+            // A timer may fire a fraction of a millisecond before the monotonic clock says it is due,
+            // and the window a caller checks has to have been covered in full
+            while (observedMs < options.observeAfterMs) {
+                await Time.sleep(
+                    "cert OTA post-apply observation",
+                    Millis(Math.ceil(options.observeAfterMs - observedMs)),
+                );
+                observedMs = Time.nowUs - observingSince;
+            }
+        }
+
+        // After the apply and observation waits, so a provider that answered a command while either was
+        // running reports that answer rather than the state before it.
         const exchanges = await recording.read();
 
         const initMessage = session.initMessage;
@@ -1854,6 +1886,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             accept: bdxAcceptOf(parameters),
             transferredBytes: session.transferredBytes,
             applyAcknowledged,
+            observedMs,
             exchanges,
         };
     }

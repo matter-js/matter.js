@@ -9,7 +9,7 @@
 import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
-import type { ModeSelect } from "./mode-select.js";
+import type { Semtag } from "../globals/Semtag.js";
 
 /**
  * Definitions for the AmbientContextSensing cluster.
@@ -146,7 +146,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.5
          */
-        ambientContextTypeSupported?: ModeSelect.SemanticTag[];
+        ambientContextTypeSupported?: Semtag[];
     }
 
     /**
@@ -280,7 +280,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.5
          */
-        ambientContextTypeSupported: ModeSelect.SemanticTag[];
+        ambientContextTypeSupported: Semtag[];
 
         /**
          * Indicates whether the number count of the specified object is greater or equal to the threshold specified by
@@ -545,7 +545,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.2.1
          */
-        ambientContextSensed?: ModeSelect.SemanticTag[];
+        ambientContextSensed?: Semtag[];
     }
 
     /**
@@ -563,7 +563,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.3.1
          */
-        countingObject?: ModeSelect.SemanticTag;
+        countingObject?: Semtag;
 
         /**
          * This field shall indicate the minimum number of detected objects to render the true Boolean state of
@@ -602,7 +602,7 @@ export declare namespace AmbientContextSensing {
          *
          * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.4.3
          */
-        ambientContextType?: ModeSelect.SemanticTag[];
+        ambientContextType?: Semtag[];
 
         /**
          * This field shall indicate the predicted state of the CrowdDetected attribute for the specified time period.

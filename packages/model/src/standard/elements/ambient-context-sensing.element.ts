@@ -45,7 +45,7 @@ export const AmbientContextSensing = Cluster(
             name: "AmbientContextTypeSupported", id: 0x4, type: "list", access: "R V",
             conformance: "P, HA | OI | AUD", constraint: "max 50"
         },
-        Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+        Field({ name: "entry", type: "semtag" })
     ),
 
     Attribute({ name: "ObjectCountThresholdReached", id: 0x5, type: "bool", access: "R V", conformance: "P, OC & OI" }),
@@ -114,13 +114,13 @@ export const AmbientContextSensing = Cluster(
         { name: "AmbientContextTypeStruct", type: "struct" },
         Field(
             { name: "AmbientContextSensed", id: 0x0, type: "list", conformance: "P, M", constraint: "max 2" },
-            Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+            Field({ name: "entry", type: "semtag" })
         )
     ),
 
     Datatype(
         { name: "ObjectCountConfigStruct", type: "struct" },
-        Field({ name: "CountingObject", id: 0x0, type: "ModeSelect.SemanticTagStruct", conformance: "P, M" }),
+        Field({ name: "CountingObject", id: 0x0, type: "semtag", conformance: "P, M" }),
         Field({ name: "ObjectCountThreshold", id: 0x1, type: "uint16", conformance: "P, M", constraint: "min 1" })
     ),
 
@@ -134,7 +134,7 @@ export const AmbientContextSensing = Cluster(
                 name: "AmbientContextType", id: 0x2, type: "list", conformance: "P, HA | OI | AUD",
                 constraint: "max 100"
             },
-            Field({ name: "entry", type: "ModeSelect.SemanticTagStruct" })
+            Field({ name: "entry", type: "semtag" })
         ),
 
         Field({ name: "CrowdDetected", id: 0x3, type: "bool", conformance: "P, OC" }),

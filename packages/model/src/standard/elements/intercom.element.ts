@@ -39,9 +39,9 @@ export const IntercomDt = DeviceType(
 
     Requirement(
         { name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "AUDIO", conformance: "M", element: "feature" }),
-        Requirement({ name: "VIDEO", conformance: "O", element: "feature" }),
-        Requirement({ name: "SNAPSHOT", conformance: "X", element: "feature" })
+        Requirement({ name: "ADO", conformance: "M", element: "feature" }),
+        Requirement({ name: "VDO", conformance: "O", element: "feature" }),
+        Requirement({ name: "SNP", conformance: "X", element: "feature" })
     ),
 
     Requirement({ name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster" }),
@@ -55,7 +55,7 @@ export const IntercomDt = DeviceType(
         { name: "GenericSwitch", id: 0xf, conformance: "M", constraint: "min 1", element: "deviceType" },
         Requirement(
             { name: "Switch", id: 0x3b, element: "serverCluster" },
-            Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature" })
+            Requirement({ name: "MS", conformance: "M", element: "feature" })
         )
     )
 );

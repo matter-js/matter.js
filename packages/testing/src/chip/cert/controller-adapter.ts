@@ -352,7 +352,7 @@ export interface BdxTransferAccept {
 
 /**
  * The `QueryImage` a requestor sent this provider, as the provider received it (Matter Core
- * § 11.20.6.5).
+ * § 11.20.6.5.1).
  *
  * `protocolsSupported` and the optional fields are reported as the requestor set them, because a case
  * asserting on the DUT's answer has to be able to say what the answer was to.
@@ -370,7 +370,7 @@ export interface OtaQueryImageRequestRecord {
     metadataForProvider?: string;
 }
 
-/** The `QueryImageResponse` this provider answered with (Matter Core § 11.20.6.6). */
+/** The `QueryImageResponse` this provider answered with (Matter Core § 11.20.6.5.2). */
 export interface OtaQueryImageResponseRecord {
     /** `QueryStatus`, as the cluster enumerates it: 0 UpdateAvailable, 1 Busy, 2 NotAvailable, 3 DownloadProtocolNotSupported. */
     status: number;
@@ -401,7 +401,7 @@ export interface OtaQueryImageExchange {
     receivedAtMs: number;
 }
 
-/** One `ApplyUpdateRequest` a requestor sent this provider, with the answer it got (§ 11.20.6.9–10). */
+/** One `ApplyUpdateRequest` a requestor sent this provider, with the answer it got (§ 11.20.6.5.3–4). */
 export interface OtaApplyUpdateExchange {
     request: {
         /** `UpdateToken` as hex, which the plan compares with the one the `QueryImageResponse` carried. */
@@ -413,13 +413,31 @@ export interface OtaApplyUpdateExchange {
         action: number;
         delayedActionTime: number;
     };
+
+    /**
+     * When the provider received the command, in milliseconds on the controller's monotonic clock, as
+     * {@link OtaQueryImageExchange.receivedAtMs}.
+     *
+     * How far apart a requestor re-sent the request is what § 11.20.3.6 bounds after an
+     * `AwaitNextAction`, and the provider is the only side that can time it.
+     */
+    receivedAtMs: number;
 }
 
-/** One `NotifyUpdateApplied` a requestor sent this provider (§ 11.20.6.11). */
+/** One `NotifyUpdateApplied` a requestor sent this provider (§ 11.20.6.5.5). */
 export interface OtaNotifyUpdateAppliedRecord {
     /** `UpdateToken` as hex. */
     updateToken: string;
     softwareVersion: number;
+
+    /**
+     * When the provider received the command, in milliseconds on the controller's monotonic clock, as
+     * {@link OtaQueryImageExchange.receivedAtMs}.
+     *
+     * Whether a requestor applied before or after some other command of the same update is what a case
+     * about a deferral asks, and the order they arrive in is the only record of it.
+     */
+    receivedAtMs: number;
 }
 
 /**
@@ -481,6 +499,15 @@ export interface OtaBdxTransfer {
     applyAcknowledged: boolean;
 
     /**
+     * How long the record was kept open after the OTA exchange settled, in milliseconds: at least what
+     * {@link ServeOtaUpdateOptions.observeAfterMs} asked for, and zero where it was absent.
+     *
+     * A claim that the node sent nothing holds only for the window this covers, so a step making one
+     * records this rather than trusting that any time passed at all.
+     */
+    observedMs: number;
+
+    /**
      * The OTA commands the controller's own provider answered while serving this image.
      *
      * A copy taken when this resolved, covering this served update alone: the record is opened afresh
@@ -502,7 +529,7 @@ export interface OtaBdxTransfer {
  */
 export interface OtaScriptedQueryAnswer {
     /**
-     * `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.6).
+     * `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.5.2).
      *
      * A scripted `UpdateAvailable` (0) offers an image the provider does not hold, so a node that starts
      * the transfer is refused. Its mandatory fields are filled for a conformant offer unless
@@ -525,19 +552,30 @@ export interface OtaScriptedQueryAnswer {
 }
 
 /**
- * An `ApplyUpdateResponse` the provider is to give (§ 11.20.6.10).
+ * An `ApplyUpdateResponse` the provider is to give (§ 11.20.6.5.4).
  *
- * Two actions are meaningful. `AwaitNextAction` (1) the provider has no path of its own to, so it is
- * stated directly and its side effects are suppressed — the requestor's next attempt needs the image
- * it already downloaded. `Discontinue` (2) it does have a path to, so the controller withdraws the
- * update's consent and lets the provider refuse for itself, which keeps the state it is left in
- * agreeing with the answer the requestor received. Anything else leaves the provider's own answer.
+ * Each action reaches the requestor a different way, because what the provider must be left believing
+ * differs. `AwaitNextAction` (1) the provider has no path of its own to, so it is stated directly and
+ * its side effects are suppressed — the requestor's next attempt needs the image it already
+ * downloaded. `Discontinue` (2) it does have a path to, so the controller withdraws the update's
+ * consent and lets the provider refuse for itself, which keeps the state it is left in agreeing with
+ * the answer the requestor received. `Proceed` (0) is the provider's own successful path, so it runs
+ * and only {@link delayedActionTime} is laid over what it answered: a scripted `Proceed` that
+ * bypassed it would allow an apply the provider does not know it allowed. Anything else leaves the
+ * provider's own answer.
  */
 export interface OtaScriptedApplyAnswer {
-    /** `Action`: 1 AwaitNextAction, 2 Discontinue. */
+    /** `Action`: 0 Proceed, 1 AwaitNextAction, 2 Discontinue. */
     action?: number;
 
-    /** `DelayedActionTime` in seconds, which only a stated `AwaitNextAction` carries. */
+    /**
+     * `DelayedActionTime` in seconds.
+     *
+     * A stated `AwaitNextAction` carries it as written. With `Proceed` it replaces the zero the
+     * provider answers, which is how a case asks the requestor to defer an apply it has allowed; the
+     * provider still refuses an update it holds no consent for, and this is not laid over that
+     * refusal.
+     */
     delayedActionTime?: number;
 }
 
@@ -657,6 +695,18 @@ export interface ServeOtaUpdateOptions {
      * asked for plus room for the exchange that follows.
      */
     applyTimeoutMs?: number;
+
+    /**
+     * How long to keep recording after the OTA exchange settles, in milliseconds, for a case asserting
+     * what the node did *not* send in that window.
+     *
+     * The waits above end on what the *provider* decided — it allowed an apply, or it refused one and
+     * gave up on the update — which a node it refused has not yet had time to react to. A case reading
+     * the record at that point states what the node had not done yet rather than what it did not do, so
+     * a case whose claim is a negative names the window here and checks
+     * {@link OtaBdxTransfer.observedMs} against it.
+     */
+    observeAfterMs?: number;
 
     /**
      * How long to wait, once the apply was allowed, for the node's `NotifyUpdateApplied`, in

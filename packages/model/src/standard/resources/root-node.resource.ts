@@ -48,8 +48,8 @@ Resource.add({
         {
             tag: "requirement", name: "AccessControl", xref: "device§2.1.5",
             children: [
-                { tag: "requirement", name: "MANAGEDDEVICE", xref: "device§2.1.6" },
-                { tag: "requirement", name: "AUXILIARY", xref: "device§2.1.6" },
+                { tag: "requirement", name: "MNGD", xref: "device§2.1.6" },
+                { tag: "requirement", name: "AUX", xref: "device§2.1.6" },
                 { tag: "requirement", name: "Extension", xref: "device§2.1.6" }
             ]
         },
@@ -73,9 +73,9 @@ Resource.add({
             discriminator: "TimeSyncCond, TimeSyncWithClientCond, TimeSyncWithNtpcCond, TimeSyncWithTzCond, TlsClientCond, TlsCertificatesCond, O:serverCluster",
             xref: "device§2.1.5",
             children: [
-                { tag: "requirement", name: "TIMESYNCCLIENT", xref: "device§2.1.6" },
-                { tag: "requirement", name: "NTPCLIENT", xref: "device§2.1.6" },
-                { tag: "requirement", name: "TIMEZONE", xref: "device§2.1.6" }
+                { tag: "requirement", name: "TSC", xref: "device§2.1.6" },
+                { tag: "requirement", name: "NTPC", xref: "device§2.1.6" },
+                { tag: "requirement", name: "TZ", xref: "device§2.1.6" }
             ]
         },
 
@@ -83,9 +83,9 @@ Resource.add({
             tag: "requirement", name: "TimeSynchronization",
             discriminator: "TimeSyncWithClientCond, O:clientCluster", xref: "device§2.1.5",
             children: [
-                { tag: "requirement", name: "TIMESYNCCLIENT", xref: "device§2.1.6" },
-                { tag: "requirement", name: "NTPCLIENT", xref: "device§2.1.6" },
-                { tag: "requirement", name: "TIMEZONE", xref: "device§2.1.6" }
+                { tag: "requirement", name: "TSC", xref: "device§2.1.6" },
+                { tag: "requirement", name: "NTPC", xref: "device§2.1.6" },
+                { tag: "requirement", name: "TZ", xref: "device§2.1.6" }
             ]
         },
 
@@ -93,18 +93,18 @@ Resource.add({
         { tag: "requirement", name: "OperationalCredentials", xref: "device§2.1.5" },
         {
             tag: "requirement", name: "GroupKeyManagement", xref: "device§2.1.5",
-            children: [{ tag: "requirement", name: "GROUPCAST", xref: "device§2.1.6" }]
+            children: [{ tag: "requirement", name: "GCAST", xref: "device§2.1.6" }]
         },
         {
             tag: "requirement", name: "IcdManagement", xref: "device§2.1.5",
-            children: [{ tag: "requirement", name: "LONGIDLETIMESUPPORT", xref: "device§2.1.6" }]
+            children: [{ tag: "requirement", name: "LITS", xref: "device§2.1.6" }]
         },
 
         {
             tag: "requirement", name: "Groupcast", xref: "device§2.1.5",
             children: [
-                { tag: "requirement", name: "LISTENER", xref: "device§2.1.6" },
-                { tag: "requirement", name: "SENDER", xref: "device§2.1.6" }
+                { tag: "requirement", name: "LN", xref: "device§2.1.6" },
+                { tag: "requirement", name: "SD", xref: "device§2.1.6" }
             ]
         },
 
