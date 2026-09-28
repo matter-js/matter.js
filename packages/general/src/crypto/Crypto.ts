@@ -176,7 +176,7 @@ export abstract class Crypto extends Entropy {
      */
     createMlDsaKeyPair(parameterSet: MlDsa.ParameterSet): MaybePromise<MlDsa.PrivateKey> {
         const seed = Bytes.of(this.randomBytes(MlDsa.SEED_LENGTH));
-        const publicKey = this.mlDsaImplementation(parameterSet).publicKeyOf(parameterSet, seed);
+        const publicKey = this.mlDsaOperation(parameterSet, "publicKeyOf")(parameterSet, seed);
         return { parameterSet, seed, publicKey };
     }
 
@@ -193,16 +193,17 @@ export abstract class Crypto extends Entropy {
     signMlDsa(privateKey: MlDsa.PrivateKey, data: Bytes | Bytes[]): MaybePromise<Bytes> {
         MlDsa.assertPrivateKey(privateKey);
         const { parameterSet, publicKey } = privateKey;
-        const implementation = this.mlDsaImplementation(parameterSet);
+        const sign = this.mlDsaOperation(parameterSet, "sign");
+        const verify = this.mlDsaOperation(parameterSet, "verify");
         const message = Bytes.of(Array.isArray(data) ? Bytes.concat(...data) : data);
 
         let signature: Bytes;
         let valid: boolean;
         try {
-            signature = implementation.sign(privateKey, message, this.randomBytes(32));
+            signature = sign(privateKey, message, this.randomBytes(32));
 
             // Native signing ignores the public key, so only this check catches one that does not belong to the seed
-            valid = implementation.verify(parameterSet, publicKey, message, signature);
+            valid = verify(parameterSet, publicKey, message, signature);
         } catch (cause) {
             throw new KeyInputError(`Cannot sign with this ${parameterSet} private key`, { cause });
         }
@@ -227,10 +228,10 @@ export abstract class Crypto extends Entropy {
         MlDsa.assertPublicKey(parameterSet, publicKey);
         MlDsa.assertSignature(parameterSet, signature);
 
-        const implementation = this.mlDsaImplementation(parameterSet);
+        const verify = this.mlDsaOperation(parameterSet, "verify");
         let valid: boolean;
         try {
-            valid = implementation.verify(parameterSet, publicKey, data, signature);
+            valid = verify(parameterSet, publicKey, data, signature);
         } catch (cause) {
             throw new CryptoVerifyError(`${parameterSet} signature verification failed`, { cause });
         }
@@ -241,12 +242,18 @@ export abstract class Crypto extends Entropy {
     }
 
     /**
-     * The ML-DSA primitive behind {@link createMlDsaKeyPair}, {@link signMlDsa} and {@link verifyMlDsa}.
+     * One operation of the ML-DSA primitive behind {@link createMlDsaKeyPair}, {@link signMlDsa} and
+     * {@link verifyMlDsa}.
      *
-     * Defaults to the portable `@noble/post-quantum` implementation; backends with a native one override this.
+     * Defaults to the portable `@noble/post-quantum` implementation.  A backend overrides this per operation, because a
+     * runtime may offer native verification without native signing.  Throw here, not from the returned function, to
+     * report that the backend cannot offer the operation at all.
      */
-    protected mlDsaImplementation(_parameterSet: MlDsa.ParameterSet): MlDsa.Implementation {
-        return portableMlDsa;
+    protected mlDsaOperation<O extends keyof MlDsa.Implementation>(
+        _parameterSet: MlDsa.ParameterSet,
+        operation: O,
+    ): MlDsa.Implementation[O] {
+        return portableMlDsa[operation];
     }
 
     /**

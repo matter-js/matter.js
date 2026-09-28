@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Base64 } from "#codec/Base64Codec.js";
 import { DerBitString, DerCodec, DerNode, DerObject, DerType } from "#codec/DerCodec.js";
 import type { Crypto } from "#crypto/Crypto.js";
 import { CryptoError, CryptoVerifyError, KeyInputError, SignatureEncodingError } from "#crypto/CryptoError.js";
@@ -65,7 +66,8 @@ const MESSAGE = Bytes.of(Bytes.fromString("PQC Phase 1 device attestation"));
 
 const nodeApi = NodeJsStyleCrypto.detectedCrypto;
 
-function nodeHasMlDsa(api: NodeJsCryptoApiLike) {
+/** Whether the runtime verifies ML-DSA natively. */
+function nodeCanVerifyMlDsa(api: NodeJsCryptoApiLike) {
     const key = {
         key: Bytes.of(MlDsa.encodeSubjectPublicKeyInfo("ML-DSA-44", new Uint8Array(1312))),
         format: "der",
@@ -73,6 +75,23 @@ function nodeHasMlDsa(api: NodeJsCryptoApiLike) {
     } as const;
     try {
         return api.verify?.(null, new Uint8Array(), key, new Uint8Array(2420)) === false;
+    } catch {
+        return false;
+    }
+}
+
+/** Whether the runtime signs with ML-DSA natively, which Node.js 22 cannot even where it verifies. */
+async function nodeCanSignMlDsa(api: NodeJsCryptoApiLike) {
+    const { parameterSet, seed, publicKey } = await new StandardCrypto().createMlDsaKeyPair("ML-DSA-44");
+    const key = {
+        kty: "AKP",
+        alg: parameterSet,
+        priv: Base64.encode(Bytes.of(seed), true),
+        pub: Base64.encode(Bytes.of(publicKey), true),
+    } as const;
+    try {
+        api.sign?.(null, new Uint8Array(), { key, format: "jwk" });
+        return api.sign !== undefined;
     } catch {
         return false;
     }
@@ -326,13 +345,19 @@ if (nodeApi !== undefined) {
         });
 
         it("reports a native signing failure as a key error", async function () {
-            if (!nodeHasMlDsa(api)) {
+            const { sign } = api;
+            if (sign === undefined || !(await nodeCanSignMlDsa(api))) {
                 this.skip();
             }
 
+            let probed = false;
             const crypto = new NodeJsStyleCrypto({
                 ...api,
-                sign() {
+                sign(algorithm, data, key) {
+                    if (!probed) {
+                        probed = true;
+                        return sign.call(api, algorithm, data, key);
+                    }
                     throw new ImplementationError("Invalid JWK AKP key");
                 },
             });
@@ -343,7 +368,7 @@ if (nodeApi !== undefined) {
 
         it("reports a native verification failure as a verify error", async function () {
             const { verify } = api;
-            if (verify === undefined || !nodeHasMlDsa(api)) {
+            if (verify === undefined || !nodeCanVerifyMlDsa(api)) {
                 this.skip();
             }
 
@@ -392,7 +417,7 @@ if (nodeApi !== undefined) {
             });
 
             it("verifies with the provider's own implementation", async function () {
-                if (!nodeHasMlDsa(api)) {
+                if (!nodeCanVerifyMlDsa(api)) {
                     this.skip();
                 }
                 const crypto = new NodeJsStyleCrypto({ ...api, getFips: () => 1 });
@@ -401,21 +426,28 @@ if (nodeApi !== undefined) {
             });
         });
 
-        it("uses the native implementation where Node.js offers it", async function () {
+        it("uses each operation natively where Node.js offers it", async function () {
             const { sign, verify } = api;
-            if (sign === undefined || verify === undefined || !nodeHasMlDsa(api)) {
+            const canSign = await nodeCanSignMlDsa(api);
+            const canVerify = nodeCanVerifyMlDsa(api);
+            if (sign === undefined || verify === undefined || (!canSign && !canVerify)) {
                 this.skip();
             }
 
+            // Probes pass empty data, so only operations on MESSAGE are recorded
             const calls = new Array<string>();
             const crypto = new NodeJsStyleCrypto({
                 ...api,
                 sign(algorithm, data, key) {
-                    calls.push("sign");
+                    if (data.byteLength > 0) {
+                        calls.push("sign");
+                    }
                     return sign.call(api, algorithm, data, key);
                 },
                 verify(algorithm, data, key, signature) {
-                    calls.push("verify");
+                    if (data.byteLength > 0) {
+                        calls.push("verify");
+                    }
                     return verify.call(api, algorithm, data, key, signature);
                 },
             });
@@ -424,7 +456,23 @@ if (nodeApi !== undefined) {
             await crypto.verifyMlDsa("ML-DSA-44", key.publicKey, MESSAGE, await crypto.signMlDsa(key, MESSAGE));
 
             // Signing verifies its own signature against the key's public key
-            expect(calls.slice(-3)).deep.equals(["sign", "verify", "verify"]);
+            expect(calls).deep.equals([...(canSign ? ["sign"] : []), ...(canVerify ? ["verify", "verify"] : [])]);
+        });
+
+        it("signs under a restricted provider only where the provider can", async () => {
+            const key = await new StandardCrypto().createMlDsaKeyPair("ML-DSA-44");
+            const crypto = new NodeJsStyleCrypto({
+                ...api,
+                getFips: () => 1,
+                sign() {
+                    throw new ImplementationError("Unsupported key type");
+                },
+            });
+
+            await expect(attempt(() => crypto.signMlDsa(key, MESSAGE))).rejectedWith(
+                CryptoError,
+                /signing is unavailable/,
+            );
         });
     });
 }

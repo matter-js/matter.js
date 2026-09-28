@@ -249,7 +249,7 @@ export class NodeJsStyleCrypto extends Crypto {
     static providesDefault = false;
 
     #crypto: NodeJsCryptoApiLike;
-    #nativeMlDsa = new Map<MlDsa.ParameterSet, MlDsa.Implementation | false>();
+    #nativeMlDsa = new Map<MlDsa.ParameterSet, Partial<MlDsa.Implementation>>();
 
     constructor(crypto?: NodeJsCryptoApiLike) {
         super();
@@ -430,29 +430,28 @@ export class NodeJsStyleCrypto extends Crypto {
         if (!success) throw new CryptoVerifyError("Signature verification failed");
     }
 
-    override createMlDsaKeyPair(parameterSet: MlDsa.ParameterSet): MaybePromise<MlDsa.PrivateKey> {
-        // Key expansion is portable, and a restricted provider must not be bypassed
-        if (this.#providerIsRestricted) {
-            throw new CryptoError(`Cannot create ${parameterSet} keys under a restricted cryptographic provider`);
-        }
-        return super.createMlDsaKeyPair(parameterSet);
-    }
-
-    protected override mlDsaImplementation(parameterSet: MlDsa.ParameterSet): MlDsa.Implementation {
+    protected override mlDsaOperation<O extends keyof MlDsa.Implementation>(
+        parameterSet: MlDsa.ParameterSet,
+        operation: O,
+    ): MlDsa.Implementation[O] {
         let native = this.#nativeMlDsa.get(parameterSet);
         if (native === undefined) {
-            native = nativeMlDsa(this.#crypto, parameterSet, super.mlDsaImplementation(parameterSet)) ?? false;
+            native = nativeMlDsa(this.#crypto, parameterSet, super.mlDsaOperation(parameterSet, "publicKeyOf"));
             this.#nativeMlDsa.set(parameterSet, native);
         }
-        if (native !== false) {
-            return native;
+
+        const nativeOperation = native[operation];
+        if (nativeOperation !== undefined) {
+            return nativeOperation;
         }
 
         // Substituting our own implementation would evade the operator's deliberate restriction
         if (this.#providerIsRestricted) {
-            throw new CryptoError(`${parameterSet} is unavailable from the restricted cryptographic provider`);
+            throw new CryptoError(
+                `${parameterSet} ${OPERATION_NAMES[operation]} is unavailable from the restricted cryptographic provider`,
+            );
         }
-        return super.mlDsaImplementation(parameterSet);
+        return super.mlDsaOperation(parameterSet, operation);
     }
 
     get #providerIsRestricted() {
@@ -533,57 +532,71 @@ function spkiKeyInput(parameterSet: MlDsa.ParameterSet, publicKey: Bytes): NodeJ
     return { key: Bytes.of(MlDsa.encodeSubjectPublicKeyInfo(parameterSet, publicKey)), format: "der", type: "spki" };
 }
 
+const OPERATION_NAMES: Record<keyof MlDsa.Implementation, string> = {
+    publicKeyOf: "key generation",
+    sign: "signing",
+    verify: "verification",
+};
+
 /**
- * The native ML-DSA implementation, if the runtime supports the parameter set.  Node.js has ML-DSA from 24.7 with
- * OpenSSL 3.5; older releases and most emulations reject the key type.
+ * The ML-DSA operations the runtime offers natively for the parameter set.  Node.js 24.7 with OpenSSL 3.5 offers both;
+ * Node.js 22 with OpenSSL 3.5 verifies with an SPKI key but cannot import an ML-DSA private key; older releases and
+ * most emulations offer neither.  Key generation stays portable so it follows {@link Crypto.randomBytes}.
  */
 function nativeMlDsa(
     api: NodeJsCryptoApiLike,
     parameterSet: MlDsa.ParameterSet,
-    portable: MlDsa.Implementation,
-): MlDsa.Implementation | undefined {
+    publicKeyOf: MlDsa.Implementation["publicKeyOf"],
+): Partial<MlDsa.Implementation> {
     const { sign, verify } = api;
-    if (typeof sign !== "function" || typeof verify !== "function") {
-        return;
-    }
-
-    // Every byte string of the right length is a well-formed ML-DSA public key, so zeros suffice
     const { publicKeyLength, signatureLength } = MlDsa.PARAMETERS[parameterSet];
-    try {
-        verify.call(
-            api,
-            null,
-            new Uint8Array(),
-            spkiKeyInput(parameterSet, new Uint8Array(publicKeyLength)),
-            new Uint8Array(signatureLength),
-        );
-    } catch (error) {
-        logger.debug(`Native crypto rejects ${parameterSet}: ${asError(error).message}`);
-        return;
-    }
+    const native: Partial<MlDsa.Implementation> = {};
 
-    return {
-        publicKeyOf: portable.publicKeyOf,
-
-        sign(privateKey, message) {
-            const key = {
-                kty: "AKP",
-                alg: privateKey.parameterSet,
-                priv: Base64.encode(Bytes.of(privateKey.seed), true),
-                pub: Base64.encode(Bytes.of(privateKey.publicKey), true),
-            } as const;
-            return Bytes.of(sign.call(api, null, Bytes.of(message), { key, format: "jwk" }));
-        },
-
-        verify(parameterSet, publicKey, message, signature) {
-            return verify.call(
+    if (typeof verify === "function") {
+        try {
+            // Every byte string of the right length is a well-formed ML-DSA public key, so zeros suffice
+            verify.call(
                 api,
                 null,
-                Bytes.of(message),
-                spkiKeyInput(parameterSet, publicKey),
-                Bytes.of(signature),
+                new Uint8Array(),
+                spkiKeyInput(parameterSet, new Uint8Array(publicKeyLength)),
+                new Uint8Array(signatureLength),
             );
+            native.verify = (parameterSet, publicKey, message, signature) =>
+                verify.call(api, null, Bytes.of(message), spkiKeyInput(parameterSet, publicKey), Bytes.of(signature));
+        } catch (error) {
+            logger.debug(`Native crypto cannot verify ${parameterSet}: ${asError(error).message}`);
+        }
+    }
+
+    if (typeof sign === "function") {
+        const seed = new Uint8Array(MlDsa.SEED_LENGTH);
+        try {
+            sign.call(
+                api,
+                null,
+                new Uint8Array(),
+                jwkKeyInput({ parameterSet, seed, publicKey: publicKeyOf(parameterSet, seed) }),
+            );
+            native.sign = (privateKey, message) =>
+                Bytes.of(sign.call(api, null, Bytes.of(message), jwkKeyInput(privateKey)));
+        } catch (error) {
+            logger.debug(`Native crypto cannot sign with ${parameterSet}: ${asError(error).message}`);
+        }
+    }
+
+    return native;
+}
+
+function jwkKeyInput({ parameterSet, seed, publicKey }: MlDsa.PrivateKey): NodeJsCryptoApiLike.JwkKeyInput {
+    return {
+        key: {
+            kty: "AKP",
+            alg: parameterSet,
+            priv: Base64.encode(Bytes.of(seed), true),
+            pub: Base64.encode(Bytes.of(publicKey), true),
         },
+        format: "jwk",
     };
 }
 
