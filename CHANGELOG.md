@@ -17,6 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/general
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
+    - Fix: `isDeepEqual` compares `Date` values by their time and `Map` and `Set` values by their entries; it treated any two dates, any two maps and any two sets as equal
     - Fix: The plain log format puts the `+` or `-` of an added or deleted list entry on that entry's line instead of at the end of the line before it
 
 - @matter/model
@@ -28,6 +29,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `MergedModel` merges a local override's quality with the quality the specification states, so an override can add or remove a single flag
     - Fix: The Color Control `Primary1..6` X, Y and Intensity attributes are optional where `NumberOfPrimaries` does not require them, as the specification defines; a light that supplied one without enough primaries failed to start
     - Breaking: A device type's feature requirement names the feature by its code (`LITS`), not by its uppercased title (`LONGIDLETIMESUPPORT`), and `RequirementResolver.featureOf` matches only the exact code
+    - Breaking: `ValidateModel` reports errors only in the result it returns and no longer records them on the models it validates, so validating a model twice reports its errors once each time, and validating a model whose metadata comes from a loaded resource bundle no longer throws or writes into the shared bundle. `Model.errors`, `Model.valid` and `Model.error()` are deprecated; use `ValidateModel(model).errors`. `Resource.errors` is deprecated and no longer set. Until they are removed, the errors a model carries come from its definition and `error()`, stay on the model, carry over to a clone, and are reported by `ValidateModel`
+    - Feature: `DeviceTypeConformance.check()` and `DeviceTypeConformance.misplacedSingletons()` judge endpoints of any tree that a `DeviceTypeFacts` provider describes against their device types, within a `DeviceTypeValidationPass`, and report `DeviceTypeViolation`s
     - Breaking: `ModelDiff` reports changed properties of an element in both models, not only added and deleted elements, and its entries are `add`, `delete`, `change` and `summary`; a summary counts added, deleted and changed children separately. It ignores documentation, matches a feature requirement by the feature it names, and compares alike three spellings of one conformance: a feature without conformance and "O", adjacent entries of an otherwise list and their disjunction, and a condition reference in any case and the condition as declared
     - Enhancement: `RequirementResolver.featureMatching` finds a feature requirement's feature by code or title, and `RequirementResolver.declaredConformanceOf` spells a requirement's condition references as declared
 
@@ -76,6 +79,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: An OTA requestor's two-minute floors on re-querying a provider and on re-sending an `ApplyUpdateRequest` are overridable (`minimumQueryInterval`, `minimumApplyDelay`), so a test harness need not wait them out; a product lowering them does not conform
     - Fix: The Descriptor `PartsList` now reports a replacement of an endpoint that leaves the number of parts unchanged, and lists parts in numeric order
     - Fix: Closing or erasing an endpoint whose parts never received a number, such as the parts of a non-essential endpoint that failed to initialize, no longer logs `uninitialized-dependency` errors, and erasing removes their persisted state
+    - Enhancement: A server endpoint's structure is checked against the device types it declares, at construction and as it changes afterward, and each violation is logged as a warning; `endpoint.validation` (`MATTER_ENDPOINT_VALIDATION`: `off`, `warn` or `strict`, default `warn`) turns the checks off or refuses construction instead, `DeviceTypeConformanceService.validate()` checks on request and returns the violations per endpoint, and `Endpoint.Options.deviceConditions` states conditions the structure does not show
+    - Breaking: A server cluster that a device type of the node declares a singleton refuses construction with `DeviceTypeConformanceError` on an endpoint whose device types neither declare the singleton nor list the cluster as a server cluster; with `endpoint.validation` `off` only when a device type above the endpoint declares the singleton
     - Enhancement: The Descriptor `PartsList` update no longer looks up the endpoint's device types in the model on every change, so adding endpoints under an aggregator is about a third faster
 - @matter/testing
     - Enhancement: `CertNodeApi.scriptOtaProvider()` can have the controller's provider answer `ApplyUpdateResponse` `Proceed` with a `DelayedActionTime` of its own, so a case can ask a requestor to defer an apply the provider allowed
