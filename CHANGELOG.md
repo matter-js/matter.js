@@ -73,6 +73,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The Descriptor `PartsList` now reports a replacement of an endpoint that leaves the number of parts unchanged, and lists parts in numeric order
     - Fix: Closing or erasing an endpoint whose parts never received a number, such as the parts of a non-essential endpoint that failed to initialize, no longer logs `uninitialized-dependency` errors, and erasing removes their persisted state
 - @matter/testing
+    - Enhancement: `CertNodeApi.scriptOtaProvider()` can have the controller's provider answer `ApplyUpdateResponse` `Proceed` with a `DelayedActionTime` of its own, so a case can ask a requestor to defer an apply the provider allowed
+    - Enhancement: `CertNodeApi.serveOtaUpdate()` can keep recording after the exchange settles via `ServeOtaUpdateOptions.observeAfterMs`, reporting the window as `OtaBdxTransfer.observedMs`, so a case claiming a node sent nothing can show the window it watched
     - Enhancement: `CertNodeApi.scriptOtaProvider()` can have the controller's provider answer `UpdateAvailable` for an image it does not hold, with the `softwareVersion` and `imageUri` the case names, so a case can offer an update a node must refuse
     - Enhancement: `CertNodeApi.serveOtaUpdate()` can wait for the node's `NotifyUpdateApplied` after allowing the apply, via `ServeOtaUpdateOptions.notifyAppliedTimeoutMs`
     - Enhancement: A certification step can have its controller act as a node's ICD Check-In client via `CertNodeApi.icdClient()`: register, end its own subscription so the node sends Check-Ins, and read the Check-Ins and key refreshes it accepted. chip-tool refuses it. Every `CertNodeApi` implementation must provide the new method
