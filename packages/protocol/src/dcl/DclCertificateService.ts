@@ -232,7 +232,7 @@ function isCritical(extension: DerNode) {
     return critical?._tag === DerType.Boolean && Bytes.of(critical._bytes)[0] !== 0;
 }
 
-/** The single directoryName of a certificateIssuer CRL entry extension as hex of its Name DER, if it names exactly one. */
+/** The single directoryName of a certificateIssuer CRL entry extension as Name DER, if it names exactly one. */
 function certificateIssuerOf(extension: DerNode) {
     const value = extension._elements?.[extension._elements.length - 1];
     if (value?._tag !== DerType.OctetString) {
@@ -242,7 +242,7 @@ function certificateIssuerOf(extension: DerNode) {
     if (names?.length !== 1 || names[0]._tag !== DIRECTORY_NAME) {
         return;
     }
-    return Bytes.toHex(names[0]._bytes);
+    return Bytes.of(names[0]._bytes);
 }
 
 /** [4] EXPLICIT Name: the directoryName choice of GeneralName. */
@@ -1468,8 +1468,9 @@ export class DclCertificateService {
             signal: AbortSignal.timeout(timeout),
         });
         if (!response.ok) {
-            // A client error will not heal on retry, a server error may
-            const Failure = response.status < 500 ? CrlRejectedError : MatterDclError;
+            // A client error will not heal on retry; a server error, request timeout or rate limit may
+            const transient = response.status >= 500 || response.status === 408 || response.status === 429;
+            const Failure = transient ? MatterDclError : CrlRejectedError;
             throw new Failure(`Failed to fetch CRL from ${point.dataUrl}: ${response.status}`);
         }
         const crlBytes = new Uint8Array(await response.arrayBuffer());
@@ -1890,7 +1891,7 @@ export class DclCertificateService {
             };
         }
 
-        let certificateIssuer: string | undefined;
+        let certificateIssuer: Bytes | undefined;
         for (const entry of revokedCertsNode._elements) {
             if (entry._tag !== DerTag.Sequence || !entry._elements || entry._elements.length < 1) continue;
             const serialNode = entry._elements[0];
@@ -1916,7 +1917,7 @@ export class DclCertificateService {
             if (
                 certificateIssuer !== undefined &&
                 authorityName !== undefined &&
-                certificateIssuer !== Bytes.toHex(authorityName)
+                !sameName(certificateIssuer, authorityName)
             ) {
                 continue;
             }

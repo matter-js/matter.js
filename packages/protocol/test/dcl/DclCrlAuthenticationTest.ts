@@ -536,6 +536,17 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).false;
         });
 
+        it("keeps entries whose certificateIssuer encodes the authority's name as another string type", async () => {
+            const printable = DerObject("551d1d", {
+                critical: true,
+                value: DerCodec.encode({
+                    directoryName: ContextTagged(4, { commonName: X520.CommonName(paa.name, true) }),
+                }),
+            });
+            const crl = await crlBy(paa.crlSigner, { entryExtensions: { certificateIssuer: printable } });
+            expect(await revoked(paa.skid, [{ signer: paa, isPAA: true, crl }])).true;
+        });
+
         it("keeps entries once certificateIssuer names the authority again (step 10.1)", async () => {
             const crl = await crlBy(
                 paa.crlSigner,
@@ -657,6 +668,17 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
                 expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).false;
                 expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).false;
                 expect(crlDownloads()).equals(1);
+            });
+        }
+
+        for (const status of [408, 429]) {
+            it(`downloads again after HTTP ${status}`, async () => {
+                const dcl = await serve(paa.skid, [{ signer: paa, isPAA: true, crl: await crlBy(paa.crlSigner) }]);
+                fetchMock.addResponse("https://example.com/0.crl", "later", { status });
+
+                expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).false;
+                expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED)).false;
+                expect(crlDownloads()).equals(2);
             });
         }
 
