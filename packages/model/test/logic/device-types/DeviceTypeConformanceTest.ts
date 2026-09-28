@@ -9,7 +9,6 @@ import {
     ClusterModel,
     ConditionModel,
     DeviceTypeConformance,
-    DeviceTypeFacts,
     DeviceTypeModel,
     DeviceTypeScopeIndex,
     DeviceTypeValidationPass,
@@ -24,79 +23,13 @@ import {
 } from "#index.js";
 import { ConditionAssertions, conditionScopeOf, StructuralCondition } from "#logic/device-types/ConditionAssertions.js";
 import { ImplementationError } from "@matter/general";
+import { endpoint, FakeEndpoint, FakeFacts } from "./fake-facts.js";
 
 const ROOT_ID = 0x16;
 const LIGHT_ID = 0xfff1_0001;
 const COMPOSER_ID = 0xfff1_0002;
 const ON_OFF_ID = 6;
 const SINGLETON_ID = 0x7ff0;
-
-/**
- * An endpoint of a tree that exists only as data, so the evaluator runs without any node.
- */
-interface FakeEndpoint {
-    name: string;
-    parent?: FakeEndpoint;
-    parts: FakeEndpoint[];
-    deviceTypes: number[];
-    servers: ClusterModel[];
-    elements: Map<ClusterModel, DeviceTypeFacts.Elements>;
-}
-
-class FakeFacts implements DeviceTypeFacts<FakeEndpoint> {
-    nodeConditions = new Array<NodeCondition>();
-    absent = new Set<FakeEndpoint>();
-
-    parentOf(endpoint: FakeEndpoint) {
-        return endpoint.parent;
-    }
-
-    partsOf(endpoint: FakeEndpoint) {
-        return endpoint.parts;
-    }
-
-    isPresent(endpoint: FakeEndpoint) {
-        return !this.absent.has(endpoint);
-    }
-
-    deviceTypeIdsOf(endpoint: FakeEndpoint) {
-        return endpoint.deviceTypes;
-    }
-
-    serverClustersOf(endpoint: FakeEndpoint) {
-        return endpoint.servers;
-    }
-
-    clientClustersOf() {
-        return [];
-    }
-
-    elementsOf(endpoint: FakeEndpoint, cluster: ClusterModel) {
-        return endpoint.elements.get(cluster) ?? { attributes: new Set(), commands: new Set(), events: new Set() };
-    }
-
-    statedConditionsOf() {
-        return [];
-    }
-
-    nodeConditionsOf() {
-        return this.nodeConditions;
-    }
-
-    describe(endpoint: FakeEndpoint) {
-        return endpoint.name;
-    }
-}
-
-function endpoint(
-    name: string,
-    deviceType: number,
-    { parent, servers = [] }: { parent?: FakeEndpoint; servers?: ClusterModel[] } = {},
-): FakeEndpoint {
-    const created: FakeEndpoint = { name, parent, parts: [], deviceTypes: [deviceType], servers, elements: new Map() };
-    parent?.parts.push(created);
-    return created;
-}
 
 /**
  * A model whose Light requires OnOff, OnOff's Lighting feature under {@link lighting} and OnOff's Pending attribute,
@@ -373,8 +306,8 @@ describe("device type model lookups", () => {
             throw new ImplementationError("The standard model has no OnOffLight");
         }
 
-        // RequirementResolver.conditionsOf() allocates a fresh Map on every call, so identity here proves the second
-        // pass reused the first pass's cache entry instead of resolving again.
+        // RequirementResolver.conditionsOf() allocates a new Map per call, so identity shows the second pass reused the
+        // first pass's entry
         const first = conditionScopeOf(deviceType, new DeviceTypeValidationPass(new FakeFacts(), Matter));
         const second = conditionScopeOf(deviceType, new DeviceTypeValidationPass(new FakeFacts(), Matter));
         expect(second).equals(first);

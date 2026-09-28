@@ -50,7 +50,7 @@ describe("model-scoped lookups", () => {
         const light = await node.add(OnOffLightDevice, { id: "light" });
 
         // Both models declare OnOffLight under the same device type ID, so a leaked cache entry from the first model
-        // would answer the second lookup too, with the first model's conformance.
+        // would answer the second lookup too, with the first model's conformance
         expect(violationsOf(light, lightingFeatureModel("OFFONLY")).map(v => [v.kind, v.requirement])).deep.equals([
             ["disallowed", "OnOff.LT"],
         ]);

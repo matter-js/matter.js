@@ -15,23 +15,17 @@ import type { ReachingEndpoints } from "./ReachingEndpoints.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
 
 /**
- * One run of device type validation over one or more endpoints that {@link facts} describes, resolved in
- * {@link model}.
+ * One run of device type validation over endpoints that {@link facts} describes, resolved in {@link model}.
  *
- * The checks of a pass share what several endpoints read from the tree: the facts of each endpoint, the conditions
- * of each node scope and the composition facts of each composing endpoint. Judging the endpoints of a node scope one
- * by one otherwise repeats that work per endpoint.
+ * The checks of a pass share what several endpoints read from the tree: the facts of each endpoint, the conditions of
+ * each node scope and the composition facts of each composing endpoint.
  *
- * A pass must not outlive one synchronous run. The tree may change between runs, and nothing a pass memoizes of it is
- * invalidated. A lookup that reads only {@link model} — the cluster, feature or element a requirement names, for
- * example — outlives the pass and is shared with every other pass resolved in the same model; see
- * `ModelLookups`. A pass created with an {@link index} reads the reaching endpoints of a node scope, what each contributes
- * to the scope, the endpoints of a node scope by device type and the device types of siblings from it rather than from
- * the tree.
+ * A pass must not outlive one synchronous run: the tree may change between runs, and nothing a pass keeps of it is
+ * invalidated. Lookups that read only {@link model}, such as the cluster a requirement names, are shared by every pass
+ * resolved in the same model instance, so mutating a model after it has validated an endpoint is unsupported. Build a
+ * new model instead, e.g. with {@link MatterModel.withClusters}.
  *
- * Mutating a model in place after it has validated an endpoint is unsupported: `ModelLookups` keys its entries by
- * model instance, not content, so a mutated model keeps serving lookups from before the mutation. Build a new model
- * instead, e.g. with {@link MatterModel.withClusters}, which already returns a copy.
+ * @see {@link MatterSpecification.v16.Core} § 9.2
  */
 export class DeviceTypeValidationPass<E> {
     readonly facts: DeviceTypeFacts<E>;

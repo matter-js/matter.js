@@ -10,6 +10,10 @@ import type { DeviceTypeViolation } from "@matter/model";
 /**
  * What an application may ask of the device type validation of a server node, which
  * {@link DeviceTypeConformanceService} provides.
+ *
+ * Behaviour, modes and limits: `docs/DEVICE_TYPE_VALIDATION.md`.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 9.2
  */
 export interface DeviceTypeValidation {
     /**
@@ -46,15 +50,19 @@ export interface DeviceTypeValidation {
 export namespace DeviceTypeValidation {
     /**
      * How the node judges the device types of its endpoints: `"off"` judges nothing on its own, `"warn"` logs each
-     * violation and `"strict"` refuses the construction of an endpoint with any new violation.
+     * violation and `"strict"` refuses the construction of an endpoint with any new violation. A misplaced singleton is
+     * refused at construction in every mode; in `"off"` only when a device type above the endpoint declares it.
      */
     export type Mode = "off" | "warn" | "strict";
 
+    /**
+     * Options of {@link DeviceTypeValidation.validate} and {@link DeviceTypeValidation.validateNodeScope}.
+     */
     export interface ValidateOptions {
         /**
          * Whether an endpoint with a new misplaced singleton, or with any new violation in mode `"strict"`, throws.
          * Defaults to true. Off, those violations log and are recorded like any other, a misplaced singleton included.
-         * The node judges changes after construction with it off, because nothing rolls back such a change.
+         * The node judges changes after construction with it off.
          *
          * A refused endpoint's violations do not count as reported, so validating it again refuses it again.
          */

@@ -123,7 +123,7 @@ export class ServerEndpointFacts implements DeviceTypeFacts<Endpoint> {
      * Only a node endpoint with a {@link NetworkServer} answers CustomNetworkConfig, and only once the server is
      * active, because it resolves its BLE flag as it initializes.
      *
-     * @see {@link MatterSpecification.v16.Device} § 1.1.3.1
+     * @see {@link MatterSpecification.v16.Device} § 2.1.3
      */
     nodeConditionsOf(nodeEndpoint: Endpoint): NodeCondition[] {
         if (nodeEndpoint.behaviors.isActive(NetworkServer) && nodeEndpoint.stateOf(NetworkServer).ble === false) {

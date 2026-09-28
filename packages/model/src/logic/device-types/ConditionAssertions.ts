@@ -88,8 +88,6 @@ export namespace ConditionAssertions {
      * those of the {@link reachingOf reaching endpoints} assert on it. A requirement asserts when its
      * conformance is mandatory for the structural, node and stated conditions of the asserting endpoint.
      *
-     * One {@link pass} collects each node scope once.
-     *
      * @see {@link MatterSpecification.v16.Core} § 9.2.6
      */
     export function collect<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): Collection<E> {
@@ -168,6 +166,7 @@ export namespace ConditionAssertions {
      * Whether the Base `Duplicate` condition holds for {@link endpoint}: it shares an application device type with a
      * sibling.
      *
+     * @see {@link MatterSpecification.v16.Core} § 9.2.9
      * @see {@link MatterSpecification.v16.Device} § 1.1.6.1
      */
     export function isDuplicate<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {

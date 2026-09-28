@@ -10,8 +10,8 @@ import type { DeviceTypeViolation } from "@matter/model";
 import type { DeviceTypeValidation } from "./DeviceTypeValidation.js";
 
 /**
- * Thrown when a pass refuses one or more endpoints for departing from a device type requirement that applies to them:
- * at construction, for a new misplaced singleton always, and for any other new violation when validation is strict.
+ * Thrown when a pass refuses one or more endpoints: for a new misplaced singleton, and for any other new violation in
+ * mode `"strict"`.
  *
  * Its {@link errors} are the new violations of every refused endpoint, in the order the pass judged them. A refused
  * endpoint need not be the one being constructed, such as a sibling the new endpoint makes a duplicate. The message

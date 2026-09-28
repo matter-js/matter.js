@@ -25,14 +25,7 @@ import {
     LogLevel,
     Transport,
 } from "@matter/general";
-import {
-    DeviceTypeConformance,
-    DeviceTypeModel,
-    DeviceTypeValidationPass,
-    Matter,
-    MatterModel,
-    ResolvedEndpoint,
-} from "@matter/model";
+import { DeviceTypeConformance, DeviceTypeModel, DeviceTypeValidationPass, Matter, MatterModel } from "@matter/model";
 import { Ble, BlePeripheralInterface, Scanner } from "@matter/protocol";
 import { DeviceTypeId } from "@matter/types";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
@@ -227,6 +220,14 @@ export function serverPass(model: MatterModel = Matter) {
 }
 
 /**
+ * The codes of the features {@link endpoint}'s server {@link cluster} supports, as validation reads them.
+ */
+export function featuresOf(endpoint: Endpoint, cluster: string) {
+    const schema = new ServerEndpointFacts().serverClustersOf(endpoint).find(({ name }) => name === cluster);
+    return new Set(schema?.supportedFeatures ?? []);
+}
+
+/**
  * The violations {@link DeviceTypeConformance.check} finds on {@link endpoint}, resolved in {@link model}.
  */
 export function violationsOf(endpoint: Endpoint, model: MatterModel = Matter) {
@@ -313,24 +314,45 @@ export function recordingChecks() {
 }
 
 /**
- * Records every endpoint whose {@link ResolvedEndpoint} a pass asks for until disposed.
+ * Records every endpoint whose device types, clusters, elements or stated conditions validation reads until disposed.
  */
 export function recordingReads() {
-    const { of } = ResolvedEndpoint;
+    const { prototype } = ServerEndpointFacts;
     const read = new Set<Endpoint>();
+    const originals = {
+        deviceTypeIdsOf: prototype.deviceTypeIdsOf,
+        serverClustersOf: prototype.serverClustersOf,
+        clientClustersOf: prototype.clientClustersOf,
+        elementsOf: prototype.elementsOf,
+        statedConditionsOf: prototype.statedConditionsOf,
+    };
 
-    ResolvedEndpoint.of = <E>(endpoint: E, pass: DeviceTypeValidationPass<E>) => {
-        if (endpoint instanceof Endpoint) {
-            read.add(endpoint);
-        }
-        return of(endpoint, pass);
+    prototype.deviceTypeIdsOf = function (endpoint) {
+        read.add(endpoint);
+        return originals.deviceTypeIdsOf.call(this, endpoint);
+    };
+    prototype.serverClustersOf = function (endpoint) {
+        read.add(endpoint);
+        return originals.serverClustersOf.call(this, endpoint);
+    };
+    prototype.clientClustersOf = function (endpoint) {
+        read.add(endpoint);
+        return originals.clientClustersOf.call(this, endpoint);
+    };
+    prototype.elementsOf = function (endpoint, cluster) {
+        read.add(endpoint);
+        return originals.elementsOf.call(this, endpoint, cluster);
+    };
+    prototype.statedConditionsOf = function (endpoint) {
+        read.add(endpoint);
+        return originals.statedConditionsOf.call(this, endpoint);
     };
 
     return {
         read,
 
         [Symbol.dispose]() {
-            ResolvedEndpoint.of = of;
+            Object.assign(prototype, originals);
         },
     };
 }

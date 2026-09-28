@@ -1422,10 +1422,10 @@ export namespace Endpoint {
          *
          * A device type's requirements may depend on a condition. matter.js derives the conditions that follow from
          * the endpoint tree and the node's configuration; state here only those that describe the product. A stated
-         * condition holds in addition to the derived ones, and stating one never makes a condition false. A name that
-         * names no condition of the endpoint's device types is reported as an `unknownCondition` violation.
+         * condition holds in addition to the derived ones, and stating one never makes a condition false. An unknown
+         * name is reported as a violation.
          *
-         * @see {@link MatterSpecification.v16.Core} § 9.2.6
+         * @see {@link MatterSpecification.v16.Device} § 1.1.3
          */
         deviceConditions?: string[];
     }

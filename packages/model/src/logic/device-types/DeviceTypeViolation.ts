@@ -8,7 +8,7 @@
  * One departure of an endpoint from a device type requirement that applies to it. It names no endpoint: each
  * result that holds violations is for one endpoint.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.6
+ * @see {@link MatterSpecification.v16.Core} § 9.2
  */
 export interface DeviceTypeViolation {
     /**
@@ -55,7 +55,7 @@ export namespace DeviceTypeViolation {
     /**
      * - `missing`: a mandatory cluster or element is absent
      * - `disallowed`: a cluster, element or component device type is present that its conformance forbids whatever
-     *   conditions hold, by an `X` or through its feature terms; a false condition never makes one disallowed
+     *   conditions hold, by an `X`, a `D` or through its feature terms; a false condition never makes one disallowed
      * - `instanceCount`: a component requirement, a choice of component requirements or a `Descendant` condition
      *   matches too few or too many endpoints, or an instance of a component requirement is filled by none
      * - `singletonMisplaced`: a server cluster that a device type in the node scope declares a singleton appears on

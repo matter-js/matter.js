@@ -422,7 +422,6 @@ describe("device type validation at construction", () => {
         const peer = controller.peers.get("peer1");
         expect(peer).not.undefined;
 
-        // The device reports its light; the peer mirroring it reports nothing
         expect(logged.filter(({ text }) => text.includes(`${device}.part0 `)).length).equals(1);
         expect(logged.filter(({ text }) => text.includes(`${peer}`))).deep.equals([]);
     });

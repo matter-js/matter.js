@@ -9,15 +9,7 @@ import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#node/serv
 import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
 import { DeviceTypeValidation } from "#node/server/DeviceTypeValidation.js";
 import { Environment, ImplementationError, LogLevel } from "@matter/general";
-import {
-    ClusterModel,
-    ConditionAssertions,
-    DeviceTypeModel,
-    Matter,
-    MatterModel,
-    RequirementModel,
-    ResolvedEndpoint,
-} from "@matter/model";
+import { ClusterModel, DeviceTypeModel, Matter, MatterModel, RequirementModel } from "@matter/model";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import {
     captureLog,
@@ -28,7 +20,6 @@ import {
     lightWithGroupKeyManagement,
     lightWithoutIdentify,
     lightWithoutIdentifyAndScenes,
-    serverPass,
 } from "./validation-helpers.js";
 
 function serviceOf(node: MockServerNode) {
@@ -186,7 +177,6 @@ describe("DeviceTypeConformanceService", () => {
         expect(verdict?.get(light)?.map(({ requirement }) => requirement)).deep.equals(["Identify"]);
         expect(service.violationsOf(light)).deep.equals([]);
 
-        // Nothing recorded, so each call logs again
         expect(captureLog(() => service.validate(light)).length).equals(1);
 
         await node.close();
@@ -323,7 +313,6 @@ describe("DeviceTypeConformanceService", () => {
         }
         expect(logged).deep.equals([]);
 
-        // Neither counts as reported, so both are refused again
         expect(service.violationsOf(first).length || service.violationsOf(second).length).equals(0);
         expect(() => service.validate(first)).throws(DeviceTypeConformanceError);
         expect(() => service.validate(second)).throws(DeviceTypeConformanceError);
@@ -363,7 +352,6 @@ describe("DeviceTypeConformanceService", () => {
         const node = await createUnjudgedNode();
         const light = await node.add(lightWithoutIdentify, { id: "light" });
 
-        // RootNode is not a node here, so nothing is judged, though OnOffLight requires the missing Identify
         const service = new DeviceTypeConformanceService(node, { model: modelWithoutNodes() });
 
         expect(captureLog(() => service.validate(light))).deep.equals([]);
@@ -407,34 +395,6 @@ describe("DeviceTypeConformanceService", () => {
 
         expect(serviceOf(node)).equals(service);
         expect(logged.filter(({ text }) => text.includes("light")).length).equals(1);
-
-        await node.close();
-    });
-});
-
-describe("ValidationPass", () => {
-    async function createPair() {
-        const node = await createNode();
-        const light = await node.add(OnOffLightDevice, { id: "light" });
-        return { node, light };
-    }
-
-    it("reads each endpoint once per pass", async () => {
-        const { node, light } = await createPair();
-        const pass = serverPass();
-
-        expect(ResolvedEndpoint.of(light, pass)).equals(ResolvedEndpoint.of(light, pass));
-        expect(ResolvedEndpoint.of(light, pass)).not.equals(ResolvedEndpoint.of(light, serverPass()));
-
-        await node.close();
-    });
-
-    it("collects each node scope once per pass", async () => {
-        const { node } = await createPair();
-        const pass = serverPass();
-
-        expect(ConditionAssertions.collect(node, pass)).equals(ConditionAssertions.collect(node, pass));
-        expect(ConditionAssertions.collect(node, pass)).not.equals(ConditionAssertions.collect(node, serverPass()));
 
         await node.close();
     });

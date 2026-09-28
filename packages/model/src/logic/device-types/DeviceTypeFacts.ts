@@ -11,7 +11,7 @@ import type { NodeCondition } from "./ConditionAssertions.js";
  * What device type validation reads of a tree of endpoints, each identified by a handle of type {@link E}.
  *
  * One provider answers for every endpoint, so validation keys what it derives by handle and the provider allocates
- * nothing per endpoint. Validation reads only through this interface; it does not know how a tree is stored.
+ * nothing per endpoint.
  */
 export interface DeviceTypeFacts<E> {
     /**

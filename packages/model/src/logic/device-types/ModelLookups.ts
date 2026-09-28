@@ -25,9 +25,8 @@ const lookups = new WeakMap<MatterModel, ModelLookups>();
  * resolving a requirement to the cluster, feature or element it names, a device type's conditions, and similar. A
  * tree-derived fact never belongs here.
  *
- * Keyed on the model instance, so a model built by {@link MatterModel.withClusters} — a copy, per its contract —
- * never sees another model's entries. The outer table is a {@link WeakMap}, so discarding a model discards its
- * entries with it.
+ * Keyed on the model instance, so a model built by {@link MatterModel.withClusters} never sees another model's
+ * entries.
  *
  * @internal
  */

@@ -184,7 +184,7 @@ export class ResolvedEndpoint<E> {
     /**
      * Whether the endpoint's `PartsList` holds every descendant rather than its children.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.3
+     * @see {@link MatterSpecification.v16.Core} § 9.2.7.2
      */
     get composesFullFamily() {
         const lookups = lookupsFor(this.#pass.model);

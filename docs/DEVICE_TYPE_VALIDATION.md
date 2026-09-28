@@ -1,7 +1,7 @@
 # Device Type Validation
 
 Matter device types state requirements for an endpoint's clusters, elements, sub-components and placement (see
-`MatterSpecification.v16.Core` § 9.2.6). `@matter/node` checks a server node's endpoints against the device types
+`MatterSpecification.v16.Core` § 9.2). `@matter/node` checks a server node's endpoints against the device types
 they declare and reports where they depart from them.
 
 ## What is checked
@@ -11,12 +11,18 @@ endpoint lists at least one such device type:
 
 - **Clusters and elements.** Mandatory and disallowed server and client clusters, and the feature, attribute, command
   and event requirements nested in server clusters. A client cluster is checked for presence only: a client cluster
-  declaration does not state which features or elements the client uses. A condition (see below) can only ever make
-  something mandatory; only a literal `X` or a feature term makes something disallowed. A mandatory feature,
-  attribute, command or event that its own cluster marks provisional (`P`) is never reported missing, because it is
-  not certifiable and matter.js may refuse it; its disallowed check is unchanged.
+  declaration does not state which features or elements the client uses. A missing or disallowed cluster is the one
+  finding for that cluster; its nested requirements are not checked. Optional requirements, and requirements whose
+  conformance names something the model does not define, are not checked.
+- **Conditions never disallow.** A condition (see below) can only make something mandatory. Only an `X`, a `D` or a
+  feature term makes something disallowed.
+- **Provisional elements.** A mandatory feature, attribute, command or event that its own cluster marks provisional
+  (`P`) is never reported missing. Its disallowed check is unchanged.
 - **Base requirements.** Base's own requirements (e.g. `Binding` under `Simple & Client`) are enforced only where
-  they make something mandatory; a Base requirement that would make something disallowed is not reported.
+  they make something mandatory. A Base requirement that would make something disallowed is not reported.
+- **One report per requirement.** A violation is identified by its kind and requirement path. When several device
+  types of an endpoint, or Base and a device type, violate the same requirement, it is reported once, as the first
+  listed device type's, never as Base's.
 - **Component device types.** The number of endpoints of each required component device type (one distinct
   endpoint per instance), choice conformance across component requirements that share a choice, and — on the
   component endpoint itself — that it satisfies the nested requirements of at least one instance it can fill. A
@@ -26,12 +32,11 @@ endpoint lists at least one such device type:
   `AdministratorCommissioningServer` and `PowerSourceConfigurationServer` as optional, but both are RootNode
   singletons, so a bridged node carrying either is refused.
 - **Stated conditions.** A name in an endpoint's `deviceConditions` (see below) that matches no condition in its
-  scope is reported.
+  scope is reported as an `unknownCondition` violation.
 
 An endpoint that duplicates a sibling's application device type normally needs a `Descriptor` `TagList` to
-disambiguate (Base, `Duplicate`). Children of an `Aggregator` are exempt: Aggregator defines its own
-disambiguation for bridged devices, their `NodeLabel` (Device § 11.2.6), which the model has no way to express as
-an alternative to `TagList`.
+disambiguate (Base, `Duplicate`). Children of an `Aggregator` are exempt: Aggregator disambiguates bridged devices by
+their `NodeLabel` (Device § 11.2.6; Core § 9.2.9).
 
 Peers — `ClientNode` instances mirroring a remote device — are never checked; validation runs only on the server
 side.
@@ -39,14 +44,16 @@ side.
 ## When it runs
 
 - **Construction.** A misplaced singleton whose declaring device type sits above the endpoint being constructed is
-  refused before that endpoint's behaviors initialize. Once the endpoint's parts have initialized, the whole tree is
-  checked in one pass for the node endpoint, or what an addition to an already-constructed tree may change for
-  everything added later. A new misplaced singleton found then is refused; every other new violation is refused only
-  in `strict` mode and otherwise logged.
+  refused before that endpoint's behaviors initialize. Once the endpoint's parts have initialized, the node scope is
+  checked in one pass for the node endpoint; for an endpoint added later, the check covers what the addition may
+  change. A new misplaced singleton found then is refused; every other new violation is refused only in `strict` mode
+  and otherwise logged.
 - **After construction.** Destroying an endpoint or a device type list change (a `Descriptor` cluster's
-  `DeviceTypeList` attribute changing) re-checks what the change may affect. This only ever logs and records —
-  never refuses — even in `strict` mode and even for a misplaced singleton, because nothing can roll back a
-  change once construction has finished.
+  `DeviceTypeList` attribute changing) re-checks what the change may affect. This only logs and records, and never
+  refuses, even in `strict` mode and even for a misplaced singleton.
+
+Each violation is logged once, as a warning listing everything newly found on the endpoint, and recorded while it
+persists. A violation that went away and comes back is logged again.
 
 ## Validation modes
 
@@ -54,38 +61,66 @@ The `endpoint.validation` variable (environment variable `MATTER_ENDPOINT_VALIDA
 The value is read once, when the node's environment is built, so changing it after the node exists has no effect. Any
 other value fails the node's construction with an `ImplementationError` as the cause.
 
-- **`warn`** (default). A violation only logs a warning, once per endpoint, listing everything newly found; a
-  violation that was already reported and still holds is not repeated.
-- **`strict`**. Any new violation that a construction check finds throws instead of just logging. An addition checks
+- **`warn`** (default). A violation logs a warning; only a misplaced singleton is refused.
+- **`strict`**. Any new violation that a construction check finds is refused instead of logged. An addition checks
   more than the added endpoints: their ancestors, siblings whose `Duplicate` condition changes, and in some cases the
   whole node scope. So a strict refusal can name an endpoint other than the one added, such as its parent when the
-  addition breaks the parent's composition. Changes after construction has finished are still only logged, as above.
-- **`off`**. The node checks no device types, neither at construction nor after it. Only the misplaced-singleton check
-  before an endpoint's behaviors initialize still runs, because a behavior that works only on the root endpoint
-  otherwise fails with an untyped error. `DeviceTypeConformanceService.validate()` and `validateNodeScope()` still
-  check when an application calls them, as in `warn` mode, and return what they find, but record nothing: each call
-  logs every violation it finds, and `violationsOf()` stays empty.
+  addition breaks the parent's composition. Changes after construction are still only logged.
+- **`off`**. The node checks no device types on its own, neither at construction nor after it, and keeps nothing
+  between checks. Only the misplaced-singleton check before an endpoint's behaviors initialize still runs, because a
+  behavior that works only on the root endpoint otherwise fails with an untyped error.
 
 During development keep `warn`, or use `strict` to refuse a non-conforming structure. In production, `off` skips the
 checks for performance.
 
-A misplaced singleton is refused at construction also in `warn` mode, because the placement is unambiguous — a
-singleton cluster is allowed only on the endpoints that declare it. In `off` mode only a singleton declared by a device
-type above the endpoint is refused.
+A misplaced singleton is refused at construction in every mode; in `off` mode only when a device type above the
+endpoint declares it.
 
-A refused construction logs nothing and records nothing. The `DeviceTypeConformanceError` it throws names the refused
-endpoints, the first refused first. Its `errors` are one `DeviceTypeViolationError` per new violation of a refused
-endpoint, each carrying its `endpoint` and its `violation` (a `DeviceTypeViolation`). New violations of endpoints the
-same check does not refuse are dropped, because they were found in a tree the refused endpoint then leaves: it is
-rolled back, or left crashed if it is not essential.
+## Validating on request
 
-## Declaring conditions an endpoint asserts
+`DeviceTypeConformanceService` is in every server node's environment:
+
+```ts
+const validation = node.env.get(DeviceTypeConformanceService);
+
+const verdict = validation.validate([light, sensor]); // Map<Endpoint, DeviceTypeViolation[]>
+const scope = validation.validateNodeScope(node); // every endpoint of the node scope, in one pass
+const recorded = validation.violationsOf(light); // what the last recording check found
+```
+
+- `validate(endpoints, options?)` checks the endpoints in one pass. `validateNodeScope(endpoint, options?)` checks
+  every endpoint of the node scope the endpoint belongs to. Both return the current violations of each checked
+  endpoint; an endpoint in no node scope is not checked. Both log each violation not reported before.
+- By default an endpoint with a new misplaced singleton, or with any new violation in `strict` mode, is refused: the
+  call throws, and the refused endpoint's violations are neither logged nor recorded. `validateNodeScope()` then logs
+  and records nothing at all, like a construction check; `validate()` still logs and records the endpoints it does not
+  refuse. With `{ refuse: false }` nothing is refused and every violation is logged and recorded.
+- `violationsOf(endpoint)` answers the violations the last recording check of the endpoint found.
+- Both throw `ImplementationError` for an endpoint that is not a part of the node, such as a peer's.
+- In `off` mode both still check and return the verdict, and log every violation they find, but they record
+  nothing, so `violationsOf()` stays empty.
+
+Each `DeviceTypeViolation` names the device type whose requirement is violated (`deviceType`), the requirement's path
+on the endpoint (`requirement`, e.g. `Identify`, `OnOff.LT`, `client:OnOff` or `device:TemperatureControlledCabinet`),
+its `kind` (`missing`, `disallowed`, `instanceCount`, `singletonMisplaced` or `unknownCondition`) and a `detail` text.
+`DeviceTypeViolation.keyOf()` gives the key that identifies a violation on its endpoint.
+
+## Errors
+
+A refusal throws a `DeviceTypeConformanceError`, a `MatterAggregateError`. Its message names the refused endpoints,
+the first refused first. Its `errors` are one `DeviceTypeViolationError` per new violation of a refused endpoint, each
+an `ImplementationError` carrying its `endpoint` and its `violation`.
+
+A refused construction logs nothing and records nothing. New violations of endpoints the same check does not refuse
+are dropped.
+
+## Conditions
 
 A device type's requirements can depend on named conditions (`Cooler`, `PhysicalInputs`, …). Most follow from the
 tree and matter.js derives them:
 
 - **Structural conditions** from the endpoint's classification and structure (e.g. `Node`, `Composed`, `Client`,
-  `Server`, `Duplicate`) and from `Descendant` condition requirements a device type itself asserts — for example
+  `Server`, `Duplicate`) and from condition requirements a device type itself asserts (Core § 9.2.6) — for example
   `Refrigerator` asserts `TemperatureControlledCabinet`'s `Cooler` condition on its cabinet components.
 - **Node conditions**, from the node's own configuration: `CustomNetworkConfig` when the node does not commission
   over BLE, and `Ethernet`/`WiFi`/`Thread` from the network interface features a `NetworkCommissioning` server in
@@ -98,13 +133,14 @@ has no such source and must be stated explicitly, in `Endpoint.Options.deviceCon
 new Endpoint(SomeDeviceType, { deviceConditions: ["PhysicalInputs"] });
 ```
 
-A name matter.js does not recognize is reported rather than silently ignored.
+A stated condition holds in addition to the derived ones; stating a name never makes a condition false. A name
+matter.js does not recognize is reported as an `unknownCondition` violation.
 
 ## Limits
 
 - A child endpoint that crashes after construction reports no change by itself; its siblings are re-checked only
   by the next unrelated change under the same parent, and a violation it causes is not recorded until then. A
-  strict addition whose pass reaches such a child is refused for it.
+  strict addition whose check reaches such a child is refused for it.
 - Server clusters added to or dropped from a constructed endpoint (`Behaviors.require`, `inject`, `drop`) are not
   re-checked on their own; a later change that checks that endpoint, such as a change to it or an addition below it,
   catches up.

@@ -18,43 +18,27 @@ import { ReachingEndpoints } from "./ReachingEndpoints.js";
 import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
 
 /**
- * Judge a constructed endpoint against the device types it declares.
+ * Judges endpoints against the device types they declare. It reads the tree only through its pass and returns what it
+ * finds.
  *
- * Pure: it reads the endpoint and the model and returns what it found.
+ * What is checked, the rules applied and the limits: `docs/DEVICE_TYPE_VALIDATION.md`.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.6
+ * @see {@link MatterSpecification.v16.Core} § 9.2
  */
 export namespace DeviceTypeConformance {
     /**
-     * The departures of {@link endpoint} from the server and client cluster requirements of its device types and the
-     * feature, attribute, command and event requirements nested in the server clusters, from the component device
-     * types they require, plus the names in {@link DeviceTypeFacts.statedConditionsOf} that name no condition. A
-     * client cluster is judged for presence only, because its declaration does not state which features or elements
-     * it uses.
+     * The departures of {@link endpoint} from the requirements of its device types and of Base: cluster and element
+     * requirements, component device types, singleton placement and `Descendant` condition counts, plus each name in
+     * {@link DeviceTypeFacts.statedConditionsOf} that names no condition. Each departure is reported once by its
+     * {@link DeviceTypeViolation.keyOf key}.
      *
-     * A mandatory requirement is violated when its cluster or element is absent, a disallowed one when it is present.
-     * A mandatory requirement for an element its own definition marks provisional is not violated by its absence,
-     * because a provisional element is not certifiable and matter.js may refuse it.
-     * Conditions decide what is mandatory but never what is disallowed: only an `X` or a feature term disallows.
-     * A server cluster that a device type in the endpoint's node scope declares a singleton is violated on every
-     * endpoint of that scope but the declaring ones.
-     * Optional requirements and those whose conformance names something unknown are not judged. A missing or
-     * disallowed cluster is the one finding for that cluster; its nested requirements are not judged.
-     *
-     * Composition is judged from both ends. On the composing endpoint: the number of endpoints of each component
-     * device type, one distinct endpoint per mandatory instance, and choice conformance across the component
-     * requirements that share a choice. On a component endpoint: that it satisfies the nested requirements of at least
-     * one instance of each component requirement it fills. A `Descendant` condition is judged on the asserting endpoint
-     * against the number of endpoints it reached.
-     *
-     * Conditions are those {@link ConditionAssertions.collect} answers for the endpoint's node scope in {@link pass},
-     * so one pass collects each scope once. An endpoint in no node scope takes the conditions of its whole tree.
+     * An endpoint in no node scope takes the conditions of its whole tree.
      *
      * @param pass the validation pass the check belongs to, which shares what the checks of several endpoints read and
      * resolves in its model
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.3
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v16.Core} § 9.2
+     * @see {@link MatterSpecification.v16.Core} § 7.3
      */
     export function check<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): DeviceTypeViolation[] {
         const { model } = pass;
@@ -96,7 +80,7 @@ export namespace DeviceTypeConformance {
         checkDescendantCounts(violations, collection.descendantAssertionsOf(endpoint));
         checkSingletons(violations, facts, pass);
 
-        // Base and a device type may state the same requirement; the device type's own report is kept
+        // Several device types, Base included, may state the same requirement; the first report is kept, never Base's
         const unique = new Map<string, DeviceTypeViolation>();
         for (const violation of violations) {
             const key = DeviceTypeViolation.keyOf(violation);
@@ -112,9 +96,8 @@ export namespace DeviceTypeConformance {
      * same node scope declares a singleton, as {@link check} reports them, by endpoint in tree order. An endpoint with none
      * is absent.
      *
-     * Reads the device types of an endpoint whose behaviors have not initialized as configured, and nothing beside the
-     * endpoint's ancestors, so it judges an endpoint and its descendants before they are constructed. {@link check}
-     * also finds a singleton declared elsewhere in the node scope.
+     * Reads nothing beside {@link endpoint}, its descendants and its ancestors, so it can judge a subtree before it is
+     * constructed. {@link check} also finds a singleton declared elsewhere in the node scope.
      *
      * @see {@link MatterSpecification.v16.Core} § 7.7.3
      */
@@ -366,7 +349,7 @@ function judge<E>(
  *
  * A cluster model carries no conformance, so a cluster is never provisional here.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3
+ * @see {@link MatterSpecification.v16.Core} § 7.3.5
  */
 function isProvisional(definition: Model) {
     return definition instanceof ValueModel && definition.conformance.isProvisional;
@@ -383,7 +366,7 @@ function applicabilityOf<E>(requirement: RequirementModel, trueNames: Set<string
     const { all, features } = lookupsFor(pass.model).knownNamesOf(requirement);
     const applicability = requirementApplicability(requirement, trueNames, all);
 
-    // A condition is a maker's statement, so only an X or a feature term disallows
+    // matter.js cannot know every condition that holds, so a condition alone never disallows
     if (
         applicability === Conformance.Applicability.None &&
         requirementApplicability(requirement, trueNames, features) !== Conformance.Applicability.None
@@ -513,9 +496,6 @@ function isBelow<E>(endpoint: E, ancestor: E, pass: DeviceTypeValidationPass<E>)
  * The departures of {@link candidate} from the requirements nested in {@link instance}, a component requirement of
  * {@link composing}. They are judged with the rules of the endpoint's own cluster requirements and returned rather
  * than reported.
- *
- * The composing endpoint judges them for every candidate and each candidate judges them for itself, so one pass judges
- * each candidate and instance once.
  */
 function failuresOf<E>(
     candidate: ResolvedEndpoint<E>,
@@ -700,7 +680,7 @@ function matchInstances(accepts: boolean[][]) {
  * A member counts as satisfied when it has endpoints in range, whether or not they meet its nested requirements,
  * because each endpoint that does not is reported on itself.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3
+ * @see {@link MatterSpecification.v16.Core} § 7.3.14
  */
 function checkChoices<E>(
     { violations, deviceType, conditions, pass }: Context<E>,
@@ -1010,6 +990,7 @@ const AGGREGATED: ReadonlySet<string> = new Set(["Descriptor.TAGLIST"]);
  * Base requires a TagList of an endpoint that duplicates a sibling unless its device types define another way to
  * disambiguate. Aggregator defines one for its children, the bridged devices' NodeLabel, which the model cannot express.
  *
+ * @see {@link MatterSpecification.v16.Core} § 9.2.9
  * @see {@link MatterSpecification.v16.Device} § 11.2.6
  */
 function baseWaiversOf<E>(facts: ResolvedEndpoint<E>, pass: DeviceTypeValidationPass<E>) {

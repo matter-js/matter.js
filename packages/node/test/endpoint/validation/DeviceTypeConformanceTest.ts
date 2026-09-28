@@ -28,7 +28,6 @@ import {
     AttributeModel,
     ClusterModel,
     CommandModel,
-    ConditionAssertions,
     ConditionModel,
     DeviceTypeConformance,
     DeviceTypeModel,
@@ -39,7 +38,6 @@ import {
     MatterModel,
     RequirementModel,
     RequirementResolver,
-    ResolvedEndpoint,
 } from "@matter/model";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
@@ -48,6 +46,7 @@ import {
     createNode,
     createUnjudgedNode,
     deviceTypeList,
+    featuresOf,
     RootWithWiFi,
     serverPass,
     violationsOf,
@@ -75,7 +74,6 @@ const lightWithoutScenes = lightWith(Identify, Groups, OnOff);
 // OnOff lacks the Lighting feature, which OnOffLight names by its title LIGHTING
 const lightWithoutLighting = lightWith(Identify, Groups, OnOffServer, ScenesManagement);
 
-// Identify lacks the TriggerEffect command
 const lightWithoutTriggerEffect = lightWith(IdentifyServer, Groups, OnOff, ScenesManagement);
 
 // Carries the Groups server that DoorLock disallows
@@ -101,10 +99,8 @@ function switchWith(servers: SupportedBehaviors.List, clients: SupportedClientCl
 // Carries the mandatory Identify and OnOff clients and the Binding server Base requires of a simple client
 const completeSwitch = switchWith([BindingServer], [IdentifyClient, OnOffClient]);
 
-// Lacks the mandatory OnOff client
 const switchWithoutOnOffClient = switchWith([BindingServer], [IdentifyClient]);
 
-// Lacks both the Identify server and the Identify client
 const switchWithoutIdentify = MutableEndpoint({
     name: "OnOffLightSwitch",
     deviceType: OnOffLightSwitchDevice.deviceType,
@@ -120,7 +116,7 @@ const switchWithoutBinding = switchWith([], [IdentifyClient, OnOffClient]);
 const DescribedLight = OnOffLightDevice.with(DescriptorServer);
 
 // BooleanState lacks the ChangeEvent feature, whose requirement depends on the revision; the StateChange emitter its
-// base had remains, but the event is no longer emitted
+// base had remains, but the event lacks operational support
 const rainSensorWithoutChangeEvent = RainSensorDevice.with(BooleanStateServer.with());
 
 // BooleanState derived without the ChangeEvent feature from a base that never had it, so no StateChange emitter exists
@@ -309,8 +305,8 @@ describe("DeviceTypeConformance", () => {
         const node = await MockServerNode.createOnline();
 
         expect(String(requirementOf("RootNode", "AccessControl", "Extension").conformance)).equals("AclExtensionCond");
-        expect(ResolvedEndpoint.of(node, serverPass()).features("AccessControl").has("EXTS")).true;
-        expect(ConditionAssertions.collect(node, serverPass()).conditionsOf(node).has("AclExtensionCond")).false;
+        expect(featuresOf(node, "AccessControl").has("EXTS")).true;
+        expect(serverPass().nodeEndpointConditionsOf(node).has("AclExtensionCond")).false;
 
         expect(violationsOf(node).map(v => v.requirement)).not.includes("AccessControl.Extension");
 
@@ -391,7 +387,7 @@ describe("DeviceTypeConformance", () => {
         const endpoint = await node.add(rainSensorWithoutChangeEvent, { id: "rain" });
 
         expect(String(requirementOf("RainSensor", "BooleanState", "CHANGEEVENT").conformance)).equals("Rev >= v2");
-        expect(ResolvedEndpoint.of(endpoint, serverPass()).features("BooleanState").has("CHGEVENT")).false;
+        expect(featuresOf(endpoint, "BooleanState").has("CHGEVENT")).false;
 
         expect(violationsOf(endpoint).map(v => v.requirement)).not.includes("BooleanState.CHGEVENT");
 
@@ -555,7 +551,7 @@ describe("DeviceTypeConformance", () => {
                     .filter(v => v.requirement === "Descriptor.TAGLIST")
                     .map(v => v.deviceType);
             for (const endpoint of bridged) {
-                expect(ConditionAssertions.collect(node, serverPass()).conditionsOf(endpoint).has("Duplicate")).true;
+                expect(serverPass().isDuplicate(endpoint)).true;
                 expect(tagList(endpoint)).deep.equals([]);
             }
             for (const endpoint of composed) {
