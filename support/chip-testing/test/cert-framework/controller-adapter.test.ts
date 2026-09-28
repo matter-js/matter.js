@@ -615,6 +615,63 @@ describe("InProcessControllerAdapter", () => {
         await node.decommission();
     });
 
+    it("observes a node's events through the controller's own subscription", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // Recorded before the observer exists, so it can only reach the caller as a seed event
+        await device.backchannel({ name: "setBooleanState", endpointId: 1, newState: true });
+
+        const updates = new Array<EventReadEntry>();
+        const seed = await node.observeEvents(
+            [{ endpoint: 1, cluster: BOOLEAN_STATE.id, event: STATE_CHANGE_EVENT.id }],
+            {
+                onUpdate: event => updates.push(event),
+            },
+        );
+        expect(seed.map(({ value }) => value)).to.deep.equal([{ stateValue: true }]);
+        expect(updates).to.be.empty;
+
+        await device.backchannel({ name: "setBooleanState", endpointId: 1, newState: false });
+        await waitFor(() => updates.length > 0);
+
+        expect(updates[0].endpoint).equal(1);
+        expect(updates[0].cluster).equal(BOOLEAN_STATE.id);
+        expect(updates[0].event).equal(STATE_CHANGE_EVENT.id);
+        expect(updates[0].eventNumber > seed[0].eventNumber).equal(true);
+        expect(updates[0].value).to.deep.equal({ stateValue: false });
+
+        await node.decommission();
+    });
+
+    it("reports to an observer only the paths it asked for", async function () {
+        this.timeout(30_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+
+        // The event the device is about to report, so this one proves events are flowing at all and the
+        // emptiness of the other is a claim about its path rather than about how soon the test looked
+        const reported = new Array<EventReadEntry>();
+        await node.observeEvents([{ endpoint: 1, cluster: BOOLEAN_STATE.id, event: STATE_CHANGE_EVENT.id }], {
+            onUpdate: event => reported.push(event),
+        });
+
+        const unrelated = new Array<EventReadEntry>();
+        await node.observeEvents([{ endpoint: 0, cluster: BASIC_INFORMATION.id, event: START_UP_EVENT.id }], {
+            onUpdate: event => unrelated.push(event),
+        });
+
+        await device.backchannel({ name: "setBooleanState", endpointId: 1, newState: true });
+        await waitFor(() => reported.length > 0);
+
+        expect(unrelated).to.be.empty;
+
+        await node.decommission();
+    });
+
     it("writes one attribute across every endpoint that has the cluster", async function () {
         this.timeout(30_000);
 

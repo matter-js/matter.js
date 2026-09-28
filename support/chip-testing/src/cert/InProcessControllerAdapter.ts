@@ -2128,8 +2128,22 @@ class InProcessCertNodeApi implements CertNodeApi {
             const wanted = paths.map(toEventIds);
             const delivered = new Set<bigint>();
 
-            // Attached before the read that seeds it, so an event arriving between the two reaches
-            // `onUpdate` rather than falling into the gap; `delivered` keeps the seed from repeating.
+            // Held until the seed is known, then released: the observer is attached before the read so
+            // nothing falls into the gap between them, but an event the read also answers with must not
+            // reach `onUpdate` as well, and which those are is not known until the read returns.
+            let pending: EventReadEntry[] | undefined = [];
+            const report = (entry: EventReadEntry) => {
+                if (delivered.has(entry.eventNumber)) {
+                    return;
+                }
+                delivered.add(entry.eventNumber);
+                if (pending === undefined) {
+                    opts.onUpdate?.(entry);
+                } else {
+                    pending.push(entry);
+                }
+            };
+
             this.#eventObservers.on(peer.env.get(ChangeNotificationService).change, change => {
                 if (change.kind !== "event" || !ownedBy(change.endpoint, peer)) {
                     return;
@@ -2142,11 +2156,10 @@ class InProcessCertNodeApi implements CertNodeApi {
                         (path.clusterId === undefined || path.clusterId === cluster) &&
                         (path.eventId === undefined || path.eventId === change.event.id),
                 );
-                if (!matches || cluster === undefined || delivered.has(change.number)) {
+                if (!matches || cluster === undefined) {
                     return;
                 }
-                delivered.add(change.number);
-                opts.onUpdate?.({
+                report({
                     endpoint,
                     cluster,
                     event: change.event.id,
@@ -2158,6 +2171,14 @@ class InProcessCertNodeApi implements CertNodeApi {
             const seed = await this.readEvents(paths, opts);
             for (const entry of seed) {
                 delivered.add(entry.eventNumber);
+            }
+
+            const held = pending;
+            pending = undefined;
+            for (const entry of held) {
+                if (!seed.some(({ eventNumber }) => eventNumber === entry.eventNumber)) {
+                    opts.onUpdate?.(entry);
+                }
             }
             return seed;
         });

@@ -121,8 +121,17 @@ export interface ReadEventOptions {
     minEventNumber?: bigint;
 }
 
-/** Options for {@link CertNodeApi.observeEvents}. */
-export interface ObserveEventOptions extends ReadEventOptions {
+/**
+ * Options for {@link CertNodeApi.observeEvents}.
+ *
+ * No event-number threshold, unlike {@link ReadEventOptions}: a node that restarts numbers its events
+ * from the beginning again, so a threshold taken before the restart would filter out the events after
+ * it — which are the ones a case watching a device through a reboot is there for.
+ */
+export interface ObserveEventOptions {
+    /** As {@link ReadAttributeOptions.fabricFiltered}. */
+    fabricFiltered?: boolean;
+
     /** Invoked for each event the node reports after the ones this call answers with. */
     onUpdate?: (event: EventReadEntry) => void;
 }

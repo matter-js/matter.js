@@ -1178,7 +1178,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
     }
 
-    observeEvents(_paths: EventPathSpec[], _opts: ObserveEventOptions): Promise<EventReadEntry[]> {
+    async observeEvents(_paths: EventPathSpec[], _opts: ObserveEventOptions): Promise<EventReadEntry[]> {
         // chip-tool holds no subscription of its own between commands, so there is none to observe
         // through; a case needing this runs against a controller that keeps one.
         throw new UnsupportedByControllerError(
