@@ -433,6 +433,18 @@ describe("Supervision", () => {
         });
     });
 
+    describe("RootSupervisor#cast", () => {
+        it("keeps null for a member whose base states the nullable quality", () => {
+            const nullable = new AttributeModel({ name: "mode", id: 5, type: "enum8", quality: "X" });
+            const inheriting = nullable.extend({ name: "inheritedMode", id: 6 });
+            expect(inheriting.quality.nullable).undefined;
+
+            const supervisor = RootSupervisor.for(new ClusterModel({ name: "TestCluster", children: [inheriting] }));
+
+            expect(supervisor.cast({ inheritedMode: null })).deep.equals({ inheritedMode: null });
+        });
+    });
+
     describe("constructor overloads", () => {
         // Mock behavior classes for testing
         class BaseBehavior {

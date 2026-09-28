@@ -351,9 +351,10 @@ function createDerivedEvents({ scope, base, newProps, forClient }: DerivationCon
     })) {
         const name = event.propertyName;
         applicableClusterEvents.add(name);
+        const Implementation = event.effectiveQuality.quieter ? quieterImplementation : OnlineEvent;
 
         // Do not implement if already supported
-        if (baseInstance[name] !== undefined) {
+        if (isImplementedBy(baseInstance[name], Implementation)) {
             continue;
         }
 
@@ -365,11 +366,7 @@ function createDerivedEvents({ scope, base, newProps, forClient }: DerivationCon
 
         // Add the event
         eventNames.add(name);
-        instanceDescriptors[name] = createEventDescriptor(
-            name,
-            event,
-            event.quality.quieter ? quieterImplementation : OnlineEvent,
-        );
+        instanceDescriptors[name] = createEventDescriptor(name, event, Implementation);
     }
 
     // Add events for mandatory attributes that are not present in the base class
@@ -382,14 +379,10 @@ function createDerivedEvents({ scope, base, newProps, forClient }: DerivationCon
         }
 
         const changed = `${attrName}$Changed`;
-        if (baseInstance[changed] === undefined) {
+        const Implementation = prop.effectiveQuality.quieter ? quieterImplementation : OnlineEvent;
+        if (!isImplementedBy(baseInstance[changed], Implementation)) {
             eventNames.add(changed);
-
-            instanceDescriptors[changed] = createEventDescriptor(
-                changed,
-                prop,
-                prop.quality.quieter ? quieterImplementation : OnlineEvent,
-            );
+            instanceDescriptors[changed] = createEventDescriptor(changed, prop, Implementation);
         }
     }
 
@@ -589,6 +582,16 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
     }
 
     return result;
+}
+
+/**
+ * Whether an event the base class provides is the implementation the schema requires.
+ *
+ * Reporting treats a quieter element as quiet by its schema, so a base event of the other kind must be replaced even
+ * though one exists.
+ */
+function isImplementedBy(event: unknown, Implementation: abstract new (...args: any[]) => unknown) {
+    return event !== undefined && event instanceof QuietEvent === (Implementation === QuietEvent);
 }
 
 /**

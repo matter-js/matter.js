@@ -79,7 +79,7 @@ export function createConstraintValidator(
         };
     };
 
-    const inner = create(EncodedConstraint(constraint, schema), schema, nameResolverFactory, supervisor);
+    const inner = create(EncodedConstraint(constraint, schema), constraint, schema, nameResolverFactory, supervisor);
     if (!inner) {
         return undefined;
     }
@@ -93,8 +93,13 @@ export function createConstraintValidator(
     };
 }
 
+/**
+ * @param constraint the constraint as the validator tests it, with its bounds encoded
+ * @param stated the constraint as the schema states or inherits it, before encoding, which an error names
+ */
 function create(
     constraint: Constraint,
+    stated: Constraint,
     schema: ValueModel,
     nameResolverFactory: NameResolverFactory,
     supervisor: RootSupervisor,
@@ -105,7 +110,7 @@ function create(
 
     const metatype = schema.effectiveMetatype;
     if (metatype === Metatype.array) {
-        return createArrayConstraintValidator(constraint, schema, nameResolverFactory, supervisor);
+        return createArrayConstraintValidator(constraint, stated, schema, nameResolverFactory, supervisor);
     }
 
     // A value with neither a magnitude nor a length states no bound, and a date is held as a Date, which no bound
@@ -139,6 +144,7 @@ function create(
                     schema,
                     location,
                     `Value ${magnitude} is not within bounds defined by constraint`,
+                    stated,
                 );
             }
         };
@@ -151,6 +157,7 @@ function create(
                     schema,
                     location,
                     `Value ${value} is not one of the values allowed by "in" constraint`,
+                    stated,
                 );
             }
         };
@@ -167,6 +174,7 @@ function create(
                         schema,
                         location,
                         `Value ${value} is not within bounds defined by constraint`,
+                        stated,
                     );
                 }
             };
@@ -176,7 +184,7 @@ function create(
             return (value, _session, location) => {
                 assertNumeric(value, location);
                 if (!constraint.test(value, nameResolverFactory(location))) {
-                    throw new ConstraintError(schema, location, `Value ${value} is not allowed by constraint`);
+                    throw new ConstraintError(schema, location, `Value ${value} is not allowed by constraint`, stated);
                 }
             };
 
@@ -184,7 +192,7 @@ function create(
             return (value, _session, location) => {
                 assertBoolean(value, location);
                 if (!constraint.test(value, nameResolverFactory(location))) {
-                    throw new ConstraintError(schema, location, `Value ${value} is disallowed by constraint`);
+                    throw new ConstraintError(schema, location, `Value ${value} is disallowed by constraint`, stated);
                 }
             };
 
@@ -197,6 +205,7 @@ function create(
                         schema,
                         location,
                         `String length of ${length} is not within bounds defined by constraint`,
+                        stated,
                     );
                 }
             };
@@ -216,6 +225,7 @@ function create(
                         schema,
                         location,
                         `Codepoint count of ${codepointCount} is not within bounds defined by constraint`,
+                        stated,
                     );
                 }
             };
@@ -230,6 +240,7 @@ function create(
                         schema,
                         location,
                         `Byte length of ${length} is not within bounds defined by constraint`,
+                        stated,
                     );
                 }
             };
@@ -248,6 +259,7 @@ function create(
  */
 function createArrayConstraintValidator(
     constraint: Constraint,
+    stated: Constraint,
     schema: ValueModel,
     nameResolver: NameResolverFactory,
     supervisor: RootSupervisor,
@@ -256,7 +268,13 @@ function createArrayConstraintValidator(
     if (constraint.entry) {
         const entrySchema = schema.listEntry;
         if (entrySchema) {
-            validateEntryConstraint = create(constraint.entry, entrySchema, nameResolver, supervisor);
+            validateEntryConstraint = create(
+                constraint.entry,
+                stated.entry ?? constraint.entry,
+                entrySchema,
+                nameResolver,
+                supervisor,
+            );
         }
     }
 
@@ -268,6 +286,7 @@ function createArrayConstraintValidator(
                 schema,
                 location,
                 `Array length ${value.length} is not within bounds defined by constraint`,
+                stated,
             );
         }
 
