@@ -25,14 +25,14 @@ export const BatteryStorageDt = DeviceType(
 
         Requirement(
             { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-            Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature" }),
+            Requirement({ name: "ALTC", conformance: "M", element: "feature" }),
             Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
             Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
         ),
 
         Requirement(
             { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-            Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature" })
+            Requirement({ name: "EXPE", conformance: "M", element: "feature" })
         ),
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
@@ -48,14 +48,14 @@ export const BatteryStorageDt = DeviceType(
 
         Requirement(
             { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-            Requirement({ name: "DIRECTCURRENT", conformance: "M", element: "feature" }),
+            Requirement({ name: "DIRC", conformance: "M", element: "feature" }),
             Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
             Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
         ),
 
         Requirement(
             { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-            Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature" })
+            Requirement({ name: "EXPE", conformance: "M", element: "feature" })
         ),
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
@@ -84,7 +84,7 @@ export const BatteryStorageDt = DeviceType(
 
         Requirement(
             { name: "PowerSource", id: 0x2f, element: "serverCluster" },
-            Requirement({ name: "BATTERY", conformance: "M", element: "feature" }),
+            Requirement({ name: "BAT", conformance: "M", element: "feature" }),
             Requirement({ name: "BatVoltage", conformance: "M", element: "attribute" }),
             Requirement({ name: "BatPercentRemaining", conformance: "M", element: "attribute" }),
             Requirement({ name: "BatTimeRemaining", conformance: "M", element: "attribute" }),
@@ -110,7 +110,7 @@ export const BatteryStorageDt = DeviceType(
         { name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType" },
         Requirement(
             { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-            Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature" })
+            Requirement({ name: "PA", conformance: "M", element: "feature" })
         )
     )
 );

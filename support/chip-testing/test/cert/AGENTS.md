@@ -2977,11 +2977,17 @@ driven, not skipped.** `CertNodeApi.scriptOtaProvider({ queryImage, applyUpdate 
 provider gives in place of its own, one per command, falling back to its real answer once a queue is
 spent. That is how TC-SU-3.2 step 5 gets a `Busy` with a `DelayedActionTime`, TC-SU-3.4 steps 2 and 3
 an `AwaitNextAction` and a `Discontinue`, and TC-SU-3.3 steps 2 and 3 a `UserConsentNeeded`. A
-scripted *status* or *action* is answered without asking `super` at all: its answer is a side effect
-as much as a value — it stages an in-progress entry, registers the peer for BDX, closes that
-registration on the way to an apply — and writing a status over the top afterwards would leave the
-provider expecting a transfer the requestor was just told not to start. A scripted `UserConsentNeeded`
-does overlay the real answer, because the step is about the field, not about the answer.
+scripted *status*, and a scripted `AwaitNextAction`, is answered without asking `super` at all: its
+answer is a side effect as much as a value — it stages an in-progress entry, registers the peer for
+BDX, closes that registration on the way to an apply — and writing a status over the top afterwards
+would leave the provider expecting a transfer the requestor was just told not to start.
+
+Two scripted answers do overlay the provider's real one, because the step is about a field rather than
+about the answer: `UserConsentNeeded` on a `QueryImageResponse`, and `DelayedActionTime` on an
+`ApplyUpdateResponse` the provider already answered `Proceed` (TC-SU-2.5 step 2, where the plan asks a
+requestor to defer an apply it was allowed). The provider has no path of its own to a deferred
+`Proceed`, and bypassing it would allow an apply it does not know it allowed. The overlay is not
+written over a `Discontinue`: naming a time for something that is not going to happen says nothing.
 
 **A scripted `UpdateAvailable` offers an image the provider does not hold.** The harness fills the
 mandatory fields for a conformant offer unless the script names `softwareVersion` or `imageUri`, and a
@@ -3144,6 +3150,57 @@ under storage context `certOtaRequestor` and sets `BootReason` `SoftwareUpdateCo
   `DGGEN.S.A0003..7=0` for every matter.js app.
 - Without the restart, both steps fail rather than pass: no `NotifyUpdateApplied` arrives, and
   `BootReason` stays `Unspecified`.
+
+**A "vendor specific" consent step still has a checkable half (`TC-SU-2.3` step 1).** The consent itself
+is the vendor's, but § 11.20.7.4.2 gives `DelayedOnUserConsent` for the state a requestor passes through
+while it asks. So a requestor that obtained consent recorded a `StateTransition` into that state with a
+lower event number than the one into `Downloading`, and a case reads the two rather than recording the
+whole step unverified. Scripting `userConsentNeeded: false` instead makes the check fail, with the
+DelayedOnUserConsent transition absent.
+
+**The plan's Max Block Size rule is two rules, one per side.** `MIN_NON_TCP_BLOCK_SIZE` is the floor a
+*provider* must be able to grant (TC-SU-3.3) and `MAX_NON_TCP_BLOCK_SIZE` the ceiling a *requestor* may
+propose (TC-SU-2.3 step 2). Both are 1024, so a case reading the wrong constant states a claim about the
+other side of the transfer and still passes.
+
+**`MCORE.OTA.Resume` is `0` for the matter.js requestor.** `BdxSession` accepts a start offset only where
+it sends, so a resumed download starts from the beginning. The key is declared and not gated on: the resume
+steps are `notApplicable` on every flavor — with no transfer the harness can abort, there is nothing to
+resume — and a step carrying both never evaluates its PICS, as the note on `notApplicable` above says.
+
+**A check reading the TH's own answer is a premise, not evidence about the DUT.** TC-SU-2.3 step 2 first
+recorded the `ImageURI` the TH offered against `bdxImageUriFindings`, which compares matter.js's
+controller-side provider with itself: both the URI and the node id it is checked against come from the same
+`rootNodeId` in the same process. A regression there would have failed the *device's* step. Where the DUT is
+the requestor, the URI is TC-SU-3.2's claim, not this case's.
+
+**Every OTA command the provider answers is stamped with `receivedAtMs`, not just `QueryImage`.** The
+`ApplyUpdateRequest` exchange and the `NotifyUpdateApplied` record carry it too. That is what lets a
+case time a deferral from the side the DUT's own restart does not disturb, and what tells a step
+whether a notification arrived before or after some other command of the same update (`TC-SU-2.5`).
+
+**A requestor's own `StateTransition` events cannot time anything across an apply.** The subject
+restarts into the version it applied, and `NodeTestInstance.restartNode()` clears the occurrence store,
+so a mark taken with `latestRequestorStateChange` before the step excludes everything after the
+restart — the read comes back empty and a check on it fails against a conforming DUT. Time the wait on
+the TH instead. A live *attribute* read during the wait is fine; it is the event log that does not
+survive.
+
+**The waits `serveOtaUpdate` offers end on what the provider decided, which is not a window the DUT
+has been watched for.** `applyTimeoutMs` settles as soon as the provider allows an apply *or gives up
+on the update* — and refusing with `Discontinue` withdraws the update's consent, which is giving up, so
+the wait ends before the requestor has reacted to anything. A step whose claim is that the DUT sent
+nothing asks for `observeAfterMs` and checks `OtaBdxTransfer.observedMs` against the window it claims,
+exactly as the query side checks `observedMs` from `announceOtaProvider`. Measuring the step's own
+runtime is how to tell the two apart: raising the window should raise the runtime by the same amount.
+
+**`TC-SU-2.5` is matterjs-only and mostly `longRunning`.** Steps 1, 2 and 4 read `SoftwareVersion`
+after an apply, which needs `REBOOT_AFTER_APPLY_ARG`; step 3 is about the DUT's own two-minute floor
+under an `AwaitNextAction`, so it needs `SPEC_INTERVALS_ARG` and the run must not shorten it. Where the
+deferral falls decides which budget covers it: an `AwaitNextAction` is allowed only once the DUT asks
+again, so its wait is before the allowance, while a deferred `Proceed` is allowed at once and the DUT
+waits after it. A step that gives its deferral to the wrong budget stops watching before the DUT acts,
+and the failure reads like a device defect.
 
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 

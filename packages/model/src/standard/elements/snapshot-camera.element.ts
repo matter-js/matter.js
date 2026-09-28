@@ -27,14 +27,14 @@ export const SnapshotCameraDt = DeviceType(
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature" })
+        Requirement({ name: "TWODCART", conformance: "M", element: "feature" })
     ),
 
     Requirement(
         { name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature" }),
-        Requirement({ name: "VIDEO", conformance: "X", element: "feature" }),
-        Requirement({ name: "AUDIO", conformance: "X", element: "feature" })
+        Requirement({ name: "SNP", conformance: "M", element: "feature" }),
+        Requirement({ name: "VDO", conformance: "X", element: "feature" }),
+        Requirement({ name: "ADO", conformance: "X", element: "feature" })
     ),
 
     Requirement({ name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster" }),

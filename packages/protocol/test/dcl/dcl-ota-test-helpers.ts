@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DclDeviceSoftwareVersionModelRaw } from "#dcl/DclRestApiTypes.js";
 import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 import { Crypto } from "@matter/general";
-import { DeviceSoftwareVersionModelDclSchema, VendorId } from "@matter/types";
+import { VendorId } from "@matter/types";
 
 /**
  * Helper to create a valid OTA image for testing.
@@ -50,8 +51,8 @@ export function createVersionMetadata(
     version: number,
     valid: boolean = true,
     hasOta: boolean = true,
-    overrides?: Partial<DeviceSoftwareVersionModelDclSchema>,
-) {
+    overrides?: Partial<DclDeviceSoftwareVersionModelRaw>,
+): { modelVersion: DclDeviceSoftwareVersionModelRaw } {
     return {
         modelVersion: {
             vid: VendorId(0xfff1),
@@ -59,14 +60,17 @@ export function createVersionMetadata(
             softwareVersion: version,
             softwareVersionString: `v${version}.0.0`,
             cdVersionNumber: 1,
+            creator: "cosmos1test",
+            firmwareInformation: "",
             softwareVersionValid: valid,
-            otaUrl: hasOta ? `https://example.com/ota-v${version}.bin` : undefined,
-            otaFileSize: 1024,
+            otaUrl: hasOta ? `https://example.com/ota-v${version}.bin` : "",
+            otaFileSize: "1024",
             otaChecksum: "checksum123",
             otaChecksumType: 1,
             minApplicableSoftwareVersion: version - 1,
             maxApplicableSoftwareVersion: version - 1,
             releaseNotesUrl: `https://example.com/release-notes-v${version}`,
+            specificationVersion: 0,
             schemaVersion: 0,
             ...overrides,
         },

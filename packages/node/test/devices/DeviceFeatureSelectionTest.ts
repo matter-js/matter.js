@@ -40,4 +40,20 @@ describe("device type feature selection", () => {
 
         expect(offenders).deep.equals([]);
     });
+
+    // A device type that fixes the features of a mandatory cluster leaves the application nothing to choose
+    it("includes a mandatory cluster whose features the device type fixes", () => {
+        expect(defaultFeaturesOf(devices.WaterHeaterDevice, "thermostat")).deep.equals(["HEAT"]);
+        expect(defaultFeaturesOf(devices.TemperatureControlledCabinetDevice, "temperatureControl")).deep.equals(["TN"]);
+    });
 });
+
+function defaultFeaturesOf(device: EndpointType, behaviorId: string) {
+    const type = device.behaviors[behaviorId];
+    if (type === undefined || !ClusterBehavior.is(type)) {
+        expect.fail(`${device.name} has no default ${behaviorId} cluster behavior`);
+    }
+    const schema = type.schema;
+    expect(schema).instanceof(ClusterModel);
+    return schema instanceof ClusterModel ? [...schema.supportedFeatures] : [];
+}

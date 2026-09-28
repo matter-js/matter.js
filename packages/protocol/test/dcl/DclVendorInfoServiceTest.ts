@@ -446,7 +446,7 @@ describe("DclVendorInfoService", () => {
             model: {
                 vid: 0xfff1,
                 pid: 0x8000,
-                deviceTypeID: 10,
+                deviceTypeId: 10,
                 productName: "Test Smart Lock",
                 productLabel: "Smart Lock v2",
                 partNumber: "TSL-001",
@@ -454,7 +454,26 @@ describe("DclVendorInfoService", () => {
                 commissioningCustomFlow: 0, // Standard
                 commissioningModeInitialStepsHint: 1, // bit 0 = powerCycle
                 commissioningModeSecondaryStepsHint: 4, // bit 2 = administrator
+                commissioningCustomFlowUrl: "",
+                commissioningModeInitialStepsInstruction: "",
+                commissioningModeSecondaryStepsInstruction: "",
+                commissioningFallbackUrl: "",
                 userManualUrl: "https://example.com/manual",
+                supportUrl: "",
+                productUrl: "",
+                lsfUrl: "",
+                lsfRevision: 0,
+                enhancedSetupFlowOptions: 1,
+                enhancedSetupFlowTCUrl: "",
+                enhancedSetupFlowTCRevision: 0,
+                enhancedSetupFlowTCDigest: "",
+                enhancedSetupFlowTCFileSize: 0,
+                maintenanceUrl: "https://example.com/maintenance",
+                icdUserActiveModeTriggerHint: 0,
+                icdUserActiveModeTriggerInstruction: "",
+                factoryResetStepsHint: 0,
+                factoryResetStepsInstruction: "",
+                creator: "cosmos1test",
                 schemaVersion: 0,
             },
         };
@@ -470,6 +489,7 @@ describe("DclVendorInfoService", () => {
             const info = await service.productInfoFor(0xfff1, 0x8000);
 
             expect(info).to.not.be.undefined;
+            expect(info?.deviceTypeID).to.equal(10);
             expect(info?.productName).to.equal("Test Smart Lock");
             expect(info?.productLabel).to.equal("Smart Lock v2");
             expect(info?.commissioningFlow).to.equal(CommissioningFlowType.Standard);
@@ -478,13 +498,56 @@ describe("DclVendorInfoService", () => {
             expect(info?.commissioningModeInitialStepsHint.powerCycle).to.be.true;
             expect(info?.commissioningModeInitialStepsHint.administrator).to.be.false;
             expect(info?.commissioningModeSecondaryStepsHint.administrator).to.be.true;
+            expect(info?.enhancedSetupFlowOptions.tcOnInitialCommission).to.be.true;
+            expect(info?.enhancedSetupFlowOptions.disallowTcReuseBetweenPids).to.be.false;
             expect(info?.userManualUrl).to.equal("https://example.com/manual");
+            expect(info?.enhancedSetupFlowMaintenanceUrl).to.equal("https://example.com/maintenance");
+            expect(info?.supportUrl).to.be.undefined;
+            expect(info?.commissioningModeInitialStepsInstruction).to.be.undefined;
+            expect(info?.lsfUrl).to.be.undefined;
+            expect(info?.lsfRevision).to.be.undefined;
+            expect(info?.enhancedSetupFlowTCUrl).to.be.undefined;
+            expect(info?.enhancedSetupFlowTCRevision).to.be.undefined;
+            expect(info?.commissioningCustomFlowUrl).to.be.undefined;
+            expect(info?.commissioningModeSecondaryStepsInstruction).to.be.undefined;
+            expect(info?.commissioningFallbackUrl).to.be.undefined;
+            expect(info?.productUrl).to.be.undefined;
             // Wire-format internals must not be present
             expect((info as any).vid).to.be.undefined;
             expect((info as any).pid).to.be.undefined;
             expect((info as any).schemaVersion).to.be.undefined;
             expect((info as any).discoveryCapabilitiesBitmask).to.be.undefined;
             expect((info as any).commissioningCustomFlow).to.be.undefined;
+
+            await service.close();
+        });
+
+        it("keeps revisions whose URL is set", async () => {
+            fetchMock.addResponse("/dcl/vendorinfo/vendors", { vendorInfo: [] });
+            fetchMock.addResponse("/dcl/model/models/65521/32768", {
+                model: {
+                    ...mockModelResponse.model,
+                    userManualUrl: "",
+                    maintenanceUrl: "",
+                    lsfUrl: "https://example.com/lsf.json",
+                    lsfRevision: 3,
+                    enhancedSetupFlowTCUrl: "https://example.com/tc.json",
+                    enhancedSetupFlowTCRevision: 2,
+                },
+            });
+            fetchMock.install();
+
+            const service = new DclVendorInfoService(environment, { updateInterval: null });
+            await service.construction;
+
+            const info = await service.productInfoFor(0xfff1, 0x8000);
+
+            expect(info?.lsfUrl).to.equal("https://example.com/lsf.json");
+            expect(info?.lsfRevision).to.equal(3);
+            expect(info?.enhancedSetupFlowTCUrl).to.equal("https://example.com/tc.json");
+            expect(info?.enhancedSetupFlowTCRevision).to.equal(2);
+            expect(info?.userManualUrl).to.be.undefined;
+            expect(info?.enhancedSetupFlowMaintenanceUrl).to.be.undefined;
 
             await service.close();
         });

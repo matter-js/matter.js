@@ -6,6 +6,7 @@
 
 import { camelize, InternalError } from "#general";
 import { AttributeElement, DatatypeElement, FieldElement, Metatype, ValueElement } from "#model";
+import { GlobalDatatypeAliases } from "../../util/global-datatype-aliases.js";
 import { repairTypeIdentifier } from "./repairs/type-repairs.js";
 import { GlobalReference } from "./spec-types.js";
 import {
@@ -86,14 +87,9 @@ function* translateDatatypes(ref: GlobalReference): Generator<DatatypeElement> {
     // Rename detail sections that do not match the name or description of the corresponding table entry
     if (ref.details) {
         for (const detail of ref.details) {
-            switch (detail.name) {
-                case "SemanticTagStruct Type":
-                    detail.name = "semtag";
-                    break;
-
-                case "LocationDescriptorStruct":
-                case "LocationDescriptorStruct Type":
-                    detail.name = "locationdesc";
+            const name = GlobalDatatypeAliases.get(detail.name.replace(/ Type$/, ""));
+            if (name !== undefined) {
+                detail.name = name;
             }
         }
     }

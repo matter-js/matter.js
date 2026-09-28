@@ -39,6 +39,7 @@ import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
 import { Plugins } from "./Plugins.js";
+import { DeviceTypeConformanceService } from "./server/DeviceTypeConformanceService.js";
 import { IdentityService } from "./server/IdentityService.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
 
@@ -249,6 +250,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      */
     private async resetServiceState() {
         this.env.get(IdentityService).releaseReservedPeerAddresses();
+        this.env.get(DeviceTypeConformanceService).reset();
         this.env.get(EndpointInitializer).variableService?.invalidate();
     }
 
