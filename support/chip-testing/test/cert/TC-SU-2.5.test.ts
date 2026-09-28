@@ -11,7 +11,13 @@ import { certTest, UnsupportedByControllerError } from "@matter/testing";
 import { REBOOT_AFTER_APPLY_ARG, SPEC_INTERVALS_ARG } from "../../src/OtaRequestorTestInstance.js";
 import type { BdxTransferEvidence } from "./tc-bdx-support.js";
 import { BDX_RECEIVER_ROLES, serveOtaTransfer } from "./tc-bdx-support.js";
-import { applyActionName, OtaApplyAction, recordRequestorIdle, singleQueryImageCheck } from "./tc-su-support.js";
+import {
+    applyActionName,
+    OtaApplyAction,
+    recordRequestorIdle,
+    requestorIdleEntry,
+    singleQueryImageCheck,
+} from "./tc-su-support.js";
 import { attempt, CommissionedRefs, recordAll, requireId } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs<"th">();
@@ -411,11 +417,11 @@ async function recordDiscontinue(cx: CertStepContext) {
                 };
             },
         },
-    ]);
 
-    // The plan's "resets the UpdateState Attribute to Idle"; the image it cleared is not readable from
-    // outside, and Idle is what the requestor reports once it has
-    await recordRequestorIdle(cx, node);
+        // The plan's "resets the UpdateState Attribute to Idle"; the image it cleared is not readable
+        // from outside, and Idle is what the requestor reports once it has
+        requestorIdleEntry(node),
+    ]);
 }
 
 certTest("TC-SU-2.5", {
