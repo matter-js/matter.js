@@ -21,7 +21,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Enhancement: Generated documentation keeps the nesting of lists in the specification
     - Breaking: A Window Covering with both the Lift and Tilt features rejects `type` `Shutter`, which the specification allows only with one of them
-    - Breaking: A Window Covering's `endProductType` must be one the specification allows for its Lift and Tilt features. The default `RollerShade` is allowed only for a covering that lifts and does not tilt, so a covering with the Tilt feature must set `endProductType`, as it already had to set `type`
+    - Breaking: A Window Covering's `endProductType` must be one that the specification allows for its Lift and Tilt features. The default `RollerShade` is allowed only for a covering that lifts and does not tilt, so a covering with the Tilt feature must set `endProductType`, as it already had to set `type`
     - Breaking: `percent` values are bounded to 0 to 100 and `percent100ths` values to 0 to 10000 as the specification defines, so an attribute that states no range of its own, such as Resource Monitoring `Condition`, rejects a larger value
     - Enhancement: `MergedModel` merges a local override's quality with the quality the specification states, so an override can add or remove a single flag
     - Fix: The Color Control `Primary1..6` X, Y and Intensity attributes are optional where `NumberOfPrimaries` does not require them, as the specification defines; a light that supplied one without enough primaries failed to start
