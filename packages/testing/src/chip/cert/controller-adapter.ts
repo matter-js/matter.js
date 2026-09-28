@@ -124,14 +124,11 @@ export interface ReadEventOptions {
 /**
  * Options for {@link CertNodeApi.observeEvents}.
  *
- * No event-number threshold, unlike {@link ReadEventOptions}: a node that restarts numbers its events
- * from the beginning again, so a threshold taken before the restart would filter out the events after
- * it — which are the ones a case watching a device through a reboot is there for.
+ * Neither an event-number threshold nor a fabric filter, unlike {@link ReadEventOptions}: both would
+ * describe the events this call answers with rather than the ones it goes on to report, because the
+ * updates are the sustained subscription's and it sets its own filters.
  */
 export interface ObserveEventOptions {
-    /** As {@link ReadAttributeOptions.fabricFiltered}. */
-    fabricFiltered?: boolean;
-
     /** Invoked for each event the node reports after the ones this call answers with. */
     onUpdate?: (event: EventReadEntry) => void;
 }
@@ -944,8 +941,12 @@ export interface CertNodeApi {
      *
      * A subscription of its own is a second session, and a controller drops every session to a peer the
      * moment that peer reports `ShutDown` — so what the peer is still flushing arrives on a session its
-     * controller has forgotten and is discarded. A case that wants to observe what a node reported uses
-     * this; one whose subject is the subscribe request itself uses {@link subscribeEvents}.
+     * controller has forgotten and is discarded. Observing through the sustained subscription is what
+     * lets a case still see what a peer reports on its way down, which is as far as this goes: an
+     * observation does not span the restart that follows, because the subscription resubscribes with a
+     * minimum event number the peer's own renumbering falls below.
+     *
+     * A case whose subject is the subscribe request itself uses {@link subscribeEvents} instead.
      *
      * Resolves with the events the node already holds, as {@link readEvents} answers them, and reports
      * later ones to {@link ObserveEventOptions.onUpdate}.

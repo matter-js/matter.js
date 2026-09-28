@@ -1245,14 +1245,14 @@ function ownedBy(endpoint: Endpoint, owner: Endpoint) {
 }
 
 class InProcessCertNodeApi implements CertNodeApi {
-    /** Event observers a case's subscriptions attached, which live as long as this node handle does. */
-    readonly #eventObservers = new ObserverGroup();
-
     readonly #adapterId: string;
     readonly #controller: ServerNode;
     readonly #fabric: Fabric;
     readonly #nodeId: NodeId;
     readonly #icdClients: Map<NodeId, InProcessIcdClient>;
+
+    /** The adapter's own collection, because that is where an observation's lifetime ends. */
+    readonly #eventObservers: ObserverGroup[];
 
     constructor(
         adapterId: string,
@@ -1260,12 +1260,14 @@ class InProcessCertNodeApi implements CertNodeApi {
         fabric: Fabric,
         ref: CertNodeRef,
         icdClients: Map<NodeId, InProcessIcdClient>,
+        eventObservers: ObserverGroup[],
     ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
         this.#fabric = fabric;
         this.#nodeId = NodeId(ref);
         this.#icdClients = icdClients;
+        this.#eventObservers = eventObservers;
     }
 
     icdClient(): CertIcdClientApi {
@@ -2159,25 +2161,39 @@ class InProcessCertNodeApi implements CertNodeApi {
 
             const peer = this.#peer;
             const wanted = paths.map(toEventIds);
-            const delivered = new Set<bigint>();
 
             // Held until the seed is known, then released: the observer is attached before the read so
             // nothing falls into the gap between them, but an event the read also answers with must not
             // reach `onUpdate` as well, and which those are is not known until the read returns.
             let pending: EventReadEntry[] | undefined = [];
+
+            // A read re-broadcasts the events it answers with, so a later read over any of these paths
+            // would otherwise replay history as though it were live. An observation ends with the peer
+            // it watches, so within one an event number identifies an event.
+            const delivered = new Set<bigint>();
+
             const report = (entry: EventReadEntry) => {
                 if (delivered.has(entry.eventNumber)) {
                     return;
                 }
                 delivered.add(entry.eventNumber);
                 if (pending === undefined) {
-                    opts.onUpdate?.(entry);
+                    // This observable carries matter.js's own consumers too, and it stops dispatching at
+                    // the first observer that throws
+                    try {
+                        opts.onUpdate?.(entry);
+                    } catch (error) {
+                        logger.error("Observer of a cert event observation threw", error);
+                    }
                 } else {
                     pending.push(entry);
                 }
             };
 
-            this.#eventObservers.on(peer.env.get(ChangeNotificationService).change, change => {
+            // Its own group, so a seed read that rejects takes the observer with it rather than leaving
+            // it buffering reports for a call that never returned
+            const observers = new ObserverGroup();
+            observers.on(peer.env.get(ChangeNotificationService).change, change => {
                 if (change.kind !== "event" || !ownedBy(change.endpoint, peer)) {
                     return;
                 }
@@ -2201,16 +2217,27 @@ class InProcessCertNodeApi implements CertNodeApi {
                 });
             });
 
-            const seed = await this.readEvents(paths, opts);
-            for (const entry of seed) {
-                delivered.add(entry.eventNumber);
+            let seed: EventReadEntry[];
+            try {
+                seed = await this.readEvents(paths);
+            } catch (e) {
+                observers.close();
+                throw e;
             }
+            this.#eventObservers.push(observers);
 
+            for (const { eventNumber } of seed) {
+                delivered.add(eventNumber);
+            }
             const held = pending;
             pending = undefined;
             for (const entry of held) {
                 if (!seed.some(({ eventNumber }) => eventNumber === entry.eventNumber)) {
-                    opts.onUpdate?.(entry);
+                    try {
+                        opts.onUpdate?.(entry);
+                    } catch (error) {
+                        logger.error("Observer of a cert event observation threw", error);
+                    }
                 }
             }
             return seed;
@@ -2542,6 +2569,16 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     #attestation?: InProcessAttestationApi;
     readonly #icdClients = new Map<NodeId, InProcessIcdClient>();
 
+    /**
+     * Observers an `observeEvents` call attached, owned here because that is where their lifetime ends.
+     *
+     * `ChangeNotificationService` belongs to the controller, not to a peer, and `node()` builds a fresh
+     * handle each call that nothing retains — so a group held on the handle is unreachable the moment
+     * the caller drops it, and its listeners would go on receiving every peer's events for the rest of
+     * the run.
+     */
+    readonly #eventObservers = new Array<ObserverGroup>();
+
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
             throw new InternalError(
@@ -2637,6 +2674,10 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     async close(): Promise<void> {
         try {
             await runTagged(this.id, async () => {
+                for (const observers of this.#eventObservers) {
+                    observers.close();
+                }
+                this.#eventObservers.length = 0;
                 this.#webRtcRequestor?.close();
                 await this.#controller?.close();
                 await this.#attestation?.close();
@@ -2722,7 +2763,14 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     }
 
     node(ref: CertNodeRef): CertNodeApi {
-        return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref, this.#icdClients);
+        return new InProcessCertNodeApi(
+            this.id,
+            this.#startedController,
+            this.#adminFabric,
+            ref,
+            this.#icdClients,
+            this.#eventObservers,
+        );
     }
 
     group(groupId: number): CertGroupApi {
