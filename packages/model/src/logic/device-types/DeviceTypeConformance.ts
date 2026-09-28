@@ -572,14 +572,25 @@ function checkComposition<E>(context: Context<E>, collection: ConditionAssertion
 /**
  * Report a number of endpoints of {@link component} outside the range its constraint states, or outside
  * {@link implied} when it states none.
+ *
+ * Only a requirement whose own applicability is Mandatory or Optional contributes its range; {@link component}'s
+ * aggregate applicability may be stronger than an individual requirement's.
  */
 function checkCount<E>(
-    { violations, deviceType }: Context<E>,
+    { violations, deviceType, conditions, pass }: Context<E>,
     component: Component,
     count: number,
     implied: RequirementModel.CountRange | undefined,
 ) {
     for (const requirement of component.requirements) {
+        const applicability = applicabilityOf(requirement, conditions, pass);
+        if (
+            applicability !== Conformance.Applicability.Mandatory &&
+            applicability !== Conformance.Applicability.Optional
+        ) {
+            continue;
+        }
+
         const range = requirement.componentCountRange ?? implied;
         if (range === undefined || isWithin(range, count)) {
             continue;

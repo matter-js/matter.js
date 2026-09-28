@@ -12,7 +12,16 @@
  * It can be used as CLI script and starting point for your own device node implementation.
  */
 
-import { CommonNumberTag, Endpoint, Environment, Logger, ServerNode, StorageService, Time } from "@matter/main";
+import {
+    CommonNumberTag,
+    Endpoint,
+    Environment,
+    ImplementationError,
+    Logger,
+    ServerNode,
+    StorageService,
+    Time,
+} from "@matter/main";
 import { DescriptorServer } from "@matter/main/behaviors/descriptor";
 import { OnOffLightDevice } from "@matter/main/devices/on-off-light";
 import { OnOffPlugInUnitDevice } from "@matter/main/devices/on-off-plug-in-unit";
@@ -22,6 +31,12 @@ import { execSync } from "node:child_process";
 const logger = Logger.get("ComposedDeviceNode");
 
 const TaggedDescriptorServer = DescriptorServer.with("TagList");
+
+/**
+ * Each endpoint's number is tagged with the matching Common Number tag, so the highest device number the Common
+ * Number namespace can label bounds how many devices this example supports.
+ */
+const MAX_TAGGED_DEVICES = Math.max(...Object.values(CommonNumberTag).map(({ tag }) => tag));
 
 /** Initialize configuration values */
 const { isSocket, deviceName, vendorName, passcode, discriminator, vendorId, productName, productId, port, uniqueId } =
@@ -84,16 +99,10 @@ for (let idx = 0; idx < isSocket.length; idx++) {
     const isASocket = isSocket[idx]; // Is the Device we add a Socket or a Light?
     const id = `onoff-${i}`;
 
-    // The Common Number namespace ends at 30; a TagList must not be empty, so later endpoints go without one
     const tagList = Object.values(CommonNumberTag).filter(({ tag }) => tag === i);
-    let endpoint;
-    if (!tagList.length) {
-        endpoint = new Endpoint(isASocket ? OnOffPlugInUnitDevice : OnOffLightDevice, { id });
-    } else if (isASocket) {
-        endpoint = new Endpoint(OnOffPlugInUnitDevice.with(TaggedDescriptorServer), { id, descriptor: { tagList } });
-    } else {
-        endpoint = new Endpoint(OnOffLightDevice.with(TaggedDescriptorServer), { id, descriptor: { tagList } });
-    }
+    const endpoint = isASocket
+        ? new Endpoint(OnOffPlugInUnitDevice.with(TaggedDescriptorServer), { id, descriptor: { tagList } })
+        : new Endpoint(OnOffLightDevice.with(TaggedDescriptorServer), { id, descriptor: { tagList } });
     await server.add(endpoint);
 
     /**
@@ -162,6 +171,12 @@ async function getConfiguration() {
     for (let i = 1; i < numDevices; i++) {
         if (isSocket[i - 1] !== undefined) continue;
         isSocket.push(environment.vars.string(`type${i}`) === "socket");
+    }
+
+    if (isSocket.length > MAX_TAGGED_DEVICES) {
+        throw new ImplementationError(
+            `This configuration would create ${isSocket.length} devices, more than the ${MAX_TAGGED_DEVICES} endpoints the Common Number tag namespace can label; lower --num, or use --storage-clear if the count comes from a previous run's storage.`,
+        );
     }
 
     const deviceName = "Matter test device";
