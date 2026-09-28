@@ -12,7 +12,7 @@ LocalMatter.children.push({
     name: "ColorControl",
 
     children: [
-        // 63353 (0xFFF) is used as "endless" when color is looping (hue/enhanced hue)
+        // 65535 (0xFFFF) is used as "endless" when color is looping (hue/enhanced hue)
         {
             tag: "attribute",
             name: "RemainingTime",
@@ -36,25 +36,62 @@ LocalMatter.children.push({
             default: FieldValue.None,
         },
 
-        // Override primary conformance using our ">" extension to conformance syntax
-        { tag: "attribute", id: 0x11, name: "Primary1X", conformance: "NumberOfPrimaries > 0" },
-        { tag: "attribute", id: 0x12, name: "Primary1Y", conformance: "NumberOfPrimaries > 0" },
-        { tag: "attribute", id: 0x13, name: "Primary1Intensity", conformance: "NumberOfPrimaries > 0" },
-        { tag: "attribute", id: 0x15, name: "Primary2X", conformance: "NumberOfPrimaries > 1" },
-        { tag: "attribute", id: 0x16, name: "Primary2Y", conformance: "NumberOfPrimaries > 1" },
-        { tag: "attribute", id: 0x17, name: "Primary2Intensity", conformance: "NumberOfPrimaries > 1" },
-        { tag: "attribute", id: 0x19, name: "Primary3X", conformance: "NumberOfPrimaries > 2" },
-        { tag: "attribute", id: 0x1a, name: "Primary3Y", conformance: "NumberOfPrimaries > 2" },
-        { tag: "attribute", id: 0x1b, name: "Primary3Intensity", conformance: "NumberOfPrimaries > 2" },
-        { tag: "attribute", id: 0x20, name: "Primary4X", conformance: "NumberOfPrimaries > 3" },
-        { tag: "attribute", id: 0x21, name: "Primary4Y", conformance: "NumberOfPrimaries > 3" },
-        { tag: "attribute", id: 0x22, name: "Primary4Intensity", conformance: "NumberOfPrimaries > 3" },
-        { tag: "attribute", id: 0x24, name: "Primary5X", conformance: "NumberOfPrimaries > 4" },
-        { tag: "attribute", id: 0x25, name: "Primary5Y", conformance: "NumberOfPrimaries > 4" },
-        { tag: "attribute", id: 0x26, name: "Primary5Intensity", conformance: "NumberOfPrimaries > 4" },
-        { tag: "attribute", id: 0x28, name: "Primary6X", conformance: "NumberOfPrimaries > 5" },
-        { tag: "attribute", id: 0x29, name: "Primary6Y", conformance: "NumberOfPrimaries > 5" },
-        { tag: "attribute", id: 0x2a, name: "Primary6Intensity", conformance: "NumberOfPrimaries > 5" },
+        // Before 1.4 the specification states these as mandatory; state the conformance on NumberOfPrimaries that 1.4
+        // introduced
+        { tag: "attribute", id: 0x11, name: "Primary1X", until: "1.4", conformance: "NumberOfPrimaries > 0, O" },
+        { tag: "attribute", id: 0x12, name: "Primary1Y", until: "1.4", conformance: "NumberOfPrimaries > 0, O" },
+        {
+            tag: "attribute",
+            id: 0x13,
+            name: "Primary1Intensity",
+            until: "1.4",
+            conformance: "NumberOfPrimaries > 0, O",
+        },
+        { tag: "attribute", id: 0x15, name: "Primary2X", until: "1.4", conformance: "NumberOfPrimaries > 1, O" },
+        { tag: "attribute", id: 0x16, name: "Primary2Y", until: "1.4", conformance: "NumberOfPrimaries > 1, O" },
+        {
+            tag: "attribute",
+            id: 0x17,
+            name: "Primary2Intensity",
+            until: "1.4",
+            conformance: "NumberOfPrimaries > 1, O",
+        },
+        { tag: "attribute", id: 0x19, name: "Primary3X", until: "1.4", conformance: "NumberOfPrimaries > 2, O" },
+        { tag: "attribute", id: 0x1a, name: "Primary3Y", until: "1.4", conformance: "NumberOfPrimaries > 2, O" },
+        {
+            tag: "attribute",
+            id: 0x1b,
+            name: "Primary3Intensity",
+            until: "1.4",
+            conformance: "NumberOfPrimaries > 2, O",
+        },
+        { tag: "attribute", id: 0x20, name: "Primary4X", until: "1.4", conformance: "NumberOfPrimaries > 3, O" },
+        { tag: "attribute", id: 0x21, name: "Primary4Y", until: "1.4", conformance: "NumberOfPrimaries > 3, O" },
+        {
+            tag: "attribute",
+            id: 0x22,
+            name: "Primary4Intensity",
+            until: "1.4",
+            conformance: "NumberOfPrimaries > 3, O",
+        },
+        { tag: "attribute", id: 0x24, name: "Primary5X", until: "1.4", conformance: "NumberOfPrimaries > 4, O" },
+        { tag: "attribute", id: 0x25, name: "Primary5Y", until: "1.4", conformance: "NumberOfPrimaries > 4, O" },
+        {
+            tag: "attribute",
+            id: 0x26,
+            name: "Primary5Intensity",
+            until: "1.4",
+            conformance: "NumberOfPrimaries > 4, O",
+        },
+        { tag: "attribute", id: 0x28, name: "Primary6X", until: "1.4", conformance: "NumberOfPrimaries > 5, O" },
+        { tag: "attribute", id: 0x29, name: "Primary6Y", until: "1.4", conformance: "NumberOfPrimaries > 5, O" },
+        {
+            tag: "attribute",
+            id: 0x2a,
+            name: "Primary6Intensity",
+            until: "1.4",
+            conformance: "NumberOfPrimaries > 5, O",
+        },
 
         // Convert the enum like number usage to an enum for convenience
         {
@@ -90,19 +127,21 @@ LocalMatter.children.push({
             type: "ColorLoopDirectionEnum",
         },
 
-        // Spec defines conformance on these as "CT | ColorTemperatureMireds" which doesn't make sense because
-        // conformance on ColorTemperatureMireds is "CT"
+        // Before 1.4.2 the specification states conformance on these as "CT | ColorTemperatureMireds", which is "CT"
+        // because ColorTemperatureMireds is itself "CT"
         {
             tag: "attribute",
             id: 0x400d,
             name: "CoupleColorTempToLevelMinMireds",
-            conformance: "CT & ColorTemperatureMireds",
+            until: "1.4.2",
+            conformance: "CT",
         },
         {
             tag: "attribute",
             id: 0x4010,
             name: "StartUpColorTemperatureMireds",
-            conformance: "CT & ColorTemperatureMireds",
+            until: "1.4.2",
+            conformance: "CT",
         },
 
         // Spec states the values of this bitmap are the same as the feature map.

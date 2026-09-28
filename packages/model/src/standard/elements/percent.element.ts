@@ -9,5 +9,5 @@
 import { MatterDefinition } from "../MatterDefinition.js";
 import { DatatypeElement as Datatype } from "../../elements/index.js";
 
-export const percent = Datatype({ name: "percent", type: "uint8", isSeed: true });
+export const percent = Datatype({ name: "percent", type: "uint8", constraint: "max 100", isSeed: true });
 MatterDefinition.children.push(percent);

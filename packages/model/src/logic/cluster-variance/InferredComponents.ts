@@ -150,6 +150,14 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
+    // fieldName > num, O (optional, unconditional).  Ignores field expression
+    {
+        pattern: pattern(FIELD, " > ", "\\d+", ", ", "O"),
+        processor(add) {
+            add(true);
+        },
+    },
+
     // fieldName, O (optional, unconditional).  Ignores field reference
     {
         pattern: pattern(FIELD, ", ", "O"),

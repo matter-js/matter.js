@@ -173,6 +173,10 @@ describe("ClusterVariance", () => {
             );
         });
 
+        it("parses fieldName > num, O as optional", () => {
+            expectComponents(attrs({ name: "attr", conformance: "FieldRef > 0, O" }), { optional: ["attr"] });
+        });
+
         it("parses [FOO & !fieldRef].x+ ignoring the field reference", () => {
             expectComponents(attrs(["FOO"], { name: "attr", conformance: "[FOO & !FieldRef].b+" }), {
                 optional: ["attr"],
