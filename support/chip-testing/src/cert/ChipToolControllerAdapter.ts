@@ -33,9 +33,10 @@ import type {
     CommissioningTarget,
     ControllerAdapter,
     EventPathSpec,
-    GroupKeySetSpec,
     EventReadEntry,
+    GroupKeySetSpec,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -1175,6 +1176,16 @@ class ChipToolCertNodeApi implements CertNodeApi {
         }
 
         return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
+    }
+
+    observeEvents(_paths: EventPathSpec[], _opts: ObserveEventOptions): Promise<EventReadEntry[]> {
+        // chip-tool holds no subscription of its own between commands, so there is none to observe
+        // through; a case needing this runs against a controller that keeps one.
+        throw new UnsupportedByControllerError(
+            "observeEvents",
+            CONTROLLER,
+            "chip-tool sustains no subscription a case could observe a node's events through",
+        );
     }
 
     /**

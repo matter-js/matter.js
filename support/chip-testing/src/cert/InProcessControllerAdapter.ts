@@ -13,6 +13,7 @@ import {
     Crypto,
     Diagnostic,
     Duration,
+    ChangeNotificationService,
     Endpoint,
     Environment,
     Filesystem,
@@ -103,20 +104,25 @@ import { AttributeModel } from "@matter/model";
 import { DclBehavior } from "@matter/node/behaviors/system/dcl";
 import { SoftwareUpdateManager } from "@matter/node/behaviors/system/software-update";
 import type {
+    AnnounceOtaProviderOptions,
+    AttestationApi,
     AttributePathSpec,
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    BdxTransferAccept,
+    BdxTransferProposal,
     CertGroupApi,
     CertIcdClientApi,
     CertIcdEvent,
     CertIcdRegistration,
     CertNodeApi,
+    CertNodeRef,
+    CertSessionInfo,
     ClientAttributePath,
     ClientEndpointEntry,
-    CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
@@ -124,27 +130,23 @@ import type {
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
-    AttestationApi,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
-    BdxTransferAccept,
-    BdxTransferProposal,
+    OtaAnnouncement,
+    OtaAnnouncementRecord,
     OtaApplyUpdateExchange,
     OtaBdxTransfer,
     OtaNotifyUpdateAppliedRecord,
-    AnnounceOtaProviderOptions,
-    OtaAnnouncement,
-    OtaAnnouncementRecord,
     OtaProviderExchanges,
     OtaProviderScript,
-    OtaScriptedQueryAnswer,
     OtaQueryImageExchange,
+    OtaScriptedQueryAnswer,
+    PicsValues,
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,
-    CertSessionInfo,
     SubscribeEventOptions,
-    PicsValues,
     SubscribeOptions,
     TimedInteractionOptions,
     WebRtcRequestorApi,
@@ -1212,7 +1214,25 @@ class InProcessIcdClient implements CertIcdClientApi {
     }
 }
 
+/**
+ * Whether `endpoint` sits under `owner`.
+ *
+ * The controller's peers are endpoints of the controller's own tree, so the root of an endpoint's owner
+ * chain is that controller rather than the node the endpoint belongs to.
+ */
+function ownedBy(endpoint: Endpoint, owner: Endpoint) {
+    for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
+        if (current === owner) {
+            return true;
+        }
+    }
+    return false;
+}
+
 class InProcessCertNodeApi implements CertNodeApi {
+    /** Event observers a case's subscriptions attached, which live as long as this node handle does. */
+    readonly #eventObservers = new ObserverGroup();
+
     readonly #adapterId: string;
     readonly #controller: ServerNode;
     readonly #fabric: Fabric;
@@ -2084,6 +2104,62 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
             phase = "live";
             return toWireEvents(seed);
+        });
+    }
+
+    /**
+     * Reports the node's events through the subscription the controller already sustains.
+     *
+     * A subscription of its own is a second session, and a controller drops every session to a peer the
+     * moment that peer reports `ShutDown` — so the peer's remaining reports, which it is still flushing,
+     * reach a session their own controller has forgotten and are discarded. A case that wants to observe
+     * what a node reported, rather than to exercise the subscription interaction itself, watches the
+     * sustained subscription and keeps reporting while a device is on its way down.
+     *
+     * {@link CertNodeApi.subscribeEvents} remains for a case whose subject *is* the subscribe request.
+     */
+    observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (paths.length === 0) {
+                throw new ImplementationError("observeEvents requires at least one path");
+            }
+
+            const peer = this.#peer;
+            const wanted = paths.map(toEventIds);
+            const delivered = new Set<bigint>();
+
+            // Attached before the read that seeds it, so an event arriving between the two reaches
+            // `onUpdate` rather than falling into the gap; `delivered` keeps the seed from repeating.
+            this.#eventObservers.on(peer.env.get(ChangeNotificationService).change, change => {
+                if (change.kind !== "event" || !ownedBy(change.endpoint, peer)) {
+                    return;
+                }
+                const cluster = change.event.parent?.id;
+                const endpoint = change.endpoint.number;
+                const matches = wanted.some(
+                    path =>
+                        (path.endpointId === undefined || path.endpointId === endpoint) &&
+                        (path.clusterId === undefined || path.clusterId === cluster) &&
+                        (path.eventId === undefined || path.eventId === change.event.id),
+                );
+                if (!matches || cluster === undefined || delivered.has(change.number)) {
+                    return;
+                }
+                delivered.add(change.number);
+                opts.onUpdate?.({
+                    endpoint,
+                    cluster,
+                    event: change.event.id,
+                    eventNumber: BigInt(change.number),
+                    value: change.payload,
+                });
+            });
+
+            const seed = await this.readEvents(paths, opts);
+            for (const entry of seed) {
+                delivered.add(entry.eventNumber);
+            }
+            return seed;
         });
     }
 

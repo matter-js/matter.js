@@ -121,6 +121,12 @@ export interface ReadEventOptions {
     minEventNumber?: bigint;
 }
 
+/** Options for {@link CertNodeApi.observeEvents}. */
+export interface ObserveEventOptions extends ReadEventOptions {
+    /** Invoked for each event the node reports after the ones this call answers with. */
+    onUpdate?: (event: EventReadEntry) => void;
+}
+
 export interface SubscribeEventOptions extends ReadEventOptions {
     minIntervalFloorSeconds: number;
     maxIntervalCeilingSeconds: number;
@@ -872,6 +878,20 @@ export interface CertNodeApi {
      * Rejects on a concrete path's status for the same reason {@link subscribe} does.
      */
     subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
+
+    /**
+     * Every event `paths` selects that the node reports, through the subscription the controller already
+     * sustains rather than one of this call's own.
+     *
+     * A subscription of its own is a second session, and a controller drops every session to a peer the
+     * moment that peer reports `ShutDown` — so what the peer is still flushing arrives on a session its
+     * controller has forgotten and is discarded. A case that wants to observe what a node reported uses
+     * this; one whose subject is the subscribe request itself uses {@link subscribeEvents}.
+     *
+     * Resolves with the events the node already holds, as {@link readEvents} answers them, and reports
+     * later ones to {@link ObserveEventOptions.onUpdate}.
+     */
+    observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]>;
 
     /**
      * The endpoints the controller holds for this node, from its own state rather than from a read.

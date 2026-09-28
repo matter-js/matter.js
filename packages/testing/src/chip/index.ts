@@ -92,6 +92,7 @@ export type {
     EventPathSpec,
     EventReadEntry,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
     OtaAnnouncement,
     OtaAnnouncementRecord,
