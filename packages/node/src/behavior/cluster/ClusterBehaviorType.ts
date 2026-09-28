@@ -585,9 +585,6 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
 }
 
 /**
- * Create a descriptor that lazily creates the {@link Observable} on the "Events" class.
- */
-/**
  * Whether an event the base class provides is the implementation the schema requires.
  *
  * Reporting treats a quieter element as quiet by its schema, so a base event of the other kind must be replaced even
@@ -597,6 +594,9 @@ function isImplementedBy(event: unknown, Implementation: abstract new (...args: 
     return event !== undefined && event instanceof QuietEvent === (Implementation === QuietEvent);
 }
 
+/**
+ * Create a descriptor that lazily creates the {@link Observable} on the "Events" class.
+ */
 function createEventDescriptor(
     name: string,
     schema: ValueModel,
