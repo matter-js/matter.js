@@ -3284,10 +3284,11 @@ the Sender feature, an empty endpoint list); the provisional GroupKeyManagement 
   TH2 is on the fabric, not by an entry naming the DUT.
 
 **Group bindings needed two matter.js fixes.** `BindingManager` required the binding's source endpoint to be a member
-of the group, which no step of the plan makes it, so the entry never resolved; it now resolves a group entry without
-looking at membership, and a send without a usable key for the group fails with a `NoUsableGroupKeyError`.
-Commands on a group endpoint failed with `InvalidGroupOperationError`, because their paths named the endpoint;
-`ClientGroupInteraction` now removes the endpoint from every command it sends. Writing state on a group endpoint is
+of the group, which no step of the plan makes it, so the entry never resolved; it now resolves a group entry once the
+fabric holds a key for the group, and resolves it again when the key is provisioned later — the plan writes the binding
+(step 10) before the DUT gets its key (step 11 or 12). Commands on a group endpoint failed with
+`InvalidGroupOperationError`, because their paths named the endpoint; a command method on a group endpoint now builds
+its request without one, and `ClientGroupInteraction` still refuses a group invoke that names an endpoint. Writing state on a group endpoint is
 not supported: an attribute write to a group goes through the group's `interaction.write` with a group path. The
 BIND cases write nothing to a group.
 

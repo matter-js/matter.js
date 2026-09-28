@@ -2170,6 +2170,33 @@ describe("InteractionProtocol", () => {
             expect(lines.some(line => /InteractionServer Invoke « .* group: 7 invokes: /.test(line))).true;
         });
 
+        it("does not name a group on the log line of a received unicast invoke", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+            const lines = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    lines.push(LogFormat.formats.plain(message));
+                },
+            });
+
+            try {
+                await interactionProtocol.handleInvokeRequest(
+                    exchange,
+                    INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                    messenger,
+                    interaction.BarelyMockedMessage,
+                );
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            const invokeLines = lines.filter(line => line.includes("InteractionServer Invoke «"));
+            expect(invokeLines).length(1);
+            expect(invokeLines[0]).not.match(/ group: /);
+        });
+
         it("group invoke reports accessAllowed:true when the dispatched command returns a non-Success status", async () => {
             // A command that passes access control but then fails (here Busy) must still report accessAllowed=true:
             // per Groupcast spec §11.27.7.6.3 AccessAllowed reflects the access-control outcome, not command success.

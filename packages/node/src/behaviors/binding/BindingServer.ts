@@ -34,9 +34,10 @@ import { BindingManager, type BindingResolution } from "./BindingManager.js";
  *   answers a group message: a command with a response resolves to `undefined`.  To write an
  *   attribute to the group, use `resolution.node.interaction.write(...)` with a group path (cluster
  *   and attribute, no endpoint); writing state on the endpoint is not supported yet.  Read and
- *   subscribe are not available.  Sending needs the group's key on this node (GroupKeyManagement
- *   KeySetWrite and GroupKeyMap, or Groupcast JoinGroup); without it a send fails with a
- *   `NoUsableGroupKeyError`.
+ *   subscribe are not available.  The entry resolves once this node holds a key for the group
+ *   (GroupKeyManagement KeySetWrite and GroupKeyMap, or Groupcast JoinGroup), also when the key
+ *   arrives after the entry.  It then stays until the entry is removed: a send after the key has
+ *   gone away fails with a `NoUsableGroupKeyError`, as does one whose epoch keys have not started.
  *
  * - **`kind: "server"`** — the entry targets a different endpoint of *this same node* (a
  *   "self-binding", typical for bridges).  The resolution endpoint IS the local target endpoint;

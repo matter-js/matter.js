@@ -374,7 +374,8 @@ function commandRequestFor(spec: BatchCommandSpec, commandRef?: number) {
 
 /**
  * A command path without an endpoint, which is what a group command carries: the endpoint comes from
- * the group's own membership rather than from the sender (Matter Core § 8.2.5.1).
+ * the group's own membership rather than from the sender (Matter Core § 8.2.5.1), and matter.js
+ * refuses a group invoke that names one.
  */
 function groupCommandRequestFor(cluster: string | number, command: string, args?: object) {
     const { model: clusterModel, id: clusterId } = certClusterModelFor(cluster);

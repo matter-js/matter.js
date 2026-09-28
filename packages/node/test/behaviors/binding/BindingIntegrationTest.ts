@@ -364,6 +364,17 @@ describe("Binding integration", () => {
             fabricIndex: fabric.fabricIndex,
             nodeId: NodeId.fromGroupId(GroupId(5)),
         });
+        await fabric.groups.setFromGroupKeySet({
+            groupKeySetId: 0x1a1,
+            groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+            epochKey0: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+            epochStartTime0: 1n,
+            epochKey1: null,
+            epochStartTime1: null,
+            epochKey2: null,
+            epochStartTime2: null,
+        });
+        fabric.groups.groupKeyIdMap.set(GroupId(5), 0x1a1);
 
         const entry = new Binding.Target({
             fabricIndex: fabric.fabricIndex,
@@ -444,7 +455,7 @@ describe("Binding integration, group sends", () => {
         fabric.groups.groupKeyIdMap.set(GROUP, KEY_SET_ID);
     }
 
-    async function bindGroup(switchEp: Endpoint, fabricIndex: FabricIndex, established: BindingResolution[]) {
+    async function writeGroupBinding(switchEp: Endpoint, fabricIndex: FabricIndex) {
         await switchEp.act("write", agent => {
             agent.get(BindingServer).state.binding = [
                 new Binding.Target({
@@ -456,6 +467,9 @@ describe("Binding integration, group sends", () => {
                 }),
             ];
         });
+    }
+
+    async function awaitResolution(established: BindingResolution[]) {
         for (let turn = 0; established.length === 0 && turn < 100; turn++) {
             await MockTime.yield();
         }
@@ -467,6 +481,11 @@ describe("Binding integration, group sends", () => {
             expect.fail(`expected a group resolution, got ${resolution.kind}`);
         }
         return resolution;
+    }
+
+    async function bindGroup(switchEp: Endpoint, fabricIndex: FabricIndex, established: BindingResolution[]) {
+        await writeGroupBinding(switchEp, fabricIndex);
+        return awaitResolution(established);
     }
 
     /**
@@ -567,11 +586,17 @@ describe("Binding integration, group sends", () => {
         }
     });
 
-    it("resolves a group binding written before the sender holds the group's key, and sends once it does", async () => {
+    it("resolves a group binding written before the sender holds the group's key once it does, and sends", async () => {
         const { node, fabric, switchEp, established } = await switchNode();
         try {
-            const resolution = await bindGroup(switchEp, fabric.fabricIndex, established);
+            await writeGroupBinding(switchEp, fabric.fabricIndex);
+            for (let turn = 0; turn < 20; turn++) {
+                await MockTime.yield();
+            }
+            expect(established).length(0);
+
             await provisionKey(node, fabric.fabricIndex);
+            const resolution = await awaitResolution(established);
             using sent = recordSent();
 
             await MockTime.resolve(resolution.endpoint.commandsOf(OnOffClient).on(), { macrotasks: true });
@@ -582,14 +607,43 @@ describe("Binding integration, group sends", () => {
         }
     });
 
+    async function drain(result: AsyncIterable<unknown>) {
+        for await (const _chunk of result);
+    }
+
     it("fails a group send for which the sender holds no key", async () => {
+        const { node, fabric } = await switchNode();
+        try {
+            const group = await node.peers.forAddress({
+                fabricIndex: fabric.fabricIndex,
+                nodeId: NodeId.fromGroupId(GROUP),
+            });
+            const on = Invoke({ commands: [Invoke.WildcardCommandRequest({ cluster: OnOff, command: "on" })] });
+
+            await expect(MockTime.resolve(drain(group.interaction.invoke(on)), { macrotasks: true })).rejectedWith(
+                GroupKeySetMissingError,
+                `No group key set found for groupId ${GROUP}`,
+            );
+        } finally {
+            await node.close();
+        }
+    });
+
+    it("refuses a group invoke that names an endpoint", async () => {
         const { node, fabric, switchEp, established } = await switchNode();
         try {
+            await provisionKey(node, fabric.fabricIndex);
             const resolution = await bindGroup(switchEp, fabric.fabricIndex, established);
+            const concrete = Invoke({
+                commands: [
+                    Invoke.ConcreteCommandRequest({ endpoint: EndpointNumber(1), cluster: OnOff, command: "on" }),
+                ],
+            });
 
-            await expect(
-                MockTime.resolve(resolution.endpoint.commandsOf(OnOffClient).on(), { macrotasks: true }),
-            ).rejectedWith(GroupKeySetMissingError, `No group key set found for groupId ${GROUP}`);
+            expect(() => resolution.node.interaction.invoke(concrete)).throws(
+                InvalidGroupOperationError,
+                "Invoking a concrete command on a group address is not supported.",
+            );
         } finally {
             await node.close();
         }

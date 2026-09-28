@@ -230,7 +230,8 @@ export class LightSwitchTestInstance extends NodeTestInstance {
                 throw new BindingUnresolvedError(
                     `Binding entries ${unresolved.join(", ")} did not resolve within ` +
                         `${Duration.format(RESOLUTION_TIMEOUT)}. BindingManager logs a warning for an entry it rejects; ` +
-                        "a unicast entry it accepted stays unresolved until its peer node is online",
+                        "a unicast entry it accepted stays unresolved until its peer node is online, and a group entry " +
+                        "until this node holds a key for the group",
                 );
             }
             await Time.sleep("binding resolution", RESOLUTION_POLL);
