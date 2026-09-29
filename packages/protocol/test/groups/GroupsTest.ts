@@ -6,6 +6,7 @@
 
 import { Subject } from "#action/server/Subject.js";
 import type { Fabric } from "#fabric/Fabric.js";
+import { GroupKeySetMissingError } from "#groups/errors.js";
 import { Groups } from "#groups/Groups.js";
 import { KeySets, type OperationalKeySet } from "#groups/KeySets.js";
 import { EndpointNumber, FabricId, GroupId } from "@matter/types";
@@ -111,6 +112,40 @@ describe("Groups", () => {
 
             expect(Subject.isGroup(subject) && subject.hasValidMapping).equal(false);
             expect(Subject.isGroup(subject) ? subject.endpoints : undefined).deep.equal([]);
+        });
+    });
+
+    describe("currentKeyForId", () => {
+        function withKeySets(...sets: OperationalKeySet[]) {
+            const keySets = new KeySets<OperationalKeySet>();
+            for (const set of sets) {
+                keySets.add(set);
+            }
+            return new Groups({ fabricId: FabricId(1) } as Fabric, keySets);
+        }
+
+        it("refuses a group the fabric maps no key set to", () => {
+            expect(() => withKeySets().currentKeyForId(GroupId(5))).throws(
+                GroupKeySetMissingError,
+                "No group key set found for groupId 5",
+            );
+        });
+
+        it("refuses a group mapped to a key set the fabric does not hold", () => {
+            const g = withKeySets();
+            g.idMap = new Map([[GroupId(5), 0x1a1]]);
+
+            expect(() => g.currentKeyForId(GroupId(5))).throws(
+                GroupKeySetMissingError,
+                "GroupId 5 is mapped to group key set 417, which the fabric does not hold",
+            );
+        });
+
+        it("returns the key of the key set the group is mapped to", () => {
+            const g = withKeySets(keySet(0x1a1, new Uint8Array(16)));
+            g.idMap = new Map([[GroupId(5), 0x1a1]]);
+
+            expect(g.currentKeyForId(GroupId(5)).keySetId).equal(0x1a1);
         });
     });
 });

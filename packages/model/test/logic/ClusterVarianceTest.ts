@@ -157,6 +157,26 @@ describe("ClusterVariance", () => {
             );
         });
 
+        it("parses pipe otherwise-list with a conjunction term FOO | BAR | (BAZ & QUX)", () => {
+            expectComponents(
+                attrs(["FOO", "BAR", "BAZ", "QUX"], { name: "attr", conformance: "FOO | BAR | (BAZ & QUX)" }),
+                { mandatory: ["attr"], condition: { anyOf: ["FOO", "BAR"] } },
+                { mandatory: ["attr"], condition: { allOf: ["BAZ", "QUX"] } },
+            );
+        });
+
+        it("parses provisional pipe otherwise-list P, FOO | BAR | (BAZ & QUX)", () => {
+            expectComponents(
+                attrs(["FOO", "BAR", "BAZ", "QUX"], { name: "attr", conformance: "P, FOO | BAR | (BAZ & QUX)" }),
+                { optional: ["attr"], condition: { anyOf: ["FOO", "BAR"] } },
+                { optional: ["attr"], condition: { allOf: ["BAZ", "QUX"] } },
+            );
+        });
+
+        it("parses fieldName > num, O as optional", () => {
+            expectComponents(attrs({ name: "attr", conformance: "FieldRef > 0, O" }), { optional: ["attr"] });
+        });
+
         it("parses [FOO & !fieldRef].x+ ignoring the field reference", () => {
             expectComponents(attrs(["FOO"], { name: "attr", conformance: "[FOO & !FieldRef].b+" }), {
                 optional: ["attr"],

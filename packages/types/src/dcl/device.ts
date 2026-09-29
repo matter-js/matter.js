@@ -10,7 +10,7 @@ import { BitFlag, BitmapSchema } from "../schema/BitmapSchema.js";
 
 /**
  * Bitmap for the Enhanced Setup Flow Options field in DeviceModelDclSchema.
- * @see {@link MatterSpecification.v16.Core} § 11.23.6.
+ * @see {@link MatterSpecification.v161.Core} § 11.23.7
  */
 export const EnhancedSetupFlowOptionsBitmap = {
     /**
@@ -42,7 +42,9 @@ export const EnhancedSetupFlowOptionsSchema = BitmapSchema(EnhancedSetupFlowOpti
 
 /**
  * DeviceModel Schema
- * @see {@link MatterSpecification.v16.Core} § 11.23.6.
+ *
+ * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
+ * @see {@link MatterSpecification.v161.Core} § 11.23.7
  * DCL endpoint:
  *   * /dcl/model/models
  *   * /dcl/model/models/{vid}
@@ -68,7 +70,7 @@ export interface DeviceModelDclSchema {
      * DeviceTypeID is the Primary Device Type identifier for the device. For example, DeviceTypeID is 10
      * (0x000A), which is the device type identifier for a Door Lock.
      */
-    deviceTypeID: DeviceTypeId;
+    deviceTypeId: DeviceTypeId;
 
     /**
      * This field SHOULD match the ProductName field in the Basic Information Cluster of a device running
@@ -220,7 +222,7 @@ export interface DeviceModelDclSchema {
      * This field SHALL identify the configuration options for the Enhanced Setup Flow. This field is a
      * bitmap with values defined in Enhanced Setup Flow Options Table. Decode with EnhancedSetupFlowOptionsSchema.
      */
-    enhancedSetupFlowOptions?: number;
+    enhancedSetupFlowOptions: number;
 
     /**
      * This field (when provided) SHALL identify a link to the Enhanced Setup Flow Terms and Condition
@@ -265,8 +267,44 @@ export interface DeviceModelDclSchema {
      * resolve to a maintained web page. The syntax of this field SHALL follow the syntax as specified in
      * RFC 1738. The maximum length of this field is 256 ASCII characters. All URLs SHALL use the https
      * scheme.
+     *
+     * The specification names this field EnhancedSetupFlowMaintenanceUrl; the DCL names it MaintenanceUrl.
      */
-    enhancedSetupFlowMaintenanceUrl?: string;
+    maintenanceUrl?: string;
+
+    /**
+     * This field (when provided) is applicable to an ICD that supports the UserActiveModeTrigger feature. This
+     * field SHALL indicate which user action(s) will trigger the ICD to switch to Active mode. This field SHALL
+     * follow the requirements specified in UserActiveModeTriggerHint.
+     */
+    icdUserActiveModeTriggerHint: number;
+
+    /**
+     * This field (when provided) is applicable to an ICD that supports the UserActiveModeTrigger feature. The
+     * meaning of this field is dependent upon the UserActiveModeTriggerHint field value. This field SHALL follow
+     * the requirements specified in UserActiveModeTriggerInstruction.
+     */
+    icdUserActiveModeTriggerInstruction?: string;
+
+    /**
+     * This field (when provided) SHALL identify a hint for the steps that MAY be used to factory reset a device.
+     * This field is a bitmap with values defined in the Pairing/Reset Hint Table. For example, a value of 64 (bit
+     * 6 is set) indicates that a device will be factory reset when the Reset Button is pressed.
+     */
+    factoryResetStepsHint: number;
+
+    /**
+     * This field SHALL be populated with the appropriate factory reset instruction for those values of
+     * FactoryResetStepsHint, for which the Pairing/Reset Hint Table indicates a dependency in the Instruction
+     * Dependency column.
+     */
+    factoryResetStepsInstruction?: string;
+
+    /**
+     * This field uniquely identifies the DCL key that was used to register the device model record in DCL,
+     * pursuant to DCL policies.
+     */
+    creator: string;
 
     /**
      * The SchemaVersion field value history for this schema is provided below:

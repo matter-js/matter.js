@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError, Logger, Time } from "@matter/general";
+import { Bytes, CertificateError, EcdsaSignature, Logger, Time } from "@matter/general";
 import { Certificate } from "./Certificate.js";
+import { MlDsaSignature } from "./CertificateSignature.js";
 import { Unsigned } from "./common.js";
 import { MatterCertificate } from "./definitions/base.js";
 
@@ -31,6 +32,19 @@ export abstract class OperationalBase<CT extends MatterCertificate> extends Cert
         this.validateFields();
     }
 
+    /** Operational certificates are always signed with ecdsa-with-SHA256. */
+    override get signature(): EcdsaSignature {
+        const signature = super.signature;
+        if (signature instanceof MlDsaSignature) {
+            throw new CertificateError("Operational certificate is not signed with ecdsa-with-SHA256");
+        }
+        return signature;
+    }
+
+    override set signature(signature: EcdsaSignature) {
+        super.signature = signature;
+    }
+
     /** Validates all basic certificate fields on construction. */
     protected abstract validateFields(): void;
 
@@ -39,7 +53,7 @@ export abstract class OperationalBase<CT extends MatterCertificate> extends Cert
 
     /**
      * Verifies general requirements a Matter certificate fields must fulfill.
-     * Rules for this are listed in @see {@link MatterSpecification.v16.Core} §6.5.x
+     * Rules for this are listed in @see {@link MatterSpecification.v161.Core} §6.5.x
      */
     generalVerify() {
         const cert = this.cert;

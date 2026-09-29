@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable } from "@matter/general";
-import { FabricManager, TestFabric } from "@matter/protocol";
+import { AsyncObservable, Bytes } from "@matter/general";
+import { Fabric, FabricManager, TestFabric } from "@matter/protocol";
 import { ClusterId, EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { LocalActorContext } from "../../../src/behavior/context/server/LocalActorContext.js";
 import { BindingManager, BindingResolution } from "../../../src/behaviors/binding/BindingManager.js";
 import type { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
@@ -55,6 +56,28 @@ function fakeEmitted(server: BindingServer): Array<BindingResolution> {
 
 function fakeRemoved(server: BindingServer): Array<BindingResolution> {
     return ((server as unknown as { events: FakeEvents }).events.removed as { removed: BindingResolution[] }).removed;
+}
+
+/** Maps `group` to a key set the fabric holds, as GroupKeyManagement KeySetWrite and GroupKeyMap do. */
+async function provisionGroupKey(fabric: Fabric, group: GroupId, keySetId = 0x1a1) {
+    await fabric.groups.setFromGroupKeySet({
+        groupKeySetId: keySetId,
+        groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+        epochKey0: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+        epochStartTime0: 1n,
+        epochKey1: null,
+        epochStartTime1: null,
+        epochKey2: null,
+        epochStartTime2: null,
+    });
+    fabric.groups.groupKeyIdMap.set(group, keySetId);
+}
+
+/** Lets the manager's asynchronous resolution run until `done` holds, within a bounded number of turns. */
+async function settle(done: () => boolean) {
+    for (let turn = 0; turn < 50 && !done(); turn++) {
+        await Promise.resolve();
+    }
 }
 
 function makeSelfBindingEntry(endpointNum: EndpointNumber, nodeId: NodeId): Binding.Target {
@@ -266,14 +289,12 @@ describe("BindingManager", () => {
             fabricIndex: fabric.fabricIndex,
         });
 
-        // Source endpoint must be a member of the bound group on the fabric.
-        fabric.groups.endpoints.set(GroupId(7), [sourceEp.number]);
-
         // Pre-warm the group ClientGroup so manager.register's forAddress hits the cache.
         await node.peers.forAddress({
             fabricIndex: fabric.fabricIndex,
             nodeId: NodeId.fromGroupId(GroupId(7)),
         });
+        await provisionGroupKey(fabric, GroupId(7));
 
         manager.register(server, sourceEp, entry);
         await Promise.resolve();
@@ -302,12 +323,11 @@ describe("BindingManager", () => {
             fabricIndex: fabric.fabricIndex,
         });
 
-        fabric.groups.endpoints.set(GroupId(7), [sourceEp.number]);
-
         await node.peers.forAddress({
             fabricIndex: fabric.fabricIndex,
             nodeId: NodeId.fromGroupId(GroupId(7)),
         });
+        await provisionGroupKey(fabric, GroupId(7));
 
         manager.register(s1, sourceEp, entry);
         manager.register(s2, sourceEp, entry);
@@ -339,12 +359,11 @@ describe("BindingManager", () => {
             fabricIndex: fabric.fabricIndex,
         });
 
-        fabric.groups.endpoints.set(GroupId(8), [sourceEp.number]);
-
         await node.peers.forAddress({
             fabricIndex: fabric.fabricIndex,
             nodeId: NodeId.fromGroupId(GroupId(8)),
         });
+        await provisionGroupKey(fabric, GroupId(8));
 
         manager.register(server, sourceEp, entry);
         for (let i = 0; i < 10 && fakeEmitted(server).length === 0; i++) {
@@ -376,12 +395,11 @@ describe("BindingManager", () => {
             fabricIndex: fabric.fabricIndex,
         });
 
-        fabric.groups.endpoints.set(GroupId(9), [sourceEp.number]);
-
         await node.peers.forAddress({
             fabricIndex: fabric.fabricIndex,
             nodeId: NodeId.fromGroupId(GroupId(9)),
         });
+        await provisionGroupKey(fabric, GroupId(9));
 
         manager.register(server, sourceEp, entry);
         for (let i = 0; i < 10 && fakeEmitted(server).length === 0; i++) {
@@ -544,7 +562,7 @@ describe("BindingManager", () => {
         await node.close();
     });
 
-    it("kind=group rejects when source endpoint is not a group member", async () => {
+    it("kind=group resolves although the source endpoint is not a member of the group", async () => {
         const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
         const fabric = await node.addFabric();
         const manager = node.env.get(BindingManager);
@@ -558,12 +576,229 @@ describe("BindingManager", () => {
             fabricIndex: fabric.fabricIndex,
         });
 
-        // Deliberately do NOT register sourceEp as member of group 42.
+        await node.peers.forAddress({
+            fabricIndex: fabric.fabricIndex,
+            nodeId: NodeId.fromGroupId(GroupId(42)),
+        });
+        await provisionGroupKey(fabric, GroupId(42));
 
         manager.register(server, sourceEp, entry);
         await Promise.resolve();
         await Promise.resolve();
-        expect(fakeEmitted(server)).deep.equals([]);
+
+        const emitted = fakeEmitted(server);
+        expect(emitted).has.length(1);
+        expect(emitted[0].kind).equals("group");
+
+        await node.close();
+    });
+
+    it("kind=group resolves only once the fabric holds a key for the group", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+        const fabric = await node.addFabric();
+        const manager = node.env.get(BindingManager);
+        const server = makeFakeBindingServer();
+        const sourceEp = node.parts.get(1)!;
+        const entry = new Binding.Target({
+            node: undefined,
+            endpoint: undefined,
+            cluster: undefined,
+            group: GroupId(43),
+            fabricIndex: fabric.fabricIndex,
+        });
+
+        await node.peers.forAddress({ fabricIndex: fabric.fabricIndex, nodeId: NodeId.fromGroupId(GroupId(43)) });
+
+        manager.register(server, sourceEp, entry);
+        await settle(() => false);
+        expect(fakeEmitted(server)).has.length(0);
+
+        await provisionGroupKey(fabric, GroupId(43));
+        await settle(() => fakeEmitted(server).length > 0);
+        expect(fakeEmitted(server)).has.length(1);
+        expect(fakeEmitted(server)[0].kind).equals("group");
+
+        await node.close();
+    });
+
+    function groupEntry(fabric: Fabric, group: number) {
+        return new Binding.Target({
+            node: undefined,
+            endpoint: undefined,
+            cluster: undefined,
+            group: GroupId(group),
+            fabricIndex: fabric.fabricIndex,
+        });
+    }
+
+    async function groupSetup(group: number) {
+        const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+        const fabric = await node.addFabric();
+        const manager = node.env.get(BindingManager);
+        const server = makeFakeBindingServer();
+        const sourceEp = node.parts.get(1)!;
+        const entry = groupEntry(fabric, group);
+        await node.peers.forAddress({ fabricIndex: fabric.fabricIndex, nodeId: NodeId.fromGroupId(GroupId(group)) });
+        return { node, fabric, manager, server, sourceEp, entry };
+    }
+
+    it("kind=group stays established when the group's key goes away until the entry is unregistered, and close releases the key watch", async () => {
+        const { node, fabric, manager, server, sourceEp, entry } = await groupSetup(44);
+
+        await provisionGroupKey(fabric, GroupId(44));
+        manager.register(server, sourceEp, entry);
+        await settle(() => fakeEmitted(server).length > 0);
+        expect(fakeEmitted(server)).has.length(1);
+
+        fabric.groups.groupKeyIdMap.delete(GroupId(44));
+        fabric.groups.removeGroupKeySet(0x1a1);
+        await settle(() => false);
+        expect(fakeRemoved(server)).has.length(0);
+
+        await provisionGroupKey(fabric, GroupId(44));
+        await settle(() => false);
+        expect(fakeEmitted(server)).has.length(1);
+
+        await manager.unregister(server, entry);
+        expect(fakeRemoved(server)).has.length(1);
+
+        await manager.close();
+        expect(fabric.groups.groupKeyIdMap.added.isObserved).false;
+        expect(fabric.groups.groupKeyIdMap.deleted.isObserved).false;
+        expect(fabric.groups.keySets.added.isObserved).false;
+        expect(fabric.groups.keySets.deleted.isObserved).false;
+
+        await node.close();
+    });
+
+    it("kind=group establishes once when several key changes arrive together", async () => {
+        const { node, fabric, manager, server, sourceEp, entry } = await groupSetup(45);
+
+        manager.register(server, sourceEp, entry);
+        await settle(() => false);
+        await provisionGroupKey(fabric, GroupId(45));
+        fabric.groups.groupKeyIdMap.set(GroupId(45), 0x1a2);
+        fabric.groups.groupKeyIdMap.set(GroupId(45), 0x1a1);
+        await settle(() => false);
+
+        expect(fakeEmitted(server)).has.length(1);
+
+        await node.close();
+    });
+
+    it("kind=group does not resolve a waiting entry after its server was disposed", async () => {
+        const { node, fabric, manager, server, sourceEp, entry } = await groupSetup(46);
+
+        manager.register(server, sourceEp, entry);
+        await settle(() => false);
+        await manager.disposeServer(server);
+        await provisionGroupKey(fabric, GroupId(46));
+        await settle(() => false);
+
+        expect(fakeEmitted(server)).has.length(0);
+
+        await node.close();
+    });
+
+    it("stops watching a fabric's group keys once the fabric is deleted", async () => {
+        const { node, fabric, manager, server, sourceEp, entry } = await groupSetup(47);
+
+        manager.register(server, sourceEp, entry);
+        await settle(() => false);
+        expect(fabric.groups.groupKeyIdMap.added.isObserved).true;
+
+        await fabric.delete();
+        await settle(() => false);
+        expect(fabric.groups.groupKeyIdMap.added.isObserved).false;
+
+        await node.close();
+    });
+
+    it("kind=group does not resolve when the key is withdrawn while the group is being registered", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+        const fabric = await node.addFabric();
+        const manager = node.env.get(BindingManager);
+        const server = makeFakeBindingServer();
+        const sourceEp = node.parts.get(1)!;
+        const entry = new Binding.Target({
+            node: undefined,
+            endpoint: undefined,
+            cluster: undefined,
+            group: GroupId(47),
+            fabricIndex: fabric.fabricIndex,
+        });
+
+        await provisionGroupKey(fabric, GroupId(47));
+        // No pre-warm: registering the group peer takes turns, during which the key goes away
+        manager.register(server, sourceEp, entry);
+        fabric.groups.groupKeyIdMap.delete(GroupId(47));
+        await node.peers.forAddress({ fabricIndex: fabric.fabricIndex, nodeId: NodeId.fromGroupId(GroupId(47)) });
+        await settle(() => false);
+        expect(fakeEmitted(server)).has.length(0);
+
+        await node.close();
+    });
+
+    it("kind=group does not resolve an entry unregistered while its group is being registered", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+        const fabric = await node.addFabric();
+        const manager = node.env.get(BindingManager);
+        const server = makeFakeBindingServer();
+        const sourceEp = node.parts.get(1)!;
+        const entryFor = (group: number) =>
+            new Binding.Target({
+                node: undefined,
+                endpoint: undefined,
+                cluster: undefined,
+                group: GroupId(group),
+                fabricIndex: fabric.fabricIndex,
+            });
+
+        await provisionGroupKey(fabric, GroupId(48));
+        await provisionGroupKey(fabric, GroupId(49), 0x1a2);
+        // The second entry keeps the source endpoint's record alive while the first is withdrawn
+        manager.register(server, sourceEp, entryFor(48));
+        manager.register(server, sourceEp, entryFor(49));
+        await manager.unregister(server, entryFor(48));
+        for (const group of [48, 49]) {
+            await node.peers.forAddress({
+                fabricIndex: fabric.fabricIndex,
+                nodeId: NodeId.fromGroupId(GroupId(group)),
+            });
+        }
+        await settle(() => fakeEmitted(server).length > 1);
+
+        expect(fakeEmitted(server).map(({ entry }) => entry.group)).deep.equals([49]);
+
+        await node.close();
+    });
+
+    it("kind=group resolves on a key provisioned after its fabric was replaced", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+        const fabric = await node.addFabric();
+        const fabrics = node.env.get(FabricManager);
+        const manager = node.env.get(BindingManager);
+        const server = makeFakeBindingServer();
+        const sourceEp = node.parts.get(1)!;
+        const entry = new Binding.Target({
+            node: undefined,
+            endpoint: undefined,
+            cluster: undefined,
+            group: GroupId(46),
+            fabricIndex: fabric.fabricIndex,
+        });
+
+        await node.peers.forAddress({ fabricIndex: fabric.fabricIndex, nodeId: NodeId.fromGroupId(GroupId(46)) });
+        manager.register(server, sourceEp, entry);
+        await settle(() => false);
+        expect(fakeEmitted(server)).has.length(0);
+
+        // As UpdateNOC does: the same fabric index, a new Fabric object with its own group key maps
+        const replacement = new Fabric(fabrics.crypto, fabric.config);
+        await fabrics.replaceFabric(replacement);
+        await provisionGroupKey(replacement, GroupId(46));
+        await settle(() => fakeEmitted(server).length > 0);
+        expect(fakeEmitted(server)).has.length(1);
 
         await node.close();
     });

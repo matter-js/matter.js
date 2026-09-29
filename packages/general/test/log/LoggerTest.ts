@@ -432,6 +432,12 @@ describe("Logger", () => {
             });
             expect(result.message).equals("xxxx-xx-xx xx:xx:xx.xxx ERROR UnitTest THIS IS VERY IMPORTANT");
         });
+
+        it("marks an added or deleted list entry on its own line", () => {
+            expect(
+                LogFormat.formats.plain(["x", Diagnostic.list([Diagnostic.deleted("a"), Diagnostic.added("b")])]),
+            ).equals("x\n  -a\n  +b");
+        });
     });
 
     describe("ansiFormat", () => {

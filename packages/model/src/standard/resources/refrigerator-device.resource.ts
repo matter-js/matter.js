@@ -49,7 +49,7 @@ Resource.add({
         {
             tag: "requirement", name: "RefrigeratorAndTemperatureControlledCabinetMode", xref: "device§13.2.7",
             children: [
-                { tag: "requirement", name: "ONOFF", xref: "device§13.2.8" },
+                { tag: "requirement", name: "DEPONOFF", xref: "device§13.2.8" },
                 { tag: "requirement", name: "StartUpMode", xref: "device§13.2.8" }
             ]
         },

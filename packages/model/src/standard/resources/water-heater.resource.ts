@@ -76,7 +76,7 @@ Resource.add({
         { tag: "requirement", name: "WaterHeaterMode", xref: "device§14.2.5" },
         {
             tag: "requirement", name: "Thermostat", xref: "device§14.2.5",
-            children: [{ tag: "requirement", name: "HEATING", xref: "device§14.2.6" }]
+            children: [{ tag: "requirement", name: "HEAT", xref: "device§14.2.6" }]
         },
         { tag: "requirement", name: "PowerSource", xref: "device§14.2.7" },
         { tag: "requirement", name: "TemperatureSensor", xref: "device§14.2.7" },
@@ -85,7 +85,7 @@ Resource.add({
             tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.2.7",
             children: [{
                 tag: "requirement", name: "DeviceEnergyManagement",
-                children: [{ tag: "requirement", name: "POWERFORECASTREPORTING", xref: "device§14.2.7.3" }]
+                children: [{ tag: "requirement", name: "PFR", xref: "device§14.2.7.3" }]
             }]
         },
 

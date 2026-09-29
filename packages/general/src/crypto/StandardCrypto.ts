@@ -12,6 +12,8 @@ import { Entropy } from "#util/Entropy.js";
 import { asError } from "#util/Error.js";
 import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
+import { sha512_224, sha512_256 } from "@noble/hashes/sha2.js";
+import { sha3_256 } from "@noble/hashes/sha3.js";
 import { Logger } from "../log/Logger.js";
 import { Ccm } from "./aes/Ccm.js";
 import { Crypto, CRYPTO_AUTH_TAG_LENGTH, CRYPTO_SYMMETRIC_KEY_LENGTH, ec, HashAlgorithm } from "./Crypto.js";
@@ -32,6 +34,13 @@ const SIGNATURE_ALGORITHM = <EcdsaParams>{
     hash: { name: "SHA-256" },
 };
 
+/** Digests Web Crypto does not implement. */
+const portableDigests = new Map<HashAlgorithm, (data: Uint8Array) => Uint8Array>([
+    ["SHA-512/224", sha512_224],
+    ["SHA-512/256", sha512_256],
+    ["SHA3-256", sha3_256],
+]);
+
 const requiredCryptoMethods: Array<keyof WebCrypto> = ["getRandomValues"];
 
 const requiredSubtleMethods: Array<keyof SubtleCrypto> = [
@@ -51,7 +60,8 @@ const requiredSubtleMethods: Array<keyof SubtleCrypto> = [
  *
  * This module is mostly based on  {@link crypto.subtle}.  This should be a reliable native implementation.  However,
  * Web Crypto doesn't support AES-CCM required by Matter so we use a JS implementation for that.  See relevant warnings
- * in the "aes" subdirectory.
+ * in the "aes" subdirectory.  Digests and signatures Web Crypto lacks (SHA-512/t, SHA3-256, ML-DSA) come from the
+ * noble libraries.
  */
 export class StandardCrypto extends Crypto {
     implementationName = "JS";
@@ -133,12 +143,20 @@ export class StandardCrypto extends Crypto {
                         `Streamed hash computation used with StandardCrypto for ${algorithm} and ${Math.floor(combined.byteLength / 1024)}kB. Consider alternatives that do not load all data into memory.`,
                     );
                 }
-                return await this.#subtle.digest(algorithm, Bytes.exclusive(combined));
+                return await this.#digest(combined, algorithm);
             };
             return collectAndHash();
         }
 
-        return this.#subtle.digest(algorithm, Bytes.exclusive(buffer));
+        return this.#digest(buffer, algorithm);
+    }
+
+    #digest(data: Bytes, algorithm: HashAlgorithm): MaybePromise<Bytes> {
+        const portable = portableDigests.get(algorithm);
+        if (portable !== undefined) {
+            return portable(Bytes.of(data));
+        }
+        return this.#subtle.digest(algorithm, Bytes.exclusive(data));
     }
 
     async createPbkdf2Key(secret: Bytes, salt: Bytes, iteration: number, keyLength: number) {

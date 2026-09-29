@@ -26,7 +26,7 @@ export const RefrigeratorDt = DeviceType(
             name: "RefrigeratorAndTemperatureControlledCabinetMode", id: 0x52, conformance: "O",
             element: "serverCluster"
         },
-        Requirement({ name: "ONOFF", conformance: "X", element: "feature" }),
+        Requirement({ name: "DEPONOFF", conformance: "X", element: "feature" }),
         Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" })
     ),
 

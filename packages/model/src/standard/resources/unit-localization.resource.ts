@@ -24,7 +24,7 @@ Resource.add({
             tag: "attribute", name: "FeatureMap", xref: "core§11.5.4",
             children: [{
                 tag: "field", name: "TEMP",
-                details: "The Node can be configured to use different units of temperature when conveying values to a user."
+                details: "The Node can be configured to use different units of temperature when conveying values to a user"
             }]
         },
 

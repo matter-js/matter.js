@@ -307,9 +307,12 @@ describe("Failsafe commissioning re-announcement", () => {
         const site = new MockSite();
         try {
             const controller = await site.addController();
-            const device = await site.addNode(MockServerNode.RootEndpoint.with(FailingAccessControlServer), {
-                device: OnOffLightDevice,
-            });
+            const device = await site.addNode(
+                MockServerNode.RootEndpoint.with(FailingAccessControlServer.with("Extension", "Auxiliary")),
+                {
+                    device: OnOffLightDevice,
+                },
+            );
 
             const disableEntropy = enableEntropy(controller, device);
 

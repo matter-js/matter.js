@@ -42,7 +42,7 @@ Resource.add({
             tag: "requirement", name: "BooleanState", xref: "device§7.11.4",
             children: [
                 { tag: "requirement", name: "StateChange", xref: "device§7.11.5" },
-                { tag: "requirement", name: "CHANGEEVENT", xref: "device§7.11.5" }
+                { tag: "requirement", name: "CHGEVENT", xref: "device§7.11.5" }
             ]
         },
 

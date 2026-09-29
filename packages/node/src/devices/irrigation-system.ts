@@ -67,7 +67,7 @@ import { Identity } from "@matter/general";
  *
  * If present, the flow measurement client cluster is used via binding to measure flow from external flow sensors.
  *
- * @see {@link MatterSpecification.v16.Device} § 5.7
+ * @see {@link MatterSpecification.v161.Device} § 5.7
  */
 export interface IrrigationSystemDevice extends Identity<typeof IrrigationSystemDeviceDefinition> {}
 

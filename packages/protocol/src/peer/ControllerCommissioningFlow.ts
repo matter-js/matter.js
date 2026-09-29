@@ -531,7 +531,7 @@ export class ControllerCommissioningFlow {
 
     /**
      * Initialize commissioning steps and add them in the default order as defined by
-     * @see {@link MatterSpecification.v16.Core} § 5.5
+     * @see {@link MatterSpecification.v161.Core} § 5.5
      */
     #initializeCommissioningSteps() {
         this.commissioningSteps.push({

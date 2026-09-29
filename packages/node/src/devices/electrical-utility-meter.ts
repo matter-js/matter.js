@@ -51,7 +51,7 @@ import { Identity } from "@matter/general";
  * The above topologies can be composed to represent various combinations of tariffs. In this example, a tariff has
  * separate rates for an EV and for exporting energy to the grid.
  *
- * @see {@link MatterSpecification.v16.Device} § 14.9
+ * @see {@link MatterSpecification.v161.Device} § 14.9
  */
 export interface ElectricalUtilityMeterDevice extends Identity<typeof ElectricalUtilityMeterDeviceDefinition> {}
 

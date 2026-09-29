@@ -43,7 +43,7 @@ import { Identity } from "@matter/general";
  *
  * See Section 1.1.7, "Cluster Requirements" for additional clusters including the Binding cluster.
  *
- * @see {@link MatterSpecification.v16.Device} § 10.6
+ * @see {@link MatterSpecification.v161.Device} § 10.6
  */
 export interface CastingVideoClientDevice extends Identity<typeof CastingVideoClientDeviceDefinition> {}
 

@@ -3,7 +3,9 @@
 {
     "extends": "../../../tsc/tsconfig.lib.json",
     "compilerOptions": {
-        "types": []
+        "types": [
+            "@matter/testing"
+        ]
     },
     "references": [
         {

@@ -16,7 +16,7 @@ import { Identity } from "@matter/general";
 /**
  * A Doorbell device is a switch which when pressed usually causes a Chime to activate.
  *
- * @see {@link MatterSpecification.v16.Device} § 16.9
+ * @see {@link MatterSpecification.v161.Device} § 16.9
  */
 export interface DoorbellDevice extends Identity<typeof DoorbellDeviceDefinition> {}
 

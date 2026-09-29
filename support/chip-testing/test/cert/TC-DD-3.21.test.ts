@@ -6,7 +6,7 @@
 
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertNodeRef, CertStepContext } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
     commissionByQr,
@@ -17,7 +17,7 @@ import {
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, expectCommandInvoke, record, requireId, runCleanups } from "./tc-support.js";
+import { attempt, CommissionedRefs, expectCommandInvoke, requireId, runCleanups, withChecks } from "./tc-support.js";
 
 const DESCRIPTOR = Matter.clusters.require("Descriptor");
 const DESCRIPTOR_ID = requireId(DESCRIPTOR.id, "Descriptor cluster");
@@ -130,23 +130,27 @@ certTest("TC-DD-3.21", {
         commissioned.withRef("dut", async (cx, ref) => {
             const th = cx.devices.th;
             const endpoints = await onOffLightEndpoints(cx, ref);
+            const node = cx.controllers.dut.node(ref);
 
-            record(
-                cx,
-                {
+            await withChecks(cx, async checks => {
+                const topology: CheckRecord = {
                     type: "response",
                     verdict: endpoints.length >= 2 ? "pass" : "fail",
                     detail: `TH implements the On/Off light device type on endpoints ${JSON.stringify(endpoints)}`,
-                },
-                "TH endpoint topology",
-            );
+                };
+                checks.push({ what: "TH endpoint topology", check: () => topology });
 
-            for (const endpoint of endpoints) {
-                const from = th.log.mark();
-                await cx.controllers.dut.node(ref).invoke("OnOff", "on", {}, endpoint);
-                record(
-                    cx,
-                    await expectCommandInvoke(
+                for (const endpoint of endpoints) {
+                    const from = th.log.mark();
+                    const invoked = await attempt(
+                        () => node.invoke("OnOff", "on", {}, endpoint),
+                        () => `DUT sent OnOff.on to endpoint ${endpoint}`,
+                    );
+                    if (!invoked.ok) {
+                        checks.push({ what: `OnOff.on invoke on endpoint ${endpoint}`, check: () => invoked.check });
+                    }
+
+                    const reached = await expectCommandInvoke(
                         th.log,
                         th.flavor,
                         endpoint,
@@ -155,23 +159,23 @@ certTest("TC-DD-3.21", {
                         [],
                         from,
                         COMMISSIONING_LOG_TIMEOUT,
-                    ),
-                    `OnOff.on reached endpoint ${endpoint}`,
-                );
+                    );
+                    checks.push({ what: `OnOff.on reached endpoint ${endpoint}`, check: () => reached });
+                    if (!invoked.ok) {
+                        continue;
+                    }
 
-                const onOff = await cx.controllers.dut
-                    .node(ref)
-                    .readAttribute({ endpoint, cluster: ON_OFF_ID, attribute: ON_OFF_ATTRIBUTE });
-                record(
-                    cx,
-                    {
-                        type: "response",
-                        verdict: onOff === true ? "pass" : "fail",
-                        detail: `endpoint ${endpoint} reports OnOff.onOff = ${JSON.stringify(onOff)} after the command`,
-                    },
-                    `Endpoint ${endpoint} turned on`,
-                );
-            }
+                    const onOff = await attempt(
+                        () => node.readAttribute({ endpoint, cluster: ON_OFF_ID, attribute: ON_OFF_ATTRIBUTE }),
+                        value =>
+                            `endpoint ${endpoint} reports OnOff.onOff = ${JSON.stringify(value)} after the command`,
+                    );
+                    const turnedOn: CheckRecord = onOff.ok
+                        ? { ...onOff.check, verdict: onOff.value === true ? "pass" : "fail" }
+                        : onOff.check;
+                    checks.push({ what: `Endpoint ${endpoint} turned on`, check: () => turnedOn });
+                }
+            });
         }),
         {
             expected:

@@ -46,7 +46,7 @@
         "@xmldom/xmldom": "^0.9.11",
         "jsdom": "^29.1.1",
         "word-list": "^4.1.0",
-        "yargs": "^18.1.0"
+        "yargs": "^18.2.0"
     },
     "imports": {
         "#general": "@matter/general",

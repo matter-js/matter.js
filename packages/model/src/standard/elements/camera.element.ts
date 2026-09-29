@@ -39,9 +39,9 @@ export const CameraDt = DeviceType(
 
     Requirement(
         { name: "CameraAvStreamManagement", id: 0x551, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "VIDEO", conformance: "M", element: "feature" }),
-        Requirement({ name: "AUDIO", conformance: "M", element: "feature" }),
-        Requirement({ name: "SNAPSHOT", conformance: "M", element: "feature" })
+        Requirement({ name: "VDO", conformance: "M", element: "feature" }),
+        Requirement({ name: "ADO", conformance: "M", element: "feature" }),
+        Requirement({ name: "SNP", conformance: "M", element: "feature" })
     ),
 
     Requirement({ name: "WebRtcTransportProvider", id: 0x553, conformance: "M", element: "serverCluster" }),
@@ -52,7 +52,7 @@ export const CameraDt = DeviceType(
     Requirement({ name: "CameraAvSettingsUserLevelManagement", id: 0x552, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "ZoneManagement", id: 0x550, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "TWODIMENSIONALCARTESIANZONE", conformance: "M", element: "feature" })
+        Requirement({ name: "TWODCART", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),

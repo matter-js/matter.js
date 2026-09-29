@@ -19,7 +19,7 @@ interface ParsedQuality extends Quality.Ast {
  * "Other qualities" are defined behaviors of data fields and cluster elements that do not involve access or
  * conformance.
  *
- * See {@link MatterSpecification.v16} § 7.7
+ * See {@link MatterSpecification.v161.Core} § 7.7
  */
 export class Quality extends Aspect<Quality.Definition> implements Quality.Ast {
     /**

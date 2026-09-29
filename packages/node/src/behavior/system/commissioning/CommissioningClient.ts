@@ -730,8 +730,8 @@ export namespace CommissioningClient {
     /**
      * The pairing codes of an open Enhanced Commissioning Window and the values they encode.
      *
-     * @see {@link MatterSpecification.v16.Core} § 5.1
-     * @see {@link MatterSpecification.v16.Core} § 11.19.8.1
+     * @see {@link MatterSpecification.v161.Core} § 5.1
+     * @see {@link MatterSpecification.v161.Core} § 11.19.8.1
      */
     export interface EnhancedCommissioningWindow {
         manualPairingCode: string;
@@ -883,7 +883,7 @@ export namespace CommissioningClient {
          * Operational discovery does not report a host, so this stays what commissioning found while
          * {@link addresses} goes on being refreshed.
          *
-         * @see {@link MatterSpecification.v16.Core} § 4.3.1
+         * @see {@link MatterSpecification.v161.Core} § 4.3.1
          */
         @field(string, nonvolatile)
         hostname?: string;

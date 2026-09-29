@@ -299,7 +299,7 @@ export async function recordTcpInvoke(
  * MRP's own payload budget is smaller still (~1232 bytes once the headers are counted), so a payload
  * larger than this is conservative evidence of a large-payload session either way.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.4.4
+ * @see {@link MatterSpecification.v161.Core} § 4.4.4
  */
 const LARGE_PAYLOAD_FLOOR = 1280;
 

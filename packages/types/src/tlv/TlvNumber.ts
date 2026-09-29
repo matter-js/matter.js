@@ -61,7 +61,7 @@ const boundCache = new WeakMap<TlvNumericSchema<any>, Map<string, TlvNumericSche
 /**
  * Schema to encode an unsigned integer in TLV.
  *
- * @see {@link MatterSpecification.v16.Core} § A.11.1
+ * @see {@link MatterSpecification.v161.Core} § A.11.1
  */
 export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
     #min?: T;
@@ -322,7 +322,7 @@ export class BitmapWrapper<D> extends TlvWrapper<D, number> {
      * Returns a variant that reserves the most-significant bit (it encodes NULL for nullable
      * bitmaps, shrinking the usable range).
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.19.1.2
+     * @see {@link MatterSpecification.v161.Core} § 7.19.1.2
      */
     withReservedMsb(): BitmapWrapper<D> {
         const { baseTypeMax } = this.numericSchema;

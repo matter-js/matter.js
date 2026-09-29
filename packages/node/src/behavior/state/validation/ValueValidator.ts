@@ -495,7 +495,7 @@ function createListValidator(schema: ValueModel, supervisor: RootSupervisor): Va
         }
     }
 
-    const validateConstraint = createConstraintValidator(schema.constraint, schema, supervisor);
+    const validateConstraint = createConstraintValidator(schema.effectiveConstraint, schema, supervisor);
 
     return (value, session, location) => {
         assertArray(value, location);
