@@ -10,6 +10,7 @@ import { TlvBoolean } from "../../tlv/TlvBoolean.js";
 import { TlvUInt8 } from "../../tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvCommandData } from "../types/TlvCommandData.js";
+import { TlvDelayReportData } from "../types/TlvDelayReportData.js";
 
 /** @see {@link MatterSpecification.v161.Core}, section 10.7.9 */
 
@@ -22,6 +23,10 @@ export const TlvInvokeRequest = TlvObject({
 
     /** Cluster command(s) to invoke. */
     invokeRequests: TlvField(2, TlvArray(TlvCommandData)),
+
+    /** Hold off the Report Data that follows this invoke. */
+    delayReportData: TlvOptionalField(3, TlvDelayReportData),
+
     interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),
 });
 

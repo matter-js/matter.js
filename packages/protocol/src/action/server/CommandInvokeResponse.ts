@@ -49,6 +49,9 @@ export class CommandInvokeResponse<
     // a cache between producers that touch the same endpoint and/or cluster
     #currentEndpoint?: EndpointProtocol;
 
+    // Collected only when the request asks for the endpoints it dispatches to
+    #dispatchEndpoints?: Set<EndpointNumber>;
+
     #registeredPaths = new Set<string>();
     #registeredCommandRefs = new Set<number>();
 
@@ -62,9 +65,12 @@ export class CommandInvokeResponse<
         this.#fabricIndex = session.fabric ?? FabricIndex.NO_FABRIC;
     }
 
-    async *process<T extends Invoke>({ invokeRequests }: T): InvokeResult {
+    async *process<T extends Invoke>({ invokeRequests, beforeDispatch }: T): InvokeResult {
         using _invoking = this.join("invoking");
         const multipleInvokes = invokeRequests.length > 1;
+        if (beforeDispatch !== undefined) {
+            this.#dispatchEndpoints = new Set();
+        }
 
         // Register paths
         for (const command of invokeRequests) {
@@ -90,6 +96,10 @@ export class CommandInvokeResponse<
                 }
                 this.#processConcrete(path as InvokeResult.ConcreteCommandPath, commandRef, commandFields);
             }
+        }
+
+        if (this.#dispatchEndpoints !== undefined) {
+            beforeDispatch?.(this.#dispatchEndpoints);
         }
 
         if (this.#invokers) {
@@ -146,16 +156,31 @@ export class CommandInvokeResponse<
             }
         }
 
+        if (this.#dispatchEndpoints !== undefined) {
+            for (const endpoint of this.#wildcardEndpoints(groupEndpoints)) {
+                if (this.#wildcardTargetOf(endpoint, path) !== undefined) {
+                    this.#dispatchEndpoints.add(endpoint.id);
+                }
+            }
+        }
+
         // If we are here, then endpointId must be wildcard aka undefined
         this.#addInvoker(async function* invokeWildcardEndpoints(this: CommandInvokeResponse) {
-            for (const endpoint of this.node) {
-                if (groupEndpoints !== undefined && !groupEndpoints.includes(endpoint.id)) {
-                    // This endpoint is not part of the group, skip it
-                    continue;
-                }
+            for (const endpoint of this.#wildcardEndpoints(groupEndpoints)) {
                 yield* this.#processEndpointForWildcard(endpoint, path, commandRef, commandFields);
             }
         });
+    }
+
+    /**
+     * The endpoints a wildcard path covers: all of them, or those of the group it was sent to.
+     */
+    *#wildcardEndpoints(groupEndpoints: EndpointNumber[] | undefined) {
+        for (const endpoint of this.node) {
+            if (groupEndpoints === undefined || groupEndpoints.includes(endpoint.id)) {
+                yield endpoint;
+            }
+        }
     }
 
     /**
@@ -270,6 +295,8 @@ export class CommandInvokeResponse<
             }
         }
 
+        this.#dispatchEndpoints?.add(endpointId);
+
         // This path contributes an command value
         this.#addInvoker(async function* invokeConcretePath() {
             // Update internal state for target endpoint
@@ -306,8 +333,6 @@ export class CommandInvokeResponse<
         commandRef: number | undefined,
         commandFields: TlvStream | undefined,
     ) {
-        const { clusterId } = path;
-
         if (this.#currentEndpoint !== endpoint) {
             if (this.#chunk) {
                 yield this.#chunk;
@@ -316,47 +341,60 @@ export class CommandInvokeResponse<
             this.#currentEndpoint = endpoint;
         }
 
+        const target = this.#wildcardTargetOf(endpoint, path);
+        if (target === undefined) {
+            return;
+        }
+        const { cluster, command } = target;
+
+        await this.#invokeCommand(
+            command,
+            {
+                ...path,
+                endpointId: endpoint.id,
+            },
+            commandRef,
+            commandFields,
+            cluster.commands[command.id],
+            cluster.skipCommandValidation,
+        );
+    }
+
+    /**
+     * The cluster and command a wildcard {@link path} dispatches to on {@link endpoint}, or undefined if the endpoint
+     * lacks them or the session may not invoke the command there.
+     */
+    #wildcardTargetOf(endpoint: EndpointProtocol, { clusterId, commandId }: CommandPath) {
+        if (clusterId === undefined || commandId === undefined) {
+            return;
+        }
+
         const cluster = endpoint[clusterId];
-        if (cluster !== undefined) {
-            const { commandId } = path;
+        const command = cluster?.type.commands[commandId];
+        if (cluster === undefined || command === undefined) {
+            return;
+        }
 
-            const command = cluster.type.commands[commandId];
-            if (command !== undefined) {
-                if (hasRemoteActor(this.session)) {
-                    const { limits } = command;
-                    if (
-                        this.session.authorityAt(command.limits.writeLevel, cluster.location) !==
-                        AccessControl.Authority.Granted
-                    ) {
-                        return;
-                    }
+        if (hasRemoteActor(this.session)) {
+            const { limits } = command;
+            if (this.session.authorityAt(limits.writeLevel, cluster.location) !== AccessControl.Authority.Granted) {
+                return;
+            }
 
-                    if (limits.largeMessage && !this.session.largeMessage) {
-                        return;
-                    }
+            if (limits.largeMessage && !this.session.largeMessage) {
+                return;
+            }
 
-                    if (limits.fabricScoped && !this.session.fabric) {
-                        return;
-                    }
+            if (limits.fabricScoped && !this.session.fabric) {
+                return;
+            }
 
-                    if (limits.timed && !this.session.timed) {
-                        return;
-                    }
-                }
-
-                await this.#invokeCommand(
-                    command,
-                    {
-                        ...path,
-                        endpointId: endpoint.id,
-                    },
-                    commandRef,
-                    commandFields,
-                    cluster.commands[command.id],
-                    cluster.skipCommandValidation,
-                );
+            if (limits.timed && !this.session.timed) {
+                return;
             }
         }
+
+        return { cluster, command };
     }
 
     /**

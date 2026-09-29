@@ -7,10 +7,13 @@
 import { ClientRequest } from "#action/client/ClientRequest.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import { Diagnostic, Duration, isObject } from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     ClusterType,
     CommandData,
     CommandId,
+    DelayReportData,
+    EndpointNumber,
     InvokeRequest,
     ObjectSchema,
     TlvOfModel,
@@ -42,6 +45,12 @@ export interface Invoke extends InvokeRequest {
      * - `false` — disable batching; execute immediately
      */
     batchDuration?: false | Duration;
+
+    /**
+     * Server only: called after the request's paths are validated and before any command runs, with the endpoints at
+     * least one command of the request dispatches to.
+     */
+    beforeDispatch?: (endpoints: ReadonlySet<EndpointNumber>) => void;
 }
 
 export interface CommandDecodeDetails {
@@ -93,7 +102,12 @@ export function Invoke(
         expectedProcessingTime,
         useExtendedFailSafeMessageResponseTimeout = false,
         skipValidation = false,
+        delayReportData,
     } = options;
+
+    if (delayReportData !== undefined && !Specification.isForwardFeatureEnabled("delay-report-data")) {
+        throw new MalformedRequestError("DelayReportData requires the delay-report-data forward feature");
+    }
     let timedRequest = !!options.timed || !!timeout;
 
     if (!commands?.length) {
@@ -132,6 +146,7 @@ export function Invoke(
         suppressResponse,
         expectedProcessingTime,
         useExtendedFailSafeMessageResponseTimeout,
+        delayReportData,
 
         // Additional meta-data for client side processing
         skipValidation,
@@ -178,6 +193,11 @@ export namespace Invoke {
 
         /** Whether to skip validation of command fields against schema */
         skipValidation?: boolean;
+
+        /**
+         * Ask the server to hold off the next Report Data of the subscriptions on the endpoints the commands target.
+         */
+        delayReportData?: DelayReportData;
     }
 
     export function Command<const C extends Specifier.ClusterLike>(

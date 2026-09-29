@@ -14,12 +14,22 @@ export interface MockForwardFeatures {
      */
     enable(...features: string[]): void;
 
-    /** Whether a running suite enabled {@link feature}. */
+    /**
+     * Enable every forward Matter feature for the whole process, outside any suite, until the returned handle is
+     * disposed.  For a harness whose entire run tests against peers of the next Matter line; unit tests enable single
+     * features with {@link enable} instead.
+     */
+    enableAll(): Disposable;
+
+    /** Whether a running suite or {@link enableAll} enabled {@link feature}. */
     isEnabled(feature: string): boolean;
 }
 
 // One entry per enable() call, so an after-all hook only removes what its own before-all hook added
 const active = new Set<ReadonlySet<string>>();
+
+// One entry per enableAll() handle that is not disposed yet
+const allEnabled = new Set<Disposable>();
 
 export const MockForwardFeatures: MockForwardFeatures = {
     enable(...features) {
@@ -32,7 +42,20 @@ export const MockForwardFeatures: MockForwardFeatures = {
         });
     },
 
+    enableAll() {
+        const handle: Disposable = {
+            [Symbol.dispose]() {
+                allEnabled.delete(handle);
+            },
+        };
+        allEnabled.add(handle);
+        return handle;
+    },
+
     isEnabled(feature) {
+        if (allEnabled.size) {
+            return true;
+        }
         for (const enabled of active) {
             if (enabled.has(feature)) {
                 return true;

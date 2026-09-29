@@ -13,6 +13,7 @@ export * from "./TlvClusterPath.js";
 export * from "./TlvCommandData.js";
 export * from "./TlvCommandPath.js";
 export * from "./TlvDataVersionFilter.js";
+export * from "./TlvDelayReportData.js";
 export * from "./TlvEventData.js";
 export * from "./TlvEventFilter.js";
 export * from "./TlvEventPath.js";
