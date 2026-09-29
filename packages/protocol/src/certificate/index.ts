@@ -11,6 +11,7 @@ export * from "./DeviceAttestationValidator.js";
 export * from "./DeviceCertification.js";
 export * from "./kinds/AttestationCertificates.js";
 export * from "./kinds/Certificate.js";
+export * from "./kinds/CertificateSignature.js";
 export * from "./kinds/CertificationDeclaration.js";
 export * from "./kinds/Icac.js";
 export * from "./kinds/Noc.js";
