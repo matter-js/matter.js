@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterModel, DefinitionError, Matter, ValidateModel } from "@matter/model";
+import {
+    ClusterModel,
+    DatatypeModel,
+    DefinitionError,
+    DeviceTypeModel,
+    FieldModel,
+    Matter,
+    ValidateModel,
+} from "@matter/model";
 import * as behaviors from "../../../src/behaviors/index.js";
 
 /**
@@ -22,10 +30,12 @@ function behaviorSchemas() {
 }
 
 /**
- * A behavior keeps internal state in fields of its schema that the specification does not define.  They are no
- * attribute and hold a JavaScript value rather than a Matter type, so validation reports them as a child a cluster may
- * not have and as a value without a type.  Only those two reports, and only for an element the standard cluster lacks,
- * are expected.
+ * A behavior keeps internal state in fields of its schema that the specification does not define, and derives datatypes
+ * for them by extending a specification datatype.  A field is no attribute and holds a JavaScript value rather than a
+ * Matter type, so validation reports it as a child a cluster may not have and as a value without a type; a derived
+ * datatype takes its structure from the datatype it extends rather than from a type, so validation reports it as a value
+ * without a type.  Only those reports, and only for an element whose name the standard cluster does not use, are
+ * expected.
  */
 function unexpectedErrorsOf(schema: ClusterModel) {
     const standard = Matter.clusters(schema.id);
@@ -35,9 +45,16 @@ function unexpectedErrorsOf(schema: ClusterModel) {
     }
 
     // An element the standard cluster names at all is a specification element, whatever the schema makes of it
+    const fields = new Set<string>();
     const internal = new Set<string>();
     for (const child of cluster.children) {
-        if (!standard.children.some(existing => existing.name === child.name)) {
+        if (standard.children.some(existing => existing.name === child.name)) {
+            continue;
+        }
+        if (child instanceof FieldModel) {
+            fields.add(child.path);
+            internal.add(child.path);
+        } else if (child instanceof DatatypeModel) {
             internal.add(child.path);
         }
     }
@@ -45,7 +62,7 @@ function unexpectedErrorsOf(schema: ClusterModel) {
     return ValidateModel(cluster).errors.filter(
         (error: DefinitionError) =>
             !(error.code === "NO_TYPE" && internal.has(error.source)) &&
-            !(error.code === "UNACCEPTABLE_TYPE" && [...internal].some(path => error.message.startsWith(`${path} `))),
+            !(error.code === "UNACCEPTABLE_TYPE" && [...fields].some(path => error.message.startsWith(`${path} `))),
     );
 }
 
@@ -54,6 +71,13 @@ describe("BehaviorSchemaValidation", () => {
 
     it("finds the schemas the behaviors implement", () => {
         expect(schemas.size).greaterThan(100);
+    });
+
+    it("reports a child a cluster may not have that is no field", () => {
+        const identify = Matter.clusters("Identify")!;
+        const schema = identify.extend({}, new DeviceTypeModel({ name: "Stray", classification: "simple" }));
+
+        expect(unexpectedErrorsOf(schema).map(error => error.code)).contains("UNACCEPTABLE_TYPE");
     });
 
     for (const [schema, name] of schemas) {
