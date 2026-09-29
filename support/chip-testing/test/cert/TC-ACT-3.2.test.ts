@@ -4,16 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import type { CertStepContext, SelectableDeviceFlavor } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import type { CommandFieldValue } from "./tc-support.js";
-import { CommissionedRefs, expectCommandInvoke, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
+import { CommissionedRefs, invokeCommand, recordAll, requireId } from "./tc-support.js";
 
 const ACTIONS = Matter.clusters.require("Actions");
 
-const ACTIONS_ID = requireId(ACTIONS.id, "Actions cluster");
 const ENDPOINT = 1;
 const ACTION_ID = 0x1001;
 
@@ -42,70 +39,27 @@ function fieldId(commandName: string, propertyName: string): number {
     return requireId(field.id, `Actions.${commandName}.${propertyName}`);
 }
 
-/**
- * Records the invoke's outcome as evidence; per the brief, any status the TH returns is tolerated — the
- * real chip-bridge-app only accepts `InstantAction` (returns `Success`); every other command in this TC
- * fails with `UnsupportedCommand` before ever reaching its delegate.
- *
- * `ValidationError` (and its subclasses) is deliberately excluded even though it's also a
- * `StatusResponseError` — it's the client's own TLV encode-time rejection of `request` before anything
- * goes on the wire (e.g. a value out of range for the field's type), not something the TH answered.
- * Tolerating it here would record a passing "response" check for a command that was never sent.
- */
-async function recordInvokeStatus(cx: CertStepContext, invoke: Promise<unknown>): Promise<void> {
-    try {
-        await invoke;
-        cx.recorder.check({ type: "response", verdict: "pass", detail: "status=Success" });
-    } catch (e) {
-        if (e instanceof ValidationError || !(e instanceof StatusResponseError)) {
-            throw e;
-        }
-        cx.recorder.check({
-            type: "response",
-            verdict: "pass",
-            detail: `status=${Status[e.code] ?? e.code} (${e.bareMessage})`,
-        });
-    }
-}
-
 const commissioned = new CommissionedRefs();
 
-/** Invokes `commandName` on the TH's Actions cluster with `fields`, then verifies TH's log captured
- * the matching `CommandPathIB`/`CommandFields`. */
-async function invokeAndCheck(
-    cx: CertStepContext,
-    ref: string,
-    step: number,
-    commandName: string,
-    fields: FieldSpec[],
-): Promise<void> {
-    const th = cx.devices.th;
-    const from = th.log.mark();
-
+/**
+ * Invokes `commandName` on the TH's Actions cluster and checks the TH's log for its `CommandDataIB`. Any status
+ * the TH answers passes: the real chip-bridge-app accepts only `InstantAction` and refuses every other command
+ * in this TC before its delegate sees it.
+ */
+async function invokeAndCheck(cx: CertStepContext, ref: string, commandName: string, fields: FieldSpec[]) {
     const args: Record<string, number> = {};
     for (const { propertyName, value } of fields) {
         args[propertyName] = value;
     }
-
-    const invoke = cx.controllers.dut.node(ref).invoke("Actions", commandName, args, ENDPOINT);
-    await recordInvokeStatus(cx, invoke);
-
-    const commandId = requireId(ACTIONS.commands.require(commandName).id, `Actions.${commandName}`);
-    const fieldValues: CommandFieldValue[] = fields.map(({ propertyName, value }) => ({
-        id: fieldId(commandName, propertyName),
-        value,
-    }));
-    const logCheck = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        ENDPOINT,
-        ACTIONS_ID,
-        commandId,
-        fieldValues,
-        from,
-        LOG_TIMEOUT,
-    );
-    record(cx, logCheck, `CommandDataIB log for step ${step} (${commandName})`);
+    const { checks } = await invokeCommand(cx, ref, {
+        cluster: ACTIONS,
+        endpoint: ENDPOINT,
+        command: commandName,
+        args,
+        fields: fields.map(({ propertyName, value }) => ({ id: fieldId(commandName, propertyName), value })),
+        anyStatus: true,
+    });
+    await recordAll(cx, checks);
 }
 
 const EXPECTED_ACTION_ID_AND_INVOKE_ID =
@@ -128,7 +82,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
             });
             commissioned.set("dut", ref);
 
-            await invokeAndCheck(cx, ref, 1, "instantAction", [
+            await invokeAndCheck(cx, ref, "instantAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(1) },
             ]);
@@ -139,7 +93,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         2,
         "DUT issues an StartAction command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 2, "startAction", [
+            invokeAndCheck(cx, ref, "startAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(2) },
             ]),
@@ -150,7 +104,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         3,
         "DUT issues an StopAction command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 3, "stopAction", [
+            invokeAndCheck(cx, ref, "stopAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(3) },
             ]),
@@ -161,7 +115,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         4,
         "DUT issues an PauseAction command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 4, "pauseAction", [
+            invokeAndCheck(cx, ref, "pauseAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(4) },
             ]),
@@ -172,7 +126,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         5,
         "DUT issues an ResumeAction command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 5, "resumeAction", [
+            invokeAndCheck(cx, ref, "resumeAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(5) },
             ]),
@@ -183,7 +137,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         6,
         "DUT issues an EnableAction command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 6, "enableAction", [
+            invokeAndCheck(cx, ref, "enableAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(6) },
             ]),
@@ -194,7 +148,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         7,
         "DUT issues an DisableAction command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 7, "disableAction", [
+            invokeAndCheck(cx, ref, "disableAction", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(7) },
             ]),
@@ -205,7 +159,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         8,
         "DUT issues an StartActionWithDuration command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 8, "startActionWithDuration", [
+            invokeAndCheck(cx, ref, "startActionWithDuration", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(8) },
                 { propertyName: "duration", value: DURATION },
@@ -217,7 +171,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         9,
         "DUT issues an PauseActionWithDuration command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 9, "pauseActionWithDuration", [
+            invokeAndCheck(cx, ref, "pauseActionWithDuration", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(9) },
                 { propertyName: "duration", value: DURATION },
@@ -229,7 +183,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         10,
         "DUT issues an EnableActionWithDuration command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 10, "enableActionWithDuration", [
+            invokeAndCheck(cx, ref, "enableActionWithDuration", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(10) },
                 { propertyName: "duration", value: DURATION },
@@ -241,7 +195,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         11,
         "DUT issues an DisableActionWithDuration command to TH",
         commissioned.withRef("dut", (cx, ref) =>
-            invokeAndCheck(cx, ref, 11, "disableActionWithDuration", [
+            invokeAndCheck(cx, ref, "disableActionWithDuration", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(11) },
                 { propertyName: "duration", value: DURATION },
@@ -253,7 +207,7 @@ certTest("TC-ACT-3.2", { plan: "actions.adoc", pics: ["ACT.C"], app: "bridge" })
         12,
         "DUT issues an InstantActionWithTransition command to TH",
         commissioned.withRef("dut", async (cx, ref) => {
-            await invokeAndCheck(cx, ref, 12, "instantActionWithTransition", [
+            await invokeAndCheck(cx, ref, "instantActionWithTransition", [
                 { propertyName: "actionId", value: ACTION_ID },
                 { propertyName: "invokeId", value: invokeIdFor(12) },
                 { propertyName: "transitionTime", value: TRANSITION_TIME },

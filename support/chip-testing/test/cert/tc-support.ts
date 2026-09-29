@@ -15,6 +15,7 @@ import {
     Seconds,
     Time,
 } from "@matter/main";
+import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import type { ClusterModel } from "@matter/model";
 import { Matter } from "@matter/model";
 import type {
@@ -74,12 +75,12 @@ export interface RecordedCheck {
 
 /**
  * Runs `action` as a response check that does not throw for the action: a pass with `describe`'s text and the
- * action's `value`, or a fail with the error the action threw.
+ * action's `value`, or a fail describing the `error` the action threw, which is returned with it.
  */
 export async function attempt<T>(
     action: () => Promise<T>,
     describe: (value: T) => string,
-): Promise<{ ok: true; value: T; check: CheckRecord } | { ok: false; check: CheckRecord }> {
+): Promise<{ ok: true; value: T; check: CheckRecord } | { ok: false; error: unknown; check: CheckRecord }> {
     let value: T;
     try {
         value = await action();
@@ -88,7 +89,7 @@ export async function attempt<T>(
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
-        return { ok: false, check: { type: "response", verdict: "fail", detail: describeError(e) } };
+        return { ok: false, error: e, check: { type: "response", verdict: "fail", detail: describeError(e) } };
     }
     return { ok: true, value, check: { type: "response", verdict: "pass", detail: describe(value) } };
 }
@@ -1188,6 +1189,14 @@ export interface CommandInvocation {
     describe?: (response: unknown) => string;
 
     options?: TimedInteractionOptions;
+
+    /**
+     * Passes the response check when the invoke fails with a status, for a plan that checks only what the DUT sent;
+     * the log check then carries the step. A {@link ValidationError}, the client's own encode-time rejection, and
+     * every error without a status still fail it, and so does a resolved response whose Status field is not
+     * success. A refused command is not {@link InvokedCommand.accepted}.
+     */
+    anyStatus?: boolean;
 }
 
 /** What {@link invokeCommand} found. */
@@ -1214,16 +1223,27 @@ export interface InvokedCommand {
  * the command with its `fields`. A step adds the checks it derives from the answer and records the
  * whole list with {@link recordAll}.
  *
- * The response status is a claim of its own because a command the cluster refused still resolves; an
- * absent status fails it, since the log check alone says only that the request arrived. The log check
- * runs whether or not the invoke resolved — it is what shows whether the TH received the command.
+ * The response status is a claim of its own because a command whose response carries a Status field
+ * resolves even when the cluster refused it; an absent status fails it, since the log check alone says
+ * only that the request arrived. The log check runs whether or not the invoke resolved — it is what
+ * shows whether the TH received the command. See {@link CommandInvocation.anyStatus} for a plan that
+ * tolerates a refusal.
  */
 export async function invokeCommand(
     cx: CertStepContext,
     ref: CertNodeRef,
     invocation: CommandInvocation,
 ): Promise<InvokedCommand> {
-    const { cluster, endpoint, command, args, fields, describe = describeInvokeResponse, options } = invocation;
+    const {
+        cluster,
+        endpoint,
+        command,
+        args,
+        fields,
+        describe = describeInvokeResponse,
+        options,
+        anyStatus = false,
+    } = invocation;
     const name = `${cluster.name}.${command}`;
     const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
     const commandId = requireId(cluster.commands.require(command).id, name);
@@ -1234,9 +1254,19 @@ export async function invokeCommand(
         () => cx.controllers.dut.node(ref).invoke(cluster.name, command, args, endpoint, options),
         describe,
     );
-    const responseCheck: CheckRecord = response.ok
-        ? response.check
-        : { ...response.check, detail: `${command}: ${response.check.detail}` };
+    let responseCheck: CheckRecord;
+    if (response.ok) {
+        responseCheck = response.check;
+    } else if (anyStatus && isStatusAnswer(response.error)) {
+        const { code, bareMessage } = response.error;
+        responseCheck = {
+            type: "response",
+            verdict: "pass",
+            detail: `${command} status=${Status[code] ?? code} (${bareMessage})`,
+        };
+    } else {
+        responseCheck = { ...response.check, detail: `${command}: ${response.check.detail}` };
+    }
     const checks: RecordedCheck[] = [{ what: `${name} response`, check: () => responseCheck }];
 
     let accepted = response.ok;
@@ -1267,6 +1297,10 @@ export async function invokeCommand(
     checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
 
     return { response: response.ok ? { ok: true, value: response.value } : { ok: false }, accepted, checks, from };
+}
+
+function isStatusAnswer(error: unknown): error is StatusResponseError {
+    return error instanceof StatusResponseError && !(error instanceof ValidationError);
 }
 
 function describeInvokeResponse(response: unknown): string {
