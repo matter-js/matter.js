@@ -510,6 +510,20 @@ describe("Constraint", () => {
 
         it("computes nothing that is no number", () => {
             expect(Constraint.constantOf(new Constraint("max 1 / 0").max)).equal(undefined);
+            expect(Constraint.constantOf(new Constraint("max 0^-1").max)).equal(undefined);
+        });
+
+        it("compares a bigint with a number in a function", () => {
+            expect(Constraint.constantOf(new Constraint("max maxOf(2^62, 2)").max)).equal(4611686018427387904n);
+            expect(Constraint.constantOf(new Constraint("max minOf(2^62, 2)").max)).equal(2);
+        });
+
+        it("multiplies a bigint", () => {
+            expect(Constraint.constantOf(new Constraint("max 2^62 * 2").max)).equal(9223372036854775808n);
+        });
+
+        it("computes a fractional power beyond the safe integers as a number", () => {
+            expect(typeof Constraint.constantOf(new Constraint("max 1.5^100").max)).equal("number");
         });
 
         it("leaves a number as stated", () => {

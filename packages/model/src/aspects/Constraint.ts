@@ -13,11 +13,25 @@ import { Aspect } from "./Aspect.js";
 
 namespace Functions {
     export function minOf(args: unknown[]) {
-        return Math.min(...args.filter(arg => typeof arg === "number"));
+        return extreme(args, (candidate, current) => candidate < current);
     }
 
     export function maxOf(args: unknown[]) {
-        return Math.max(...args.filter(arg => typeof arg === "number"));
+        return extreme(args, (candidate, current) => candidate > current);
+    }
+
+    /** The argument a comparison prefers, comparing numbers and bigints alike; undefined without a numeric argument */
+    function extreme(args: unknown[], prefer: (candidate: number | bigint, current: number | bigint) => boolean) {
+        let result: number | bigint | undefined;
+        for (const arg of args) {
+            if (typeof arg !== "number" && typeof arg !== "bigint") {
+                continue;
+            }
+            if (result === undefined || prefer(arg, result)) {
+                result = arg;
+            }
+        }
+        return result;
     }
 }
 
@@ -998,6 +1012,14 @@ function evaluate(
             case "*": {
                 const lhs = evaluate(value.lhs, nameResolver);
                 const rhs = evaluate(value.rhs, nameResolver);
+                if (typeof lhs === "bigint" || typeof rhs === "bigint") {
+                    const l = typeof lhs === "number" && Number.isInteger(lhs) ? BigInt(lhs) : lhs;
+                    const r = typeof rhs === "number" && Number.isInteger(rhs) ? BigInt(rhs) : rhs;
+                    if (typeof l === "bigint" && typeof r === "bigint") {
+                        return l * r;
+                    }
+                    return undefined;
+                }
                 if (typeof lhs === "number" && typeof rhs === "number") {
                     return lhs * rhs;
                 }
@@ -1023,8 +1045,14 @@ function evaluate(
                     const absLhs = Math.abs(lhs);
                     const result = absLhs ** rhs;
 
-                    // Use BigInt when a result exceeds the JS safe integer range for precision
-                    if (result > Number.MAX_SAFE_INTEGER) {
+                    // Use BigInt when a result exceeds the JS safe integer range for precision; only a whole base and
+                    // a non-negative whole exponent have an exact BigInt power
+                    if (
+                        result > Number.MAX_SAFE_INTEGER &&
+                        Number.isInteger(absLhs) &&
+                        Number.isInteger(rhs) &&
+                        rhs >= 0
+                    ) {
                         const bigResult = BigInt(absLhs) ** BigInt(rhs);
                         return lhs < 0 ? -bigResult : bigResult;
                     }
