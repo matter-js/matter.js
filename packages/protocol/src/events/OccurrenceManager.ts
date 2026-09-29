@@ -103,9 +103,15 @@ export class OccurrenceManager {
         return this.#added;
     }
 
-    async clear() {
+    /**
+     * Discard every occurrence.
+     *
+     * Pass {@link EventStore.ClearOptions.keepNumbering} unless the node's life ends here, as matter.js treats a
+     * factory reset.
+     */
+    async clear(options?: EventStore.ClearOptions) {
         await this.construction;
-        await this.#store.clear();
+        await this.#store.clear(options);
         this.#occurrences.length = 0;
     }
 

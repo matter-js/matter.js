@@ -19,10 +19,16 @@ export class EventsBehavior extends Behavior {
     declare readonly state: EventsBehavior.State;
 
     override async initialize() {
+        // A reset initializes again in the same environment.  Replacing the manager would strand everything that holds
+        // it, such as the protocol's event reads and subscriptions; a factory reset clears it in resetStorage()
+        if (this.env.owns(OccurrenceManager)) {
+            return;
+        }
+
         const storage = this.env.get(StorageManager).createContext("events");
         let store;
         if (this.state.nonvolatile) {
-            store = new NonvolatileEventStore(storage);
+            store = new NonvolatileEventStore(storage, this.state.numberBlockSize);
         } else {
             store = new VolatileEventStore(storage, this.state.numberBlockSize);
         }
