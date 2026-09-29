@@ -14,9 +14,9 @@ import { Scope } from "./Scope.js";
 /**
  * Obtain a native JS default value for a ValueModel.
  *
- * Validation is not required: a default that cannot be converted to the correct type yields undefined, as does the "no
- * value" marker an override uses to remove a default (see {@link FieldValue.stated}).  It throws errors for a few
- * structural issues.
+ * Validation is not required: a default that cannot be converted is treated as absent, as is the "no value" marker
+ * an override uses to remove a default (see {@link FieldValue.stated}). The usual synthesized default may then be
+ * returned for arrays, objects, and bitmaps. It throws errors for a few structural issues.
  *
  * @param scope the scope in which the model is referenced
  * @param model the model from which the default value is extracted
