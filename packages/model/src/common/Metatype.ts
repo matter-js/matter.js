@@ -56,7 +56,7 @@ export namespace Metatype {
     /**
      * What a constraint on a value of a metatype states.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.19.2
+     * @see {@link MatterSpecification.v161.Core} § 7.18.3
      */
     export enum BoundKind {
         /** A range or exact value the number the value encodes to must fall in */
@@ -80,7 +80,7 @@ export namespace Metatype {
      * a bitmap and a date both take a bound the specification states, such as the "max 15" of a window covering's
      * mode, while neither is held as a number a bound compares against.  {@link holdsNumber} answers that.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.19.2
+     * @see {@link MatterSpecification.v161.Core} § 7.18.3
      */
     export function boundKind(type: Metatype | undefined) {
         switch (type) {

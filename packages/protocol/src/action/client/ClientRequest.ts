@@ -76,7 +76,7 @@ export interface ClientRequest {
      * bound to a fixed session — `DedicatedChannelExchangeProvider`, which commissioning and the
      * deprecated `InteractionClient` use — sends on the session it holds, whatever its transport.
      *
-     * @see {@link MatterSpecification.v16.Core} § 4.15.1
+     * @see {@link MatterSpecification.v161.Core} § 4.15
      */
     largeMessage?: boolean;
 }

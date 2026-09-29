@@ -236,7 +236,7 @@ export namespace Constraint {
      * may denote a value of the constrained type as well as an element of the record.  The operand of "in" names the
      * element holding the values allowed, so a value of the constrained type never answers it.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.18.3
+     * @see {@link MatterSpecification.v161.Core} § 7.18.3
      */
     export type NamePosition = "bound" | "set";
 
@@ -255,7 +255,7 @@ export namespace Constraint {
      * and no scope resolves it.  Each operand of an access is judged by this in turn, so a bare name answering it is
      * what lets a named operand be told from a computed one.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     * @see {@link MatterSpecification.v161.Core} § 7.18.3.4
      */
     export function accessPathOf(expression: Expression): string[] | undefined {
         if (expression === null || typeof expression !== "object" || Array.isArray(expression)) {
@@ -290,7 +290,7 @@ export namespace Constraint {
      * The entry constraint of a list bounds the entries and is judged in the entry's own scope, so an access it holds
      * is not among these.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     * @see {@link MatterSpecification.v161.Core} § 7.18.3.4
      */
     export function hasUnevaluableAccess(constraint: Ast): boolean {
         function inExpression(expression: Expression | undefined): boolean {
@@ -343,7 +343,7 @@ export namespace Constraint {
      * The entry constraint of a list bounds the entries, so the names it states belong to the type of the entry.  They
      * are not among these; {@link Ast.entry} states them and resolves in the entry's own scope.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+     * @see {@link MatterSpecification.v161.Core} § 7.18.3.4
      */
     export function referencesOf(constraint: Ast): Reference[] {
         const references = new Array<Reference>();

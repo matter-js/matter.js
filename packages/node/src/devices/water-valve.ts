@@ -50,7 +50,7 @@ import { Identity } from "@matter/general";
  * request during this update/restart, given the chance a valve can unintentionally be left in the open state, for
  * longer periods of time.
  *
- * @see {@link MatterSpecification.v16.Device} § 5.6
+ * @see {@link MatterSpecification.v161.Device} § 5.6
  */
 export interface WaterValveDevice extends Identity<typeof WaterValveDeviceDefinition> {}
 

@@ -84,7 +84,7 @@ import { Identity } from "@matter/general";
  *   than disambiguation) since, for this case, the bridge knows the lighting direction of both elements of the compound
  *   device.
  *
- * @see {@link MatterSpecification.v16.Device} § 11.2
+ * @see {@link MatterSpecification.v161.Device} § 11.2
  */
 export interface AggregatorEndpoint extends Identity<typeof AggregatorEndpointDefinition> {}
 

@@ -8,7 +8,7 @@
  * One departure of an endpoint from a device type requirement that applies to it. It names no endpoint: each
  * result that holds violations is for one endpoint.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2
+ * @see {@link MatterSpecification.v161.Core} § 9.2
  */
 export interface DeviceTypeViolation {
     /**

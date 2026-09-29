@@ -97,7 +97,7 @@ const VIDEO_STREAM = {
  * every case here does its work. A case that needs a connection established needs a real WebRTC stack
  * instead.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.5.6.3
+ * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.3
  */
 const OFFER_SDP = [
     "v=0",
@@ -738,7 +738,7 @@ export function expectEstablished(cx: CertStepWiring, session: CameraSession, es
  * `removeSession` when it tears a stream down locally. A controller that skipped this would keep
  * reporting a session it has ended in `CurrentSessions`.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.5.6.7
+ * @see {@link MatterSpecification.v161.Cluster} § 11.5.6.7
  */
 export async function endSession(session: CameraSession, id: number, reason: number): Promise<void> {
     await settled(

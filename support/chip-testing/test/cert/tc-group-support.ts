@@ -27,7 +27,7 @@ import {
  * it and add the group. TC-SC-6.1 then reads that state back over unicast; TC-SC-5.3 sends a
  * groupcast through it.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.2
+ * @see {@link MatterSpecification.v161.Core} § 11.2
  */
 
 export const GROUP_KEY_MANAGEMENT = Matter.clusters.require("GroupKeyManagement");
@@ -318,7 +318,7 @@ export function addGroupStep(commissioned: CommissionedRefs) {
  * The multicast address a fabric uses for a group: `FF35:0040:FD<fabric id>00:<group id>`, sixteen
  * bytes with the fabric's own id in the middle.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.15.3
+ * @see {@link MatterSpecification.v161.Core} § 2.5.6.2
  */
 export function groupMulticastAddress(fabricId: bigint, groupId: number): Uint8Array {
     const bytes = new Uint8Array(16);

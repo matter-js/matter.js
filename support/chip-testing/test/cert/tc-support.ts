@@ -1175,7 +1175,7 @@ export async function expectCommandInvoke(
     };
 }
 
-/** The port every group message goes to. @see {@link MatterSpecification.v16.Core} § 4.16.2 */
+/** The port every group message goes to. @see {@link MatterSpecification.v161.Core} § 4.16.2 */
 export const GROUP_MESSAGE_PORT = 5540;
 
 /** chip's `0x%04X` rendering of a group id. */

@@ -54,7 +54,7 @@ import { Identity } from "@matter/general";
  * following are the recommended best effort values for per cluster attributes when responding to a new subscription
  * request or a read request. Attributes not listed have no change in their defined or expected values.
  *
- * @see {@link MatterSpecification.v16.Device} § 13.1
+ * @see {@link MatterSpecification.v161.Device} § 13.1
  */
 export interface LaundryWasherDevice extends Identity<typeof LaundryWasherDeviceDefinition> {}
 

@@ -28,7 +28,7 @@ export { InvalidGroupOperationError };
  * response even where the command has one, so its typed result is always `undefined`. Reads, subscriptions and timed
  * requests are refused.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.16
+ * @see {@link MatterSpecification.v161.Core} § 4.16
  */
 export class ClientGroupInteraction extends ClientNodeInteraction {
     /** Groups do not support reading or subscribing to attributes */

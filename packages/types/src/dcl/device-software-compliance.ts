@@ -18,7 +18,7 @@ export import SoftwareVersionCertificationStatusEnum = SoftwareVersionCertificat
  *
  * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.23.9
+ * @see {@link MatterSpecification.v161.Core} § 11.23.9
  */
 export interface ComplianceHistoryItemDclSchema {
     /**
@@ -53,7 +53,7 @@ export interface ComplianceHistoryItemDclSchema {
  *
  * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.23.10
+ * @see {@link MatterSpecification.v161.Core} § 11.23.10
  * DCL endpoint:
  *   * /dcl/compliance/compliance-info
  *   * /dcl/compliance/compliance-info/{vid}/{pid}/{softwareVersion}/{certificationType}

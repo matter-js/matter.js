@@ -41,7 +41,7 @@ import { Identity } from "@matter/general";
  * light effects that require dimming of the light output, and such is not possible on this device type, the specified
  * light effects may be replaced by pure on/off light effects.
  *
- * @see {@link MatterSpecification.v16.Device} § 4.1
+ * @see {@link MatterSpecification.v161.Device} § 4.1
  */
 export interface OnOffLightDevice extends Identity<typeof OnOffLightDeviceDefinition> {}
 
