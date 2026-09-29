@@ -54,7 +54,7 @@ function unexpectedErrorsOf(schema: ClusterModel) {
         if (child instanceof FieldModel) {
             fields.add(child.path);
             internal.add(child.path);
-        } else if (child instanceof DatatypeModel) {
+        } else if (child instanceof DatatypeModel && child.operationalBase !== undefined) {
             internal.add(child.path);
         }
     }
@@ -71,6 +71,13 @@ describe("BehaviorSchemaValidation", () => {
 
     it("finds the schemas the behaviors implement", () => {
         expect(schemas.size).greaterThan(100);
+    });
+
+    it("reports a datatype the schema adds without a type", () => {
+        const identify = Matter.clusters("Identify")!;
+        const schema = identify.extend({}, new DatatypeModel({ name: "StrayStruct" }));
+
+        expect(unexpectedErrorsOf(schema).map(error => error.code)).contains("NO_TYPE");
     });
 
     it("reports a child a cluster may not have that is no field", () => {
