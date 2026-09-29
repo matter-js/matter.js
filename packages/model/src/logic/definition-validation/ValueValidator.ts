@@ -359,7 +359,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
      * A name the constrained type's own values answer resolves against those before the surrounding scope, which only
      * a single name in a bound may do.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.18.3
+     * @see {@link MatterSpecification.v161.Core} § 7.18.3
      */
     #validateConstraintReference({ path, position }: Constraint.Reference, model: ValueModel) {
         if (position === "bound" && path.length === 1) {
@@ -454,7 +454,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
     #validateAspect(name: string) {
         const aspect = (this.model as any)[name] as Aspect;
         if (aspect?.errors) {
-            aspect.errors.forEach((e: DefinitionError) => this.model.error(e.code, `${e.source}: ${e.message}`));
+            aspect.errors.forEach((e: DefinitionError) => this.error(e.code, `${e.source}: ${e.message}`));
         }
     }
 

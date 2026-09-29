@@ -390,20 +390,20 @@ Resource.add({
                         "  1. If this identifier is included in the DayEntryIDs associated with a DayPatternStruct, then the " +
                         "identifier shall be unique to the combination of:" +
                         "\n" +
-                        "  1. the StartTime" +
+                        "    1. the StartTime" +
                         "\n" +
-                        "  2. the Duration, if indicated" +
+                        "    2. the Duration, if indicated" +
                         "\n" +
-                        "  3. the DaysOfWeek field in the containing DayPatternStruct" +
+                        "    3. the DaysOfWeek field in the containing DayPatternStruct" +
                         "\n" +
                         "  2. Otherwise, if this identifier is included in the DayEntryIDs associated with a DayStruct, then " +
                         "the identifier shall be unique to the combination of:" +
                         "\n" +
-                        "  1. the StartTime" +
+                        "    1. the StartTime" +
                         "\n" +
-                        "  2. the Duration, if indicated" +
+                        "    2. the Duration, if indicated" +
                         "\n" +
-                        "  3. the Date field in the containing DayStruct" +
+                        "    3. the Date field in the containing DayStruct" +
                         "\n" +
                         "Once an identifier has been used for a given combination above, it shall never be used for any other " +
                         "combination of these values."

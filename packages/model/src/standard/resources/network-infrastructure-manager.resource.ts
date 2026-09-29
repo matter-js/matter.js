@@ -75,9 +75,9 @@ Resource.add({
         "  - Extended Sleep Time with a sleep time support up to at least 60 minutes, which includes the " +
         "following IEEE 802.11 features:" +
         "\n" +
-        "  - Basic Service Set (BSS) Max Idle Period" +
+        "    - Basic Service Set (BSS) Max Idle Period" +
         "\n" +
-        "  - dot11BSSMaxIdlePeriodIndicationByNonAPSTA" +
+        "    - dot11BSSMaxIdlePeriodIndicationByNonAPSTA" +
         "\n" +
         "  - IPv6 Proxy Neighbor Discovery Protocol (NDP) including IPv6 duplicate address detection" +
         "\n" +

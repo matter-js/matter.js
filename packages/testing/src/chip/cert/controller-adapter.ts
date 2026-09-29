@@ -121,6 +121,18 @@ export interface ReadEventOptions {
     minEventNumber?: bigint;
 }
 
+/**
+ * Options for {@link CertNodeApi.observeEvents}.
+ *
+ * Neither an event-number threshold nor a fabric filter, unlike {@link ReadEventOptions}: both would
+ * describe the events this call answers with rather than the ones it goes on to report, because the
+ * updates are the sustained subscription's and it sets its own filters.
+ */
+export interface ObserveEventOptions {
+    /** Invoked for each event the node reports after the ones this call answers with. */
+    onUpdate?: (event: EventReadEntry) => void;
+}
+
 export interface SubscribeEventOptions extends ReadEventOptions {
     minIntervalFloorSeconds: number;
     maxIntervalCeilingSeconds: number;
@@ -134,7 +146,7 @@ export interface SubscribeEventOptions extends ReadEventOptions {
      * Off by default because it is visible on the wire, and a step asserting the subscribe request it
      * sent describes the request it asked for.
      *
-     * @see {@link MatterSpecification.v16.Core} § 8.5
+     * @see {@link MatterSpecification.v161.Core} § 8.5
      */
     urgent?: boolean;
 }
@@ -275,7 +287,7 @@ export interface ReadAttributeOptions {
 /**
  * The transfer an initiator proposed in the `*Init` message a responder answered.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.22.5.1
+ * @see {@link MatterSpecification.v161.Core} § 11.22.5.1
  */
 export interface BdxTransferProposal {
     /** Protocol version the initiator proposed, from the Transfer Control field's low nibble. */
@@ -311,7 +323,7 @@ export interface BdxTransferProposal {
  * Read back from the responder's own session rather than decoded from the wire, so a case whose DUT
  * *is* the responder states what the DUT sent rather than what the peer reports having received.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.22.5.2, § 11.22.5.3
+ * @see {@link MatterSpecification.v161.Core} § 11.22.5.2, § 11.22.5.3
  */
 export interface BdxTransferAccept {
     /** Protocol version the responder chose, which may not be newer than the proposed one. */
@@ -337,7 +349,7 @@ export interface BdxTransferAccept {
 
 /**
  * The `QueryImage` a requestor sent this provider, as the provider received it (Matter Core
- * § 11.20.6.5).
+ * § 11.20.6.5.1).
  *
  * `protocolsSupported` and the optional fields are reported as the requestor set them, because a case
  * asserting on the DUT's answer has to be able to say what the answer was to.
@@ -355,7 +367,7 @@ export interface OtaQueryImageRequestRecord {
     metadataForProvider?: string;
 }
 
-/** The `QueryImageResponse` this provider answered with (Matter Core § 11.20.6.6). */
+/** The `QueryImageResponse` this provider answered with (Matter Core § 11.20.6.5.2). */
 export interface OtaQueryImageResponseRecord {
     /** `QueryStatus`, as the cluster enumerates it: 0 UpdateAvailable, 1 Busy, 2 NotAvailable, 3 DownloadProtocolNotSupported. */
     status: number;
@@ -386,7 +398,7 @@ export interface OtaQueryImageExchange {
     receivedAtMs: number;
 }
 
-/** One `ApplyUpdateRequest` a requestor sent this provider, with the answer it got (§ 11.20.6.9–10). */
+/** One `ApplyUpdateRequest` a requestor sent this provider, with the answer it got (§ 11.20.6.5.3–4). */
 export interface OtaApplyUpdateExchange {
     request: {
         /** `UpdateToken` as hex, which the plan compares with the one the `QueryImageResponse` carried. */
@@ -398,13 +410,31 @@ export interface OtaApplyUpdateExchange {
         action: number;
         delayedActionTime: number;
     };
+
+    /**
+     * When the provider received the command, in milliseconds on the controller's monotonic clock, as
+     * {@link OtaQueryImageExchange.receivedAtMs}.
+     *
+     * How far apart a requestor re-sent the request is what § 11.20.3.6 bounds after an
+     * `AwaitNextAction`, and the provider is the only side that can time it.
+     */
+    receivedAtMs: number;
 }
 
-/** One `NotifyUpdateApplied` a requestor sent this provider (§ 11.20.6.11). */
+/** One `NotifyUpdateApplied` a requestor sent this provider (§ 11.20.6.5.5). */
 export interface OtaNotifyUpdateAppliedRecord {
     /** `UpdateToken` as hex. */
     updateToken: string;
     softwareVersion: number;
+
+    /**
+     * When the provider received the command, in milliseconds on the controller's monotonic clock, as
+     * {@link OtaQueryImageExchange.receivedAtMs}.
+     *
+     * Whether a requestor applied before or after some other command of the same update is what a case
+     * about a deferral asks, and the order they arrive in is the only record of it.
+     */
+    receivedAtMs: number;
 }
 
 /**
@@ -466,6 +496,15 @@ export interface OtaBdxTransfer {
     applyAcknowledged: boolean;
 
     /**
+     * How long the record was kept open after the OTA exchange settled, in milliseconds: at least what
+     * {@link ServeOtaUpdateOptions.observeAfterMs} asked for, and zero where it was absent.
+     *
+     * A claim that the node sent nothing holds only for the window this covers, so a step making one
+     * records this rather than trusting that any time passed at all.
+     */
+    observedMs: number;
+
+    /**
      * The OTA commands the controller's own provider answered while serving this image.
      *
      * A copy taken when this resolved, covering this served update alone: the record is opened afresh
@@ -478,14 +517,22 @@ export interface OtaBdxTransfer {
 /**
  * An answer the controller's OTA provider gives in place of the one it would compute.
  *
- * A plan step may be about a status the provider reaches only in a state the harness cannot arrange —
- * `Busy` while consent is outstanding, an `ApplyUpdateResponse` deferring the apply. The provider is
- * the DUT here, and a vendor's provider is likewise free to answer these; what the case proves is that
- * the cluster server states them the way the specification requires, and that the requestor acts on
- * them. An absent field leaves the provider's own answer standing.
+ * A plan step may be about an answer the provider gives only in a state the harness cannot arrange —
+ * `Busy` while consent is outstanding, an `ApplyUpdateResponse` deferring the apply, an offer a
+ * requestor must refuse. Where the controller is the DUT, the case proves that the cluster server
+ * states these the way the specification requires; where the controller is the TH, that the requestor
+ * acts on them. An absent field leaves the provider's own answer standing, except as {@link status}
+ * describes for a scripted `UpdateAvailable`.
  */
 export interface OtaScriptedQueryAnswer {
-    /** `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.6). */
+    /**
+     * `QueryStatus` to answer with, in place of the provider's own (§ 11.20.6.5.2).
+     *
+     * A scripted `UpdateAvailable` (0) offers an image the provider does not hold, so a node that starts
+     * the transfer is refused. Its mandatory fields are filled for a conformant offer unless
+     * {@link softwareVersion} or {@link imageUri} state otherwise, which is how a case offers an update
+     * the node must turn down.
+     */
     status?: number;
 
     /** `DelayedActionTime` in seconds, which a `Busy` answer carries. */
@@ -493,22 +540,39 @@ export interface OtaScriptedQueryAnswer {
 
     /** `UserConsentNeeded` to set on the answer the provider computed. */
     userConsentNeeded?: boolean;
+
+    /** `SoftwareVersion` of a scripted `UpdateAvailable`; absent, one newer than the node reported. */
+    softwareVersion?: number;
+
+    /** `ImageURI` of a scripted `UpdateAvailable`; absent, a BDX URI naming the provider. */
+    imageUri?: string;
 }
 
 /**
- * An `ApplyUpdateResponse` the provider is to give (§ 11.20.6.10).
+ * An `ApplyUpdateResponse` the provider is to give (§ 11.20.6.5.4).
  *
- * Two actions are meaningful. `AwaitNextAction` (1) the provider has no path of its own to, so it is
- * stated directly and its side effects are suppressed — the requestor's next attempt needs the image
- * it already downloaded. `Discontinue` (2) it does have a path to, so the controller withdraws the
- * update's consent and lets the provider refuse for itself, which keeps the state it is left in
- * agreeing with the answer the requestor received. Anything else leaves the provider's own answer.
+ * Each action reaches the requestor a different way, because what the provider must be left believing
+ * differs. `AwaitNextAction` (1) the provider has no path of its own to, so it is stated directly and
+ * its side effects are suppressed — the requestor's next attempt needs the image it already
+ * downloaded. `Discontinue` (2) it does have a path to, so the controller withdraws the update's
+ * consent and lets the provider refuse for itself, which keeps the state it is left in agreeing with
+ * the answer the requestor received. `Proceed` (0) is the provider's own successful path, so it runs
+ * and only {@link delayedActionTime} is laid over what it answered: a scripted `Proceed` that
+ * bypassed it would allow an apply the provider does not know it allowed. Anything else leaves the
+ * provider's own answer.
  */
 export interface OtaScriptedApplyAnswer {
-    /** `Action`: 1 AwaitNextAction, 2 Discontinue. */
+    /** `Action`: 0 Proceed, 1 AwaitNextAction, 2 Discontinue. */
     action?: number;
 
-    /** `DelayedActionTime` in seconds, which only a stated `AwaitNextAction` carries. */
+    /**
+     * `DelayedActionTime` in seconds.
+     *
+     * A stated `AwaitNextAction` carries it as written. With `Proceed` it replaces the zero the
+     * provider answers, which is how a case asks the requestor to defer an apply it has allowed; the
+     * provider still refuses an update it holds no consent for, and this is not laid over that
+     * refusal.
+     */
     delayedActionTime?: number;
 }
 
@@ -628,6 +692,29 @@ export interface ServeOtaUpdateOptions {
      * asked for plus room for the exchange that follows.
      */
     applyTimeoutMs?: number;
+
+    /**
+     * How long to keep recording after the OTA exchange settles, in milliseconds, for a case asserting
+     * what the node did *not* send in that window.
+     *
+     * The waits above end on what the *provider* decided — it allowed an apply, or it refused one and
+     * gave up on the update — which a node it refused has not yet had time to react to. A case reading
+     * the record at that point states what the node had not done yet rather than what it did not do, so
+     * a case whose claim is a negative names the window here and checks
+     * {@link OtaBdxTransfer.observedMs} against it.
+     */
+    observeAfterMs?: number;
+
+    /**
+     * How long to wait, once the apply was allowed, for the node's `NotifyUpdateApplied`, in
+     * milliseconds.
+     *
+     * A node sends it once it runs the new version, so the wait covers the node restarting and
+     * connecting back to the provider. Absent, the update ends at the apply. A node that never sends it
+     * leaves {@link OtaProviderExchanges.notifyUpdateApplied} empty rather than rejecting, so a case can
+     * record that as its own failure.
+     */
+    notifyAppliedTimeoutMs?: number;
 }
 
 /**
@@ -701,8 +788,8 @@ export interface CertIcdRegistration {
 /**
  * The controller as the ICD Check-In client of one node.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.22
- * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16
+ * @see {@link MatterSpecification.v161.Core} § 4.22
+ * @see {@link MatterSpecification.v161.Core} § 9.15.2, § 9.16
  */
 export interface CertIcdClientApi {
     /**
@@ -847,6 +934,29 @@ export interface CertNodeApi {
      * Rejects on a concrete path's status for the same reason {@link subscribe} does.
      */
     subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
+
+    /**
+     * Every event `paths` selects that the node reports, through the subscription the controller already
+     * sustains rather than one of this call's own.
+     *
+     * A subscription of its own is a second session, and a controller drops every session to a peer the
+     * moment that peer reports `ShutDown` — so what the peer is still flushing arrives on a session its
+     * controller has forgotten and is discarded. Observing through the sustained subscription is what
+     * lets a case still see what a peer reports on its way down, which is as far as this goes: an
+     * observation does not span the restart that follows, because the subscription resubscribes with a
+     * minimum event number the peer's own renumbering falls below.
+     *
+     * A case whose subject is the subscribe request itself uses {@link subscribeEvents} instead.
+     *
+     * Resolves with the events the node already holds, as {@link readEvents} answers them, and reports
+     * later ones to {@link ObserveEventOptions.onUpdate}.
+     *
+     * The two sides do not see quite the same thing: the events this answers with come off the wire,
+     * while the later ones reach the controller's own client first, which drops an event it cannot name
+     * in its model or whose cluster the endpoint does not carry. A path the model does not describe can
+     * therefore appear in the answer and never again — {@link subscribeEvents} reports such a path.
+     */
+    observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]>;
 
     /**
      * The endpoints the controller holds for this node, from its own state rather than from a read.
@@ -1045,7 +1155,7 @@ export interface ControllerAdapter {
  * unacknowledged and carries no response, so there is nothing to read back and no status to await.
  * What a step proves about one is proved from the sender's log and from the receiver's later state.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.15.3
+ * @see {@link MatterSpecification.v161.Core} § 4.16
  */
 export interface CertGroupApi {
     /**
@@ -1068,7 +1178,7 @@ export interface CertGroupApi {
 /**
  * The fields of a `GroupKeySetStruct` a cert test provisions on both sides.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.2.4.1
+ * @see {@link MatterSpecification.v161.Core} § 11.2.5.4
  */
 export interface GroupKeySetSpec {
     groupKeySetId: number;
@@ -1081,7 +1191,7 @@ export interface GroupKeySetSpec {
 /**
  * An onboarding payload's fixed fields, as {@link ControllerAdapter.parseQrPayload} reports them.
  *
- * @see {@link MatterSpecification.v16.Core} § 5.1.3.1
+ * @see {@link MatterSpecification.v161.Core} § 5.1.3.1
  */
 export interface OnboardingPayloadFields {
     version: number;
@@ -1105,7 +1215,7 @@ export interface OnboardingPayloadFields {
 /**
  * A manual pairing code's fields, as {@link ControllerAdapter.parseManualPairingCode} reports them.
  *
- * @see {@link MatterSpecification.v16.Core} § 5.1.4.1
+ * @see {@link MatterSpecification.v161.Core} § 5.1.4.1
  */
 export interface ManualPairingCodeFields {
     /** § 5.1.4.1 Table 62's 4-bit form, the 4 most significant bits of the device's discriminator. */
@@ -1138,7 +1248,7 @@ export interface ControllerAdapterOptions {
      * {@link WebRtcRequestorApi.upsertSession}, so a controller that hosts it still refuses everything
      * until a case says otherwise.
      *
-     * @see {@link MatterSpecification.v16.Device} § 16.8
+     * @see {@link MatterSpecification.v161.Device} § 16.8
      */
     webRtcRequestor?: boolean;
 
@@ -1151,7 +1261,7 @@ export interface ControllerAdapterOptions {
      * nothing else, so an attestation a case expects to be refused is refused for the reason the case
      * is about.
      *
-     * @see {@link MatterSpecification.v16.Core} § 6.2.3.1
+     * @see {@link MatterSpecification.v161.Core} § 6.2.3.1
      */
     attestation?: boolean;
 }
@@ -1165,7 +1275,7 @@ export interface AttestationApi {
      * A commissioner normally reads revocation from the DCL. A certification run is against a PKI the
      * DCL does not publish, so the set has to come from the case.
      *
-     * @see {@link MatterSpecification.v16.Core} § 6.2.6.2
+     * @see {@link MatterSpecification.v161.Core} § 6.2.4
      */
     installRevocations(revocationSet: string): Promise<void>;
 }
@@ -1175,7 +1285,7 @@ export interface AttestationApi {
  * case learns it from the provider's own `SolicitOffer`/`ProvideOffer` response and registers it here
  * before the provider signals against it.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5
+ * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5
  */
 export interface WebRtcSessionSpec {
     id: number;
@@ -1204,7 +1314,7 @@ export interface WebRtcSessionRecord {
 /**
  * An ICE candidate as the provider stated it, per RFC 8839's candidate-attribute.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+ * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.4
  */
 export interface WebRtcIceCandidate {
     candidate: string;

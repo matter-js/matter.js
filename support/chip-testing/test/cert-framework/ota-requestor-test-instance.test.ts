@@ -12,7 +12,11 @@ import type { CertNodeRef } from "@matter/testing";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { expect } from "chai";
 import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAdapter.js";
-import { OtaRequestorTestInstance, verifyOtaTestTransfer } from "../../src/OtaRequestorTestInstance.js";
+import {
+    OtaRequestorTestInstance,
+    REBOOT_AFTER_APPLY_ARG,
+    verifyOtaTestTransfer,
+} from "../../src/OtaRequestorTestInstance.js";
 import {
     OTA_TEST_PAYLOAD_SIZE,
     OTA_TEST_PRODUCT_ID,
@@ -25,6 +29,9 @@ import { runCleanups } from "../cert/tc-support.js";
 
 /** The endpoint {@link OtaRequestorTestInstance} assigns its OTA Requestor device type. */
 const OTA_REQUESTOR_ENDPOINT = 1;
+
+const OTA_REQUESTOR_CLUSTER_ID = OtaSoftwareUpdateRequestor.Cluster.id;
+const STATE_TRANSITION_EVENT_ID = OtaSoftwareUpdateRequestor.Cluster.events.stateTransition.id;
 
 /** Kept clear of the 5540 every other subject defaults to, so a start here cannot lose a port race. */
 const REQUESTOR_PORT = 5560;
@@ -227,6 +234,76 @@ describe("OtaRequestorTestInstance", () => {
         // Every cleanup runs, in teardown order, even if an earlier one throws. A cleanup failure
         // replaces a passing body's result, but never a failing one — the body's own error is the
         // actual defect under test, and a cleanup failure on top of it is logged instead of thrown.
+        try {
+            await runCleanups(
+                () =>
+                    ref === undefined || adapter === undefined ? Promise.resolve() : adapter.node(ref).decommission(),
+                () => adapter?.close() ?? Promise.resolve(),
+                () => device?.close() ?? Promise.resolve(),
+            );
+        } catch (cleanupFailure) {
+            if (bodyFailure === undefined) {
+                throw cleanupFailure;
+            }
+            console.warn("OtaRequestorTestInstance cleanup failed after the test body already failed:", cleanupFailure);
+        }
+
+        if (bodyFailure !== undefined) {
+            throw bodyFailure;
+        }
+    });
+
+    // The regression `CertNodeApi.observeEvents` exists for: a requestor enters Applying and then restarts
+    // into the version it applied, and a controller drops every session to a peer that reports ShutDown
+    // while that peer is still flushing. An observation on a subscription of its own loses the states
+    // reported from there on; one on the subscription the controller sustains does not.
+    it("reports the states an applying requestor passes through as it shuts down", async function () {
+        this.timeout(60_000);
+
+        let device: OtaRequestorTestInstance | undefined;
+        let adapter: InProcessControllerAdapter | undefined;
+        let ref: CertNodeRef | undefined;
+        let bodyFailure: unknown;
+        try {
+            device = new OtaRequestorTestInstance({
+                domain: `ota-requestor-test-${Math.random().toString(36).slice(2)}`,
+                commandPipeFactory: async () => {},
+                discriminator: REQUESTOR_DISCRIMINATOR,
+                passcode: REQUESTOR_PASSCODE,
+                port: REQUESTOR_PORT,
+                appArgs: [REBOOT_AFTER_APPLY_ARG],
+            });
+            await device.initialize();
+            await device.start();
+            expect(device.node.lifecycle.isOnline, "the subject is listening after start()").equal(true);
+
+            adapter = new InProcessControllerAdapter("ota-requestor-dut");
+            await adapter.start();
+
+            ref = await adapter.commission({ passcode: REQUESTOR_PASSCODE, discriminator: REQUESTOR_DISCRIMINATOR });
+            const node = adapter.node(ref);
+
+            const states = new Array<number>();
+            await node.observeEvents([{ cluster: OTA_REQUESTOR_CLUSTER_ID, event: STATE_TRANSITION_EVENT_ID }], {
+                onUpdate: event => {
+                    const value = event.value;
+                    if (typeof value === "object" && value !== null && "newState" in value) {
+                        states.push(Number((value as { newState: unknown }).newState));
+                    }
+                },
+            });
+
+            await node.serveOtaUpdate({ expectApply: true, notifyAppliedTimeoutMs: 30_000 });
+
+            // Applying is the last state the requestor reports before it tears down to restart, so it is
+            // the one an observation on its own session never receives
+            expect(states, "the states the subscriber was told of").to.include(
+                OtaSoftwareUpdateRequestor.UpdateState.Applying,
+            );
+        } catch (error) {
+            bodyFailure = error;
+        }
+
         try {
             await runCleanups(
                 () =>

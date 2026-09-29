@@ -1278,7 +1278,7 @@ export namespace OtaSoftwareUpdateRequestorServer {
          * not query at once. A node that knows it is alone with its provider may name a shorter wait; the
          * specification states a preference rather than a requirement, so a fixed value still conforms.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.20.7.4.1.3
+         * @see {@link MatterSpecification.v161.Core} § 11.20.7.4.1.3
          */
         announcedUpdateQueryDelay?: Duration = undefined;
 
@@ -1290,7 +1290,7 @@ export namespace OtaSoftwareUpdateRequestorServer {
          * harness can observe the exchange that follows a delayed answer without waiting the delay
          * out; a product that lowers it does not conform.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.20.3.2
+         * @see {@link MatterSpecification.v161.Core} § 11.20.3.2
          */
         minimumQueryInterval: Duration = Seconds(120);
 
@@ -1301,7 +1301,7 @@ export namespace OtaSoftwareUpdateRequestorServer {
          * As {@link minimumQueryInterval}: the specification requires two minutes, and lowering it is
          * for a harness rather than for a product.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.20.6.10
+         * @see {@link MatterSpecification.v161.Core} § 11.20.3.6
          */
         minimumApplyDelay: Duration = Minutes(2);
 

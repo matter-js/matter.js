@@ -18,13 +18,13 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
  * This struct represents the set of accuracy ranges for a given measurement, the maximum and minimum values for the
  * measurement, and whether the measurement is directly measured or just estimated from other information.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 2.1.3.3
+ * @see {@link MatterSpecification.v161.Cluster} § 2.1.3.3
  */
 export const TlvMeasurementAccuracy = TlvObject({
     /**
      * This field shall indicate the type of measurement for the accuracy provided.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.1.3.3.1
+     * @see {@link MatterSpecification.v161.Cluster} § 2.1.3.3.1
      */
     measurementType: TlvField(0, TlvEnum<MeasurementType>()),
 
@@ -32,12 +32,12 @@ export const TlvMeasurementAccuracy = TlvObject({
      * This field shall indicate whether the associated measurement was directly measured. If this field is not set to
      * true, then the associated measurement was estimated.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.1.3.3.2
+     * @see {@link MatterSpecification.v161.Cluster} § 2.1.3.3.2
      */
     measured: TlvField(1, TlvBoolean),
 
-    minMeasuredValue: TlvField(2, TlvInt64),
-    maxMeasuredValue: TlvField(3, TlvInt64),
+    minMeasuredValue: TlvField(2, TlvInt64.bound({ min: -4611686018427387904n, max: 4611686018427387904n })),
+    maxMeasuredValue: TlvField(3, TlvInt64.bound({ min: -4611686018427387904n, max: 4611686018427387904n })),
 
     /**
      * This field shall indicate a list of measurement ranges and their associated accuracies.
@@ -52,7 +52,7 @@ export const TlvMeasurementAccuracy = TlvObject({
      * one more the value of the RangeMax field on the previous MeasurementAccuracyRangeStruct in this list (i.e. there
      * shall be no gaps in the accuracy ranges, and the ranges shall be in increasing order).
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.1.3.3.5
+     * @see {@link MatterSpecification.v161.Cluster} § 2.1.3.3.5
      */
     accuracyRanges: TlvField(4, TlvArray(TlvMeasurementAccuracyRange, { minLength: 1 }))
 });
@@ -61,6 +61,6 @@ export const TlvMeasurementAccuracy = TlvObject({
  * This struct represents the set of accuracy ranges for a given measurement, the maximum and minimum values for the
  * measurement, and whether the measurement is directly measured or just estimated from other information.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 2.1.3.3
+ * @see {@link MatterSpecification.v161.Cluster} § 2.1.3.3
  */
 export interface MeasurementAccuracy extends TypeFromSchema<typeof TlvMeasurementAccuracy> {}

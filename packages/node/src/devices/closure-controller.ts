@@ -24,17 +24,17 @@ import { Identity } from "@matter/general";
  *
  *   - Basic Level (Closure Control Cluster):
  *
- *   - Used for simple controller with buttons like wall switches.
+ *     - Used for simple controller with buttons like wall switches.
  *
- *   - Also all the general status and information remain at this level.
+ *     - Also all the general status and information remain at this level.
  *
  *   - Advanced Level (Closure Dimension Cluster):
  *
- *   - Provides advanced information, controls and settings.
+ *     - Provides advanced information, controls and settings.
  *
- *   - Used for advanced controller.
+ *     - Used for advanced controller.
  *
- * @see {@link MatterSpecification.v16.Device} § 8.7
+ * @see {@link MatterSpecification.v161.Device} § 8.7
  */
 export interface ClosureControllerDevice extends Identity<typeof ClosureControllerDeviceDefinition> {}
 
@@ -72,7 +72,7 @@ export namespace ClosureControllerRequirements {
 export const ClosureControllerDeviceDefinition = MutableEndpoint({
     name: "ClosureController",
     deviceType: 0x23e,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: ClosureControllerRequirements,
     behaviors: SupportedBehaviors()
 });

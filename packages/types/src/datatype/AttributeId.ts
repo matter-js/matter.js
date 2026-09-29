@@ -13,7 +13,7 @@ import { Mei } from "./ManufacturerExtensibleIdentifier.js";
 /**
  * An Attribute ID is a 32 bit number and indicates an attribute defined in a cluster specification.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.19.2.31
+ * @see {@link MatterSpecification.v161.Core} § 7.19.2.31
  */
 export type AttributeId = Branded<number, "AttributeId">;
 

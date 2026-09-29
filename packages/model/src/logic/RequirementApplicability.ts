@@ -15,7 +15,7 @@ import { RequirementModel } from "../models/index.js";
  * spells them. A name outside {@link knownNames} leaves the result
  * {@link Conformance.Applicability.Conditional}, because whether the name holds is unknown.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.6
+ * @see {@link MatterSpecification.v161.Core} § 9.2.6
  */
 export function requirementApplicability(
     requirement: RequirementModel,

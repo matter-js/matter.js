@@ -201,7 +201,7 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
      * The specification writes such a name as the specification spells the member, which is not the spelling the
      * property carries, so the name matches on {@link Model.propertyName}.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.18.3
+     * @see {@link MatterSpecification.v161.Core} § 7.18.3
      */
     override memberNamed(name: string): PropertyModel | undefined {
         if (this.effectiveMetatype !== Metatype.enum) {

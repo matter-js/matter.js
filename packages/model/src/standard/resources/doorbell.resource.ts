@@ -16,7 +16,7 @@ Resource.add({
         { tag: "requirement", name: "Identify", xref: "device§16.9.2.1" },
         {
             tag: "requirement", name: "Switch", xref: "device§16.9.2.1",
-            children: [{ tag: "requirement", name: "MOMENTARYSWITCH", xref: "device§16.9.2.2" }]
+            children: [{ tag: "requirement", name: "MS", xref: "device§16.9.2.2" }]
         },
         { tag: "requirement", name: "Chime", xref: "device§16.9.2.1" }
     ]

@@ -14,16 +14,16 @@ import { Scope } from "./Scope.js";
 /**
  * Obtain a native JS default value for a ValueModel.
  *
- * This code assumes defaults have been previously validated (e.g. by model validator).  It throws errors for a few
- * structural issues but generally returns undefined if the model's default value cannot be converted to the correct
- * type.
+ * Validation is not required: a default that cannot be converted is treated as absent, as is the "no value" marker
+ * an override uses to remove a default (see {@link FieldValue.stated}). The usual synthesized default may then be
+ * returned for arrays, objects, and bitmaps. It throws errors for a few structural issues.
  *
  * @param scope the scope in which the model is referenced
  * @param model the model from which the default value is extracted
  * @param ifValid some structs only have partial defaults defined so would be invalid; do not return these
  */
 export function DefaultValue(scope: Scope, model: ValueModel, ifValid = false): any {
-    const value = castValue(model, model.default);
+    const value = castValue(model, FieldValue.stated(model.default));
     if (value === undefined) {
         return createValue(scope, model, ifValid);
     }
@@ -109,7 +109,7 @@ function castValue(model: ValueModel, modelDefault?: FieldValue): unknown {
             if (Array.isArray(modelDefault)) {
                 const entry = model.member("entry");
                 if (entry?.isType) {
-                    return modelDefault.map(value => castValue(entry as ValueModel, value));
+                    return modelDefault.map(value => castValue(entry as ValueModel, FieldValue.stated(value)));
                 }
                 return modelDefault;
             }
@@ -134,8 +134,8 @@ function createValue(scope: Scope, model: ValueModel, ifValid: boolean) {
             if (
                 !model.nullable &&
                 model.effectiveMetatype === Metatype.array &&
-                !model.constraint.min &&
-                !model.constraint.value
+                !model.effectiveConstraint.min &&
+                !model.effectiveConstraint.value
             ) {
                 return [];
             }

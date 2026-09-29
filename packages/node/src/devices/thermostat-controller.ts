@@ -19,7 +19,7 @@ import { Identity } from "@matter/general";
 /**
  * A Thermostat Controller is a device capable of controlling a Thermostat.
  *
- * @see {@link MatterSpecification.v16.Device} § 9.4
+ * @see {@link MatterSpecification.v161.Device} § 9.4
  */
 export interface ThermostatControllerDevice extends Identity<typeof ThermostatControllerDeviceDefinition> {}
 
@@ -64,7 +64,7 @@ export namespace ThermostatControllerRequirements {
 export const ThermostatControllerDeviceDefinition = MutableEndpoint({
     name: "ThermostatController",
     deviceType: 0x30a,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: ThermostatControllerRequirements,
     behaviors: SupportedBehaviors()
 });

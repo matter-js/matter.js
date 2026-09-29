@@ -11,13 +11,13 @@
  * reconstructing another node's endpoint tree has only these lists to go on, and what a list means
  * depends on the device type reporting it.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.3
+ * @see {@link MatterSpecification.v161.Core} § 9.2.3
  */
 export enum EndpointComposition {
     /**
      * The `PartsList` names the endpoint's own children, so it is a parent's list of its parts.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.3
+     * @see {@link MatterSpecification.v161.Core} § 9.2.3
      */
     Tree = "tree",
 
@@ -25,7 +25,7 @@ export enum EndpointComposition {
      * The `PartsList` names every descendant, "with no imposed hierarchy" — so it says that a part is
      * somewhere below the endpoint and nothing about which endpoint owns it.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.3
+     * @see {@link MatterSpecification.v161.Core} § 9.2.3
      */
     FullFamily = "full-family",
 }

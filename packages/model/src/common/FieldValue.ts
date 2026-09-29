@@ -429,6 +429,16 @@ export namespace FieldValue {
     }
 
     /**
+     * The value a definition states, or undefined where it states none.
+     *
+     * An override states {@link None} to remove a value the specification states, and only validation turns the marker
+     * into an absence, so a model that was never validated still carries it.
+     */
+    export function stated(value: FieldValue | undefined): FieldValue | undefined {
+        return is(value, none) ? undefined : value;
+    }
+
+    /**
      * Get the referenced name if the FieldValue is a reference.
      */
     export function referenced(value: Open | undefined) {

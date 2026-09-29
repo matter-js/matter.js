@@ -31,7 +31,7 @@ import { Identity } from "@matter/general";
 /**
  * A Pump Controller device is capable of configuring and controlling a Pump device.
  *
- * @see {@link MatterSpecification.v16.Device} § 6.5
+ * @see {@link MatterSpecification.v161.Device} § 6.5
  */
 export interface PumpControllerDevice extends Identity<typeof PumpControllerDeviceDefinition> {}
 
@@ -132,7 +132,7 @@ export namespace PumpControllerRequirements {
 export const PumpControllerDeviceDefinition = MutableEndpoint({
     name: "PumpController",
     deviceType: 0x304,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: PumpControllerRequirements,
     behaviors: SupportedBehaviors(PumpControllerRequirements.server.mandatory.Identify)
 });

@@ -515,15 +515,15 @@ Resource.add(
                     "the door lock server shall generate a LockOperationError event with LockOperationType set to " +
                     "Unlatch and a LockOperation event with LockOperationType set to Unlock." +
                     "\n" +
-                    "  - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
+                    "    - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
                     "LockOperationError event with LockOperationType set to Unlock." +
                     "\n" +
                     "  - Upon manual actuation, a door lock server that supports the Unbolting feature:" +
                     "\n" +
-                    "  - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "outside." +
                     "\n" +
-                    "  - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "inside.",
 
                 children: [
@@ -1071,7 +1071,7 @@ Resource.add(
                     "\n" +
                     "  - FAILURE, if some unexpected internal error occurred setting User." +
                     "\n" +
-                    "  - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot." +
+                    "  - Occupied, if OperationType is Add and UserIndex points to an occupied slot." +
                     "\n" +
                     "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is " +
                     "Modify and UserIndex points to an available slot.",
@@ -1323,23 +1323,23 @@ Resource.add(
                             "\n" +
                             "  - FAILURE, if some unexpected internal error occurred setting user credential." +
                             "\n" +
-                            "  - OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an " +
+                            "  - Occupied, if OperationType is Add and CredentialIndex in Credential structure points to an " +
                             "occupied slot." +
                             "\n" +
-                            "  - OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match " +
+                            "  - Occupied, if OperationType is Modify and CredentialIndex in Credential structure does not match " +
                             "the CredentialIndex that is already associated with the provided UserIndex." +
                             "\n" +
-                            "  - DUPLICATE, if CredentialData provided is a duplicate of another credential with the same " +
+                            "  - Duplicate, if CredentialData provided is a duplicate of another credential with the same " +
                             "CredentialType (e.g. duplicate PIN code)." +
                             "\n" +
                             "  - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to " +
                             "resource constraints such as:" +
                             "\n" +
-                            "  - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
+                            "    - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
                             "associated." +
                             "\n" +
-                            "  - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding " +
-                            "it would cause the total number of credentials of those two types to exceed " +
+                            "    - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and " +
+                            "adding it would cause the total number of credentials of those two types to exceed " +
                             "NumberOfAliroEndpointKeysSupported." +
                             "\n" +
                             "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid." +
@@ -1564,9 +1564,9 @@ Resource.add(
                 details: "> [!NOTE]" +
                     "\n" +
                     "> WARNING: For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT " +
-                    "  supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
+                    "supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
                     "bitmaps in this specification, and it is recommended that clients carefully take this into " +
-                    "  consideration. See SupportedOperatingModes.",
+                    "consideration. See SupportedOperatingModes.",
 
                 children: [
                     { tag: "field", name: "Normal", description: "Normal operation mode is NOT supported" },

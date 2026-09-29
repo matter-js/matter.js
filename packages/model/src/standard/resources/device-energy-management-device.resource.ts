@@ -18,11 +18,11 @@ Resource.add({
             tag: "requirement", name: "DeviceEnergyManagement", xref: "device§2.7.4",
 
             children: [
-                { tag: "requirement", name: "POWERADJUSTMENT", xref: "device§2.7.5" },
-                { tag: "requirement", name: "STARTTIMEADJUSTMENT", xref: "device§2.7.5" },
-                { tag: "requirement", name: "PAUSABLE", xref: "device§2.7.5" },
-                { tag: "requirement", name: "FORECASTADJUSTMENT", xref: "device§2.7.5" },
-                { tag: "requirement", name: "CONSTRAINTBASEDADJUSTMENT", xref: "device§2.7.5" }
+                { tag: "requirement", name: "PA", xref: "device§2.7.5" },
+                { tag: "requirement", name: "STA", xref: "device§2.7.5" },
+                { tag: "requirement", name: "PAU", xref: "device§2.7.5" },
+                { tag: "requirement", name: "FA", xref: "device§2.7.5" },
+                { tag: "requirement", name: "CON", xref: "device§2.7.5" }
             ]
         },
 

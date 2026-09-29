@@ -133,6 +133,12 @@ export interface RunRecord {
      */
     longRunningSkips?: number;
     /**
+     * How many steps a condition of the plan itself skipped for this run's devices, absent if none — a plan that
+     * branches on a device capability skips the steps of the branch the devices do not take
+     * (`CertStepNotApplicableError`). A bundle without this count took no such branch.
+     */
+    planConditionSkips?: number;
+    /**
      * How many checks reported `"unverified"`, absent if none. Such a check neither proves nor
      * disproves what its step claims, so this is what tells a reader of this record alone how much of
      * the run's claims rest on nothing observed. A step carrying one ends `"unverified"` unless the
@@ -186,6 +192,7 @@ export class EvidenceRecorder implements StepRecorder {
     #controllerUnsupportedSkips?: number;
     #picsSkips?: number;
     #longRunningSkips?: number;
+    #planConditionSkips?: number;
     #unverifiedChecks?: number;
     #concluded = false;
 
@@ -272,6 +279,15 @@ export class EvidenceRecorder implements StepRecorder {
      */
     recordLongRunningSkips(count: number): void {
         this.#longRunningSkips = count;
+    }
+
+    /**
+     * Records how many steps a condition of the plan skipped for this run's devices (see
+     * {@link RunRecord.planConditionSkips}). Like a PICS skip this never changes the verdict: the plan does not apply
+     * those steps here.
+     */
+    recordPlanConditionSkips(count: number): void {
+        this.#planConditionSkips = count;
     }
 
     /**
@@ -391,6 +407,7 @@ export class EvidenceRecorder implements StepRecorder {
             controllerUnsupportedSkips: this.#controllerUnsupportedSkips,
             picsSkips: this.#picsSkips,
             longRunningSkips: this.#longRunningSkips,
+            planConditionSkips: this.#planConditionSkips,
             unverifiedChecks: this.#unverifiedChecks,
         };
 

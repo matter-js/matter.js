@@ -8,11 +8,21 @@ import { GroupKeyManagementClient, GroupKeyManagementServer } from "#behaviors/g
 import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
 import { FabricIndex, GroupId } from "@matter/types";
+import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
+import { causeMessagesOf } from "../../node/node-helpers.js";
 
 describe("GroupKeyManagementServer", () => {
     before(() => {
         MockTime.init();
+    });
+
+    it("rejects the provisional Groupcast feature", async () => {
+        const messages = await causeMessagesOf(
+            MockServerNode.create(MockServerNode.RootEndpoint.with(GroupKeyManagementServer.with("Groupcast"))),
+        );
+
+        expect(messages).contains("Groupcast feature of GroupKeyManagement is provisional");
     });
 
     it("does not implement the provisional GroupcastAdoption attribute by default", () => {

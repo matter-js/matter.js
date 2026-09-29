@@ -20,7 +20,7 @@ Resource.add({
         "This augments the Bridged Device Basic Information Cluster in the following ways:" +
         "\n" +
         "  - The Ecosystem Information Cluster adds support for providing a name and location for individual " +
-        "    endpoints. (The endpoints do not need to be present on the Bridge for their name and location " +
+        "endpoints. (The endpoints do not need to be present on the Bridge for their name and location " +
         "information to be present.)" +
         "\n" +
         "  - The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple " +

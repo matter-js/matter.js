@@ -1896,6 +1896,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -1973,6 +1974,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -2049,6 +2051,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -2171,6 +2174,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -3131,7 +3135,7 @@ const PEER1_STATE = {
     },
     accessControl: {
         clusterRevision: 3,
-        featureMap: { extension: true, managedDevice: false, auxiliary: false },
+        featureMap: { extension: true, managedDevice: false, auxiliary: true },
         acl: [
             {
                 privilege: 5,
@@ -3143,19 +3147,19 @@ const PEER1_STATE = {
             },
         ],
         extension: [],
-        auxiliaryAcl: undefined,
+        auxiliaryAcl: [],
         subjectsPerAccessControlEntry: 4,
         targetsPerAccessControlEntry: 4,
         accessControlEntriesPerFabric: 4,
         commissioningArl: undefined,
         arl: undefined,
-        attributeList: [0, 1, 2, 3, 4, ...GLOBAL_ATTRS],
+        attributeList: [0, 1, 2, 3, 4, 7, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [],
         generatedCommandList: [],
     },
     groupKeyManagement: {
-        clusterRevision: 3,
+        clusterRevision: 4,
         featureMap: { cacheAndSync: false, groupcast: false },
         groupKeyMap: [],
         groupTable: [],
@@ -3166,6 +3170,19 @@ const PEER1_STATE = {
         eventList: undefined,
         acceptedCommandList: [0, 1, 3, 4],
         generatedCommandList: [2, 5],
+    },
+    groupcast: {
+        clusterRevision: 1,
+        featureMap: { listener: true, sender: true, perGroup: true },
+        membership: [],
+        maxMembershipCount: 44,
+        maxMcastAddrCount: 44,
+        usedMcastAddrCount: 0,
+        fabricUnderTest: 0,
+        attributeList: [0, 1, 2, 3, 4, ...GLOBAL_ATTRS],
+        eventList: undefined,
+        acceptedCommandList: [0, 1, 3, 4, 5],
+        generatedCommandList: [2],
     },
     generalCommissioning: {
         clusterRevision: 2,
@@ -3264,8 +3281,8 @@ const PEER1_STATE = {
         clusterRevision: 3,
         endpointUniqueId: undefined,
         featureMap: { tagList: false },
-        deviceTypeList: [{ deviceType: 0x16, revision: 4 }],
-        serverList: [0x1f, 0x28, 0x30, 0x33, 0x3c, 0x3e, 0x3f, 0x1d],
+        deviceTypeList: [{ deviceType: 0x16, revision: 5 }],
+        serverList: [0x1f, 0x28, 0x30, 0x33, 0x3c, 0x3e, 0x3f, 0x65, 0x1d],
         clientList: [],
         partsList: [1],
         tagList: undefined,
@@ -3312,7 +3329,7 @@ const EP1_STATE = {
     descriptor: {
         clusterRevision: 3,
         featureMap: { tagList: false },
-        deviceTypeList: [{ deviceType: 0x100, revision: 3 }],
+        deviceTypeList: [{ deviceType: 0x100, revision: 4 }],
         endpointUniqueId: undefined,
         serverList: [3, 4, 6, 0x62, 0x1d],
         clientList: [],

@@ -6,13 +6,12 @@
 
 import { Bytes, Seconds } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertNodeRef, CertStepContext } from "@matter/testing";
+import type { CertNodeRef, CertStepContext, CheckRecord } from "@matter/testing";
 import { certTest } from "@matter/testing";
-import type { CommandFieldValue } from "./tc-support.js";
-import { CommissionedRefs, describeValue, expectCommandInvoke, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
+import type { CommandFieldValue, InvokedCommand, RecordedCheck } from "./tc-support.js";
+import { attempt, CommissionedRefs, describeValue, invokeCommand, recordAll, withChecks } from "./tc-support.js";
 
 const TBRM = Matter.clusters.require("ThreadBorderRouterManagement");
-const TBRM_ID = requireId(TBRM.id, "ThreadBorderRouterManagement cluster");
 
 /** chip's network-manager app puts ThreadBorderRouterManagement on endpoint 1. */
 const ENDPOINT = 1;
@@ -46,10 +45,6 @@ const BREADCRUMB = 2;
 
 const commissioned = new CommissionedRefs();
 
-function commandId(commandName: string): number {
-    return requireId(TBRM.commands.require(commandName).id, `ThreadBorderRouterManagement.${commandName}`);
-}
-
 /** The `ErrorCode` a GeneralCommissioning response carries, or `undefined` where it carries none. */
 function errorCodeOf(response: unknown): number | undefined {
     if (typeof response !== "object" || response === null || !("errorCode" in response)) {
@@ -66,92 +61,72 @@ function datasetOf(response: unknown): Bytes | undefined {
     return Bytes.isBytes(response.dataset) ? response.dataset : undefined;
 }
 
-async function invokeGeneralCommissioning(cx: CertStepContext, ref: CertNodeRef, commandName: string, args: object) {
-    let response: unknown;
-    try {
-        response = await cx.controllers.dut.node(ref).invoke("GeneralCommissioning", commandName, args, ROOT_ENDPOINT);
-    } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: `${commandName}: ${String(e)}` });
-        throw e;
-    }
-
-    const errorCode = errorCodeOf(response);
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: errorCode === 0 ? "pass" : "fail",
-            detail:
-                errorCode === undefined
-                    ? `${commandName} answered ${describeValue(response)}, which carries no ErrorCode`
-                    : `${commandName} ErrorCode=${errorCode}`,
-        },
-        `GeneralCommissioning.${commandName} response`,
-    );
+/** Whether the command succeeded, with the check that says so. */
+interface GeneralCommissioningOutcome {
+    ok: boolean;
+    check: RecordedCheck;
 }
 
-/**
- * Invokes `commandName` on the TH's ThreadBorderRouterManagement cluster and verifies the TH's own log recorded it
- * with `fields`.
- */
-async function invokeAndCheck(
+async function invokeGeneralCommissioning(
     cx: CertStepContext,
     ref: CertNodeRef,
     commandName: string,
     args: object,
+): Promise<GeneralCommissioningOutcome> {
+    const what = `GeneralCommissioning.${commandName} response`;
+    const invoked = await attempt(
+        () => cx.controllers.dut.node(ref).invoke("GeneralCommissioning", commandName, args, ROOT_ENDPOINT),
+        () => `${commandName} answered`,
+    );
+    if (!invoked.ok) {
+        const failed: CheckRecord = { ...invoked.check, detail: `${commandName}: ${invoked.check.detail}` };
+        return { ok: false, check: { what, check: () => failed } };
+    }
+
+    const errorCode = errorCodeOf(invoked.value);
+    const answered: CheckRecord = {
+        type: "response",
+        verdict: errorCode === 0 ? "pass" : "fail",
+        detail:
+            errorCode === undefined
+                ? `${commandName} answered ${describeValue(invoked.value)}, which carries no ErrorCode`
+                : `${commandName} ErrorCode=${errorCode}`,
+    };
+    return { ok: errorCode === 0, check: { what, check: () => answered } };
+}
+
+/** Has the DUT invoke `command` on the TH's ThreadBorderRouterManagement cluster; see {@link invokeCommand}. */
+function invokeTbrm(
+    cx: CertStepContext,
+    ref: CertNodeRef,
+    command: string,
+    args: object,
     fields: CommandFieldValue[],
     timed: boolean,
-): Promise<unknown> {
-    const th = cx.devices.th;
-    const from = th.log.mark();
-
-    let response: unknown;
-    try {
-        response = await cx.controllers.dut
-            .node(ref)
-            .invoke(
-                "ThreadBorderRouterManagement",
-                commandName,
-                args,
-                ENDPOINT,
-                timed ? { timedInteractionTimeoutMs: TIMED_INTERACTION_TIMEOUT } : undefined,
-            );
-    } catch (e) {
-        cx.recorder.check({ type: "response", verdict: "fail", detail: `${commandName}: ${String(e)}` });
-        throw e;
-    }
-    cx.recorder.check({ type: "response", verdict: "pass", detail: `${commandName} invoke succeeded` });
-
-    const logCheck = await expectCommandInvoke(
-        th.log,
-        th.flavor,
-        ENDPOINT,
-        TBRM_ID,
-        commandId(commandName),
+): Promise<InvokedCommand> {
+    return invokeCommand(cx, ref, {
+        cluster: TBRM,
+        endpoint: ENDPOINT,
+        command,
+        args,
         fields,
-        from,
-        LOG_TIMEOUT,
-    );
-    record(cx, logCheck, `CommandDataIB log for ThreadBorderRouterManagement.${commandName}`);
-
-    return response;
+        describe: () => `${command} invoke succeeded`,
+        options: timed ? { timedInteractionTimeoutMs: TIMED_INTERACTION_TIMEOUT } : undefined,
+    });
 }
 
 /** Checks that a `DatasetResponse` returns the dataset an earlier step set. */
-function expectDataset(cx: CertStepContext, commandName: string, response: unknown, expected: Bytes) {
+function expectDataset(commandName: string, response: unknown, expected: Bytes): RecordedCheck {
     const dataset = datasetOf(response);
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: dataset !== undefined && Bytes.areEqual(dataset, expected) ? "pass" : "fail",
-            detail:
-                dataset === undefined
-                    ? `${commandName} answered ${describeValue(response)}, which carries no Dataset`
-                    : `${commandName} Dataset=${Bytes.toHex(dataset)}, expected ${Bytes.toHex(expected)}`,
-        },
-        `ThreadBorderRouterManagement.${commandName} dataset`,
-    );
+    const check: CheckRecord = {
+        type: "response",
+        verdict: dataset !== undefined && Bytes.areEqual(dataset, expected) ? "pass" : "fail",
+        detail:
+            dataset === undefined
+                ? `${commandName} answered ${describeValue(response)}, which carries no Dataset`
+                : `${commandName} Dataset=${Bytes.toHex(dataset)}, expected ${Bytes.toHex(expected)}`,
+    };
+    return { what: `ThreadBorderRouterManagement.${commandName} dataset`, check: () => check };
 }
 
 certTest("TC-TBRM-3.1", {
@@ -181,28 +156,36 @@ certTest("TC-TBRM-3.1", {
     .step(
         1,
         "In a CASE session, DUT sends SetActiveDatasetRequest to TH.",
-        commissioned.withRef("dut", async (cx, ref) => {
-            // The TH refuses SetActiveDatasetRequest with FAILSAFE_REQUIRED unless a fail-safe is armed.
-            // CommissioningComplete closes it, as a border router that reverts on expiry would need.
-            await invokeGeneralCommissioning(cx, ref, "armFailSafe", {
-                expiryLengthSeconds: FAIL_SAFE_SECONDS,
-                breadcrumb: 1,
-            });
+        commissioned.withRef("dut", async (cx, ref) =>
+            withChecks(cx, async checks => {
+                // The TH refuses SetActiveDatasetRequest with FAILSAFE_REQUIRED unless a fail-safe is armed.
+                // CommissioningComplete closes it, as a border router that reverts on expiry would need.
+                const armed = await invokeGeneralCommissioning(cx, ref, "armFailSafe", {
+                    expiryLengthSeconds: FAIL_SAFE_SECONDS,
+                    breadcrumb: 1,
+                });
+                checks.push(armed.check);
 
-            await invokeAndCheck(
-                cx,
-                ref,
-                "setActiveDatasetRequest",
-                { activeDataset: ACTIVE_DATASET, breadcrumb: BREADCRUMB },
-                [
-                    { id: 0, value: ACTIVE_DATASET },
-                    { id: 1, value: BREADCRUMB },
-                ],
-                true,
-            );
+                // Without an armed fail-safe the TH refuses both commands below, which says nothing new
+                if (armed.ok) {
+                    const set = await invokeTbrm(
+                        cx,
+                        ref,
+                        "setActiveDatasetRequest",
+                        { activeDataset: ACTIVE_DATASET, breadcrumb: BREADCRUMB },
+                        [
+                            { id: 0, value: ACTIVE_DATASET },
+                            { id: 1, value: BREADCRUMB },
+                        ],
+                        true,
+                    );
+                    checks.push(...set.checks);
 
-            await invokeGeneralCommissioning(cx, ref, "commissioningComplete", {});
-        }),
+                    const completed = await invokeGeneralCommissioning(cx, ref, "commissioningComplete", {});
+                    checks.push(completed.check);
+                }
+            }),
+        ),
         {
             pics: "TBRM.C.C03.Tx",
             expected:
@@ -214,7 +197,7 @@ certTest("TC-TBRM-3.1", {
         2,
         "In a CASE session, DUT sends SetPendingDatasetRequest to TH.",
         commissioned.withRef("dut", async (cx, ref) => {
-            await invokeAndCheck(
+            const { checks } = await invokeTbrm(
                 cx,
                 ref,
                 "setPendingDatasetRequest",
@@ -222,6 +205,7 @@ certTest("TC-TBRM-3.1", {
                 [{ id: 0, value: PENDING_DATASET }],
                 true,
             );
+            await recordAll(cx, checks);
         }),
         {
             pics: "TBRM.C.C04.Tx",
@@ -234,8 +218,11 @@ certTest("TC-TBRM-3.1", {
         3,
         "In a CASE session, DUT sends GetActiveDatasetRequest to TH.",
         commissioned.withRef("dut", async (cx, ref) => {
-            const response = await invokeAndCheck(cx, ref, "getActiveDatasetRequest", {}, [], false);
-            expectDataset(cx, "getActiveDatasetRequest", response, ACTIVE_DATASET);
+            const { response, checks } = await invokeTbrm(cx, ref, "getActiveDatasetRequest", {}, [], false);
+            if (response.ok) {
+                checks.push(expectDataset("getActiveDatasetRequest", response.value, ACTIVE_DATASET));
+            }
+            await recordAll(cx, checks);
         }),
         {
             pics: "TBRM.C.C00.Tx",
@@ -248,8 +235,11 @@ certTest("TC-TBRM-3.1", {
         4,
         "In a CASE session, DUT sends GetPendingDatasetRequest to TH.",
         commissioned.withRef("dut", async (cx, ref) => {
-            const response = await invokeAndCheck(cx, ref, "getPendingDatasetRequest", {}, [], false);
-            expectDataset(cx, "getPendingDatasetRequest", response, PENDING_DATASET);
+            const { response, checks } = await invokeTbrm(cx, ref, "getPendingDatasetRequest", {}, [], false);
+            if (response.ok) {
+                checks.push(expectDataset("getPendingDatasetRequest", response.value, PENDING_DATASET));
+            }
+            await recordAll(cx, checks);
         }),
         {
             pics: "TBRM.C.C01.Tx",

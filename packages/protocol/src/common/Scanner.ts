@@ -144,7 +144,7 @@ export type DiscoverableDevice<SA extends ServerAddress> = DiscoveryData &
          *
          * Reported as the responder wrote it. Absent until an SRV record for the device arrives.
          *
-         * @see {@link MatterSpecification.v16.Core} § 4.3.1
+         * @see {@link MatterSpecification.v161.Core} § 4.3.1
          */
         hostname?: string;
     };

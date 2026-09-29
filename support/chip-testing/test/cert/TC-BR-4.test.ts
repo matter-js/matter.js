@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Millis, Time } from "@matter/general";
+import { InternalError, Millis, Time } from "@matter/general";
 import { Matter } from "@matter/model";
 import type { AttributeReadEntry, CertNodeRef, CertStepContext, ClientEndpointEntry } from "@matter/testing";
 import { certTest } from "@matter/testing";
+import type { RecordedCheck } from "./tc-support.js";
 import {
+    attempt,
     CertCheckFailedError,
     CommissionedRefs,
     describeValue,
@@ -18,6 +20,7 @@ import {
     record,
     recordAll,
     requireId,
+    withChecks,
 } from "./tc-support.js";
 
 const DESCRIPTOR = Matter.clusters.require("Descriptor");
@@ -160,8 +163,8 @@ function partsOf(value: unknown): number[] {
 }
 
 /**
- * Reads `attribute` of `cluster` on every endpoint of the TH, and records the TH's own log as saying
- * the DUT asked for it.
+ * Reads `attribute` of `cluster` on every endpoint of the TH, with the check that the TH's own log says
+ * the DUT asked for it for the caller to record alongside its checks of the answer.
  *
  * A wildcard endpoint is what the plan's "from all available endpoints" amounts to for a controller
  * the test drives: one request whose expansion the TH performs, so the answer names the endpoints the
@@ -172,16 +175,22 @@ async function readEveryEndpoint(
     what: string,
     cluster: number,
     attribute: number,
-): Promise<AttributeReadEntry[]> {
+): Promise<{ entries: AttributeReadEntry[]; check: RecordedCheck }> {
     const th = cx.devices.th;
     const from = await th.log.markSettled();
 
-    const entries = await node(cx).readAttributes([{ cluster, attribute }]);
+    const read = await attempt(
+        () => node(cx).readAttributes([{ cluster, attribute }]),
+        () => "read answered",
+    );
 
     const logCheck = await expectAttributePathIB(th.log, th.flavor, { cluster, attribute }, from, LOG_TIMEOUT);
-    record(cx, logCheck, `the TH received the DUT's read of ${what}`);
-
-    return entries;
+    const check: RecordedCheck = { check: () => logCheck, what: `the TH received the DUT's read of ${what}` };
+    if (!read.ok) {
+        await recordAll(cx, [{ check: () => read.check, what: `the DUT's read of ${what}` }, check]);
+        throw new InternalError("a failed read recorded no failing check");
+    }
+    return { entries: read.value, check };
 }
 
 /** The endpoints the DUT holds for the TH, refusing a controller that holds none. */
@@ -245,51 +254,71 @@ certTest("TC-BR-4", {
             });
             commissioned.set("dut", ref);
 
-            const deviceTypes = await readEveryEndpoint(cx, "DeviceTypeList", DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID);
-            const parts = await readEveryEndpoint(cx, "PartsList", DESCRIPTOR_ID, PARTS_LIST_ID);
+            await withChecks(cx, async checks => {
+                const { entries: deviceTypes, check: deviceTypesRead } = await readEveryEndpoint(
+                    cx,
+                    "DeviceTypeList",
+                    DESCRIPTOR_ID,
+                    DEVICE_TYPE_LIST_ID,
+                );
+                checks.push(deviceTypesRead);
+                const { entries: parts, check: partsRead } = await readEveryEndpoint(
+                    cx,
+                    "PartsList",
+                    DESCRIPTOR_ID,
+                    PARTS_LIST_ID,
+                );
+                checks.push(partsRead);
 
-            const answered = endpointsAnswering(deviceTypes, DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID);
-            const expected = [ROOT_ENDPOINT, AGGREGATOR_ENDPOINT, ...LIGHTS, ...TEMPERATURE_SENSORS, COMPOSED_ENDPOINT]
-                .sort((a, b) => a - b)
-                .filter((number, index, all) => all.indexOf(number) === index);
+                const answered = endpointsAnswering(deviceTypes, DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID);
+                const expected = [
+                    ROOT_ENDPOINT,
+                    AGGREGATOR_ENDPOINT,
+                    ...LIGHTS,
+                    ...TEMPERATURE_SENSORS,
+                    COMPOSED_ENDPOINT,
+                ]
+                    .sort((a, b) => a - b)
+                    .filter((number, index, all) => all.indexOf(number) === index);
 
-            const missing = expected.filter(number => !answered.includes(number));
+                const missing = expected.filter(number => !answered.includes(number));
 
-            // PartsList is mandatory on every endpoint, so a conforming leaf answers it empty
-            const answeringParts = endpointsAnswering(parts, DESCRIPTOR_ID, PARTS_LIST_ID);
-            const missingParts = expected.filter(number => !answeringParts.includes(number));
+                // PartsList is mandatory on every endpoint, so a conforming leaf answers it empty
+                const answeringParts = endpointsAnswering(parts, DESCRIPTOR_ID, PARTS_LIST_ID);
+                const missingParts = expected.filter(number => !answeringParts.includes(number));
 
-            const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
-            const composedParts = partsOf(valueAt(parts, COMPOSED_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
+                const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
+                const composedParts = partsOf(valueAt(parts, COMPOSED_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
 
-            await recordAll(cx, [
-                {
-                    check: () => ({
-                        type: "response",
-                        verdict: missing.length === 0 ? "pass" : "fail",
-                        detail: `the DUT read DeviceTypeList from endpoints ${answered.join(", ")}`,
-                    }),
-                    what: "the DUT read the device type of every endpoint the plan names",
-                },
-                {
-                    check: () => ({
-                        type: "response",
-                        verdict: missingParts.length === 0 ? "pass" : "fail",
-                        detail: `the DUT read PartsList from endpoints ${answeringParts.join(", ")}`,
-                    }),
-                    what: "the DUT read the parts of every endpoint the plan names",
-                },
-                {
-                    check: () => ({
-                        type: "response",
-                        verdict: COMPOSED_SENSORS.every(number => composedParts.includes(number)) ? "pass" : "fail",
-                        detail:
-                            `the composed device on endpoint ${COMPOSED_ENDPOINT} names parts ` +
-                            `${composedParts.join(", ")}; the aggregator names ${aggregatorParts.join(", ")}`,
-                    }),
-                    what: "the DUT read a PartsList that puts the composed device's sensors below it",
-                },
-            ]);
+                checks.push(
+                    {
+                        check: () => ({
+                            type: "response",
+                            verdict: missing.length === 0 ? "pass" : "fail",
+                            detail: `the DUT read DeviceTypeList from endpoints ${answered.join(", ")}`,
+                        }),
+                        what: "the DUT read the device type of every endpoint the plan names",
+                    },
+                    {
+                        check: () => ({
+                            type: "response",
+                            verdict: missingParts.length === 0 ? "pass" : "fail",
+                            detail: `the DUT read PartsList from endpoints ${answeringParts.join(", ")}`,
+                        }),
+                        what: "the DUT read the parts of every endpoint the plan names",
+                    },
+                    {
+                        check: () => ({
+                            type: "response",
+                            verdict: COMPOSED_SENSORS.every(number => composedParts.includes(number)) ? "pass" : "fail",
+                            detail:
+                                `the composed device on endpoint ${COMPOSED_ENDPOINT} names parts ` +
+                                `${composedParts.join(", ")}; the aggregator names ${aggregatorParts.join(", ")}`,
+                        }),
+                        what: "the DUT read a PartsList that puts the composed device's sensors below it",
+                    },
+                );
+            });
         },
         {
             expected:
@@ -353,7 +382,12 @@ certTest("TC-BR-4", {
             "various endpoints",
         async cx => {
             const held = await heldBefore(cx, NAMED_DEVICES, BRIDGED_INFO_ID, NODE_LABEL_ID);
-            const entries = await readEveryEndpoint(cx, "NodeLabel", BRIDGED_INFO_ID, NODE_LABEL_ID);
+            const { entries, check: labelsRead } = await readEveryEndpoint(
+                cx,
+                "NodeLabel",
+                BRIDGED_INFO_ID,
+                NODE_LABEL_ID,
+            );
             const answered = endpointsAnswering(entries, BRIDGED_INFO_ID, NODE_LABEL_ID);
             const missing = NAMED_DEVICES.filter(endpoint => !answered.includes(endpoint));
 
@@ -362,6 +396,7 @@ certTest("TC-BR-4", {
             );
 
             await recordAll(cx, [
+                labelsRead,
                 {
                     check: () => ({
                         type: "response",
@@ -394,7 +429,7 @@ certTest("TC-BR-4", {
         "Verify DUT has read or reads the OnOff attribute from the On/Off cluster for the endpoints " +
             "containing an On/Off light",
         async cx => {
-            await recordLightState(cx, "the DUT read the state of every bridged light");
+            await recordAll(cx, await lightStateChecks(cx, "the DUT read the state of every bridged light"));
         },
         {
             pics: "MCORE.DEVLIST.UseDeviceState",
@@ -423,19 +458,21 @@ certTest("TC-BR-4", {
             );
             const after = await heldAttribute(cx, LIGHT_1_ENDPOINT, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
 
-            record(
-                cx,
-                {
+            const tookIn: RecordedCheck = {
+                check: () => ({
                     type: "response",
                     verdict: noticed ? "pass" : "fail",
                     detail:
                         `the DUT held ${before} for endpoint ${LIGHT_1_ENDPOINT}'s OnOff and now holds ${after}, ` +
                         `where the toggle makes it ${expected}`,
-                },
-                "the DUT took in the light the TH switched",
-            );
+                }),
+                what: "the DUT took in the light the TH switched",
+            };
 
-            await recordLightState(cx, "the DUT reads the updated state of every bridged light");
+            await withChecks(cx, async checks => {
+                checks.push(tookIn);
+                checks.push(...(await lightStateChecks(cx, "the DUT reads the updated state of every bridged light")));
+            });
         },
         {
             pics: "MCORE.DEVLIST.UseDeviceState",
@@ -447,7 +484,7 @@ certTest("TC-BR-4", {
         "Verify DUT has read or reads the MeasuredValue attribute from the Temperature Measurement cluster " +
             "for the endpoints containing a Temperature Sensor",
         async cx => {
-            await recordTemperatures(cx, "the DUT read the temperature of every bridged sensor");
+            await recordAll(cx, await temperatureChecks(cx, "the DUT read the temperature of every bridged sensor"));
         },
         {
             pics: "MCORE.DEVLIST.UseDeviceState",
@@ -494,9 +531,8 @@ certTest("TC-BR-4", {
             const after = await heldBefore(cx, TEMPERATURE_SENSORS, TEMPERATURE_ID, MEASURED_VALUE_ID);
             const behind = TEMPERATURE_SENSORS.filter(endpoint => after.get(endpoint) !== expected.get(endpoint));
 
-            record(
-                cx,
-                {
+            const tookIn: RecordedCheck = {
+                check: () => ({
                     type: "response",
                     verdict: noticed ? "pass" : "fail",
                     detail: noticed
@@ -504,11 +540,16 @@ certTest("TC-BR-4", {
                           `${TEMPERATURE_SENSORS.map(endpoint => `${endpoint}: ${describeValue(after.get(endpoint))}`).join(", ")}`
                         : `the DUT still holds a temperature short of one warming on endpoints ` +
                           `${behind.map(endpoint => `${endpoint} (${describeValue(after.get(endpoint))}, expected ${expected.get(endpoint)})`).join(", ")}`,
-                },
-                "the DUT took in the temperature the TH changed",
-            );
+                }),
+                what: "the DUT took in the temperature the TH changed",
+            };
 
-            await recordTemperatures(cx, "the DUT reads the updated temperature of every bridged sensor");
+            await withChecks(cx, async checks => {
+                checks.push(tookIn);
+                checks.push(
+                    ...(await temperatureChecks(cx, "the DUT reads the updated temperature of every bridged sensor")),
+                );
+            });
         },
         {
             pics: "MCORE.DEVLIST.UseDeviceState",
@@ -521,11 +562,17 @@ certTest("TC-BR-4", {
             "relevant endpoint",
         async cx => {
             const held = await heldAttribute(cx, COMPOSED_ENDPOINT, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
-            const entries = await readEveryEndpoint(cx, "BatChargeLevel", POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
+            const { entries, check: batteryRead } = await readEveryEndpoint(
+                cx,
+                "BatChargeLevel",
+                POWER_SOURCE_ID,
+                BAT_CHARGE_LEVEL_ID,
+            );
             const answered = endpointsAnswering(entries, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
             const read = valueAt(entries, COMPOSED_ENDPOINT, POWER_SOURCE_ID, BAT_CHARGE_LEVEL_ID);
 
             await recordAll(cx, [
+                batteryRead,
                 {
                     check: () => ({
                         type: "response",
@@ -574,37 +621,64 @@ certTest("TC-BR-4", {
 
             const from = await th.log.markSettled();
 
-            await node(cx).invoke("OnOff", "on", {}, LIGHT_1_ENDPOINT);
-
-            const logCheck = await expectCommandInvoke(
-                th.log,
-                th.flavor,
-                LIGHT_1_ENDPOINT,
-                ON_OFF_ID,
-                requireId(ON_OFF.commands.require("on").id, "OnOff.on"),
-                [],
-                from,
-                LOG_TIMEOUT,
+            const on = await attempt(
+                () => node(cx).invoke("OnOff", "on", {}, LIGHT_1_ENDPOINT),
+                () => "status=Success",
             );
-            record(cx, logCheck, `the TH received the DUT's On command for endpoint ${LIGHT_1_ENDPOINT}`);
+            if (!on.ok) {
+                await recordAll(cx, [
+                    { check: () => on.check, what: `the DUT's On command for endpoint ${LIGHT_1_ENDPOINT}` },
+                    {
+                        check: () =>
+                            expectCommandInvoke(
+                                th.log,
+                                th.flavor,
+                                LIGHT_1_ENDPOINT,
+                                ON_OFF_ID,
+                                requireId(ON_OFF.commands.require("on").id, "OnOff.on"),
+                                [],
+                                from,
+                                LOG_TIMEOUT,
+                            ),
+                        what: `the TH received the DUT's On command for endpoint ${LIGHT_1_ENDPOINT}`,
+                    },
+                ]);
+                throw new InternalError("a failed On command recorded no failing check");
+            }
 
-            const value = await node(cx).readAttribute({
-                endpoint: LIGHT_1_ENDPOINT,
-                cluster: ON_OFF_ID,
-                attribute: ON_OFF_ATTRIBUTE_ID,
-            });
-
-            record(
-                cx,
+            await recordAll(cx, [
                 {
-                    type: "response",
-                    verdict: value === true ? "pass" : "fail",
-                    detail:
-                        `endpoint ${LIGHT_1_ENDPOINT}'s OnOff read ${before} before the command and ${value} ` +
-                        "after it",
+                    check: () =>
+                        expectCommandInvoke(
+                            th.log,
+                            th.flavor,
+                            LIGHT_1_ENDPOINT,
+                            ON_OFF_ID,
+                            requireId(ON_OFF.commands.require("on").id, "OnOff.on"),
+                            [],
+                            from,
+                            LOG_TIMEOUT,
+                        ),
+                    what: `the TH received the DUT's On command for endpoint ${LIGHT_1_ENDPOINT}`,
                 },
-                "the bridged light the DUT commanded is on",
-            );
+                {
+                    check: async () => {
+                        const value = await node(cx).readAttribute({
+                            endpoint: LIGHT_1_ENDPOINT,
+                            cluster: ON_OFF_ID,
+                            attribute: ON_OFF_ATTRIBUTE_ID,
+                        });
+                        return {
+                            type: "response",
+                            verdict: value === true ? "pass" : "fail",
+                            detail:
+                                `endpoint ${LIGHT_1_ENDPOINT}'s OnOff read ${before} before the command and ${value} ` +
+                                "after it",
+                        };
+                    },
+                    what: "the bridged light the DUT commanded is on",
+                },
+            ]);
         },
         {
             expected:
@@ -647,18 +721,25 @@ certTest("TC-BR-4", {
         "Verify DUT contains the updated name for the renamed device",
         async cx => {
             const held = await heldAttribute(cx, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
-            const entries = await readEveryEndpoint(cx, "NodeLabel", BRIDGED_INFO_ID, NODE_LABEL_ID);
+            const { entries, check: labelsRead } = await readEveryEndpoint(
+                cx,
+                "NodeLabel",
+                BRIDGED_INFO_ID,
+                NODE_LABEL_ID,
+            );
             const read = valueAt(entries, LIGHT_1_ENDPOINT, BRIDGED_INFO_ID, NODE_LABEL_ID);
 
-            record(
-                cx,
+            await recordAll(cx, [
+                labelsRead,
                 {
-                    type: "response",
-                    verdict: read === RENAMED_LABEL && held === read ? "pass" : "fail",
-                    detail: `the TH reports ${JSON.stringify(read)} and the DUT already held ${JSON.stringify(held)}`,
+                    check: () => ({
+                        type: "response",
+                        verdict: read === RENAMED_LABEL && held === read ? "pass" : "fail",
+                        detail: `the TH reports ${JSON.stringify(read)} and the DUT already held ${JSON.stringify(held)}`,
+                    }),
+                    what: "the DUT's own device list carries the new name",
                 },
-                "the DUT's own device list carries the new name",
-            );
+            ]);
         },
         {
             pics: "MCORE.DEVLIST.UseDeviceName",
@@ -675,52 +756,66 @@ certTest("TC-BR-4", {
                 (await heldEndpoints(cx)).some(entry => entry.endpoint === ADDED_LIGHT_ENDPOINT),
             );
 
-            const parts = await readEveryEndpoint(cx, "PartsList", DESCRIPTOR_ID, PARTS_LIST_ID);
-            const rootParts = partsOf(valueAt(parts, ROOT_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
-            const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
-            const addedAnsweredParts = endpointsAnswering(parts, DESCRIPTOR_ID, PARTS_LIST_ID).includes(
-                ADDED_LIGHT_ENDPOINT,
-            );
+            await withChecks(cx, async checks => {
+                const { entries: parts, check: partsRead } = await readEveryEndpoint(
+                    cx,
+                    "PartsList",
+                    DESCRIPTOR_ID,
+                    PARTS_LIST_ID,
+                );
+                checks.push(partsRead);
+                const rootParts = partsOf(valueAt(parts, ROOT_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
+                const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
+                const addedAnsweredParts = endpointsAnswering(parts, DESCRIPTOR_ID, PARTS_LIST_ID).includes(
+                    ADDED_LIGHT_ENDPOINT,
+                );
 
-            const deviceTypes = await readEveryEndpoint(cx, "DeviceTypeList", DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID);
-            const addedTypes = deviceTypesOf(
-                valueAt(deviceTypes, ADDED_LIGHT_ENDPOINT, DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID),
-            );
+                const { entries: deviceTypes, check: deviceTypesRead } = await readEveryEndpoint(
+                    cx,
+                    "DeviceTypeList",
+                    DESCRIPTOR_ID,
+                    DEVICE_TYPE_LIST_ID,
+                );
+                checks.push(deviceTypesRead);
+                const addedTypes = deviceTypesOf(
+                    valueAt(deviceTypes, ADDED_LIGHT_ENDPOINT, DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID),
+                );
 
-            await recordAll(cx, [
-                {
-                    check: () => ({
-                        type: "response",
-                        verdict: noticed ? "pass" : "fail",
-                        detail: `the DUT ${noticed ? "holds" : "does not hold"} endpoint ${ADDED_LIGHT_ENDPOINT}`,
-                    }),
-                    what: "the DUT took in the bridged light the TH added",
-                },
-                {
-                    check: () => ({
-                        type: "response",
-                        verdict:
-                            rootParts.includes(ADDED_LIGHT_ENDPOINT) &&
-                            aggregatorParts.includes(ADDED_LIGHT_ENDPOINT) &&
-                            addedAnsweredParts
-                                ? "pass"
-                                : "fail",
-                        detail:
-                            `the root endpoint names parts ${rootParts.join(", ")}, the aggregator names ` +
-                            `${aggregatorParts.join(", ")}, and endpoint ${ADDED_LIGHT_ENDPOINT} ` +
-                            `${addedAnsweredParts ? "answered" : "did not answer"} a PartsList of its own`,
-                    }),
-                    what: "the DUT read the added endpoint's PartsList and those of the root and the aggregator",
-                },
-                {
-                    check: () => ({
-                        type: "response",
-                        verdict: addedTypes.includes(ON_OFF_LIGHT_DEVICE_TYPE) ? "pass" : "fail",
-                        detail: `endpoint ${ADDED_LIGHT_ENDPOINT} reports device types ${addedTypes.join(", ")}`,
-                    }),
-                    what: "the DUT read the added endpoint's own device type",
-                },
-            ]);
+                checks.push(
+                    {
+                        check: () => ({
+                            type: "response",
+                            verdict: noticed ? "pass" : "fail",
+                            detail: `the DUT ${noticed ? "holds" : "does not hold"} endpoint ${ADDED_LIGHT_ENDPOINT}`,
+                        }),
+                        what: "the DUT took in the bridged light the TH added",
+                    },
+                    {
+                        check: () => ({
+                            type: "response",
+                            verdict:
+                                rootParts.includes(ADDED_LIGHT_ENDPOINT) &&
+                                aggregatorParts.includes(ADDED_LIGHT_ENDPOINT) &&
+                                addedAnsweredParts
+                                    ? "pass"
+                                    : "fail",
+                            detail:
+                                `the root endpoint names parts ${rootParts.join(", ")}, the aggregator names ` +
+                                `${aggregatorParts.join(", ")}, and endpoint ${ADDED_LIGHT_ENDPOINT} ` +
+                                `${addedAnsweredParts ? "answered" : "did not answer"} a PartsList of its own`,
+                        }),
+                        what: "the DUT read the added endpoint's PartsList and those of the root and the aggregator",
+                    },
+                    {
+                        check: () => ({
+                            type: "response",
+                            verdict: addedTypes.includes(ON_OFF_LIGHT_DEVICE_TYPE) ? "pass" : "fail",
+                            detail: `endpoint ${ADDED_LIGHT_ENDPOINT} reports device types ${addedTypes.join(", ")}`,
+                        }),
+                        what: "the DUT read the added endpoint's own device type",
+                    },
+                );
+            });
         },
         {
             expected:
@@ -764,11 +859,17 @@ certTest("TC-BR-4", {
                 async () => !(await heldEndpoints(cx)).some(entry => entry.endpoint === LIGHT_1_ENDPOINT),
             );
 
-            const parts = await readEveryEndpoint(cx, "PartsList", DESCRIPTOR_ID, PARTS_LIST_ID);
+            const { entries: parts, check: partsRead } = await readEveryEndpoint(
+                cx,
+                "PartsList",
+                DESCRIPTOR_ID,
+                PARTS_LIST_ID,
+            );
             const rootParts = partsOf(valueAt(parts, ROOT_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
             const aggregatorParts = partsOf(valueAt(parts, AGGREGATOR_ENDPOINT, DESCRIPTOR_ID, PARTS_LIST_ID));
 
             await recordAll(cx, [
+                partsRead,
                 {
                     check: () => ({
                         type: "response",
@@ -825,14 +926,14 @@ certTest("TC-BR-4", {
     });
 
 /**
- * Records that the DUT read every bridged light's state and holds what the TH reported.
+ * The checks that the DUT read every bridged light's state and holds what the TH reported.
  *
  * The read and the DUT's own value are separate claims: the read says the TH answered, the held value
  * says the DUT took the answer in, and only the second can fail once a subscription is delivering.
  */
-async function recordLightState(cx: CertStepContext, what: string) {
+async function lightStateChecks(cx: CertStepContext, what: string): Promise<RecordedCheck[]> {
     const held = await heldBefore(cx, LIGHTS, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
-    const entries = await readEveryEndpoint(cx, "OnOff", ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
+    const { entries, check: stateRead } = await readEveryEndpoint(cx, "OnOff", ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
     const answered = endpointsAnswering(entries, ON_OFF_ID, ON_OFF_ATTRIBUTE_ID);
 
     const disagreeing = LIGHTS.filter(
@@ -841,7 +942,8 @@ async function recordLightState(cx: CertStepContext, what: string) {
 
     const missing = LIGHTS.filter(number => !answered.includes(number));
 
-    await recordAll(cx, [
+    return [
+        stateRead,
         {
             check: () => ({
                 type: "response",
@@ -865,13 +967,18 @@ async function recordLightState(cx: CertStepContext, what: string) {
             }),
             what: "the DUT's own device list carries those states",
         },
-    ]);
+    ];
 }
 
-/** As {@link recordLightState}, for the temperature the bridged sensors report. */
-async function recordTemperatures(cx: CertStepContext, what: string) {
+/** As {@link lightStateChecks}, for the temperature the bridged sensors report. */
+async function temperatureChecks(cx: CertStepContext, what: string): Promise<RecordedCheck[]> {
     const held = await heldBefore(cx, TEMPERATURE_SENSORS, TEMPERATURE_ID, MEASURED_VALUE_ID);
-    const entries = await readEveryEndpoint(cx, "MeasuredValue", TEMPERATURE_ID, MEASURED_VALUE_ID);
+    const { entries, check: temperatureRead } = await readEveryEndpoint(
+        cx,
+        "MeasuredValue",
+        TEMPERATURE_ID,
+        MEASURED_VALUE_ID,
+    );
     const answered = endpointsAnswering(entries, TEMPERATURE_ID, MEASURED_VALUE_ID);
 
     const disagreeing = TEMPERATURE_SENSORS.filter(
@@ -880,7 +987,8 @@ async function recordTemperatures(cx: CertStepContext, what: string) {
 
     const missing = TEMPERATURE_SENSORS.filter(number => !answered.includes(number));
 
-    await recordAll(cx, [
+    return [
+        temperatureRead,
         {
             check: () => ({
                 type: "response",
@@ -905,5 +1013,5 @@ async function recordTemperatures(cx: CertStepContext, what: string) {
             }),
             what: "the DUT's own device list carries those temperatures",
         },
-    ]);
+    ];
 }
