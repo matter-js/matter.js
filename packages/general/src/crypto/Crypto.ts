@@ -169,7 +169,7 @@ export abstract class Crypto extends Entropy {
     abstract verifyEcdsa(publicKey: JsonWebKey, data: Bytes, signature: EcdsaSignature): MaybePromise<void>;
 
     /**
-     * Create an ML-DSA key pair (FIPS 204 §5.1, Matter Core §10.12.1).
+     * Create an ML-DSA key pair (FIPS 204 §5.1).
      *
      * The seed comes from {@link randomBytes}, so a deterministic entropy source yields deterministic keys.
      *
@@ -183,7 +183,7 @@ export abstract class Crypto extends Entropy {
     }
 
     /**
-     * Create a hedged ML-DSA signature with an empty context (FIPS 204 §5.2, Matter Core §10.12.2).
+     * Create a hedged ML-DSA signature with an empty context (FIPS 204 §5.2).
      *
      * The portable implementation hedges with {@link randomBytes}; a native one uses the runtime's own entropy, so
      * only the former signs reproducibly under a deterministic entropy source.
@@ -218,7 +218,7 @@ export abstract class Crypto extends Entropy {
     }
 
     /**
-     * Authenticate an ML-DSA signature with an empty context (FIPS 204 §5.3, Matter Core §10.12.3).
+     * Authenticate an ML-DSA signature with an empty context (FIPS 204 §5.3).
      *
      * @param publicKey the raw public key, as carried in the SubjectPublicKeyInfo BIT STRING
      * @throws KeyInputError if the public key has the wrong length

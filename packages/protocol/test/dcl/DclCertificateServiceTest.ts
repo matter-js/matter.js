@@ -95,6 +95,23 @@ const mockGitHubFileList = [
     { name: "README.md", type: "file" },
 ];
 
+async function captureLogs(fn: () => Promise<unknown>) {
+    const dest = Logger.destinations.default;
+    const { format, write } = dest;
+    const captured = new Array<{ level: LogLevel; message: string }>();
+    try {
+        dest.format = LogFormat.formats.plain;
+        dest.write = (message: string, { level }: Diagnostic.Message) => {
+            captured.push({ level, message });
+        };
+        await fn();
+        return captured;
+    } finally {
+        dest.format = format;
+        dest.write = write;
+    }
+}
+
 describe("DclCertificateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
@@ -545,6 +562,36 @@ describe("DclCertificateService", () => {
             const result = await service.getCertificateAsDer(NOVID_SKID);
             expect(Bytes.areEqual(result, corrupt)).to.be.true;
             expect(() => Paa.fromAsn1(result)).to.throw();
+
+            await service.close();
+        });
+
+        it("returns the cached bytes without a second parse warning when the re-fetched certificate is unusable", async () => {
+            const service = new DclCertificateService(environment);
+            await service.construction;
+            await service.getCertificateAsDer(NOVID_SKID);
+
+            const corrupt = Bytes.fromHex("3003010203");
+            await corruptStoredCertificate(NOVID_SKID);
+            const { approvedCertificates } = mockDclCertificateNoVID;
+            fetchMock.addResponse("/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D", {
+                approvedCertificates: {
+                    ...approvedCertificates,
+                    certs: [{ ...approvedCertificates.certs[0], pemCert: pemEncode(corrupt) }],
+                },
+            });
+
+            const certificateDownloads = () =>
+                fetchMock.getCallLog().filter(({ url }) => url.includes("/dcl/pki/certificates/"));
+            fetchMock.clearCallLog();
+            let result: Bytes = new Uint8Array();
+            const logs = await captureLogs(async () => {
+                result = await service.getCertificateAsDer(NOVID_SKID);
+            });
+            expect(certificateDownloads()).length(1);
+            expect(Bytes.areEqual(result, corrupt)).to.be.true;
+            expect(logs.some(({ message }) => message.includes("Re-fetched certificate also failed to parse"))).to.be
+                .false;
 
             await service.close();
         });
@@ -1955,23 +2002,6 @@ describe("DclCertificateService", () => {
     });
 
     describe("GitHub rate-limit logging", () => {
-        async function captureLogs(fn: () => Promise<unknown>) {
-            const dest = Logger.destinations.default;
-            const { format, write } = dest;
-            const captured = new Array<{ level: LogLevel; message: string }>();
-            try {
-                dest.format = LogFormat.formats.plain;
-                dest.write = (message: string, { level }: Diagnostic.Message) => {
-                    captured.push({ level, message });
-                };
-                await fn();
-                return captured;
-            } finally {
-                dest.format = format;
-                dest.write = write;
-            }
-        }
-
         // Empty DCL responses so the cached set is controlled solely by the test, with GitHub rate-limited (403).
         function mockDclWithGithubRateLimited() {
             const emptyRootList = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };

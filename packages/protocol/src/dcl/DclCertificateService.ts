@@ -44,6 +44,13 @@ import type { CertSeedEntry, SeedSource } from "./SeedTypes.js";
 
 const logger = Logger.get("DclCertificateService");
 
+/** Parse a trust store certificate with the extensions and algorithms its kind admits. */
+function parseTrustStoreCertificate(der: Bytes, kind: DclCertificateService.CertificateKind) {
+    return kind === "PAA"
+        ? Paa.fromAsn1(der).cert
+        : Certificate.parseAsn1Certificate(der, Certificate.REQUIRED_EXTENSIONS);
+}
+
 function statedString(value: unknown, field: string, index: number) {
     if (typeof value !== "string") {
         throw new ImplementationError(`Revocation set entry ${index} states ${field} as something other than a string`);
@@ -463,12 +470,7 @@ export class DclCertificateService {
     /** Parse error of a DER certificate, or undefined if it parses, using the extension set for its kind. */
     #certificateParseError(der: Bytes, kind?: DclCertificateService.CertificateKind): Error | undefined {
         try {
-            const isPaa = (kind ?? "PAA") === "PAA";
-            Certificate.parseAsn1Certificate(
-                der,
-                isPaa ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
-                { postQuantum: isPaa },
-            );
+            parseTrustStoreCertificate(der, kind ?? "PAA");
             return undefined;
         } catch (error) {
             return asError(error);
@@ -517,8 +519,8 @@ export class DclCertificateService {
 
     /**
      * Fetch a single root certificate from DCL by SubjectKeyIdentifier and store it. Returns true if
-     * a matching root certificate was found and stored, false if DCL has no such root certificate.
-     * Throws on DCL/network errors; callers decide how to handle them.
+     * a matching root certificate was found and stored, false if DCL has no such root certificate or it
+     * could not be fetched or used. Throws if the root certificate list cannot be fetched.
      */
     async #fetchAndStoreRootCertificateBySkid(
         normalizedId: string,
@@ -541,7 +543,7 @@ export class DclCertificateService {
             return false;
         }
 
-        await this.#fetchAndStoreCertificate(
+        const stored = await this.#fetchAndStoreCertificate(
             this.#storage!,
             dclClient,
             certRef,
@@ -550,7 +552,7 @@ export class DclCertificateService {
             options ?? this.#options,
         );
         await this.#saveIndex();
-        return true;
+        return stored;
     }
 
     /** Internal DER retrieval without construction assert (safe during init). */
@@ -770,11 +772,7 @@ export class DclCertificateService {
     ): Promise<boolean> {
         this.construction.assert();
 
-        const cert = Certificate.parseAsn1Certificate(
-            derBytes,
-            kind === "PAA" ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
-            { postQuantum: kind === "PAA" },
-        );
+        const cert = parseTrustStoreCertificate(derBytes, kind);
         const skid = this.#normalizeSubjectKeyId(cert.extensions.subjectKeyIdentifier);
 
         if (this.#certificateIndex.has(skid)) {
@@ -1012,7 +1010,10 @@ export class DclCertificateService {
         return this.#storage.set("index", indexArray);
     }
 
-    /** Fetch and store a single certificate from DCL by its subject reference. */
+    /**
+     * Fetch and store a single certificate from DCL by its subject reference.  Returns whether the trust store holds a
+     * usable certificate for it afterwards.
+     */
     async #fetchAndStoreCertificate(
         storage: StorageContext,
         dclClient: DclClient,
@@ -1020,7 +1021,7 @@ export class DclCertificateService {
         isProduction: boolean,
         force: boolean,
         options?: DclClient.Options,
-    ) {
+    ): Promise<boolean> {
         try {
             // Strip colons from subject key ID for storage key (normalize to match GitHub format)
             const normalizedSubjectKeyId = this.#normalizeSubjectKeyId(certRef.subjectKeyId);
@@ -1041,11 +1042,12 @@ export class DclCertificateService {
                         Diagnostic.dict({ skid: normalizedSubjectKeyId }),
                     );
                 }
-                return;
+                return true;
             }
 
             // Fetch the certificate details
             const certs = await dclClient.fetchRootCertificateBySubject(certRef, options);
+            let stored = false;
 
             for (const cert of certs) {
                 if (!cert.subjectKeyId) {
@@ -1061,6 +1063,15 @@ export class DclCertificateService {
 
                 // Convert PEM to DER
                 const derBytes = Pem.asDer(cert.pemCert);
+                const parseError = this.#certificateParseError(derBytes, "PAA");
+                if (parseError !== undefined) {
+                    logger.info(
+                        `Certificate from DCL cannot be used as a PAA, skipping`,
+                        Diagnostic.dict({ skid: subjectKeyId }),
+                        Diagnostic.errorMessage(parseError),
+                    );
+                    continue;
+                }
 
                 const { subject, subjectAsText, serialNumber, vid, isRoot } = cert;
                 // Store certificate with metadata (using normalized ID without colons)
@@ -1076,12 +1087,15 @@ export class DclCertificateService {
                 });
 
                 logger.debug(`Stored certificate`, Diagnostic.dict({ skid: normalizedSubjectKeyId, vid: cert.vid }));
+                stored ||= subjectKeyId === normalizedSubjectKeyId;
             }
+            return stored;
         } catch (error) {
             logger.info(
                 `Failed to fetch certificate ${certRef.subject}/${certRef.subjectKeyId}`,
                 Diagnostic.errorMessage(asError(error)),
             );
+            return false;
         }
     }
 
@@ -1318,11 +1332,17 @@ export class DclCertificateService {
                     }
 
                     const der = Bytes.fromHex(entry.derHex);
-                    const parsed = Certificate.parseAsn1Certificate(
-                        der,
-                        isPaa ? Certificate.REQUIRED_PAA_EXTENSIONS : Certificate.REQUIRED_EXTENSIONS,
-                        { postQuantum: isPaa },
-                    );
+                    let parsed;
+                    try {
+                        parsed = parseTrustStoreCertificate(der, certKind);
+                    } catch (error) {
+                        logger.info(
+                            `seed: certificate cannot be used as a ${certKind}, skipped`,
+                            Diagnostic.dict({ skid: this.#normalizeSubjectKeyId(entry.subjectKeyId) }),
+                            Diagnostic.errorMessage(asError(error)),
+                        );
+                        continue;
+                    }
                     const skidFromDer = this.#normalizeSubjectKeyId(parsed.extensions.subjectKeyIdentifier);
                     const entrySkid = this.#normalizeSubjectKeyId(entry.subjectKeyId);
 
