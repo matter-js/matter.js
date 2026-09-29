@@ -204,6 +204,12 @@ function sameName(a: Bytes, b: Bytes) {
     }
 }
 
+/** {@link sameName} for Names as hex of their DER; a value that is not hex names nothing. */
+function sameNameHex(a: string, b: string) {
+    const isHex = (value: string) => /^(?:[0-9a-f]{2})*$/i.test(value);
+    return isHex(a) && isHex(b) && sameName(Bytes.fromHex(a), Bytes.fromHex(b));
+}
+
 /** Whether an entry for the issuer names the serial; an entry or query without an issuer name matches any issuer. */
 function matchRevocation(
     entries: readonly DclCertificateService.RevocationEntry[] | undefined,
@@ -214,7 +220,7 @@ function matchRevocation(
         entry =>
             (issuerDnDerHex === undefined ||
                 entry.issuerDnDerHex === undefined ||
-                entry.issuerDnDerHex === issuerDnDerHex) &&
+                sameNameHex(entry.issuerDnDerHex, issuerDnDerHex)) &&
             entry.serials.has(serial),
     );
 }

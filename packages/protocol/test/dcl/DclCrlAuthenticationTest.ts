@@ -499,6 +499,13 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await dcl.isRevoked(hexOf(pai.skid), REVOKED, hexOf(DerCodec.encode(nameOf(delegate.name))))).false;
         });
 
+        it("finds revocations for an issuer name the certificate encodes as another string type", async () => {
+            const dcl = await serve(paa.skid, [{ signer: paa, isPAA: true, crl: await crlBy(paa.crlSigner) }]);
+            const printable = hexOf(DerCodec.encode({ commonName: X520.CommonName(paa.name, true) }));
+
+            expect(await dcl.isRevoked(hexOf(paa.skid), REVOKED, printable)).true;
+        });
+
         const certificateIssuer = (commonName: string, options: { critical?: boolean; names?: number } = {}) => {
             const names: Record<string, ReturnType<typeof ContextTagged>> = {};
             for (let i = 0; i < (options.names ?? 1); i++) {
