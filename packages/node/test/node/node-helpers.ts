@@ -36,6 +36,7 @@ import {
 } from "@matter/protocol";
 import {
     AttributeReport,
+    DelayReportData,
     EventReport,
     FabricId,
     FabricIndex,
@@ -380,7 +381,7 @@ export namespace interaction {
         fabric: Fabric,
         request: TypeFromSchema<typeof TlvInvokeRequest>["invokeRequests"][number],
         responder: (value: TypeFromSchema<typeof TlvInvokeResponseData>) => void,
-        options?: { timed?: boolean },
+        options?: { timed?: boolean; delayReportData?: DelayReportData },
     ) {
         const { exchange, interactionServer } = await connect(node, fabric);
 
@@ -396,6 +397,7 @@ export namespace interaction {
                 interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
                 suppressResponse: false,
                 timedRequest: options?.timed ?? false,
+                delayReportData: options?.delayReportData,
             },
             messenger,
             BarelyMockedMessage,

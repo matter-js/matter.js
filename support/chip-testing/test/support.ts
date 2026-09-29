@@ -6,7 +6,11 @@
 
 import { Environment, RuntimeService } from "@matter/main";
 import { Subject } from "@matter/testing";
-import { AllClustersNoGroupcastTestInstance, AllClustersTestInstance } from "../src/AllClustersTestInstance.js";
+import {
+    AllClustersFullMaxIntervalTestInstance,
+    AllClustersNoGroupcastTestInstance,
+    AllClustersTestInstance,
+} from "../src/AllClustersTestInstance.js";
 import { AllDevicesTestInstance } from "../src/AllDevicesTestInstance.js";
 import { BridgeTestInstance } from "../src/BridgeTestInstance.js";
 import { DeviceTestInstanceConstructor } from "../src/GenericTestApp.js";
@@ -23,6 +27,11 @@ chip.onClose(async () => {
 NodeTestInstance.forceFastTimeouts = true;
 NodeTestInstance.nonvolatileEvents = true;
 NodeTestInstance.testEnableKey = "000102030405060708090a0b0c0d0e0f";
+
+// CHIP master, which these tests run against, is on the next Matter line, so every forward feature is on, including
+// pqc-phase-1.  Covers every matter.js node of the run: the subjects below and the cert subjects of src/cert, which all
+// run in this process
+MockForwardFeatures.enableAll();
 
 export function App(implementation: DeviceTestInstanceConstructor<NodeTestInstance>): Subject.Factory {
     const factory: Subject.Factory = (domain: string, options?: Subject.Options) => {
@@ -44,6 +53,7 @@ export function App(implementation: DeviceTestInstanceConstructor<NodeTestInstan
 
 export const AllClustersApp = App(AllClustersTestInstance);
 export const AllClustersNoGroupcastApp = App(AllClustersNoGroupcastTestInstance);
+export const AllClustersFullMaxIntervalApp = App(AllClustersFullMaxIntervalTestInstance);
 export const AllDevicesApp = App(AllDevicesTestInstance);
 export const BridgeApp = App(BridgeTestInstance);
 export const TvApp = App(TvTestInstance);

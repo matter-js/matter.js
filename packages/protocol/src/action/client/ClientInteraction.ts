@@ -45,6 +45,7 @@ import {
     isObject,
     Lifetime,
     Logger,
+    Millis,
     Minutes,
     Mutex,
     RetrySchedule,
@@ -444,6 +445,12 @@ export class ClientInteraction<
             messenger.exchange.via,
             peerAddressDiagnostic(messenger.exchange.session),
             Diagnostic.asFlags({ suppressResponse: request.suppressResponse, timed: request.timedRequest }),
+            Diagnostic.dict({
+                delayReport:
+                    request.delayReportData === undefined
+                        ? undefined
+                        : `${Duration.format(Millis(request.delayReportData.delayMinMs))} + ${Duration.format(Millis(request.delayReportData.delayJitterWindowMs))} jitter`,
+            }),
             request,
         );
 
@@ -661,12 +668,14 @@ export class ClientInteraction<
         if (!request.largeMessage) {
             // Single command with batching support — auto-batch.  Batching buys nothing when the peer
             // only accepts one path per invoke, so send directly in that case.  The batch path always
-            // requests responses, so suppressResponse commands go directly too.
+            // requests responses, so suppressResponse commands go directly too.  A batch message carries the commands
+            // of several callers, so a command with DelayReportData goes directly as well.
             if (
                 request.invokeRequests.length === 1 &&
                 request.batchDuration !== false &&
                 maxPathsPerInvoke > 1 &&
-                !request.suppressResponse
+                !request.suppressResponse &&
+                request.delayReportData === undefined
             ) {
                 const endpointId = request.invokeRequests[0].commandPath.endpointId;
                 if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
