@@ -30,7 +30,7 @@ import { Identity } from "@matter/general";
  * added by default because you must select the features your device supports. You can add manually using
  * ElectricalMeterDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 14.8
+ * @see {@link MatterSpecification.v161.Device} § 14.8
  */
 export interface ElectricalMeterDevice extends Identity<typeof ElectricalMeterDeviceDefinition> {}
 

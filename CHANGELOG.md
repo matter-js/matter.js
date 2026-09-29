@@ -14,6 +14,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/\*:
     - Upgraded to Matter specification version 1.6.1. The Groupcast cluster and the Access Control auxiliary ACL are no longer provisional, and the device types that gained a Groupcast condition report their new revision. `BasicInformation.specificationVersion` defaults to 1.6.1 (`0x01060100`)
     - Breaking: `Status.UnreportableAttribute` (0x8c) and `Status.NoUpstreamSubscription` (0xc5) are removed, as Matter 1.6.1 deletes both status codes
+    - Enhancement: Specification references in API documentation name the Matter 1.6.1 documents, and references that pointed at the wrong section are corrected
 
 - @matter/general
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent

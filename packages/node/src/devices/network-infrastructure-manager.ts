@@ -141,7 +141,7 @@ import { Identity } from "@matter/general";
  * onboarding payload. This flow is described in detail in the Initiating Commissioning section of the Matter Core
  * specification, under the User Journey titled User-Initiated Beacon Detection, Already Commissioned Device.
  *
- * @see {@link MatterSpecification.v16.Device} § 15.3
+ * @see {@link MatterSpecification.v161.Device} § 15.3
  */
 export interface NetworkInfrastructureManagerDevice extends Identity<typeof NetworkInfrastructureManagerDeviceDefinition> {}
 

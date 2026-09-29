@@ -15,7 +15,7 @@ export enum RevocationTypeEnum {
 
 /**
  * Device Attestation PKI Revocation Distribution Points Schema
- * @see {@link MatterSpecification.v16.Core} § 11.23.11
+ * @see {@link MatterSpecification.v161.Core} § 11.23.11
  * DCL endpoints:
  *   * /dcl/pki/revocation-points
  *   * /dcl/pki/revocation-points/{issuerSubjectKeyId}

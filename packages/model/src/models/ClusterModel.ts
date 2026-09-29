@@ -67,7 +67,7 @@ export class ClusterModel
      * Status code range 0x02 - 0x10 is reserved for cluster-scoped codes, so a value of the global "status" type in
      * such a cluster carries either these codes or the global ones.
      *
-     * @see {@link MatterSpecification.v16.Core} § 8.10
+     * @see {@link MatterSpecification.v161.Core} § 8.10
      */
     get statusCodes() {
         const codes = this.datatypes("StatusCodeEnum");

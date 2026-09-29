@@ -33,7 +33,7 @@ import { Identity } from "@matter/general";
  *
  * This is used to provide the humidity of the soil.
  *
- * @see {@link MatterSpecification.v16.Device} § 7.14
+ * @see {@link MatterSpecification.v161.Device} § 7.14
  */
 export interface SoilSensorDevice extends Identity<typeof SoilSensorDeviceDefinition> {}
 

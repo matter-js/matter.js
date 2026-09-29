@@ -49,7 +49,7 @@ import { Identity } from "@matter/general";
  *       change the child Speaker's On/Off cluster via data dependency if there are other modalities to allow a user to
  *       determine Chime actuation (e.g. visual indicators).
  *
- * @see {@link MatterSpecification.v16.Device} § 16.7
+ * @see {@link MatterSpecification.v161.Device} § 16.7
  */
 export interface ChimeDevice extends Identity<typeof ChimeDeviceDefinition> {}
 

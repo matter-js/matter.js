@@ -7,7 +7,7 @@
 /**
  * CertificationTypeEnum of the Operational Trust Anchors Schema, as the DCL REST API encodes it: the value name, not
  * its number.
- * @see {@link MatterSpecification.v16.Core} § 11.23.6.9
+ * @see {@link MatterSpecification.v161.Core} § 11.23.6.9
  */
 export type DclCertificateType = "DeviceAttestationPKI" | "OperationalPKI" | "VIDSignerPKI";
 
@@ -15,7 +15,7 @@ export type DclCertificateType = "DeviceAttestationPKI" | "OperationalPKI" | "VI
  * Operational Root and Intermediate Certificate Schema
  *
  * The DCL sends every field and encodes an unset optional field as `""`.
- * @see {@link MatterSpecification.v16.Core} § 11.23.6
+ * @see {@link MatterSpecification.v161.Core} § 11.23.6
  */
 export interface OperationalCertificateDclSchema {
     /**

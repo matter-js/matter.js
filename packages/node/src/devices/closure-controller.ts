@@ -34,7 +34,7 @@ import { Identity } from "@matter/general";
  *
  *     - Used for advanced controller.
  *
- * @see {@link MatterSpecification.v16.Device} § 8.7
+ * @see {@link MatterSpecification.v161.Device} § 8.7
  */
 export interface ClosureControllerDevice extends Identity<typeof ClosureControllerDeviceDefinition> {}
 

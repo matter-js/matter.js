@@ -80,7 +80,7 @@ export abstract class ExchangeProvider {
 
     /**
      * Peer-advertised CapabilityMinima path floors.  Base values are the spec minimums.
-     * @see {@link MatterSpecification.v16.Core} § 11.1
+     * @see {@link MatterSpecification.v161.Core} § 11.1.4.4
      */
     get readPathsSupported(): number {
         return 9;

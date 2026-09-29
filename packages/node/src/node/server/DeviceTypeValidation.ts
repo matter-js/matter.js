@@ -13,7 +13,7 @@ import type { DeviceTypeViolation } from "@matter/model";
  *
  * Behaviour, modes and limits: `docs/DEVICE_TYPE_VALIDATION.md`.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2
+ * @see {@link MatterSpecification.v161.Core} § 9.2
  */
 export interface DeviceTypeValidation {
     /**

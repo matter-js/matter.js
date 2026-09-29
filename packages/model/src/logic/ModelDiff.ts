@@ -29,7 +29,7 @@ export type ModelDiff = ModelDiff.Add | ModelDiff.Delete | ModelDiff.Change | Mo
  * adjacent entries of an otherwise list and their disjunction, and a condition reference in any case and the condition
  * as declared. A change states each property as written.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3.11
+ * @see {@link MatterSpecification.v161.Core} § 7.3.11
  *
  * Changes below {@link depth} are counted rather than listed.
  */
@@ -163,7 +163,7 @@ function isFeature(model: Model) {
  * An entry of an otherwise list applies only where no earlier one does, so "A, B" states the same conformance as
  * "A | B", and "[A], [B]" the same as "[A | B]".
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3.11
+ * @see {@link MatterSpecification.v161.Core} § 7.3.11
  */
 function withJoinedEntries(ast: Conformance.Ast): Conformance.Ast {
     if (ast.type !== Conformance.Special.Otherwise) {

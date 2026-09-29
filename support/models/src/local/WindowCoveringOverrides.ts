@@ -294,7 +294,7 @@ LocalMatter.children.push(
  * The end product types with the features that allow each, per the three per-feature-combination tables of the
  * EndProductType attribute.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 5.3.6.13
+ * @see {@link MatterSpecification.v161.Cluster} § 5.3.6.13
  */
 function endProductTypes(awningTerraceName: string): FieldElement[] {
     const liftOnly = "LF & !TL";

@@ -382,7 +382,7 @@ export class BindingManager {
      * A group binding is usable once the fabric maps the group to a key set it holds; membership of the source endpoint
      * is not needed, because it governs receiving only.
      *
-     * @see {@link MatterSpecification.v16.Core} § 4.16.2
+     * @see {@link MatterSpecification.v161.Core} § 4.16.2
      */
     #holdsGroupKey(entry: Binding.Target): boolean {
         const fabrics = this.#cachedFabrics;

@@ -11,7 +11,7 @@ import { MatterError } from "@matter/general";
  * provisioning (GroupKeyManagement KeySetWrite and GroupKeyMap, or Groupcast JoinGroup) being incomplete or not yet in
  * effect, not a fault of the code sending.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.16.2
+ * @see {@link MatterSpecification.v161.Core} § 4.16.2
  */
 export class NoUsableGroupKeyError extends MatterError {}
 
@@ -21,6 +21,6 @@ export class GroupKeySetMissingError extends NoUsableGroupKeyError {}
 /**
  * Every epoch key of the group's key set starts in the future, so there is no current key to send with.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.17.3
+ * @see {@link MatterSpecification.v161.Core} § 4.17.3
  */
 export class GroupKeyNotStartedError extends NoUsableGroupKeyError {}

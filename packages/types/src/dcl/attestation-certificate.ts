@@ -9,7 +9,7 @@ import { DclCertificateType } from "./operational-certificate.js";
 
 /**
  * Grant Schema, one approval or rejection of a PAA certificate.
- * @see {@link MatterSpecification.v16.Core} § 11.23.4
+ * @see {@link MatterSpecification.v161.Core} § 11.23.4
  */
 export interface ApprovalOrRejectDetails {
     /**
@@ -39,7 +39,7 @@ export interface ApprovalOrRejectDetails {
  * Product Attestation Authority and Intermediate Certificate Schema
  *
  * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
- * @see {@link MatterSpecification.v16.Core} § 11.23.5
+ * @see {@link MatterSpecification.v161.Core} § 11.23.5
  * DCL Endpoints:
  *   * /dcl/pki/certificates
  *   * /dcl/pki/certificates/{subject}

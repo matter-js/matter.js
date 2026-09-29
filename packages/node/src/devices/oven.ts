@@ -37,7 +37,7 @@ import { Identity } from "@matter/general";
  * remotely accessible. In such cases, clusters exposed by an instance of a Temperature Controlled Cabinet may have
  * limitations on what commands are supported or what attributes are mutable.
  *
- * @see {@link MatterSpecification.v16.Device} § 13.9
+ * @see {@link MatterSpecification.v161.Device} § 13.9
  */
 export interface OvenDevice extends Identity<typeof OvenDeviceDefinition> {}
 

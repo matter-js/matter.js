@@ -12,7 +12,7 @@ import { TlvField, TlvObject, TlvOptionalField } from "../../tlv/TlvObject.js";
 import { TlvCommandData } from "../types/TlvCommandData.js";
 import { TlvDelayReportData } from "../types/TlvDelayReportData.js";
 
-/** @see {@link MatterSpecification.v16.Core}, section 10.7.9 */
+/** @see {@link MatterSpecification.v161.Core}, section 10.7.9 */
 
 export const TlvInvokeRequest = TlvObject({
     /** Do not send a response to this action. */

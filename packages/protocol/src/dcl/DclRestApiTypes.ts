@@ -104,21 +104,21 @@ export interface DclModelVersionWithVidPidSoftwareVersionResponse {
 /**
  * PAA or PAI certificate record as returned by the DCL REST API.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.23.5
+ * @see {@link MatterSpecification.v161.Core} § 11.23.5
  */
 export type DclProductAttestationRaw = Required<ProductAttestationDclSchema>;
 
 /**
  * Device model record as returned by the DCL REST API.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.23.7
+ * @see {@link MatterSpecification.v161.Core} § 11.23.7
  */
 export type DclDeviceModelRaw = Required<DeviceModelDclSchema>;
 
 /**
  * Vendor record as returned by the DCL REST API.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.23.3
+ * @see {@link MatterSpecification.v161.Core} § 11.23.3
  */
 export type DclVendorRaw = Required<VendorDclSchema>;
 
@@ -126,7 +126,7 @@ export type DclVendorRaw = Required<VendorDclSchema>;
  * Compliance record as returned by the DCL REST API, including the four fields the specification publishes as
  * deprecated.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.23.10
+ * @see {@link MatterSpecification.v161.Core} § 11.23.10
  */
 export interface DclComplianceInfoRaw extends Required<Omit<DeviceSoftwareComplianceDclSchema, "history">> {
     history: Required<ComplianceHistoryItemDclSchema>[];
@@ -139,7 +139,7 @@ export interface DclComplianceInfoRaw extends Required<Omit<DeviceSoftwareCompli
 /**
  * Device software version record as returned by the DCL REST API; the uint64 `otaFileSize` is a decimal string.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.23.8
+ * @see {@link MatterSpecification.v161.Core} § 11.23.8
  */
 export interface DclDeviceSoftwareVersionModelRaw extends Required<
     Omit<DeviceSoftwareVersionModelDclSchema, "otaFileSize">

@@ -72,7 +72,7 @@ import { Identity } from "@matter/general";
  *
  * In all these composition patterns, endpoint composition shall conform to the application device type(s) definition.
  *
- * @see {@link MatterSpecification.v16.Device} § 2.5
+ * @see {@link MatterSpecification.v161.Device} § 2.5
  */
 export interface BridgedNodeEndpoint extends Identity<typeof BridgedNodeEndpointDefinition> {}
 

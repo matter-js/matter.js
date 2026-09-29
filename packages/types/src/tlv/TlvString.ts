@@ -18,14 +18,14 @@ type LengthConstraints = {
 /**
  * Schema to encode an byte string or an Utf8 string in TLV.
  *
- * @see {@link MatterSpecification.v16.Core} § A.11.2
+ * @see {@link MatterSpecification.v161.Core} § A.11.2
  */
 const stringBoundCache = new WeakMap<StringSchema<any>, Map<string, StringSchema<any>>>();
 
 const DEFAULT_MAX_STRING_LENGTH = 65_536;
 
 /**
- * Unicode `INFORMATION SEPARATOR 1` / ASCII `Unit Separator`. Per {@link MatterSpecification.v16.Core} § 7.19.2.40,
+ * Unicode `INFORMATION SEPARATOR 1` / ASCII `Unit Separator`. Per {@link MatterSpecification.v161.Core} § 7.19.2.40,
  * only the code points before the first IS1 are the textual content of a character string, and conformant
  * implementations never emit IS1.
  */

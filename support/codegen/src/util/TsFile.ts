@@ -9,6 +9,7 @@ import { Specification } from "#model";
 import { Package } from "#tools";
 import { posix, relative, sep } from "node:path";
 import { absolute, readMatterFile, writeMatterFile } from "./file.js";
+import { SPECIFICATION_NAMESPACE } from "./specification-namespace.js";
 import { asObjectKey } from "./string.js";
 
 const HEADER = `/**
@@ -35,16 +36,16 @@ export type Documentation = {
 function mapSpec(xref?: Specification.CrossReference) {
     switch (xref?.document) {
         case "core":
-            return "MatterSpecification.v16.Core";
+            return `${SPECIFICATION_NAMESPACE}.Core`;
 
         case "cluster":
-            return "MatterSpecification.v16.Cluster";
+            return `${SPECIFICATION_NAMESPACE}.Cluster`;
 
         case "device":
-            return "MatterSpecification.v16.Device";
+            return `${SPECIFICATION_NAMESPACE}.Device`;
 
         case "namespace":
-            return "MatterSpecification.v16.Namespace";
+            return `${SPECIFICATION_NAMESPACE}.Namespace`;
     }
 }
 

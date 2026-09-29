@@ -194,7 +194,7 @@ const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
 /**
  * Reserve block size for the persisted group data counter; matches CHIP `GROUP_MSG_COUNTER_MIN_INCREMENT`. The counter
  * is persisted this far ahead so an unclean restart never rolls it back.
- * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+ * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
  */
 const GROUP_DATA_COUNTER_RESERVE = 1000;
 
@@ -323,7 +323,7 @@ export class SessionManager {
 
     /**
      * The single node-global Group Encrypted Data Message Counter shared by all group sessions.
-     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
      */
     get groupDataMessageCounter() {
         this.#construction.assert();
@@ -526,8 +526,8 @@ export class SessionManager {
      * Allocates a local ID for a new secure unicast session, PASE or CASE.  The ID is never 0 because 0 identifies the
      * unsecured session.
      *
-     * @see {@link MatterSpecification.v16.Core} § 4.4.1.3.4
-     * @see {@link MatterSpecification.v16.Core} § 4.13.2.4
+     * @see {@link MatterSpecification.v161.Core} § 4.4.1.3.4
+     * @see {@link MatterSpecification.v161.Core} § 4.13.2.4
      */
     async getNextAvailableSessionId() {
         await this.#construction;
@@ -973,7 +973,7 @@ export class SessionManager {
      * Build the node-global group data message counter. On the first run after upgrading from the legacy per-key
      * model, seed it above every value any per-key counter could already have used so it never rolls back below a
      * value already sent with a surviving key; then clear the legacy entries.
-     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
      */
     async #createGroupDataMessageCounter() {
         const storage = this.#context.storage;
