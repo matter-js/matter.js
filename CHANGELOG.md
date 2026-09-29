@@ -101,6 +101,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: The Descriptor `PartsList` update no longer looks up the endpoint's device types in the model on every change, so adding endpoints under an aggregator is about a third faster
 
 - @matter/testing
+    - Enhancement: `CertNodeApi.observeEvents()` reports a node's events through the subscription the controller already sustains, so a case still sees what a peer reports as it shuts down rather than losing them with the second session a subscription of its own would need; `subscribeEvents()` remains for a case whose subject is the subscribe request itself. Every `CertNodeApi` implementation must provide the new method
     - Enhancement: `BackchannelCommand.SendOnOffToBindings` asks a binding client to send an OnOff command to the targets of its bindings
     - Enhancement: A certification step that finds from the devices of its run that the plan does not apply it throws `CertStepNotApplicableError`, and is recorded as skipped with its reason and counted in `RunRecord.planConditionSkips`; thrown after the step recorded a check, it fails the run
     - Enhancement: A certification case whose DUT is a device takes the DUT's own app PICS from the device role named `dut` (`CertTestDefinition.dutApp`), so the DUT need not be the device the harness starts first
