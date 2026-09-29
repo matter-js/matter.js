@@ -128,6 +128,38 @@ describe("TlvOfModel", () => {
         });
     });
 
+    describe("a bound computed from numbers", () => {
+        function boundsOf(constraint: string, type = "int64", id = 0xfff7) {
+            const model = new AttributeModel({ id: 1, name: "Computed", type, constraint });
+            new ClusterModel({ name: "Computed", id }, model);
+            return ModelBounds.createNumberBounds(model);
+        }
+
+        it("keeps both bounds of a range", () => {
+            expect(boundsOf("-2^62 to 2^62")).deep.equals({ min: -4611686018427387904n, max: 4611686018427387904n });
+        });
+
+        it("keeps the computed bound next to a stated one", () => {
+            expect(boundsOf("0 to 2^62")).deep.equals({ min: 0, max: 4611686018427387904n });
+        });
+
+        it("keeps a bound computed in more than one step", () => {
+            expect(boundsOf("max (2^62) - 1")).deep.equals({ min: undefined, max: 4611686018427387903n });
+        });
+
+        it("counts the units of an operand as the validator does", () => {
+            expect(boundsOf("max (100% - 1%)", "percent100ths", 0xfff8)).deep.equals({ min: undefined, max: 9900 });
+        });
+
+        it("refuses a value beyond the computed bound", () => {
+            const model = new AttributeModel({ id: 1, name: "Enforced", type: "int64", constraint: "-2^62 to 2^62" });
+            new ClusterModel({ name: "Enforced", id: 0xfff9 }, model);
+
+            expect(() => TlvOfModel(model).validate(4611686018427387904n)).not.throws();
+            expect(() => TlvOfModel(model).validate(4611686018427387905n)).throws();
+        });
+    });
+
     describe("a bound wider than a number states exactly", () => {
         // A bound just inside the type's own range, so the bound is the only thing that can refuse a value
         const big = new AttributeModel({ id: 1, name: "Big", type: "uint64", constraint: "0 to 18446744073709551614" });

@@ -140,117 +140,8 @@ export class Constraint extends Aspect<Constraint.Definition> implements Constra
      * Test a value against a constraint.  Does not recurse into arrays.
      */
     test(value: FieldValue, nameResolver?: (name: string) => unknown): boolean {
-        // Expression evaluator.  This is for constraints such as "min FieldName"
-        function valueOf(value: Constraint.Expression | undefined, raw = false): FieldValue | undefined {
-            if (!raw && (typeof value === "string" || Array.isArray(value))) {
-                return value.length;
-            }
-            if (typeof value === "object" && value !== null && "type" in value) {
-                const { type } = value;
-                switch (type) {
-                    case FieldValue.reference:
-                        if (typeof value.name === "string") {
-                            value = FieldValue(nameResolver?.(camelize(value.name)));
-                            if (isObject(value)) {
-                                value = { type: "properties", properties: value as Record<string, FieldValue> };
-                            }
-                        }
-                        break;
-
-                    case "+":
-                    case "-": {
-                        const lhs = valueOf(value.lhs);
-                        const rhs = valueOf(value.rhs);
-
-                        // Propagate BigInt if either operand is one (e.g., from exponentiation).
-                        // The inner type check guards against non-numeric types (e.g. undefined
-                        // from unresolved references) that would not convert to BigInt.
-                        if (typeof lhs === "bigint" || typeof rhs === "bigint") {
-                            const l = typeof lhs === "number" && Number.isInteger(lhs) ? BigInt(lhs) : lhs;
-                            const r = typeof rhs === "number" && Number.isInteger(rhs) ? BigInt(rhs) : rhs;
-                            if (typeof l === "bigint" && typeof r === "bigint") {
-                                return type === "+" ? l + r : l - r;
-                            }
-                            return undefined;
-                        }
-
-                        if (typeof lhs === "number" && typeof rhs === "number") {
-                            return type === "+" ? lhs + rhs : lhs - rhs;
-                        }
-                        return undefined;
-                    }
-
-                    case "*": {
-                        const lhs = valueOf(value.lhs);
-                        const rhs = valueOf(value.rhs);
-                        if (typeof lhs === "number" && typeof rhs === "number") {
-                            return lhs * rhs;
-                        }
-                        return undefined;
-                    }
-
-                    case "/": {
-                        const lhs = valueOf(value.lhs);
-                        const rhs = valueOf(value.rhs);
-                        if (typeof lhs === "number" && typeof rhs === "number") {
-                            return lhs / rhs;
-                        }
-                        return undefined;
-                    }
-
-                    case "^": {
-                        const lhs = valueOf(value.lhs);
-                        const rhs = valueOf(value.rhs);
-                        if (typeof lhs === "number" && typeof rhs === "number") {
-                            // Standard mathematical convention: -a^b means -(a^b), not (-a)^b.
-                            // The parser encodes unary minus in the base, so we need to ensure
-                            // negative bases are treated as -(|base|^exp)
-                            const absLhs = Math.abs(lhs);
-                            const result = absLhs ** rhs;
-
-                            // Use BigInt when a result exceeds the JS safe integer range for precision
-                            if (result > Number.MAX_SAFE_INTEGER) {
-                                const bigResult = BigInt(absLhs) ** BigInt(rhs);
-                                return lhs < 0 ? -bigResult : bigResult;
-                            }
-
-                            return lhs < 0 ? -result : result;
-                        }
-                        return undefined;
-                    }
-
-                    case ".": {
-                        // The rhs names a member of the lhs, so it stays a name rather than resolving in the scope
-                        // the lhs resolves in
-                        const rhs = FieldValue.referenced(value.rhs);
-                        if (rhs === undefined) {
-                            return undefined;
-                        }
-
-                        const object = FieldValue.objectValue(valueOf(value.lhs));
-                        if (object === undefined) {
-                            return undefined;
-                        }
-
-                        // Resolve name in context of object.  We aren't using schema here but Object.hasOwn is
-                        // sufficient
-                        const name = camelize(rhs);
-                        if (Object.hasOwn(object, name)) {
-                            return object[name];
-                        }
-
-                        return undefined;
-                    }
-
-                    case "maxOf":
-                    case "minOf": {
-                        return Functions[type](value.args.map(value => valueOf(value)));
-                    }
-                }
-            }
-
-            return value;
-        }
+        const valueOf = (expression: Constraint.Expression | undefined, raw = false) =>
+            evaluate(expression, nameResolver, raw);
 
         if (value === undefined) {
             return false;
@@ -580,6 +471,43 @@ export namespace Constraint {
      * Parsed expression.
      */
     export type Expression = FieldValue | BinaryOperator | Function;
+
+    /**
+     * The number an expression computes from numbers alone, such as the "2^62" of "max 2^62" or "(2^62) - 1", or
+     * undefined if it names a value or states a unit, which only the value it is compared with gives a number.
+     */
+    export function constantOf(expression: Expression | FieldValue.Open | undefined): number | bigint | undefined {
+        if (!isComputed(expression) || !isLiteral(expression)) {
+            return;
+        }
+        const value = evaluate(expression, undefined);
+        if (typeof value === "bigint" || (typeof value === "number" && Number.isFinite(value))) {
+            return value;
+        }
+    }
+
+    /** An expression whose every operand is a number it states, so no name or unit reaches the evaluator */
+    function isLiteral(expression: Expression): boolean {
+        if (typeof expression === "number" || typeof expression === "bigint") {
+            return true;
+        }
+        if (!isComputed(expression)) {
+            return false;
+        }
+        if ("args" in expression) {
+            return expression.args.every(isLiteral);
+        }
+        return isLiteral(expression.lhs) && isLiteral(expression.rhs);
+    }
+
+    /**
+     * Whether an expression computes its value by an operator or a function rather than stating it.
+     */
+    export function isComputed(
+        expression: Expression | FieldValue.Open | undefined,
+    ): expression is BinaryOperator | Function {
+        return typeof expression === "object" && expression !== null && ("lhs" in expression || "args" in expression);
+    }
 
     /**
      * These are all ways to describe a constraint.
@@ -1019,4 +947,122 @@ namespace Parser {
             }
         }
     }
+}
+
+/**
+ * The value of an expression a constraint states, such as the "FieldName" of "min FieldName" or the "2^62" of "max 2^62".
+ */
+function evaluate(
+    value: Constraint.Expression | undefined,
+    nameResolver: ((name: string) => unknown) | undefined,
+    raw = false,
+): FieldValue | undefined {
+    if (!raw && (typeof value === "string" || Array.isArray(value))) {
+        return value.length;
+    }
+    if (typeof value === "object" && value !== null && "type" in value) {
+        const { type } = value;
+        switch (type) {
+            case FieldValue.reference:
+                if (typeof value.name === "string") {
+                    value = FieldValue(nameResolver?.(camelize(value.name)));
+                    if (isObject(value)) {
+                        value = { type: "properties", properties: value as Record<string, FieldValue> };
+                    }
+                }
+                break;
+
+            case "+":
+            case "-": {
+                const lhs = evaluate(value.lhs, nameResolver);
+                const rhs = evaluate(value.rhs, nameResolver);
+
+                // Propagate BigInt if either operand is one (e.g., from exponentiation).
+                // The inner type check guards against non-numeric types (e.g. undefined
+                // from unresolved references) that would not convert to BigInt.
+                if (typeof lhs === "bigint" || typeof rhs === "bigint") {
+                    const l = typeof lhs === "number" && Number.isInteger(lhs) ? BigInt(lhs) : lhs;
+                    const r = typeof rhs === "number" && Number.isInteger(rhs) ? BigInt(rhs) : rhs;
+                    if (typeof l === "bigint" && typeof r === "bigint") {
+                        return type === "+" ? l + r : l - r;
+                    }
+                    return undefined;
+                }
+
+                if (typeof lhs === "number" && typeof rhs === "number") {
+                    return type === "+" ? lhs + rhs : lhs - rhs;
+                }
+                return undefined;
+            }
+
+            case "*": {
+                const lhs = evaluate(value.lhs, nameResolver);
+                const rhs = evaluate(value.rhs, nameResolver);
+                if (typeof lhs === "number" && typeof rhs === "number") {
+                    return lhs * rhs;
+                }
+                return undefined;
+            }
+
+            case "/": {
+                const lhs = evaluate(value.lhs, nameResolver);
+                const rhs = evaluate(value.rhs, nameResolver);
+                if (typeof lhs === "number" && typeof rhs === "number") {
+                    return lhs / rhs;
+                }
+                return undefined;
+            }
+
+            case "^": {
+                const lhs = evaluate(value.lhs, nameResolver);
+                const rhs = evaluate(value.rhs, nameResolver);
+                if (typeof lhs === "number" && typeof rhs === "number") {
+                    // Standard mathematical convention: -a^b means -(a^b), not (-a)^b.
+                    // The parser encodes unary minus in the base, so we need to ensure
+                    // negative bases are treated as -(|base|^exp)
+                    const absLhs = Math.abs(lhs);
+                    const result = absLhs ** rhs;
+
+                    // Use BigInt when a result exceeds the JS safe integer range for precision
+                    if (result > Number.MAX_SAFE_INTEGER) {
+                        const bigResult = BigInt(absLhs) ** BigInt(rhs);
+                        return lhs < 0 ? -bigResult : bigResult;
+                    }
+
+                    return lhs < 0 ? -result : result;
+                }
+                return undefined;
+            }
+
+            case ".": {
+                // The rhs names a member of the lhs, so it stays a name rather than resolving in the scope
+                // the lhs resolves in
+                const rhs = FieldValue.referenced(value.rhs);
+                if (rhs === undefined) {
+                    return undefined;
+                }
+
+                const object = FieldValue.objectValue(evaluate(value.lhs, nameResolver));
+                if (object === undefined) {
+                    return undefined;
+                }
+
+                // Resolve name in context of object.  We aren't using schema here but Object.hasOwn is
+                // sufficient
+                const name = camelize(rhs);
+                if (Object.hasOwn(object, name)) {
+                    return object[name];
+                }
+
+                return undefined;
+            }
+
+            case "maxOf":
+            case "minOf": {
+                return Functions[type](value.args.map(value => evaluate(value, nameResolver)));
+            }
+        }
+    }
+
+    return value;
 }
