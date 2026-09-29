@@ -31,7 +31,7 @@ export function ValueCaster(schema: Schema, owner: RootSupervisor): ValueSupervi
             break;
     }
 
-    if (schema.quality.nullable) {
+    if (schema.effectiveQuality.nullable) {
         return value => {
             if (value === null) {
                 return value;
