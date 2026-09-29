@@ -50,7 +50,7 @@ export const TlvMeasurementAccuracyRange = TlvObject({
      *
      * @see {@link MatterSpecification.v16.Cluster} § 2.1.3.2.1
      */
-    rangeMin: TlvField(0, TlvInt64),
+    rangeMin: TlvField(0, TlvInt64.bound({ min: -4611686018427387904n, max: 4611686018427387904n })),
 
     /**
      * This field shall indicate the maximum measurement value for the specified level of accuracy.
@@ -65,7 +65,7 @@ export const TlvMeasurementAccuracyRange = TlvObject({
      *
      * @see {@link MatterSpecification.v16.Cluster} § 2.1.3.2.2
      */
-    rangeMax: TlvField(1, TlvInt64),
+    rangeMax: TlvField(1, TlvInt64.bound({ min: -4611686018427387904n, max: 4611686018427387904n })),
 
     /**
      * This field shall indicate the maximum +/- percentage accuracy for the associated measurement.
@@ -94,7 +94,7 @@ export const TlvMeasurementAccuracyRange = TlvObject({
      *
      * @see {@link MatterSpecification.v16.Cluster} § 2.1.3.2.6
      */
-    fixedMax: TlvOptionalField(5, TlvUInt64),
+    fixedMax: TlvOptionalField(5, TlvUInt64.bound({ max: 4611686018427387903n })),
 
     /**
      * This field shall indicate the minimum +/- fixed accuracy for the associated measurement, in the unit indicated by

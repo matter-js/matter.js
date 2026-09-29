@@ -202,14 +202,22 @@ describe("EncodedConstraint", () => {
     });
 
     // An operand of an arithmetic bound is in the units of the type, so it converts as the bound does
+    // Computed from numbers alone once its units are counted, so it states the number it computes
     it("counts the units of an operand of an arithmetic bound", () => {
-        expect(`${EncodedConstraint(new Constraint("max (100% - 1%)"), percent100ths)}`).equal("max 10000 - 100");
+        expect(`${EncodedConstraint(new Constraint("max (100% - 1%)"), percent100ths)}`).equal("max 9900");
     });
 
     it("counts the units of an argument of a computed bound", () => {
-        expect(`${EncodedConstraint(new Constraint("max minOf(100%, 50%)"), percent100ths)}`).equal(
-            "max minOf(10000, 5000)",
-        );
+        expect(`${EncodedConstraint(new Constraint("max minOf(100%, 50%)"), percent100ths)}`).equal("max 5000");
+    });
+
+    it("snaps a computed bound to the integer an integer type counts", () => {
+        expect(`${EncodedConstraint(new Constraint("max 0.07 * 100"), unscaled)}`).equal("max 7");
+    });
+
+    // Characterization: a bound computed from a name was never computed
+    it("keeps a bound computed from a name as an expression", () => {
+        expect(`${EncodedConstraint(new Constraint("max Limit - 1%"), percent100ths)}`).equal("max limit - 100");
     });
 
     // The lhs states values of its own where it is computed, and the rhs names a member of what it denotes
