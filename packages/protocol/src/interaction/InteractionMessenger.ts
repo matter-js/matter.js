@@ -253,11 +253,11 @@ export class InteractionServerMessenger extends InteractionMessenger {
     #suppressResponse = false;
 
     /**
-     * Send a Status Response, unless the Invoke or Write request decoded last carries SuppressResponse set to TRUE and
-     * the "unified-suppress-response" forward feature is enabled.  Then the transaction terminates silently.
+     * Send a Status Response, unless the Invoke or Write request decoded last carries SuppressResponse set to TRUE.
+     * Then the transaction terminates silently.
      */
     override async sendStatus(status: Status, options?: ExchangeSendOptions) {
-        if (this.#statusSuppressed) {
+        if (this.#suppressResponse) {
             return;
         }
         await super.sendStatus(status, options);
@@ -272,21 +272,13 @@ export class InteractionServerMessenger extends InteractionMessenger {
         return await super.nextMessage(expectedMessageType, options, expectedMessageInfo);
     }
 
-    get #suppressionEnabled() {
-        return Specification.isForwardFeatureEnabled("unified-suppress-response");
-    }
-
-    get #statusSuppressed() {
-        return this.#suppressResponse && this.#suppressionEnabled;
-    }
-
     #decodeRequest<T extends { suppressResponse?: boolean }>(schema: TlvSchema<T>, payload: Bytes): T {
         try {
             const request = schema.decode(payload);
             this.#suppressResponse = request.suppressResponse === true;
             return request;
         } catch (error) {
-            this.#suppressResponse = this.#suppressionEnabled && suppressResponseOf(payload);
+            this.#suppressResponse = suppressResponseOf(payload);
             throw error;
         }
     }
@@ -379,34 +371,25 @@ export class InteractionServerMessenger extends InteractionMessenger {
             }
 
             let errorStatusCode = Status.Failure;
+            const statusMark = this.#suppressResponse ? Mark.SUPPRESSED : Mark.OUTBOUND;
             const sre = StatusResponseError.of(error);
             if (sre) {
                 errorStatusCode = sre.code;
-                if (this.#statusSuppressed) {
-                    logger.info(
-                        "Status response suppressed",
-                        this.exchange.via,
-                        this.exchange.diagnostics,
-                        Diagnostic.strong(`${Status[sre.code]}#${sre.code}`),
-                        "due to error:",
-                        Diagnostic.errorMessage(sre),
-                    );
-                } else {
-                    logger.info(
-                        "Status response",
-                        Mark.OUTBOUND,
-                        this.exchange.via,
-                        this.exchange.diagnostics,
-                        Diagnostic.strong(`${Status[sre.code]}#${sre.code}`),
-                        "due to error:",
-                        Diagnostic.errorMessage(sre),
-                    );
-                }
+                logger.info(
+                    "Status response",
+                    statusMark,
+                    this.exchange.via,
+                    this.exchange.diagnostics,
+                    Diagnostic.strong(`${Status[sre.code]}#${sre.code}`),
+                    "due to error:",
+                    Diagnostic.errorMessage(sre),
+                );
             } else {
                 logger.warn(this.exchange.via, this.exchange.diagnostics, error);
-                if (this.#statusSuppressed && !isGroupSession) {
+                if (this.#suppressResponse && !isGroupSession) {
                     logger.info(
-                        "Status response suppressed",
+                        "Status response",
+                        statusMark,
                         this.exchange.via,
                         this.exchange.diagnostics,
                         Diagnostic.strong(`${Status[Status.Failure]}#${Status.Failure}`),

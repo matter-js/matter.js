@@ -89,7 +89,7 @@ export namespace Specification {
      *
      * Use only names that are already public, so the source does not disclose unreleased specification content.
      */
-    export type ForwardFeature = "pqc-phase-1" | "delay-report-data" | "unified-suppress-response";
+    export type ForwardFeature = "pqc-phase-1" | "delay-report-data";
 
     /**
      * Whether a forward feature is active.  Tests enable one with `MockForwardFeatures.enable()` from
