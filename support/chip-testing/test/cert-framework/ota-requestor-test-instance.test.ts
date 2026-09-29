@@ -4,7 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, StandardCrypto, Time } from "@matter/general";
+import {
+    Bytes,
+    createPromise,
+    Millis,
+    PromiseTimeoutError,
+    Seconds,
+    StandardCrypto,
+    Time,
+    withTimeout,
+} from "@matter/general";
 import { OtaSoftwareUpdateRequestorServer } from "@matter/main/behaviors/ota-software-update-requestor";
 import { OtaImageWriter } from "@matter/main/protocol";
 import { NodeId, VendorId } from "@matter/main/types";
@@ -15,6 +24,7 @@ import { InProcessControllerAdapter } from "../../src/cert/InProcessControllerAd
 import {
     OtaRequestorTestInstance,
     REBOOT_AFTER_APPLY_ARG,
+    SPEC_INTERVALS_ARG,
     verifyOtaTestTransfer,
 } from "../../src/OtaRequestorTestInstance.js";
 import {
@@ -32,6 +42,15 @@ const OTA_REQUESTOR_ENDPOINT = 1;
 
 const OTA_REQUESTOR_CLUSTER_ID = OtaSoftwareUpdateRequestor.Cluster.id;
 const STATE_TRANSITION_EVENT_ID = OtaSoftwareUpdateRequestor.Cluster.events.stateTransition.id;
+const UPDATE_STATE_ATTRIBUTE_ID = OtaSoftwareUpdateRequestor.Cluster.attributes.updateState.id;
+
+/** The name `UpdateState` gives a reported state, for a failure message. */
+function stateName(state: unknown) {
+    return typeof state === "number" ? (OtaSoftwareUpdateRequestor.UpdateState[state] ?? `${state}`) : String(state);
+}
+
+/** `QueryStatus` Busy (Matter Core § 11.20.6.5.2). */
+const OTA_STATUS_BUSY = 1;
 
 /** Kept clear of the 5540 every other subject defaults to, so a start here cannot lose a port race. */
 const REQUESTOR_PORT = 5560;
@@ -234,6 +253,99 @@ describe("OtaRequestorTestInstance", () => {
         // Every cleanup runs, in teardown order, even if an earlier one throws. A cleanup failure
         // replaces a passing body's result, but never a failing one — the body's own error is the
         // actual defect under test, and a cleanup failure on top of it is logged instead of thrown.
+        try {
+            await runCleanups(
+                () =>
+                    ref === undefined || adapter === undefined ? Promise.resolve() : adapter.node(ref).decommission(),
+                () => adapter?.close() ?? Promise.resolve(),
+                () => device?.close() ?? Promise.resolve(),
+            );
+        } catch (cleanupFailure) {
+            if (bodyFailure === undefined) {
+                throw cleanupFailure;
+            }
+            console.warn("OtaRequestorTestInstance cleanup failed after the test body already failed:", cleanupFailure);
+        }
+
+        if (bodyFailure !== undefined) {
+            throw bodyFailure;
+        }
+    });
+
+    // A provider that answers Busy asks the requestor to come back, and the requestor schedules that retry.
+    // UpdateState has to say so: reporting Idle describes a requestor with nothing outstanding.
+    it("stays DelayedOnQuery while it waits out a Busy answer", async function () {
+        this.timeout(45_000);
+
+        let device: OtaRequestorTestInstance | undefined;
+        let adapter: InProcessControllerAdapter | undefined;
+        let ref: CertNodeRef | undefined;
+        let bodyFailure: unknown;
+        try {
+            device = new OtaRequestorTestInstance({
+                domain: `ota-requestor-test-${Math.random().toString(36).slice(2)}`,
+                commandPipeFactory: async () => {},
+                discriminator: REQUESTOR_DISCRIMINATOR,
+                passcode: REQUESTOR_PASSCODE,
+                port: REQUESTOR_PORT,
+
+                // The wait is the point: a run that shortens the requestor's floors re-queries within a
+                // second, is answered for real, and is back to Idle before the read below
+                appArgs: [SPEC_INTERVALS_ARG],
+            });
+            await device.initialize();
+            await device.start();
+            expect(device.node.lifecycle.isOnline, "the subject is listening after start()").equal(true);
+
+            adapter = new InProcessControllerAdapter("ota-requestor-dut");
+            await adapter.start();
+
+            ref = await adapter.commission({ passcode: REQUESTOR_PASSCODE, discriminator: REQUESTOR_DISCRIMINATOR });
+            const node = adapter.node(ref);
+
+            // announceOtaProvider returns once the provider recorded its answer, before the requestor handled
+            // it. The event says the requestor did; it is recorded before the requestor's transaction commits,
+            // so the attribute is read until the commit makes the state visible.
+            const states = new Array<unknown>();
+            const delayed = createPromise<void>();
+            await node.observeEvents([{ cluster: OTA_REQUESTOR_CLUSTER_ID, event: STATE_TRANSITION_EVENT_ID }], {
+                onUpdate: ({ value }) => {
+                    const newState =
+                        typeof value === "object" && value !== null && "newState" in value ? value.newState : undefined;
+                    states.push(newState);
+                    if (newState === OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery) {
+                        delayed.resolver();
+                    }
+                },
+            });
+
+            await node.scriptOtaProvider({ queryImage: [{ status: OTA_STATUS_BUSY, delayedActionTime: 60 }] });
+            await node.announceOtaProvider({ timeoutMs: 20_000 });
+            await withTimeout(Seconds(10), delayed.promise, () => {
+                throw new PromiseTimeoutError(
+                    `No StateTransition into DelayedOnQuery after a Busy answer; states reported: ${states.map(stateName).join(", ")}`,
+                );
+            });
+
+            const readUpdateState = async () =>
+                (
+                    await node.readAttributes([
+                        { cluster: OTA_REQUESTOR_CLUSTER_ID, attribute: UPDATE_STATE_ATTRIBUTE_ID },
+                    ])
+                ).map(({ value }) => value);
+            const deadline = Time.nowUs + Seconds(5);
+            let updateState = await readUpdateState();
+            while (updateState[0] !== OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery && Time.nowUs < deadline) {
+                await Time.sleep("UpdateState commit", Millis(100));
+                updateState = await readUpdateState();
+            }
+            expect(updateState, "UpdateState after a Busy answer").to.deep.equal([
+                OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery,
+            ]);
+        } catch (error) {
+            bodyFailure = error;
+        }
+
         try {
             await runCleanups(
                 () =>

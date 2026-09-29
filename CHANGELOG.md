@@ -86,6 +86,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 
 - @matter/node
+    - Fix: An OTA requestor that a provider answers `Busy` keeps `UpdateState` at `DelayedOnQuery` until its retry; it reset the attribute to `Idle` in the same transaction, so a read never showed the wait. After three `Busy` retries it treats the provider as having no update and waits for its next regular query; before, it queried a `Busy` provider again without limit
     - Fix: After a factory reset, event reads and subscriptions still see new events: the node keeps its cleared event manager instead of creating a second one they did not know about
     - Fix: Creating a peer no longer closes the node's own event manager
     - Feature: An invoke with DelayReportData holds off the next report of every subscription that selects an endpoint the invoke dispatches to, by DelayMinMs plus a random jitter below DelayJitterWindowMs; a deferral that ends earlier is kept, and no report is held past the send interval after the last report was sent, counted from when its sending started. Behind the `delay-report-data` forward feature; while `Specification.ENABLE_FORWARD_MATTER_FEATURES` is off the field is ignored. `ServerSubscription.deferReports()`, which holds off a subscription's next report, is available regardless
