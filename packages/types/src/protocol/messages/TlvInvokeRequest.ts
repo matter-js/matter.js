@@ -24,11 +24,7 @@ export const TlvInvokeRequest = TlvObject({
     /** Cluster command(s) to invoke. */
     invokeRequests: TlvField(2, TlvArray(TlvCommandData)),
 
-    /**
-     * Hold off the Report Data that follows this invoke.  Not in a released specification yet: the matter.js server acts
-     * on it only while the "delay-report-data" forward feature is enabled, and the `Invoke()` factory refuses to build a
-     * request with it otherwise.  Decoding accepts it regardless.
-     */
+    /** Hold off the Report Data that follows this invoke. */
     delayReportData: TlvOptionalField(3, TlvDelayReportData),
 
     interactionModelRevision: TlvOptionalField(0xff, TlvUInt8),

@@ -11,6 +11,7 @@ import {
     Crypto,
     Diagnostic,
     Duration,
+    Entropy,
     InternalError,
     Lifetime,
     Logger,
@@ -910,7 +911,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return undefined;
         }
         const { delayMinMs, delayJitterWindowMs } = delayReportData;
-        return `${Duration.format(Millis(delayMinMs))} + ${Duration.format(Millis(delayJitterWindowMs))} jitter`;
+        return `${Duration.format(Millis(delayMinMs))}/${Duration.format(Millis(delayJitterWindowMs))}`;
     }
 
     /**
@@ -923,7 +924,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return;
         }
 
-        const jitter = delayJitterWindowMs > 0 ? this.#node.env.get(Crypto).randomUint32 % delayJitterWindowMs : 0;
+        const jitter = delayJitterWindowMs > 0 ? this.#node.env.get(Entropy).randomUint32 % delayJitterWindowMs : 0;
         const delay = Millis(delayMinMs + jitter);
 
         for (const session of this.#context.sessions.sessions) {

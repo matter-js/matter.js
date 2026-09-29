@@ -449,7 +449,7 @@ export class ClientInteraction<
                 delayReport:
                     request.delayReportData === undefined
                         ? undefined
-                        : `${Duration.format(Millis(request.delayReportData.delayMinMs))} + ${Duration.format(Millis(request.delayReportData.delayJitterWindowMs))} jitter`,
+                        : `${Duration.format(Millis(request.delayReportData.delayMinMs))}/${Duration.format(Millis(request.delayReportData.delayJitterWindowMs))}`,
             }),
             request,
         );

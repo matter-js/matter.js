@@ -196,8 +196,6 @@ export namespace Invoke {
 
         /**
          * Ask the server to hold off the next Report Data of the subscriptions on the endpoints the commands target.
-         * Only available while the "delay-report-data" forward feature is enabled; otherwise `Invoke()` throws a
-         * {@link MalformedRequestError}.
          */
         delayReportData?: DelayReportData;
     }
