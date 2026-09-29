@@ -24,7 +24,7 @@ export const AccessControl = Cluster(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "EXTS", conformance: "O", constraint: "0", title: "Extension" }),
         Field({ name: "MNGD", conformance: "desc", constraint: "1", title: "ManagedDevice" }),
-        Field({ name: "AUX", conformance: "P, desc", constraint: "2", title: "Auxiliary" })
+        Field({ name: "AUX", conformance: "desc", constraint: "2", title: "Auxiliary" })
     ),
 
     Attribute(
@@ -63,7 +63,7 @@ export const AccessControl = Cluster(
 
     Attribute(
         {
-            name: "AuxiliaryAcl", id: 0x7, type: "list", access: "R F A", conformance: "P, AUX",
+            name: "AuxiliaryAcl", id: 0x7, type: "list", access: "R F A", conformance: "AUX",
             constraint: "max 2000", quality: "C"
         },
         Field({ name: "entry", type: "AccessControlEntryStruct" })
@@ -111,7 +111,7 @@ export const AccessControl = Cluster(
     ),
 
     Event(
-        { name: "AuxiliaryAccessUpdated", id: 0x3, access: "S A", conformance: "P, AUX", priority: "info" },
+        { name: "AuxiliaryAccessUpdated", id: 0x3, access: "S A", conformance: "AUX", priority: "info" },
         Field({ name: "AdminNodeId", id: 0x0, type: "node-id", access: "S", conformance: "M", quality: "X" }),
         Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     ),
@@ -197,7 +197,7 @@ export const AccessControl = Cluster(
             Field({ name: "entry", type: "AccessControlTargetStruct" })
         ),
 
-        Field({ name: "AuxiliaryType", id: 0x5, type: "AccessControlAuxiliaryTypeEnum", access: "S", conformance: "P, O" }),
+        Field({ name: "AuxiliaryType", id: 0x5, type: "AccessControlAuxiliaryTypeEnum", access: "S", conformance: "O" }),
         Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     ),
 

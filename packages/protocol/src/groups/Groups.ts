@@ -6,8 +6,9 @@
 
 import { Subject } from "#action/server/Subject.js";
 import type { Fabric } from "#fabric/Fabric.js";
-import { BasicMap, Bytes, DataWriter, ImplementationError, ipv6BytesToString } from "@matter/general";
+import { BasicMap, Bytes, DataWriter, ipv6BytesToString } from "@matter/general";
 import { EndpointNumber, GroupId } from "@matter/types";
+import { GroupKeySetMissingError } from "./errors.js";
 import { KeySets, OperationalKeySet } from "./KeySets.js";
 
 /** Multicast address policy for a group. IanaAddr uses the shared FF05::FA address; PerGroupId derives from GroupId. */
@@ -24,10 +25,14 @@ export class Groups {
     readonly #groupKeyIdMap = new BasicMap<GroupId, number>();
 
     /** Operational variant of the group table, maps group Ids to a list of enabled endpoints. */
-    readonly endpointMap = new Map<GroupId, EndpointNumber[]>();
+    readonly endpointMap = new BasicMap<GroupId, EndpointNumber[]>();
 
-    /** Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set. */
-    readonly #groupMulticastPolicy = new Map<GroupId, GroupMulticastPolicy>();
+    /**
+     * Per-group multicast address policy (Groupcast cluster, Matter 1.6). Defaults to PerGroupId when not set.
+     * A {@link BasicMap} so multicast-membership consumers can rebind on a policy change independent of
+     * {@link endpointMap} ordering.
+     */
+    readonly #groupMulticastPolicy = new BasicMap<GroupId, GroupMulticastPolicy>();
 
     constructor(fabric: Fabric, keySets: KeySets<OperationalKeySet>) {
         this.#fabric = fabric;
@@ -52,6 +57,19 @@ export class Groups {
         }
     }
 
+    /**
+     * Whether any group of this fabric currently maps to the given key set.  Group message decryption only considers
+     * keys of mapped key sets — an unmapped key set exists but is not usable for group communication.
+     */
+    isKeySetMapped(keySetId: number) {
+        for (const mapped of this.#groupKeyIdMap.values()) {
+            if (mapped === keySetId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     subjectForGroup(id: GroupId, operationalKey: Bytes) {
         const mappedKeySetId = this.idMap.get(id);
         return Subject.Group({
@@ -60,6 +78,11 @@ export class Groups {
                 mappedKeySetId !== undefined && this.#keySets.containsOperationalKey(mappedKeySetId, operationalKey),
             endpoints: this.endpointMap.get(id) ?? [],
         });
+    }
+
+    /** Multicast address policy per group.  A group without an entry uses its per-group address. */
+    get multicastPolicy(): BasicMap<GroupId, GroupMulticastPolicy> {
+        return this.#groupMulticastPolicy;
     }
 
     /** Sets the multicast address policy for a specific group (Groupcast cluster, Matter 1.6). */
@@ -99,7 +122,12 @@ export class Groups {
     currentKeyForId(groupId: GroupId) {
         const keySetId = this.#groupKeyIdMap.get(groupId);
         if (keySetId === undefined) {
-            throw new ImplementationError(`No group key set found for groupId ${groupId}.`);
+            throw new GroupKeySetMissingError(`No group key set found for groupId ${groupId}.`);
+        }
+        if (this.#keySets.forId(keySetId) === undefined) {
+            throw new GroupKeySetMissingError(
+                `GroupId ${groupId} is mapped to group key set ${keySetId}, which the fabric does not hold.`,
+            );
         }
         return { ...this.#keySets.currentKeyForId(keySetId), keySetId };
     }

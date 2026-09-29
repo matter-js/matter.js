@@ -42,7 +42,7 @@ import { Identity } from "@matter/general";
  * SmokeCoAlarmDevice requires SmokeCoAlarm cluster but SmokeCoAlarm is not added by default because you must select the
  * features your device supports. You can add manually using SmokeCoAlarmDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 7.9
+ * @see {@link MatterSpecification.v161.Device} § 7.9
  */
 export interface SmokeCoAlarmDevice extends Identity<typeof SmokeCoAlarmDeviceDefinition> {}
 
@@ -108,7 +108,7 @@ export namespace SmokeCoAlarmRequirements {
 export const SmokeCoAlarmDeviceDefinition = MutableEndpoint({
     name: "SmokeCoAlarm",
     deviceType: 0x76,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: SmokeCoAlarmRequirements,
     behaviors: SupportedBehaviors(SmokeCoAlarmRequirements.server.mandatory.Identify)
 });

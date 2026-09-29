@@ -6,6 +6,7 @@
 
 import { Constraint } from "../aspects/Constraint.js";
 import { FieldValue } from "../common/FieldValue.js";
+import { Metatype } from "../common/Metatype.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { EncodedValue } from "./EncodedValue.js";
 
@@ -24,7 +25,7 @@ import { EncodedValue } from "./EncodedValue.js";
  *
  * A bound naming a value of an enumerated type states that value, so "add, modify" becomes "0, 2".
  *
- * @see {@link MatterSpecification.v16.Core} § 7.19.2
+ * @see {@link MatterSpecification.v161.Core} § 7.19.2
  */
 export function EncodedConstraint(constraint: Constraint, model: ValueModel): Constraint {
     return new Constraint(convertAst(constraint, model));
@@ -47,8 +48,8 @@ export namespace EncodedConstraint {
         /**
          * Every bound stating a number outright, in encoding units.
          *
-         * A bound the specification computes is absent, whether from another value or from constants.  Evaluating one
-         * belongs to {@link Constraint}, which alone knows what an expression means.
+         * A bound the specification computes from numbers alone is present as the number it computes.  One computed
+         * from another value is absent, as only the value it is compared with gives it a number.
          */
         encoded: Bound<number | bigint>[];
 
@@ -65,7 +66,7 @@ export namespace EncodedConstraint {
      * Report which of a constraint's bounds state a number in encoding units, and which state a unit no scale is
      * known for and so state no number at all.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.19.2
+     * @see {@link MatterSpecification.v161.Core} § 7.19.2
      */
     export function bounds(constraint: Constraint, model: ValueModel): Bounds {
         const bounds: Bounds = { encoded: [], unscaled: [] };
@@ -107,33 +108,42 @@ function convertExpression(
     expression: Constraint.Expression,
     model: ValueModel,
     bounds?: EncodedConstraint.Bounds,
+    fold?: boolean,
 ): Constraint.Expression;
 function convertExpression(
     expression: Constraint.Expression | undefined,
     model: ValueModel,
     bounds?: EncodedConstraint.Bounds,
+    fold?: boolean,
 ): Constraint.Expression | undefined;
 
+/**
+ * @param fold whether an expression computed from numbers alone becomes the number it computes; an operand of a member
+ * access keeps its form, as the access names a member of what it denotes
+ */
 function convertExpression(
     expression: Constraint.Expression | undefined,
     model: ValueModel,
     bounds?: EncodedConstraint.Bounds,
+    fold = true,
 ): Constraint.Expression | undefined {
     if (expression === undefined || typeof expression !== "object" || expression === null) {
         return expression;
     }
 
     if ("args" in expression) {
-        return { ...expression, args: expression.args.map(arg => convertExpression(arg, model, bounds)) };
+        const converted = { ...expression, args: expression.args.map(arg => convertExpression(arg, model, bounds)) };
+        return fold ? folded(converted, model) : converted;
     }
 
     if ("lhs" in expression) {
         if (expression.type !== ".") {
-            return {
+            const converted = {
                 ...expression,
                 lhs: convertExpression(expression.lhs, model, bounds),
                 rhs: convertExpression(expression.rhs, model, bounds),
             };
+            return fold ? folded(converted, model) : converted;
         }
 
         // Neither operand of a member access states a value of the constrained type, but an operand that is computed
@@ -142,16 +152,41 @@ function convertExpression(
             ...expression,
             lhs:
                 Constraint.accessPathOf(expression.lhs) === undefined
-                    ? convertExpression(expression.lhs, model, bounds)
+                    ? convertExpression(expression.lhs, model, bounds, false)
                     : expression.lhs,
             rhs:
                 Constraint.accessPathOf(expression.rhs) === undefined
-                    ? convertExpression(expression.rhs, model, bounds)
+                    ? convertExpression(expression.rhs, model, bounds, false)
                     : expression.rhs,
         };
     }
 
     return convertValue(expression, model, bounds);
+}
+
+/**
+ * The number an expression computes from numbers alone, snapped to the integer an integer encoding counts as a stated
+ * value is; the expression itself otherwise.
+ */
+function folded(expression: Constraint.Expression, model: ValueModel): Constraint.Expression {
+    const constant = Constraint.constantOf(expression);
+    if (constant === undefined) {
+        return expression;
+    }
+
+    const encoded = EncodedValue(model, constant) ?? constant;
+
+    // An integer type states a magnitude beyond the safe integers as a bigint, which a number computed to that
+    // magnitude only approximates
+    if (
+        typeof encoded === "number" &&
+        model.effectiveMetatype === Metatype.integer &&
+        Math.abs(encoded) > Number.MAX_SAFE_INTEGER
+    ) {
+        return expression;
+    }
+
+    return encoded;
 }
 
 /**
@@ -165,7 +200,7 @@ function convertExpression(
  * A bitmap states the position of a flag in its constraint rather than as a member id, so a name it defines denotes a
  * mask this does not compute.  Such a name is left as stated, which model validation then reports.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.18.3
+ * @see {@link MatterSpecification.v161.Core} § 7.18.3
  */
 function enumValueOf(value: FieldValue | undefined, model: ValueModel) {
     const name = FieldValue.referenced(value);

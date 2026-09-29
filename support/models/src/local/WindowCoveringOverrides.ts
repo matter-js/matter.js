@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterElement as Cluster } from "@matter/model";
+import { ClusterElement as Cluster, FieldElement } from "@matter/model";
 import { LocalMatter } from "../local.js";
 
 LocalMatter.children.push(
@@ -97,8 +97,8 @@ LocalMatter.children.push(
                     { tag: "field", name: "RollershadeExterior2Motor", id: 3, conformance: "LF & !TL" },
                     { tag: "field", name: "Drapery", id: 4, conformance: "LF & !TL" },
                     { tag: "field", name: "Awning", id: 5, conformance: "LF & !TL" },
-                    // see https://github.com/project-chip/connectedhomeip/issues/33135
-                    { tag: "field", name: "Shutter", id: 6, conformance: "LF | TL" },
+                    // Allowed with either lift or tilt, but not with both
+                    { tag: "field", name: "Shutter", id: 6, conformance: "(LF & !TL) | (!LF & TL)" },
                     { tag: "field", name: "TiltBlindTiltOnly", id: 7, conformance: "!LF & TL" },
                     { tag: "field", name: "TiltBlindLift", id: 8, conformance: "LF & TL" },
                     { tag: "field", name: "ProjectorScreen", id: 9, conformance: "LF & !TL" },
@@ -120,8 +120,8 @@ LocalMatter.children.push(
                     { tag: "field", name: "RollershadeExterior2Motor", id: 3, conformance: "LF & !TL" },
                     { tag: "field", name: "Drapery", id: 4, conformance: "LF & !TL" },
                     { tag: "field", name: "Awning", id: 5, conformance: "LF & !TL" },
-                    // see https://github.com/project-chip/connectedhomeip/issues/33135
-                    { tag: "field", name: "Shutter", id: 6, conformance: "LF | TL" },
+                    // Allowed with either lift or tilt, but not with both
+                    { tag: "field", name: "Shutter", id: 6, conformance: "(LF & !TL) | (!LF & TL)" },
                     { tag: "field", name: "TiltBlindTiltOnly", id: 7, conformance: "!LF & TL" },
                     { tag: "field", name: "TiltBlindLift", id: 8, conformance: "LF & TL" },
                     { tag: "field", name: "ProjectorScreen", id: 9, conformance: "LF & !TL" },
@@ -129,8 +129,7 @@ LocalMatter.children.push(
                 ],
             },
 
-            // Add Conformance field to the EndProductType attribute.  Unclear if "LF" actually means "LF & !TL" and
-            // such
+            // Add conformance to the EndProductType attribute
             {
                 tag: "attribute",
                 id: 13,
@@ -139,33 +138,17 @@ LocalMatter.children.push(
                 // In 1.2 conformance is present (and definitions moved to EndProductTypeEnum)
                 until: "1.2",
 
-                children: [
-                    { tag: "field", name: "RollerShade", id: 0, conformance: "LF" },
-                    { tag: "field", name: "RomanShade", id: 1, conformance: "LF" },
-                    { tag: "field", name: "BalloonShade", id: 2, conformance: "LF" },
-                    { tag: "field", name: "WovenWood", id: 3, conformance: "LF" },
-                    { tag: "field", name: "PleatedShade", id: 4, conformance: "LF" },
-                    { tag: "field", name: "CellularShade", id: 5, conformance: "LF" },
-                    { tag: "field", name: "LayeredShade", id: 6, conformance: "LF" },
-                    { tag: "field", name: "LayeredShade2D", id: 7, conformance: "LF" },
-                    { tag: "field", name: "SheerShade", id: 8, conformance: "LF & TL" },
-                    { tag: "field", name: "TiltOnlyInteriorBlind", id: 9, conformance: "TL" },
-                    { tag: "field", name: "InteriorBlind", id: 10, conformance: "LF & TL" },
-                    { tag: "field", name: "VerticalBlindStripCurtain", id: 11, conformance: "LF & TL" },
-                    { tag: "field", name: "InteriorVenetianBlind", id: 12, conformance: "LF & TL" },
-                    { tag: "field", name: "ExteriorVenetianBlind", id: 13, conformance: "LF & TL" },
-                    { tag: "field", name: "LateralLeftCurtain", id: 14, conformance: "LF" },
-                    { tag: "field", name: "LateralRightCurtain", id: 15, conformance: "LF" },
-                    { tag: "field", name: "CentralCurtain", id: 16, conformance: "LF" },
-                    { tag: "field", name: "RollerShutter", id: 17, conformance: "LF" },
-                    { tag: "field", name: "ExteriorVerticalScreen", id: 18, conformance: "LF" },
-                    { tag: "field", name: "AwningTerrace", id: 19, conformance: "LF" },
-                    { tag: "field", name: "AwningVerticalScreen", id: 20, conformance: "LF" },
-                    { tag: "field", name: "TiltOnlyPergola", id: 21, conformance: "LF | TL" },
-                    { tag: "field", name: "SwingingShutter", id: 22, conformance: "LF | TL" },
-                    { tag: "field", name: "SlidingShutter", id: 23, conformance: "LF | TL" },
-                    { tag: "field", name: "Unknown", id: 255, conformance: "O" },
-                ],
+                children: endProductTypes("AwningTerrace"),
+            },
+
+            // Add conformance to EndProductTypeEnum
+            {
+                tag: "datatype",
+                name: "EndProductTypeEnum",
+
+                asOf: "1.2",
+
+                children: endProductTypes("AwningTerracePatio"),
             },
 
             // Set the name, type and description of the OperationalStatus config fields.  Otherwise name would be a
@@ -306,3 +289,44 @@ LocalMatter.children.push(
         ],
     }),
 );
+
+/**
+ * The end product types with the features that allow each, per the three per-feature-combination tables of the
+ * EndProductType attribute.
+ *
+ * @see {@link MatterSpecification.v161.Cluster} § 5.3.6.13
+ */
+function endProductTypes(awningTerraceName: string): FieldElement[] {
+    const liftOnly = "LF & !TL";
+    const tiltOnly = "!LF & TL";
+    const liftAndTilt = "LF & TL";
+    const liftOrTilt = "(LF & !TL) | (!LF & TL)";
+
+    return [
+        { tag: "field", name: "RollerShade", id: 0, conformance: liftOnly },
+        { tag: "field", name: "RomanShade", id: 1, conformance: liftOnly },
+        { tag: "field", name: "BalloonShade", id: 2, conformance: liftOnly },
+        { tag: "field", name: "WovenWood", id: 3, conformance: liftOnly },
+        { tag: "field", name: "PleatedShade", id: 4, conformance: liftOnly },
+        { tag: "field", name: "CellularShade", id: 5, conformance: liftOnly },
+        { tag: "field", name: "LayeredShade", id: 6, conformance: liftOnly },
+        { tag: "field", name: "LayeredShade2D", id: 7, conformance: liftOnly },
+        { tag: "field", name: "SheerShade", id: 8, conformance: liftAndTilt },
+        { tag: "field", name: "TiltOnlyInteriorBlind", id: 9, conformance: tiltOnly },
+        { tag: "field", name: "InteriorBlind", id: 10, conformance: liftAndTilt },
+        { tag: "field", name: "VerticalBlindStripCurtain", id: 11, conformance: liftAndTilt },
+        { tag: "field", name: "InteriorVenetianBlind", id: 12, conformance: liftAndTilt },
+        { tag: "field", name: "ExteriorVenetianBlind", id: 13, conformance: liftAndTilt },
+        { tag: "field", name: "LateralLeftCurtain", id: 14, conformance: liftOnly },
+        { tag: "field", name: "LateralRightCurtain", id: 15, conformance: liftOnly },
+        { tag: "field", name: "CentralCurtain", id: 16, conformance: liftOnly },
+        { tag: "field", name: "RollerShutter", id: 17, conformance: liftOnly },
+        { tag: "field", name: "ExteriorVerticalScreen", id: 18, conformance: liftOnly },
+        { tag: "field", name: awningTerraceName, id: 19, conformance: liftOnly },
+        { tag: "field", name: "AwningVerticalScreen", id: 20, conformance: liftOnly },
+        { tag: "field", name: "TiltOnlyPergola", id: 21, conformance: liftOrTilt },
+        { tag: "field", name: "SwingingShutter", id: 22, conformance: liftOrTilt },
+        { tag: "field", name: "SlidingShutter", id: 23, conformance: liftOrTilt },
+        { tag: "field", name: "Unknown", id: 255, conformance: "M" },
+    ];
+}

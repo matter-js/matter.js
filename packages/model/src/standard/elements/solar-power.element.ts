@@ -41,7 +41,7 @@ export const SolarPowerDt = DeviceType(
         { name: "DeviceEnergyManagement", id: 0x50d, conformance: "desc", element: "deviceType" },
         Requirement(
             { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-            Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature" })
+            Requirement({ name: "PA", conformance: "M", element: "feature" })
         )
     ),
 
@@ -55,7 +55,7 @@ export const SolarPowerDt = DeviceType(
         ),
         Requirement(
             { name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" },
-            Requirement({ name: "EXPORTEDENERGY", conformance: "M", element: "feature" })
+            Requirement({ name: "EXPE", conformance: "M", element: "feature" })
         )
     )
 );

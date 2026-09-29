@@ -13,8 +13,12 @@ export const DimmerSwitchDt = DeviceType(
     { name: "DimmerSwitch", id: 0x104, type: "OnOffLightSwitch", classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 260, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 260, revision: 4 } ], element: "attribute" })
     ),
+    Requirement({
+        name: "GroupcastSenderCond", type: "RootNode.GroupcastSenderCond", conformance: "O",
+        element: "condition", location: "Root"
+    }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "clientCluster" }),

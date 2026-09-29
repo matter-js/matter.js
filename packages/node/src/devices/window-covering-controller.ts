@@ -17,7 +17,7 @@ import { Identity } from "@matter/general";
 /**
  * A Window Covering Controller is a device that controls an automatic window covering.
  *
- * @see {@link MatterSpecification.v16.Device} § 8.4
+ * @see {@link MatterSpecification.v161.Device} § 8.4
  */
 export interface WindowCoveringControllerDevice extends Identity<typeof WindowCoveringControllerDeviceDefinition> {}
 
@@ -67,7 +67,7 @@ export namespace WindowCoveringControllerRequirements {
 export const WindowCoveringControllerDeviceDefinition = MutableEndpoint({
     name: "WindowCoveringController",
     deviceType: 0x203,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: WindowCoveringControllerRequirements,
     behaviors: SupportedBehaviors()
 });

@@ -602,6 +602,35 @@ describe("EvidenceRecorder", () => {
         expect("longRunningSkips" in resultJson).equal(false);
     });
 
+    it("records how many steps a condition of the plan skipped, and omits the count where none did", async () => {
+        const recorder = (tc: string) =>
+            new EvidenceRecorder(outDir, {
+                tc,
+                plan: "binding.adoc",
+                timestamp: "2026-09-28T00:00:00.000Z",
+                controller: "th1",
+                controllerImplementation: "matterjs",
+                devices: [{ role: "dut", app: "light-switch", flavor: "matterjs" }],
+                matterJsCommit: "abc1234",
+            });
+
+        const branched = recorder("TC-BIND-2.3-Groupcast");
+        branched.beginStep(step1);
+        branched.endStep(step1, "pass");
+        branched.endStep(step2, "skipped", "The Groupcast cluster is enabled on the RootNode endpoint");
+        branched.recordPlanConditionSkips(1);
+        const withSkips = JSON.parse(await fsp.readFile(pathMod.join(await publish(branched), "result.json"), "utf8"));
+
+        const plain = recorder("TC-BIND-2.1");
+        plain.beginStep(step1);
+        plain.endStep(step1, "pass");
+        const withoutSkips = JSON.parse(await fsp.readFile(pathMod.join(await publish(plain), "result.json"), "utf8"));
+
+        expect(withSkips.verdict).equal("pass");
+        expect(withSkips.planConditionSkips).equal(1);
+        expect("planConditionSkips" in withoutSkips).equal(false);
+    });
+
     it("omits the PICS-skip count when every step's PICS was met", async () => {
         const recorder = new EvidenceRecorder(outDir, {
             tc: "TC-ACT-3.2",

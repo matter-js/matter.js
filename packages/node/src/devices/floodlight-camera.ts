@@ -23,7 +23,7 @@ import { Identity } from "@matter/general";
  * Light as a superset when composed in this device type. Additional device types not listed in this table may also be
  * included in device compositions.
  *
- * @see {@link MatterSpecification.v16.Device} § 16.2
+ * @see {@link MatterSpecification.v161.Device} § 16.2
  */
 export interface FloodlightCameraDevice extends Identity<typeof FloodlightCameraDeviceDefinition> {}
 

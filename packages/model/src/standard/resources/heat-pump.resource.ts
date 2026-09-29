@@ -111,7 +111,7 @@ Resource.add({
             tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.5.6",
             children: [{
                 tag: "requirement", name: "DeviceEnergyManagement",
-                children: [{ tag: "requirement", name: "POWERADJUSTMENT", xref: "device§14.5.6.2" }]
+                children: [{ tag: "requirement", name: "PA", xref: "device§14.5.6.2" }]
             }]
         },
 
@@ -123,7 +123,7 @@ Resource.add({
             children: [{
                 tag: "requirement", name: "ElectricalPowerMeasurement",
                 children: [
-                    { tag: "requirement", name: "ALTERNATINGCURRENT", xref: "device§14.5.6.2" },
+                    { tag: "requirement", name: "ALTC", xref: "device§14.5.6.2" },
                     { tag: "requirement", name: "Voltage", xref: "device§14.5.6.2" },
                     { tag: "requirement", name: "ActiveCurrent", xref: "device§14.5.6.2" }
                 ]

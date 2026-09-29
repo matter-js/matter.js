@@ -108,7 +108,7 @@ export class GeneralDiagnosticsServer extends Base {
     /**
      * DataModelTest is mandatory above a maxPathsPerInvoke of one.
      *
-     * @see {@link MatterSpecification.v16.Core} § 11.12.4.1
+     * @see {@link MatterSpecification.v161.Core} § 11.12.4.1
      * @throws {@link ImplementationError} if the feature is absent above a maxPathsPerInvoke of one
      */
     #assertDataModelTest() {

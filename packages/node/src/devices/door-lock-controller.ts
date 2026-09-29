@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * A Door Lock Controller is a device capable of controlling a door lock.
  *
- * @see {@link MatterSpecification.v16.Device} § 8.2
+ * @see {@link MatterSpecification.v161.Device} § 8.2
  */
 export interface DoorLockControllerDevice extends Identity<typeof DoorLockControllerDeviceDefinition> {}
 
@@ -56,7 +56,7 @@ export namespace DoorLockControllerRequirements {
 export const DoorLockControllerDeviceDefinition = MutableEndpoint({
     name: "DoorLockController",
     deviceType: 0xb,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: DoorLockControllerRequirements,
     behaviors: SupportedBehaviors()
 });

@@ -200,7 +200,7 @@ export class AtomicWriteHandler {
                 };
                 if (context.authorityAt(writeLevel, location) !== AccessControl.Authority.Granted) {
                     statusCode = Status.UnsupportedAccess;
-                } else if (!attributeModel.quality.atomic) {
+                } else if (!attributeModel.effectiveQuality.atomic) {
                     statusCode = Status.InvalidCommand;
                 } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {
                     statusCode = Status.Busy;

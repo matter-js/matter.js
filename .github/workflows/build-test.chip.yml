@@ -27,7 +27,7 @@ name: CHIP Image - Build and Test
 
 on:
   schedule:
-    - cron: 0 0 * * * # Every day at 00:00 (midnight)
+    - cron: 0 1 * * * # Every day at 01:00
   workflow_dispatch: # Manually on demand
     inputs:
       updateChipSha:

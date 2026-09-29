@@ -36,7 +36,7 @@ import { Identity } from "@matter/general";
  * of water as all excess energy transmitted is spent on the water's phase change to steam and the liquid within the pot
  * reaches an equilibrium temperature.
  *
- * @see {@link MatterSpecification.v16.Device} § 13.7
+ * @see {@link MatterSpecification.v161.Device} § 13.7
  */
 export interface CookSurfaceDevice extends Identity<typeof CookSurfaceDeviceDefinition> {}
 

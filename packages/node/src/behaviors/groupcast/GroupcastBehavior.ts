@@ -13,8 +13,8 @@ import { Identity } from "@matter/general";
 /**
  * GroupcastBehavior is the base class for objects that support interaction with {@link Groupcast.Cluster}.
  *
- * This class does not have optional features of Groupcast.Cluster enabled. You can enable additional features using
- * GroupcastBehavior.with.
+ * Groupcast.Cluster requires you to enable one or more optional features. You can do so using
+ * {@link GroupcastBehavior.with}.
  */
 export const GroupcastBehaviorConstructor = ClusterBehavior.for(Groupcast);
 

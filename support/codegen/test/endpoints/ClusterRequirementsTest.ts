@@ -51,9 +51,9 @@ describe("RequirementGenerator", () => {
 });
 
 describe("ClusterRequirements", () => {
-    it("mandates a feature the specification names by its title", () => {
+    it("mandates a feature named by its code", () => {
         const requirements = requirementsOf(
-            new RequirementModel({ name: "LONGIDLETIMESUPPORT", element: "feature", conformance: "M" }),
+            new RequirementModel({ name: "LITS", element: "feature", conformance: "M" }),
         );
 
         expect(requirements.mandatoryFeatureNames).deep.equals(["LITS"]);

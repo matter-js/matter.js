@@ -44,23 +44,23 @@ Resource.add({
         "  - No overlap: The endpoints in the PartsList attribute of Aggregator A do not appear in the " +
         "PartsList attribute of Aggregator B, and vice versa." +
         "\n" +
-        "  - Example: A Node which bridges to two non-Matter independent technologies (e.g. Zigbee and " +
+        "    - Example: A Node which bridges to two non-Matter independent technologies (e.g. Zigbee and " +
         "Z-Wave), see the aggregators on endpoints 11 and 31 in the figure below - their lists of " +
         "endpoints (12-14, 21-23 versus 32-33) do not overlap." +
         "\n" +
         "  - Strict subset: The endpoint where aggregator B is exposed and all endpoints in its PartsList " +
         "attribute (the subset) are included in the PartsList attribute of Aggregator A (the superset)." +
         "\n" +
-        "  - This maintains the rule that there shall be a single path from the Root Node to each endpoint " +
+        "    - This maintains the rule that there shall be a single path from the Root Node to each endpoint " +
         "(see System Model)." +
         "\n" +
-        "  - Example: A Node which implements a bridge to Zigbee, and one of those Zigbee devices is " +
+        "    - Example: A Node which implements a bridge to Zigbee, and one of those Zigbee devices is " +
         "connected to a string of DALI lights, which can be addressed individually and thus this " +
         "Zigbee/DALI device functions as a bridge from Zigbee to DALI; in the figure below one can see " +
         "that the endpoints for the Zigbee/DALI bridge listed in the PartsList of the aggregator on " +
-        "endpoint 14 (21-23) form a strict subset of the endpoints for the Zigbee bridge in the PartsList " +
-        "of the aggregator on endpoint 11 (12-14, 21-23), and the endpoint 14 of the \"subset\" aggregator " +
-        "is included in the PartsList of the \"superset\" aggregator on endpoint 11." +
+        "endpoint 14 (21-23) form a strict subset of the endpoints for the Zigbee bridge in the " +
+        "PartsList of the aggregator on endpoint 11 (12-14, 21-23), and the endpoint 14 of the \"subset\" " +
+        "aggregator is included in the PartsList of the \"superset\" aggregator on endpoint 11." +
         "\n" +
         "### Disambiguation" +
         "\n" +
