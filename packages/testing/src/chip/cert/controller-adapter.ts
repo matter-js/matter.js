@@ -950,6 +950,11 @@ export interface CertNodeApi {
      *
      * Resolves with the events the node already holds, as {@link readEvents} answers them, and reports
      * later ones to {@link ObserveEventOptions.onUpdate}.
+     *
+     * The two sides do not see quite the same thing: the events this answers with come off the wire,
+     * while the later ones reach the controller's own client first, which drops an event it cannot name
+     * in its model or whose cluster the endpoint does not carry. A path the model does not describe can
+     * therefore appear in the answer and never again — {@link subscribeEvents} reports such a path.
      */
     observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]>;
 
