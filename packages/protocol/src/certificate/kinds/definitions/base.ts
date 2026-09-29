@@ -51,13 +51,13 @@ export interface MatterCertificate {
 
     /**
      * The ML-DSA parameter set the issuer signed with, where it did not use ecdsa-with-SHA256.  Only attestation
-     * certificates may carry one (Matter Core §13.2.3, PQC Phase 1).
+     * certificates may carry one (PQC Phase 1).
      */
     mlDsaSignature?: MlDsa.ParameterSet;
 
     /**
      * The certificate's own ML-DSA public key, where it has one instead of an EC P-256 key; `ellipticCurvePublicKey`
-     * is then empty.  Only PAA and PAI certificates may carry one (Matter Core §13.2.3, PQC Phase 1).
+     * is then empty.  Only PAA and PAI certificates may carry one (PQC Phase 1).
      */
     mlDsaPublicKey?: { parameterSet: MlDsa.ParameterSet; key: Bytes };
 }
