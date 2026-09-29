@@ -39,7 +39,7 @@ import { Identity } from "@matter/general";
  *
  * The OffOnly feature is required for the On/Off cluster in this device type due to safety requirements.
  *
- * @see {@link MatterSpecification.v16.Device} § 13.8
+ * @see {@link MatterSpecification.v161.Device} § 13.8
  */
 export interface CooktopDevice extends Identity<typeof CooktopDeviceDefinition> {}
 

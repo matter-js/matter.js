@@ -58,7 +58,7 @@ import { Identity } from "@matter/general";
  *     through knowledge that there is user intent via subscriptions to the attributes of the Generic Switch, or other
  *     means.
  *
- * @see {@link MatterSpecification.v16.Device} § 16.4
+ * @see {@link MatterSpecification.v161.Device} § 16.4
  */
 export interface IntercomDevice extends Identity<typeof IntercomDeviceDefinition> {}
 

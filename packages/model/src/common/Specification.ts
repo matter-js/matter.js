@@ -75,6 +75,34 @@ export namespace Specification {
     export const REVISION = "1.6.1";
 
     /**
+     * Enables Matter behaviour implemented ahead of a released specification revision.
+     *
+     * Off in every release.  Only allowed to be enabled for cert-testing related use-cases; there is no supported configuration or API
+     * to change it.  Tests enable single features through the `MatterHooks` test harness hook, which any runtime that
+     * defines that global also reaches.  Typed as `boolean` so that code behind a guard stays type-checked.  When a
+     * feature ships in a released specification, remove every guard for it and its name from {@link ForwardFeature}.
+     */
+    export const ENABLE_FORWARD_MATTER_FEATURES: boolean = false;
+
+    /**
+     * Features implemented ahead of a released specification; each name marks its guards.
+     *
+     * Use only names that are already public, so the source does not disclose unreleased specification content.
+     */
+    export type ForwardFeature = "pqc-phase-1";
+
+    /**
+     * Whether a forward feature is active.  Tests enable one with `MockForwardFeatures.enable()` from
+     * `@matter/testing` through the `MatterHooks` global, which only the test harness installs.
+     */
+    export function isForwardFeatureEnabled(feature: ForwardFeature) {
+        return (
+            ENABLE_FORWARD_MATTER_FEATURES ||
+            (typeof MatterHooks !== "undefined" && MatterHooks.forwardFeatureEnabled?.(feature) === true)
+        );
+    }
+
+    /**
      * Binary version of specification revision defined by Basic Information Cluster.
      *
      * Currently spec says least significant octet is "reserved", so it should remain zero.

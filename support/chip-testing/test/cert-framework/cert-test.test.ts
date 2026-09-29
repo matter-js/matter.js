@@ -36,6 +36,7 @@ import {
     unmetTestPics,
     unregisterCertAppPics,
     UnsupportedByControllerError,
+    CertStepNotApplicableError,
 } from "@matter/testing";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -2004,6 +2005,109 @@ describe("CertTest", () => {
         ]);
     });
 
+    it("records a step that finds itself not applicable as skipped with its reason, and still runs later steps", async () => {
+        let step2Ran = false;
+
+        const definition: CertTestDefinition = {
+            tc: "TC-BIND-2.3",
+            plan: "binding.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step for a branch this run's devices do not take",
+                    run: async () => {
+                        throw new CertStepNotApplicableError("the DUT's root endpoint has no Groupcast cluster");
+                    },
+                },
+                {
+                    number: 2,
+                    text: "Step after it",
+                    run: async () => {
+                        step2Ran = true;
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict; skipReason?: string }>();
+        const planConditionSkips = new Array<number>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict, skipReason) {
+                    endStepCalls.push({ number: step.number, verdict, skipReason });
+                    return [];
+                },
+                recordPlanConditionSkips(count) {
+                    planConditionSkips.push(count);
+                },
+            }),
+        };
+
+        await new TestCertTest(definition, stubDescriptor(), stubContainer(), cx).invoke(
+            stubSubject(new PicsFile([])),
+            () => {},
+            [],
+            false,
+        );
+
+        expect(step2Ran).equal(true);
+        expect(endStepCalls).deep.equal([
+            { number: 1, verdict: "skipped", skipReason: "the DUT's root endpoint has no Groupcast cluster" },
+            { number: 2, verdict: "pass", skipReason: undefined },
+        ]);
+        expect(planConditionSkips).deep.equal([1]);
+    });
+
+    it("fails a step that declares itself not applicable after it recorded a check", async () => {
+        const definition: CertTestDefinition = {
+            tc: "TC-BIND-2.3",
+            plan: "binding.adoc",
+            pics: [],
+            app: "all-clusters",
+            steps: [
+                {
+                    number: 1,
+                    text: "Step that acts, then claims it did not apply",
+                    run: async cx => {
+                        cx.recorder.check({ type: "response", verdict: "pass", detail: "acted" });
+                        throw new CertStepNotApplicableError("too late");
+                    },
+                },
+            ],
+        };
+
+        const endStepCalls = new Array<{ number: number | string; verdict: StepVerdict }>();
+        const planConditionSkips = new Array<number>();
+        const cx: CertStepWiring = {
+            controllers: {},
+            devices: {},
+            recorder: stubRecorder({
+                endStep(step, verdict) {
+                    endStepCalls.push({ number: step.number, verdict });
+                    return [];
+                },
+                recordPlanConditionSkips(count) {
+                    planConditionSkips.push(count);
+                },
+            }),
+        };
+
+        await expect(
+            new TestCertTest(definition, stubDescriptor(), stubContainer(), cx).invoke(
+                stubSubject(new PicsFile([])),
+                () => {},
+                [],
+                false,
+            ),
+        ).rejectedWith("declared itself not applicable after recording 1 check(s)");
+        expect(endStepCalls).deep.equal([{ number: 1, verdict: "fail" }]);
+        expect(planConditionSkips).deep.equal([]);
+    });
+
     it("still fails the step and aborts the run for a generic error, unlike UnsupportedByControllerError", async () => {
         let step2Ran = false;
 
@@ -3377,6 +3481,22 @@ describe("cert app PICS", () => {
         // shows up as a test that never ran rather than as a failure
         expect(unmetTestPics(definitionFor(["MCORE.BDX.Receiver"], true), certPicsFile(definitionFor([], true))))
             .undefined;
+    });
+
+    it("takes a device DUT's PICS from its own app where another device is started first", () => {
+        env.MATTER_CERT_DEVICE = "matterjs";
+        registerCertAppPics("matterjs", APP, { "MCORE.BDX.Receiver": 1 });
+
+        const definition: CertTestDefinition = {
+            ...definitionFor(["MCORE.BDX.Receiver"], true),
+            app: "all-clusters",
+            dutApp: APP,
+        };
+
+        expect(unmetTestPics(definition, certPicsFile(definition))).undefined;
+        expect(
+            unmetTestPics({ ...definition, dutApp: undefined }, certPicsFile({ ...definition, dutApp: undefined })),
+        ).equal("MCORE.BDX.Receiver");
     });
 
     it("lets the DUT's own side answer where both sides declare one key", () => {

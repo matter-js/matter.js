@@ -1,7 +1,7 @@
 # Device Type Validation
 
 Matter device types state requirements for an endpoint's clusters, elements, sub-components and placement (see
-`MatterSpecification.v16.Core` § 9.2). `@matter/node` checks a server node's endpoints against the device types
+`MatterSpecification.v161.Core` § 9.2). `@matter/node` checks a server node's endpoints against the device types
 they declare and reports where they depart from them.
 
 ## What is checked

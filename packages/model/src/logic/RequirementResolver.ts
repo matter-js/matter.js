@@ -32,7 +32,7 @@ import { ModelTraversal } from "./ModelTraversal.js";
  * resolves to the Base condition `Node`. {@link featureOf}, which answers what a feature requirement itself names,
  * matches the code exactly as well.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.6
+ * @see {@link MatterSpecification.v161.Core} § 9.2.6
  */
 export namespace RequirementResolver {
     /**
@@ -134,7 +134,7 @@ export namespace RequirementResolver {
      * that resolves to nothing. A qualified name (`Declarer.Condition`) takes the spelling of both the declaring device
      * type and the condition.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function declaredConformanceOf(requirement: RequirementModel): Conformance.Ast | undefined {
         return canonicalizedAst(requirement.conformance.ast, segments => {
@@ -161,7 +161,7 @@ export namespace RequirementResolver {
      * The device type a component requirement names, by its ID and otherwise by its name. Undefined for a requirement
      * that is not a component requirement or a device type the model does not define.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function deviceTypeOf(requirement: RequirementModel): DeviceTypeModel | undefined {
         if (requirement.element !== RequirementElement.ElementType.DeviceType) {
@@ -176,7 +176,7 @@ export namespace RequirementResolver {
      *
      * A requirement names a feature by its code, which matches exactly.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function featureOf(requirement: RequirementModel): FieldModel | undefined {
         if (requirement.element !== RequirementElement.ElementType.Feature) {
@@ -193,7 +193,7 @@ export namespace RequirementResolver {
      * The specification's element requirement tables name a feature by its title ("LongIdleTimeSupport" for `LITS`),
      * so this is the lookup for a requirement as scraped. {@link featureOf} is the lookup for a finished model.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function featureMatching(requirement: RequirementModel): FieldModel | undefined {
         if (requirement.element !== RequirementElement.ElementType.Feature) {
@@ -218,7 +218,7 @@ export namespace RequirementResolver {
      *
      * The name matches exactly and only an element of the kind the requirement states.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function elementOf(requirement: RequirementModel): Model | undefined {
         const tag = elementTagOf(requirement.element);
@@ -235,7 +235,7 @@ export namespace RequirementResolver {
      * The specification's tables name a command field by the command's name followed by the field's, with nothing
      * between them, and state it directly in the cluster requirement. Both names match exactly.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function commandFieldOf(requirement: RequirementModel): Model | undefined {
         if (requirement.element !== RequirementElement.ElementType.CommandField) {
@@ -261,7 +261,7 @@ export namespace RequirementResolver {
      * The condition a condition requirement asserts, named by its type and otherwise by its name, or undefined if it
      * names none or is not a condition requirement.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function conditionOf(requirement: RequirementModel): ConditionModel | undefined {
         if (requirement.element !== RequirementElement.ElementType.Condition) {

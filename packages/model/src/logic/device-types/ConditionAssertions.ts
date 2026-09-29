@@ -22,7 +22,7 @@ import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
  * {@link NodeCondition}), or when the endpoint states it in {@link DeviceTypeFacts.statedConditionsOf}. Every other
  * condition is false; stating a name never makes a condition false.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.6
+ * @see {@link MatterSpecification.v161.Core} § 9.2.6
  *
  * @internal
  */
@@ -88,7 +88,7 @@ export namespace ConditionAssertions {
      * those of the {@link reachingOf reaching endpoints} assert on it. A requirement asserts when its
      * conformance is mandatory for the structural, node and stated conditions of the asserting endpoint.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function collect<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): Collection<E> {
         return pass.collections.get(nodeEndpoint, () => new ScopeConditions(nodeEndpoint, pass));
@@ -166,8 +166,8 @@ export namespace ConditionAssertions {
      * Whether the Base `Duplicate` condition holds for {@link endpoint}: it shares an application device type with a
      * sibling.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.9
-     * @see {@link MatterSpecification.v16.Device} § 1.1.6.1
+     * @see {@link MatterSpecification.v161.Core} § 9.2.9
+     * @see {@link MatterSpecification.v161.Device} § 1.1.6.1
      */
     export function isDuplicate<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
         return overlapsSibling(ResolvedEndpoint.of(endpoint, pass), pass);
@@ -267,7 +267,7 @@ export namespace ConditionAssertions {
      * The endpoints of the node scope of {@link nodeEndpoint}: the node endpoint and its descendants, without any node
      * endpoint below it and that node endpoint's descendants.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function nodeScopeOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>): E[] {
         const scope = [nodeEndpoint];
@@ -290,7 +290,7 @@ export namespace ConditionAssertions {
      * The node endpoint whose node scope {@link endpoint} belongs to: the closest endpoint at or above it whose device
      * type is classified as a node. Undefined when there is none, so the endpoint belongs to no node scope.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function nodeEndpointOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): E | undefined {
         for (let current: E | undefined = endpoint; current !== undefined; current = pass.facts.parentOf(current)) {
@@ -521,8 +521,8 @@ function matchesOf<E>(facts: ResolvedEndpoint<E>, condition: ConditionModel, pas
 /**
  * The conditions the Base device type defines in structural terms, so the tree answers them rather than the developer.
  *
- * @see {@link MatterSpecification.v16.Device} § 1.1.5
- * @see {@link MatterSpecification.v16.Device} § 1.1.6
+ * @see {@link MatterSpecification.v161.Device} § 1.1.5
+ * @see {@link MatterSpecification.v161.Device} § 1.1.6
  */
 function structuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
     const facts = ResolvedEndpoint.of(endpoint, pass);
@@ -575,8 +575,8 @@ function structuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E
  * Interpretation: the node supports a network interface when a NetworkCommissioning server in its node scope supports
  * that interface.
  *
- * @see {@link MatterSpecification.v16.Device} § 1.1.3.1
- * @see {@link MatterSpecification.v16.Device} § 2.1.3
+ * @see {@link MatterSpecification.v161.Device} § 1.1.3.1
+ * @see {@link MatterSpecification.v161.Device} § 2.1.3
  */
 function nodeConditionsOf<E>(nodeEndpoint: E, pass: DeviceTypeValidationPass<E>) {
     const conditions = new Set<string>(pass.facts.nodeConditionsOf(nodeEndpoint));
@@ -607,7 +607,7 @@ function factsContributionOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>):
 /**
  * Whether the endpoint and a sibling share an application device type.
  *
- * @see {@link MatterSpecification.v16.Device} § 1.1.6.1
+ * @see {@link MatterSpecification.v161.Device} § 1.1.6.1
  */
 function overlapsSibling<E>(facts: ResolvedEndpoint<E>, pass: DeviceTypeValidationPass<E>) {
     const owner = pass.facts.parentOf(facts.endpoint);

@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { GroupKeyNotStartedError } from "#groups/errors.js";
 import { KeySets, type OperationalKeySet } from "#groups/KeySets.js";
-import { ImplementationError, MatterFlowError, Time } from "@matter/general";
+import { MatterFlowError, Time } from "@matter/general";
 
 const HOUR_US = 60 * 60 * 1000 * 1000;
 
@@ -112,7 +113,10 @@ describe("KeySets", () => {
             const sets = new KeySets<OperationalKeySet>();
             sets.add(threeKeySet(5, nowUs + HOUR_US, nowUs + 2 * HOUR_US, nowUs + 3 * HOUR_US));
 
-            expect(() => sets.currentKeyForId(5)).throws(ImplementationError, "not in the future");
+            expect(() => sets.currentKeyForId(5)).throws(
+                GroupKeyNotStartedError,
+                "No epoch key of group key set 5 has started",
+            );
         });
 
         it("returns the second-newest key for the IPK key set (§4.14.2.6)", () => {

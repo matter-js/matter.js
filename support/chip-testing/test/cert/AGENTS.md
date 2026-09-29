@@ -61,6 +61,9 @@ to an app this way:
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
 | `ICDB`, `ICDM`                      | `lit-icd`    | `lit-icd-app-nopersist` (variant) | yes (`IcdTestInstance`); chip binaries own-built only |
+| `BIND`                              | `light-switch` | `chip-light-switch-app` (not in our image) | yes (`LightSwitchTestInstance`); the cases declare `flavors: ["matterjs"]` |
+| `BIND` (no Groupcast on the root)   | `light-switch-no-groupcast` | none | yes (`LightSwitchNoGroupcastTestInstance`); matterjs only |
+| `BIND` (no Groupcast on the root)   | `all-clusters-no-groupcast` | none under this name; chip-local runs the `nogroupcast` variant of `all-clusters` through `appVariant` | yes (`AllClustersNoGroupcastTestInstance`); matterjs only |
 
 A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
@@ -221,8 +224,8 @@ What a check's `type` should be:
   `"unverified"`, on every flavor including `matterjs`.
 - **`"device-log"`** — a pattern match against the TH's own stdout (via `LogFollower.expect`,
   usually wrapped so a timeout/close error becomes a recorded `"fail"` rather than propagating
-  uncaught — see `TC-ACT-3.2`'s `recordInvokeStatus`/adversarial-review fix below for why an
-  uncaught log-check error is a real evidence gap, not just noise). `"unverified"` means no pattern
+  uncaught: a log-check error that escapes ends the step before its other checks are recorded, which
+  is an evidence gap, not just noise). `"unverified"` means no pattern
   was supplied for the running flavor (see "Flavor policy" above) — an evidence gap that fails the
   run until the pattern is written or the check states why it cannot be settled here, rather than a
   claim about the device.
@@ -569,12 +572,15 @@ A "DUT issues command X to TH" step (as opposed to a read) has two independent t
 *outgoing* command's shape (what `TC-ACT-3.2` checks via the TH log's `CommandDataIB`/`CommandFields`,
 mirroring `expectAttributePathIB`'s discipline for reads) and the *response status* the TH sent back. Per
 the brief, a non-success response is tolerated evidence, not a step failure, whenever the TH's own
-implementation is the reason (missing command support, an action ID it doesn't recognize, etc.) — only a
-response that never arrives at all (anything that isn't a `StatusResponseError`, e.g. a real timeout) is a
-genuine step failure. `TC-ACT-3.2`'s `recordInvokeStatus` catches exactly `StatusResponseError` and
-records its `.code` as a `"response"` check with verdict `"pass"` either way; anything else rethrows.
-Eleven of this TC's twelve steps come back `UnsupportedCommand` (0x81) against the real chip-bridge-app,
-and that's the expected shape of a passing run, not a bug in the TC.
+implementation is the reason (missing command support, an action ID it doesn't recognize, etc.).
+`invokeCommand`'s `anyStatus` option (used by `TC-ACT-3.2`) passes the response check for exactly a
+`StatusResponseError` that is not a `ValidationError` and records its code. A `ValidationError` is the
+client's own encode-time rejection, so it and every error without a status (e.g. a real timeout) still
+fail the check. The option also passes `NoCommandResponse`, a status the matter.js client sets itself
+when the InvokeResponse has no entry for the command; the CommandDataIB log check still holds the step.
+Eleven of this TC's twelve steps come back refused against the real chip-bridge-app (`InvalidCommand`
+from `ActionsCluster.cpp`, for an action whose SupportedCommands lacks the command), and that's the
+expected shape of a passing run, not a bug in the TC.
 
 ## Async log delivery lag can make a later step's log check match an earlier step's trailing echo
 
@@ -653,10 +659,8 @@ different cluster (`OnOff` vs. `Actions`), a different endpoint constant, and no
 is the same "a second TC needs the same shape" trigger `TC-IDM-2.1`'s `attributePathIBSequence` was
 promoted on (see "Wildcard path idioms" above). Both helpers, plus a shared `requireId` and a renamed
 `CommandFieldValue` (was `FieldValue`), moved to `tc-support.ts`, parameterized on `endpoint`/`cluster`
-instead of reading TC-ACT-3.2's own module-level constants; `TC-ACT-3.2.test.ts` was updated to call the
-promoted versions rather than keep a second copy. Behavior is unchanged for `TC-ACT-3.2` — same sequence,
-same per-field pattern, same returned `CheckRecord` shape — only the call site gained two parameters
-(`endpoint`, `cluster`) it used to read from module scope.
+instead of reading TC-ACT-3.2's own module-level constants. `TC-ACT-3.2` itself now reaches them through
+`invokeCommand`.
 
 ## Multi-controller wiring (`TC-CADMIN-1.17`), first real exercise
 
@@ -2554,7 +2558,8 @@ Four things the plan does not say, each of which failed silently until found:
 sender's log carries all four. The multicast address is not shape-matched: the DUT's membership line
 names the group, the fabric and the address together, so the address is recomputed from that fabric id
 and group id and compared byte for byte — which also establishes the destination is GroupID 1. The port
-and address are read from the invoke's `dest:` field, and the session tag renders `•group#…`. That last
+and address are read from the invoke's `dest:` field, which follows the group the message is for
+(`•group#… group: 1 dest: [<address>]:5540`), and the session tag renders `•group#…`. That last
 one is the sender saying which *kind* of session it used, not a read of the packet's own DSIZ field —
 which is what makes it evidence for the claim rather than the claim itself, and the step's expected
 outcome says so.
@@ -2570,11 +2575,14 @@ also the step's synchronisation — an unacknowledged multicast orders nothing a
 that follows it, so without that wait the read races the device.
 
 A group command's path is endpoint-wildcarded on the wire (`invokes: *.0x4.0x0`), so the dispatch is
-identified by the endpoint it *reached*: matter.js names endpoint, cluster, command and fields on its
-`ProtocolService Invoke «` line, and chip prints `Received Groupcast Message with GroupId 0x0001`
-followed by `Processing group command for Endpoint=1 Cluster=0x0000_0004 Command=0x0000_0000`. chip's
-first line is worth knowing about — it names the group id read off the *packet*, which is the
-receiver's own view of the destination, and the only place in this suite where that appears.
+identified by the endpoint it *reached*. Both implementations name the group the packet was sent to on
+a receipt line, and then the dispatch: matter.js's inbound `InteractionServer Invoke « •group#… group: 1
+invokes: *.0x4.0x0`, then its `ProtocolService Invoke «` line with endpoint, cluster, command and fields
+on the same exchange (`⇵…`), which `expectGroupCommandArrival` requires; chip's `Received Groupcast
+Message with GroupId 0x0001`, then `Processing group command for Endpoint=1 Cluster=0x0000_0004
+Command=0x0000_0000`, tied by order alone since neither line names an exchange. The receipt line is the
+receiver's own view of the destination, read off the packet. TC-BIND-2.3 relies on the same lines,
+through the same helpers in `tc-support.ts`.
 
 **A production change came with it.** The group invoke's diagnostic printed the address alone;
 `GroupSession.destination` now renders `[<address>]:<port>` so the log says where a message actually
@@ -3262,3 +3270,94 @@ Two more traps:
 
 The TH's active mode came every 10–20 seconds rather than the configured 5, so every wait is 90 seconds.
 
+## The binding block, where the DUT only sends what it was bound to (`TC-BIND-2.1`, `TC-BIND-2.3`)
+
+**TH1 sets up everything between the other devices; the DUT only sends.** TH1 (a helper controller) commissions the
+DUT, TH2 and TH3, writes the ACL entries that let the DUT or its group operate them, writes the DUT's Binding entries
+and, for a group case, gives the DUT and TH2 the group's key and TH2 its membership. The DUT's one action is to send
+along the bindings it holds when the case triggers it. The roles are `controllers: { th1: "helper" }` and `devices`
+naming `dut`, `th2` and, in 2.1, `th3`. The device whose app is `app` is the primary, with `identityFor(0)` and port
+5540, and the rest get the next identities in declaration order. TC-BIND-2.1 makes the DUT primary; TC-BIND-2.3 makes
+TH2 primary (see below). Either way the DUT's PICS come from the app of the device role named `dut`
+(`CertTestDefinition.dutApp`), not from `app`. A binding entry or an ACL subject names a node by the id TH1 assigned
+when commissioning it, which both adapters return as the decimal `CertNodeRef`, so `BigInt(ref)` is that id. The
+shared steps live in `tc-bind-support.ts` (`BindRun`), with one `CommissionedRefs<"th1">` per device, removed DUT
+first in the finalizer.
+
+**TC-BIND-2.2 is not implemented.** Its plan makes the DUT the Group Admin that provisions TH2 itself (steps 5–8:
+key, KeySetWrite, GroupKeyMap, AddGroup). The matter.js light switch is a binding client and does not do that, by the
+maintainer's decision; the mismatch between the plan and a binding-client DUT is recorded in the testplan-feedback
+todo.
+
+**The trigger is `BackchannelCommand.SendOnOffToBindings`.** `LightSwitchTestInstance` sends the command to every
+OnOff entry its Binding attribute holds when the command arrives, and fails the command when a send fails or an entry
+does not resolve within 30 s, so a refused command cannot pass as sent. The attribute is the authority rather than
+the `established`/`removed` events BindingServer emits: those arrive asynchronously after the write that caused them,
+so a trigger right after a write would otherwise reach the targets from before it. An entry naming another cluster is
+not an OnOff target and is left out. A factory reset needs nothing of its own: BindingServer emits `removed` for every
+live binding when the endpoint is disposed, which clears the instance's resolutions. Only matter.js implements the
+command; chip's `light-switch-app` is not in our image, which is why the cases run on the matterjs flavor only.
+
+**The DUT's PICS are its own.** `registerCertAppPics` answers `BIND.C`, `OO.C` and `MCORE.ROLE.CONTROLLER` `1` for
+`light-switch` and `light-switch-no-groupcast`, which the shared files answer `0`; without them the test-level gate
+skips the cases silently. The OnOff command keys and `MCORE.DT_SW_COMP` are stated too, although the shared files
+answer them the same way. `GRPKEY.C`, which TC-BIND-2.3 gates on, comes from the shared file only: the switch has no
+GroupKeyManagement client, because TH1 provisions it.
+
+**"TH3 does not receive Off" is `expectNoCommandInvoke`.** It waits out a window before it counts, because a command
+still on its way arrives after the check. For a unicast command the DUT's trigger returns only after it was answered,
+so the window (5 s) covers log delivery; for a group command nobody answers, so the window is all that bounds its
+arrival. It counts the lines `expectCommandInvoke` waits for, the group dispatch line (`groupCommandDispatch`) and the group
+receipt line (on matter.js always, of the named group or any; on chip only with a group named, since chip's receipt
+line names no command), so a group Off that arrives but is not dispatched still fails it, and so
+the absence is measured with the instruments that see the command in the positive steps. Keeping TH3's entry in step
+9 fails TC-BIND-2.1 step 10 on exactly this check; keeping the group entry in step 15 fails TC-BIND-2.3 step 16a.
+
+**Step 1 is a real factory reset.** The matter.js DUT erases itself (`factoryReset`), and the step records its own
+announcement that it holds no fabric.
+
+**TC-BIND-2.3 runs twice, once per branch of the plan.** The plan branches on whether the Groupcast cluster is
+enabled on the RootNode endpoint. `TC-BIND-2.3-Groupcast` runs `light-switch` and `all-clusters`, whose roots have it;
+`TC-BIND-2.3-NoGroupcast` runs `light-switch-no-groupcast` and `all-clusters-no-groupcast`, whose roots do not. Both
+are one `certTest` each from the same step definitions (`tcBind23`), so each has its own evidence bundle and name.
+Which branch a run takes is read, not declared: step 5 reads the root Descriptor ServerList of the DUT and TH2 and
+decides. It fails when the two disagree, and when the branch is not the one the run's devices were chosen for, so a
+device that lost its Groupcast cluster cannot turn the Groupcast run into a second legacy run. The steps of the other branch throw `CertStepNotApplicableError`, which the engine
+records as skipped with the plan's own reason and counts in `RunRecord.planConditionSkips`; a step that throws it after
+recording a check fails the run instead.
+The Groupcast branch needs only the Groupcast cluster (`GroupcastServer` implements the FeatureMap, JoinGroup and, with
+the Sender feature, an empty endpoint list); the provisional GroupKeyManagement Groupcast feature plays no part.
+
+- **Legacy branch:** steps 6–8 give TH2 the key set, the GroupKeyMap entry and the group on endpoint 1. Step 11 gives
+  the DUT the same key set and GroupKeyMap entry and no membership: a sender needs the key, and membership is for
+  receiving (Core § 4.16.2 asks only for the key set when sending). The DUT then sends to the fabric's per-group
+  address, `ff35:…`.
+- **Groupcast branch:** step 9a checks the DUT's Sender feature, step 9b has TH2 join group 1 on endpoint 1 with Key1,
+  and step 12 has the DUT join with no endpoints. JoinGroup is sent without `UseAuxiliaryACL`, so it adds no access
+  entry, and TH2 still needs the Group ACL entry of step 4a. With no multicast policy named, a group uses the IANA
+  address, so the DUT sends to `ff05::fa`.
+- Step 5 generates Key1 in both branches, for each run, although the plan says so only in the legacy one: steps 9b and
+  12 send it.
+- Step 3 is not applicable in both: a group command is admitted by TH2's Group ACL entry, which step 4a writes once
+  TH2 is on the fabric, not by an entry naming the DUT.
+
+**Group bindings needed two matter.js fixes.** `BindingManager` required the binding's source endpoint to be a member
+of the group, which no step of the plan makes it, so the entry never resolved; it now resolves a group entry once the
+fabric holds a key for the group, and resolves it again when the key is provisioned later — the plan writes the binding
+(step 10) before the DUT gets its key (step 11 or 12). Commands on a group endpoint failed with
+`InvalidGroupOperationError`, because their paths named the endpoint; a command method on a group endpoint now builds
+its request without one, and `ClientGroupInteraction` still refuses a group invoke that names an endpoint. Writing state on a group endpoint is
+not supported: an attribute write to a group goes through the group's `interaction.write` with a group path. The
+BIND cases write nothing to a group.
+
+**TH2 is the primary device in TC-BIND-2.3**, so it runs on port 5540. A group message goes to that port (Core
+§ 4.16.2), and a matter.js device joins the group's multicast address on its own operational socket only, so a TH on
+5541 never sees it. That receive-side gap is a matter.js defect outside this case; until it is fixed, a matter.js
+device that must receive a group message in a multi-device case has to be the primary.
+
+**What stands in for a response to the group On.** Nobody answers a group message, so step 14a checks the DUT's own
+line for the send (`matterjsGroupInvokeSent`: a group session, `group: 1`, the address, port 5540 and `*.onOff.on`)
+and TH2's lines receiving it (`expectGroupCommandArrival`: the inbound invoke naming group 1, then the dispatch of
+that same exchange to endpoint 1). matter.js names the group on the send and receipt lines for this reason. The arrival is also what orders step 14b's read after
+the command. The same helpers carry TC-SC-5.3's groupcast evidence, so the two cases cannot drift; chip's lines use
+its own uppercase hex (`0x%04X` for the group, `0x%04X_%04X` for cluster and command).

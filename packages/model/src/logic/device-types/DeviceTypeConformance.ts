@@ -22,7 +22,7 @@ import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
  *
  * What is checked, the rules applied and the limits: `docs/DEVICE_TYPE_VALIDATION.md`.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2
+ * @see {@link MatterSpecification.v161.Core} § 9.2
  */
 export namespace DeviceTypeConformance {
     /**
@@ -36,8 +36,8 @@ export namespace DeviceTypeConformance {
      * @param pass the validation pass the check belongs to, which shares what the checks of several endpoints read and
      * resolves in its model
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2
-     * @see {@link MatterSpecification.v16.Core} § 7.3
+     * @see {@link MatterSpecification.v161.Core} § 9.2
+     * @see {@link MatterSpecification.v161.Core} § 7.3
      */
     export function check<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): DeviceTypeViolation[] {
         const { model } = pass;
@@ -98,7 +98,7 @@ export namespace DeviceTypeConformance {
      * Reads nothing beside {@link endpoint}, its descendants and its ancestors, so it can judge a subtree before it is
      * constructed. {@link check} also finds a singleton declared elsewhere in the node scope.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.7.3
+     * @see {@link MatterSpecification.v161.Core} § 7.7.3
      */
     export function misplacedSingletons<E>(
         endpoint: E,
@@ -152,7 +152,7 @@ export namespace DeviceTypeConformance {
      * The endpoints other than {@link nodeEndpoint} whose {@link check} verdict can depend on the conditions of
      * {@link nodeEndpoint}: those of its composition scope that list a component device type of its device types.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.3
+     * @see {@link MatterSpecification.v161.Core} § 9.2.3
      *
      * @internal
      */
@@ -348,7 +348,7 @@ function judge<E>(
  *
  * A cluster model carries no conformance, so a cluster is never provisional here.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3.5
+ * @see {@link MatterSpecification.v161.Core} § 7.3.5
  */
 function isProvisional(definition: Model) {
     return definition instanceof ValueModel && definition.conformance.isProvisional;
@@ -535,7 +535,7 @@ function failuresOf<E>(
  * none, but its constraint applies once there is one. A component whose every requirement is disallowed may have no
  * endpoint. A requirement whose conformance depends on something unknown is not judged.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.3
+ * @see {@link MatterSpecification.v161.Core} § 9.2.3
  */
 function checkComposition<E>(context: Context<E>, collection: ConditionAssertions.Collection<E>) {
     const { violations, facts, deviceType, conditions, pass } = context;
@@ -684,7 +684,7 @@ function matchInstances(accepts: boolean[][]) {
  * meet its nested requirements, because each endpoint that does not is reported on itself. The ranges of a member that
  * applies come only from its applying choice requirements.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3.14
+ * @see {@link MatterSpecification.v161.Core} § 7.3.14
  */
 function checkChoices<E>(
     { violations, deviceType }: Context<E>,
@@ -772,7 +772,7 @@ interface ChoiceMember {
  * but only an applying instance makes the endpoint a component to judge. The violation names the instance it comes
  * closest to and carries the composing device type.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.3
+ * @see {@link MatterSpecification.v161.Core} § 9.2.3
  */
 function checkComponentOf<E>(
     violations: DeviceTypeViolation[],
@@ -845,7 +845,7 @@ function checkComponentOf<E>(
  * Report each of {@link descendantAssertions}, the `Descendant` conditions an endpoint asserts, whose number of
  * endpoints lies outside the range its constraint states.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.6
+ * @see {@link MatterSpecification.v161.Core} § 9.2.6
  */
 function checkDescendantCounts<E>(
     violations: DeviceTypeViolation[],
@@ -901,7 +901,7 @@ function describeInstance(component: Component, instance: RequirementModel) {
  * device types do not list it. It does not make the cluster required on the declaring endpoint; conformance decides
  * that. An endpoint in no node scope is not judged.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.7.3
+ * @see {@link MatterSpecification.v161.Core} § 7.7.3
  */
 function checkSingletons<E>(
     violations: DeviceTypeViolation[],
@@ -1046,8 +1046,8 @@ const AGGREGATED: ReadonlySet<string> = new Set(["Descriptor.TAGLIST"]);
  * Base requires a TagList of an endpoint that duplicates a sibling unless its device types define another way to
  * disambiguate. Aggregator defines one for its children, the bridged devices' NodeLabel, which the model cannot express.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.9
- * @see {@link MatterSpecification.v16.Device} § 11.2.6
+ * @see {@link MatterSpecification.v161.Core} § 9.2.9
+ * @see {@link MatterSpecification.v161.Device} § 11.2.6
  */
 function baseWaiversOf<E>(facts: ResolvedEndpoint<E>, pass: DeviceTypeValidationPass<E>) {
     const owner = pass.facts.parentOf(facts.endpoint);

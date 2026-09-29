@@ -10,6 +10,7 @@ import { Bytes, Construction, Crypto, ImplementationError, InternalError, Privat
 import { ProductDescription } from "@matter/types";
 import { AttestationCertificateManager } from "./AttestationCertificateManager.js";
 import { Dac, Pai } from "./kinds/AttestationCertificates.js";
+import { MAX_DER_CERTIFICATE_SIZE } from "./kinds/common.js";
 
 /**
  * Device certification used by the OperationalCredentials cluster.
@@ -71,10 +72,31 @@ export class DeviceCertification {
             this.#intermediateCertificate = config.intermediateCertificate;
             this.#declaration = config.declaration;
 
+            this.#assertServable();
             if (product !== undefined) {
                 this.#validateCertification(product);
             }
         });
+    }
+
+    #assertServable() {
+        const certificate = this.#certificate;
+        const intermediateCertificate = this.#intermediateCertificate;
+        if (certificate === undefined || intermediateCertificate === undefined) {
+            return;
+        }
+
+        // A larger chain needs the segmented CertificateChainResponse of PQC Phase 1
+        for (const [name, der] of [
+            ["DAC", certificate],
+            ["PAI", intermediateCertificate],
+        ] as const) {
+            if (der.byteLength > MAX_DER_CERTIFICATE_SIZE) {
+                throw new ImplementationError(
+                    `${name} of ${der.byteLength} bytes exceeds the ${MAX_DER_CERTIFICATE_SIZE} bytes a device can serve without segmented certificate chain responses`,
+                );
+            }
+        }
     }
 
     #validateCertification(product: ProductDescription) {

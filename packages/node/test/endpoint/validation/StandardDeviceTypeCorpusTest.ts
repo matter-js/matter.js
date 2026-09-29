@@ -88,7 +88,10 @@ const ENERGY_EVSE_MODE_STATE = {
 };
 
 const MICROWAVE_OVEN_MODE_STATE = {
-    supportedModes: [{ label: "Normal", mode: 0, modeTags: [{ value: MicrowaveOvenMode.ModeTag.Normal }] }],
+    supportedModes: [
+        { label: "Normal", mode: 0, modeTags: [{ value: MicrowaveOvenMode.ModeTag.Normal }] },
+        { label: "Defrost", mode: 1, modeTags: [{ value: MicrowaveOvenMode.ModeTag.Defrost }] },
+    ],
 };
 
 const WATER_HEATER_MODE_STATE = {

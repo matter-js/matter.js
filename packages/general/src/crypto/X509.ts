@@ -23,6 +23,7 @@ import { Bytes } from "#util/Bytes.js";
 import type { Crypto } from "./Crypto.js";
 import { CertificateError } from "./CryptoError.js";
 import { Key } from "./Key.js";
+import type { MlDsa } from "./MlDsa.js";
 import { Pem } from "./Pem.js";
 import { X962 } from "./X962.js";
 
@@ -132,7 +133,7 @@ export namespace X509 {
         issuer: DistinguishedName;
         validity: ValidityWindow;
         subject: DistinguishedName;
-        publicKey: EcPublicKey;
+        publicKey: EcPublicKey | MlDsa.PublicKeyInfo;
         extensions: Extensions;
     }
 

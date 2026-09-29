@@ -121,6 +121,18 @@ export interface ReadEventOptions {
     minEventNumber?: bigint;
 }
 
+/**
+ * Options for {@link CertNodeApi.observeEvents}.
+ *
+ * Neither an event-number threshold nor a fabric filter, unlike {@link ReadEventOptions}: both would
+ * describe the events this call answers with rather than the ones it goes on to report, because the
+ * updates are the sustained subscription's and it sets its own filters.
+ */
+export interface ObserveEventOptions {
+    /** Invoked for each event the node reports after the ones this call answers with. */
+    onUpdate?: (event: EventReadEntry) => void;
+}
+
 export interface SubscribeEventOptions extends ReadEventOptions {
     minIntervalFloorSeconds: number;
     maxIntervalCeilingSeconds: number;
@@ -134,7 +146,7 @@ export interface SubscribeEventOptions extends ReadEventOptions {
      * Off by default because it is visible on the wire, and a step asserting the subscribe request it
      * sent describes the request it asked for.
      *
-     * @see {@link MatterSpecification.v16.Core} § 8.5
+     * @see {@link MatterSpecification.v161.Core} § 8.5
      */
     urgent?: boolean;
 }
@@ -275,7 +287,7 @@ export interface ReadAttributeOptions {
 /**
  * The transfer an initiator proposed in the `*Init` message a responder answered.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.22.5.1
+ * @see {@link MatterSpecification.v161.Core} § 11.22.5.1
  */
 export interface BdxTransferProposal {
     /** Protocol version the initiator proposed, from the Transfer Control field's low nibble. */
@@ -311,7 +323,7 @@ export interface BdxTransferProposal {
  * Read back from the responder's own session rather than decoded from the wire, so a case whose DUT
  * *is* the responder states what the DUT sent rather than what the peer reports having received.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.22.5.2, § 11.22.5.3
+ * @see {@link MatterSpecification.v161.Core} § 11.22.5.2, § 11.22.5.3
  */
 export interface BdxTransferAccept {
     /** Protocol version the responder chose, which may not be newer than the proposed one. */
@@ -776,8 +788,8 @@ export interface CertIcdRegistration {
 /**
  * The controller as the ICD Check-In client of one node.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.22
- * @see {@link MatterSpecification.v16.Core} § 9.15.1, § 9.16
+ * @see {@link MatterSpecification.v161.Core} § 4.22
+ * @see {@link MatterSpecification.v161.Core} § 9.15.2, § 9.16
  */
 export interface CertIcdClientApi {
     /**
@@ -922,6 +934,29 @@ export interface CertNodeApi {
      * Rejects on a concrete path's status for the same reason {@link subscribe} does.
      */
     subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
+
+    /**
+     * Every event `paths` selects that the node reports, through the subscription the controller already
+     * sustains rather than one of this call's own.
+     *
+     * A subscription of its own is a second session, and a controller drops every session to a peer the
+     * moment that peer reports `ShutDown` — so what the peer is still flushing arrives on a session its
+     * controller has forgotten and is discarded. Observing through the sustained subscription is what
+     * lets a case still see what a peer reports on its way down, which is as far as this goes: an
+     * observation does not span the restart that follows, because the subscription resubscribes with a
+     * minimum event number the peer's own renumbering falls below.
+     *
+     * A case whose subject is the subscribe request itself uses {@link subscribeEvents} instead.
+     *
+     * Resolves with the events the node already holds, as {@link readEvents} answers them, and reports
+     * later ones to {@link ObserveEventOptions.onUpdate}.
+     *
+     * The two sides do not see quite the same thing: the events this answers with come off the wire,
+     * while the later ones reach the controller's own client first, which drops an event it cannot name
+     * in its model or whose cluster the endpoint does not carry. A path the model does not describe can
+     * therefore appear in the answer and never again — {@link subscribeEvents} reports such a path.
+     */
+    observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]>;
 
     /**
      * The endpoints the controller holds for this node, from its own state rather than from a read.
@@ -1120,7 +1155,7 @@ export interface ControllerAdapter {
  * unacknowledged and carries no response, so there is nothing to read back and no status to await.
  * What a step proves about one is proved from the sender's log and from the receiver's later state.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.15.3
+ * @see {@link MatterSpecification.v161.Core} § 4.16
  */
 export interface CertGroupApi {
     /**
@@ -1143,7 +1178,7 @@ export interface CertGroupApi {
 /**
  * The fields of a `GroupKeySetStruct` a cert test provisions on both sides.
  *
- * @see {@link MatterSpecification.v16.Core} § 11.2.4.1
+ * @see {@link MatterSpecification.v161.Core} § 11.2.5.4
  */
 export interface GroupKeySetSpec {
     groupKeySetId: number;
@@ -1156,7 +1191,7 @@ export interface GroupKeySetSpec {
 /**
  * An onboarding payload's fixed fields, as {@link ControllerAdapter.parseQrPayload} reports them.
  *
- * @see {@link MatterSpecification.v16.Core} § 5.1.3.1
+ * @see {@link MatterSpecification.v161.Core} § 5.1.3.1
  */
 export interface OnboardingPayloadFields {
     version: number;
@@ -1180,7 +1215,7 @@ export interface OnboardingPayloadFields {
 /**
  * A manual pairing code's fields, as {@link ControllerAdapter.parseManualPairingCode} reports them.
  *
- * @see {@link MatterSpecification.v16.Core} § 5.1.4.1
+ * @see {@link MatterSpecification.v161.Core} § 5.1.4.1
  */
 export interface ManualPairingCodeFields {
     /** § 5.1.4.1 Table 62's 4-bit form, the 4 most significant bits of the device's discriminator. */
@@ -1213,7 +1248,7 @@ export interface ControllerAdapterOptions {
      * {@link WebRtcRequestorApi.upsertSession}, so a controller that hosts it still refuses everything
      * until a case says otherwise.
      *
-     * @see {@link MatterSpecification.v16.Device} § 16.8
+     * @see {@link MatterSpecification.v161.Device} § 16.8
      */
     webRtcRequestor?: boolean;
 
@@ -1226,7 +1261,7 @@ export interface ControllerAdapterOptions {
      * nothing else, so an attestation a case expects to be refused is refused for the reason the case
      * is about.
      *
-     * @see {@link MatterSpecification.v16.Core} § 6.2.3.1
+     * @see {@link MatterSpecification.v161.Core} § 6.2.3.1
      */
     attestation?: boolean;
 }
@@ -1240,7 +1275,7 @@ export interface AttestationApi {
      * A commissioner normally reads revocation from the DCL. A certification run is against a PKI the
      * DCL does not publish, so the set has to come from the case.
      *
-     * @see {@link MatterSpecification.v16.Core} § 6.2.6.2
+     * @see {@link MatterSpecification.v161.Core} § 6.2.4
      */
     installRevocations(revocationSet: string): Promise<void>;
 }
@@ -1250,7 +1285,7 @@ export interface AttestationApi {
  * case learns it from the provider's own `SolicitOffer`/`ProvideOffer` response and registers it here
  * before the provider signals against it.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5
+ * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5
  */
 export interface WebRtcSessionSpec {
     id: number;
@@ -1279,7 +1314,7 @@ export interface WebRtcSessionRecord {
 /**
  * An ICE candidate as the provider stated it, per RFC 8839's candidate-attribute.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+ * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.4
  */
 export interface WebRtcIceCandidate {
     candidate: string;

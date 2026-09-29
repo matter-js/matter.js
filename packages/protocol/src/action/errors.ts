@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Schema, SchemaErrorPath, ValueModel } from "@matter/model";
+import { Constraint, Schema, SchemaErrorPath, ValueModel } from "@matter/model";
 import { Status, StatusResponseError } from "@matter/types";
 
 export { SchemaImplementationError } from "@matter/model";
@@ -75,8 +75,12 @@ export class DatatypeError extends ValidateError {
  * Thrown when constraint is violated.
  */
 export class ConstraintError extends ValidateError {
-    constructor(schema: Schema, path: SchemaErrorPath, message: string) {
-        super(path, `Constraint "${(schema as ValueModel).constraint}": ${message}`, Status.ConstraintError);
+    /**
+     * @param constraint the constraint the value violated; by default the constraint {@link schema} states or inherits
+     */
+    constructor(schema: Schema, path: SchemaErrorPath, message: string, constraint?: Constraint) {
+        const stated = constraint ?? (schema instanceof ValueModel ? schema.effectiveConstraint : undefined);
+        super(path, `Constraint "${stated}": ${message}`, Status.ConstraintError);
     }
 }
 

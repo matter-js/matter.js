@@ -15,6 +15,7 @@ import {
     Seconds,
     Time,
 } from "@matter/main";
+import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import type { ClusterModel } from "@matter/model";
 import { Matter } from "@matter/model";
 import type {
@@ -74,12 +75,12 @@ export interface RecordedCheck {
 
 /**
  * Runs `action` as a response check that does not throw for the action: a pass with `describe`'s text and the
- * action's `value`, or a fail with the error the action threw.
+ * action's `value`, or a fail describing the `error` the action threw, which is returned with it.
  */
 export async function attempt<T>(
     action: () => Promise<T>,
     describe: (value: T) => string,
-): Promise<{ ok: true; value: T; check: CheckRecord } | { ok: false; check: CheckRecord }> {
+): Promise<{ ok: true; value: T; check: CheckRecord } | { ok: false; error: unknown; check: CheckRecord }> {
     let value: T;
     try {
         value = await action();
@@ -88,7 +89,7 @@ export async function attempt<T>(
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
-        return { ok: false, check: { type: "response", verdict: "fail", detail: describeError(e) } };
+        return { ok: false, error: e, check: { type: "response", verdict: "fail", detail: describeError(e) } };
     }
     return { ok: true, value, check: { type: "response", verdict: "pass", detail: describe(value) } };
 }
@@ -1174,6 +1175,235 @@ export async function expectCommandInvoke(
     };
 }
 
+/** The port every group message goes to. @see {@link MatterSpecification.v161.Core} § 4.16.2 */
+export const GROUP_MESSAGE_PORT = 5540;
+
+/** chip's `0x%04X` rendering of a group id. */
+function chipGroupId(group: number) {
+    return `0x${group.toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/** A group command's path as matter.js renders it: no endpoint, then cluster and command by name or hex id. */
+function matterjsGroupCommandPath(cluster: number, command: number) {
+    const model = Matter.clusters(cluster);
+    return (
+        `\\*\\.${matterjsElement(model?.name, cluster)}\\.` +
+        `${matterjsElement(model?.commands(command)?.name, command)}${MATTERJS_PATH_END}`
+    );
+}
+
+/**
+ * matter.js's line for a group command it sends: a group session, the group the message is for, the multicast address
+ * it went to (capture 1) on the group message port, and the command.
+ */
+export function matterjsGroupInvokeSent(group: number, cluster: number, command: number): RegExp {
+    return new RegExp(
+        `ClientInteraction Invoke » •group#[0-9a-f]+⇵[0-9a-f]+ group: ${group}(?!\\d) ` +
+            `dest: \\[([0-9a-f:]+)\\]:${GROUP_MESSAGE_PORT} .*?${matterjsGroupCommandPath(cluster, command)}`,
+    );
+}
+
+/** A group command a TH is to receive, and the endpoint it is to reach there. */
+export interface GroupCommandArrival {
+    group: number;
+    endpoint: number;
+    cluster: number;
+    command: number;
+
+    /** The fields the dispatch line must show the command carried. */
+    fields?: CommandFieldValue[];
+}
+
+/** The exchange of an inbound group message as matter.js tags it, `<session>⇵<exchange>`. */
+const MATTERJS_GROUP_EXCHANGE = "[0-9a-f]+⇵[0-9a-f]+";
+
+/**
+ * matter.js's line for a group message it received carrying `command`, naming the group the message was sent to
+ * (`group` absent: any group). Capture 1 is the message's exchange.
+ */
+export function matterjsGroupCommandReceipt(cluster: number, command: number, group?: number): RegExp {
+    return new RegExp(
+        `InteractionServer Invoke « •group#(${MATTERJS_GROUP_EXCHANGE}) .*?group: ` +
+            `${group === undefined ? "\\d+" : `${group}(?!\\d)`} invokes: .*?${matterjsGroupCommandPath(cluster, command)}`,
+    );
+}
+
+/**
+ * chip's line for a group message it received for `group`. It names neither the command nor an exchange, so it is
+ * tied to a dispatch by order alone.
+ */
+function chipGroupMessageReceipt(group: number): RegExp {
+    return new RegExp(`Received Groupcast Message with GroupId ${chipGroupId(group)} `);
+}
+
+/**
+ * The line each implementation prints when it dispatches a group command to one of its endpoints, with the command's
+ * `fields` where given, and for matter.js on the exchange `exchange` where given. A group command's path names no
+ * endpoint, so this, not the request, says which endpoint it reached.
+ */
+export function groupCommandDispatch(
+    endpoint: number,
+    cluster: number,
+    command: number,
+    fields: CommandFieldValue[] = [],
+    exchange?: string,
+) {
+    const model = Matter.clusters(cluster);
+    const commandModel = model?.commands(command);
+    const named = fields.map(({ id, value }) => {
+        const name = commandModel?.fields(id)?.name;
+        if (name === undefined) {
+            throw new InternalError(`Command 0x${command.toString(16)} has no field 0x${id.toString(16)}`);
+        }
+        return ` ${camelize(name)}: ${matterjsFieldValue(value)}`;
+    });
+    return {
+        chip: new RegExp(
+            `Processing group command for Endpoint=${endpoint} Cluster=0x${attributeHex(cluster)} ` +
+                `Command=0x${attributeHex(command)}(?![0-9A-F])`,
+        ),
+        matterjs: new RegExp(
+            `ProtocolService Invoke « \\S+\\.ep${endpoint}\\.${matterjsElement(model?.name, cluster)}\\.` +
+                `${matterjsElement(commandModel?.name, command)} ` +
+                `•group#${exchange ?? MATTERJS_GROUP_EXCHANGE}✉[0-9a-f]+${named.join("")}`,
+        ),
+    };
+}
+
+/**
+ * Checks a TH received a group command for `arrival.group` and dispatched it to `arrival.endpoint`: the line naming
+ * the group the message was sent to, then the dispatch of that same message. matter.js ties the two by the exchange
+ * both lines name; chip's receipt line names no exchange, so there any matching dispatch after the receipt counts.
+ */
+export async function expectGroupCommandArrival(
+    log: LogFollower,
+    flavor: string,
+    what: string,
+    arrival: GroupCommandArrival,
+    from: number,
+    timeout: Duration,
+): Promise<CheckRecord> {
+    const { group, endpoint, cluster, command, fields = [] } = arrival;
+    if (flavor.startsWith("chip")) {
+        return expectSequence(
+            log,
+            flavor,
+            what,
+            {
+                chip: {
+                    ordered: [
+                        chipGroupMessageReceipt(group),
+                        groupCommandDispatch(endpoint, cluster, command, fields).chip,
+                    ],
+                },
+            },
+            from,
+            timeout,
+        );
+    }
+    if (flavor !== "matterjs") {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    const deadline = Time.nowUs + timeout;
+    const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
+    const receiptPattern = matterjsGroupCommandReceipt(cluster, command, group);
+    try {
+        const receipt = await log.expect({ matterjs: receiptPattern }, { flavor, timeoutMs: remaining(), from });
+        if (receipt.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+        const [, exchange] = receiptPattern.exec(receipt.matched.text) ?? [];
+        if (exchange === undefined) {
+            throw new InternalError(`Group receipt line without an exchange: ${receipt.matched.text}`);
+        }
+
+        const dispatched = await log.expect(
+            { matterjs: groupCommandDispatch(endpoint, cluster, command, fields, exchange).matterjs },
+            { flavor, timeoutMs: remaining(), from: receipt.matched.index + 1 },
+        );
+        if (dispatched.verdict === "unverified") {
+            return { type: "device-log", verdict: "unverified" };
+        }
+        return {
+            type: "device-log",
+            verdict: "pass",
+            pattern: what,
+            detail: `received for group ${group} on exchange ${exchange} and dispatched to endpoint ${endpoint}`,
+            matched: dispatched.matched.text,
+            logLine: dispatched.matched.index,
+        };
+    } catch (e) {
+        if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            return { type: "device-log", verdict: "fail", pattern: what, detail: e.message, logLine: from };
+        }
+        throw e;
+    }
+}
+
+/**
+ * Records that the TH logged no invoke of `command` on `endpoint` at or after `from` while `window` elapsed — a plan's
+ * "TH does not receive the command". It counts a unicast request by the lines {@link expectCommandInvoke} waits for, a
+ * group command by the endpoint it was dispatched to ({@link groupCommandDispatch}), and a group message carrying the
+ * command by its receipt, so a group command that arrives and is not dispatched still counts. chip's receipt line names
+ * no command, so there only a `group` given counts receipts, of any message for that group.
+ *
+ * The window is waited out before the buffer is read, because a command still on its way when the step checks
+ * arrives after it. A step whose DUT has already had every command it sent answered needs the window only to cover
+ * log delivery; a group command is answered by nobody, so there the window is all that bounds its arrival.
+ */
+export async function expectNoCommandInvoke(
+    log: LogFollower,
+    flavor: string,
+    endpoint: number,
+    cluster: number,
+    command: number,
+    from: number,
+    window: Duration,
+    group?: number,
+): Promise<CheckRecord> {
+    const chip = flavor.startsWith("chip");
+    if (!chip && flavor !== "matterjs") {
+        return { type: "device-log", verdict: "unverified" };
+    }
+
+    await Time.sleep("command absence window", window);
+    await log.settled();
+
+    const dispatch = groupCommandDispatch(endpoint, cluster, command);
+    const unicast = chip
+        ? countConsecutiveRuns(log, commandPathIBSequence(endpoint, cluster, command), from)
+        : log.count(matterjsInvokePath(endpoint, cluster, command), from);
+    const dispatched = log.count(chip ? dispatch.chip : dispatch.matterjs, from);
+    const received = chip
+        ? group === undefined
+            ? 0
+            : log.count(chipGroupMessageReceipt(group), from)
+        : log.count(matterjsGroupCommandReceipt(cluster, command, group), from);
+    const path = `${endpoint}/0x${cluster.toString(16)}/0x${command.toString(16)}`;
+    return {
+        type: "device-log",
+        verdict: unicast + dispatched + received === 0 ? "pass" : "fail",
+        pattern: `no invoke of ${path}`,
+        detail:
+            `${unicast} unicast invoke(s), ${received} group receipt(s) and ${dispatched} group dispatch(es) of ` +
+            `${path} after line ${from} within ${Duration.format(window)}, expected none`,
+        logLine: from,
+    };
+}
+
+/** How many times `sequence` matches consecutive non-synthetic lines at or after `from`. */
+function countConsecutiveRuns(log: LogFollower, sequence: RegExp[], from: number): number {
+    const lines = log.window(from, Number.MAX_SAFE_INTEGER).filter(line => !line.synthetic);
+    let runs = 0;
+    for (let start = 0; start + sequence.length <= lines.length; start++) {
+        if (sequence.every((pattern, offset) => pattern.test(lines[start + offset].text))) {
+            runs++;
+        }
+    }
+    return runs;
+}
+
 /** A command {@link invokeCommand} has the DUT send to the TH. */
 export interface CommandInvocation {
     cluster: ClusterModel;
@@ -1188,6 +1418,14 @@ export interface CommandInvocation {
     describe?: (response: unknown) => string;
 
     options?: TimedInteractionOptions;
+
+    /**
+     * Passes the response check when the invoke fails with a status, for a plan that checks only what the DUT sent;
+     * the log check then carries the step. A {@link ValidationError}, the client's own encode-time rejection, and
+     * every error without a status still fail it, and so does a resolved response whose Status field is not
+     * success. A refused command is not {@link InvokedCommand.accepted}.
+     */
+    anyStatus?: boolean;
 }
 
 /** What {@link invokeCommand} found. */
@@ -1214,16 +1452,27 @@ export interface InvokedCommand {
  * the command with its `fields`. A step adds the checks it derives from the answer and records the
  * whole list with {@link recordAll}.
  *
- * The response status is a claim of its own because a command the cluster refused still resolves; an
- * absent status fails it, since the log check alone says only that the request arrived. The log check
- * runs whether or not the invoke resolved — it is what shows whether the TH received the command.
+ * The response status is a claim of its own because a command whose response carries a Status field
+ * resolves even when the cluster refused it; an absent status fails it, since the log check alone says
+ * only that the request arrived. The log check runs whether or not the invoke resolved — it is what
+ * shows whether the TH received the command. See {@link CommandInvocation.anyStatus} for a plan that
+ * tolerates a refusal.
  */
 export async function invokeCommand(
     cx: CertStepContext,
     ref: CertNodeRef,
     invocation: CommandInvocation,
 ): Promise<InvokedCommand> {
-    const { cluster, endpoint, command, args, fields, describe = describeInvokeResponse, options } = invocation;
+    const {
+        cluster,
+        endpoint,
+        command,
+        args,
+        fields,
+        describe = describeInvokeResponse,
+        options,
+        anyStatus = false,
+    } = invocation;
     const name = `${cluster.name}.${command}`;
     const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
     const commandId = requireId(cluster.commands.require(command).id, name);
@@ -1234,9 +1483,19 @@ export async function invokeCommand(
         () => cx.controllers.dut.node(ref).invoke(cluster.name, command, args, endpoint, options),
         describe,
     );
-    const responseCheck: CheckRecord = response.ok
-        ? response.check
-        : { ...response.check, detail: `${command}: ${response.check.detail}` };
+    let responseCheck: CheckRecord;
+    if (response.ok) {
+        responseCheck = response.check;
+    } else if (anyStatus && isStatusAnswer(response.error)) {
+        const { code, bareMessage } = response.error;
+        responseCheck = {
+            type: "response",
+            verdict: "pass",
+            detail: `${command} status=${Status[code] ?? code} (${bareMessage})`,
+        };
+    } else {
+        responseCheck = { ...response.check, detail: `${command}: ${response.check.detail}` };
+    }
     const checks: RecordedCheck[] = [{ what: `${name} response`, check: () => responseCheck }];
 
     let accepted = response.ok;
@@ -1267,6 +1526,10 @@ export async function invokeCommand(
     checks.push({ what: `CommandDataIB log for ${name}`, check: () => logged });
 
     return { response: response.ok ? { ok: true, value: response.value } : { ok: false }, accepted, checks, from };
+}
+
+function isStatusAnswer(error: unknown): error is StatusResponseError {
+    return error instanceof StatusResponseError && !(error instanceof ValidationError);
 }
 
 function describeInvokeResponse(response: unknown): string {

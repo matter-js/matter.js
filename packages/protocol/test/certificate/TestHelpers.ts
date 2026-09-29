@@ -4,8 +4,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {
+    TestCert_PAA_NoVID_Cert,
+    TestCert_PAA_NoVID_PrivateKey,
+    TestCert_PAA_NoVID_PublicKey,
+} from "#certificate/ChipPAAuthorities.js";
 import { Paa } from "#certificate/kinds/AttestationCertificates.js";
-import { Bytes, DerCodec, DerType, MockFetch, ObjectId, Pem } from "@matter/general";
+import {
+    Bytes,
+    ContextTagged,
+    Crypto,
+    DerCodec,
+    DerObject,
+    DerType,
+    MlDsa,
+    MockFetch,
+    Pem,
+    PrivateKey,
+    RawBytes,
+    X509,
+    X962,
+} from "@matter/general";
 
 /**
  * Encode DER bytes as a PEM certificate string.
@@ -33,10 +52,11 @@ export function setupDclFetchMock(
     paaCert: Bytes,
     revocation?: {
         issuerSkid: string;
-        revokedSerials: string[];
         signerCertPem?: string;
-        /** Raw DER of the issuer Name for composite revocation key matching. */
-        issuerDnDer?: Bytes;
+        /** The CRL served for the distribution point, see {@link buildSignedTestCrl}. */
+        crl: Bytes;
+        /** Whether the entry is for a PAA, whose CRL revokes PAIs */
+        isPAA?: boolean;
     },
 ) {
     const paa = Paa.fromAsn1(paaCert);
@@ -79,7 +99,6 @@ export function setupDclFetchMock(
 
     if (revocation) {
         const normalizedSkid = revocation.issuerSkid.replace(/:/g, "").toUpperCase();
-        const testCrl = buildTestCrl(revocation.revokedSerials, revocation.issuerDnDer);
 
         // Mock the by-issuer endpoint for on-demand CRL lookup
         fetchMock.addResponse(`/dcl/pki/revocation-points/${normalizedSkid}`, {
@@ -89,7 +108,7 @@ export function setupDclFetchMock(
                     {
                         vid: 0xfff1,
                         pid: 0,
-                        isPAA: false,
+                        isPAA: revocation.isPAA ?? false,
                         label: "test-revocation",
                         crlSignerDelegator: "",
                         crlSignerCertificate: revocation.signerCertPem ?? pemEncode(paaCert),
@@ -105,7 +124,7 @@ export function setupDclFetchMock(
                 schemaVersion: 0,
             },
         });
-        fetchMock.addResponse("https://example.com/test.crl", testCrl, { binary: true });
+        fetchMock.addResponse("https://example.com/test.crl", revocation.crl, { binary: true });
     }
 }
 
@@ -119,6 +138,122 @@ export function setupDclFetchMock(
  *   any real certificate — callers who need composite matching should provide this).
  */
 export function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): Uint8Array {
+    return Bytes.of(
+        DerCodec.encode({
+            tbsCertList: crlTbs(revokedSerialHexes, issuerDnDer, X962.EcdsaWithSHA256),
+            signatureAlgorithm: X962.EcdsaWithSHA256,
+            signatureValue: { _tag: DerType.BitString, _bytes: new Uint8Array(0), _padding: 0 },
+        }),
+    );
+}
+
+/** A CRL signer key and the subject key identifier and subject Name DER of its certificate. */
+export interface TestCrlSigner {
+    key: PrivateKey | MlDsa.PrivateKey;
+    subjectKeyId: Bytes;
+    /** The CRL's issuer unless the CRL states another */
+    subjectDer?: Bytes;
+}
+
+/** The private key of the CHIP test PAA without vendor ID. */
+export function chipTestPaaKey() {
+    return PrivateKey(TestCert_PAA_NoVID_PrivateKey, { publicKey: TestCert_PAA_NoVID_PublicKey });
+}
+
+/** The CRL signer of the CHIP test PAA without vendor ID. */
+export function chipTestPaaCrlSigner(): TestCrlSigner {
+    return {
+        key: chipTestPaaKey(),
+        subjectKeyId: Paa.fromAsn1(TestCert_PAA_NoVID_Cert).cert.extensions.subjectKeyIdentifier,
+        subjectDer: Paa.fromAsn1(TestCert_PAA_NoVID_Cert).cert.subjectDer,
+    };
+}
+
+/**
+ * Build a CRL as Matter Core §6.2.6.1 accepts it: signed by the signer, with an Authority Key Identifier naming it,
+ * and with a critical Issuing Distribution Point when `distributionPoint` is given.
+ */
+export async function buildSignedTestCrl(
+    crypto: Crypto,
+    signer: TestCrlSigner,
+    revokedSerialHexes: string[],
+    options: {
+        issuerDnDer?: Bytes;
+        /** URIs of the Issuing Distribution Point; the specification requires exactly one */
+        distributionPoint?: string | readonly string[];
+        distributionPointCritical?: boolean;
+        withoutSignature?: boolean;
+        /** Unused bits stated in the signature BIT STRING */
+        signaturePadding?: number;
+        /** Signature algorithm to state, where it should differ from the one the key signs with */
+        signatureAlgorithm?: DerObject;
+        /** Signature algorithm inside tbsCertList, where it should differ from the outer one */
+        tbsSignatureAlgorithm?: DerObject;
+        /** Further CRL extensions, keyed by any name */
+        extensions?: Record<string, any>;
+        /** CRL entry extensions, keyed by any name: for every revoked entry, or per entry in order */
+        entryExtensions?: Record<string, any> | Array<Record<string, any> | undefined>;
+    } = {},
+): Promise<Uint8Array> {
+    const { key } = signer;
+    const signatureAlgorithm =
+        options.signatureAlgorithm ??
+        (MlDsa.isPrivateKey(key) ? MlDsa.AlgorithmIdentifier(key.parameterSet) : X962.EcdsaWithSHA256);
+
+    const extensions: Record<string, any> = {
+        authorityKeyIdentifier: X509.AuthorityKeyIdentifier(signer.subjectKeyId),
+        ...options.extensions,
+    };
+    if (options.distributionPoint !== undefined) {
+        const uris =
+            typeof options.distributionPoint === "string" ? [options.distributionPoint] : options.distributionPoint;
+        const fullName = RawBytes(
+            Bytes.concat(...uris.map(uri => DerCodec.encode({ _tag: 0x86, _bytes: Bytes.fromString(uri) }))),
+        );
+        extensions.issuingDistributionPoint = DerObject("551d1c", {
+            ...(options.distributionPointCritical === false ? {} : { critical: true }),
+            value: DerCodec.encode({ distributionPoint: ContextTagged(0, ContextTagged(0, fullName)) }),
+        });
+    }
+
+    const tbsCertList = crlTbs(
+        revokedSerialHexes,
+        options.issuerDnDer ?? signer.subjectDer,
+        options.tbsSignatureAlgorithm ?? signatureAlgorithm,
+        extensions,
+        options.entryExtensions,
+    );
+    const tbsDer = DerCodec.encode(tbsCertList);
+    const signature = options.withoutSignature
+        ? new Uint8Array()
+        : MlDsa.isPrivateKey(key)
+          ? await crypto.signMlDsa(key, tbsDer)
+          : (await crypto.signEcdsa(key, tbsDer)).der;
+
+    return Bytes.of(
+        DerCodec.encode({
+            tbsCertList,
+            signatureAlgorithm,
+            signatureValue: { _tag: DerType.BitString, _bytes: signature, _padding: options.signaturePadding ?? 0 },
+        }),
+    );
+}
+
+function extensionsOfEntry(
+    entryExtensions: Record<string, any> | Array<Record<string, any> | undefined> | undefined,
+    index: number,
+) {
+    const extensions = Array.isArray(entryExtensions) ? entryExtensions[index] : entryExtensions;
+    return extensions === undefined ? {} : { extensions };
+}
+
+function crlTbs(
+    revokedSerialHexes: string[],
+    issuerDnDer: Bytes | undefined,
+    signatureAlgorithm: DerObject,
+    extensions?: Record<string, any>,
+    entryExtensions?: Record<string, any> | Array<Record<string, any> | undefined>,
+) {
     const revokedEntries: Record<string, any> = {};
     for (let i = 0; i < revokedSerialHexes.length; i++) {
         revokedEntries[`entry${i}`] = {
@@ -130,12 +265,9 @@ export function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes):
                 _tag: DerType.UtcDate,
                 _bytes: Bytes.fromString("250101000000Z"),
             },
+            ...extensionsOfEntry(entryExtensions, i),
         } as any;
     }
-
-    const signatureAlgorithm = {
-        _objectId: ObjectId("2a8648ce3d040302"),
-    };
 
     const tbsCertList: Record<string, any> = {
         version: {
@@ -157,16 +289,9 @@ export function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes):
     if (revokedSerialHexes.length > 0) {
         tbsCertList.revokedCertificates = revokedEntries;
     }
+    if (extensions !== undefined) {
+        tbsCertList.crlExtensions = ContextTagged(0, extensions);
+    }
 
-    const certificateList: any = {
-        tbsCertList,
-        signatureAlgorithm,
-        signatureValue: {
-            _tag: DerType.BitString,
-            _bytes: new Uint8Array(0),
-            _padding: 0,
-        },
-    };
-
-    return Bytes.of(DerCodec.encode(certificateList));
+    return tbsCertList;
 }

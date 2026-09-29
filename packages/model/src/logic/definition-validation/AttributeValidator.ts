@@ -19,7 +19,7 @@ ModelValidator.validators[AttributeElement.Tag] = class AttributeValidator exten
     }
 
     /**
-     * Per {@link MatterSpecification.v16} § 7.7.9 the Scene ("S") quality may only apply to unsigned integer or boolean
+     * Per {@link MatterSpecification.v161.Core} § 7.7.9 the Scene ("S") quality may only apply to unsigned integer or boolean
      * types of at most 4 bytes, or types derived from these (e.g. enum8, map8).
      */
     #validateSceneType() {

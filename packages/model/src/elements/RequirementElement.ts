@@ -35,7 +35,7 @@ export type RequirementElement = BaseElement & {
     /**
      * Where a condition requirement asserts its condition.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     location?: `${RequirementElement.Location}`;
 
@@ -72,7 +72,7 @@ export namespace RequirementElement {
     /**
      * Where a condition requirement asserts its condition.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export enum Location {
         /**

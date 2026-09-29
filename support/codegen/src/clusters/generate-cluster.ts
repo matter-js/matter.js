@@ -7,6 +7,7 @@
 import { Logger } from "#general";
 import { AttributeModel, ClusterVariance, CommandModel, EventModel } from "#model";
 import { ComponentGenerator } from "../endpoints/ComponentGenerator.js";
+import { SPECIFICATION_NAMESPACE } from "../util/specification-namespace.js";
 import { camelize, serialize } from "../util/string.js";
 import { ClusterFile } from "./ClusterFile.js";
 
@@ -40,7 +41,7 @@ function generateComponents(file: ClusterFile) {
     file.interfaces.atom(`export const name: ${serialize(name)}`).document("Textual cluster identifier.");
     file.interfaces
         .atom(`export const revision: ${cluster.revision}`)
-        .document(`The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.`);
+        .document(`The cluster revision assigned by {@link ${SPECIFICATION_NAMESPACE}.Cluster}.`);
 
     file.addImport("@matter/model", "ClusterModel");
     file.interfaces.atom(`export const schema: ClusterModel`).document({
