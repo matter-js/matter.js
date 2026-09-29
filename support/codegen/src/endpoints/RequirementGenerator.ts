@@ -19,6 +19,19 @@ import { ClusterRequirements } from "./ClusterRequirements.js";
 import { EndpointFile } from "./EndpointFile.js";
 import { reportRequirementLost } from "./requirement-coverage.js";
 
+const DESCRIPTOR_CLUSTER_ID = 0x1d;
+
+/**
+ * The Descriptor attributes `DescriptorServer` derives from the endpoint, so a device type requirement on them is
+ * already met.
+ */
+const DESCRIPTOR_DERIVED_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "DeviceTypeList",
+    "ServerList",
+    "ClientList",
+    "PartsList",
+]);
+
 const MANDATORY_PART_ENDPOINTS = ["RootEndpoint", "AggregatorEndpoint", "BridgedNodeEndpoint"];
 
 /**
@@ -106,19 +119,25 @@ export class RequirementGenerator {
                 continue;
             }
 
-            if (definition.id === undefined || definition.id === 0x1d) {
-                // Skip base clusters & descriptor
+            if (definition.id === undefined || requirement.isDisallowed) {
                 continue;
             }
 
-            if (requirement.isDisallowed) {
+            const isDescriptor = definition.id === DESCRIPTOR_CLUSTER_ID;
+            const requirements = new ClusterRequirements(this.file, definition, requirement, {
+                derived: isDescriptor ? DESCRIPTOR_DERIVED_ATTRIBUTES : undefined,
+            });
+
+            // Every server endpoint receives a DescriptorServer, so a device type needs a generated one only for what
+            // it states beyond that, such as the TagList feature
+            if (isDescriptor && !requirements.specializes) {
                 continue;
             }
 
-            const requirements = new ClusterRequirements(this.file, definition, requirement);
             const detail = { requirement, definition, requirements };
 
-            if (requirement.isMandatory) {
+            // Base mandates Descriptor, so a device type states its Descriptor requirement without conformance
+            if (requirement.isMandatory || isDescriptor) {
                 const variance = ClusterVariance(definition);
 
                 if (variance.requiresFeatures && !selectionIsLegal(definition, requirements.mandatoryFeatureNames)) {

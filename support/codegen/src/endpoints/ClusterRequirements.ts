@@ -55,10 +55,18 @@ export class ClusterRequirements {
      */
     defaults?: { [key: string]: any };
 
+    /**
+     * Whether the device type states anything a generated implementation expresses.
+     */
+    get specializes() {
+        return this.mandatoryFeatures.length > 0 || this.alterations !== undefined || this.defaults !== undefined;
+    }
+
     constructor(
         private file: EndpointFile,
         private cluster: ClusterModel,
         clusterRequirement: RequirementModel,
+        { derived }: { derived?: ReadonlySet<string> } = {},
     ) {
         for (const requirement of clusterRequirement.requirements) {
             switch (requirement.element) {
@@ -69,7 +77,9 @@ export class ClusterRequirements {
                 case RequirementElement.ElementType.Attribute:
                 case RequirementElement.ElementType.Command:
                 case RequirementElement.ElementType.Event:
-                    this.ingestElement(requirement);
+                    if (!derived?.has(requirement.name)) {
+                        this.ingestElement(requirement);
+                    }
                     break;
 
                 case RequirementElement.ElementType.CommandField:

@@ -10,28 +10,33 @@ import { EndpointNumber } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
 import { BindingResolution } from "../../../src/behaviors/binding/BindingManager.js";
 import { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
+import { OnOffClient } from "../../../src/behaviors/on-off/OnOffClient.js";
+import { OtaSoftwareUpdateProviderClient } from "../../../src/behaviors/ota-software-update-provider/OtaSoftwareUpdateProviderClient.js";
 import { OnOffLightSwitchDevice } from "../../../src/devices/on-off-light-switch.js";
+import { OnOffLightDevice } from "../../../src/devices/on-off-light.js";
+import { EndpointType } from "../../../src/endpoint/type/EndpointType.js";
+import { OtaRequestorEndpoint } from "../../../src/endpoints/ota-requestor.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("BindingServer", () => {
     it("initialize replays persisted binding entries to the BindingManager", async () => {
-        const node = await MockServerNode.createOnline(undefined, { online: false, device: OnOffLightSwitchDevice });
+        const node = await MockServerNode.createOnline(undefined, { online: false, device: undefined });
 
         const fabric = await TestFabric({ fabrics: node.env.get(FabricManager) });
-
-        const sourceEp = node.parts.get(1)!;
 
         // Self-binding: entry.node === our nodeId so BindingManager resolves to kind="server" without a peer session.
         const entry = new Binding.Target({
             fabricIndex: fabric.fabricIndex,
             node: fabric.nodeId,
-            endpoint: sourceEp.number,
+            endpoint: EndpointNumber(1),
             cluster: undefined,
             group: undefined,
         });
 
-        // Require BindingServer with pre-seeded binding state before the behavior initializes.
-        sourceEp.behaviors.require(BindingServer, { binding: [entry] });
+        const sourceEp = await node.add(OnOffLightSwitchDevice.with(BindingServer), {
+            number: 1,
+            binding: { binding: [entry] },
+        });
 
         const established = new Array<BindingResolution>();
         sourceEp.eventsOf(BindingServer).established.on(r => {
@@ -198,5 +203,42 @@ describe("BindingServer", () => {
             delete Logger.destinations.capture;
             await node.close();
         }
+    });
+
+    describe("on a server endpoint", () => {
+        async function bindingOf(type: EndpointType) {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            try {
+                const endpoint = await node.add(type);
+                return endpoint.behaviors.supported.binding;
+            } finally {
+                await node.close();
+            }
+        }
+
+        it("is added to a Simple device type with a mandatory client application cluster", async () => {
+            expect(await bindingOf(OnOffLightSwitchDevice)).equals(BindingServer);
+        });
+
+        it("is added to a Simple device type whose client application cluster is added by the developer", async () => {
+            expect(await bindingOf(OnOffLightDevice.with(OnOffClient))).equals(BindingServer);
+        });
+
+        it("is not added to a Simple device type without a client cluster", async () => {
+            expect(await bindingOf(OnOffLightDevice)).undefined;
+        });
+
+        it("is not added to a Simple device type whose only client cluster is not an application cluster", async () => {
+            expect(await bindingOf(OnOffLightDevice.with(OtaSoftwareUpdateProviderClient))).undefined;
+        });
+
+        it("is not added to a Utility device type with a client application cluster", async () => {
+            expect(await bindingOf(OtaRequestorEndpoint.with(OnOffClient))).undefined;
+        });
+
+        it("keeps a Binding server the developer supplies", async () => {
+            class MyBindingServer extends BindingServer {}
+            expect(await bindingOf(OnOffLightSwitchDevice.with(MyBindingServer))).equals(MyBindingServer);
+        });
     });
 });

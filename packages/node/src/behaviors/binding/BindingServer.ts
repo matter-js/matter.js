@@ -38,9 +38,13 @@ import { BindingManager, type BindingResolution } from "./BindingManager.js";
  *
  * ## Typical developer pattern
  *
- * Declare the client clusters you want to talk to on the source endpoint, install BindingServer,
- * and subscribe to `events.established` on the endpoint.  The framework does the rest.
+ * Declare the client clusters you want to talk to on the source endpoint and subscribe to
+ * `events.established` on the endpoint.  The framework does the rest.
  * To clean up own logic, use the `events.removed` event, which is also called when the node shuts down.
+ *
+ * A server endpoint of a Simple device type with a client application cluster receives a BindingServer
+ * without declaring one, as the Base device type requires.  Declare it with `.with(BindingServer)`
+ * anyway to type its state and events.
  *
  * ```ts
  * const LightWithSensorBinding = OnOffLightDevice

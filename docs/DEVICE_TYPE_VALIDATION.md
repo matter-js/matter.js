@@ -19,7 +19,10 @@ endpoint lists at least one such device type:
 - **Provisional elements.** A mandatory feature, attribute, command or event that its own cluster marks provisional
   (`P`) is never reported missing. Its disallowed check is unchanged.
 - **Base requirements.** Base's own requirements (e.g. `Binding` under `Simple & Client`) are enforced only where
-  they make something mandatory. A Base requirement that would make something disallowed is not reported.
+  they make something mandatory. A Base requirement that would make something disallowed is not reported. A server
+  endpoint of a Simple endpoint type with a client application cluster receives a `BindingServer` if it declares none,
+  so `Binding` is reported missing only where the endpoint's `DeviceTypeList` states a Simple device type its endpoint
+  type does not.
 - **One report per requirement.** A violation is identified by its kind and requirement path. When several device
   types of an endpoint, or Base and a device type, violate the same requirement, it is reported once, as the first
   listed device type's, never as Base's.

@@ -42,11 +42,62 @@ function requirementsOf(...nested: RequirementModel[]) {
     return new ClusterRequirements(file, cluster, clusterRequirement);
 }
 
+/**
+ * A device type requiring the Descriptor cluster, identified by its ID under a name no loaded resource describes, with
+ * the given requirements nested in it.
+ */
+function descriptorFixture(...nested: RequirementModel[]) {
+    const descriptor = new ClusterModel(
+        { name: "DescriptorFixture", id: 0x1d },
+        new AttributeModel(
+            { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
+            new FieldModel({ name: "TAGLIST", constraint: "0", title: "TagList", conformance: "O" }),
+        ),
+        new AttributeModel({ name: "DeviceTypeList", id: 0x0, type: "list", conformance: "M" }),
+        new AttributeModel({ name: "EndpointUniqueId", id: 0x5, type: "string", conformance: "O" }),
+    );
+    const deviceType = new DeviceTypeModel(
+        { name: "TaggedPanel", id: 0xff0b, classification: "simple", revision: 1 },
+        new RequirementModel({ name: "DescriptorFixture", id: 0x1d, element: "serverCluster" }, ...nested),
+    );
+    new MatterModel({}, descriptor, deviceType);
+
+    return new EndpointFile(deviceType, {}).toString();
+}
+
 describe("RequirementGenerator", () => {
     it("finds the cluster a requirement names by its ID, whatever name the requirement states", () => {
         const { file } = fixture("Idle Fixture");
 
         expect(file.toString()).contains("IdleFixtureServer");
+    });
+
+    it("generates a Descriptor server with the features a device type mandates, without the attributes it derives", () => {
+        const source = descriptorFixture(
+            new RequirementModel({ name: "DeviceTypeList", element: "attribute", default: [] }),
+            new RequirementModel({ name: "TAGLIST", element: "feature", conformance: "M" }),
+        );
+
+        expect(source).contains('BaseDescriptorFixtureServer.with("TagList")');
+        expect(source).contains("TaggedPanelRequirements.server.mandatory.DescriptorFixture");
+        expect(source).not.contains("set(");
+    });
+
+    it("generates a Descriptor server for an attribute a device type mandates that the server does not derive", () => {
+        const source = descriptorFixture(
+            new RequirementModel({ name: "EndpointUniqueId", element: "attribute", conformance: "M" }),
+        );
+
+        expect(source).contains("alter({ attributes: { endpointUniqueId: { optional: false } } })");
+        expect(source).contains("TaggedPanelRequirements.server.mandatory.DescriptorFixture");
+    });
+
+    it("generates no Descriptor server for a device type that states only what the server derives", () => {
+        const source = descriptorFixture(
+            new RequirementModel({ name: "DeviceTypeList", element: "attribute", default: [] }),
+        );
+
+        expect(source).not.contains("DescriptorFixtureServer");
     });
 });
 
