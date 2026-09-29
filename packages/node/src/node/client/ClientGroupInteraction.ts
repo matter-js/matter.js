@@ -20,6 +20,16 @@ import { ClientNodeInteraction } from "./ClientNodeInteraction.js";
 
 export { InvalidGroupOperationError };
 
+/**
+ * The interaction of a {@link ClientGroup}: every request through it is a group request.
+ *
+ * A group message names no endpoint, so invoke and write paths must be group paths (cluster and command or attribute,
+ * no endpoint); a path naming an endpoint is refused. Nobody answers a group message: a command resolves without a
+ * response even where the command has one, so its typed result is always `undefined`. Reads, subscriptions and timed
+ * requests are refused.
+ *
+ * @see {@link MatterSpecification.v16.Core} § 4.16
+ */
 export class ClientGroupInteraction extends ClientNodeInteraction {
     /** Groups do not support reading or subscribing to attributes */
     override read(_request: Read, _context?: ActionContext): ReadResult {

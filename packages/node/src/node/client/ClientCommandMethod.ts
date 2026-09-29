@@ -24,16 +24,18 @@ export function ClientCommandMethod(name: string, commandModel?: CommandModel) {
         async [name](this: ClusterBehavior, fields?: {}, context?: ActionContext) {
             const node = this.env.get(Node) as ClientNode;
 
-            const invoke = Invoke({
-                commands: [
-                    Invoke.ConcreteCommandRequest<any>({
-                        endpoint: this.endpoint,
-                        cluster: this.cluster,
-                        command: name,
-                        fields,
-                    }),
-                ],
-            });
+            // ClientGroupInteraction refuses a group invoke that names an endpoint
+            const command =
+                node.nodeType === "group"
+                    ? Invoke.WildcardCommandRequest<any>({ cluster: this.cluster, command: name, fields })
+                    : Invoke.ConcreteCommandRequest<any>({
+                          endpoint: this.endpoint,
+                          cluster: this.cluster,
+                          command: name,
+                          fields,
+                      });
+
+            const invoke = Invoke({ commands: [command] });
 
             if (largeMessage) {
                 invoke.largeMessage = true;

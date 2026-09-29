@@ -12,7 +12,7 @@ import { WiFiNetworkDiagnosticsServer } from "#behaviors/wi-fi-network-diagnosti
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import { MatterFlowError, Observable } from "@matter/general";
+import { Diagnostic, LogDestination, LogFormat, Logger, MatterFlowError, Observable } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     BaseDataReport,
@@ -2140,6 +2140,61 @@ describe("InteractionProtocol", () => {
             );
 
             expect(onOffState).equals(true);
+        });
+
+        it("names the group a received group invoke was sent to on its log line", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+            const lines = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    lines.push(LogFormat.formats.plain(message));
+                },
+            });
+
+            try {
+                await interactionProtocol.handleInvokeRequest(
+                    exchange,
+                    INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                    messenger,
+                    {
+                        ...interaction.BarelyMockedGroupMessage,
+                        packetHeader: { ...interaction.BarelyMockedGroupMessage.packetHeader, destGroupId: 7 },
+                    },
+                );
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            expect(lines.some(line => /InteractionServer Invoke « .* group: 7 invokes: /.test(line))).true;
+        });
+
+        it("does not name a group on the log line of a received unicast invoke", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+            const lines = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    lines.push(LogFormat.formats.plain(message));
+                },
+            });
+
+            try {
+                await interactionProtocol.handleInvokeRequest(
+                    exchange,
+                    INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                    messenger,
+                    interaction.BarelyMockedMessage,
+                );
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            const invokeLines = lines.filter(line => line.includes("InteractionServer Invoke «"));
+            expect(invokeLines).length(1);
+            expect(invokeLines[0]).not.match(/ group: /);
         });
 
         it("group invoke reports accessAllowed:true when the dispatched command returns a non-Success status", async () => {
