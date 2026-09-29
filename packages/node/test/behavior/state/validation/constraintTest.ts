@@ -48,7 +48,7 @@ const AllTests = Tests({
                 error: {
                     type: ConstraintError,
                     message:
-                        'Validating Test.test.0: Constraint "all": Value 10001 is not within bounds defined by constraint',
+                        'Validating Test.test.0: Constraint "0% to 100%": Value 10001 is not within bounds defined by constraint',
                 },
             },
         },
@@ -304,7 +304,7 @@ const AllTests = Tests({
                 error: {
                     type: ConstraintError,
                     message:
-                        'Validating Test.test.0: Constraint "all": Value 0 is not within bounds defined by constraint',
+                        'Validating Test.test.0: Constraint "min 1": Value 0 is not within bounds defined by constraint',
                 },
             },
         },
@@ -338,7 +338,7 @@ const AllTests = Tests({
                 error: {
                     type: ConstraintError,
                     message:
-                        'Validating Test.test.2: Constraint "all": Value 9 is not within bounds defined by constraint',
+                        'Validating Test.test.2: Constraint "max 2": Value 9 is not within bounds defined by constraint',
                 },
             },
         },
@@ -518,7 +518,7 @@ const AllTests = Tests({
                 error: {
                     type: ConstraintError,
                     message:
-                        'Validating Test.test.0: Constraint "all": Value 30000 is not within bounds defined by constraint',
+                        'Validating Test.test.0: Constraint "max 2000": Value 30000 is not within bounds defined by constraint',
                 },
             },
         },
