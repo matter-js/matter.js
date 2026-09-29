@@ -9,10 +9,12 @@ import {
     AttributeElement as Attribute,
     DatatypeElement as Datatype,
     FieldElement as Field,
+    bool,
     double,
     list,
     percent100ths,
     single,
+    string,
     uint8,
     uint16,
 } from "#index.js";
@@ -25,6 +27,8 @@ function defaultOf(type: string, dflt: FieldValue) {
         {},
         uint8.clone(),
         uint16.clone(),
+        bool.clone(),
+        string.clone(),
         percent100ths.clone(),
         single.clone(),
         double.clone(),
@@ -59,6 +63,15 @@ describe("DefaultValue", () => {
 
     it("leaves a value with no unit alone", () => {
         expect(defaultOf("uint8", 5)).equal(5);
+    });
+
+    // A model that was never validated, such as a schema handed to withClusters, still carries the marker
+    describe("the no value marker", () => {
+        for (const type of ["bool", "string"]) {
+            it(`is no default for ${type}`, () => {
+                expect(defaultOf(type, FieldValue.None)).equal(undefined);
+            });
+        }
     });
 
     describe("list with no default", () => {

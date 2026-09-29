@@ -26,6 +26,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Fix: A constraint bound the specification computes from numbers alone, such as `2^62` or `(2^62) - 1`, is restated as the number it computes once its units are counted, so model validation judges it against the type and the TLV schema carries it. `Constraint.constantOf()` computes such an expression; one that names a value stays an expression. The constraint evaluator compares bigint with number arguments in `minOf` and `maxOf`, multiplies bigints, and no longer throws for a fractional power beyond the safe integers or a negative exponent of zero
+    - Fix: A default an override removes with `FieldValue.None` is no default in a model that was not validated, such as a schema handed to `withClusters`. A boolean field read it as `true`, a string field as `"[object Object]"`, and a list, struct or bitmap got a synthesized value where a validated model stores none. `FieldValue.stated()` returns the value a definition states, without the marker
     - Fix: A list whose type requires at least one entry gets no empty default when the requirement is inherited
     - Enhancement: Generated documentation keeps the nesting of lists in the specification
     - Breaking: A Window Covering with both the Lift and Tilt features rejects `type` `Shutter`, which the specification allows only with one of them
