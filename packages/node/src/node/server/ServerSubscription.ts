@@ -72,6 +72,7 @@ export const MAX_INTERVAL_PUBLISHER_LIMIT = Hours.one;
 export const INTERNAL_INTERVAL_PUBLISHER_LIMIT = Minutes(3);
 export const MIN_INTERVAL = Seconds(2);
 export const DEFAULT_RANDOMIZATION_WINDOW = Seconds(10);
+const SEND_DELAY = Millis(50);
 
 /**
  * Server options that control subscription handling.
@@ -138,6 +139,10 @@ export class ServerSubscription implements Subscription {
     #maxInterval?: Duration;
 
     #lastUpdateTime = Timestamp.zero;
+    #deferredUntil = Timestamp.zero;
+    #reportDueAt = Timestamp.zero;
+    #holdingForEarliest = false;
+    #sendDelayEndsAt = Timestamp.zero;
     #updateTimer: Timer;
     readonly #sendDelayTimer: Timer;
     #outstandingAttributeUpdates?: DirtyState.ForNode;
@@ -188,9 +193,9 @@ export class ServerSubscription implements Subscription {
         this.#sendInterval = sendInterval;
 
         // These start later as needed
-        this.#sendDelayTimer = Time.getTimer(`Subscription ${this.idStr} delay`, Millis(50), () =>
-            this.#triggerSendUpdate(),
-        );
+        this.#sendDelayTimer = Time.getTimer(`Subscription ${this.idStr} delay`, SEND_DELAY, () => {
+            this.#triggerSendUpdate();
+        });
         this.#updateTimer = Time.getTimer(`Subscription ${this.idStr} update`, this.#sendInterval, () =>
             this.#prepareDataUpdate(),
         );
@@ -431,19 +436,18 @@ export class ServerSubscription implements Subscription {
         // Clear temporary data from seeding
         this.#latestSeededEventNumber = undefined;
         this.#seededClusterDetails = undefined;
+        this.#reportDueAt = Timestamp(Time.nowMs + this.#sendInterval);
 
         if (this.#outstandingAttributeUpdates !== undefined || this.#outstandingEventsMinNumber !== undefined) {
             this.#triggerSendUpdate();
         }
-        this.#updateTimer = Time.getTimer("Subscription update", this.#sendInterval, () =>
-            this.#prepareDataUpdate(),
-        ).start();
+        this.#startSendInterval();
         return true;
     }
 
     /**
-     * Check if data should be sent straight away or delayed because the minimum interval is not reached. Delay real
-     * sending by 50ms in any case to make sure to catch all updates.
+     * Check if data should be sent straight away or delayed because the minimum interval is not reached or a deferral
+     * (see {@link deferReports}) is running. Delay real sending by 50ms in any case to make sure to catch all updates.
      */
     #prepareDataUpdate() {
         if (this.#sendDelayTimer.isRunning || this.#isClosed) {
@@ -457,21 +461,57 @@ export class ServerSubscription implements Subscription {
 
         this.#updateTimer.stop();
         const now = Time.nowMs;
-        const timeSinceLastUpdate = Millis(now - this.#lastUpdateTime);
-        if (timeSinceLastUpdate < this.minIntervalFloor) {
-            // Respect minimum delay time between updates
-            this.#updateTimer = Time.getTimer(
-                "Subscription update",
-                Millis(this.minIntervalFloor - timeSinceLastUpdate),
-                () => this.#prepareDataUpdate(),
+        const earliest = Math.max(this.#lastUpdateTime + this.minIntervalFloor, this.#deferredUntil);
+        this.#holdingForEarliest = now < earliest;
+        if (this.#holdingForEarliest) {
+            this.#updateTimer = Time.getTimer("Subscription update", Millis(earliest - now), () =>
+                this.#prepareDataUpdate(),
             ).start();
             return;
         }
 
+        this.#sendDelayEndsAt = Timestamp(now + SEND_DELAY);
         this.#sendDelayTimer.start();
+        this.#startSendInterval();
+    }
+
+    #startSendInterval() {
         this.#updateTimer = Time.getTimer(`Subscription update ${this.idStr}`, this.#sendInterval, () =>
             this.#prepareDataUpdate(),
         ).start();
+    }
+
+    /**
+     * Whether a path of this subscription selects one of {@link endpoints}, or every endpoint.
+     */
+    selectsAnyEndpoint(endpoints: ReadonlySet<EndpointNumber>) {
+        const { attributeRequests, eventRequests } = this.request;
+        const selects = ({ endpointId }: { endpointId?: EndpointNumber }) =>
+            endpointId === undefined || endpoints.has(endpointId);
+        return (attributeRequests?.some(selects) ?? false) || (eventRequests?.some(selects) ?? false);
+    }
+
+    /**
+     * Hold off the next report by {@link delay}, once.
+     *
+     * A deferral that is still running is only ever shortened, and no deferral holds the next report, data or
+     * keep-alive, past the send interval after the last report was sent, counted from when its sending started.  A
+     * report already being sent is not held; one queued behind it is.
+     */
+    deferReports(delay: Duration) {
+        const now = Time.nowMs;
+        let until = Math.min(now + delay, this.#reportDueAt - SEND_DELAY);
+        if (this.#deferredUntil > now) {
+            until = Math.min(until, this.#deferredUntil);
+        }
+        this.#deferredUntil = Timestamp(until);
+
+        if (this.#holdingForEarliest) {
+            this.#prepareDataUpdate();
+        } else if (this.#sendDelayTimer.isRunning && until > this.#sendDelayEndsAt) {
+            this.#sendDelayTimer.stop();
+            this.#prepareDataUpdate();
+        }
     }
 
     #triggerSendUpdate(onlyWithData: boolean = false, session?: Session) {
@@ -504,6 +544,7 @@ export class ServerSubscription implements Subscription {
             }
 
             this.#lastUpdateTime = Time.nowMs;
+            this.#reportDueAt = Timestamp(this.#lastUpdateTime + this.#sendInterval);
 
             try {
                 using sending = updating?.join("sending");
@@ -566,9 +607,15 @@ export class ServerSubscription implements Subscription {
             if (!this.#sendNextUpdateImmediately) {
                 break;
             }
+            this.#sendNextUpdateImmediately = false;
+
+            // Once closed (a flush, or giving up after a failed send) the deferral no longer applies
+            if (!this.#isClosed && Time.nowMs < this.#deferredUntil) {
+                this.#prepareDataUpdate();
+                break;
+            }
 
             logger.debug("Sending delayed update immediately after last one was sent");
-            this.#sendNextUpdateImmediately = false;
             onlyWithData = true; // In subsequent iterations only send if non-empty
         }
     }

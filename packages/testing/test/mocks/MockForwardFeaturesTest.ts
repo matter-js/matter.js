@@ -70,6 +70,21 @@ describe("MockForwardFeatures", () => {
         expect(MockForwardFeatures.isEnabled(DIRECT_FEATURE)).false;
     });
 
+    it("enables every feature while an enableAll() handle is not disposed", () => {
+        const outer = MockForwardFeatures.enableAll();
+        try {
+            {
+                using _inner = MockForwardFeatures.enableAll();
+                expect(MockForwardFeatures.isEnabled("mock-forward-features-any")).true;
+            }
+            expect(MatterHooks?.forwardFeatureEnabled?.("mock-forward-features-any")).true;
+        } finally {
+            outer[Symbol.dispose]();
+            outer[Symbol.dispose]();
+        }
+        expect(MockForwardFeatures.isEnabled("mock-forward-features-any")).false;
+    });
+
     it("reports a feature no suite enabled as disabled", () => {
         expect(MockForwardFeatures.isEnabled("mock-forward-features-other")).false;
     });

@@ -11,6 +11,7 @@ import {
     Crypto,
     Diagnostic,
     Duration,
+    Entropy,
     InternalError,
     Lifetime,
     Logger,
@@ -28,6 +29,7 @@ import {
     GroupSession,
     InteractionRecipient,
     InteractionServerMessenger,
+    Invoke,
     InvokeRequest,
     InvokeResponseForSend,
     InvokeResult,
@@ -54,6 +56,8 @@ import {
     AttributeData,
     AttributePath,
     DEFAULT_MAX_PATHS_PER_INVOKE,
+    DelayReportData,
+    EndpointNumber,
     EventPath,
     GroupId,
     INTERACTION_PROTOCOL_ID,
@@ -902,13 +906,43 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         return subscription;
     }
 
+    static #formatDelayReportData(delayReportData?: DelayReportData) {
+        if (delayReportData === undefined) {
+            return undefined;
+        }
+        const { delayMinMs, delayJitterWindowMs } = delayReportData;
+        return `${Duration.format(Millis(delayMinMs))}/${Duration.format(Millis(delayJitterWindowMs))}`;
+    }
+
+    /**
+     * Hold off the next report of every subscription, on any session, that selects one of the endpoints an invoke
+     * dispatches to.  The delay is {@link DelayReportData.delayMinMs} plus a random jitter below
+     * {@link DelayReportData.delayJitterWindowMs}.
+     */
+    #deferReports({ delayMinMs, delayJitterWindowMs }: DelayReportData, endpoints: ReadonlySet<EndpointNumber>) {
+        if (endpoints.size === 0) {
+            return;
+        }
+
+        const jitter = delayJitterWindowMs > 0 ? this.#node.env.get(Entropy).randomUint32 % delayJitterWindowMs : 0;
+        const delay = Millis(delayMinMs + jitter);
+
+        for (const session of this.#context.sessions.sessions) {
+            for (const subscription of session.subscriptions) {
+                if (subscription instanceof ServerSubscription && subscription.selectsAnyEndpoint(endpoints)) {
+                    subscription.deferReports(delay);
+                }
+            }
+        }
+    }
+
     async handleInvokeRequest(
         exchange: MessageExchange,
         request: InvokeRequest,
         messenger: InteractionServerMessenger,
         message: Message,
     ): Promise<void> {
-        const { invokeRequests, timedRequest, suppressResponse, interactionModelRevision } = request;
+        const { invokeRequests, timedRequest, suppressResponse, interactionModelRevision, delayReportData } = request;
         logger.info(() => [
             "Invoke",
             Mark.INBOUND,
@@ -916,6 +950,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             Diagnostic.asFlags({ suppressResponse, timedRequest }),
             Diagnostic.dict({
                 group: message.packetHeader.destGroupId,
+                delayReport: InteractionServer.#formatDelayReportData(delayReportData),
                 invokes: invokeRequests
                     .map(({ commandPath: { endpointId, clusterId, commandId } }) =>
                         this.#node.protocol.inspectPath({ endpointId, clusterId, commandId }),
@@ -961,8 +996,13 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         const isGroupSession = message.packetHeader.sessionType === SessionType.Group;
 
+        const invoke: Invoke =
+            delayReportData !== undefined && Specification.isForwardFeatureEnabled("delay-report-data")
+                ? { ...request, beforeDispatch: endpoints => this.#deferReports(delayReportData, endpoints) }
+                : request;
+
         // Get the invoke-results from the server interaction
-        const results = this.#serverInteraction.invoke(request, context);
+        const results = this.#serverInteraction.invoke(invoke, context);
 
         // For group sessions: consume iterator, report each dispatched command to SessionManager so
         // Groupcast testing (if enabled for the fabric) can emit the GroupcastTesting event
