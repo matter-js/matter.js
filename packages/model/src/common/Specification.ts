@@ -77,7 +77,7 @@ export namespace Specification {
     /**
      * Enables Matter behaviour implemented ahead of a released specification revision.
      *
-     * Off in every release.  Only the cert-testing branch sets it to `true`; there is no supported configuration or API
+     * Off in every release.  Only allowed to be enabled for cert-testing related use-cases; there is no supported configuration or API
      * to change it.  Tests enable single features through the `MatterHooks` test harness hook, which any runtime that
      * defines that global also reaches.  Typed as `boolean` so that code behind a guard stays type-checked.  When a
      * feature ships in a released specification, remove every guard for it and its name from {@link ForwardFeature}.
