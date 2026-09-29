@@ -478,6 +478,38 @@ export class DclCertificateService {
     }
 
     /**
+     * Parse a DER certificate and confirm its own SKID matches the id a source claims for it.
+     * Every trust-store entry is keyed by a certificate's own SKID, so a claimed id that disagrees
+     * with the certificate is refused rather than filed under the wrong lookup key. Returns the
+     * parsed certificate, or undefined if it does not parse as `kind` or its SKID does not match
+     * `statedSkid`; both cases are logged and left for the caller to skip.
+     */
+    #parseAndCheckSkid(der: Bytes, kind: DclCertificateService.CertificateKind, statedSkid: string, source: string) {
+        let parsed: ReturnType<typeof parseTrustStoreCertificate>;
+        try {
+            parsed = parseTrustStoreCertificate(der, kind);
+        } catch (error) {
+            logger.info(
+                `${source}: certificate cannot be used as a ${kind}, skipped`,
+                Diagnostic.dict({ skid: statedSkid }),
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return undefined;
+        }
+
+        const skidFromDer = this.#normalizeSubjectKeyId(parsed.extensions.subjectKeyIdentifier);
+        if (skidFromDer !== statedSkid) {
+            logger.warn(
+                `${source}: SKID mismatch entry=${statedSkid} der-derived=${skidFromDer}, skipped`,
+                Diagnostic.dict({ kind }),
+            );
+            return undefined;
+        }
+
+        return parsed;
+    }
+
+    /**
      * Best-effort force re-fetch of a single root certificate from DCL, overwriting the cached copy
      * to recover from a corrupted local storage entry. Never throws: returns the freshly stored DER,
      * or undefined if the certificate could not be re-fetched (not a root cert, absent from DCL, or
@@ -1061,15 +1093,19 @@ export class DclCertificateService {
                 // Strip colons from subject key ID for storage key
                 const subjectKeyId = this.#normalizeSubjectKeyId(cert.subjectKeyId);
 
-                // Convert PEM to DER
-                const derBytes = Pem.asDer(cert.pemCert);
-                const parseError = this.#certificateParseError(derBytes, "PAA");
-                if (parseError !== undefined) {
+                let derBytes: Bytes;
+                try {
+                    derBytes = Pem.asDer(cert.pemCert);
+                } catch (error) {
                     logger.info(
-                        `Certificate from DCL cannot be used as a PAA, skipping`,
+                        `DCL: certificate cannot be used as a PAA, skipped`,
                         Diagnostic.dict({ skid: subjectKeyId }),
-                        Diagnostic.errorMessage(parseError),
+                        Diagnostic.errorMessage(asError(error)),
                     );
+                    continue;
+                }
+
+                if (this.#parseAndCheckSkid(derBytes, "PAA", subjectKeyId, "DCL") === undefined) {
                     continue;
                 }
 
@@ -1332,38 +1368,22 @@ export class DclCertificateService {
                     }
 
                     const der = Bytes.fromHex(entry.derHex);
-                    let parsed;
-                    try {
-                        parsed = parseTrustStoreCertificate(der, certKind);
-                    } catch (error) {
-                        logger.info(
-                            `seed: certificate cannot be used as a ${certKind}, skipped`,
-                            Diagnostic.dict({ skid: this.#normalizeSubjectKeyId(entry.subjectKeyId) }),
-                            Diagnostic.errorMessage(asError(error)),
-                        );
-                        continue;
-                    }
-                    const skidFromDer = this.#normalizeSubjectKeyId(parsed.extensions.subjectKeyIdentifier);
                     const entrySkid = this.#normalizeSubjectKeyId(entry.subjectKeyId);
-
-                    if (skidFromDer !== entrySkid) {
-                        logger.warn(
-                            `seed: SKID mismatch entry=${entrySkid} der-derived=${skidFromDer}, skipped`,
-                            Diagnostic.dict({ certKind }),
-                        );
+                    const parsed = this.#parseAndCheckSkid(der, certKind, entrySkid, "seed");
+                    if (parsed === undefined) {
                         continue;
                     }
 
-                    if (this.#certificateIndex.has(skidFromDer)) {
+                    if (this.#certificateIndex.has(entrySkid)) {
                         continue;
                     }
 
                     const isProduction = entry.kind === "production";
                     const vid = (parsed.subject as { vendorId?: number }).vendorId ?? 0;
 
-                    await this.#storeCertificate(this.#storage!, skidFromDer, Bytes.of(der), {
+                    await this.#storeCertificate(this.#storage!, entrySkid, Bytes.of(der), {
                         subject: (parsed.subject as { commonName?: string }).commonName,
-                        subjectKeyId: skidFromDer,
+                        subjectKeyId: entrySkid,
                         serialNumber: Bytes.toHex(parsed.serialNumber),
                         vid,
                         isRoot: isPaa,
@@ -1371,7 +1391,7 @@ export class DclCertificateService {
                         kind: certKind,
                         fetchedAt,
                     });
-                    inserted.push(skidFromDer);
+                    inserted.push(entrySkid);
                 } catch (err) {
                     logger.warn("seed: malformed entry, aborting stream", Diagnostic.errorMessage(asError(err)));
                     break;
