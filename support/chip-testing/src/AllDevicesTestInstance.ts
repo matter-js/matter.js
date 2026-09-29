@@ -10,6 +10,7 @@ import { EndpointNumber, ValidationError } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
 import "./devices/all-devices.js";
 import { EndpointHandle, getDeviceType, listDeviceTypes } from "./devices/DeviceTypeRegistry.js";
+import { EndpointNumberAllocator } from "./devices/EndpointNumberAllocator.js";
 import { buildRootNode } from "./devices/RootEndpoint.js";
 import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
@@ -18,7 +19,11 @@ const logger = Logger.get("AllDevicesTestInstance");
 
 interface DeviceSpec {
     type: string;
-    endpoint: EndpointNumber;
+
+    /**
+     * The number `type:N` asks for, undefined for a number assigned as devices are created.
+     */
+    endpoint?: number;
 }
 
 interface RuntimeArgs {
@@ -53,43 +58,22 @@ function parseRuntimeArgs(args: string[]): RuntimeArgs {
     const groupcast = hasFlag(args, "groupcast");
     const enableKeyHex = collectValues(args, "enable-key")[0];
 
-    // Pass 1: collect explicit-endpoint reservations so auto-allocation can skip them.
-    const reserved = new Set<number>();
+    const specs = new Array<DeviceSpec>();
     for (const token of tokens) {
         const colonIdx = token.indexOf(":");
-        if (colonIdx === -1) continue;
+        if (colonIdx === -1) {
+            specs.push({ type: token });
+            continue;
+        }
         const epStr = token.substring(colonIdx + 1);
         const ep = Number.parseInt(epStr, 10);
         if (!Number.isInteger(ep) || ep < 1 || ep > 0xfffe || String(ep) !== epStr) {
             throw new ValidationError(`Invalid endpoint in --device "${token}"`);
         }
-        if (reserved.has(ep)) {
+        if (specs.some(({ endpoint }) => endpoint === ep)) {
             throw new ValidationError(`Endpoint ${ep} declared twice in --device flags`);
         }
-        reserved.add(ep);
-    }
-
-    // Pass 2: walk tokens in CLI order, allocating each entry's endpoint number.
-    const specs = new Array<DeviceSpec>();
-    const used = new Set<number>();
-    let nextAuto = 1;
-    for (const token of tokens) {
-        const colonIdx = token.indexOf(":");
-        let type: string;
-        let endpoint: number;
-        if (colonIdx === -1) {
-            type = token;
-            while (reserved.has(nextAuto) || used.has(nextAuto)) nextAuto++;
-            endpoint = nextAuto;
-        } else {
-            type = token.substring(0, colonIdx);
-            endpoint = Number.parseInt(token.substring(colonIdx + 1), 10);
-        }
-        if (used.has(endpoint)) {
-            throw new ValidationError(`Endpoint ${endpoint} declared twice in --device flags`);
-        }
-        used.add(endpoint);
-        specs.push({ type, endpoint: EndpointNumber(endpoint) });
+        specs.push({ type: token.substring(0, colonIdx), endpoint: ep });
     }
 
     return { specs, wifi, groupcast, enableKeyHex };
@@ -135,15 +119,18 @@ export class AllDevicesTestInstance extends NodeTestInstance {
             groupcast,
         });
 
-        for (const { type, endpoint } of specs) {
+        const numbers = new EndpointNumberAllocator(specs.flatMap(({ endpoint }) => endpoint ?? []));
+        for (const spec of specs) {
+            const { type } = spec;
             const factory = getDeviceType(type);
             if (!factory) {
                 throw new ValidationError(
                     `unsupported --device "${type}" (supported: ${listDeviceTypes().join(", ")})`,
                 );
             }
+            const endpoint = spec.endpoint === undefined ? numbers.next() : numbers.take(spec.endpoint);
             logger.info(`Adding device "${type}" on endpoint ${endpoint}`);
-            const handle = await factory.create(serverNode, endpoint);
+            const handle = await factory.create(serverNode, endpoint, numbers);
             this.#endpoints.set(endpoint, handle);
         }
 

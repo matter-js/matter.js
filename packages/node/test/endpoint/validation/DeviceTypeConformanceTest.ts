@@ -109,8 +109,8 @@ const switchWithoutIdentify = MutableEndpoint({
     clientClusters: SupportedClientClusters(OnOffClient),
 });
 
-// Declares no Binding server; construction adds the one Base requires, so a test drops it to judge its absence
-const switchDeclaringNoBinding = switchWith([], [IdentifyClient, OnOffClient]);
+// Lacks the Binding server that Base requires of a simple device type with an application client
+const switchWithoutBinding = switchWith([], [IdentifyClient, OnOffClient]);
 
 // Stand-in base for a device type that cannot start without implementations; only its Descriptor names the device type
 const DescribedLight = OnOffLightDevice.with(DescriptorServer);
@@ -501,8 +501,7 @@ describe("DeviceTypeConformance", () => {
     describe("Base requirements", () => {
         it("requires Binding of a simple device type with an application client", async () => {
             const node = await createNode();
-            const endpoint = await node.add(switchDeclaringNoBinding, { id: "switch" });
-            await endpoint.behaviors.drop(BindingServer.id);
+            const endpoint = await node.add(switchWithoutBinding, { id: "switch" });
 
             expect(violationsOf(endpoint).map(v => [v.deviceType, v.kind, v.requirement])).deep.equals([
                 ["Base", "missing", "Binding"],

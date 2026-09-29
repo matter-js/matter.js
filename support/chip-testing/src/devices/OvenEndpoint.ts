@@ -15,6 +15,7 @@ import { OvenDevice } from "@matter/main/devices/oven";
 import { TemperatureControlledCabinetDevice } from "@matter/main/devices/temperature-controlled-cabinet";
 import { EndpointNumber } from "@matter/main/types";
 import { registerDeviceType } from "./DeviceTypeRegistry.js";
+import type { EndpointNumberAllocator } from "./EndpointNumberAllocator.js";
 
 // TemperatureControl values are in 0.01 °C (180 °C setpoint, 50–250 °C range).
 const Cavity = TemperatureControlledCabinetDevice.with(
@@ -26,12 +27,13 @@ const Surface = CookSurfaceDevice.with(IdentifyServer, OnOffServer);
 
 registerDeviceType({
     name: "oven",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
+    async create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
         const ep = new Endpoint(OvenDevice, { number: endpoint });
         await serverNode.add(ep);
 
         await ep.add(
             new Endpoint(Cavity, {
+                number: numbers.next(),
                 id: "cavity",
                 temperatureControl: { temperatureSetpoint: 18000, minTemperature: 5000, maxTemperature: 25000 },
                 ovenMode: {
@@ -43,7 +45,7 @@ registerDeviceType({
                 },
             }),
         );
-        await ep.add(new Endpoint(Surface, { id: "surface" }));
+        await ep.add(new Endpoint(Surface, { id: "surface", number: numbers.next() }));
 
         return { endpoint: ep };
     },

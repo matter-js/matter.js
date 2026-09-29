@@ -10,9 +10,9 @@ import { SmokeCoAlarmDevice } from "@matter/main/devices/smoke-co-alarm";
 import { EndpointNumber } from "@matter/main/types";
 import { registerDeviceType } from "./DeviceTypeRegistry.js";
 
-// The device type omits the mandatory SmokeCoAlarm cluster by default since features must be chosen.
-// SmokeCoAlarmServer's default enables both SmokeAlarm and CoAlarm, matching CHIP's all-devices-app.
-const SmokeCoAlarm = SmokeCoAlarmDevice.with(SmokeCoAlarmServer);
+// The device type omits the mandatory SmokeCoAlarm cluster by default since features must be chosen; both, as
+// CHIP's all-devices-app selects them
+const SmokeCoAlarm = SmokeCoAlarmDevice.with(SmokeCoAlarmServer.with("SmokeAlarm", "CoAlarm"));
 
 registerDeviceType({
     name: "smoke-co-alarm",

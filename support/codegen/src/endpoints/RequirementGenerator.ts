@@ -17,20 +17,7 @@ import {
 import { Block } from "../util/TsFile.js";
 import { ClusterRequirements } from "./ClusterRequirements.js";
 import { EndpointFile } from "./EndpointFile.js";
-import { reportRequirementLost } from "./requirement-coverage.js";
-
-const DESCRIPTOR_CLUSTER_ID = 0x1d;
-
-/**
- * The Descriptor attributes `DescriptorServer` derives from the endpoint, so a device type requirement on them is
- * already met.
- */
-const DESCRIPTOR_DERIVED_ATTRIBUTES: ReadonlySet<string> = new Set([
-    "DeviceTypeList",
-    "ServerList",
-    "ClientList",
-    "PartsList",
-]);
+import { DESCRIPTOR_CLUSTER_ID, reportRequirementLost } from "./requirement-coverage.js";
 
 const MANDATORY_PART_ENDPOINTS = ["RootEndpoint", "AggregatorEndpoint", "BridgedNodeEndpoint"];
 
@@ -123,20 +110,18 @@ export class RequirementGenerator {
                 continue;
             }
 
-            const isDescriptor = definition.id === DESCRIPTOR_CLUSTER_ID;
-            const requirements = new ClusterRequirements(this.file, definition, requirement, {
-                derived: isDescriptor ? DESCRIPTOR_DERIVED_ATTRIBUTES : undefined,
-            });
+            const requirements = new ClusterRequirements(this.file, definition, requirement);
 
             // Every server endpoint receives a DescriptorServer, so a device type needs a generated one only for what
-            // it states beyond that, such as the TagList feature
-            if (isDescriptor && !requirements.specializes) {
+            // it states beyond the base implementation
+            const isDescriptor = type === "server" && definition.id === DESCRIPTOR_CLUSTER_ID;
+            if (isDescriptor && !requirements.isSpecialized) {
                 continue;
             }
 
             const detail = { requirement, definition, requirements };
 
-            // Base mandates Descriptor, so a device type states its Descriptor requirement without conformance
+            // The translator states a Descriptor requirement without conformance, but Base mandates Descriptor
             if (requirement.isMandatory || isDescriptor) {
                 const variance = ClusterVariance(definition);
 
@@ -217,10 +202,7 @@ export class RequirementGenerator {
 
         const { requirements } = detail;
 
-        let specialized = false;
-
         if (requirements.mandatoryFeatures.length) {
-            specialized = true;
             const extended = definition.expressions("with(", ")");
             for (const feature of requirements.mandatoryFeatures) {
                 extended.value(feature);
@@ -228,20 +210,18 @@ export class RequirementGenerator {
         }
 
         if (requirements.defaults) {
-            specialized = true;
             const defaults = definition.expressions("set(", ")");
             defaults.value(requirements.defaults);
         }
 
         if (requirements.alterations) {
-            specialized = true;
             const altered = definition.expressions("alter(", ")");
             altered.value(requirements.alterations);
         }
 
         let documentation = `The ${detail.definition.name} cluster is ${describeConformance(detail.requirement.conformance, kind)}`;
 
-        if (specialized) {
+        if (requirements.isSpecialized) {
             documentation += `\nThis version of {@link ${name}} is specialized per the specification.`;
         } else {
             documentation += `\nWe provide this alias to the default implementation {@link ${name}} for convenience.`;

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import * as devices from "#devices/index";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
@@ -11,7 +13,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import * as endpoints from "#endpoints/index";
 import { ClosurePanelTag, ClosureTag, CommodityTariffCommodityTag } from "#tags/index.js";
 import { Bytes } from "@matter/general";
-import { Matter } from "@matter/model";
+import { FeatureSelectionViolations, Matter } from "@matter/model";
 import { MeasurementType, Status } from "@matter/types";
 import { AirQuality } from "@matter/types/clusters/air-quality";
 import { ApplicationBasic } from "@matter/types/clusters/application-basic";
@@ -33,23 +35,13 @@ import { WaterHeaterMode } from "@matter/types/clusters/water-heater-mode";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { createUnjudgedNode, violationsOf } from "./validation-helpers.js";
 
-function isEndpointType(value: unknown): value is EndpointType {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        "deviceType" in value &&
-        "behaviors" in value &&
-        "deviceRevision" in value
-    );
-}
-
 /**
  * Every standard generated endpoint type, deduplicated by name.
  */
 function standardDeviceTypes() {
     const types = new Map<string, EndpointType>();
     for (const value of [...Object.values(devices), ...Object.values(endpoints)]) {
-        if (isEndpointType(value) && !types.has(value.name)) {
+        if (EndpointType.is(value) && !types.has(value.name)) {
             types.set(value.name, value);
         }
     }
@@ -277,59 +269,146 @@ const fixtures: Record<string, object> = {
 };
 
 /**
- * The exact violations each type is expected to carry once it builds, as `"<kind> <deviceType> <requirement>"`.
- * A type absent from this table is expected to carry none.
+ * Where a type is judged when not as a plain child of the node's root. A type not listed here is added to the root.
  */
-const expectedViolations: Record<string, string[]> = {
-    AudioDoorbell: ["missing AudioDoorbell Switch"],
-    BatteryStorage: [
+interface Placement {
+    /**
+     * Judge the type under an aggregator rather than the root.
+     */
+    parent?: "aggregator";
+
+    /**
+     * Judge the node's own root endpoint, which only a node can carry, rather than an added endpoint.
+     */
+    asRoot?: true;
+}
+
+const placements: Record<string, Placement> = {
+    BridgedNode: { parent: "aggregator" },
+    RootNode: { asRoot: true },
+};
+
+/**
+ * A violation the corpus accepts although the generated type does not state it, with the reason it is accepted.
+ */
+interface Pin {
+    violation: string;
+    reason: string;
+}
+
+function pin(reason: string, ...violations: string[]): Pin[] {
+    return violations.map(violation => ({ violation, reason }));
+}
+
+const COMPONENTS = "component endpoints are the developer's to add";
+const CONDITION = "the condition is the developer's to state on the component endpoint";
+const BINDING = "Base requires Binding on this type's endpoints, and the generated type does not include it yet";
+
+/**
+ * The violations each type carries beyond {@link unimplementedMandatoryServers}, as
+ * `"<kind> <deviceType> <requirement>"`.  A type absent from this table is expected to carry no others.
+ */
+const pinnedViolations: Record<string, Pin[]> = {
+    AudioDoorbell: pin(BINDING, "missing Base Binding"),
+    BatteryStorage: pin(
+        COMPONENTS,
         "instanceCount BatteryStorage device:ElectricalSensor",
         "instanceCount BatteryStorage device:PowerSource",
         "instanceCount BatteryStorage device:DeviceEnergyManagement",
-    ],
-    Closure: ["missing Closure ClosureControl"],
-    ClosurePanel: ["missing ClosurePanel ClosureDimension"],
-    DeviceEnergyManagement: ["missing DeviceEnergyManagement DeviceEnergyManagement"],
-    ElectricalMeter: [
-        "missing ElectricalMeter ElectricalPowerMeasurement",
-        "missing ElectricalMeter ElectricalEnergyMeasurement",
-        "instanceCount ElectricalMeter device:ElectricalSensor",
-    ],
-    ElectricalSensor: ["missing ElectricalSensor PowerTopology"],
-    EnergyEvse: [
+    ),
+    Camera: pin(BINDING, "missing Base Binding"),
+    CameraController: pin(BINDING, "missing Base Binding"),
+    CastingVideoClient: pin(BINDING, "missing Base Binding"),
+    ClosureController: pin(BINDING, "missing Base Binding"),
+    ColorDimmerSwitch: pin(BINDING, "missing Base Binding"),
+    ControlBridge: pin(BINDING, "missing Base Binding"),
+    DimmerSwitch: pin(BINDING, "missing Base Binding"),
+    DoorLockController: pin(BINDING, "missing Base Binding"),
+    Doorbell: pin(BINDING, "missing Base Binding"),
+    ElectricalMeter: pin(COMPONENTS, "instanceCount ElectricalMeter device:ElectricalSensor"),
+    EnergyEvse: pin(
+        COMPONENTS,
         "instanceCount EnergyEvse device:PowerSource",
         "instanceCount EnergyEvse device:DeviceEnergyManagement",
         "instanceCount EnergyEvse device:ElectricalSensor",
-    ],
-    FloodlightCamera: [
+    ),
+    FloodlightCamera: pin(
+        COMPONENTS,
         "instanceCount FloodlightCamera device:OnOffLight",
         "instanceCount FloodlightCamera device:Camera",
-    ],
-    GenericSwitch: ["missing GenericSwitch Switch"],
-    HeatPump: [
+    ),
+    HeatPump: pin(
+        COMPONENTS,
         "instanceCount HeatPump device:PowerSource",
         "instanceCount HeatPump device:DeviceEnergyManagement",
         "instanceCount HeatPump device:ElectricalSensor",
+    ),
+    Intercom: [
+        ...pin(COMPONENTS, "instanceCount Intercom device:GenericSwitch"),
+        ...pin(BINDING, "missing Base Binding"),
     ],
-    Intercom: ["instanceCount Intercom device:GenericSwitch"],
-    IrrigationSystem: ["instanceCount IrrigationSystem device:WaterValve"],
-    MicrowaveOven: ["missing MicrowaveOven MicrowaveOvenControl"],
-    OccupancySensor: ["missing OccupancySensor OccupancySensing"],
-    Oven: ["instanceCount Oven device:TemperatureControlledCabinet", "instanceCount Oven condition:Heater"],
-    PowerSource: ["missing PowerSource PowerSource"],
-    Pump: ["missing Pump PumpConfigurationAndControl"],
+    IrrigationSystem: pin(COMPONENTS, "instanceCount IrrigationSystem device:WaterValve"),
+    OnOffLightSwitch: pin(BINDING, "missing Base Binding"),
+    OnOffSensor: pin(BINDING, "missing Base Binding"),
+    Oven: [
+        ...pin(COMPONENTS, "instanceCount Oven device:TemperatureControlledCabinet"),
+        ...pin(CONDITION, "instanceCount Oven condition:Heater"),
+    ],
+    PumpController: pin(BINDING, "missing Base Binding"),
     Refrigerator: [
-        "instanceCount Refrigerator device:TemperatureControlledCabinet",
-        "instanceCount Refrigerator condition:Cooler",
+        ...pin(COMPONENTS, "instanceCount Refrigerator device:TemperatureControlledCabinet"),
+        ...pin(CONDITION, "instanceCount Refrigerator condition:Cooler"),
     ],
-    RoomAirConditioner: ["missing RoomAirConditioner Thermostat"],
-    SecondaryNetworkInterface: ["missing SecondaryNetworkInterface NetworkCommissioning"],
-    SmokeCoAlarm: ["missing SmokeCoAlarm SmokeCoAlarm", "instanceCount SmokeCoAlarm device:PowerSource"],
-    SolarPower: ["instanceCount SolarPower device:PowerSource", "instanceCount SolarPower device:ElectricalSensor"],
-    Thermostat: ["missing Thermostat Thermostat"],
-    VideoDoorbell: ["instanceCount VideoDoorbell device:Camera", "instanceCount VideoDoorbell device:Doorbell"],
-    WindowCovering: ["missing WindowCovering WindowCovering"],
+    SmokeCoAlarm: pin(COMPONENTS, "instanceCount SmokeCoAlarm device:PowerSource"),
+    SolarPower: pin(
+        COMPONENTS,
+        "instanceCount SolarPower device:PowerSource",
+        "instanceCount SolarPower device:ElectricalSensor",
+    ),
+    ThermostatController: pin(BINDING, "missing Base Binding"),
+    VideoDoorbell: pin(
+        COMPONENTS,
+        "instanceCount VideoDoorbell device:Camera",
+        "instanceCount VideoDoorbell device:Doorbell",
+    ),
+    VideoRemoteControl: pin(BINDING, "missing Base Binding"),
+    WindowCoveringController: pin(BINDING, "missing Base Binding"),
 };
+
+/**
+ * The mandatory server clusters {@link type} names in its requirements but leaves out of its behaviors because the
+ * features the device type mandates are not a legal selection on their own, so only the developer can complete it.
+ */
+function unimplementedMandatoryServers(type: EndpointType) {
+    const deviceType = Matter.deviceTypes(type.deviceType)?.name;
+    const present = new Set(Object.keys(type.behaviors));
+    return Object.entries(type.requirements.server?.mandatory ?? {})
+        .filter(([, behavior]) => !present.has(behavior.id) && requiresFeatureSelection(behavior))
+        .map(([cluster]) => `missing ${deviceType} ${cluster}`);
+}
+
+/**
+ * Does the feature selection {@link behavior} carries leave the cluster in a combination the cluster forbids?  A
+ * selection the model cannot assess counts as one, as it does for the generator.
+ */
+function requiresFeatureSelection(behavior: Behavior.Type) {
+    if (!ClusterBehavior.is(behavior)) {
+        return false;
+    }
+    const { schema } = behavior;
+    return FeatureSelectionViolations(schema, schema.supportedFeatures)?.length !== 0;
+}
+
+function expectedViolationsOf(name: string, type: EndpointType) {
+    return [
+        ...unimplementedMandatoryServers(type),
+        ...(pinnedViolations[name] ?? []).map(({ violation }) => violation),
+    ];
+}
+
+function expectViolations(endpoint: Endpoint, name: string, type: EndpointType) {
+    expect(violationStringsOf(endpoint).sort()).deep.equals(expectedViolationsOf(name, type).sort());
+}
 
 function explain(e: unknown, depth = 0): string {
     if (!(e instanceof Error) || depth > 4) {
@@ -368,7 +447,7 @@ describe("StandardDeviceTypeCorpus", () => {
 
         // A stale key would never run, so a renamed or removed device type would silently stop being pinned
         const names = new Set(types.map(([name]) => name));
-        for (const table of [fixtures, expectedViolations]) {
+        for (const table of [fixtures, placements, pinnedViolations]) {
             for (const key of Object.keys(table)) {
                 expect(names.has(key), key).true;
             }
@@ -389,12 +468,17 @@ describe("StandardDeviceTypeCorpus", () => {
     });
 
     for (const [name, type] of types) {
-        if (name === "RootNode") {
-            // RootNode can only be a node's own root, so it is judged as the root of a node without other endpoints
-            it(`judges ${name}`, async () => {
+        const placement = placements[name];
+
+        if (placement?.asRoot) {
+            it(`judges ${name} as the root endpoint of a node, which carries the standard ${name} type`, async () => {
                 const node = await MockServerNode.createOnline(undefined, { device: undefined });
                 try {
-                    expect(violationStringsOf(node)).deep.equals(expectedViolations[name] ?? []);
+                    expect(node.type.deviceType).equals(type.deviceType);
+                    for (const behavior of Object.values(type.behaviors)) {
+                        expect(node.behaviors.has(behavior), behavior.id).true;
+                    }
+                    expectViolations(node, name, type);
                 } finally {
                     await node.close();
                 }
@@ -405,7 +489,10 @@ describe("StandardDeviceTypeCorpus", () => {
         it(`judges ${name}`, async () => {
             const node = await createUnjudgedNode();
             try {
-                const parent = name === "BridgedNode" ? await node.add(AggregatorEndpoint, { id: "aggregator" }) : node;
+                const parent =
+                    placement?.parent === "aggregator"
+                        ? await node.add(AggregatorEndpoint, { id: "aggregator" })
+                        : node;
 
                 let endpoint: Endpoint;
                 try {
@@ -416,7 +503,7 @@ describe("StandardDeviceTypeCorpus", () => {
                     expect.fail(`${name} failed to build: ${explain(e)}`);
                 }
 
-                expect(violationStringsOf(endpoint)).deep.equals(expectedViolations[name] ?? []);
+                expectViolations(endpoint, name, type);
             } finally {
                 await node.close();
             }

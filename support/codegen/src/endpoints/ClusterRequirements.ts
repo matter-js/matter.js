@@ -14,7 +14,7 @@ import {
     ValueModel,
 } from "#model";
 import { EndpointFile } from "./EndpointFile.js";
-import { reportRequirementLost } from "./requirement-coverage.js";
+import { isModelCarried, reportRequirementLost } from "./requirement-coverage.js";
 import { dispositionOf, RequirementDisposition } from "./requirement-disposition.js";
 
 const logger = Logger.get("ClusterRequirements");
@@ -56,9 +56,9 @@ export class ClusterRequirements {
     defaults?: { [key: string]: any };
 
     /**
-     * Whether the device type states anything a generated implementation expresses.
+     * Does the device type state anything that makes its cluster differ from the base implementation?
      */
-    get specializes() {
+    get isSpecialized() {
         return this.mandatoryFeatures.length > 0 || this.alterations !== undefined || this.defaults !== undefined;
     }
 
@@ -66,7 +66,6 @@ export class ClusterRequirements {
         private file: EndpointFile,
         private cluster: ClusterModel,
         clusterRequirement: RequirementModel,
-        { derived }: { derived?: ReadonlySet<string> } = {},
     ) {
         for (const requirement of clusterRequirement.requirements) {
             switch (requirement.element) {
@@ -77,7 +76,7 @@ export class ClusterRequirements {
                 case RequirementElement.ElementType.Attribute:
                 case RequirementElement.ElementType.Command:
                 case RequirementElement.ElementType.Event:
-                    if (!derived?.has(requirement.name)) {
+                    if (!isModelCarried(this.cluster, requirement)) {
                         this.ingestElement(requirement);
                     }
                     break;

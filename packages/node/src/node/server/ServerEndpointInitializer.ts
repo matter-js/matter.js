@@ -5,7 +5,6 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { limitEndpointAttributeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { ServerBehaviorBacking } from "#behavior/internal/ServerBehaviorBacking.js";
@@ -15,9 +14,7 @@ import { EndpointVariableService } from "#endpoint/EndpointVariableService.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Environment, InternalError, Logger, MaybePromise } from "@matter/general";
-import { ClusterElement, DeviceClassification } from "@matter/model";
 import { FabricManager } from "@matter/protocol";
-import { BindingServer } from "../../behaviors/binding/BindingServer.js";
 import { DescriptorServer } from "../../behaviors/descriptor/DescriptorServer.js";
 import { DeviceTypeConformanceService } from "./DeviceTypeConformanceService.js";
 
@@ -39,13 +36,9 @@ export class ServerEndpointInitializer extends EndpointInitializer {
 
         this.#store.endpointStores.assignNumber(endpoint);
 
-        // Generated device types include DescriptorServer only where they state more than it derives
+        // Generated device types include DescriptorServer only where they specialize it
         if (!(DescriptorServer.id in endpoint.behaviors.supported)) {
             endpoint.behaviors.inject(DescriptorServer, undefined, false);
-        }
-
-        if (requiresBinding(endpoint)) {
-            endpoint.behaviors.inject(BindingServer, undefined, false);
         }
 
         endpoint.env.get(DeviceTypeConformanceService).constructing(endpoint);
@@ -139,26 +132,4 @@ export class ServerEndpointInitializer extends EndpointInitializer {
             }
         }
     }
-}
-
-/**
- * Whether the Base device type mandates a Binding server on {@link endpoint}, because it is a Simple device type with
- * a client application cluster, and the endpoint has none yet.
- *
- * The endpoint type's `deviceClass` decides Simple, while validation classifies the device types of the endpoint's
- * `DeviceTypeList`. They differ only for an endpoint whose `DeviceTypeList` states a device type of another class than
- * its endpoint type.
- *
- * @see {@link MatterSpecification.v16.Device} § 1.1.6
- * @see {@link MatterSpecification.v16.Device} § 1.1.7
- */
-function requiresBinding(endpoint: Endpoint) {
-    if (endpoint.type.deviceClass !== DeviceClassification.Simple || BindingServer.id in endpoint.behaviors.supported) {
-        return false;
-    }
-
-    return Object.values(endpoint.type.clientClusters).some(
-        type =>
-            ClusterBehavior.isType(type) && type.schema.classification === ClusterElement.Classification.Application,
-    );
 }

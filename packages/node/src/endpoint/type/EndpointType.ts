@@ -40,6 +40,25 @@ export namespace EndpointType {
     export const UNKNOWN_DEVICE_REVISION = -1;
 
     /**
+     * Is {@link value} shaped like an {@link EndpointType}?
+     */
+    export function is(value: unknown): value is EndpointType {
+        return (
+            typeof value === "object" &&
+            value !== null &&
+            "name" in value &&
+            typeof value.name === "string" &&
+            "deviceType" in value &&
+            typeof value.deviceType === "number" &&
+            "deviceRevision" in value &&
+            typeof value.deviceRevision === "number" &&
+            "behaviors" in value &&
+            typeof value.behaviors === "object" &&
+            value.behaviors !== null
+        );
+    }
+
+    /**
      * An endpoint type with no behaviors, client clusters, or requirements.
      */
     export interface Empty extends Omit<EndpointType, "behaviors" | "clientClusters" | "requirements"> {

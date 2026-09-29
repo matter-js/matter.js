@@ -72,7 +72,7 @@ describe("RequirementGenerator", () => {
         expect(file.toString()).contains("IdleFixtureServer");
     });
 
-    it("generates a Descriptor server with the features a device type mandates, without the attributes it derives", () => {
+    it("generates a Descriptor server with the features a device type mandates, without its DeviceTypeList", () => {
         const source = descriptorFixture(
             new RequirementModel({ name: "DeviceTypeList", element: "attribute", default: [] }),
             new RequirementModel({ name: "TAGLIST", element: "feature", conformance: "M" }),
@@ -83,21 +83,25 @@ describe("RequirementGenerator", () => {
         expect(source).not.contains("set(");
     });
 
-    it("generates a Descriptor server for an attribute a device type mandates that the server does not derive", () => {
-        const source = descriptorFixture(
-            new RequirementModel({ name: "EndpointUniqueId", element: "attribute", conformance: "M" }),
-        );
-
-        expect(source).contains("alter({ attributes: { endpointUniqueId: { optional: false } } })");
-        expect(source).contains("TaggedPanelRequirements.server.mandatory.DescriptorFixture");
-    });
-
-    it("generates no Descriptor server for a device type that states only what the server derives", () => {
+    it("generates no Descriptor server for a device type that states only its DeviceTypeList", () => {
         const source = descriptorFixture(
             new RequirementModel({ name: "DeviceTypeList", element: "attribute", default: [] }),
         );
 
         expect(source).not.contains("DescriptorFixtureServer");
+    });
+
+    it("generates a Descriptor server that alters an attribute requirement other than DeviceTypeList", () => {
+        const source = descriptorFixture(
+            new RequirementModel({ name: "DeviceTypeList", element: "attribute", default: [] }),
+            new RequirementModel({ name: "EndpointUniqueId", element: "attribute", conformance: "M" }),
+        );
+
+        expect(source).match(
+            /DescriptorFixtureServer = BaseDescriptorFixtureServer\s*\.alter\(\{ attributes: \{ endpointUniqueId: \{ optional: false \} \} \}\)/,
+        );
+        expect(source).not.contains("deviceTypeList");
+        expect(source).contains("TaggedPanelRequirements.server.mandatory.DescriptorFixture");
     });
 });
 
@@ -117,5 +121,18 @@ describe("ClusterRequirements", () => {
         );
 
         expect(requirements.alterations).deep.equals({ attributes: { activeModeThreshold: { optional: false } } });
+    });
+
+    it("is specialized by a default alone", () => {
+        const requirements = requirementsOf(
+            new RequirementModel({ name: "ActiveModeThreshold", element: "attribute", default: 300 }),
+        );
+
+        expect(requirements.defaults).deep.equals({ activeModeThreshold: 300 });
+        expect(requirements.isSpecialized).true;
+    });
+
+    it("is not specialized when it states nothing beyond the cluster", () => {
+        expect(requirementsOf().isSpecialized).false;
     });
 });
