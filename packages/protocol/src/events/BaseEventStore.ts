@@ -83,6 +83,7 @@ export abstract class BaseEventStore implements EventStore {
     close(): MaybePromise<void> {
         return this.#pending?.then(
             () => {},
+            // Logged where the write is made
             () => {},
         );
     }

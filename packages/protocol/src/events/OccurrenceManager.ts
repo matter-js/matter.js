@@ -257,8 +257,9 @@ export class OccurrenceManager {
         }
         this.#iteratingValuesInProgress = true;
         try {
-            for (let i = startIndex; i < this.#occurrences.length; i++) {
-                const eventNumber = this.#occurrences[i].number;
+            let index = startIndex;
+            while (index !== -1 && index < this.#occurrences.length) {
+                const eventNumber = this.#occurrences[index].number;
                 const occurrence = this.#store.get(eventNumber);
                 if (MaybePromise.is(occurrence)) {
                     yield {
@@ -271,6 +272,12 @@ export class OccurrenceManager {
                         number: eventNumber,
                     };
                 }
+
+                // The index may have changed while this yielded: an out-of-order add, a remove, a cull or a clear
+                index =
+                    this.#occurrences[index]?.number === eventNumber
+                        ? index + 1
+                        : this.#findMinEventNumberIndex(EventNumber(eventNumber + 1n));
             }
         } finally {
             this.#iteratingValuesInProgress = false;
@@ -288,7 +295,7 @@ export class OccurrenceManager {
     add(occurrence: Occurrence): MaybePromise<NumberedOccurrence> {
         return MaybePromise.then(this.#store.add(occurrence), entry => {
             logger.debug(`Recorded event #${entry.number}`, Diagnostic.dict(occurrence));
-            this.#occurrences.push(entry);
+            this.#insert(entry);
             if (this.#occurrences.length > this.#bufferConfig.maxEventAllowance) {
                 this.#startCull();
             }
@@ -299,6 +306,19 @@ export class OccurrenceManager {
             this.#added.emit(numberedOccurrence);
             return numberedOccurrence;
         });
+    }
+
+    /**
+     * Adds `entry` to the index in number order.  A store may settle adds out of order, and reads with `eventMin`
+     * depend on the order.
+     */
+    #insert(entry: OccurrenceSummary) {
+        const last = this.#occurrences[this.#occurrences.length - 1];
+        if (last === undefined || entry.number > last.number) {
+            this.#occurrences.push(entry);
+            return;
+        }
+        this.#occurrences.splice(this.#findMinEventNumberIndex(entry.number), 0, entry);
     }
 
     remove(number: EventNumber) {
