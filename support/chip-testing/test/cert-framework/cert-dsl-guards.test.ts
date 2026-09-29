@@ -319,6 +319,57 @@ function fakeMatterJsCertDevice(app: string): CertDeviceFactory {
     });
 }
 
+describe("certTest DUT app", () => {
+    /** Declares a cert test without registering a real mocha test, and returns the definition it built. */
+    function definitionOf(tc: string, options: Parameters<typeof certTest>[1]) {
+        const originalDescribe = Reflect.get(globalThis, "describe");
+        const originalIt = Reflect.get(globalThis, "it");
+        const registered = new Array<{ descriptor?: Parameters<typeof createRegisteredCertTest>[0] }>();
+        Reflect.set(globalThis, "describe", (_name: string, body: () => void) => body());
+        Reflect.set(globalThis, "it", (_name: string, _fn: () => void) => {
+            const fakeTest: { descriptor?: Parameters<typeof createRegisteredCertTest>[0] } = {};
+            registered.push(fakeTest);
+            return fakeTest;
+        });
+        try {
+            certTest(tc, options);
+        } finally {
+            Reflect.set(globalThis, "describe", originalDescribe);
+            Reflect.set(globalThis, "it", originalIt);
+        }
+
+        const descriptor = registered[0]?.descriptor;
+        if (!descriptor) {
+            expect.fail(`certTest("${tc}") did not register a descriptor`);
+        }
+        return createRegisteredCertTest(descriptor).definition;
+    }
+
+    it("takes the DUT's PICS app from the device role named dut when no controller is the DUT", () => {
+        const definition = definitionOf("TC-DUT-APP-DEVICE-0.0", {
+            plan: "n/a",
+            pics: [],
+            app: "all-clusters",
+            controllers: { th1: "helper" },
+            devices: { th2: "all-clusters", dut: "light-switch" },
+        });
+
+        expect(definition.dutIsDevice).equal(true);
+        expect(definition.dutApp).equal("light-switch");
+    });
+
+    it("names no DUT app when a controller is the DUT", () => {
+        const definition = definitionOf("TC-DUT-APP-CONTROLLER-0.0", {
+            plan: "n/a",
+            pics: [],
+            app: "all-clusters",
+        });
+
+        expect(definition.dutIsDevice).equal(false);
+        expect(definition.dutApp).undefined;
+    });
+});
+
 describe("multi-device wiring", () => {
     // `#buildContext` (cert-dsl.ts) builds each non-primary role's device via
     // `subjectFactoryFor(flavor, definition, app)`, using the loop's own `app` for that role;
