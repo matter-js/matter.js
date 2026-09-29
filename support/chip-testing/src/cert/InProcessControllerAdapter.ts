@@ -13,6 +13,7 @@ import {
     Crypto,
     Diagnostic,
     Duration,
+    ChangeNotificationService,
     Endpoint,
     Environment,
     Filesystem,
@@ -103,20 +104,25 @@ import { AttributeModel } from "@matter/model";
 import { DclBehavior } from "@matter/node/behaviors/system/dcl";
 import { SoftwareUpdateManager } from "@matter/node/behaviors/system/software-update";
 import type {
+    AnnounceOtaProviderOptions,
+    AttestationApi,
     AttributePathSpec,
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    BdxTransferAccept,
+    BdxTransferProposal,
     CertGroupApi,
     CertIcdClientApi,
     CertIcdEvent,
     CertIcdRegistration,
     CertNodeApi,
+    CertNodeRef,
+    CertSessionInfo,
     ClientAttributePath,
     ClientEndpointEntry,
-    CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
@@ -124,27 +130,23 @@ import type {
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
-    AttestationApi,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
-    BdxTransferAccept,
-    BdxTransferProposal,
+    OtaAnnouncement,
+    OtaAnnouncementRecord,
     OtaApplyUpdateExchange,
     OtaBdxTransfer,
     OtaNotifyUpdateAppliedRecord,
-    AnnounceOtaProviderOptions,
-    OtaAnnouncement,
-    OtaAnnouncementRecord,
     OtaProviderExchanges,
     OtaProviderScript,
-    OtaScriptedQueryAnswer,
     OtaQueryImageExchange,
+    OtaScriptedQueryAnswer,
+    PicsValues,
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,
-    CertSessionInfo,
     SubscribeEventOptions,
-    PicsValues,
     SubscribeOptions,
     TimedInteractionOptions,
     WebRtcRequestorApi,
@@ -1227,6 +1229,21 @@ class InProcessIcdClient implements CertIcdClientApi {
     }
 }
 
+/**
+ * Whether `endpoint` sits under `owner`.
+ *
+ * The controller's peers are endpoints of the controller's own tree, so the root of an endpoint's owner
+ * chain is that controller rather than the node the endpoint belongs to.
+ */
+function ownedBy(endpoint: Endpoint, owner: Endpoint) {
+    for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
+        if (current === owner) {
+            return true;
+        }
+    }
+    return false;
+}
+
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
@@ -1234,18 +1251,23 @@ class InProcessCertNodeApi implements CertNodeApi {
     readonly #nodeId: NodeId;
     readonly #icdClients: Map<NodeId, InProcessIcdClient>;
 
+    /** The adapter's own collection, because that is where an observation's lifetime ends. */
+    readonly #eventObservers: ObserverGroup[];
+
     constructor(
         adapterId: string,
         controller: ServerNode,
         fabric: Fabric,
         ref: CertNodeRef,
         icdClients: Map<NodeId, InProcessIcdClient>,
+        eventObservers: ObserverGroup[],
     ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
         this.#fabric = fabric;
         this.#nodeId = NodeId(ref);
         this.#icdClients = icdClients;
+        this.#eventObservers = eventObservers;
     }
 
     icdClient(): CertIcdClientApi {
@@ -2120,6 +2142,108 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    /**
+     * Reports the node's events through the subscription the controller already sustains.
+     *
+     * A subscription of its own is a second session, and a controller drops every session to a peer the
+     * moment that peer reports `ShutDown` — so the peer's remaining reports, which it is still flushing,
+     * reach a session their own controller has forgotten and are discarded. A case that wants to observe
+     * what a node reported, rather than to exercise the subscription interaction itself, watches the
+     * sustained subscription and keeps reporting while a device is on its way down.
+     *
+     * {@link CertNodeApi.subscribeEvents} remains for a case whose subject *is* the subscribe request.
+     */
+    observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (paths.length === 0) {
+                throw new ImplementationError("observeEvents requires at least one path");
+            }
+
+            const peer = this.#peer;
+            const wanted = paths.map(toEventIds);
+
+            // Held until the seed is known, then released: the observer is attached before the read so
+            // nothing falls into the gap between them, but an event the read also answers with must not
+            // reach `onUpdate` as well, and which those are is not known until the read returns.
+            let pending: EventReadEntry[] | undefined = [];
+
+            // A read re-broadcasts the events it answers with, so a later read over any of these paths
+            // would otherwise replay history as though it were live. An observation ends with the peer
+            // it watches, so within one an event number identifies an event.
+            const delivered = new Set<bigint>();
+
+            const report = (entry: EventReadEntry) => {
+                if (delivered.has(entry.eventNumber)) {
+                    return;
+                }
+                delivered.add(entry.eventNumber);
+                if (pending === undefined) {
+                    // This observable carries matter.js's own consumers too, and it stops dispatching at
+                    // the first observer that throws
+                    try {
+                        opts.onUpdate?.(entry);
+                    } catch (error) {
+                        logger.error("Observer of a cert event observation threw", error);
+                    }
+                } else {
+                    pending.push(entry);
+                }
+            };
+
+            // Its own group, so a seed read that rejects takes the observer with it rather than leaving
+            // it buffering reports for a call that never returned
+            const observers = new ObserverGroup();
+            observers.on(peer.env.get(ChangeNotificationService).change, change => {
+                if (change.kind !== "event" || !ownedBy(change.endpoint, peer)) {
+                    return;
+                }
+                const cluster = change.event.parent?.id;
+                const endpoint = change.endpoint.number;
+                const matches = wanted.some(
+                    path =>
+                        (path.endpointId === undefined || path.endpointId === endpoint) &&
+                        (path.clusterId === undefined || path.clusterId === cluster) &&
+                        (path.eventId === undefined || path.eventId === change.event.id),
+                );
+                if (!matches || cluster === undefined) {
+                    return;
+                }
+                report({
+                    endpoint,
+                    cluster,
+                    event: change.event.id,
+                    eventNumber: BigInt(change.number),
+                    value: change.payload,
+                });
+            });
+
+            let seed: EventReadEntry[];
+            try {
+                seed = await this.readEvents(paths);
+            } catch (e) {
+                observers.close();
+                throw e;
+            }
+            this.#eventObservers.push(observers);
+
+            for (const { eventNumber } of seed) {
+                delivered.add(eventNumber);
+            }
+            const held = pending;
+            pending = undefined;
+            for (const entry of held) {
+                if (!seed.some(({ eventNumber }) => eventNumber === entry.eventNumber)) {
+                    try {
+                        opts.onUpdate?.(entry);
+                    } catch (error) {
+                        logger.error("Observer of a cert event observation threw", error);
+                    }
+                }
+            }
+            return seed;
+        });
+    }
+
     openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;
@@ -2445,6 +2569,16 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     #attestation?: InProcessAttestationApi;
     readonly #icdClients = new Map<NodeId, InProcessIcdClient>();
 
+    /**
+     * Observers an `observeEvents` call attached, owned here because that is where their lifetime ends.
+     *
+     * `ChangeNotificationService` belongs to the controller, not to a peer, and `node()` builds a fresh
+     * handle each call that nothing retains — so a group held on the handle is unreachable the moment
+     * the caller drops it, and its listeners would go on receiving every peer's events for the rest of
+     * the run.
+     */
+    readonly #eventObservers = new Array<ObserverGroup>();
+
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
             throw new InternalError(
@@ -2540,6 +2674,10 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     async close(): Promise<void> {
         try {
             await runTagged(this.id, async () => {
+                for (const observers of this.#eventObservers) {
+                    observers.close();
+                }
+                this.#eventObservers.length = 0;
                 this.#webRtcRequestor?.close();
                 await this.#controller?.close();
                 await this.#attestation?.close();
@@ -2625,7 +2763,14 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     }
 
     node(ref: CertNodeRef): CertNodeApi {
-        return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref, this.#icdClients);
+        return new InProcessCertNodeApi(
+            this.id,
+            this.#startedController,
+            this.#adminFabric,
+            ref,
+            this.#icdClients,
+            this.#eventObservers,
+        );
     }
 
     group(groupId: number): CertGroupApi {

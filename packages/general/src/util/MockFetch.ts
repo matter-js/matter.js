@@ -168,7 +168,9 @@ export class MockFetch extends Callable<any, any> {
                               }),
                               arrayBuffer: async () => {
                                   if (mock.responseData instanceof Uint8Array) {
-                                      return mock.responseData.buffer;
+                                      // A view may cover only part of its buffer
+                                      const view = mock.responseData;
+                                      return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
                                   }
                                   return mock.responseData;
                               },

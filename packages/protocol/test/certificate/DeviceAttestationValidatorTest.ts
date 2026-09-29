@@ -21,7 +21,13 @@ import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import { Bytes, Crypto, Environment, MockFetch, MockStorageService, PrivateKey, StandardCrypto } from "@matter/general";
 import { VendorId } from "@matter/types";
-import { buildTestCrl, pemEncode, setupDclFetchMock } from "./TestHelpers.js";
+import {
+    buildSignedTestCrl,
+    chipTestPaaCrlSigner,
+    pemEncode,
+    setupDclFetchMock,
+    type TestCrlSigner,
+} from "./TestHelpers.js";
 
 describe("DeviceAttestationValidator", () => {
     const crypto = new StandardCrypto();
@@ -49,10 +55,19 @@ describe("DeviceAttestationValidator", () => {
     // Pre-generated DAC with wrong vendor ID (generated at same time as PAI to avoid date mismatch)
     let wrongVendorDacDer: Bytes;
 
+    let paiCrlSigner: TestCrlSigner;
+
     before(async () => {
-        // Create the cert manager and generate PAI and DAC
-        certManager = await AttestationCertificateManager.create(crypto, vendorId);
+        // Create the cert manager and generate PAI and DAC; the PAI key is kept to sign test CRLs
+        const paiKey = await crypto.createKeyPair();
+        const paiKeyIdentifier = Bytes.of(await crypto.computeHash(paiKey.publicKey, "SHA-1"));
+        certManager = new AttestationCertificateManager(crypto, vendorId, paiKey, paiKeyIdentifier);
         paiDer = await certManager.getPAICert();
+        paiCrlSigner = {
+            key: paiKey,
+            subjectKeyId: paiKeyIdentifier,
+            subjectDer: Pai.fromAsn1(paiDer).cert.subjectDer,
+        };
         const dacResult = await certManager.getDACert(productId);
         dacDer = dacResult.dac;
         dacPublicKey = dacResult.keyPair.publicKey;
@@ -102,10 +117,28 @@ describe("DeviceAttestationValidator", () => {
      */
     async function setupDclService(
         paaCert: Bytes = TestCert_PAA_NoVID_Cert,
-        revocation?: { issuerSkid: string; revokedSerials: string[]; issuerDnDer?: Bytes },
+        revocation?: {
+            issuerSkid: string;
+            revokedSerials: string[];
+            issuerDnDer?: Bytes;
+            /** The CRL signer, by default the PAI */
+            signer?: { cert: Bytes; crlSigner: TestCrlSigner; isPAA?: boolean };
+        },
         options?: { injectTestCdSigner?: boolean },
     ) {
-        setupDclFetchMock(fetchMock, paaCert, revocation && { ...revocation, signerCertPem: pemEncode(paiDer) });
+        if (revocation !== undefined) {
+            const { cert, crlSigner, isPAA } = revocation.signer ?? { cert: paiDer, crlSigner: paiCrlSigner };
+            setupDclFetchMock(fetchMock, paaCert, {
+                ...revocation,
+                isPAA,
+                signerCertPem: pemEncode(cert),
+                crl: await buildSignedTestCrl(crypto, crlSigner, revocation.revokedSerials, {
+                    issuerDnDer: revocation.issuerDnDer,
+                }),
+            });
+        } else {
+            setupDclFetchMock(fetchMock, paaCert);
+        }
         fetchMock.install();
 
         service = new DclCertificateService(environment, { updateInterval: null });
@@ -188,7 +221,7 @@ describe("DeviceAttestationValidator", () => {
             ).to.be.rejectedWith(DeviceAttestationError, /Device returned an empty DAC certificate/);
         });
 
-        it("throws CertificateUnparseable when the DAC parses but its public key does not", async () => {
+        it("throws CertificateUnparseable when the DAC's public key is malformed", async () => {
             const dclService = await setupDclService();
 
             // Flip the uncompressed-point marker of the DAC's public key, leaving every DER length intact
@@ -198,7 +231,7 @@ describe("DeviceAttestationValidator", () => {
 
             await expect(
                 DeviceAttestationValidator.validate(buildContext(dclService), buildData({ dac: brokenKeyDac })),
-            ).to.be.rejectedWith(DeviceAttestationError, /DAC whose public key cannot be read/);
+            ).to.be.rejectedWith(DeviceAttestationError, /DAC certificate that cannot be parsed/);
         });
 
         it("throws CertificateUnparseable when the PAI is signed but its public key is unreadable", async () => {
@@ -607,6 +640,7 @@ describe("DeviceAttestationValidator", () => {
                 issuerSkid: paiAkid,
                 revokedSerials: [paiSerial],
                 issuerDnDer: pai.cert.issuerDer,
+                signer: { cert: TestCert_PAA_NoVID_Cert, crlSigner: chipTestPaaCrlSigner(), isPAA: true },
             });
 
             await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
@@ -819,7 +853,7 @@ describe("DeviceAttestationValidator", () => {
                             isPAA: false,
                             label: "test-revocation",
                             crlSignerDelegator: "",
-                            crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
+                            crlSignerCertificate: pemEncode(paiDer),
                             issuerSubjectKeyID: dacAkid,
                             dataURL: "https://example.com/test.crl",
                             dataFileSize: "",
@@ -832,9 +866,10 @@ describe("DeviceAttestationValidator", () => {
                     schemaVersion: 0,
                 },
             });
-            fetchMock.addResponse("https://example.com/test.crl", buildTestCrl([dacSerial], dac.cert.issuerDer), {
-                binary: true,
+            const crl = await buildSignedTestCrl(crypto, paiCrlSigner, [dacSerial], {
+                issuerDnDer: dac.cert.issuerDer,
             });
+            fetchMock.addResponse("https://example.com/test.crl", crl, { binary: true });
             fetchMock.install();
 
             service = new DclCertificateService(environment, { updateInterval: null });

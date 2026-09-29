@@ -22,7 +22,7 @@ import {
     StandardCrypto,
     StorageService,
 } from "@matter/general";
-import { buildTestCrl, pemEncode } from "../certificate/TestHelpers.js";
+import { buildSignedTestCrl, buildTestCrl, chipTestPaaCrlSigner, pemEncode } from "../certificate/TestHelpers.js";
 
 // Mock DCL responses - using colon format as returned by real DCL API
 const mockDclRootCertificateList = {
@@ -1524,8 +1524,10 @@ describe("DclCertificateService", () => {
         });
 
         it("isRevoked fetches CRL on demand and checks serial", async () => {
-            const testCrl = buildTestCrl(["0123456789ABCDEF"]);
-            const normalizedSkid = "ABCDEF0123456789ABCDEF0123456789ABCDEF01";
+            const testCrl = await buildSignedTestCrl(new StandardCrypto(), chipTestPaaCrlSigner(), [
+                "0123456789ABCDEF",
+            ]);
+            const normalizedSkid = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
 
             fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
             fetchMock.addResponse(
@@ -1576,8 +1578,8 @@ describe("DclCertificateService", () => {
         });
 
         it("isRevoked accepts Bytes for authority key identifier and serial number", async () => {
-            const testCrl = buildTestCrl(["01AB"]);
-            const normalizedSkid = "AABBCCDDEEFF00112233445566778899AABBCCDD";
+            const testCrl = await buildSignedTestCrl(new StandardCrypto(), chipTestPaaCrlSigner(), ["01AB"]);
+            const normalizedSkid = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
 
             fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
             fetchMock.addResponse(
@@ -1618,7 +1620,7 @@ describe("DclCertificateService", () => {
             await service.construction;
 
             // Use Bytes for both arguments
-            const akidBytes = Bytes.fromHex("AABBCCDDEEFF00112233445566778899AABBCCDD");
+            const akidBytes = Bytes.fromHex("785CE705B86B8F4E6FC793AA60CB43EA696882D5");
             const serialBytes = Bytes.fromHex("01AB");
 
             expect(await service.isRevoked(akidBytes, serialBytes)).to.be.true;
