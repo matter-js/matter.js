@@ -224,8 +224,8 @@ What a check's `type` should be:
   `"unverified"`, on every flavor including `matterjs`.
 - **`"device-log"`** — a pattern match against the TH's own stdout (via `LogFollower.expect`,
   usually wrapped so a timeout/close error becomes a recorded `"fail"` rather than propagating
-  uncaught — see `TC-ACT-3.2`'s `recordInvokeStatus`/adversarial-review fix below for why an
-  uncaught log-check error is a real evidence gap, not just noise). `"unverified"` means no pattern
+  uncaught: a log-check error that escapes ends the step before its other checks are recorded, which
+  is an evidence gap, not just noise). `"unverified"` means no pattern
   was supplied for the running flavor (see "Flavor policy" above) — an evidence gap that fails the
   run until the pattern is written or the check states why it cannot be settled here, rather than a
   claim about the device.
@@ -572,12 +572,15 @@ A "DUT issues command X to TH" step (as opposed to a read) has two independent t
 *outgoing* command's shape (what `TC-ACT-3.2` checks via the TH log's `CommandDataIB`/`CommandFields`,
 mirroring `expectAttributePathIB`'s discipline for reads) and the *response status* the TH sent back. Per
 the brief, a non-success response is tolerated evidence, not a step failure, whenever the TH's own
-implementation is the reason (missing command support, an action ID it doesn't recognize, etc.) — only a
-response that never arrives at all (anything that isn't a `StatusResponseError`, e.g. a real timeout) is a
-genuine step failure. `TC-ACT-3.2`'s `recordInvokeStatus` catches exactly `StatusResponseError` and
-records its `.code` as a `"response"` check with verdict `"pass"` either way; anything else rethrows.
-Eleven of this TC's twelve steps come back `UnsupportedCommand` (0x81) against the real chip-bridge-app,
-and that's the expected shape of a passing run, not a bug in the TC.
+implementation is the reason (missing command support, an action ID it doesn't recognize, etc.).
+`invokeCommand`'s `anyStatus` option (used by `TC-ACT-3.2`) passes the response check for exactly a
+`StatusResponseError` that is not a `ValidationError` and records its code. A `ValidationError` is the
+client's own encode-time rejection, so it and every error without a status (e.g. a real timeout) still
+fail the check. The option also passes `NoCommandResponse`, a status the matter.js client sets itself
+when the InvokeResponse has no entry for the command; the CommandDataIB log check still holds the step.
+Eleven of this TC's twelve steps come back refused against the real chip-bridge-app (`InvalidCommand`
+from `ActionsCluster.cpp`, for an action whose SupportedCommands lacks the command), and that's the
+expected shape of a passing run, not a bug in the TC.
 
 ## Async log delivery lag can make a later step's log check match an earlier step's trailing echo
 
@@ -656,10 +659,8 @@ different cluster (`OnOff` vs. `Actions`), a different endpoint constant, and no
 is the same "a second TC needs the same shape" trigger `TC-IDM-2.1`'s `attributePathIBSequence` was
 promoted on (see "Wildcard path idioms" above). Both helpers, plus a shared `requireId` and a renamed
 `CommandFieldValue` (was `FieldValue`), moved to `tc-support.ts`, parameterized on `endpoint`/`cluster`
-instead of reading TC-ACT-3.2's own module-level constants; `TC-ACT-3.2.test.ts` was updated to call the
-promoted versions rather than keep a second copy. Behavior is unchanged for `TC-ACT-3.2` — same sequence,
-same per-field pattern, same returned `CheckRecord` shape — only the call site gained two parameters
-(`endpoint`, `cluster`) it used to read from module scope.
+instead of reading TC-ACT-3.2's own module-level constants. `TC-ACT-3.2` itself now reaches them through
+`invokeCommand`.
 
 ## Multi-controller wiring (`TC-CADMIN-1.17`), first real exercise
 
