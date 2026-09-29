@@ -227,7 +227,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * If this is inappropriate for your application, you may override to alter the behavior.  Matter requires that all
      * "security- and privacy-related data and key material" is removed on factory reset.
      *
-     * @see {@link MatterSpecification.v16.Core} § 13.4
+     * @see {@link MatterSpecification.v161.Core} § 13.4
      */
     protected async resetStorage() {
         await MatterAggregateError.settleSeries(
@@ -282,7 +282,7 @@ export namespace ServerNode {
     /**
      * The default root endpoint of a server node.
      *
-     * @see {@link MatterSpecification.v16.Device} § 2.1
+     * @see {@link MatterSpecification.v161.Device} § 2.1
      */
     export const RootEndpoint: RootEndpoint = RootEndpointWithoutGroupcast.with(
         // Groupcast Listener requires the Auxiliary ACL feature

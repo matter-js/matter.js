@@ -121,7 +121,7 @@ export namespace SessionParameters {
          * Fallback value for the maximum number of paths that can be included in a single invoke message when not
          * provided in, or reported as zero by, Session parameters.
          *
-         * @see {@link MatterSpecification.v16.Core} § 11.1.5.23
+         * @see {@link MatterSpecification.v161.Core} § 11.1.5.23
          */
         maxPathsPerInvoke: 1,
 

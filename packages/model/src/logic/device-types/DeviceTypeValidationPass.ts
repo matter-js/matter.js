@@ -25,7 +25,7 @@ import { ResolvedEndpoint } from "./ResolvedEndpoint.js";
  * resolved in the same model instance, so mutating a model after it has validated an endpoint is unsupported. Build a
  * new model instead, e.g. with {@link MatterModel.withClusters}.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2
+ * @see {@link MatterSpecification.v161.Core} § 9.2
  */
 export class DeviceTypeValidationPass<E> {
     readonly facts: DeviceTypeFacts<E>;

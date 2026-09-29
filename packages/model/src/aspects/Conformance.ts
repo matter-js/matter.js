@@ -101,7 +101,7 @@ export class Conformance extends Aspect<Conformance.Definition> {
      * A provisional element reads as optional so an application can exercise it and still certify, so this is the only
      * way to tell "the specification says this is optional" from "the specification has not finished it yet".
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.3
+     * @see {@link MatterSpecification.v161.Core} § 7.3.5
      */
     get isProvisional() {
         const conformance = this.ast;

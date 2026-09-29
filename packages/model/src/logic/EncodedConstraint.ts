@@ -25,7 +25,7 @@ import { EncodedValue } from "./EncodedValue.js";
  *
  * A bound naming a value of an enumerated type states that value, so "add, modify" becomes "0, 2".
  *
- * @see {@link MatterSpecification.v16.Core} § 7.19.2
+ * @see {@link MatterSpecification.v161.Core} § 7.19.2
  */
 export function EncodedConstraint(constraint: Constraint, model: ValueModel): Constraint {
     return new Constraint(convertAst(constraint, model));
@@ -66,7 +66,7 @@ export namespace EncodedConstraint {
      * Report which of a constraint's bounds state a number in encoding units, and which state a unit no scale is
      * known for and so state no number at all.
      *
-     * @see {@link MatterSpecification.v16.Core} § 7.19.2
+     * @see {@link MatterSpecification.v161.Core} § 7.19.2
      */
     export function bounds(constraint: Constraint, model: ValueModel): Bounds {
         const bounds: Bounds = { encoded: [], unscaled: [] };
@@ -200,7 +200,7 @@ function folded(expression: Constraint.Expression, model: ValueModel): Constrain
  * A bitmap states the position of a flag in its constraint rather than as a member id, so a name it defines denotes a
  * mask this does not compute.  Such a name is left as stated, which model validation then reports.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.18.3
+ * @see {@link MatterSpecification.v161.Core} § 7.18.3
  */
 function enumValueOf(value: FieldValue | undefined, model: ValueModel) {
     const name = FieldValue.referenced(value);

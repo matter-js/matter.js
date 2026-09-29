@@ -24,7 +24,7 @@ interface NameResolverFactory {
  * itself.  A flag beyond the reach of a 32 bit shift states a magnitude this does not compute, and the bound is then
  * left unjudged rather than judged against a number that wrapped.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.19.2
+ * @see {@link MatterSpecification.v161.Core} § 7.18.3
  */
 export function bitmapMagnitudeOf(schema: ValueModel, supervisor: RootSupervisor) {
     const bits = {} as Record<string, number>;

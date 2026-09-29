@@ -41,7 +41,7 @@ export namespace BackchannelCommand {
          * The switch's own FeatureMap. A chip app requires it and simulates the events it implies; a
          * matter.js test device derives them from the switch's own state and ignores it.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.13.4
+         * @see {@link MatterSpecification.v161.Cluster} § 1.13.4
          */
         featureMap: number;
     };
@@ -156,7 +156,7 @@ export namespace BackchannelCommand {
      * What a subject does beyond sending is its own: the matter.js `light-switch` test app acts on the entries the
      * attribute holds when the command arrives, and fails the command where an entry does not resolve or a send fails.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.6
+     * @see {@link MatterSpecification.v161.Core} § 9.6
      */
     export type SendOnOffToBindings = {
         name: "sendOnOffToBindings";

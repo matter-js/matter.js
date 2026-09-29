@@ -1426,7 +1426,7 @@ export namespace Endpoint {
          * name is reported as a violation wherever the endpoint is judged, which in mode `off` of
          * `endpoint.validation` is only on request.
          *
-         * @see {@link MatterSpecification.v16.Device} § 1.1.3
+         * @see {@link MatterSpecification.v161.Device} § 1.1.3
          */
         deviceConditions?: string[];
     }

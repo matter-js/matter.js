@@ -622,7 +622,7 @@ export class DclCertificateService {
      * issuer's public key, so the widening is small, and it errs toward refusing a device rather than
      * admitting one.
      *
-     * @see {@link MatterSpecification.v16.Core} § 6.2.6.2
+     * @see {@link MatterSpecification.v161.Core} § 6.2.4.1
      */
     installRevocations(entries: DclCertificateService.RevocationSetEntry[]) {
         // Nothing is installed until every entry has been read, so a set with a bad entry in the middle

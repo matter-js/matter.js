@@ -194,7 +194,7 @@ const AllTests = Tests({
     }),
 
     // <ConstrainingElementName>.<Field>, the form the specification defines for naming a bound held by another
-    // element.  @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+    // element.  @see {@link MatterSpecification.v161.Core} § 7.18.3.4
     "range with dot-qualified reference": Tests(
         Fields(
             { type: "uint16", constraint: "Limits.HoldTimeMin to Limits.HoldTimeMax" },
@@ -258,8 +258,8 @@ const AllTests = Tests({
         },
     ),
 
-    // An enumerated type states a bound as the names of its own values.  @see {@link MatterSpecification.v16.Core}
-    // § 7.18.3
+    // An enumerated type states a bound as the names of its own values.  @see {@link MatterSpecification.v161.Core}
+    // § 7.18.3.8
     "named values of an enumeration": Tests(
         Fields({
             type: "enum8",

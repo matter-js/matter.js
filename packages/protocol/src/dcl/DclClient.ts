@@ -224,7 +224,7 @@ export class DclClient {
     /**
      * Fetch the compliance record of a software version for a certification program.
      *
-     * @see {@link MatterSpecification.v16.Core} § 11.23.10
+     * @see {@link MatterSpecification.v161.Core} § 11.23.10
      */
     async fetchComplianceInfo(
         vid: number,

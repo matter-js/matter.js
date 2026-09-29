@@ -10,7 +10,7 @@ import { BitFlag, BitmapSchema } from "../schema/BitmapSchema.js";
 
 /**
  * Bitmap for the Enhanced Setup Flow Options field in DeviceModelDclSchema.
- * @see {@link MatterSpecification.v16.Core} § 11.23.7
+ * @see {@link MatterSpecification.v161.Core} § 11.23.7
  */
 export const EnhancedSetupFlowOptionsBitmap = {
     /**
@@ -44,7 +44,7 @@ export const EnhancedSetupFlowOptionsSchema = BitmapSchema(EnhancedSetupFlowOpti
  * DeviceModel Schema
  *
  * The DCL sends every field and encodes an unset optional field as `""` or `0`; `DclClient` returns it as `undefined`.
- * @see {@link MatterSpecification.v16.Core} § 11.23.7
+ * @see {@link MatterSpecification.v161.Core} § 11.23.7
  * DCL endpoint:
  *   * /dcl/model/models
  *   * /dcl/model/models/{vid}

@@ -104,7 +104,7 @@ import { Identity } from "@matter/general";
  * A Root Node endpoint's Descriptor cluster PartsList attribute shall contain a list of all other endpoints on the
  * node, i.e. the full-family pattern defined in the System Model specification.
  *
- * @see {@link MatterSpecification.v16.Device} § 2.1
+ * @see {@link MatterSpecification.v161.Device} § 2.1
  */
 export interface RootEndpoint extends Identity<typeof RootEndpointDefinition> {}
 

@@ -76,7 +76,7 @@ import { Identity } from "@matter/general";
  * Energy Management cluster is supported on the same endpoint, the PowerForecastReporting feature of the Device Energy
  * Management cluster shall also be supported.
  *
- * @see {@link MatterSpecification.v16.Device} § 14.2
+ * @see {@link MatterSpecification.v161.Device} § 14.2
  */
 export interface WaterHeaterDevice extends Identity<typeof WaterHeaterDeviceDefinition> {}
 

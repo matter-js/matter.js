@@ -52,7 +52,7 @@ import { Identity } from "@matter/general";
  * If the EVSE supports the V2X feature then the Device Energy Management cluster included in the Device Energy
  * Management device shall support the PowerAdjustment (PA) feature.
  *
- * @see {@link MatterSpecification.v16.Device} § 14.1
+ * @see {@link MatterSpecification.v161.Device} § 14.1
  */
 export interface EnergyEvseDevice extends Identity<typeof EnergyEvseDeviceDefinition> {}
 

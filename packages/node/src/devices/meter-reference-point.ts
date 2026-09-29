@@ -59,7 +59,7 @@ import { Identity } from "@matter/general";
  * Instead of Electrical Energy Tariff endpoints, a Meter Reference Point may use endpoints with the Electrical Meter
  * device type to represent tariffs with associated metering data.
  *
- * @see {@link MatterSpecification.v16.Device} § 14.6
+ * @see {@link MatterSpecification.v161.Device} § 14.6
  */
 export interface MeterReferencePointDevice extends Identity<typeof MeterReferencePointDeviceDefinition> {}
 
