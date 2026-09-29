@@ -151,6 +151,11 @@ describe("TlvOfModel", () => {
             expect(boundsOf("max (100% - 1%)", "percent100ths", 0xfff8)).deep.equals({ min: undefined, max: 9900 });
         });
 
+        it("leaves a bound an integer type cannot state exactly out of the schema", () => {
+            expect(() => boundsOf("max 1.5^100", "int64", 0xfffa)).not.throws();
+            expect(boundsOf("max 1.5^100", "int64", 0xfffb)).equal(undefined);
+        });
+
         it("refuses a value beyond the computed bound", () => {
             const model = new AttributeModel({ id: 1, name: "Enforced", type: "int64", constraint: "-2^62 to 2^62" });
             new ClusterModel({ name: "Enforced", id: 0xfff9 }, model);

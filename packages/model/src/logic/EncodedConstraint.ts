@@ -6,6 +6,7 @@
 
 import { Constraint } from "../aspects/Constraint.js";
 import { FieldValue } from "../common/FieldValue.js";
+import { Metatype } from "../common/Metatype.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { EncodedValue } from "./EncodedValue.js";
 
@@ -172,7 +173,20 @@ function folded(expression: Constraint.Expression, model: ValueModel): Constrain
     if (constant === undefined) {
         return expression;
     }
-    return EncodedValue(model, constant) ?? constant;
+
+    const encoded = EncodedValue(model, constant) ?? constant;
+
+    // An integer type states a magnitude beyond the safe integers as a bigint, which a number computed to that
+    // magnitude only approximates
+    if (
+        typeof encoded === "number" &&
+        model.effectiveMetatype === Metatype.integer &&
+        Math.abs(encoded) > Number.MAX_SAFE_INTEGER
+    ) {
+        return expression;
+    }
+
+    return encoded;
 }
 
 /**
