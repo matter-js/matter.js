@@ -273,12 +273,14 @@ export function certTest(tc: string, options: CertTestOptions): CertTestBuilder 
     primaryDeviceRole(deviceRoles, options.app);
     assertAppArgsRoles(tc, deviceRoles, options.appArgs);
 
+    const dutIsDevice = !Object.values(controllerRoles).includes("dut");
     const definition: CertTestDefinition = {
         tc,
         plan: options.plan,
         pics: options.pics,
         app: options.app,
-        dutIsDevice: !Object.values(controllerRoles).includes("dut"),
+        dutIsDevice,
+        dutApp: dutIsDevice ? deviceRoles.dut : undefined,
         appVariant: options.appVariant,
         flavors: options.flavors,
         chipBinsSources: options.chipBinsSources,
@@ -550,7 +552,7 @@ export function unmetTestPics(definition: CertTestDefinition, pics = certPicsFil
  * The PICS a cert run evaluates against: the device's own file with the controller's declarations
  * overlaid.
  */
-export function certPicsFile(definition: Pick<CertTestDefinition, "app" | "dutIsDevice">) {
+export function certPicsFile(definition: Pick<CertTestDefinition, "app" | "dutIsDevice" | "dutApp">) {
     return picsWithOverrides(chip.defaultPics, definition);
 }
 

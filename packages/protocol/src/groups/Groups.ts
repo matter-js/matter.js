@@ -6,8 +6,9 @@
 
 import { Subject } from "#action/server/Subject.js";
 import type { Fabric } from "#fabric/Fabric.js";
-import { BasicMap, Bytes, DataWriter, ImplementationError, ipv6BytesToString } from "@matter/general";
+import { BasicMap, Bytes, DataWriter, ipv6BytesToString } from "@matter/general";
 import { EndpointNumber, GroupId } from "@matter/types";
+import { GroupKeySetMissingError } from "./errors.js";
 import { KeySets, OperationalKeySet } from "./KeySets.js";
 
 /** Multicast address policy for a group. IanaAddr uses the shared FF05::FA address; PerGroupId derives from GroupId. */
@@ -121,7 +122,12 @@ export class Groups {
     currentKeyForId(groupId: GroupId) {
         const keySetId = this.#groupKeyIdMap.get(groupId);
         if (keySetId === undefined) {
-            throw new ImplementationError(`No group key set found for groupId ${groupId}.`);
+            throw new GroupKeySetMissingError(`No group key set found for groupId ${groupId}.`);
+        }
+        if (this.#keySets.forId(keySetId) === undefined) {
+            throw new GroupKeySetMissingError(
+                `GroupId ${groupId} is mapped to group key set ${keySetId}, which the fabric does not hold.`,
+            );
         }
         return { ...this.#keySets.currentKeyForId(keySetId), keySetId };
     }
