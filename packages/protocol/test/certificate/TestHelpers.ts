@@ -170,7 +170,7 @@ export function chipTestPaaCrlSigner(): TestCrlSigner {
 }
 
 /**
- * Build a CRL as Matter Core §13.2.6.1 accepts it: signed by the signer, with an Authority Key Identifier naming it,
+ * Build a CRL as Matter Core §6.2.6.1 accepts it: signed by the signer, with an Authority Key Identifier naming it,
  * and with a critical Issuing Distribution Point when `distributionPoint` is given.
  */
 export async function buildSignedTestCrl(

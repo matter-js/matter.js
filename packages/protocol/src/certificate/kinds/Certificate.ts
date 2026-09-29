@@ -164,7 +164,7 @@ export abstract class Certificate<CT extends MatterCertificate> {
      *   have produced this certificate's signature
      * @throws CryptoVerifyError if the signature does not verify
      * @throws KeyInputError if the issuer key is malformed
-     * @see Matter Core §10.12.3 (PQC Phase 1) for ML-DSA
+     * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204} for ML-DSA
      */
     async verifySignature(crypto: Crypto, issuerKey: CertificatePublicKey) {
         const signature = this.signature;

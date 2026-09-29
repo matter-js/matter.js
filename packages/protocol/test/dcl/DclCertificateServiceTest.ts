@@ -95,6 +95,23 @@ const mockGitHubFileList = [
     { name: "README.md", type: "file" },
 ];
 
+async function captureLogs(fn: () => Promise<unknown>) {
+    const dest = Logger.destinations.default;
+    const { format, write } = dest;
+    const captured = new Array<{ level: LogLevel; message: string }>();
+    try {
+        dest.format = LogFormat.formats.plain;
+        dest.write = (message: string, { level }: Diagnostic.Message) => {
+            captured.push({ level, message });
+        };
+        await fn();
+        return captured;
+    } finally {
+        dest.format = format;
+        dest.write = write;
+    }
+}
+
 describe("DclCertificateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
@@ -393,6 +410,87 @@ describe("DclCertificateService", () => {
             await service.close();
         });
 
+        it("stores the valid record from a subject whose records include a malformed PEM entry", async () => {
+            const {
+                certs: [novidCert],
+            } = mockDclCertificateNoVID.approvedCertificates;
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: {
+                    schemaVersion: 0,
+                    certs: [
+                        {
+                            subject: novidCert.subject,
+                            subjectKeyId: novidCert.subjectKeyId,
+                        },
+                    ],
+                },
+            });
+            fetchMock.addResponse(
+                "/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                {
+                    approvedCertificates: {
+                        ...mockDclCertificateNoVID.approvedCertificates,
+                        certs: [{ ...novidCert, pemCert: "not a valid PEM certificate" }, novidCert],
+                    },
+                },
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            expect(service.certificates.length).to.equal(1);
+            const cert = service.getCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5");
+            expect(cert).to.not.be.undefined;
+            expect(cert?.subjectAsText).to.equal("CN=Matter Test PAA");
+
+            await service.close();
+        });
+
+        it("skips a record whose certificate SKID differs from the record's stated SKID", async () => {
+            const {
+                certs: [novidCert],
+            } = mockDclCertificateNoVID.approvedCertificates;
+            const mismatchedSkid = "FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF:FF";
+            const normalizedMismatchedSkid = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF";
+
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: {
+                    schemaVersion: 0,
+                    certs: [{ subject: novidCert.subject, subjectKeyId: mismatchedSkid }],
+                },
+            });
+            fetchMock.addResponse(
+                `/dcl/pki/certificates/${encodeURIComponent(novidCert.subject)}/${encodeURIComponent(mismatchedSkid)}`,
+                {
+                    approvedCertificates: {
+                        subject: novidCert.subject,
+                        subjectKeyId: mismatchedSkid,
+                        schemaVersion: 0,
+                        certs: [
+                            {
+                                ...novidCert,
+                                pemCert: pemEncode(TestCert_PAA_FFF1_Cert),
+                                subjectKeyId: mismatchedSkid,
+                            },
+                        ],
+                    },
+                },
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { updateInterval: null });
+            await service.construction;
+
+            expect(service.certificates.length).to.equal(0);
+            expect(service.getCertificate(normalizedMismatchedSkid)).to.be.undefined;
+
+            const selfHealed = await service.getOrFetchCertificate(normalizedMismatchedSkid);
+            expect(selfHealed).to.be.undefined;
+
+            await service.close();
+        });
+
         it("handles GitHub fetch errors gracefully when test certs enabled", async () => {
             // Production DCL (on.dcl.csa-iot.org)
             fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
@@ -545,6 +643,36 @@ describe("DclCertificateService", () => {
             const result = await service.getCertificateAsDer(NOVID_SKID);
             expect(Bytes.areEqual(result, corrupt)).to.be.true;
             expect(() => Paa.fromAsn1(result)).to.throw();
+
+            await service.close();
+        });
+
+        it("returns the cached bytes without a second parse warning when the re-fetched certificate is unusable", async () => {
+            const service = new DclCertificateService(environment);
+            await service.construction;
+            await service.getCertificateAsDer(NOVID_SKID);
+
+            const corrupt = Bytes.fromHex("3003010203");
+            await corruptStoredCertificate(NOVID_SKID);
+            const { approvedCertificates } = mockDclCertificateNoVID;
+            fetchMock.addResponse("/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D", {
+                approvedCertificates: {
+                    ...approvedCertificates,
+                    certs: [{ ...approvedCertificates.certs[0], pemCert: pemEncode(corrupt) }],
+                },
+            });
+
+            const certificateDownloads = () =>
+                fetchMock.getCallLog().filter(({ url }) => url.includes("/dcl/pki/certificates/"));
+            fetchMock.clearCallLog();
+            let result: Bytes = new Uint8Array();
+            const logs = await captureLogs(async () => {
+                result = await service.getCertificateAsDer(NOVID_SKID);
+            });
+            expect(certificateDownloads()).length(1);
+            expect(Bytes.areEqual(result, corrupt)).to.be.true;
+            expect(logs.some(({ message }) => message.includes("Re-fetched certificate also failed to parse"))).to.be
+                .false;
 
             await service.close();
         });
@@ -1955,23 +2083,6 @@ describe("DclCertificateService", () => {
     });
 
     describe("GitHub rate-limit logging", () => {
-        async function captureLogs(fn: () => Promise<unknown>) {
-            const dest = Logger.destinations.default;
-            const { format, write } = dest;
-            const captured = new Array<{ level: LogLevel; message: string }>();
-            try {
-                dest.format = LogFormat.formats.plain;
-                dest.write = (message: string, { level }: Diagnostic.Message) => {
-                    captured.push({ level, message });
-                };
-                await fn();
-                return captured;
-            } finally {
-                dest.format = format;
-                dest.write = write;
-            }
-        }
-
         // Empty DCL responses so the cached set is controlled solely by the test, with GitHub rate-limited (403).
         function mockDclWithGithubRateLimited() {
             const emptyRootList = { approvedRootCertificates: { schemaVersion: 0, certs: [] } };

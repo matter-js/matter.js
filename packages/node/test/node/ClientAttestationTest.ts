@@ -39,7 +39,7 @@ import { MockSite } from "./mock-site.js";
 
 /**
  * Build a CRL of the CHIP test PAA without vendor ID with the given revoked serial numbers (hex strings), signed and
- * naming the PAA in its Authority Key Identifier as Matter Core §13.2.6.1 requires.
+ * naming the PAA in its Authority Key Identifier as Matter Core §6.2.6.1 requires.
  */
 async function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): Promise<Uint8Array> {
     const entries: Record<string, any> = {};

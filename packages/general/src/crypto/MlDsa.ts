@@ -12,7 +12,7 @@ import { KeyInputError, SignatureEncodingError } from "./CryptoError.js";
 /**
  * ML-DSA (FIPS 204) parameters and encodings.
  *
- * Matter PQC Phase 1 (Matter Core §10.12) permits ML-DSA-44 and ML-DSA-65 for PAA and PAI certificates.
+ * Matter PQC Phase 1 permits ML-DSA-44 and ML-DSA-65 for PAA and PAI certificates.
  *
  * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
  * @see {@link https://www.rfc-editor.org/rfc/rfc9881 RFC 9881} for the X.509 algorithm identifiers and key encodings

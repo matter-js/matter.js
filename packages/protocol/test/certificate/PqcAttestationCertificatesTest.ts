@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
 import {
     DeviceAttestationCheck,
     DeviceAttestationError,
@@ -43,6 +44,7 @@ import {
     X520,
     X962,
 } from "@matter/general";
+import { Specification } from "@matter/model";
 import { VendorId } from "@matter/types";
 import { AnnexHCertificates } from "./PqcAnnexHCertificates.js";
 
@@ -59,6 +61,8 @@ function flipBit(bytes: Bytes, index: number) {
 }
 
 describe("PQC Phase 1 attestation certificates", () => {
+    MockForwardFeatures.enable("pqc-phase-1");
+
     describe("Annex H examples", () => {
         const expected: Array<[keyof typeof AnnexHCertificates, "Paa" | "Pai" | "Dac", string, string]> = [
             ["paaMlDsa65", "Paa", "ML-DSA-65", "ML-DSA-65"],
@@ -414,7 +418,6 @@ describe("PQC Phase 1 attestation certificates", () => {
     });
 
     describe("trust store", () => {
-        const PAA_MLDSA65_SKID = "0CE26FC8F0E9CC09DE243E2C1E1D41E47BB2A7A9";
         let fetchMock: MockFetch;
         let environment: Environment;
         let service: DclCertificateService | undefined;
@@ -469,6 +472,16 @@ describe("PQC Phase 1 attestation certificates", () => {
 
             expect(Bytes.toHex(served)).equals(Bytes.toHex(der("paaMlDsa65")));
             expect(fetchMock.getCallLog()).deep.equals([]);
+        });
+
+        it("fetches an ML-DSA PAA from the DCL", async () => {
+            fetchMock.uninstall();
+            fetchMock = new MockFetch();
+            mockDclRootCertificate(fetchMock, der("paaMlDsa65"), PAA_MLDSA65_SKID);
+            service = new DclCertificateService(environment);
+            await service.construction;
+
+            expect(service.getCertificate(PAA_MLDSA65_SKID)).not.undefined;
         });
     });
 
@@ -599,6 +612,169 @@ describe("PQC Phase 1 attestation certificates", () => {
         });
     });
 });
+
+describe("PQC Phase 1 attestation certificates while forward Matter features are off", () => {
+    // The cert-testing branch turns forward features on
+    before(function () {
+        if (Specification.ENABLE_FORWARD_MATTER_FEATURES) {
+            this.skip();
+        }
+    });
+
+    const annexH: Array<[keyof typeof AnnexHCertificates, (der: Bytes) => unknown]> = [
+        ["paaMlDsa65", Paa.fromAsn1],
+        ["paaMlDsa44", Paa.fromAsn1],
+        ["paiEcdsaByPaaMlDsa65", Pai.fromAsn1],
+        ["paiMlDsa44ByPaaMlDsa44", Pai.fromAsn1],
+        ["dacByPaiMlDsa44", Dac.fromAsn1],
+    ];
+
+    for (const [name, parse] of annexH) {
+        it(`rejects ${name}`, () => {
+            expect(() => parse(der(name))).throws(CertificateError, NOT_SUPPORTED);
+        });
+    }
+
+    for (const layout of [
+        { paa: "ML-DSA-65", pai: "ML-DSA-44" },
+        { paa: "ML-DSA-65", pai: "ECDSA-P256" },
+    ] as const) {
+        it(`does not validate a device chain of a ${layout.pai} PAI under a ${layout.paa} PAA`, async () => {
+            const chain = await buildChain(layout);
+            const attestationNonce = crypto.randomBytes(32);
+
+            await expect(
+                DeviceAttestationValidator.validate(
+                    { crypto, attestationChallenge: crypto.randomBytes(16) },
+                    {
+                        dac: chain.dacDer,
+                        pai: chain.paiDer,
+                        attestationElements: TlvAttestation.encode({
+                            declaration: await CertificationDeclaration.generate(crypto, VENDOR_ID, PRODUCT_ID),
+                            attestationNonce,
+                            timestamp: 0,
+                        }),
+                        attestationSignature: new Uint8Array(64),
+                        attestationNonce,
+                        vendorId: VENDOR_ID,
+                        productId: PRODUCT_ID,
+                    },
+                ),
+            ).rejectedWith(
+                DeviceAttestationError,
+                /cannot be parsed: ML-DSA attestation certificates are not supported/,
+            );
+        });
+    }
+
+    describe("trust store", () => {
+        let fetchMock: MockFetch;
+        let environment: Environment;
+        let service: DclCertificateService | undefined;
+
+        beforeEach(() => {
+            fetchMock = new MockFetch();
+            environment = new Environment("test");
+            new MockStorageService(environment);
+            environment.set(Crypto, crypto);
+        });
+
+        afterEach(async () => {
+            fetchMock.uninstall();
+            await service?.close();
+            service = undefined;
+        });
+
+        it("refuses to add an ML-DSA PAA", async () => {
+            mockDclRootCertificate(fetchMock);
+            service = new DclCertificateService(environment, { updateInterval: null });
+            await service.construction;
+
+            await expect(service.addCertificate(der("paaMlDsa65"), "PAA")).rejectedWith(
+                CertificateError,
+                NOT_SUPPORTED,
+            );
+        });
+
+        it("does not seed an ML-DSA PAA but seeds the entries after it", async () => {
+            mockDclRootCertificate(fetchMock);
+            service = new DclCertificateService(environment, {
+                seed: {
+                    paaRoots: {
+                        builtAt: "2026-09-28T00:00:00Z",
+                        expectedCount: 2,
+                        entries: (async function* () {
+                            yield {
+                                role: "paa" as const,
+                                subjectKeyId: PAA_MLDSA65_SKID,
+                                derHex: Bytes.toHex(der("paaMlDsa65")),
+                                kind: "production" as const,
+                            };
+                            yield {
+                                role: "paa" as const,
+                                subjectKeyId: PAA_NOVID_SKID,
+                                derHex: Bytes.toHex(TestCert_PAA_NoVID_Cert),
+                                kind: "production" as const,
+                            };
+                        })(),
+                    },
+                },
+                updateInterval: null,
+            });
+            await service.construction;
+
+            expect(service.getCertificate(PAA_MLDSA65_SKID)).undefined;
+            expect(service.getCertificate(PAA_NOVID_SKID)).not.undefined;
+        });
+
+        it("does not store an ML-DSA PAA fetched from the DCL", async () => {
+            mockDclRootCertificate(fetchMock, der("paaMlDsa65"), PAA_MLDSA65_SKID);
+            service = new DclCertificateService(environment);
+            await service.construction;
+
+            expect(fetchMock.getCallLog().some(({ url }) => url.includes("/dcl/pki/certificates/"))).true;
+            expect(service.getCertificate(PAA_MLDSA65_SKID)).undefined;
+        });
+    });
+});
+
+const PAA_MLDSA65_SKID = "0CE26FC8F0E9CC09DE243E2C1E1D41E47BB2A7A9";
+const NOT_SUPPORTED = /ML-DSA attestation certificates are not supported/;
+const PAA_NOVID_SKID = "785CE705B86B8F4E6FC793AA60CB43EA696882D5";
+
+/** Serve a DCL root certificate list with {@link paaDer} as its only entry, or an empty list without it. */
+function mockDclRootCertificate(fetchMock: MockFetch, paaDer?: Bytes, skid?: string) {
+    const reference =
+        paaDer === undefined || skid === undefined
+            ? undefined
+            : { subject: "UFFDIFBBQQ==", subjectKeyId: skid.replace(/(..)(?!$)/g, "$1:") };
+    fetchMock.addResponse("/dcl/pki/root-certificates", {
+        approvedRootCertificates: { schemaVersion: 0, certs: reference === undefined ? [] : [reference] },
+    });
+    if (paaDer !== undefined && reference !== undefined) {
+        fetchMock.addResponse("/dcl/pki/certificates/", {
+            approvedCertificates: {
+                ...reference,
+                schemaVersion: 0,
+                certs: [
+                    {
+                        ...reference,
+                        pemCert: Pem.encode(paaDer),
+                        serialNumber: "01",
+                        subjectAsText: "CN=Matter PQC Test PAA",
+                        isRoot: true,
+                        owner: "cosmos1...",
+                        approvals: [],
+                        rejects: [],
+                        vid: 0xfff1,
+                        schemaVersion: 0,
+                    },
+                ],
+            },
+        });
+    }
+    fetchMock.install();
+}
 
 type Algorithm = CertificatePublicKey["algorithm"];
 

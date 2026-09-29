@@ -35,15 +35,13 @@ export type CertificateSignature = EcdsaSignature | MlDsaSignature;
  * A certificate's public key, tagged by algorithm.
  *
  * An issuer's key algorithm fixes the signature algorithm of the certificates it signs: "ECDSA-P256" signs with
- * ecdsa-with-SHA256 and an ML-DSA key with the same parameter set (Matter Core §13.2.3).
+ * ecdsa-with-SHA256 and an ML-DSA key with the same parameter set.
  */
 export type CertificateKeyAlgorithm = CertificatePublicKey["algorithm"];
 
 /**
  * Whether a PAI with the given key algorithm may be issued by a PAA with the given one: the PAI may use a weaker
- * algorithm than its PAA but not a stronger one.
- *
- * @see Matter Core §13.2.5.1 (PQC Phase 1)
+ * algorithm than its PAA but not a stronger one, as PQC Phase 1 requires.
  */
 export function mayIssue(paa: CertificateKeyAlgorithm, pai: CertificateKeyAlgorithm) {
     return STRENGTH[pai] <= STRENGTH[paa];
@@ -98,7 +96,7 @@ export function certificateSignatureOf(algorithmIdentifier: Bytes, value: Bytes)
  * @throws CertificateError if the key algorithm cannot have produced the signature
  * @throws CryptoVerifyError if the signature does not verify
  * @throws KeyInputError if the key is malformed
- * @see Matter Core §10.12.3 (PQC Phase 1) for ML-DSA
+ * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204} for ML-DSA
  */
 export async function verifyCertificateSignature(
     crypto: Crypto,

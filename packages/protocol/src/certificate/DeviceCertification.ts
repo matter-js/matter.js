@@ -86,7 +86,7 @@ export class DeviceCertification {
             return;
         }
 
-        // A larger chain needs the segmented CertificateChainResponse of PQC Phase 1 (Matter Core §18.18.7.4)
+        // A larger chain needs the segmented CertificateChainResponse of PQC Phase 1
         for (const [name, der] of [
             ["DAC", certificate],
             ["PAI", intermediateCertificate],

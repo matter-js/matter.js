@@ -13,10 +13,8 @@ import { Bytes, ImplementationError } from "@matter/general";
 export const MAX_DER_CERTIFICATE_SIZE = 600;
 
 /**
- * Maximum size of an attestation certificate that uses ML-DSA; {@link MAX_DER_CERTIFICATE_SIZE} applies only to
- * traditional chains.
- *
- * @see Matter Core §18.18.7.4 (PQC Phase 1)
+ * Maximum size of an attestation certificate that uses ML-DSA (PQC Phase 1); {@link MAX_DER_CERTIFICATE_SIZE} applies
+ * only to traditional chains.
  */
 export const MAX_PQC_DER_CERTIFICATE_SIZE = 10240;
 

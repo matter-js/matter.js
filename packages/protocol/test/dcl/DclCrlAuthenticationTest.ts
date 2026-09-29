@@ -25,6 +25,7 @@ import {
     X520,
     X962,
 } from "@matter/general";
+import { Specification } from "@matter/model";
 import { VendorId } from "@matter/types";
 import { buildSignedTestCrl, pemEncode, type TestCrlSigner } from "../certificate/TestHelpers.js";
 
@@ -699,7 +700,38 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
         });
     });
 
+    /** A CRL signer with an ML-DSA key that the approved EC PAA delegated, and a CRL it signed. */
+    async function delegatedMlDsaCrlSigner() {
+        const key = await crypto.createMlDsaKeyPair("ML-DSA-44");
+        const skid = Bytes.of(await crypto.computeHash(key.publicKey, "SHA-1"));
+        const name = "PQC Delegated CRL Signer";
+        const now = Time.now;
+        const der = X509.certificateToDer(
+            await X509.sign(crypto, paa.key, {
+                serialNumber: Bytes.fromHex("03"),
+                signatureAlgorithm: X962.EcdsaWithSHA256,
+                issuer: nameOf(paa.name, paa.ids),
+                subject: nameOf(name),
+                validity: {
+                    notBefore: new Date(now.getTime() - DAY_MS),
+                    notAfter: new Date(now.getTime() + DAY_MS),
+                },
+                publicKey: MlDsa.SubjectPublicKeyInfo("ML-DSA-44", key.publicKey),
+                extensions: {
+                    basicConstraints: { isCa: false },
+                    keyUsage: { cRLSign: true },
+                    subjectKeyIdentifier: skid,
+                    authorityKeyIdentifier: paa.skid,
+                },
+            }),
+        );
+        const crl = await crlBy({ key, subjectKeyId: skid, subjectDer: Bytes.of(DerCodec.encode(nameOf(name))) });
+        return { der, crl };
+    }
+
     describe("ML-DSA", () => {
+        MockForwardFeatures.enable("pqc-phase-1");
+
         async function mlDsaPaa(parameterSet: MlDsa.ParameterSet) {
             const key = await crypto.createMlDsaKeyPair(parameterSet);
             const skid = Bytes.of(await crypto.computeHash(key.publicKey, "SHA-1"));
@@ -751,10 +783,29 @@ describe("DclCertificateService CRL authentication (Matter Core §6.2.6.1)", () 
             expect(await revoked(pqc.skid, [{ signer: pqc, isPAA: true, crl }], REVOKED, [pqc.der])).false;
         });
 
+        it("accepts a CRL from an ML-DSA signer the approved PAA delegated", async () => {
+            const { der, crl } = await delegatedMlDsaCrlSigner();
+            expect(await revoked(paa.skid, [{ signer: { der }, isPAA: true, crl }])).true;
+        });
+
         it("ignores an EC-signed CRL from an ML-DSA signer", async () => {
             const pqc = await mlDsaPaa("ML-DSA-65");
             const crl = await crlBy({ ...pqc.crlSigner, key: paa.key });
             expect(await revoked(pqc.skid, [{ signer: pqc, isPAA: true, crl }], REVOKED, [pqc.der])).false;
+        });
+    });
+
+    describe("ML-DSA while forward Matter features are off", () => {
+        // The cert-testing branch turns forward features on
+        before(function () {
+            if (Specification.ENABLE_FORWARD_MATTER_FEATURES) {
+                this.skip();
+            }
+        });
+
+        it("ignores a CRL from an ML-DSA signer the approved PAA delegated", async () => {
+            const { der, crl } = await delegatedMlDsaCrlSigner();
+            expect(await revoked(paa.skid, [{ signer: { der }, isPAA: true, crl }])).false;
         });
     });
 });
