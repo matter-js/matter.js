@@ -915,6 +915,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             exchange.via,
             Diagnostic.asFlags({ suppressResponse, timedRequest }),
             Diagnostic.dict({
+                group: message.packetHeader.destGroupId,
                 invokes: invokeRequests
                     .map(({ commandPath: { endpointId, clusterId, commandId } }) =>
                         this.#node.protocol.inspectPath({ endpointId, clusterId, commandId }),

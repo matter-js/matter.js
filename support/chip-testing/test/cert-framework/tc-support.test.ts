@@ -31,7 +31,10 @@ import {
     expectChunkedTransfer,
     expectCommandInvoke,
     expectMessageWithPath,
+    expectNoCommandInvoke,
     expectRejection,
+    expectGroupCommandArrival,
+    matterjsGroupInvokeSent,
     expectReportAck,
     expectSequence,
     expectDeviceLog,
@@ -1625,6 +1628,194 @@ describe("expectCommandInvoke", () => {
         );
 
         expect(record.verdict).equal("fail");
+    });
+});
+
+describe("expectNoCommandInvoke", () => {
+    const SESSION = "@1:6933d77f2aac19fc•8c2d";
+    const invokeLine = (paths: string) =>
+        `2026-08-22 16:56:18.684 INFO InteractionServer Invoke « ${SESSION}⇵4ef3 invokes: ${paths}`;
+    const CHIP_OFF = [
+        "[DMG] CommandDataIB =",
+        "[DMG] {",
+        "[DMG] CommandPathIB =",
+        "[DMG] {",
+        "[DMG] EndpointId = 0x2,",
+        "[DMG] ClusterId = 0x6,",
+        "[DMG] CommandId = 0x0,",
+        "[DMG] },",
+    ];
+
+    function absent(follower: LogFollower, flavor = "matterjs", from = 0) {
+        return expectNoCommandInvoke(follower, flavor, 2, 0x6, 0x0, from, Millis(50));
+    }
+
+    it("passes when the TH logged no invoke of the command", async () => {
+        const record = await withFollower([invokeLine("2.onOff.on"), invokeLine("1.onOff.off")], absent);
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails on an invoke of the command", async () => {
+        const record = await withFollower([invokeLine("2.onOff.off")], absent);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("counts only from the mark it is given", async () => {
+        const record = await withFollower([invokeLine("2.onOff.off"), invokeLine("2.onOff.on")], follower =>
+            absent(follower, "matterjs", 1),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails on an invoke that arrives while the window elapses", async () => {
+        const source = new OpenSource();
+        const follower = new LogFollower(source, "th");
+        try {
+            const pending = expectNoCommandInvoke(follower, "matterjs", 2, 0x6, 0x0, 0, Millis(500));
+            setTimeout(() => source.push(invokeLine("2.onOff.off")), 10);
+
+            expect((await pending).verdict).equal("fail");
+        } finally {
+            await follower.close();
+        }
+    });
+
+    it("fails on chip's CommandDataIB block for the command", async () => {
+        const record = await withFollower(CHIP_OFF, follower => absent(follower, "chip-local"));
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take chip's response echo for a received command", async () => {
+        const record = await withFollower(["[DMG] CommandStatusIB =", ...CHIP_OFF.slice(1)], follower =>
+            absent(follower, "chip-local"),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails on a group command matter.js dispatched to the endpoint", async () => {
+        const record = await withFollower(
+            [`2026-09-27 22:10:01.100 INFO ProtocolService Invoke « binford-6100.ep2.onOff.off •group#1a2b⇵3c4d✉5e6f`],
+            absent,
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take a group command dispatched to another endpoint", async () => {
+        const record = await withFollower(
+            [`2026-09-27 22:10:01.100 INFO ProtocolService Invoke « binford-6100.ep1.onOff.off •group#1a2b⇵3c4d✉5e6f`],
+            absent,
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails on a group command matter.js received but did not dispatch", async () => {
+        const record = await withFollower(
+            [
+                "2026-09-28 09:31:58.418 INFO InteractionServer Invoke « •group#4445⇵98d9 suppressResponse group: 1 invokes: *.0x6.0x0",
+            ],
+            absent,
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("fails on a message chip received for the group, when the group is named", async () => {
+        const receipt = ["[EM] Received Groupcast Message with GroupId 0x0001 (1)"];
+
+        expect((await withFollower(receipt, follower => absent(follower, "chip-local"))).verdict).equal("pass");
+        expect(
+            (
+                await withFollower(receipt, follower =>
+                    expectNoCommandInvoke(follower, "chip-local", 2, 0x6, 0x0, 0, Millis(50), 1),
+                )
+            ).verdict,
+        ).equal("fail");
+    });
+
+    it("fails on a group command chip dispatched to the endpoint", async () => {
+        const record = await withFollower(
+            ["[DMG] Processing group command for Endpoint=2 Cluster=0x0000_0006 Command=0x0000_0000"],
+            follower => absent(follower, "chip-local"),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
+        const record = await withFollower([invokeLine("2.onOff.off")], follower => absent(follower, "python"));
+
+        expect(record.verdict).equal("unverified");
+    });
+});
+
+describe("group message patterns", () => {
+    // matter.js's own lines, captured from a TC-BIND-2.3 run
+    const SENT =
+        "2026-09-28 09:31:58.410 INFO ClientInteraction Invoke » •group#4445⇵98d9 group: 1 dest: [ff05::fa]:5540 suppressResponse *.onOff.on with (no payload)";
+    const RECEIVED =
+        "2026-09-28 09:31:58.418 INFO InteractionServer Invoke « •group#4445⇵98d9 suppressResponse group: 1 invokes: *.0x6.0x1";
+    const DISPATCHED =
+        "2026-09-28 09:31:58.418 INFO ProtocolService Invoke « binford-6100-cert.ep1.onOff.on •group#4445⇵98d9✉03de526d (no payload)";
+
+    it("takes the send of a group's command, and captures the address", () => {
+        const match = matterjsGroupInvokeSent(1, 0x6, 0x1).exec(SENT);
+
+        expect(match?.[1]).equal("ff05::fa");
+    });
+
+    it("does not take the send for another group or command", () => {
+        expect(matterjsGroupInvokeSent(11, 0x6, 0x1).test(SENT)).equal(false);
+        expect(matterjsGroupInvokeSent(1, 0x6, 0x0).test(SENT)).equal(false);
+        expect(matterjsGroupInvokeSent(1, 0x6, 0x1).test(SENT.replace("*.onOff.on", "1.onOff.on"))).equal(false);
+    });
+
+    async function arrival(lines: string[], flavor: string, group: number, endpoint = 1) {
+        return withFollower(lines, follower =>
+            expectGroupCommandArrival(
+                follower,
+                flavor,
+                "arrival",
+                { group, endpoint, cluster: 0x6, command: 0x1 },
+                0,
+                Millis(100),
+            ),
+        );
+    }
+
+    it("passes on matter.js receiving the group's command and dispatching it to the endpoint", async () => {
+        expect((await arrival([RECEIVED, DISPATCHED], "matterjs", 1)).verdict).equal("pass");
+    });
+
+    it("fails on matter.js receiving another group's command", async () => {
+        expect((await arrival([RECEIVED, DISPATCHED], "matterjs", 11)).verdict).equal("fail");
+    });
+
+    it("fails on matter.js dispatching the group's command to another endpoint", async () => {
+        expect((await arrival([RECEIVED, DISPATCHED], "matterjs", 1, 2)).verdict).equal("fail");
+    });
+
+    it("does not take a dispatch of another message for the one received", async () => {
+        const otherExchange = DISPATCHED.replace("⇵98d9", "⇵98da");
+        expect((await arrival([RECEIVED, otherExchange], "matterjs", 1)).verdict).equal("fail");
+    });
+
+    it("reads chip's group id and ids in the uppercase hex chip prints them in", async () => {
+        const chip = [
+            "[EM] Received Groupcast Message with GroupId 0x00AB (171)",
+            "[DMG] Processing group command for Endpoint=1 Cluster=0x0000_0006 Command=0x0000_0001",
+        ];
+
+        expect((await arrival(chip, "chip-local", 0xab)).verdict).equal("pass");
+        expect((await arrival([chip[0].replace("0x00AB", "0x00ab"), chip[1]], "chip-local", 0xab)).verdict).equal(
+            "fail",
+        );
     });
 });
 

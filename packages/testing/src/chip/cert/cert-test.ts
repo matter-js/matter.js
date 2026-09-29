@@ -112,6 +112,10 @@ export class CertTest extends BaseTest {
                 recorded.recordLongRunningSkips === undefined
                     ? undefined
                     : count => recorded.recordLongRunningSkips?.(count),
+            recordPlanConditionSkips:
+                recorded.recordPlanConditionSkips === undefined
+                    ? undefined
+                    : count => recorded.recordPlanConditionSkips?.(count),
             recordUnverifiedChecks:
                 recorded.recordUnverifiedChecks === undefined
                     ? undefined
@@ -139,6 +143,7 @@ export class CertTest extends BaseTest {
         let controllerUnsupportedSkips = 0;
         let picsSkips = 0;
         let longRunningSkips = 0;
+        let planConditionSkips = 0;
         let unverifiedSteps = 0;
         let unproven = false;
         let reportingFailure: unknown;
@@ -221,6 +226,25 @@ export class CertTest extends BaseTest {
 
                     await raceAgainstDeviceExit(stepDef.run(cx), deviceExitWatch.exit, tc, stepDef.number);
                 } catch (e) {
+                    if (e instanceof CertStepNotApplicableError) {
+                        // Same rule as a controller refusal: a step that already recorded evidence did act
+                        if (observedThisStep === 0) {
+                            planConditionSkips++;
+                            report(stepDef, "skipped", e.message);
+                            continue;
+                        }
+
+                        aborted = true;
+                        failed = true;
+                        failure = new Error(
+                            `Cert test ${tc} step ${stepDef.number} declared itself not applicable after recording ` +
+                                `${observedThisStep} check(s); a step decides whether it applies before it acts. ` +
+                                `Reason given: ${e.message}`,
+                        );
+                        report(stepDef, "fail");
+                        continue;
+                    }
+
                     if (e instanceof UnsupportedByControllerError) {
                         // "skipped" claims nothing was evaluated. A step that already recorded
                         // evidence did act, so every later step would rest on a device state nobody
@@ -291,6 +315,14 @@ export class CertTest extends BaseTest {
                     () => recorder.recordLongRunningSkips?.(longRunningSkips),
                     () => announceLongRunningSkipSummary(cx, tc, longRunningSkips),
                     "long-running-skip",
+                );
+            }
+
+            if (planConditionSkips > 0) {
+                recordSummary(
+                    () => recorder.recordPlanConditionSkips?.(planConditionSkips),
+                    () => announcePlanConditionSkipSummary(cx, tc, planConditionSkips),
+                    "plan-condition-skip",
                 );
             }
 
@@ -532,6 +564,16 @@ function stepPicsMet(stepDef: CertStepDefinition, picsFile: PicsFile | undefined
 export class PicsUnansweredError extends Error {}
 
 /**
+ * Thrown by a step that finds, from what the devices of this run expose, that the plan does not apply it here — the
+ * run-time counterpart of {@link CertStepOptions.notApplicable}, for a plan that branches on a device's capability.
+ * The engine records the step as skipped with the message as its reason, provided the step has recorded nothing; a
+ * step that throws it after recording a check fails the run, because it did act.
+ *
+ * A plain `Error` because `packages/testing` carries no dependency on the library and therefore no `MatterError`.
+ */
+export class CertStepNotApplicableError extends Error {}
+
+/**
  * {@link CertStepContext.picsMet}. Unlike a gate it cannot treat a missing PICS file as "met": a step
  * asking which outcome it is owed would then be owed both `X` and `!X`.
  */
@@ -617,6 +659,14 @@ function announceLongRunningSkipSummary(cx: CertStepContext, tc: string, count: 
     announceStep(cx, [
         STEP_BANNER_RULE,
         `${tc} — ${count} step${count === 1 ? "" : "s"} skipped for costing minutes on this flavor`,
+        STEP_BANNER_RULE,
+    ]);
+}
+
+function announcePlanConditionSkipSummary(cx: CertStepContext, tc: string, count: number): void {
+    announceStep(cx, [
+        STEP_BANNER_RULE,
+        `${tc} — ${count} step${count === 1 ? "" : "s"} skipped by a condition of the plan for these devices`,
         STEP_BANNER_RULE,
     ]);
 }
