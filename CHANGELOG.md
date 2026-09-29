@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The plain log format puts the `+` or `-` of an added or deleted list entry on that entry's line instead of at the end of the line before it
 
 - @matter/model
+    - Fix: A default an override removes with `FieldValue.None` is no default in a model that was not validated, such as a schema handed to `withClusters`. A boolean field read it as `true`, a string field as `"[object Object]"`, and a list, struct or bitmap got a synthesized value where a validated model stores none. `FieldValue.stated()` returns the value a definition states, without the marker
     - Fix: A list whose type requires at least one entry gets no empty default when the requirement is inherited
     - Enhancement: Generated documentation keeps the nesting of lists in the specification
     - Breaking: A Window Covering with both the Lift and Tilt features rejects `type` `Shutter`, which the specification allows only with one of them
