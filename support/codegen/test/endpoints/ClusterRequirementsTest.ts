@@ -16,6 +16,10 @@ import { AttributeModel, ClusterModel, DeviceTypeModel, FieldModel, MatterModel,
  * carries the ID, which is what resolves it.
  */
 function fixture(clusterRequirementName: string, ...nested: RequirementModel[]) {
+    return conformingFixture(clusterRequirementName, "O", ...nested);
+}
+
+function conformingFixture(clusterRequirementName: string, conformance: string, ...nested: RequirementModel[]) {
     const cluster = new ClusterModel(
         { name: "IdleFixture", id: 0xfff7 },
         new AttributeModel(
@@ -25,7 +29,7 @@ function fixture(clusterRequirementName: string, ...nested: RequirementModel[]) 
         new AttributeModel({ name: "ActiveModeThreshold", id: 0x2, type: "uint16", conformance: "O" }),
     );
     const clusterRequirement = new RequirementModel(
-        { name: clusterRequirementName, id: 0xfff7, element: "serverCluster", conformance: "O" },
+        { name: clusterRequirementName, id: 0xfff7, element: "serverCluster", conformance },
         ...nested,
     );
     const deviceType = new DeviceTypeModel(
@@ -47,6 +51,18 @@ describe("RequirementGenerator", () => {
         const { file } = fixture("Idle Fixture");
 
         expect(file.toString()).contains("IdleFixtureServer");
+    });
+
+    it("omits a cluster the device type makes obsolete", () => {
+        const { file } = conformingFixture("IdleFixture", "Z");
+
+        expect(file.toString()).not.contains("IdleFixtureServer");
+    });
+
+    it("omits a cluster the device type disallows (characterization)", () => {
+        const { file } = conformingFixture("IdleFixture", "X");
+
+        expect(file.toString()).not.contains("IdleFixtureServer");
     });
 });
 

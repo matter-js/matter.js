@@ -27,6 +27,14 @@ describe("ClusterVariance", () => {
             });
         });
 
+        it("omits disallowed elements (characterization)", () => {
+            expectComponents(attrs({ name: "attr", conformance: "X" }));
+        });
+
+        it("classifies obsolete as optional, as it does deprecated", () => {
+            expectComponents(attrs({ name: "attr", conformance: "Z" }), { optional: ["attr"] });
+        });
+
         it("ignores deprecation", () => {
             expectComponents(attrs({ name: "attr", conformance: "D" }), { optional: ["attr"] });
         });
@@ -211,6 +219,19 @@ describe("ClusterVariance", () => {
             expect(
                 illegalCombinations({ name: "FOO", conformance: "D" }, { name: "BAR", conformance: "X" }),
             ).deep.equal([{ FOO: true }, { BAR: true }]);
+        });
+
+        it("disallows an obsolete feature", () => {
+            expect(illegalCombinations({ name: "FOO", conformance: "Z" })).deep.equal([{ FOO: true }]);
+        });
+
+        it("reads a misplaced obsolete entry as it reads a disallowed one", () => {
+            // "Z, BAR" is invalid and model validation reports it; the analysis must still not fail on it
+            expect(
+                illegalCombinations({ name: "BAR", conformance: "O" }, { name: "FOO", conformance: "Z, BAR" }),
+            ).deep.equal(
+                illegalCombinations({ name: "BAR", conformance: "O" }, { name: "FOO", conformance: "X, BAR" }),
+            );
         });
 
         it("requires a feature another feature mandates", () => {

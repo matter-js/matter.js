@@ -37,7 +37,7 @@ export function forwardValidationToPeer(session: ValueSupervisor.Session, error:
         (error instanceof DatatypeError && error.code === Status.ConstraintError)
     ) {
         logger.debug(
-            "Forwarding non-conformant write to peer; the device may reject it:",
+            "Accepting non-conformant peer data; the device is responsible for it:",
             Diagnostic.errorMessage(error),
         );
         return true;

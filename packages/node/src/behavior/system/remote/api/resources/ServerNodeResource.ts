@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ActionContext } from "#behavior/context/ActionContext.js";
+import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ChangesResource } from "./ChangesResource.js";
 import { EndpointContainerResource } from "./EndpointContainerResource.js";
@@ -30,7 +32,7 @@ export class ServerNodeResource extends NodeResource {
             // If the name is a peer, map to that
             const peer = this.node.peers.get(name);
             if (peer) {
-                return new NodeResource(peer.agentFor(this.agent.context), this);
+                return this.#resourceForPeer(peer);
             }
         }
 
@@ -44,7 +46,7 @@ export class ServerNodeResource extends NodeResource {
                     id => {
                         const peer = this.node.peers.get(id);
                         if (peer) {
-                            return new NodeResource(peer.agentFor(this.agent.context), this);
+                            return this.#resourceForPeer(peer);
                         }
                     },
                 );
@@ -60,4 +62,21 @@ export class ServerNodeResource extends NodeResource {
     override get node() {
         return this.agent.endpoint as ServerNode;
     }
+
+    /**
+     * A peer resource acts in this request's transaction but validates as the peer's own actions do, so the device
+     * rather than the local model decides on conformance.
+     */
+    #resourceForPeer(peer: ClientNode) {
+        return new NodeResource(peer.agentFor(withClientPeer(this.agent.context, peer.clientPeerContext)), this);
+    }
+}
+
+function withClientPeer(context: ActionContext, clientPeerContext: ClientNode["clientPeerContext"]): ActionContext {
+    return Object.freeze(
+        Object.create(Object.getPrototypeOf(context), {
+            ...Object.getOwnPropertyDescriptors(context),
+            clientPeerContext: { value: clientPeerContext ?? {}, enumerable: true },
+        }),
+    );
 }

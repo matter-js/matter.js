@@ -111,7 +111,7 @@ export class RequirementGenerator {
                 continue;
             }
 
-            if (requirement.isDisallowed) {
+            if (requirement.isDisallowed || requirement.isObsolete) {
                 continue;
             }
 

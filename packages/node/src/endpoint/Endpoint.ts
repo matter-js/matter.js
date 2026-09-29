@@ -894,7 +894,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
             this.#activity = this.env.get(NodeActivity);
         }
 
-        const clientPeerContext = this.#resolveClientPeerContext();
+        const { clientPeerContext } = this;
         return LocalActorContext.act(
             purpose,
             context => {
@@ -908,7 +908,12 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         );
     }
 
-    #resolveClientPeerContext(): { fabricIndexOnPeer?: FabricIndex } | undefined {
+    /**
+     * The peer context for actions on this endpoint if it belongs to a client node, otherwise undefined.
+     *
+     * @internal
+     */
+    get clientPeerContext(): { fabricIndexOnPeer?: FabricIndex } | undefined {
         const root = this.ownerOfType(RootEndpoint);
         if (root === undefined || (root as unknown as Node<any>).nodeType !== "client") {
             return undefined;
