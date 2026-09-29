@@ -4,17 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    BasicSet,
-    Bytes,
-    Crypto,
-    DataReader,
-    ImplementationError,
-    MatterFlowError,
-    Time,
-    Timestamp,
-} from "@matter/general";
+import { BasicSet, Bytes, Crypto, DataReader, MatterFlowError, Time, Timestamp } from "@matter/general";
 import type { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import { GroupKeyNotStartedError } from "./errors.js";
 
 export const GROUP_KEY_INFO = Bytes.fromString("GroupKeyHash");
 
@@ -134,8 +126,8 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
             const now = Time.nowMs;
             const relevantKeys = operationalKeys.filter(({ startTime }) => startTime <= now);
             if (relevantKeys.length === 0) {
-                throw new ImplementationError(
-                    `No operational keys found for groupKeySet ${keySetId} that are not in the future.`,
+                throw new GroupKeyNotStartedError(
+                    `No epoch key of group key set ${keySetId} has started yet, so it has no current key to send with.`,
                 );
             }
             return relevantKeys[relevantKeys.length - 1];

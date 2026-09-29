@@ -134,8 +134,8 @@ function createValue(scope: Scope, model: ValueModel, ifValid: boolean) {
             if (
                 !model.nullable &&
                 model.effectiveMetatype === Metatype.array &&
-                !model.constraint.min &&
-                !model.constraint.value
+                !model.effectiveConstraint.min &&
+                !model.effectiveConstraint.value
             ) {
                 return [];
             }

@@ -5,7 +5,19 @@
  */
 
 import { FieldValue } from "#common/index.js";
-import { AttributeElement as Attribute, bool, double, percent100ths, single, string, uint8, uint16 } from "#index.js";
+import {
+    AttributeElement as Attribute,
+    DatatypeElement as Datatype,
+    FieldElement as Field,
+    bool,
+    double,
+    list,
+    percent100ths,
+    single,
+    string,
+    uint8,
+    uint16,
+} from "#index.js";
 import { DefaultValue } from "#logic/DefaultValue.js";
 import { Scope } from "#logic/Scope.js";
 import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
@@ -60,5 +72,33 @@ describe("DefaultValue", () => {
                 expect(defaultOf(type, FieldValue.None)).equal(undefined);
             });
         }
+    });
+
+    describe("list with no default", () => {
+        function listDefaultOf(constraint?: string) {
+            const Matter = new MatterModel(
+                {},
+                uint8.clone(),
+                list.clone(),
+                new ClusterModel(
+                    { name: "Test", id: 0xfff1 },
+                    Datatype({ name: "Readings", type: "list", constraint }, Field({ name: "entry", type: "uint8" })),
+                    Attribute({ name: "History", id: 1, type: "Readings" }),
+                ),
+            );
+            Matter.finalize();
+
+            const attribute = Matter.get(ClusterModel, "Test")!.attributes("History")!;
+            expect(attribute.constraint.min).undefined;
+            return DefaultValue(Scope(Matter), attribute);
+        }
+
+        it("is empty when its type permits no entries", () => {
+            expect(listDefaultOf()).deep.equal([]);
+        });
+
+        it("is absent when the type it derives from requires an entry", () => {
+            expect(listDefaultOf("min 1")).undefined;
+        });
     });
 });

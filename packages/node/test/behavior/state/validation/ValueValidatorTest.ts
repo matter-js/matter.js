@@ -11,6 +11,7 @@ import {
     AttributeModel,
     ClusterModel,
     DataModelPath,
+    DatatypeModel,
     FeatureMap,
     FieldElement as Field,
     FieldModel,
@@ -304,6 +305,32 @@ describe("ValueValidator", () => {
                 DatatypeError,
                 "in range of bit field",
             );
+        });
+    });
+
+    describe("list constraint of the type a list derives from", () => {
+        const cluster = new ClusterModel({
+            name: "Test",
+            children: [
+                new DatatypeModel(
+                    { name: "Readings", type: "list", constraint: "max 2" },
+                    Field({ name: "entry", type: "uint8" }),
+                ),
+                new AttributeModel({ id: 1, name: "History", type: "Readings" }),
+            ],
+        });
+        const attr = cluster.get(AttributeModel, "History")!;
+        const validate = RootSupervisor.for(cluster).get(attr).validate!;
+        const path = { path: new DataModelPath(attr.path) };
+        const session = {} as ValueSupervisor.Session;
+
+        it("accepts a list within the bound", () => {
+            expect(() => validate([1, 2], session, path)).not.throws();
+        });
+
+        it("rejects a list beyond the bound and names the bound", () => {
+            expect(attr.constraint.max).undefined;
+            expect(() => validate([1, 2, 3], session, path)).throws(ConstraintError, 'Constraint "max 2"');
         });
     });
 
