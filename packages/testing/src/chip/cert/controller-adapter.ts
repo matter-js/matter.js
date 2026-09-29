@@ -121,6 +121,18 @@ export interface ReadEventOptions {
     minEventNumber?: bigint;
 }
 
+/**
+ * Options for {@link CertNodeApi.observeEvents}.
+ *
+ * Neither an event-number threshold nor a fabric filter, unlike {@link ReadEventOptions}: both would
+ * describe the events this call answers with rather than the ones it goes on to report, because the
+ * updates are the sustained subscription's and it sets its own filters.
+ */
+export interface ObserveEventOptions {
+    /** Invoked for each event the node reports after the ones this call answers with. */
+    onUpdate?: (event: EventReadEntry) => void;
+}
+
 export interface SubscribeEventOptions extends ReadEventOptions {
     minIntervalFloorSeconds: number;
     maxIntervalCeilingSeconds: number;
@@ -922,6 +934,29 @@ export interface CertNodeApi {
      * Rejects on a concrete path's status for the same reason {@link subscribe} does.
      */
     subscribeEvents(paths: EventPathSpec[], opts: SubscribeEventOptions): Promise<EventReadEntry[]>;
+
+    /**
+     * Every event `paths` selects that the node reports, through the subscription the controller already
+     * sustains rather than one of this call's own.
+     *
+     * A subscription of its own is a second session, and a controller drops every session to a peer the
+     * moment that peer reports `ShutDown` — so what the peer is still flushing arrives on a session its
+     * controller has forgotten and is discarded. Observing through the sustained subscription is what
+     * lets a case still see what a peer reports on its way down, which is as far as this goes: an
+     * observation does not span the restart that follows, because the subscription resubscribes with a
+     * minimum event number the peer's own renumbering falls below.
+     *
+     * A case whose subject is the subscribe request itself uses {@link subscribeEvents} instead.
+     *
+     * Resolves with the events the node already holds, as {@link readEvents} answers them, and reports
+     * later ones to {@link ObserveEventOptions.onUpdate}.
+     *
+     * The two sides do not see quite the same thing: the events this answers with come off the wire,
+     * while the later ones reach the controller's own client first, which drops an event it cannot name
+     * in its model or whose cluster the endpoint does not carry. A path the model does not describe can
+     * therefore appear in the answer and never again — {@link subscribeEvents} reports such a path.
+     */
+    observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]>;
 
     /**
      * The endpoints the controller holds for this node, from its own state rather than from a read.

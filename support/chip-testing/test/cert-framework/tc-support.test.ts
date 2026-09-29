@@ -5,6 +5,7 @@
  */
 
 import { InternalError, Millis, Time, Seconds } from "@matter/main";
+import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import type { ClusterModel } from "@matter/model";
 import { Matter } from "@matter/model";
 import type {
@@ -1931,11 +1932,12 @@ describe("invokeCommand", () => {
         path: string,
         args: object,
         respond: CertNodeApi["invoke"],
+        anyStatus?: boolean,
     ) {
         const th = fakeTh(invokeLine(path));
         const cx = contextFor(th, respond);
         try {
-            const result = await invokeCommand(cx, "ref", { cluster, endpoint, command, args, fields: [] });
+            const result = await invokeCommand(cx, "ref", { cluster, endpoint, command, args, fields: [], anyStatus });
             const checks = await Promise.all(
                 result.checks.map(async ({ what, check }) => ({ what, ...(await check()) })),
             );
@@ -2031,6 +2033,57 @@ describe("invokeCommand", () => {
         expect(checks[0].verdict).equal("fail");
         expect(checks[0].detail).equal("addGroup: InternalError: group table full");
         expect(checks[1].verdict).equal("pass");
+    });
+
+    it("passes the response check on a refusal with a status under anyStatus, without counting it accepted", async () => {
+        const { result, checks } = await invoke(
+            LEVEL_CONTROL,
+            LEVEL_CONTROL_ENDPOINT,
+            "moveToLevel",
+            "1.levelControl.moveToLevel",
+            { level: 100, transitionTime: 0, optionsMask: 0, optionsOverride: 0 },
+            async () => {
+                throw StatusResponseError.create(Status.InvalidCommand, "refused");
+            },
+            true,
+        );
+
+        expect(result.accepted).equal(false);
+        expect(checks[0].verdict).equal("pass");
+        expect(checks[0].detail).match(/^moveToLevel status=InvalidCommand \(/);
+        expect(checks[1].verdict).equal("pass");
+    });
+
+    it("still fails the response check on a client-side ValidationError under anyStatus", async () => {
+        const { checks } = await invoke(
+            LEVEL_CONTROL,
+            LEVEL_CONTROL_ENDPOINT,
+            "moveToLevel",
+            "1.levelControl.moveToLevel",
+            { level: 100, transitionTime: 0, optionsMask: 0, optionsOverride: 0 },
+            async () => {
+                throw new ValidationError("level out of range", "level");
+            },
+            true,
+        );
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("still fails the response check on an error without a status under anyStatus", async () => {
+        const { checks } = await invoke(
+            LEVEL_CONTROL,
+            LEVEL_CONTROL_ENDPOINT,
+            "moveToLevel",
+            "1.levelControl.moveToLevel",
+            { level: 100, transitionTime: 0, optionsMask: 0, optionsOverride: 0 },
+            async () => {
+                throw new InternalError("no answer");
+            },
+            true,
+        );
+
+        expect(checks[0].verdict).equal("fail");
     });
 });
 
