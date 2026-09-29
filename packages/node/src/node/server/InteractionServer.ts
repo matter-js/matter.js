@@ -297,16 +297,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         };
     }
 
-    #checkSenderRevision(interactionModelRevision: number | undefined) {
-        if (interactionModelRevision === undefined) {
-            logger.debug("Sender omitted interaction model revision");
-        } else if (interactionModelRevision > Specification.INTERACTION_MODEL_REVISION) {
-            logger.debug(
-                `Interaction model revision of sender ${interactionModelRevision} is higher than supported ${Specification.INTERACTION_MODEL_REVISION}`,
-            );
-        }
-    }
-
     /**
      * Returns an iterator that yields the data reports and events data for the given read request.
      */
@@ -325,14 +315,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         readRequest: ReadRequest,
         message: Message,
     ): Promise<{ dataReport: DataReport; payload?: DataReportPayloadIterator }> {
-        const {
-            attributeRequests,
-            eventRequests,
-            isFabricFiltered,
-            dataVersionFilters,
-            eventFilters,
-            interactionModelRevision,
-        } = readRequest;
+        const { attributeRequests, eventRequests, isFabricFiltered, dataVersionFilters, eventFilters } = readRequest;
 
         logger.debug(() => [
             "Read",
@@ -349,7 +332,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             }),
         ]);
 
-        this.#checkSenderRevision(interactionModelRevision);
         if (attributeRequests === undefined && eventRequests === undefined) {
             return {
                 dataReport: {
@@ -392,7 +374,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         message: Message,
     ): Promise<void> {
         let { suppressResponse, writeRequests, moreChunkedMessages } = writeRequest;
-        const { timedRequest, interactionModelRevision } = writeRequest;
+        const { timedRequest } = writeRequest;
         const sessionType = message.packetHeader.sessionType;
 
         logger.info(() => [
@@ -409,8 +391,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 Status.InvalidAction,
             );
         }
-
-        this.#checkSenderRevision(interactionModelRevision);
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
 
@@ -582,7 +562,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             eventFilters,
             keepSubscriptions,
             isFabricFiltered,
-            interactionModelRevision,
         } = request;
 
         logger.info(() => [
@@ -595,8 +574,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 eventPaths: eventRequests?.length,
             }),
         ]);
-
-        this.#checkSenderRevision(interactionModelRevision);
 
         if (message.packetHeader.sessionType !== SessionType.Unicast) {
             throw new StatusResponseError("Subscriptions are only allowed on unicast sessions", Status.InvalidAction);
@@ -942,7 +919,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         messenger: InteractionServerMessenger,
         message: Message,
     ): Promise<void> {
-        const { invokeRequests, timedRequest, suppressResponse, interactionModelRevision, delayReportData } = request;
+        const { invokeRequests, timedRequest, suppressResponse, delayReportData } = request;
         logger.info(() => [
             "Invoke",
             Mark.INBOUND,
@@ -958,8 +935,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                     .join(", "),
             }),
         ]);
-
-        this.#checkSenderRevision(interactionModelRevision);
 
         const receivedWithinTimedInteraction = exchange.hasActiveTimedInteraction();
         if (exchange.hasExpiredTimedInteraction()) {
@@ -1185,7 +1160,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }
     }
 
-    handleTimedRequest(exchange: MessageExchange, { timeout, interactionModelRevision }: TimedRequest) {
+    handleTimedRequest(exchange: MessageExchange, { timeout }: TimedRequest) {
         const interval = Millis(timeout);
 
         logger.debug(() => [
@@ -1196,8 +1171,6 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 interval: Duration.format(interval),
             }),
         ]);
-
-        this.#checkSenderRevision(interactionModelRevision);
 
         exchange.startTimedInteraction(interval);
     }
