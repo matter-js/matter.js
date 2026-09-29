@@ -20,6 +20,7 @@ import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
 import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
+import { mayIssue } from "./kinds/CertificateSignature.js";
 import { CertificationDeclaration } from "./kinds/CertificationDeclaration.js";
 import { CertificationType } from "./kinds/definitions/certification-declaration.js";
 
@@ -198,11 +199,11 @@ export namespace DeviceAttestationValidator {
         }
 
         // Step 7: Attestation Signature verification
-        const dacPublicKey = parsePeerValue(
-            DeviceAttestationCheck.CertificateUnparseable,
-            "Device returned a DAC whose public key cannot be read",
-            () => PublicKey(dac.cert.ellipticCurvePublicKey),
-        );
+        const dacKey = dac.publicKey;
+        if (dacKey.algorithm !== "ECDSA-P256") {
+            throw new InternalError("A Dac admits only an EC P-256 key");
+        }
+        const dacPublicKey = dacKey.key;
         try {
             await crypto.verifyEcdsa(
                 dacPublicKey,
@@ -269,11 +270,7 @@ export namespace DeviceAttestationValidator {
             paa = Paa.fromAsn1(paaDer);
 
             try {
-                await crypto.verifyEcdsa(
-                    PublicKey(paa.cert.ellipticCurvePublicKey),
-                    pai.asUnsignedDer(),
-                    pai.signature,
-                );
+                await pai.verifySignature(crypto, paa.publicKey);
             } catch (error) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificateChainInvalid,
@@ -285,11 +282,19 @@ export namespace DeviceAttestationValidator {
             const paiPublicKey = parsePeerValue(
                 DeviceAttestationCheck.CertificateUnparseable,
                 "Device returned a PAI whose public key cannot be read",
-                () => PublicKey(pai.cert.ellipticCurvePublicKey),
+                () => pai.publicKey,
             );
 
+            const paaKeyAlgorithm = paa.publicKey.algorithm;
+            if (!mayIssue(paaKeyAlgorithm, paiPublicKey.algorithm)) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateChainInvalid,
+                    `PAI key algorithm ${paiPublicKey.algorithm} is stronger than the ${paaKeyAlgorithm} of its PAA`,
+                );
+            }
+
             try {
-                await crypto.verifyEcdsa(paiPublicKey, dac.asUnsignedDer(), dac.signature);
+                await dac.verifySignature(crypto, paiPublicKey);
             } catch (error) {
                 throw new DeviceAttestationError(
                     DeviceAttestationCheck.CertificateChainInvalid,

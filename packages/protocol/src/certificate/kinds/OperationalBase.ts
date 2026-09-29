@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError, Logger, Time } from "@matter/general";
+import { Bytes, CertificateError, EcdsaSignature, Logger, Time } from "@matter/general";
 import { Certificate } from "./Certificate.js";
+import { MlDsaSignature } from "./CertificateSignature.js";
 import { Unsigned } from "./common.js";
 import { MatterCertificate } from "./definitions/base.js";
 
@@ -29,6 +30,19 @@ export abstract class OperationalBase<CT extends MatterCertificate> extends Cert
     constructor(cert: CT | Unsigned<CT>) {
         super(cert);
         this.validateFields();
+    }
+
+    /** Operational certificates are always signed with ecdsa-with-SHA256. */
+    override get signature(): EcdsaSignature {
+        const signature = super.signature;
+        if (signature instanceof MlDsaSignature) {
+            throw new CertificateError("Operational certificate is not signed with ecdsa-with-SHA256");
+        }
+        return signature;
+    }
+
+    override set signature(signature: EcdsaSignature) {
+        super.signature = signature;
     }
 
     /** Validates all basic certificate fields on construction. */

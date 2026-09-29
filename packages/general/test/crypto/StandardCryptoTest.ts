@@ -12,6 +12,7 @@
  * * NodeJsCryptoTest.ts also implements some of these tests
  */
 
+import { CryptoInputError } from "#crypto/CryptoError.js";
 import { HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm, hashAlgorithmForId, HashAlgorithmId } from "#crypto/index.js";
 import { Key, PrivateKey, PublicKey } from "#crypto/Key.js";
 import { StandardCrypto } from "#crypto/StandardCrypto.js";
@@ -177,6 +178,63 @@ describe("StandardCrypto", () => {
                 const hashSingle = await crypto.computeHash(testData, "SHA-256");
                 expect(Bytes.toHex(hashArray)).to.equal(Bytes.toHex(hashSingle));
             });
+        });
+
+        describe("digests Web Crypto lacks", () => {
+            // "abc" examples from the NIST FIPS 180-4 and FIPS 202 example values
+            const ABC = b$`616263`;
+            const vectors: Array<[HashAlgorithm, string]> = [
+                ["SHA-512/224", "4634270f707b6a54daae7530460842e20e37ed265ceee9a43e8924aa"],
+                ["SHA-512/256", "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23"],
+                ["SHA3-256", "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532"],
+            ];
+
+            for (const [alg, expected] of vectors) {
+                it(`computes the ${alg} example value`, async () => {
+                    expect(Bytes.toHex(await crypto.computeHash(ABC, alg))).equals(expected);
+                });
+
+                it(`computes ${alg} over chunks and streams`, async () => {
+                    const chunks = [b$`61`, b$`6263`];
+                    async function* stream() {
+                        yield* chunks;
+                    }
+
+                    expect(Bytes.toHex(await crypto.computeHash(chunks, alg))).equals(expected);
+                    expect(Bytes.toHex(await crypto.computeHash(stream(), alg))).equals(expected);
+                });
+            }
+        });
+
+        it("computes SHA3-256 where Web Crypto lacks it", async () => {
+            const webCrypto = globalThis.crypto;
+            const subtle = new Proxy(webCrypto.subtle, {
+                get(target, property) {
+                    if (property === "digest") {
+                        return (algorithm: AlgorithmIdentifier, data: BufferSource) =>
+                            algorithm === "SHA3-256"
+                                ? Promise.reject(new CryptoInputError("Unrecognized algorithm name"))
+                                : target.digest(algorithm, data);
+                    }
+                    const value: unknown = Reflect.get(target, property);
+                    return typeof value === "function" ? value.bind(target) : value;
+                },
+            });
+            const limited = new StandardCrypto(
+                new Proxy(webCrypto, {
+                    get(target, property) {
+                        if (property === "subtle") {
+                            return subtle;
+                        }
+                        const value: unknown = Reflect.get(target, property);
+                        return typeof value === "function" ? value.bind(target) : value;
+                    },
+                }),
+            );
+
+            expect(Bytes.toHex(await limited.computeHash(b$`616263`, "SHA3-256"))).equals(
+                "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
+            );
         });
 
         (["SHA-512", "SHA-384"] as HashAlgorithm[]).forEach(alg => {
