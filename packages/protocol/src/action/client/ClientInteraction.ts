@@ -53,7 +53,15 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { Status, TlvAttributeReport, TlvOfModel, TlvSchema, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
+import {
+    GroupId,
+    Status,
+    TlvAttributeReport,
+    TlvOfModel,
+    TlvSchema,
+    TlvSubscribeResponse,
+    TypeFromSchema,
+} from "@matter/types";
 import { TlvVoid } from "@matter/types/tlv";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
@@ -71,7 +79,11 @@ const logger = Logger.get("ClientInteraction");
  */
 function peerAddressDiagnostic(session: Session | undefined) {
     if (session !== undefined && GroupSession.is(session)) {
-        return Diagnostic.dict({ dest: session.destination });
+        const { peerNodeId } = session;
+        return Diagnostic.dict({
+            group: GroupId.isGroupNodeId(peerNodeId) ? GroupId.fromNodeId(peerNodeId) : undefined,
+            dest: session.destination,
+        });
     }
     return "";
 }

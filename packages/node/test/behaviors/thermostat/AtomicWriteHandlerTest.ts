@@ -7,14 +7,22 @@
 import { ThermostatServer } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, AttributeElement, AttributeModel } from "@matter/model";
 import { AttributeWriteResponse, CommandInvokeResponse, Fabric, Invoke, InvokeResult, Write } from "@matter/protocol";
 import { FabricIndex, NodeId, Status, TlvOfModel } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
-const PresetsThermostat = ThermostatDevice.with(ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets"));
+const PresetsServer = ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets");
+const PresetsThermostat = ThermostatDevice.with(PresetsServer);
+
+/** Overrides Presets in its schema without restating the atomic quality, so the attribute inherits it. */
+class InheritedPresetsServer extends PresetsServer {
+    static override readonly schema = PresetsServer.schema.extend({
+        children: [AttributeElement({ id: Thermostat.attributes.presets.id, name: "Presets", conformance: "PRES" })],
+    });
+}
 
 const PRESETS_ATTRIBUTE = Thermostat.attributes.presets.id;
 const NON_ATOMIC_ATTRIBUTE = Thermostat.attributes.occupiedHeatingSetpoint.id;
@@ -86,8 +94,11 @@ async function writePresetsAs(node: MockServerNode, fabric: Fabric, peerNodeId: 
     });
 }
 
-async function createNode(privilege = AccessControl.AccessControlEntryPrivilege.Administer) {
-    const device = new Endpoint(PresetsThermostat, {
+async function createNode(
+    privilege = AccessControl.AccessControlEntryPrivilege.Administer,
+    type: typeof PresetsThermostat = PresetsThermostat,
+) {
+    const device = new Endpoint(type, {
         number: 1,
         thermostat: {
             controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.CoolingAndHeating,
@@ -157,6 +168,22 @@ describe("AtomicWriteHandler", () => {
         // The state was discarded on timeout, so a fresh BeginWrite succeeds instead of failing with INVALID_IN_STATE
         const second = await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE]));
         expect(second.some(c => c.kind === "cmd-response")).true;
+
+        await node.close();
+    });
+
+    it("accepts an attribute whose atomic quality is inherited from the element it overrides", async () => {
+        const presets = InheritedPresetsServer.schema.get(AttributeModel, "Presets");
+        expect(presets?.quality.atomic).undefined;
+
+        const { node, fabric, device } = await createNode(undefined, ThermostatDevice.with(InheritedPresetsServer));
+
+        const chunks = await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE]));
+
+        expect(decodeAtomicResponse(chunks)).deep.include({
+            statusCode: Status.Success,
+            attributeStatus: [{ attributeId: PRESETS_ATTRIBUTE, statusCode: Status.Success }],
+        });
 
         await node.close();
     });

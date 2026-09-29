@@ -65,9 +65,12 @@ export function unregisterCertAppPics(flavor: SelectableDeviceFlavor, app: strin
  * Both the collection-time gate (`cert-dsl.ts`'s `certPicsFile`) and the run-time one
  * (`cert-test.ts`) compose it here, so a test cannot be admitted by one and refused by the other.
  */
-export function picsWithOverrides(base: PicsFile, definition: Pick<CertTestDefinition, "app" | "dutIsDevice">) {
+export function picsWithOverrides(
+    base: PicsFile,
+    definition: Pick<CertTestDefinition, "app" | "dutIsDevice" | "dutApp">,
+) {
     const controllerOverrides = controllerPicsOverridesFor(resolveControllerImplementation());
-    const appOverrides = certAppPicsOverridesFor(resolveDeviceFlavor(), definition.app);
+    const appOverrides = certAppPicsOverridesFor(resolveDeviceFlavor(), definition.dutApp ?? definition.app);
     return definition.dutIsDevice === true
         ? base.with(controllerOverrides).with(appOverrides)
         : base.with(appOverrides).with(controllerOverrides);

@@ -14,6 +14,7 @@ import {
     GROUP,
     GROUPS,
     GROUPS_ENDPOINT,
+    GROUPS_ID,
     groupKeyMapStep,
     groupMulticastAddress,
     ipv6Bytes,
@@ -26,8 +27,13 @@ import {
     CommissionedRefs,
     describeValue,
     expectSequence,
+    GROUP_MESSAGE_PORT,
+    expectGroupCommandArrival,
+    type GroupCommandArrival,
     LOG_TIMEOUT,
+    matterjsGroupInvokeSent,
     recordAll,
+    requireId,
 } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
@@ -35,30 +41,21 @@ const commissioned = new CommissionedRefs();
 /** The group the plan's step 5 adds *through* the group the steps before it established. */
 const SECOND_GROUP = { id: 2, name: "GroupTwo" };
 
+const ADD_GROUP = requireId(GROUPS.commands.require("addGroup").id, "Groups.addGroup");
+
 /**
- * The TH dispatching the AddGroup this groupcast carried, named the way each flavor names it. A group
- * command's own path is endpoint-wildcarded on the wire, so what identifies the dispatch is the
- * endpoint it *reached*: matter.js names the endpoint, cluster, command and fields on one line, and
- * chip prints the resolved path of the command it is about to run.
+ * The TH receiving the AddGroup this groupcast carried for GroupID 1 and dispatching it to the endpoint it reached,
+ * with the group and name the message carried.
  */
-const DISPATCH_LINES = {
-    matterjs: [
-        new RegExp(
-            `ProtocolService Invoke « \\S+\\.ep${GROUPS_ENDPOINT}\\.groups\\.addGroup •group#[0-9a-f]+⇵[0-9a-f]+✉[0-9a-f]+ ` +
-                `groupId: ${SECOND_GROUP.id}(?!\\d) groupName: ${SECOND_GROUP.name}(?=$|\\s\\w+:)`,
-        ),
+const ARRIVAL: GroupCommandArrival = {
+    group: GROUP.id,
+    endpoint: GROUPS_ENDPOINT,
+    cluster: GROUPS_ID,
+    command: ADD_GROUP,
+    fields: [
+        { id: 0, value: SECOND_GROUP.id },
+        { id: 1, value: SECOND_GROUP.name },
     ],
-    // chip says more than matter.js here: it names the group the message carried, read off the packet
-    // rather than off the session it used
-    chip: {
-        ordered: [
-            new RegExp(`Received Groupcast Message with GroupId 0x${GROUP.id.toString(16).padStart(4, "0")} `),
-            new RegExp(
-                `Processing group command for Endpoint=${GROUPS_ENDPOINT} Cluster=0x0000_0004 ` +
-                    `Command=0x0000_0000(?![0-9a-f])`,
-            ),
-        ],
-    },
 };
 
 /**
@@ -93,11 +90,11 @@ async function addGroupOverGroupcast(cx: CertStepContext) {
         .invoke(GROUPS.name, "addGroup", { groupId: SECOND_GROUP.id, groupName: SECOND_GROUP.name });
 
     const sent = await groupcastSentCheck(cx, from);
-    const dispatched = await expectSequence(
+    const dispatched = await expectGroupCommandArrival(
         th.log,
         th.flavor,
         `the TH dispatching AddGroup(${SECOND_GROUP.id}, "${SECOND_GROUP.name}")`,
-        DISPATCH_LINES,
+        ARRIVAL,
         thFrom,
         LOG_TIMEOUT,
     );
@@ -149,16 +146,8 @@ function statusOf(response: unknown): unknown {
  */
 const FABRIC_LINE = /Installing operational certificate nodeId: \S+ fabricId: (\d+)/;
 
-/** The port group traffic goes to, which the plan's step 5 asks to see (Matter Core § 4.15.3). */
-const MATTER_PORT = 5540;
-
-/**
- * matter.js's line for a group invoke: the session tag says the session is a group one, and `dest:` names where
- * the message went, address and port together in the usual IPv6 form.
- */
-const GROUP_INVOKE_LINE = new RegExp(
-    `ClientInteraction Invoke » •group#[0-9a-f]+⇵[0-9a-f]+ dest: \\[([0-9a-f:]+)\\]:${MATTER_PORT} `,
-);
+/** matter.js's line for this case's group invoke, capturing the address it went to. */
+const GROUP_INVOKE_LINE = matterjsGroupInvokeSent(GROUP.id, GROUPS_ID, ADD_GROUP);
 
 /**
  * Confirms the message went where a group message must go: to the multicast address this fabric uses for this
@@ -212,7 +201,7 @@ async function groupcastSentCheck(cx: CertStepContext, from: number): Promise<Ch
     const invoke = await expectSequence(
         dut.log,
         "matterjs",
-        `a group invoke on port ${MATTER_PORT}`,
+        `a group invoke on port ${GROUP_MESSAGE_PORT}`,
         { matterjs: [GROUP_INVOKE_LINE] },
         from,
         LOG_TIMEOUT,

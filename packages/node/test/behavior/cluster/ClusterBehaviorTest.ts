@@ -8,6 +8,7 @@ import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
+import { QuietEvent } from "#behavior/Events.js";
 import { FeatureMismatchError } from "#behavior/internal/ServerBehaviorBacking.js";
 import { StateType } from "#behavior/state/StateType.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
@@ -24,7 +25,7 @@ import {
     MaybePromise,
     Observable,
 } from "@matter/general";
-import { AttributeElement, ClusterModel, CommandElement } from "@matter/model";
+import { AttributeElement, ClusterModel, CommandElement, EventElement, MatterModel } from "@matter/model";
 import {
     Attribute,
     ClusterId,
@@ -153,6 +154,91 @@ describe("ClusterBehavior", () => {
             ({}) as Match<MyBehavior["events"], { optAttr$Changed: {} }> satisfies false;
             ({}) as Match<MyBehavior["events"], { optEv: {} }> satisfies false;
             ({}) as Match<MyBehavior, { optCmd: (...args: any[]) => any }> satisfies true;
+        });
+
+        describe("quieter element whose quality is inherited from the element it overrides", () => {
+            const matter = new MatterModel(
+                { name: "QuietTest" },
+                new ClusterModel({
+                    name: "QuietBase",
+                    id: 0xfff1_fc10,
+                    children: [
+                        AttributeElement({ id: 1, name: "Level", type: "uint8", quality: "Q", conformance: "O" }),
+                        EventElement({
+                            id: 2,
+                            name: "Moved",
+                            type: "uint8",
+                            quality: "Q",
+                            priority: "info",
+                            conformance: "O",
+                        }),
+                    ],
+                }),
+                new ClusterModel({
+                    name: "QuietDerived",
+                    id: 0xfff1_fc11,
+                    type: "QuietBase",
+                    children: [
+                        AttributeElement({ id: 1, name: "Level", conformance: "M" }),
+                        EventElement({ id: 2, name: "Moved", priority: "info", conformance: "M" }),
+                    ],
+                }),
+            );
+            const schema = matter.get(ClusterModel, "QuietDerived")!;
+
+            function eventOf(name: string) {
+                return Reflect.get(new (ClusterBehavior.for(MyCluster, schema).Events)(), name);
+            }
+
+            it("implements the event as quiet", () => {
+                expect(schema.events("Moved")!.quality.quieter).undefined;
+                expect(eventOf("moved")).instanceof(QuietEvent);
+            });
+
+            it("implements the attribute's change event as quiet", () => {
+                expect(schema.attributes("Level")!.quality.quieter).undefined;
+                expect(eventOf("level$Changed")).instanceof(QuietEvent);
+            });
+        });
+
+        describe("quieter element a derived schema adds to a base behavior without it", () => {
+            function clusterWith(quality?: string) {
+                return new MatterModel(
+                    { name: "QuietTest" },
+                    new ClusterModel({
+                        name: "QuietAdded",
+                        id: 0xfff1_fc12,
+                        children: [
+                            AttributeElement({ id: 1, name: "Level", type: "uint8", quality, conformance: "M" }),
+                            EventElement({
+                                id: 2,
+                                name: "Moved",
+                                type: "uint8",
+                                quality,
+                                priority: "info",
+                                conformance: "M",
+                            }),
+                        ],
+                    }),
+                ).get(ClusterModel, "QuietAdded")!;
+            }
+
+            const Loud = ClusterBehavior.for(MyCluster, clusterWith());
+            const Quiet = Loud.for(MyCluster, clusterWith("Q"));
+
+            function eventOf(type: typeof Loud, name: string) {
+                return Reflect.get(new type.Events(), name);
+            }
+
+            it("replaces the base's event with a quiet one", () => {
+                expect(eventOf(Loud, "moved")).not.instanceof(QuietEvent);
+                expect(eventOf(Quiet, "moved")).instanceof(QuietEvent);
+            });
+
+            it("replaces the base's change event with a quiet one", () => {
+                expect(eventOf(Loud, "level$Changed")).not.instanceof(QuietEvent);
+                expect(eventOf(Quiet, "level$Changed")).instanceof(QuietEvent);
+            });
         });
 
         it("instance exposes values for enabled cluster elements", async () => {
