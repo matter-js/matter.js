@@ -137,6 +137,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: A binding entry does not install the OTA Software Update Provider and WebRTC Transport clients on its target, whose clusters choose their peer themselves; an entry that matches only such clients, including a self-binding, is ignored with a warning that names the cluster
     - Breaking: A binding entry resolves only once something observes `binding.established` of its endpoint; until the first observer attaches, the node registers no peer and opens no CASE session for it. An entry written earlier resolves when an observer attaches, also after an earlier `once` observer was used up. An entry is logged at info level each time it starts waiting; the former warning for an established entry without observer is gone
     - Feature: `ClusterBehavior.typesOf()` returns the cluster behaviors of a list of behavior types
+    - Fix: A subscription keep-alive that falls due while a report is still being sent goes out when that report completes. Before, it was skipped until the next send interval ended, so the gap between reports could exceed the subscription's max interval and a controller could drop the subscription
+    - Fix: A subscription times its min interval floor and DelayReportData deferrals on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A backward step of the wall clock, such as an NTP correction, held reports and keep-alives for up to the length of the step; a forward step let a report through inside the MinIntervalFloor and ended a deferral early
 
 - @matter/testing
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
@@ -177,6 +179,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Per-step certification PICS is evaluated on chip device flavors too, and `result.json` reports how many steps their PICS excluded
     - Fix: A certification run's `result.json` no longer reports a passing verdict for a run that failed
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
+    - Feature: `MockTime.stepWallClock()` steps the wall clock (`now`, `nowMs`) without moving the monotonic clock (`nowUs`), on which mock timers run, as an NTP step does
 
 - @matter/general
     - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
