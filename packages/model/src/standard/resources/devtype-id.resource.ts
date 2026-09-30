@@ -8,4 +8,10 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "devtype-id", description: "Device Type ID", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "devtype-id", description: "Device Type ID", xref: "core§7.19.2.29",
+    details: "An identifier that indicates conformance to a device type." +
+        "\n" +
+        "Device Type IDs shall be a Manufacturer Extensible Identifier. The specifics of its representation " +
+        "are described in Data Model Types."
+});

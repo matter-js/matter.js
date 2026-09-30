@@ -35,6 +35,10 @@ export function EndpointType<const T extends EndpointType.Options>(options: T) {
     } as unknown as EndpointType.For<T>;
 }
 
+const DEVICE_CLASSIFICATIONS: ReadonlySet<string> = new Set(
+    Object.values(DeviceClassification).filter(value => typeof value === "string"),
+);
+
 export namespace EndpointType {
     export const UNKNOWN_DEVICE_TYPE = DeviceTypeId(-1, false);
     export const UNKNOWN_DEVICE_REVISION = -1;
@@ -54,6 +58,7 @@ export namespace EndpointType {
             typeof value.deviceRevision === "number" &&
             "deviceClass" in value &&
             typeof value.deviceClass === "string" &&
+            DEVICE_CLASSIFICATIONS.has(value.deviceClass) &&
             "behaviors" in value &&
             typeof value.behaviors === "object" &&
             value.behaviors !== null &&

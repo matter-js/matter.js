@@ -53,6 +53,13 @@ export function repairDefaultValue(record: { default?: string; type?: string }) 
                 if (def.startsWith('"') && def.endsWith('"')) {
                     record.default = def.slice(1, def.length - 1);
                 }
+
+                // A default is read as a literal, where "2^62" would read as 2
+                const power = def.match(/^(-?)(\d+)\^(\d+)$/);
+                if (power) {
+                    const [, sign, base, exponent] = power;
+                    record.default = `${sign}${BigInt(base) ** BigInt(exponent)}`;
+                }
                 break;
         }
     }

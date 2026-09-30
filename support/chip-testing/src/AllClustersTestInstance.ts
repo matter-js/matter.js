@@ -6,6 +6,7 @@
 
 import {
     Bytes,
+    Hours,
     ImplementationError,
     InternalError,
     Logger,
@@ -13,7 +14,7 @@ import {
     NotImplementedError,
     Seconds,
 } from "@matter/general";
-import { CommonNumberTag, Endpoint, ServerNode } from "@matter/main";
+import { CommonNumberTag, Endpoint, ServerNode, ServerSubscriptionConfig } from "@matter/main";
 import {
     AccessControlServer,
     AdministratorCommissioningServer,
@@ -116,6 +117,9 @@ export class AllClustersTestInstance extends NodeTestInstance {
 
     /** Mount the Groupcast cluster (+ Auxiliary ACL) on the root endpoint. Overridden by the no-groupcast variant. */
     protected readonly groupcast: boolean = true;
+
+    /** Subscription interval limits; undefined keeps the matter.js defaults. Overridden by the full-max-interval variant. */
+    protected readonly subscriptionOptions?: ServerSubscriptionConfig = undefined;
 
     constructor(config: DeviceTestInstanceConfig) {
         super(config);
@@ -333,6 +337,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 port: this.config.port ?? 5540,
                 tcp: true,
                 transportPreference: process.env.TEST_PREFER_TCP === "1" ? "tcp" : "udp",
+                subscriptionOptions: this.subscriptionOptions,
                 //advertiseOnStartup: false,
             },
             commissioning: {
@@ -1247,4 +1252,15 @@ export class AllClustersNoGroupcastTestInstance extends AllClustersTestInstance 
     static override id = "binford-6100-no-groupcast";
 
     protected override readonly groupcast: boolean = false;
+}
+
+/**
+ * all-clusters granting a requested MaxIntervalCeiling up to the 60-minute publisher limit, as CHIP's all-clusters app
+ * does, instead of the 3 minutes matter.js grants by default.  For tests that assert the negotiated MaxInterval equals
+ * the requested ceiling.
+ */
+export class AllClustersFullMaxIntervalTestInstance extends AllClustersTestInstance {
+    static override id = "binford-6100-full-max-interval";
+
+    protected override readonly subscriptionOptions = ServerSubscriptionConfig.of({ maxInterval: Hours.one });
 }

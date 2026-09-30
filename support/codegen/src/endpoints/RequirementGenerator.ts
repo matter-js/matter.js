@@ -106,7 +106,7 @@ export class RequirementGenerator {
                 continue;
             }
 
-            if (definition.id === undefined || requirement.isDisallowed) {
+            if (definition.id === undefined || requirement.isDisallowed || requirement.isObsolete) {
                 continue;
             }
 

@@ -33,6 +33,7 @@ describe("EndpointType.is", () => {
         expect(EndpointType.is({ ...shape, behaviors: null })).false;
         expect(EndpointType.is({ ...shape, behaviors: "none" })).false;
         expect(EndpointType.is({ ...shape, deviceClass: 1 })).false;
+        expect(EndpointType.is({ ...shape, deviceClass: "typo" })).false;
         expect(EndpointType.is({ ...shape, clientClusters: null })).false;
         expect(EndpointType.is({ ...shape, clientClusters: "none" })).false;
         expect(EndpointType.is({ ...shape, requirements: "none" })).false;

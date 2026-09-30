@@ -7,7 +7,16 @@
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { DataReadQueue, Lifetime, Millis, NoResponseTimeoutError, Seconds } from "@matter/general";
+import {
+    createPromise,
+    DataReadQueue,
+    Duration,
+    Lifetime,
+    Millis,
+    NoResponseTimeoutError,
+    Seconds,
+    Time,
+} from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     ExchangeManager,
@@ -18,7 +27,7 @@ import {
     ProtocolMocks,
     SessionManager,
 } from "@matter/protocol";
-import { AttributeId, AttributePath, ClusterId, EndpointNumber } from "@matter/types";
+import { AttributeId, AttributePath, ClusterId, EndpointNumber, EventPath } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { LIT_CONFIG } from "./icd-helpers.js";
@@ -58,6 +67,9 @@ describe("ServerSubscription", () => {
             negotiateIntervals?: boolean;
             session?: NodeSession;
             attributeRequests?: AttributePath[];
+            eventRequests?: EventPath[];
+            maxInterval?: Duration;
+            sendInterval?: Duration;
         },
     ): Promise<ServerSubscription> {
         let session = overrides?.session;
@@ -79,12 +91,18 @@ describe("ServerSubscription", () => {
                 maxIntervalCeilingSeconds: overrides?.maxIntervalCeilingSeconds ?? 60,
                 // Without attributeRequests / eventRequests these are keepalive-only sends
                 attributeRequests: overrides?.attributeRequests,
+                eventRequests: overrides?.eventRequests,
                 isFabricFiltered: false,
             },
             subscriptionOptions: ServerSubscriptionConfig.of(),
             // Use fixed short intervals so tests don't depend on randomization, unless a test wants the
             // real #determineSendingIntervals negotiation exercised.
-            ...(overrides?.negotiateIntervals ? {} : { useAsMaxInterval: Millis(200), useAsSendInterval: Millis(100) }),
+            ...(overrides?.negotiateIntervals
+                ? {}
+                : {
+                      useAsMaxInterval: overrides?.maxInterval ?? Millis(200),
+                      useAsSendInterval: overrides?.sendInterval ?? Millis(100),
+                  }),
         });
     }
 
@@ -306,6 +324,263 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(flushingClose!);
 
         expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("holds a report queued behind a report being sent until its deferral ends", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        const emitChange = (version: number) =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                version,
+            );
+
+        // Each report opens an exchange; the first is acknowledged only once the test releases it
+        const sends = new Array<number>();
+        const releaseFirst = new DataReadQueue<void>();
+        const firstDone = createPromise<void>();
+        const subscription = await createSubscription(
+            node,
+            () => {
+                sends.push(Time.nowMs);
+                const isFirst = sends.length === 1;
+                const exchange = new ProtocolMocks.Exchange({
+                    index: sends.length + 1,
+                    context: { session },
+                    maxPayloadSize: 1200,
+                });
+                exchange.send = async () => {
+                    if (isFirst) {
+                        await releaseFirst.read();
+                    }
+                    await exchange.writeStatus();
+                };
+                exchange.close = async () => {
+                    if (isFirst) {
+                        firstDone.resolver();
+                    }
+                };
+                return exchange;
+            },
+            { session, attributeRequests: [changedPath], negotiateIntervals: true },
+        );
+
+        await initialExchange.writeStatus();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        subscription.activate();
+
+        emitChange(2);
+        await MockTime.advance(100);
+        emitChange(3);
+        await MockTime.advance(100);
+        expect(sends).length(1);
+
+        const deferredAt = Time.nowMs;
+        subscription.deferReports(Millis(5000));
+        releaseFirst.write();
+        await MockTime.resolve(firstDone.promise);
+        await MockTime.yield3();
+        await MockTime.advance(100);
+        expect(sends).length(1);
+
+        await MockTime.advance(deferredAt + 5000 + 100 - Time.nowMs);
+        expect(sends).length(2);
+        expect(sends[1] - deferredAt).at.least(5000);
+        await MockTime.advance(1000);
+        expect(sends).length(2);
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("sends the keep-alive queued behind a slow report within the send interval despite a deferral", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        const emitChange = (version: number) =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                version,
+            );
+
+        // The first two reports are acknowledged only once the test releases each of them
+        const sends = new Array<number>();
+        const releases = [new DataReadQueue<void>(), new DataReadQueue<void>()];
+        const done = [createPromise<void>(), createPromise<void>()];
+        const subscription = await createSubscription(
+            node,
+            () => {
+                const index = sends.length;
+                sends.push(Time.nowMs);
+                const exchange = new ProtocolMocks.Exchange({
+                    index: index + 2,
+                    context: { session },
+                    maxPayloadSize: 1200,
+                });
+                exchange.send = async () => {
+                    await releases[index]?.read();
+                    await exchange.writeStatus();
+                };
+                exchange.close = async () => {
+                    done[index]?.resolver();
+                };
+                return exchange;
+            },
+            { session, attributeRequests: [changedPath], maxInterval: Seconds(10), sendInterval: Seconds(8) },
+        );
+
+        await initialExchange.writeStatus();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        subscription.activate();
+        const start = Time.nowMs;
+        const at = (ms: number) => MockTime.advance(start + ms - Time.nowMs);
+
+        // Report A goes out and stays in flight; a change at 1 s queues report B behind it
+        emitChange(2);
+        await at(1000);
+        emitChange(3);
+        await at(1100);
+        expect(sends).length(1);
+
+        // A completes at 5 s, so B goes out and stays in flight
+        await at(5000);
+        releases[0].write();
+        await MockTime.resolve(done[0].promise);
+        await MockTime.yield3();
+        expect(sends).length(2);
+        const bSentAt = sends[1];
+
+        // The send interval queues a keep-alive behind B, then an invoke defers reports
+        await at(9200);
+        subscription.deferReports(Seconds(10));
+
+        // B completes at 9.5 s; the queued keep-alive must still go out within the send interval after B
+        await at(9500);
+        releases[1].write();
+        await MockTime.resolve(done[1].promise);
+        await MockTime.yield3();
+        await MockTime.advance(bSentAt + Seconds(8) + 1 - Time.nowMs);
+        expect(sends).length(3);
+        expect(sends[2] - bSentAt).at.most(Seconds(8));
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("flushes a report queued behind a report being sent on close despite a deferral", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        const emitChange = (version: number) =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                version,
+            );
+
+        // Each report opens an exchange; the first is acknowledged only once the test releases it
+        const sends = new Array<number>();
+        const releaseFirst = new DataReadQueue<void>();
+        const firstDone = createPromise<void>();
+        const subscription = await createSubscription(
+            node,
+            () => {
+                sends.push(Time.nowMs);
+                const isFirst = sends.length === 1;
+                const exchange = new ProtocolMocks.Exchange({
+                    index: sends.length + 1,
+                    context: { session },
+                    maxPayloadSize: 1200,
+                });
+                exchange.send = async () => {
+                    if (isFirst) {
+                        await releaseFirst.read();
+                    }
+                    await exchange.writeStatus();
+                };
+                exchange.close = async () => {
+                    if (isFirst) {
+                        firstDone.resolver();
+                    }
+                };
+                return exchange;
+            },
+            { session, attributeRequests: [changedPath], negotiateIntervals: true },
+        );
+
+        await initialExchange.writeStatus();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        subscription.activate();
+
+        emitChange(2);
+        await MockTime.advance(100);
+        emitChange(3);
+        await MockTime.advance(100);
+        expect(sends).length(1);
+
+        subscription.deferReports(Millis(5000));
+        const closing = subscription.close(session);
+        releaseFirst.write();
+        await MockTime.resolve(closing);
+        expect(sends).length(2);
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("selects endpoints by its event paths when it has no attribute paths", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const subscription = await createSubscription(node, () => ({}) as any, {
+            eventRequests: [{ endpointId: EndpointNumber(0), clusterId: ClusterId(BasicInformation.id) }],
+        });
+
+        expect(subscription.selectsAnyEndpoint(new Set([EndpointNumber(1)]))).equals(false);
+        expect(subscription.selectsAnyEndpoint(new Set([EndpointNumber(0)]))).equals(true);
 
         await MockTime.resolve(node.close());
     });

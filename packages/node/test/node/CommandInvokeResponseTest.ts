@@ -14,24 +14,29 @@ import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { MatterFlowError } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import {
+    AccessControl,
     CommandInvokeResponse,
+    InteractionSession,
     Invoke,
     InvokeRequest,
     InvokeResult,
     MessageExchange,
     ProtocolMocks,
+    Subject,
 } from "@matter/protocol";
 import {
     ClusterId,
     CommandId,
     EndpointNumber,
     FabricIndex,
+    GroupId,
     NodeId,
     Status,
     StatusResponseError,
     TlvUInt8,
     VendorId,
 } from "@matter/types";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { Chime } from "@matter/types/clusters/chime";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
@@ -662,6 +667,164 @@ describe("CommandInvokeResponse", () => {
         expect(response.counts).deep.equals({ status: 0, success: 0, existent: 0 });
     });
 
+    describe("reports the endpoints it dispatches to before any command runs", () => {
+        const addGroup = (endpointId?: number) => ({
+            commandPath: {
+                endpointId: endpointId === undefined ? undefined : EndpointNumber(endpointId),
+                clusterId: ClusterId(0x4),
+                commandId: CommandId(0x0),
+            },
+            commandFields: undefined,
+        });
+
+        // A session without fabric, as during commissioning, which is granted Administer
+        function paseExchange() {
+            const session = new ProtocolMocks.NodeSession({
+                fabric: undefined,
+                peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+            });
+            return new MockExchange(
+                { fabricIndex: FabricIndex.NO_FABRIC, nodeId: NodeId.UNSPECIFIED_NODE_ID },
+                { session },
+            );
+        }
+
+        async function dispatchedEndpoints(
+            node: MockServerNode,
+            request: Partial<Invoke>,
+            options?: { exchange?: MessageExchange },
+        ) {
+            let endpoints: number[] | undefined;
+            let commandRanBefore = false;
+            const onOff = node.parts.get(1);
+            await invokeCmdRawAs(
+                node,
+                AccessLevel.Operate,
+                {
+                    ...request,
+                    beforeDispatch: dispatched => {
+                        commandRanBefore = onOff?.maybeStateOf(OnOffServer)?.onOff === true;
+                        endpoints = [...dispatched].sort();
+                    },
+                },
+                options?.exchange,
+            );
+            expect(commandRanBefore).equals(false);
+            return endpoints;
+        }
+
+        it("names the endpoint of a concrete path", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+
+            expect(
+                await dispatchedEndpoints(node, {
+                    invokeRequests: [Invoke.Command({ endpoint: EndpointNumber(1), cluster: OnOff, command: "on" })],
+                }),
+            ).deep.equals([1]);
+        });
+
+        it("names every endpoint a wildcard path expands to", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+            await node.add(new Endpoint(OnOffLightDevice));
+
+            expect(
+                await dispatchedEndpoints(node, {
+                    invokeRequests: [Invoke.Command({ cluster: OnOff, command: "on" })],
+                }),
+            ).deep.equals([1, 2]);
+        });
+
+        it("leaves out a concrete path that fails validation", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+
+            expect(
+                await dispatchedEndpoints(node, {
+                    invokeRequests: [Invoke.Command({ endpoint: EndpointNumber(0), cluster: OnOff, command: "on" })],
+                }),
+            ).deep.equals([]);
+            expect(await dispatchedEndpoints(node, { invokeRequests: [addGroup(1)] })).deep.equals([]);
+        });
+
+        it("leaves out a concrete path that needs a timed interaction it lacks", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+
+            expect(
+                await dispatchedEndpoints(
+                    node,
+                    {
+                        invokeRequests: [
+                            Invoke.Command({
+                                endpoint: EndpointNumber(0),
+                                cluster: AdministratorCommissioning,
+                                command: "revokeCommissioning",
+                            }),
+                        ],
+                    },
+                    { exchange: paseExchange() },
+                ),
+            ).deep.equals([]);
+        });
+
+        it("leaves out a fabric-scoped concrete path on a session without fabric", async () => {
+            const device = new Endpoint(OtaRequestorEndpoint);
+            const node = await MockServerNode.createOnline(undefined, { device });
+
+            expect(
+                await dispatchedEndpoints(
+                    node,
+                    {
+                        invokeRequests: [
+                            Invoke.Command({
+                                endpoint: device,
+                                cluster: OtaSoftwareUpdateRequestor,
+                                command: "announceOtaProvider",
+                                fields: {
+                                    providerNodeId: NodeId(1),
+                                    vendorId: VendorId(1),
+                                    announcementReason:
+                                        OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement,
+                                    endpoint: EndpointNumber(0),
+                                },
+                            }),
+                        ],
+                    },
+                    { exchange: paseExchange() },
+                ),
+            ).deep.equals([]);
+        });
+
+        it("names only the group's endpoints for a group invoke", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+            await node.add(new Endpoint(OnOffLightDevice));
+
+            let endpoints: number[] | undefined;
+            const session: InteractionSession = {
+                subject: Subject.Group({ id: GroupId(1), hasValidMapping: true, endpoints: [EndpointNumber(2)] }),
+                fabric: FabricIndex(1),
+                command: true,
+                authorityAt: () => AccessControl.Authority.Granted,
+            };
+            const response = new CommandInvokeResponse(node.protocol, session);
+            const request: Invoke = {
+                suppressResponse: false,
+                timedRequest: false,
+                invokeRequests: [Invoke.Command({ cluster: OnOff, command: "on" })],
+                beforeDispatch: dispatched => (endpoints = [...dispatched]),
+            };
+            for await (const _chunk of response.process(request)) {
+                // Only the dispatch endpoints matter
+            }
+
+            expect(endpoints).deep.equals([2]);
+        });
+
+        it("leaves out endpoints a wildcard path may not invoke on", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+
+            expect(await dispatchedEndpoints(node, { invokeRequests: [addGroup()] })).deep.equals([]);
+        });
+    });
+
     // TODO - more tests and Migrate some from InteractionProtocolTest
 });
 
@@ -681,7 +844,7 @@ function invokeCmdRaw(node: MockServerNode, data: Partial<InvokeRequest>) {
 async function invokeCmdRawAs(
     node: MockServerNode,
     accessLevel: AccessLevel,
-    data: Partial<InvokeRequest>,
+    data: Partial<Invoke>,
     exchange?: MessageExchange,
 ) {
     const request = {

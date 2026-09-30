@@ -52,6 +52,10 @@ export class Conformance extends Aspect<Conformance.Definition> {
 
         this.isEmpty = this.type === Conformance.Special.Empty;
 
+        if (this.type !== Conformance.Flag.Obsolete && containsObsolete(this.ast)) {
+            this.error("INVALID_OBSOLETE", 'Obsolete conformance "Z" must stand alone');
+        }
+
         this.freeze();
     }
 
@@ -120,6 +124,18 @@ export class Conformance extends Aspect<Conformance.Definition> {
      */
     get isDisallowed() {
         return this.ast.type === Conformance.Flag.Disallowed;
+    }
+
+    /**
+     * Is the associated element obsolete?
+     *
+     * An obsolete element stays in the model with its ID and name.  A server may not implement it and rejects values
+     * for it as it does for a disallowed element; a client may still send it and decode it, as it may a deprecated one.
+     *
+     * @see Matter Core Specification 1.7 § 14.3.9
+     */
+    get isObsolete() {
+        return this.ast.type === Conformance.Flag.Obsolete;
     }
 
     /**
@@ -258,6 +274,7 @@ export namespace Conformance {
         Provisional = "P",
         Deprecated = "D",
         Disallowed = "X",
+        Obsolete = "Z",
     }
 
     export enum Operator {
@@ -279,6 +296,7 @@ export namespace Conformance {
     export const P = Flag.Provisional;
     export const D = Flag.Deprecated;
     export const X = Flag.Disallowed;
+    export const Z = Flag.Obsolete;
     export const EQ = Operator.EQ;
     export const NE = Operator.NE;
     export const OR = Operator.OR;
@@ -821,6 +839,51 @@ export function collectDotSegments(ast: Conformance.Ast): string[] | undefined {
     return undefined;
 }
 
+function containsObsolete(ast: Conformance.Ast): boolean {
+    switch (ast.type) {
+        case Conformance.Flag.Obsolete:
+            return true;
+
+        case Conformance.Operator.DOT:
+        case Conformance.Operator.OR:
+        case Conformance.Operator.XOR:
+        case Conformance.Operator.AND:
+        case Conformance.Operator.EQ:
+        case Conformance.Operator.NE:
+        case Conformance.Operator.GT:
+        case Conformance.Operator.LT:
+        case Conformance.Operator.GTE:
+        case Conformance.Operator.LTE:
+            return containsObsolete(ast.param.lhs) || containsObsolete(ast.param.rhs);
+
+        case Conformance.Operator.NOT:
+        case Conformance.Special.OptionalIf:
+            return containsObsolete(ast.param);
+
+        case Conformance.Special.Choice:
+            return containsObsolete(ast.param.expr);
+
+        case Conformance.Special.Otherwise:
+            return ast.param.some(containsObsolete);
+
+        case Conformance.Special.Empty:
+        case Conformance.Special.Desc:
+        case Conformance.Special.Name:
+        case Conformance.Special.Value:
+        case Conformance.Special.Revision:
+        case Conformance.Flag.Mandatory:
+        case Conformance.Flag.Optional:
+        case Conformance.Flag.Provisional:
+        case Conformance.Flag.Deprecated:
+        case Conformance.Flag.Disallowed:
+            return false;
+
+        default:
+            ast satisfies never;
+            return false;
+    }
+}
+
 namespace Parser {
     // Highest precedence first
     export const BinaryOperatorPrecedence = [[">", "<", ">=", "<="], ["==", "!="], ["&"], ["|", "^"]];
@@ -890,6 +953,7 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                 return applicability;
 
             case Conformance.Flag.Disallowed:
+            case Conformance.Flag.Obsolete:
             case Conformance.Flag.Deprecated:
                 return None;
 

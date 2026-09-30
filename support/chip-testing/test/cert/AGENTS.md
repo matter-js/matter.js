@@ -3181,11 +3181,11 @@ case time a deferral from the side the DUT's own restart does not disturb, and w
 whether a notification arrived before or after some other command of the same update (`TC-SU-2.5`).
 
 **A requestor's own `StateTransition` events cannot time anything across an apply.** The subject
-restarts into the version it applied, and `NodeTestInstance.restartNode()` clears the occurrence store,
-so a mark taken with `latestRequestorStateChange` before the step excludes everything after the
-restart — the read comes back empty and a check on it fails against a conforming DUT. Time the wait on
-the TH instead. A live *attribute* read during the wait is fine; it is the event log that does not
-survive.
+restarts into the version it applied, and `NodeTestInstance.restartNode()` discards the occurrences the
+old boot recorded. Numbering continues across the restart, so a mark taken with
+`latestRequestorStateChange` before the step still selects what the new boot reports, but what the old
+boot reported after the mark is gone. Time the wait on the TH instead. A live *attribute* read during
+the wait is fine; it is the event log that does not survive.
 
 **The waits `serveOtaUpdate` offers end on what the provider decided, which is not a window the DUT
 has been watched for.** `applyTimeoutMs` settles as soon as the provider allows an apply *or gives up

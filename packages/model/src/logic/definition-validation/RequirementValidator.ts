@@ -130,7 +130,7 @@ ModelValidator.validators[RequirementElement.Tag] = class RequirementValidator e
     #validateReferent() {
         // A prohibition holds for a referent that does not exist. We accept missing a typo in one because a strict rule
         // would stop model generation on a specification row disallowing what a cluster no longer defines
-        if (this.model.isDisallowed) {
+        if (this.model.isDisallowed || this.model.isObsolete) {
             return;
         }
 

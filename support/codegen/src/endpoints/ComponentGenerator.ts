@@ -508,7 +508,7 @@ export class ComponentGenerator {
         struct.atom(`constructor(values?: Partial<${name}>)`);
 
         model.members.forEach(field => {
-            if (field.isDisallowed || (field.isDeprecated && !field.type)) {
+            if (field.isDisallowed || ((field.isDeprecated || field.isObsolete) && !field.type)) {
                 return;
             }
 
