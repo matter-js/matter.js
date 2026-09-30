@@ -433,14 +433,109 @@ function violationStringsOf(endpoint: Endpoint) {
     return violationsOf(endpoint).map(v => `${v.kind} ${v.deviceType} ${v.requirement}`);
 }
 
+/**
+ * Every standard generated endpoint type, so that a device type added by codegen fails until its violations are looked
+ * at and its name is added here.
+ */
+const STANDARD_DEVICE_TYPE_NAMES = [
+    "Aggregator",
+    "AirPurifier",
+    "AirQualitySensor",
+    "AudioDoorbell",
+    "BasicVideoPlayer",
+    "BatteryStorage",
+    "BridgedNode",
+    "Camera",
+    "CameraController",
+    "CastingVideoClient",
+    "CastingVideoPlayer",
+    "Chime",
+    "Closure",
+    "ClosureController",
+    "ClosurePanel",
+    "ColorDimmerSwitch",
+    "ColorTemperatureLight",
+    "ContactSensor",
+    "ContentApp",
+    "ControlBridge",
+    "CookSurface",
+    "Cooktop",
+    "DeviceEnergyManagement",
+    "DimmableLight",
+    "DimmablePlugInUnit",
+    "DimmerSwitch",
+    "Dishwasher",
+    "Doorbell",
+    "DoorLock",
+    "DoorLockController",
+    "ElectricalEnergyTariff",
+    "ElectricalMeter",
+    "ElectricalSensor",
+    "ElectricalUtilityMeter",
+    "EnergyEvse",
+    "ExtendedColorLight",
+    "ExtractorHood",
+    "Fan",
+    "FloodlightCamera",
+    "FlowSensor",
+    "GenericSwitch",
+    "HeatPump",
+    "HumiditySensor",
+    "Intercom",
+    "IrrigationSystem",
+    "JointFabricAdministrator",
+    "LaundryDryer",
+    "LaundryWasher",
+    "LightSensor",
+    "MeterReferencePoint",
+    "MicrowaveOven",
+    "ModeSelect",
+    "MountedDimmableLoadControl",
+    "MountedOnOffControl",
+    "NetworkInfrastructureManager",
+    "OccupancySensor",
+    "OnOffLight",
+    "OnOffLightSwitch",
+    "OnOffPlugInUnit",
+    "OnOffSensor",
+    "OtaProvider",
+    "OtaRequestor",
+    "Oven",
+    "PowerSource",
+    "PressureSensor",
+    "Pump",
+    "PumpController",
+    "RainSensor",
+    "Refrigerator",
+    "RoboticVacuumCleaner",
+    "RoomAirConditioner",
+    "RootNode",
+    "SecondaryNetworkInterface",
+    "SmokeCoAlarm",
+    "SnapshotCamera",
+    "SoilSensor",
+    "SolarPower",
+    "Speaker",
+    "TemperatureControlledCabinet",
+    "TemperatureSensor",
+    "Thermostat",
+    "ThermostatController",
+    "ThreadBorderRouter",
+    "VideoDoorbell",
+    "VideoRemoteControl",
+    "WaterFreezeDetector",
+    "WaterHeater",
+    "WaterLeakDetector",
+    "WaterValve",
+    "WindowCovering",
+    "WindowCoveringController",
+];
+
 describe("StandardDeviceTypeCorpus", () => {
     const types = standardDeviceTypes();
 
     it("collects the standard device type corpus", () => {
-        expect(types.length).greaterThan(0);
-        expect(types.map(([name]) => name))
-            .includes("OnOffLight")
-            .and.includes("Aggregator");
+        expect(types.map(([name]) => name)).deep.equals(STANDARD_DEVICE_TYPE_NAMES);
 
         // Every collected type's ID must resolve in the model; an unresolvable ID makes the validator judge no
         // requirements and the corpus would then pin an empty violation list for the wrong reason

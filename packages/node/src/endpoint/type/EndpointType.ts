@@ -52,9 +52,17 @@ export namespace EndpointType {
             typeof value.deviceType === "number" &&
             "deviceRevision" in value &&
             typeof value.deviceRevision === "number" &&
+            "deviceClass" in value &&
+            typeof value.deviceClass === "string" &&
             "behaviors" in value &&
             typeof value.behaviors === "object" &&
-            value.behaviors !== null
+            value.behaviors !== null &&
+            "clientClusters" in value &&
+            typeof value.clientClusters === "object" &&
+            value.clientClusters !== null &&
+            "requirements" in value &&
+            typeof value.requirements === "object" &&
+            value.requirements !== null
         );
     }
 
