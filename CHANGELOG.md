@@ -91,6 +91,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: After a factory reset, event reads and subscriptions still see new events: the node keeps its cleared event manager instead of creating a second one they did not know about
     - Fix: Creating a peer no longer closes the node's own event manager
+    - Fix: The remote API (WebSocket, MQTT) `add` method appends the requested entry to a list attribute and validates it; it failed for every list attribute
     - Feature: An invoke with DelayReportData holds off the next report of every subscription that selects an endpoint the invoke dispatches to, by DelayMinMs plus a random jitter below DelayJitterWindowMs; a deferral that ends earlier is kept, and no report is held past the send interval after the last report was sent, counted from when its sending started. Behind the `delay-report-data` forward feature; while `Specification.ENABLE_FORWARD_MATTER_FEATURES` is off the field is ignored. `ServerSubscription.deferReports()`, which holds off a subscription's next report, is available regardless
     - Enhancement: The log line of an inbound invoke received as a group message names the group
     - Feature: A server rejects an obsolete (`Z`) element or value as it does a disallowed one; a client sends and decodes it without declining it locally
