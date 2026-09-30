@@ -128,7 +128,7 @@ export namespace Api {
                         return { kind: "ok", id };
 
                     case "add":
-                        item.add({ js: item.value });
+                        item.add({ js: request.value });
                         return { kind: "ok", id };
 
                     case "delete":
