@@ -144,7 +144,7 @@ export const IcdManagement = Cluster(
         { name: "MonitoringRegistrationStruct", type: "struct" },
         Field({ name: "CheckInNodeId", id: 0x1, type: "node-id", access: "S", conformance: "M", quality: "N" }),
         Field({ name: "MonitoredSubject", id: 0x2, type: "subject-id", access: "S", conformance: "M", quality: "N" }),
-        Field({ name: "Key", id: 0x3, access: "F", conformance: "D" }),
+        Field({ name: "Key", id: 0x3, type: "octstr", access: "F", conformance: "D", constraint: "16", quality: "N" }),
         Field({
             name: "ClientType", id: 0x4, type: "ClientTypeEnum", access: "S", conformance: "M", default: 0,
             quality: "N"

@@ -56,9 +56,9 @@ export const Thermostat = Cluster(
         name: "AbsMaxCoolSetpointLimit", id: 0x6, type: "temperature", access: "R V", conformance: "[COOL]",
         constraint: "desc", default: { type: "celsius", value: 32 }, quality: "F"
     }),
-    Attribute({ name: "PiCoolingDemand", id: 0x7, conformance: "D" }),
-    Attribute({ name: "PiHeatingDemand", id: 0x8, conformance: "D" }),
-    Attribute({ name: "HvacSystemTypeConfiguration", id: 0x9, conformance: "D" }),
+    Attribute({ name: "PiCoolingDemand", id: 0x7, type: "uint8", access: "R V", conformance: "D", constraint: "0 to 100" }),
+    Attribute({ name: "PiHeatingDemand", id: 0x8, type: "uint8", access: "R V", conformance: "D", constraint: "0 to 100" }),
+    Attribute({ name: "HvacSystemTypeConfiguration", id: 0x9, type: "HVACSystemTypeBitmap", access: "R[W] VM", conformance: "D" }),
     Attribute({
         name: "LocalTemperatureCalibration", id: 0x10, type: "SignedTemperature", access: "RW VM",
         conformance: "[!LTNE]", default: { type: "celsius", value: 0 }, quality: "N"
@@ -126,7 +126,10 @@ export const Thermostat = Cluster(
         name: "TemperatureSetpointHoldDuration", id: 0x24, type: "uint16", access: "RW VM",
         conformance: "O", constraint: "max 1440", default: null, quality: "X N"
     }),
-    Attribute({ name: "ThermostatProgrammingOperationMode", id: 0x25, conformance: "D" }),
+    Attribute({
+        name: "ThermostatProgrammingOperationMode", id: 0x25, type: "ProgrammingOperationModeBitmap",
+        access: "RW VM", conformance: "D", constraint: "desc"
+    }),
     Attribute({
         name: "ThermostatRunningState", id: 0x29, type: "RelayStateBitmap", access: "R V", conformance: "O",
         constraint: "desc"
@@ -140,12 +143,30 @@ export const Thermostat = Cluster(
         conformance: "O", default: null, quality: "X"
     }),
     Attribute({ name: "SetpointChangeSourceTimestamp", id: 0x32, type: "epoch-s", access: "R V", conformance: "O" }),
-    Attribute({ name: "OccupiedSetback", id: 0x34, conformance: "D" }),
-    Attribute({ name: "OccupiedSetbackMin", id: 0x35, conformance: "D" }),
-    Attribute({ name: "OccupiedSetbackMax", id: 0x36, conformance: "D" }),
-    Attribute({ name: "UnoccupiedSetback", id: 0x37, conformance: "D" }),
-    Attribute({ name: "UnoccupiedSetbackMin", id: 0x38, conformance: "D" }),
-    Attribute({ name: "UnoccupiedSetbackMax", id: 0x39, conformance: "D" }),
+    Attribute({
+        name: "OccupiedSetback", id: 0x34, type: "UnsignedTemperature", access: "RW VM", conformance: "D",
+        constraint: "occupiedSetbackMin to occupiedSetbackMax", quality: "X N"
+    }),
+    Attribute({
+        name: "OccupiedSetbackMin", id: 0x35, type: "UnsignedTemperature", access: "R V", conformance: "D",
+        constraint: "max occupiedSetbackMax", quality: "X F"
+    }),
+    Attribute({
+        name: "OccupiedSetbackMax", id: 0x36, type: "UnsignedTemperature", access: "R V", conformance: "D",
+        constraint: "occupiedSetbackMin to 254", quality: "X F"
+    }),
+    Attribute({
+        name: "UnoccupiedSetback", id: 0x37, type: "UnsignedTemperature", access: "RW VM", conformance: "D",
+        constraint: "unoccupiedSetbackMin to unoccupiedSetbackMax", quality: "X N"
+    }),
+    Attribute({
+        name: "UnoccupiedSetbackMin", id: 0x38, type: "UnsignedTemperature", access: "R V",
+        conformance: "D", constraint: "max unoccupiedSetbackMax", quality: "X F"
+    }),
+    Attribute({
+        name: "UnoccupiedSetbackMax", id: 0x39, type: "UnsignedTemperature", access: "R V",
+        conformance: "D", constraint: "unoccupiedSetbackMin to 254", quality: "X F"
+    }),
     Attribute({
         name: "EmergencyHeatDelta", id: 0x3a, type: "UnsignedTemperature", access: "RW VM",
         conformance: "O", default: { type: "celsius", value: 25.5 }, quality: "N"
@@ -659,7 +680,22 @@ export const Thermostat = Cluster(
 
     Datatype({ name: "TemperatureDifference", type: "int16" }),
     Datatype({ name: "SignedTemperature", type: "int8" }),
-    Datatype({ name: "UnsignedTemperature", type: "uint8" })
+    Datatype({ name: "UnsignedTemperature", type: "uint8" }),
+
+    Datatype(
+        { name: "HVACSystemTypeBitmap", type: "map8" },
+        Field({ name: "CoolingStage", constraint: "0 to 1" }),
+        Field({ name: "HeatingStage", constraint: "2 to 3" }),
+        Field({ name: "HeatingIsHeatPump", constraint: "4" }),
+        Field({ name: "HeatingUsesFuel", constraint: "5" })
+    ),
+
+    Datatype(
+        { name: "ProgrammingOperationModeBitmap", type: "map8" },
+        Field({ name: "ScheduleActive", constraint: "0" }),
+        Field({ name: "AutoRecovery", constraint: "1" }),
+        Field({ name: "Economy", constraint: "2" })
+    )
 );
 
 MatterDefinition.children.push(Thermostat);

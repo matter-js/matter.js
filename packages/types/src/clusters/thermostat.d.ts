@@ -95,13 +95,13 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        piCoolingDemand?: any;
+        piCoolingDemand?: number;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        piHeatingDemand?: any;
+        piHeatingDemand?: number;
 
         /**
          * Indicates the HVAC system type controlled by the thermostat. If the thermostat uses physical DIP switches to
@@ -112,7 +112,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11.9
          * @deprecated
          */
-        hvacSystemTypeConfiguration?: any;
+        hvacSystemTypeConfiguration?: HvacSystemType;
 
         /**
          * Indicates when the local temperature, outdoor temperature and occupancy are being sensed by remote networked
@@ -170,7 +170,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        thermostatProgrammingOperationMode?: any;
+        thermostatProgrammingOperationMode?: ProgrammingOperationMode;
 
         /**
          * Indicates the current relay state of the heat, cool, and fan relays.
@@ -216,37 +216,37 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        occupiedSetback?: any;
+        occupiedSetback?: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        occupiedSetbackMin?: any;
+        occupiedSetbackMin?: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        occupiedSetbackMax?: any;
+        occupiedSetbackMax?: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        unoccupiedSetback?: any;
+        unoccupiedSetback?: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        unoccupiedSetbackMin?: any;
+        unoccupiedSetbackMin?: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        unoccupiedSetbackMax?: any;
+        unoccupiedSetbackMax?: number | null;
 
         /**
          * Indicates the delta between the Calculated Local Temperature and the OccupiedHeatingSetpoint or
@@ -1047,13 +1047,13 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        piCoolingDemand: any;
+        piCoolingDemand: number;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        piHeatingDemand: any;
+        piHeatingDemand: number;
 
         /**
          * Indicates the HVAC system type controlled by the thermostat. If the thermostat uses physical DIP switches to
@@ -1064,7 +1064,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11.9
          * @deprecated
          */
-        hvacSystemTypeConfiguration: any;
+        hvacSystemTypeConfiguration: HvacSystemType;
 
         /**
          * Indicates when the local temperature, outdoor temperature and occupancy are being sensed by remote networked
@@ -1122,7 +1122,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        thermostatProgrammingOperationMode: any;
+        thermostatProgrammingOperationMode: ProgrammingOperationMode;
 
         /**
          * Indicates the current relay state of the heat, cool, and fan relays.
@@ -1168,37 +1168,37 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        occupiedSetback: any;
+        occupiedSetback: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        occupiedSetbackMin: any;
+        occupiedSetbackMin: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        occupiedSetbackMax: any;
+        occupiedSetbackMax: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        unoccupiedSetback: any;
+        unoccupiedSetback: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        unoccupiedSetbackMin: any;
+        unoccupiedSetbackMin: number | null;
 
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 4.3.11
          * @deprecated
          */
-        unoccupiedSetbackMax: any;
+        unoccupiedSetbackMax: number | null;
 
         /**
          * Indicates the delta between the Calculated Local Temperature and the OccupiedHeatingSetpoint or
@@ -2332,6 +2332,14 @@ export declare namespace Thermostat {
         Sleep = 9
     }
 
+    export class HvacSystemType {
+        constructor(values?: Partial<HvacSystemType> | number);
+        coolingStage?: number;
+        heatingStage?: number;
+        heatingIsHeatPump?: boolean;
+        heatingUsesFuel?: boolean;
+    }
+
     /**
      * @see {@link MatterSpecification.v161.Cluster} § 4.3.10.5
      */
@@ -2367,6 +2375,13 @@ export declare namespace Thermostat {
          * Maintain current setpoint, regardless of schedule transitions
          */
         SetpointHoldOn = 1
+    }
+
+    export class ProgrammingOperationMode {
+        constructor(values?: Partial<ProgrammingOperationMode> | number);
+        scheduleActive?: boolean;
+        autoRecovery?: boolean;
+        economy?: boolean;
     }
 
     /**
