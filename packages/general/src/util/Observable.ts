@@ -193,12 +193,6 @@ export interface AsyncObservableValue<T extends [any, ...any[]] = [boolean]> ext
 export type ObserverErrorHandler = (error: Error, observer: Observer<any[], any>) => void;
 
 /**
- * Updates {@link BasicObservable.observed} of another instance, for composites whose observed state depends on an
- * observable they wrap.
- */
-let refreshObservedOf: (observable: Observable<any[], any>) => void;
-
-/**
  * A concrete {@link Observable} implementation.
  */
 export class BasicObservable<T extends any[] = any[], R = void> implements Observable<T, R> {
@@ -207,14 +201,6 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
     #once?: Set<Observer<T, R>>;
     #observed?: ObservableValue<[boolean]>;
     #instrumentAs?: string;
-
-    static {
-        refreshObservedOf = observable => {
-            if (observable instanceof BasicObservable) {
-                observable.observersChanged();
-            }
-        };
-    }
 
     #joinIteration?: () => Promise<Next<T>>;
     #removeIterator?: () => void;
@@ -288,6 +274,13 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         }
 
         return false;
+    }
+
+    /**
+     * Whether any observer is registered, observant or not.
+     */
+    protected get hasObservers() {
+        return !!this.#observers?.size;
     }
 
     /**
@@ -830,7 +823,9 @@ export namespace EventEmitter {
  * An {@link Observable} that proxies to another {@link Observable}.
  *
  * Events emitted here instead emit on the target {@link Observable}.  Events emitted on the target emit locally via
- * a listener installed by the proxy.
+ * a listener the proxy installs on the target while it has observers.  That listener is observant while the proxy has
+ * an observant observer, so the target's {@link Observable.isObserved} counts the proxy's observers.  The proxy reads
+ * the {@link observant} state of its observers when they are added or removed, so it must not change in between.
  *
  * This is useful for managing a subset of {@link Observer}s for an {@link Observable}.
  *
@@ -840,21 +835,22 @@ export class ObservableProxy extends BasicObservable {
     #target: Observable;
     #emitter = super.emit.bind(this);
 
+    /**
+     * Whether the emitter is registered on the target, and if so, whether it is observant.  The target only sees a
+     * change of the emitter through `on` and `off`, so the emitter is registered again whenever its observant state
+     * changes.
+     */
+    #registeredAs?: boolean;
+
     constructor(target: Observable) {
         super();
 
         Object.defineProperty(this.#emitter, observant, {
-            get: () => this.computeIsObserved(),
+            get: () => this.#registeredAs === true,
         });
 
         this.#target = target;
-        this.#target.on(this.#emitter);
         this.emit = this.#target.emit.bind(this.#target);
-    }
-
-    override [Symbol.dispose]() {
-        this.#target.off(this.#emitter);
-        super[Symbol.dispose]();
     }
 
     override get isObserved(): boolean {
@@ -865,12 +861,20 @@ export class ObservableProxy extends BasicObservable {
         return this.#target.observed;
     }
 
-    /**
-     * The observers of the proxy count for the target through the observant state of the proxy's emitter, which the
-     * target does not see change.
-     */
     protected override observersChanged() {
-        refreshObservedOf(this.#target);
+        const registeredAs = this.#registeredAs;
+        const registerAs = this.hasObservers ? this.computeIsObserved() : undefined;
+        if (registerAs === registeredAs) {
+            return;
+        }
+        // Set first: the target's `off` may emit `observed` to a listener that changes the proxy's observers again
+        this.#registeredAs = registerAs;
+        if (registeredAs !== undefined) {
+            this.#target.off(this.#emitter);
+        }
+        if (registerAs !== undefined) {
+            this.#target.on(this.#emitter);
+        }
     }
 
     override emit: (...payload: any) => any | undefined;

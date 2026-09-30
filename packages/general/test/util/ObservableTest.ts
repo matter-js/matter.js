@@ -401,19 +401,97 @@ describe("Observable.observed", () => {
             expect(flips).deep.equals([true, false]);
         });
 
-        it("counts for an observable its emitter was moved to when that observable is read", () => {
+        it("stops counting for an observable its emitter was moved to once the proxy has no observers", () => {
             const original = new BasicObservable();
             using proxy = new ObservableProxy(original);
-            expect(original.observed.value).false;
+            const observer = () => {};
+            proxy.on(observer);
             const moved = new BasicObservable();
             moved.attachObservers(original.detachObservers()!);
-            const flips = track(moved);
 
-            proxy.on(() => {});
+            proxy.off(observer);
 
-            expect(moved.isObserved).true;
-            expect(moved.observed.value).true;
+            expect(moved.isObserved).false;
+        });
+
+        it("stops counting for the target when only an observer that is not observant remains", () => {
+            const target = Observable();
+            const flips = track(target);
+            using proxy = new ObservableProxy(target);
+            let quietCalls = 0;
+            const quiet: Observer = () => void quietCalls++;
+            quiet[observant] = false;
+            const loud = () => {};
+
+            proxy.on(quiet);
+            proxy.on(loud);
+            proxy.off(loud);
+            target.emit();
+
+            expect(flips).deep.equals([true, false]);
+            expect(quietCalls).equals(1);
+        });
+
+        it("keeps its emitter registered when a listener of the target's observed re-adds an observer", () => {
+            const target = Observable();
+            using proxy = new ObservableProxy(target);
+            const first = () => {};
+            let secondCalls = 0;
+            const second = () => void secondCalls++;
+            target.observed.on(isObserved => {
+                if (!isObserved) {
+                    proxy.on(second);
+                }
+            });
+
+            proxy.on(first);
+            proxy.off(first);
+            target.emit();
+
+            expect(target.isObserved).true;
+            expect(secondCalls).equals(1);
+        });
+
+        it("tells the target about its observers only through on and off", () => {
+            const calls = new Array<string>();
+            class Target extends BasicObservable {
+                override on(observer: Observer) {
+                    calls.push("on");
+                    super.on(observer);
+                }
+                override off(observer: Observer) {
+                    calls.push("off");
+                    super.off(observer);
+                }
+            }
+            const target = new Target();
+            using proxy = new ObservableProxy(target);
+            const first = () => {};
+            const second = () => {};
+
+            proxy.on(first);
+            proxy.on(second);
+            proxy.off(first);
+            proxy.off(second);
+
+            expect(calls).deep.equals(["on", "off"]);
+        });
+
+        it("counts for the target once a proxy observer that is not observant is joined by one that is", () => {
+            const target = Observable();
+            const flips = track(target);
+            using proxy = new ObservableProxy(target);
+            const received = new Array<string>();
+            const quiet: Observer = () => void received.push("quiet");
+            quiet[observant] = false;
+
+            proxy.on(quiet);
+            expect(target.isObserved).false;
+            proxy.on(() => void received.push("observant"));
+            target.emit();
+
             expect(flips).deep.equals([true]);
+            expect(received).deep.equals(["quiet", "observant"]);
         });
 
         it("turns the target false when the proxy is disposed", () => {
