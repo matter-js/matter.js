@@ -505,6 +505,110 @@ describe("Ota", () => {
         await MockTime.resolve(idlePromise);
     }).timeout(10_000);
 
+    describe("with a provider that answers Busy", () => {
+        /** A provider answering every query Busy, which a test can wait on by the number of queries answered. */
+        function BusyOtaProviderServer() {
+            let answered = 0;
+            const waiters = new Map<number, () => void>();
+
+            class TestOtaProviderServer extends OtaSoftwareUpdateProviderServer {
+                override async queryImage(): Promise<OtaSoftwareUpdateProvider.QueryImageResponse> {
+                    answered++;
+                    waiters.get(answered)?.();
+                    return { status: OtaSoftwareUpdateProvider.Status.Busy, delayedActionTime: 60 };
+                }
+            }
+
+            return {
+                TestOtaProviderServer,
+                get answered() {
+                    return answered;
+                },
+                answer(count: number) {
+                    const { promise, resolver } = createPromise<void>();
+                    if (answered >= count) {
+                        resolver();
+                    } else {
+                        waiters.set(count, resolver);
+                    }
+                    return promise;
+                },
+            };
+        }
+
+        /** Gives the requestor a second of virtual time to handle the answer it received. */
+        async function settle() {
+            await MockTime.advance(Seconds(1));
+            await MockTime.macrotasks;
+        }
+
+        it("waits in DelayedOnQuery while the retry is armed, and queries again when it is due", async () => {
+            const busy = BusyOtaProviderServer();
+            const { site, otaRequestor } = await initOtaSite(
+                busy.TestOtaProviderServer,
+                OtaSoftwareUpdateRequestorServer,
+            );
+            await using _localSite = site;
+
+            await MockTime.resolve(busy.answer(1));
+            await settle();
+            expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
+                OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery,
+            );
+
+            // The provider asked for 60 s, and the requestor's minimum query interval of 120 s is longer
+            await MockTime.advance(Seconds(110));
+            await MockTime.macrotasks;
+            expect(busy.answered).equals(1);
+            await MockTime.advance(Seconds(20));
+            await MockTime.macrotasks;
+            expect(busy.answered).equals(2);
+            await settle();
+            expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
+                OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery,
+            );
+        });
+
+        it("gives up on the provider after three Busy retries", async () => {
+            const busy = BusyOtaProviderServer();
+            const { site, otaRequestor } = await initOtaSite(
+                busy.TestOtaProviderServer,
+                OtaSoftwareUpdateRequestorServer,
+            );
+            await using _localSite = site;
+
+            await MockTime.resolve(busy.answer(4));
+            await settle();
+            expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
+                OtaSoftwareUpdateRequestor.UpdateState.Idle,
+            );
+
+            await MockTime.advance(Minutes(10));
+            await MockTime.macrotasks;
+            expect(busy.answered).equals(4);
+        });
+
+        it("returns to Idle when updates are disabled while it waits", async () => {
+            const busy = BusyOtaProviderServer();
+            const { site, otaRequestor } = await initOtaSite(
+                busy.TestOtaProviderServer,
+                OtaSoftwareUpdateRequestorServer,
+            );
+            await using _localSite = site;
+            await MockTime.resolve(busy.answer(1));
+            await settle();
+
+            await otaRequestor.setStateOf(OtaSoftwareUpdateRequestorServer, { updatePossible: false });
+
+            expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
+                OtaSoftwareUpdateRequestor.UpdateState.Idle,
+            );
+            await MockTime.advance(Minutes(10));
+            await MockTime.macrotasks;
+            expect(busy.answered).equals(1);
+        });
+    });
+
     it("OTA reboot: closes older sessions and does not re-subscribe a device that feeds its subscription", async () => {
         const data = { expectedOtaImage: Bytes.fromHex("") };
 

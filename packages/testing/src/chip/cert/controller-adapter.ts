@@ -942,9 +942,10 @@ export interface CertNodeApi {
      * A subscription of its own is a second session, and a controller drops every session to a peer the
      * moment that peer reports `ShutDown` — so what the peer is still flushing arrives on a session its
      * controller has forgotten and is discarded. Observing through the sustained subscription is what
-     * lets a case still see what a peer reports on its way down, which is as far as this goes: an
-     * observation does not span the restart that follows, because the subscription resubscribes with a
-     * minimum event number the peer's own renumbering falls below.
+     * lets a case still see what a peer reports on its way down. An observation spans the restart that
+     * follows for a peer that keeps numbering its events across it, as the specification requires, but
+     * reports nothing until the controller's subscription is live again: the controller resubscribes, or
+     * the peer resumes the subscription itself.
      *
      * A case whose subject is the subscribe request itself uses {@link subscribeEvents} instead.
      *
@@ -955,6 +956,8 @@ export interface CertNodeApi {
      * while the later ones reach the controller's own client first, which drops an event it cannot name
      * in its model or whose cluster the endpoint does not carry. A path the model does not describe can
      * therefore appear in the answer and never again — {@link subscribeEvents} reports such a path.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.14.1.1
      */
     observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]>;
 
