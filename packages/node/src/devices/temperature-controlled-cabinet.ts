@@ -39,7 +39,7 @@ import { Identity } from "@matter/general";
  * the behavior expected by the majority of clients. Clients would be trying to "set the temperature" of a cabinet using
  * that cluster, such as an oven's cooking temperature, or a refrigerator's internal cabinet temperature setpoint.
  *
- * @see {@link MatterSpecification.v16.Device} § 13.4
+ * @see {@link MatterSpecification.v161.Device} § 13.4
  */
 export interface TemperatureControlledCabinetDevice extends Identity<typeof TemperatureControlledCabinetDeviceDefinition> {}
 

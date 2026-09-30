@@ -50,7 +50,7 @@ import { Identity } from "@matter/general";
  *
  * This cluster is used to represent the status of a water filter, if present on the device.
  *
- * @see {@link MatterSpecification.v16.Device} § 13.2
+ * @see {@link MatterSpecification.v161.Device} § 13.2
  */
 export interface RefrigeratorDevice extends Identity<typeof RefrigeratorDeviceDefinition> {}
 

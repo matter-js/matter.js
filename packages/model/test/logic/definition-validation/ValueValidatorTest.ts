@@ -1171,10 +1171,12 @@ describe("ValueValidator", () => {
             expect(validateDefault("uint64", "18446744073709551615")).deep.equals([]);
         });
 
-        // A bound the specification computes stays an expression, and the rules read numbers.  Judging what an
-        // expression amounts to belongs to Constraint, which alone knows what one means
-        it("does not judge a bound stated as an expression", () => {
-            expect(validateConstraint("uint8", "max 2^16")).deep.equals([]);
+        it("judges a bound computed from numbers alone", () => {
+            expect(validateConstraint("uint8", "max 2^16").map(error => error.code)).deep.equals([
+                "VALUE_EXCEEDS_TYPE",
+            ]);
+            // Characterization: a bound the type holds was accepted before as well
+            expect(validateConstraint("uint8", "max 2^8 - 1")).deep.equals([]);
         });
 
         it("accepts a fraction the unit scales to a whole number", () => {

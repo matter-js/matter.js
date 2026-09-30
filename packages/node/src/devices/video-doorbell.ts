@@ -20,7 +20,7 @@ import { Identity } from "@matter/general";
  * table. All devices used in compositions shall adhere to the disambiguation and superset requirements of the System
  * Model. Additional device types not listed in this table may also be included in device compositions.
  *
- * @see {@link MatterSpecification.v16.Device} § 16.3
+ * @see {@link MatterSpecification.v161.Device} § 16.3
  */
 export interface VideoDoorbellDevice extends Identity<typeof VideoDoorbellDeviceDefinition> {}
 

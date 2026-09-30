@@ -28,6 +28,7 @@ export class ClusterModel
 {
     override tag: ClusterElement.Tag = ClusterElement.Tag;
     classification?: ClusterElement.Classification;
+    bindable?: boolean;
 
     #quality: Quality;
 
@@ -43,6 +44,37 @@ export class ClusterModel
     }
     get effectiveQuality(): Quality {
         return new ModelTraversal().findAspect(this, "quality", Quality) ?? this.#quality;
+    }
+
+    /**
+     * Whether a Binding entry may direct a client of this cluster: the {@link bindable} of this cluster or, where
+     * unset, of the closest cluster it derives from that sets it; `true` when none does.
+     */
+    get effectiveBindable(): boolean {
+        return this.#inherited(cluster => cluster.bindable) ?? true;
+    }
+
+    /**
+     * The {@link classification} of this cluster or, where unset, of the closest cluster it derives from that sets it;
+     * undefined when none does.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.10.8
+     */
+    get effectiveClassification(): ClusterElement.Classification | undefined {
+        return this.#inherited(cluster => cluster.classification);
+    }
+
+    #inherited<T>(read: (cluster: ClusterModel) => T | undefined): T | undefined {
+        let value: T | undefined;
+        new ModelTraversal().visitInheritance(this, model => {
+            if (model instanceof ClusterModel) {
+                value = read(model);
+                if (value !== undefined) {
+                    return false;
+                }
+            }
+        });
+        return value;
     }
 
     get attributes() {
@@ -67,7 +99,7 @@ export class ClusterModel
      * Status code range 0x02 - 0x10 is reserved for cluster-scoped codes, so a value of the global "status" type in
      * such a cluster carries either these codes or the global ones.
      *
-     * @see {@link MatterSpecification.v16.Core} § 8.10
+     * @see {@link MatterSpecification.v161.Core} § 8.10
      */
     get statusCodes() {
         const codes = this.datatypes("StatusCodeEnum");
@@ -229,6 +261,7 @@ export class ClusterModel
 
         this.#quality = Quality.create(definition.quality);
         this.classification = definition.classification as ClusterElement.Classification;
+        this.bindable = definition.bindable;
         if (!(definition instanceof Model)) {
             this.pics = definition.pics;
         }
@@ -238,6 +271,7 @@ export class ClusterModel
         return super.toElement(omitResources, {
             quality: this.quality.valueOf(),
             classification: this.classification,
+            bindable: this.bindable,
             ...extra,
         });
     }

@@ -25,7 +25,7 @@ import { Identity } from "@matter/general";
  * adjusted by means of a bound controller device such as a Dimmer Switch or a Color Dimmer Switch. In addition, a
  * Dimmable Light device is also capable of being switched by means of a bound occupancy sensor or other device(s).
  *
- * @see {@link MatterSpecification.v16.Device} § 4.2
+ * @see {@link MatterSpecification.v161.Device} § 4.2
  */
 export interface DimmableLightDevice extends Identity<typeof DimmableLightDeviceDefinition> {}
 
@@ -103,7 +103,7 @@ export namespace DimmableLightRequirements {
 export const DimmableLightDeviceDefinition = MutableEndpoint({
     name: "DimmableLight",
     deviceType: 0x101,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: DimmableLightRequirements,
 
     behaviors: SupportedBehaviors(

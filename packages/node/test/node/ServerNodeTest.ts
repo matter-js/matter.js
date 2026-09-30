@@ -7,6 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
 import { DescriptorBehavior } from "#behaviors/descriptor";
+import { OnOffServer } from "#behaviors/on-off";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
@@ -566,6 +567,71 @@ describe("ServerNode", () => {
         expect(added.number).equals(2);
     });
 
+    it("erases the persisted store of a part that crashes before number assignment", async () => {
+        await using site = new MockSite();
+        const id = "crash-before-number";
+
+        class FailingOnOffServer extends OnOffServer {
+            override initialize() {
+                throw new ImplementationError("Initialization refused for test");
+            }
+        }
+
+        {
+            const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+            const child = new Endpoint(OnOffLightDevice, { id: "child" });
+            const parent = new Endpoint(OnOffLightDevice, {
+                id: "parent",
+                isEssential: false,
+                parts: [child],
+            });
+            await node.add(parent);
+            await child.set({ onOff: { onOff: true } });
+            await node.close();
+        }
+
+        // The part's storage from the prior session loads at startup independent of the crashed part ever reaching
+        // number assignment
+        {
+            const rebooted = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const crashedChild = new Endpoint(OnOffLightDevice, { id: "child" });
+            const crashedParent = new Endpoint(OnOffLightDevice.with(FailingOnOffServer), {
+                id: "parent",
+                isEssential: false,
+                parts: [crashedChild],
+            });
+            await expect(rebooted.add(crashedParent)).rejectedWith(EndpointBehaviorsError);
+            expect(crashedChild.maybeId).equals("child");
+            expect(crashedChild.lifecycle.hasNumber).equals(false);
+
+            await crashedChild.erase();
+            await rebooted.close();
+        }
+
+        {
+            const healthy = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const child = new Endpoint(OnOffLightDevice, { id: "child" });
+            const parent = new Endpoint(OnOffLightDevice, {
+                id: "parent",
+                isEssential: false,
+                parts: [child],
+            });
+            await healthy.add(parent);
+
+            expect(child.state.onOff.onOff).equals(false);
+
+            await healthy.close();
+        }
+    });
+
     it("factory reset erases blobs an earlier session left behind", async () => {
         // A driver whose backing store outlives the handle, as a Web Storage or AsyncStorage driver does
         const persisted = new MemoryBlobStorageDriver();
@@ -728,6 +794,36 @@ describe("ServerNode", () => {
         // Areas sequenced after the failure must still be erased or key material outlives the reset
         expect(storageKeysUnder(storage, "certificates")).deep.equals([]);
         expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
+    });
+
+    it("keeps serving events from the one event manager across factory reset", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const before = controller.env.get(OccurrenceManager);
+        expect(controller.protocol.eventHandler).equals(before);
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(controller.env.get(OccurrenceManager)).equals(before);
+        expect(controller.protocol.eventHandler).equals(before);
+    });
+
+    it("leaves its own event manager open when it creates a peer", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+        await controller.start();
+        const events = controller.env.get(OccurrenceManager);
+        let closed = false;
+        const close = events.close.bind(events);
+        events.close = async () => {
+            closed = true;
+            await close();
+        };
+
+        await commissionOnto(controller, device);
+
+        expect(controller.peers.commissioned.length).equals(1);
+        expect(closed).equals(false);
     });
 
     it("commissions again on the same controller instance after factory reset", async () => {

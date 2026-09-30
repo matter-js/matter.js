@@ -7,15 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import {
-    Bytes,
-    deepCopy,
-    ImplementationError,
-    InternalError,
-    isDeepEqual,
-    Logger,
-    ObservableValue,
-} from "@matter/general";
+import { Bytes, deepCopy, Diagnostic, InternalError, isDeepEqual, Logger, ObservableValue } from "@matter/general";
 import {
     AccessControl,
     AclEndpointContext,
@@ -62,13 +54,6 @@ export class AccessControlServer extends AccessControlBase {
     declare readonly events: AccessControlServer.Events;
 
     override initialize() {
-        // TODO: remove this guard once the Auxiliary feature leaves provisional state in the Matter specification
-        if (this.features.auxiliary) {
-            throw new ImplementationError(
-                "The Auxiliary feature of AccessControl is provisional in Matter 1.6. Do not enable it.",
-            );
-        }
-
         // Spec 1.5.1 tightened constraints to "4 to 65534" / "3 to 65534" — ensure valid defaults
         if (!this.state.subjectsPerAccessControlEntry) {
             this.state.subjectsPerAccessControlEntry = 4;
@@ -79,6 +64,10 @@ export class AccessControlServer extends AccessControlBase {
         if (!this.state.accessControlEntriesPerFabric) {
             this.state.accessControlEntriesPerFabric = 4;
         }
+        this.internal.auxiliaryEntryLimits = {
+            subjects: this.state.subjectsPerAccessControlEntry,
+            targets: this.state.targetsPerAccessControlEntry,
+        };
 
         this.reactTo(this.events.acl$Changing, this.#validateAccessControlListChanges); // Enhanced Validation
         this.reactTo(this.events.acl$Changed, this.#handleAccessControlListChange); // Event handling for changes
@@ -112,8 +101,7 @@ export class AccessControlServer extends AccessControlBase {
                 this.state.acl.push(fallbackAcl);
                 fabricAcls.push(fallbackAcl);
             }
-            fabric.accessControl.aclList = fabricAcls;
-            fabric.accessControl.auxiliaryFeatureEnabled = this.features.auxiliary;
+            this.#applyFabricAcl(fabric, fabricAcls);
             fabric.accessControl.extensionEntryAccessCheck = this.extensionEntryAccessCheck.bind(this);
         }
 
@@ -158,6 +146,11 @@ export class AccessControlServer extends AccessControlBase {
         _oldValue: AccessControlTypes.AccessControlEntry[],
     ) {
         const { context } = this;
+
+        if (value.some(entry => entry.auxiliaryType !== undefined)) {
+            // The spec forbids the field here without naming a status; CHIP answers FAILURE
+            throw new StatusResponseError("ACL entries must not include AuxiliaryType", Status.Failure);
+        }
 
         if (!hasRemoteActor(context)) {
             return;
@@ -459,10 +452,27 @@ export class AccessControlServer extends AccessControlBase {
     /** A fabric was added or updated, so we need to initialize the ACL for this fabric */
     #updateFabricAcls(fabric: Fabric) {
         const fabricIndex = fabric.fabricIndex;
-        const realAcl = deepCopy(this.state.acl).filter(entry => entry.fabricIndex === fabricIndex);
-        const syntheticAcl = this.state.auxiliaryAcl?.filter(entry => entry.fabricIndex === fabricIndex) ?? [];
+        fabric.accessControl.extensionEntryAccessCheck = this.extensionEntryAccessCheck.bind(this);
+        this.#applyFabricAcl(
+            fabric,
+            deepCopy(this.state.acl).filter(entry => entry.fabricIndex === fabricIndex),
+        );
+    }
+
+    /**
+     * Install the effective ACL of a fabric: its real entries plus the current auxiliary entries.  Without `realAcl`
+     * the real entries applied last are kept, so an auxiliary change never applies a partially written ACL attribute.
+     */
+    #applyFabricAcl(fabric: Fabric, realAcl?: AccessControlTypes.AccessControlEntry[]) {
+        const { fabricIndex } = fabric;
+        if (realAcl !== undefined) {
+            this.internal.appliedAcl.set(fabricIndex, realAcl);
+        }
         fabric.accessControl.auxiliaryFeatureEnabled = this.features.auxiliary;
-        fabric.accessControl.aclList = [...realAcl, ...syntheticAcl];
+        fabric.accessControl.aclList = [
+            ...(this.internal.appliedAcl.get(fabricIndex) ?? []),
+            ...this.#auxiliaryAclFor(fabricIndex),
+        ];
     }
 
     /**
@@ -474,7 +484,9 @@ export class AccessControlServer extends AccessControlBase {
      */
     registerAuxAclProvider(observable: AccessControlServer.AuxAclObservable) {
         this.internal.auxiliaryAclProviders.add(observable);
-        this.reactTo(observable, this.callback(this.#onProviderAuxAclChanged));
+        // Offline: the auxiliaryAcl state write runs in its own transaction rather than re-opening the provider's
+        // already-committed one during postCommit
+        this.reactTo(observable, this.callback(this.#onProviderAuxAclChanged, { offline: true }));
         // Sync initial value without emitting events (node is still initializing)
         if (observable.value?.length) {
             this.#syncAuxAcl(false);
@@ -487,19 +499,12 @@ export class AccessControlServer extends AccessControlBase {
     }
 
     /**
-     * Recompute auxiliaryAcl from all registered providers.
-     * Updates state once, then updates fabric ACL lists for any fabric whose entries changed.
-     * Only emits auxiliaryAccessUpdated events when emitEvents is true and entries actually changed.
+     * Recompute auxiliaryAcl from all registered providers and install the effective ACL of every fabric that has
+     * auxiliary entries.  The attribute and the auxiliaryAccessUpdated events (when emitEvents is true) follow only
+     * actual changes.
      */
     #syncAuxAcl(emitEvents: boolean, providerContext?: ActionContext) {
-        // Collect all new aux entries from all providers in one pass
-        const newAuxAcl: AccessControlTypes.AccessControlEntry[] = [];
-        for (const obs of this.internal.auxiliaryAclProviders) {
-            for (const entry of obs.value ?? []) {
-                newAuxAcl.push({ ...entry });
-            }
-        }
-
+        const newAuxAcl = this.#auxiliaryAclFor();
         const oldAuxAcl = deepCopy(this.state.auxiliaryAcl ?? []);
 
         // Determine which fabrics have changed entries
@@ -510,12 +515,10 @@ export class AccessControlServer extends AccessControlBase {
             return !isDeepEqual(oldEntries, newEntries);
         });
 
-        if (changedFabrics.length === 0) {
-            return;
+        // The attribute is persisted, so "unchanged" does not mean installed (e.g. after a restart)
+        if (changedFabrics.length) {
+            this.state.auxiliaryAcl = newAuxAcl;
         }
-
-        // Update the attribute once for all fabrics
-        this.state.auxiliaryAcl = newAuxAcl;
 
         const fabrics = this.env.get(FabricManager);
 
@@ -525,13 +528,12 @@ export class AccessControlServer extends AccessControlBase {
         const session = hasRemoteActor(ctx) ? ctx.session : undefined;
         const { adminNodeId } = this.#adminDataFromSession(session);
 
-        // Update fabric ACL lists and optionally emit change events
-        for (const fi of changedFabrics) {
+        for (const fi of allFabrics) {
             if (!fabrics.has(fi)) {
                 continue;
             }
-            this.#updateFabricAcls(fabrics.for(fi));
-            if (emitEvents) {
+            this.#applyFabricAcl(fabrics.for(fi));
+            if (emitEvents && changedFabrics.includes(fi)) {
                 this.events.auxiliaryAccessUpdated?.emit({ adminNodeId, fabricIndex: fi }, this.context);
             }
         }
@@ -595,10 +597,10 @@ export class AccessControlServer extends AccessControlBase {
             // No interaction registered, so we apply directly because local/offline change
             logger.debug("ACL attribute updated, applying update to ACL manager", fabricIndex);
 
-            fabric.accessControl.aclList = [
-                ...deepCopy(acl).filter(entry => entry.fabricIndex === fabricIndex),
-                ...this.#auxiliaryAclFor(fabricIndex),
-            ];
+            this.#applyFabricAcl(
+                fabric,
+                deepCopy(acl).filter(entry => entry.fabricIndex === fabricIndex),
+            );
         }
     }
 
@@ -621,9 +623,7 @@ export class AccessControlServer extends AccessControlBase {
 
         const fabrics = this.env.get(FabricManager);
         for (const fabric of fabrics) {
-            const realAcl = aclsForFabric.get(fabric.fabricIndex) ?? [];
-            const syntheticAcl = this.state.auxiliaryAcl?.filter(e => e.fabricIndex === fabric.fabricIndex) ?? [];
-            fabric.accessControl.aclList = [...realAcl, ...syntheticAcl];
+            this.#applyFabricAcl(fabric, aclsForFabric.get(fabric.fabricIndex) ?? []);
         }
     }
 
@@ -658,16 +658,31 @@ export class AccessControlServer extends AccessControlBase {
     }
 
     /**
-     * Collect auxiliary ACL entries for a fabric from the registered providers. Reads the provider observable values
-     * directly, which is context-free and therefore safe from reactors that run after an interaction context has
-     * exited — unlike the managed {@link AccessControlServer.State.auxiliaryAcl} state, which throws there.
+     * Collect the auxiliary ACL entries of one fabric, or of all fabrics, from the registered providers.  Entries are
+     * split to respect SubjectsPerAccessControlEntry and TargetsPerAccessControlEntry (core§9.10.6.10).
+     *
+     * Reads the provider observables directly, so it is safe in reactors that run after an interaction context has
+     * exited.
      */
-    #auxiliaryAclFor(fabricIndex: FabricIndex) {
+    #auxiliaryAclFor(fabricIndex?: FabricIndex) {
         const entries = new Array<AccessControlTypes.AccessControlEntry>();
+        if (!this.features.auxiliary) {
+            return entries;
+        }
+        const { subjects: maxSubjects, targets: maxTargets } = this.internal.auxiliaryEntryLimits;
         for (const obs of this.internal.auxiliaryAclProviders) {
             for (const entry of obs.value ?? []) {
-                if (entry.fabricIndex === fabricIndex) {
-                    entries.push({ ...entry });
+                if (fabricIndex !== undefined && entry.fabricIndex !== fabricIndex) {
+                    continue;
+                }
+                if (entry.auxiliaryType === undefined) {
+                    logger.error("Ignoring auxiliary ACL entry without AuxiliaryType", Diagnostic.dict(entry));
+                    continue;
+                }
+                for (const subjects of chunked(entry.subjects, maxSubjects)) {
+                    for (const targets of chunked(entry.targets, maxTargets)) {
+                        entries.push({ ...entry, subjects, targets });
+                    }
                 }
             }
         }
@@ -682,10 +697,8 @@ export class AccessControlServer extends AccessControlBase {
         this.internal.delayedAclData.delete(fabricIndex);
         this.internal.aclUpdateDelayed.delete(fabricIndex);
         if (updateDelayed && delayedData !== undefined) {
-            this.env.get(FabricManager).for(fabricIndex).accessControl.aclList = [
-                ...delayedData,
-                ...this.#auxiliaryAclFor(fabricIndex),
-            ];
+            logger.info("Applying delayed ACL update for fabricIndex", fabricIndex);
+            this.#applyFabricAcl(this.env.get(FabricManager).for(fabricIndex), delayedData);
         }
     }
 }
@@ -693,14 +706,14 @@ export class AccessControlServer extends AccessControlBase {
 export namespace AccessControlServer {
     export class State extends AccessControlBase.State {
         /**
-         * Synthesized read-only ACL entries supplied by auxiliary providers (e.g. Groupcast).  Only present when the
-         * provisional Auxiliary feature is enabled.
+         * Synthesized read-only ACL entries supplied by auxiliary providers (e.g. Groupcast), split to the per-entry
+         * limits.  Mirrors what access control enforces; only present when the Auxiliary feature is enabled.
          */
         declare auxiliaryAcl?: AccessControlTypes.AccessControlEntry[];
     }
 
     export class Events extends AccessControlBase.Events {
-        /** Emitted when auxiliary ACL entries change.  Only present when the provisional Auxiliary feature is enabled. */
+        /** Emitted when auxiliary ACL entries change.  Only present when the Auxiliary feature is enabled. */
         declare auxiliaryAccessUpdated?: OnlineEvent<
             [payload: AccessControlTypes.AuxiliaryAccessUpdatedEvent, context: ActionContext]
         >;
@@ -721,6 +734,12 @@ export namespace AccessControlServer {
 
         /** Registered observable providers that supply auxiliary ACL entries. */
         auxiliaryAclProviders = new Set<AccessControlServer.AuxAclObservable>();
+
+        /** Real ACL entries applied last per fabric; the effective ACL combines them with current auxiliary entries. */
+        appliedAcl = new Map<FabricIndex, AccessControlTypes.AccessControlEntry[]>();
+
+        /** Per-entry limits, captured at initialization so auxiliary entries can be split without a state access. */
+        auxiliaryEntryLimits = { subjects: 4, targets: 4 };
     }
 
     export declare const ExtensionInterface: {
@@ -742,4 +761,16 @@ export namespace AccessControlServer {
      * AccessControlServer subscribes and rebuilds its ACL cache automatically.
      */
     export type AuxAclObservable = ObservableValue<[AccessControlTypes.AccessControlEntry[], ActionContext?]>;
+}
+
+/** Split a list into chunks of at most `size` elements; a `null` wildcard stays a single `null`. */
+function chunked<T>(list: T[] | null, size: number): (T[] | null)[] {
+    if (list === null || list.length <= size) {
+        return [list];
+    }
+    const chunks = new Array<T[]>();
+    for (let i = 0; i < list.length; i += size) {
+        chunks.push(list.slice(i, i + size));
+    }
+    return chunks;
 }

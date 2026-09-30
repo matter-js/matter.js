@@ -26,7 +26,7 @@ export const ContentAppDt = DeviceType(
     Requirement({ name: "ContentLauncher", id: 0x50a, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "ApplicationLauncher", id: 0x50c, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "APPLICATIONPLATFORM", conformance: "X", element: "feature" })
+        Requirement({ name: "AP", conformance: "X", element: "feature" })
     ),
     Requirement({ name: "ApplicationBasic", id: 0x50d, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "AccountLogin", id: 0x50e, conformance: "O", element: "serverCluster" }),

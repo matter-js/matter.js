@@ -10,6 +10,7 @@ import { EndpointNumber, ValidationError } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
 import "./devices/all-devices.js";
 import { EndpointHandle, getDeviceType, listDeviceTypes } from "./devices/DeviceTypeRegistry.js";
+import { EndpointNumberAllocator } from "./devices/EndpointNumberAllocator.js";
 import { buildRootNode } from "./devices/RootEndpoint.js";
 import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
 import { NodeTestInstance } from "./NodeTestInstance.js";
@@ -18,12 +19,17 @@ const logger = Logger.get("AllDevicesTestInstance");
 
 interface DeviceSpec {
     type: string;
-    endpoint: EndpointNumber;
+
+    /**
+     * The number `type:N` asks for, undefined for a number assigned as devices are created.
+     */
+    endpoint?: number;
 }
 
 interface RuntimeArgs {
     specs: DeviceSpec[];
     wifi: boolean;
+    groupcast: boolean;
     enableKeyHex?: string;
 }
 
@@ -49,48 +55,28 @@ function hasFlag(args: string[], name: string): boolean {
 function parseRuntimeArgs(args: string[]): RuntimeArgs {
     const tokens = collectValues(args, "device");
     const wifi = hasFlag(args, "wifi");
+    const groupcast = hasFlag(args, "groupcast");
     const enableKeyHex = collectValues(args, "enable-key")[0];
 
-    // Pass 1: collect explicit-endpoint reservations so auto-allocation can skip them.
-    const reserved = new Set<number>();
+    const specs = new Array<DeviceSpec>();
     for (const token of tokens) {
         const colonIdx = token.indexOf(":");
-        if (colonIdx === -1) continue;
+        if (colonIdx === -1) {
+            specs.push({ type: token });
+            continue;
+        }
         const epStr = token.substring(colonIdx + 1);
         const ep = Number.parseInt(epStr, 10);
         if (!Number.isInteger(ep) || ep < 1 || ep > 0xfffe || String(ep) !== epStr) {
             throw new ValidationError(`Invalid endpoint in --device "${token}"`);
         }
-        if (reserved.has(ep)) {
+        if (specs.some(({ endpoint }) => endpoint === ep)) {
             throw new ValidationError(`Endpoint ${ep} declared twice in --device flags`);
         }
-        reserved.add(ep);
+        specs.push({ type: token.substring(0, colonIdx), endpoint: ep });
     }
 
-    // Pass 2: walk tokens in CLI order, allocating each entry's endpoint number.
-    const specs = new Array<DeviceSpec>();
-    const used = new Set<number>();
-    let nextAuto = 1;
-    for (const token of tokens) {
-        const colonIdx = token.indexOf(":");
-        let type: string;
-        let endpoint: number;
-        if (colonIdx === -1) {
-            type = token;
-            while (reserved.has(nextAuto) || used.has(nextAuto)) nextAuto++;
-            endpoint = nextAuto;
-        } else {
-            type = token.substring(0, colonIdx);
-            endpoint = Number.parseInt(token.substring(colonIdx + 1), 10);
-        }
-        if (used.has(endpoint)) {
-            throw new ValidationError(`Endpoint ${endpoint} declared twice in --device flags`);
-        }
-        used.add(endpoint);
-        specs.push({ type, endpoint: EndpointNumber(endpoint) });
-    }
-
-    return { specs, wifi, enableKeyHex };
+    return { specs, wifi, groupcast, enableKeyHex };
 }
 
 export class AllDevicesTestInstance extends NodeTestInstance {
@@ -113,13 +99,24 @@ export class AllDevicesTestInstance extends NodeTestInstance {
         // Prefer per-run app-args injected by the chip test framework; fall back to process.argv for standalone CLI
         // invocations (chip-tool-tests CI binary, local smoke runs).
         const sourceArgs = this.#appArgs ?? process.argv.slice(2);
-        const { specs, wifi, enableKeyHex } = parseRuntimeArgs(sourceArgs);
+        const { specs, wifi, groupcast, enableKeyHex } = parseRuntimeArgs(sourceArgs);
 
         if (specs.length === 0) {
             throw new ValidationError(
                 `--device <type[:endpoint]> required (supported: ${listDeviceTypes().join(", ")})`,
             );
         }
+
+        // Every type resolves before the node exists, so a bad --device leaves no node holding storage and a socket
+        const factories = specs.map(({ type }) => {
+            const factory = getDeviceType(type);
+            if (!factory) {
+                throw new ValidationError(
+                    `unsupported --device "${type}" (supported: ${listDeviceTypes().join(", ")})`,
+                );
+            }
+            return factory;
+        });
 
         const serverNode = await buildRootNode({
             id: this.id,
@@ -130,17 +127,16 @@ export class AllDevicesTestInstance extends NodeTestInstance {
             passcode: this.config.passcode ?? 20202021,
             port: this.config.port,
             enableKeyHex,
+            groupcast,
         });
 
-        for (const { type, endpoint } of specs) {
-            const factory = getDeviceType(type);
-            if (!factory) {
-                throw new ValidationError(
-                    `unsupported --device "${type}" (supported: ${listDeviceTypes().join(", ")})`,
-                );
-            }
+        const numbers = new EndpointNumberAllocator(specs.flatMap(({ endpoint }) => endpoint ?? []));
+        for (const [index, spec] of specs.entries()) {
+            const { type } = spec;
+            const factory = factories[index];
+            const endpoint = spec.endpoint === undefined ? numbers.first() : numbers.take(spec.endpoint);
             logger.info(`Adding device "${type}" on endpoint ${endpoint}`);
-            const handle = await factory.create(serverNode, endpoint);
+            const handle = await factory.create(serverNode, endpoint, numbers);
             this.#endpoints.set(endpoint, handle);
         }
 

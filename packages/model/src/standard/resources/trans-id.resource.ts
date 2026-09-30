@@ -8,4 +8,8 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "trans-id", description: "Transaction ID", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "trans-id", description: "Transaction ID", xref: "core§7.19.2.36",
+    details: "An identifier for a transaction as defined in the Interaction Model specification, see Transaction " +
+        "ID."
+});

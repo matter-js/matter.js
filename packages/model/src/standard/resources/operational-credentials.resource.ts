@@ -470,24 +470,25 @@ Resource.add({
                 "attestation_challenge || fabric_index || vendor_fabric_binding_message || " +
                 "<vid_verification_statement>" +
                 "\n" +
-                "  - fabric_binding_version is the value from the FabricBindingVersion field of this " +
+                "    - fabric_binding_version is the value from the FabricBindingVersion field of this " +
                 "SignVIDVerificationResponse." +
                 "\n" +
-                "  - client_challenge is the 32-octet ClientChallenge from the SignVIDVerificationRequest." +
+                "    - client_challenge is the 32-octet ClientChallenge from the SignVIDVerificationRequest." +
                 "\n" +
-                "  - attestation_challenge is the AttestationChallenge from a CASE session, resumed CASE session, or " +
-                "PASE session depending on the method used to establish the current secure session context over " +
-                "which the response will be sent." +
+                "    - attestation_challenge is the AttestationChallenge from a CASE session, resumed CASE session, " +
+                "or PASE session depending on the method used to establish the current secure session context " +
+                "over which the response will be sent." +
                 "\n" +
-                "  - fabric_index is the 1-octet value of FabricIndex from the SignVIDVerificationRequest." +
+                "    - fabric_index is the 1-octet value of FabricIndex from the SignVIDVerificationRequest." +
                 "\n" +
-                "  - vendor_fabric_binding_message is the octet string of the vendor_fabric_binding_message defined " +
+                "    - vendor_fabric_binding_message is the octet string of the vendor_fabric_binding_message defined " +
                 "in Section 6.4.10.1, \"Algorithm\"." +
                 "\n" +
-                "  - vid_verification_statement is the 85-octet (for cryptographic primitives mapping 1.0) value from " +
-                "the VIDVerificationStatement field of the entry in the Fabrics attribute associated with the " +
-                "fabric_index, if present. If there is no such field in the Fabrics attribute for the " +
-                "fabric_index specified, this field shall be omitted from the vendor_id_verification_tbs message."
+                "    - vid_verification_statement is the 85-octet (for cryptographic primitives mapping 1.0) value " +
+                "from the VIDVerificationStatement field of the entry in the Fabrics attribute associated with " +
+                "the fabric_index, if present. If there is no such field in the Fabrics attribute for the " +
+                "fabric_index specified, this field shall be omitted from the vendor_id_verification_tbs " +
+                "message."
         },
 
         {

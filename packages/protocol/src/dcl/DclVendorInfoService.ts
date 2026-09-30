@@ -25,11 +25,13 @@ import {
     DiscoveryCapabilitiesSchema,
     EnhancedSetupFlowOptionsSchema,
     TypeFromBitmapSchema,
+    VendorDclSchema,
+    VendorId,
 } from "@matter/types";
 import { PairingHintBitmapSchema } from "../advertisement/PairingHintBitmap.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig } from "./DclConfig.js";
-import { DclErrorCodes, DclVendorInfo } from "./DclRestApiTypes.js";
+import { DclErrorCodes } from "./DclRestApiTypes.js";
 import type { SeedSource, VendorEntry as VendorSeedEntry } from "./SeedTypes.js";
 
 const logger = Logger.get("DclVendorInfoService");
@@ -122,7 +124,7 @@ export type ProductInfo = {
      * Configuration flags for the Enhanced Setup Flow, e.g. whether Terms and Conditions
      * must be shown during initial commissioning.
      */
-    enhancedSetupFlowOptions?: TypeFromBitmapSchema<typeof EnhancedSetupFlowOptionsSchema>;
+    enhancedSetupFlowOptions: TypeFromBitmapSchema<typeof EnhancedSetupFlowOptionsSchema>;
 
     /** Link to the Enhanced Setup Flow Terms and Conditions file. */
     enhancedSetupFlowTCUrl?: string;
@@ -247,7 +249,7 @@ export class DclVendorInfoService {
 
     #normalizeProductModel(model: DeviceModelDclSchema): ProductInfo | undefined {
         const {
-            deviceTypeID,
+            deviceTypeId,
             productName,
             productLabel,
             partNumber,
@@ -267,11 +269,11 @@ export class DclVendorInfoService {
             enhancedSetupFlowOptions,
             enhancedSetupFlowTCUrl,
             enhancedSetupFlowTCRevision,
-            enhancedSetupFlowMaintenanceUrl,
+            maintenanceUrl,
         } = model;
         try {
             return {
-                deviceTypeID,
+                deviceTypeID: deviceTypeId,
                 productName,
                 productLabel,
                 partNumber,
@@ -290,13 +292,10 @@ export class DclVendorInfoService {
                 productUrl,
                 lsfUrl,
                 lsfRevision,
-                enhancedSetupFlowOptions:
-                    enhancedSetupFlowOptions !== undefined
-                        ? EnhancedSetupFlowOptionsSchema.decode(enhancedSetupFlowOptions)
-                        : undefined,
+                enhancedSetupFlowOptions: EnhancedSetupFlowOptionsSchema.decode(enhancedSetupFlowOptions),
                 enhancedSetupFlowTCUrl,
                 enhancedSetupFlowTCRevision,
-                enhancedSetupFlowMaintenanceUrl,
+                enhancedSetupFlowMaintenanceUrl: maintenanceUrl,
             };
         } catch (error) {
             logger.warn(
@@ -333,22 +332,24 @@ export class DclVendorInfoService {
         logger.info(`Fetched ${vendors.length} vendors from DCL`);
 
         // Add hardcoded test vendors if not present
-        const hardcodedVendors: DclVendorInfo[] = [
+        const hardcodedVendors: VendorDclSchema[] = [
             ...[0xfff1, 0xfff2, 0xfff3, 0xfff4].map(vendorID => ({
-                vendorID,
+                vendorID: VendorId(vendorID),
                 vendorName: "Test Vendor",
                 companyLegalName: "Test Vendor Inc.",
                 companyPreferredName: "Test Vendor",
                 vendorLandingPageURL: "https://test.example.com",
                 creator: "System",
+                schemaVersion: 0,
             })),
             {
-                vendorID: 4939,
+                vendorID: VendorId(4939),
                 vendorName: "Nabu Casa",
                 companyLegalName: "Nabu Casa, Inc.",
                 companyPreferredName: "Nabu Casa",
                 vendorLandingPageURL: "https://www.nabucasa.com",
                 creator: "System",
+                schemaVersion: 0,
             },
         ];
 
@@ -375,13 +376,13 @@ export class DclVendorInfoService {
     /**
      * Normalize DCL vendor format to internal format.
      */
-    #normalizeDclVendor(dclVendor: DclVendorInfo): VendorInfo {
+    #normalizeDclVendor(dclVendor: VendorDclSchema): VendorInfo {
         return {
             vendorId: dclVendor.vendorID,
             vendorName: dclVendor.vendorName,
             companyLegalName: dclVendor.companyLegalName,
-            companyPreferredName: dclVendor.companyPreferredName,
-            vendorLandingPageUrl: dclVendor.vendorLandingPageURL,
+            companyPreferredName: dclVendor.companyPreferredName ?? "",
+            vendorLandingPageUrl: dclVendor.vendorLandingPageURL ?? "",
             creator: dclVendor.creator,
         };
     }

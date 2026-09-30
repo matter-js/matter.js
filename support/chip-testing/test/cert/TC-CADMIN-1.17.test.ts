@@ -27,6 +27,7 @@ import {
     record,
     recordAll,
     removeFabricSucceeded,
+    withChecks,
 } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -288,27 +289,30 @@ certTest("TC-CADMIN-1.17", {
                 throw new CertCheckFailedError(`RemoveFabric did not answer with success: ${responseFailure}`);
             }
 
-            const removed = await expectDeviceLog(
-                th.log,
-                th.flavor,
-                removeFabricSucceeded(fabricIndex),
-                from,
-                LOG_TIMEOUT,
-            );
-            record(cx, removed.check, "RemoveFabric-successful log");
+            await withChecks(cx, async checks => {
+                const removed = await expectDeviceLog(
+                    th.log,
+                    th.flavor,
+                    removeFabricSucceeded(fabricIndex),
+                    from,
+                    LOG_TIMEOUT,
+                );
+                checks.push({ check: () => removed.check, what: "RemoveFabric-successful log" });
 
-            // Searched from the step's own mark, not from the line above: matter.js closes the removed
-            // fabric's sessions before it answers the invoke, chip after. This step drives the only
-            // removal after that mark, which is what keeps the checks attributable — chip's success
-            // line names no fabric, so on that flavor only the session line identifies one.
-            const expiring = await expectDeviceLog(
-                th.log,
-                th.flavor,
-                fabricSessionsEnded(fabricIndex),
-                from,
-                LOG_TIMEOUT,
-            );
-            record(cx, expiring.check, '"Expiring all sessions" log');
+                // Searched from the step's own mark, not from the line above: matter.js closes the
+                // removed fabric's sessions before it answers the invoke, chip after. This step drives
+                // the only removal after that mark, which is what keeps the checks attributable —
+                // chip's success line names no fabric, so on that flavor only the session line
+                // identifies one.
+                const expiring = await expectDeviceLog(
+                    th.log,
+                    th.flavor,
+                    fabricSessionsEnded(fabricIndex),
+                    from,
+                    LOG_TIMEOUT,
+                );
+                checks.push({ check: () => expiring.check, what: '"Expiring all sessions" log' });
+            });
 
             // Only surrender th_cr2 to step 8 once every check above confirms TH_CE actually removed
             // it. Clearing any earlier left `commissioned` with no owner for a fabric that (per an

@@ -51,7 +51,7 @@ import { Identity } from "@matter/general";
  * light effects that require dimming of the light output, and such is not possible on this device type, the specified
  * light effects may be replaced by pure on/off light effects.
  *
- * @see {@link MatterSpecification.v16.Device} § 5.1
+ * @see {@link MatterSpecification.v161.Device} § 5.1
  */
 export interface OnOffPlugInUnitDevice extends Identity<typeof OnOffPlugInUnitDeviceDefinition> {}
 
@@ -130,7 +130,7 @@ export namespace OnOffPlugInUnitRequirements {
 export const OnOffPlugInUnitDeviceDefinition = MutableEndpoint({
     name: "OnOffPlugInUnit",
     deviceType: 0x10a,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: OnOffPlugInUnitRequirements,
 
     behaviors: SupportedBehaviors(

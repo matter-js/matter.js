@@ -90,7 +90,7 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> NOTE: This value is constrained by all lighting device types to 1, and its Conformance is " +
-                "  Mandatory. As such, when the Lighting feature is supported this value shall be 1."
+                "Mandatory. As such, when the Lighting feature is supported this value shall be 1."
         },
 
         {
@@ -101,7 +101,7 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> NOTE: This value is constrained by all lighting device types to 254, and its Conformance is " +
-                "  Mandatory. As such, when the Lighting feature is supported this value shall be 254."
+                "Mandatory. As such, when the Lighting feature is supported this value shall be 254."
         },
 
         {

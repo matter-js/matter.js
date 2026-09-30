@@ -6,6 +6,7 @@
 
 import {
     Bytes,
+    Hours,
     ImplementationError,
     InternalError,
     Logger,
@@ -13,8 +14,9 @@ import {
     NotImplementedError,
     Seconds,
 } from "@matter/general";
-import { CommonNumberTag, Endpoint, ServerNode } from "@matter/main";
+import { CommonNumberTag, Endpoint, ServerNode, ServerSubscriptionConfig } from "@matter/main";
 import {
+    AccessControlServer,
     AdministratorCommissioningServer,
     AirQualityServer,
     BooleanStateServer,
@@ -28,6 +30,7 @@ import {
     FixedLabelServer,
     FlowMeasurementServer,
     FormaldehydeConcentrationMeasurementServer,
+    GroupcastServer,
     IlluminanceMeasurementServer,
     LaundryWasherModeServer,
     LocalizationConfigurationServer,
@@ -36,6 +39,7 @@ import {
     NetworkCommissioningServer,
     NitrogenDioxideConcentrationMeasurementServer,
     OccupancySensingServer,
+    OtaSoftwareUpdateProviderClient,
     OtaSoftwareUpdateRequestorServer,
     OvenModeServer,
     OzoneConcentrationMeasurementServer,
@@ -103,13 +107,19 @@ import { TestOperationalStateServer } from "./cluster/TestOperationalStateServer
 import { TestOvenCavityOperationalStateServer } from "./cluster/TestOvenCavityOperationalStateServer.js";
 import { TestWindowCoveringServer } from "./cluster/TestWindowCoveringServer.js";
 import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
-import { NodeTestInstance } from "./NodeTestInstance.js";
+import { disableEndpointValidation, NodeTestInstance } from "./NodeTestInstance.js";
 import { SwitchSimulator } from "./simulators/SwitchSimulator.js";
 
 const logger = Logger.get("AllClustersTestInstance");
 
 export class AllClustersTestInstance extends NodeTestInstance {
     static override id = "binford-6100";
+
+    /** Mount the Groupcast cluster (+ Auxiliary ACL) on the root endpoint. Overridden by the no-groupcast variant. */
+    protected readonly groupcast: boolean = true;
+
+    /** Subscription interval limits; undefined keeps the matter.js defaults. Overridden by the full-max-interval variant. */
+    protected readonly subscriptionOptions?: ServerSubscriptionConfig = undefined;
 
     constructor(config: DeviceTestInstanceConfig) {
         super(config);
@@ -282,122 +292,143 @@ export class AllClustersTestInstance extends NodeTestInstance {
             deviceTestEnableKey = Bytes.fromHex(process.argv[argsEnableKeyIndex + 1]);
         }
 
-        const serverNode = await ServerNode.create(
-            ServerNode.RootEndpoint.with(
-                //BasicInformationServer.enable({ events: { shutDown: true, leave: true } }),
-                // We upgrade the AdminCommissioningCluster to also allow Basic Commissioning, so we can use for more testcases
-                AdministratorCommissioningServer.with("Basic"),
-                TestGeneralDiagnosticsServer.enable({
-                    events: { hardwareFaultChange: true, radioFaultChange: true, networkFaultChange: true },
-                }),
-                LocalizationConfigurationServer,
-                NetworkCommissioningServer.with("EthernetNetworkInterface"), // Set the correct Ethernet network Commissioning cluster
-                TimeFormatLocalizationServer.with("CalendarFormat"),
-                UnitLocalizationServer.with("TemperatureUnit"),
-                UserLabelServer,
-            ),
-            {
-                id: this.id,
-                environment: this.env,
-                events: {
-                    nonvolatile: NodeTestInstance.nonvolatileEvents,
-                },
-                network: {
-                    port: this.config.port ?? 5540,
-                    tcp: true,
-                    transportPreference: process.env.TEST_PREFER_TCP === "1" ? "tcp" : "udp",
-                    //advertiseOnStartup: false,
-                },
-                commissioning: {
-                    passcode: this.config.passcode ?? 20202021,
-                    discriminator: this.config.discriminator ?? 3840,
-                    mdns: {
-                        schedules: [
-                            {
-                                ...MdnsAdvertiser.DefaultBroadcastSchedule,
+        const rootEndpoint = this.groupcast
+            ? ServerNode.RootEndpoint.with(
+                  AccessControlServer.with("Auxiliary", "Extension"),
+                  // We upgrade the AdminCommissioningCluster to also allow Basic Commissioning, so we can use for more testcases
+                  AdministratorCommissioningServer.with("Basic"),
+                  TestGeneralDiagnosticsServer.enable({
+                      events: { hardwareFaultChange: true, radioFaultChange: true, networkFaultChange: true },
+                  }),
+                  GroupcastServer.with("Listener", "Sender", "PerGroup"),
+                  LocalizationConfigurationServer,
+                  NetworkCommissioningServer.with("EthernetNetworkInterface"),
+                  TimeFormatLocalizationServer.with("CalendarFormat"),
+                  UnitLocalizationServer.with("TemperatureUnit"),
+                  UserLabelServer,
+              )
+            : // No-groupcast variant (all-clusters-no-groupcast app): drop Groupcast + the Auxiliary ACL
+              // it needs, so is_groupcast_on_root_node() is false and the DUT exercises the legacy Groups path.
+              ServerNode.RootEndpointWithoutGroupcast.with(
+                  AccessControlServer.with("Extension"),
+                  AdministratorCommissioningServer.with("Basic"),
+                  TestGeneralDiagnosticsServer.enable({
+                      events: { hardwareFaultChange: true, radioFaultChange: true, networkFaultChange: true },
+                  }),
+                  LocalizationConfigurationServer,
+                  NetworkCommissioningServer.with("EthernetNetworkInterface"),
+                  TimeFormatLocalizationServer.with("CalendarFormat"),
+                  UnitLocalizationServer.with("TemperatureUnit"),
+                  UserLabelServer,
+              );
 
-                                // Some CHIP tests look for MDNS messages that are otherwise unnecessary (CADMIN/1.15
-                                // and SC/4.3 at a minimum).  It's possible this is because broadcast queries are not
-                                // escaping the container under Docker, although we run in host network mode so this
-                                // should not be an issue.  But, continuing to broadcast for an extended period resolves
-                                // the issue, so we just do that for now
-                                // TODO - if this is only an issue on macs either resolve the broadcast issue or make
-                                // this hack mac specific
-                                broadcastAfterConnection: Seconds(10),
-                            },
-                            MdnsAdvertiser.RetransmissionBroadcastSchedule,
-                        ],
-                    },
-                },
-                productDescription: {
-                    name: this.appName,
-                    deviceType: DeviceTypeId(0x0101),
-                },
-                accessControl: {
-                    extension: [],
-                },
-                administratorCommissioning: {
-                    windowStatus: AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen,
-                },
-                basicInformation: {
-                    vendorName: "Binford",
-                    vendorId: VendorId(0xfff1),
-                    nodeLabel: "",
-                    productName: "MorePowerPro 6100",
-                    productLabel: "MorePowerPro 6100",
-                    productId: 0x8001,
-                    serialNumber: `9999-9999-9999`,
-                    manufacturingDate: "20200101",
-                    partNumber: "123456",
-                    productUrl: "https://test.com",
-                    uniqueId: `node-matter-unique`,
-                    localConfigDisabled: false,
-                    productAppearance: {
-                        finish: BasicInformation.ProductFinish.Satin,
-                        primaryColor: BasicInformation.Color.Purple,
-                    },
-                    reachable: true,
-                },
-                generalDiagnostics: {
-                    totalOperationalHours: 0, // set to enable it
-                    activeHardwareFaults: [], // set to enable it
-                    activeRadioFaults: [], // set to enable it
-                    activeNetworkFaults: [], // set to enable it
-                    testEventTriggersEnabled: true, // Enable Test events
-                    deviceTestEnableKey,
-                },
-                localizationConfiguration: {
-                    activeLocale: "en-US",
-                    supportedLocales: ["en-US", "de-DE", "es-ES"],
-                },
-                networkCommissioning: {
-                    maxNetworks: 1,
-                    interfaceEnabled: true,
-                    networks: [{ networkId: networkId, connected: true }],
+        if (!this.groupcast) {
+            // Without Groupcast the root cannot meet the 1.6.1 RootNode requirements its light devices assert
+            disableEndpointValidation(this.env);
+        }
 
-                    // We fail TC_CNET_4_3 with these
-                    //lastConnectErrorValue: 0,
-                    //lastNetworkId: networkId,
-                    //lastNetworkingStatus: NetworkCommissioning.NetworkCommissioningStatus.Success,
-                },
-                operationalCredentials: {
-                    supportedFabrics: 16,
-                },
-                timeFormatLocalization: {
-                    hourFormat: TimeFormatLocalization.HourFormat["24Hr"],
-                    activeCalendarType: TimeFormatLocalization.CalendarType.Gregorian,
-                    supportedCalendarTypes: [
-                        // After conversion from YAML to python CHIP requires support for Buddhist calendar
-                        // can be removed again after https://github.com/project-chip/connectedhomeip/issues/38812 is fixed
-                        TimeFormatLocalization.CalendarType.Buddhist,
-                        TimeFormatLocalization.CalendarType.Gregorian,
+        const serverNode = await ServerNode.create(rootEndpoint, {
+            id: this.id,
+            environment: this.env,
+            events: {
+                nonvolatile: NodeTestInstance.nonvolatileEvents,
+            },
+            network: {
+                port: this.config.port ?? 5540,
+                tcp: true,
+                transportPreference: process.env.TEST_PREFER_TCP === "1" ? "tcp" : "udp",
+                subscriptionOptions: this.subscriptionOptions,
+                //advertiseOnStartup: false,
+            },
+            commissioning: {
+                passcode: this.config.passcode ?? 20202021,
+                discriminator: this.config.discriminator ?? 3840,
+                mdns: {
+                    schedules: [
+                        {
+                            ...MdnsAdvertiser.DefaultBroadcastSchedule,
+
+                            // Some CHIP tests look for MDNS messages that are otherwise unnecessary (CADMIN/1.15
+                            // and SC/4.3 at a minimum).  It's possible this is because broadcast queries are not
+                            // escaping the container under Docker, although we run in host network mode so this
+                            // should not be an issue.  But, continuing to broadcast for an extended period resolves
+                            // the issue, so we just do that for now
+                            // TODO - if this is only an issue on macs either resolve the broadcast issue or make
+                            // this hack mac specific
+                            broadcastAfterConnection: Seconds(10),
+                        },
+                        MdnsAdvertiser.RetransmissionBroadcastSchedule,
                     ],
                 },
-                userLabel: {
-                    labelList: [{ label: "foo", value: "bar" }],
-                },
             },
-        );
+            productDescription: {
+                name: this.appName,
+                deviceType: DeviceTypeId(0x0101),
+            },
+            accessControl: {
+                extension: [],
+            },
+            administratorCommissioning: {
+                windowStatus: AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen,
+            },
+            basicInformation: {
+                vendorName: "Binford",
+                vendorId: VendorId(0xfff1),
+                nodeLabel: "",
+                productName: "MorePowerPro 6100",
+                productLabel: "MorePowerPro 6100",
+                productId: 0x8001,
+                serialNumber: `9999-9999-9999`,
+                manufacturingDate: "20200101",
+                partNumber: "123456",
+                productUrl: "https://test.com",
+                uniqueId: `node-matter-unique`,
+                localConfigDisabled: false,
+                productAppearance: {
+                    finish: BasicInformation.ProductFinish.Satin,
+                    primaryColor: BasicInformation.Color.Purple,
+                },
+                reachable: true,
+            },
+            generalDiagnostics: {
+                totalOperationalHours: 0, // set to enable it
+                activeHardwareFaults: [], // set to enable it
+                activeRadioFaults: [], // set to enable it
+                activeNetworkFaults: [], // set to enable it
+                testEventTriggersEnabled: true, // Enable Test events
+                deviceTestEnableKey,
+            },
+            localizationConfiguration: {
+                activeLocale: "en-US",
+                supportedLocales: ["en-US", "de-DE", "es-ES"],
+            },
+            networkCommissioning: {
+                maxNetworks: 1,
+                interfaceEnabled: true,
+                networks: [{ networkId: networkId, connected: true }],
+
+                // We fail TC_CNET_4_3 with these
+                //lastConnectErrorValue: 0,
+                //lastNetworkId: networkId,
+                //lastNetworkingStatus: NetworkCommissioning.NetworkCommissioningStatus.Success,
+            },
+            operationalCredentials: {
+                supportedFabrics: 16,
+            },
+            timeFormatLocalization: {
+                hourFormat: TimeFormatLocalization.HourFormat["24Hr"],
+                activeCalendarType: TimeFormatLocalization.CalendarType.Gregorian,
+                supportedCalendarTypes: [
+                    // After conversion from YAML to python CHIP requires support for Buddhist calendar
+                    // can be removed again once CHIP's Python tests no longer require it
+                    TimeFormatLocalization.CalendarType.Buddhist,
+                    TimeFormatLocalization.CalendarType.Gregorian,
+                ],
+            },
+            userLabel: {
+                labelList: [{ label: "foo", value: "bar" }],
+            },
+        });
 
         const endpoint1 = new Endpoint(
             OnOffLightDevice.with(
@@ -469,6 +500,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 OccupancySensingServer.with(OccupancySensing.Feature.PassiveInfrared),
                 TestOperationalStateServer,
                 TestOvenCavityOperationalStateServer,
+                OtaSoftwareUpdateProviderClient,
                 OtaSoftwareUpdateRequestorServer,
                 OvenModeServer,
                 OzoneConcentrationMeasurementServer.with(
@@ -1121,6 +1153,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 },*/
                 windowCovering: {
                     type: WindowCovering.WindowCoveringType.TiltBlindLift,
+                    endProductType: WindowCovering.EndProductType.InteriorVenetianBlind,
                     currentPositionLiftPercent100ths: 0,
                     currentPositionTiltPercent100ths: 0,
                     safetyStatus: {},
@@ -1209,4 +1242,25 @@ export class AllClustersTestInstance extends NodeTestInstance {
 
         return serverNode;
     }
+}
+
+/**
+ * all-clusters built without Groupcast (CHIP's `all-clusters-no-groupcast` app / `enable_groupcast=False`).
+ * Same device otherwise; the absent root Groupcast cluster routes group traffic through the legacy Groups path.
+ */
+export class AllClustersNoGroupcastTestInstance extends AllClustersTestInstance {
+    static override id = "binford-6100-no-groupcast";
+
+    protected override readonly groupcast: boolean = false;
+}
+
+/**
+ * all-clusters granting a requested MaxIntervalCeiling up to the 60-minute publisher limit, as CHIP's all-clusters app
+ * does, instead of the 3 minutes matter.js grants by default.  For tests that assert the negotiated MaxInterval equals
+ * the requested ceiling.
+ */
+export class AllClustersFullMaxIntervalTestInstance extends AllClustersTestInstance {
+    static override id = "binford-6100-full-max-interval";
+
+    protected override readonly subscriptionOptions = ServerSubscriptionConfig.of({ maxInterval: Hours.one });
 }

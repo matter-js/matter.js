@@ -14,12 +14,13 @@ Resource.add({
         "Dimmable Light, is capable of being used to switch the device on or off.",
 
     children: [
-        { tag: "requirement", name: "Identify", discriminator: "M:serverCluster", xref: "device§7.8.4" },
-        { tag: "requirement", name: "Identify", discriminator: "M:clientCluster", xref: "device§7.8.4" },
-        { tag: "requirement", name: "Groups", xref: "device§7.8.4" },
-        { tag: "requirement", name: "OnOff", xref: "device§7.8.4" },
-        { tag: "requirement", name: "LevelControl", xref: "device§7.8.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§7.8.4" },
-        { tag: "requirement", name: "ColorControl", xref: "device§7.8.4" }
+        { tag: "requirement", name: "GroupcastSenderCond", xref: "device§7.8.4" },
+        { tag: "requirement", name: "Identify", discriminator: "M:serverCluster", xref: "device§7.8.5" },
+        { tag: "requirement", name: "Identify", discriminator: "M:clientCluster", xref: "device§7.8.5" },
+        { tag: "requirement", name: "Groups", xref: "device§7.8.5" },
+        { tag: "requirement", name: "OnOff", xref: "device§7.8.5" },
+        { tag: "requirement", name: "LevelControl", xref: "device§7.8.5" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§7.8.5" },
+        { tag: "requirement", name: "ColorControl", xref: "device§7.8.5" }
     ]
 });

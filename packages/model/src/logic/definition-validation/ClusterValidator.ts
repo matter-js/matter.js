@@ -16,6 +16,7 @@ ModelValidator.validators[ClusterElement.Tag] = class DeviceTypeValidator extend
 
         this.validateProperty({ name: "singleton", type: "boolean" });
         this.validateProperty({ name: "classification", type: ClusterElement.Classification });
+        this.validateProperty({ name: "bindable", type: "boolean" });
 
         if (!this.model.children.length && this.model.type === undefined) {
             this.error("EMPTY_CLUSTER", "Cluster has no elements");

@@ -7,7 +7,13 @@
 import { InternalError } from "@matter/main";
 import { Status } from "@matter/main/types";
 import { Matter } from "@matter/model";
-import type { BatchCommandResult, BatchCommandSpec, CertStepContext, SelectableDeviceFlavor } from "@matter/testing";
+import type {
+    BatchCommandResult,
+    BatchCommandSpec,
+    CertStepContext,
+    CheckRecord,
+    SelectableDeviceFlavor,
+} from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { registerCertCustomCluster } from "../../src/cert/custom-clusters.js";
 import { ChipFault, FAULT_TYPE_CHIP, FaultInjectionCluster } from "./fault-injection.js";
@@ -19,7 +25,8 @@ import {
     expectInvokeCount,
     expectNoInjectedFault,
 } from "./tc-idm-1.3-support.js";
-import { CommissionedRefs, LOG_TIMEOUT, record, requireId } from "./tc-support.js";
+import type { RecordedCheck } from "./tc-support.js";
+import { attempt, CommissionedRefs, LOG_TIMEOUT, recordAll, requireId } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
 const ON_OFF_ID = requireId(ON_OFF.id, "OnOff cluster");
@@ -59,33 +66,53 @@ const CW_TIMEOUT_SECONDS = 180;
 
 const commissioned = new CommissionedRefs<"dut" | "th_client">();
 
-/**
- * Records the device's answers to a batch as the step's response evidence. Arrival order is part of the
- * claim: three of the steps differ from one another in nothing else.
- */
-function recordResults(
-    cx: CertStepContext,
-    results: BatchCommandResult[],
-    expected: { index: number; status: number }[],
-) {
-    const actual = results.map(({ index, status }) => ({ index, status }));
-    const matches = JSON.stringify(actual) === JSON.stringify(expected);
-
-    record(
-        cx,
+function batchRequestChecks(cx: CertStepContext, from: number, paths: BatchPath[]): RecordedCheck[] {
+    const th = cx.devices.th;
+    return [
         {
-            type: "response",
-            verdict: matches ? "pass" : "fail",
-            detail: `invoke responses arrived as ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`,
+            what: "Invoke request paths",
+            check: () => expectBatchRequestPaths(th.log, th.flavor, paths, from, LOG_TIMEOUT),
         },
-        "Batch invoke responses",
-    );
+        { what: "Invoke request count", check: () => expectInvokeCount(th.log, th.flavor, from, 1) },
+    ];
 }
 
-async function recordBatchRequest(cx: CertStepContext, from: number, paths: BatchPath[]) {
+/** A step's own log check of how the TH answered, searched from the mark taken before the step's invoke. */
+interface AnswerCheck {
+    what: string;
+    check: (from: number) => Promise<CheckRecord>;
+}
+
+/**
+ * Sends the step's batch and records the device's answers, the request the TH received and `answer`.
+ * Arrival order is part of the response claim: three of the steps differ from one another in nothing
+ * else.
+ */
+async function invokeBatchAndCheck(
+    cx: CertStepContext,
+    expected: { index: number; status: number }[],
+    answer: AnswerCheck,
+) {
     const th = cx.devices.th;
-    record(cx, await expectBatchRequestPaths(th.log, th.flavor, paths, from, LOG_TIMEOUT), "Invoke request paths");
-    record(cx, await expectInvokeCount(th.log, th.flavor, from, 1), "Invoke request count");
+    const dut = cx.controllers.dut.node(commissioned.require("dut"));
+    const from = th.log.mark();
+
+    const arrived = (results: BatchCommandResult[]) =>
+        JSON.stringify(results.map(({ index, status }) => ({ index, status })));
+    const response = await attempt(
+        () => dut.invokeBatch(BATCH),
+        results => `invoke responses arrived as ${arrived(results)}, expected ${JSON.stringify(expected)}`,
+    );
+    const mismatched = response.ok && arrived(response.value) !== JSON.stringify(expected);
+
+    await recordAll(cx, [
+        {
+            what: "Batch invoke responses",
+            check: () => (mismatched ? { ...response.check, verdict: "fail" } : response.check),
+        },
+        ...batchRequestChecks(cx, from, BATCH_PATHS),
+        { what: answer.what, check: () => answer.check(from) },
+    ]);
 }
 
 certTest("TC-IDM-1.3", {
@@ -167,8 +194,10 @@ certTest("TC-IDM-1.3", {
                 detail: "TH device accepted FailAtFault for chip faults 12, 13 and 14",
             });
 
-            record(cx, await expectInvokeCount(th.log, th.flavor, from, 3), "Arming invoke count");
-            record(cx, await expectNoInjectedFault(th.log, th.flavor, from), "No fault fired while arming");
+            await recordAll(cx, [
+                { what: "Arming invoke count", check: () => expectInvokeCount(th.log, th.flavor, from, 3) },
+                { what: "No fault fired while arming", check: () => expectNoInjectedFault(th.log, th.flavor, from) },
+            ]);
         },
         { expected: "Each FailAtFault command's response indicates it was successful" },
     )
@@ -179,16 +208,14 @@ certTest("TC-IDM-1.3", {
             "same order",
         async cx => {
             const th = cx.devices.th;
-            const from = th.log.mark();
-
-            const results = await cx.controllers.dut.node(commissioned.require("dut")).invokeBatch(BATCH);
-
-            recordResults(cx, results, [
-                { index: 0, status: Status.Success },
-                { index: 1, status: Status.Success },
-            ]);
-            await recordBatchRequest(cx, from, BATCH_PATHS);
-            record(cx, await expectNoInjectedFault(th.log, th.flavor, from), "No injected fault");
+            await invokeBatchAndCheck(
+                cx,
+                [
+                    { index: 0, status: Status.Success },
+                    { index: 1, status: Status.Success },
+                ],
+                { what: "No injected fault", check: from => expectNoInjectedFault(th.log, th.flavor, from) },
+            );
         },
         {
             expected:
@@ -202,19 +229,17 @@ certTest("TC-IDM-1.3", {
             "the first carrying MoreChunkedMessages, with the responses in the same order as the request",
         async cx => {
             const th = cx.devices.th;
-            const from = th.log.mark();
-
-            const results = await cx.controllers.dut.node(commissioned.require("dut")).invokeBatch(BATCH);
-
-            recordResults(cx, results, [
-                { index: 0, status: Status.Failure },
-                { index: 1, status: Status.Failure },
-            ]);
-            await recordBatchRequest(cx, from, BATCH_PATHS);
-            record(
+            await invokeBatchAndCheck(
                 cx,
-                await expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSeparateResponses, from, LOG_TIMEOUT),
-                "Separate response messages",
+                [
+                    { index: 0, status: Status.Failure },
+                    { index: 1, status: Status.Failure },
+                ],
+                {
+                    what: "Separate response messages",
+                    check: from =>
+                        expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSeparateResponses, from, LOG_TIMEOUT),
+                },
             );
         },
         {
@@ -230,25 +255,23 @@ certTest("TC-IDM-1.3", {
             "with the responses in the opposite order to the request",
         async cx => {
             const th = cx.devices.th;
-            const from = th.log.mark();
-
-            const results = await cx.controllers.dut.node(commissioned.require("dut")).invokeBatch(BATCH);
-
-            recordResults(cx, results, [
-                { index: 1, status: Status.Failure },
-                { index: 0, status: Status.Failure },
-            ]);
-            await recordBatchRequest(cx, from, BATCH_PATHS);
-            record(
+            await invokeBatchAndCheck(
                 cx,
-                await expectInjectedFault(
-                    th.log,
-                    th.flavor,
-                    ChipFault.imInvokeSeparateResponsesInvertResponseOrder,
-                    from,
-                    LOG_TIMEOUT,
-                ),
-                "Inverted response order",
+                [
+                    { index: 1, status: Status.Failure },
+                    { index: 0, status: Status.Failure },
+                ],
+                {
+                    what: "Inverted response order",
+                    check: from =>
+                        expectInjectedFault(
+                            th.log,
+                            th.flavor,
+                            ChipFault.imInvokeSeparateResponsesInvertResponseOrder,
+                            from,
+                            LOG_TIMEOUT,
+                        ),
+                },
             );
         },
         {
@@ -263,19 +286,17 @@ certTest("TC-IDM-1.3", {
             "second",
         async cx => {
             const th = cx.devices.th;
-            const from = th.log.mark();
-
-            const results = await cx.controllers.dut.node(commissioned.require("dut")).invokeBatch(BATCH);
-
-            recordResults(cx, results, [
-                { index: 0, status: Status.Failure },
-                { index: 1, status: Status.NoCommandResponse },
-            ]);
-            await recordBatchRequest(cx, from, BATCH_PATHS);
-            record(
+            await invokeBatchAndCheck(
                 cx,
-                await expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSkipSecondResponse, from, LOG_TIMEOUT),
-                "Dropped second response",
+                [
+                    { index: 0, status: Status.Failure },
+                    { index: 1, status: Status.NoCommandResponse },
+                ],
+                {
+                    what: "Dropped second response",
+                    check: from =>
+                        expectInjectedFault(th.log, th.flavor, ChipFault.imInvokeSkipSecondResponse, from, LOG_TIMEOUT),
+                },
             );
         },
         {
@@ -293,15 +314,17 @@ certTest("TC-IDM-1.3", {
             const th = cx.devices.th;
             const from = th.log.mark();
 
-            await cx.controllers.dut.node(commissioned.require("dut")).invoke(ON_OFF_ID, "on", undefined, ENDPOINT_1);
+            const dut = cx.controllers.dut.node(commissioned.require("dut"));
+            const response = await attempt(
+                () => dut.invoke(ON_OFF_ID, "on", undefined, ENDPOINT_1),
+                () => `single invoke of OnOff.on on endpoint ${ENDPOINT_1} succeeded`,
+            );
 
-            cx.recorder.check({
-                type: "response",
-                verdict: "pass",
-                detail: `single invoke of OnOff.on on endpoint ${ENDPOINT_1} succeeded`,
-            });
-            await recordBatchRequest(cx, from, [BATCH_PATHS[0]]);
-            record(cx, await expectNoInjectedFault(th.log, th.flavor, from), "No injected fault");
+            await recordAll(cx, [
+                { what: "Single invoke response", check: () => response.check },
+                ...batchRequestChecks(cx, from, [BATCH_PATHS[0]]),
+                { what: "No injected fault", check: () => expectNoInjectedFault(th.log, th.flavor, from) },
+            ]);
         },
         {
             expected: "On the TH, the received request message has the same path as provided in the command",

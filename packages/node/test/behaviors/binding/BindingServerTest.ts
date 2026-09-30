@@ -15,23 +15,21 @@ import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("BindingServer", () => {
     it("initialize replays persisted binding entries to the BindingManager", async () => {
-        const node = await MockServerNode.createOnline(undefined, { online: false, device: OnOffLightSwitchDevice });
+        const node = await MockServerNode.createOnline(undefined, { online: false, device: undefined });
 
         const fabric = await TestFabric({ fabrics: node.env.get(FabricManager) });
-
-        const sourceEp = node.parts.get(1)!;
 
         // Self-binding: entry.node === our nodeId so BindingManager resolves to kind="server" without a peer session.
         const entry = new Binding.Target({
             fabricIndex: fabric.fabricIndex,
             node: fabric.nodeId,
-            endpoint: sourceEp.number,
+            endpoint: EndpointNumber(1),
             cluster: undefined,
             group: undefined,
         });
 
-        // Require BindingServer with pre-seeded binding state before the behavior initializes.
-        sourceEp.behaviors.require(BindingServer, { binding: [entry] });
+        // Pre-seed the binding state before the behavior initializes.
+        const sourceEp = await node.add(OnOffLightSwitchDevice, { number: 1, binding: { binding: [entry] } });
 
         const established = new Array<BindingResolution>();
         sourceEp.eventsOf(BindingServer).established.on(r => {

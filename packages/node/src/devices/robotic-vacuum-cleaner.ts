@@ -125,7 +125,7 @@ import { Identity } from "@matter/general";
  * mode. Certain modes of the RVC Run Mode and the RVC Cleaning Mode clusters may become unavailable and the
  * ChangeToModeResponse commands' StatusCode shall be set to InvalidInMode, when attempting to switch to those modes.
  *
- * @see {@link MatterSpecification.v16.Device} § 12.1
+ * @see {@link MatterSpecification.v161.Device} § 12.1
  */
 export interface RoboticVacuumCleanerDevice extends Identity<typeof RoboticVacuumCleanerDeviceDefinition> {}
 

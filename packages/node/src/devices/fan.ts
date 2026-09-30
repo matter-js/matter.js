@@ -40,7 +40,7 @@ import { Identity } from "@matter/general";
  * this case, the On/Off cluster would be set to Off, and the SpeedCurrent and PercentCurrent set to zero, without
  * changing FanMode, SpeedSetting and PercentSetting.
  *
- * @see {@link MatterSpecification.v16.Device} § 9.2
+ * @see {@link MatterSpecification.v161.Device} § 9.2
  */
 export interface FanDevice extends Identity<typeof FanDeviceDefinition> {}
 
@@ -85,7 +85,7 @@ export namespace FanRequirements {
 export const FanDeviceDefinition = MutableEndpoint({
     name: "Fan",
     deviceType: 0x2b,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: FanRequirements,
     behaviors: SupportedBehaviors(
         FanRequirements.server.mandatory.Identify,

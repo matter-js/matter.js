@@ -84,9 +84,9 @@ import { Identity } from "@matter/general";
  *   - Extended Sleep Time with a sleep time support up to at least 60 minutes, which includes the following IEEE 802.11
  *     features:
  *
- *   - Basic Service Set (BSS) Max Idle Period
+ *     - Basic Service Set (BSS) Max Idle Period
  *
- *   - dot11BSSMaxIdlePeriodIndicationByNonAPSTA
+ *     - dot11BSSMaxIdlePeriodIndicationByNonAPSTA
  *
  *   - IPv6 Proxy Neighbor Discovery Protocol (NDP) including IPv6 duplicate address detection
  *
@@ -141,7 +141,7 @@ import { Identity } from "@matter/general";
  * onboarding payload. This flow is described in detail in the Initiating Commissioning section of the Matter Core
  * specification, under the User Journey titled User-Initiated Beacon Detection, Already Commissioned Device.
  *
- * @see {@link MatterSpecification.v16.Device} § 15.3
+ * @see {@link MatterSpecification.v161.Device} § 15.3
  */
 export interface NetworkInfrastructureManagerDevice extends Identity<typeof NetworkInfrastructureManagerDeviceDefinition> {}
 

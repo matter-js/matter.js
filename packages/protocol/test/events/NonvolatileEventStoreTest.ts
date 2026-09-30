@@ -4,9 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { BaseEventStore } from "#events/BaseEventStore.js";
 import { NonvolatileEventStore } from "#events/NonvolatileEventStore.js";
 import type { Occurrence } from "#events/Occurrence.js";
-import { MemoryStorageDriver, StorageManager, Timestamp, type StorageContext } from "@matter/general";
+import { OccurrenceManager } from "#events/OccurrenceManager.js";
+import {
+    MemoryStorageDriver,
+    StorageManager,
+    Timestamp,
+    type StorageContext,
+    type SupportedStorageTypes,
+} from "@matter/general";
 import { Priority } from "@matter/types";
 
 async function context() {
@@ -62,5 +70,88 @@ describe("NonvolatileEventStore", () => {
 
         const index = await new NonvolatileEventStore(ctx).load();
         expect(index.map(entry => entry.number)).not.deep.contain(summary.number);
+    });
+
+    it("continues numbering across a restart after every event was deleted", async () => {
+        const ctx = await context();
+        const store = await newStore(ctx);
+        const first = await store.add(occurrence());
+        const last = await store.add(occurrence());
+        await store.delete(first.number);
+        await store.delete(last.number);
+
+        const restarted = await newStore(ctx);
+
+        expect((await restarted.add(occurrence())).number > last.number).equal(true);
+    });
+
+    it("keeps its reservation once events are stored", async () => {
+        const ctx = await context();
+        const store = await newStore(ctx);
+
+        await store.add(occurrence());
+
+        expect(await ctx.has(BaseEventStore.LAST_RESERVED_NUMBER_KEY)).equal(true);
+    });
+
+    it("continues after the events an older version stored without a reservation", async () => {
+        const ctx = await context();
+        await ctx.createContext("events").set("7", occurrence() as unknown as SupportedStorageTypes);
+
+        const store = await newStore(ctx);
+
+        expect((await store.add(occurrence())).number).equal(8n);
+    });
+
+    describe("clear", () => {
+        it("numbers from 1 again without keepNumbering (characterization)", async () => {
+            const ctx = await context();
+            const store = await newStore(ctx);
+            await store.add(occurrence());
+            await store.add(occurrence());
+
+            await store.clear();
+
+            expect((await store.add(occurrence())).number).equal(1n);
+            expect(await new NonvolatileEventStore(ctx).load()).length(1);
+        });
+
+        it("discards persisted events and continues numbering across a restart with keepNumbering", async () => {
+            const ctx = await context();
+            const store = await newStore(ctx);
+            await store.add(occurrence());
+            const last = await store.add(occurrence());
+
+            await store.clear({ keepNumbering: true });
+            expect(await new NonvolatileEventStore(ctx).load()).deep.equal([]);
+
+            const restarted = await newStore(ctx);
+
+            expect((await restarted.add(occurrence())).number).equal(last.number + 1n);
+        });
+
+        it("continues numbering across a restart after events were persisted again", async () => {
+            const ctx = await context();
+            const store = await newStore(ctx);
+            await store.add(occurrence());
+            await store.clear({ keepNumbering: true });
+            const last = await store.add(occurrence());
+
+            const restarted = await newStore(ctx);
+
+            expect((await restarted.add(occurrence())).number > last.number).equal(true);
+        });
+
+        it("is passed through by OccurrenceManager", async () => {
+            const ctx = await context();
+            const store = await newStore(ctx);
+            const events = new OccurrenceManager({ store });
+            await events.construction;
+            const last = await events.add(occurrence());
+
+            await events.clear({ keepNumbering: true });
+
+            expect((await events.add(occurrence())).number).equal(last.number + 1n);
+        });
     });
 });

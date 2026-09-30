@@ -52,7 +52,7 @@ export namespace SessionIntervals {
      * Maximum SII/SAI the DNS-SD operational advertisement may carry. This bound is a property of the advertisement
      * encoding only; SII/SAI in the CASE/PASE session-parameter struct are uint32 and accepted unbounded.
      *
-     * @see {@link MatterSpecification.v13.Core} § 4.3.4
+     * @see {@link MatterSpecification.v161.Core} § 4.3.4
      */
     export const maxAdvertisedInterval = Hours.one;
 

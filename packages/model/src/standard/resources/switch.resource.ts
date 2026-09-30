@@ -127,22 +127,22 @@ Resource.add({
                 "\n" +
                 "  - When the AS feature flag is set, this event:" +
                 "\n" +
-                "  - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
+                "    - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
                 "from any multi-press cycles);" +
                 "\n" +
-                "  - shall only be generated after the first InitialPress following a MultiPressComplete when a long " +
-                "press is detected after the idle time." +
+                "    - shall only be generated after the first InitialPress following a MultiPressComplete when a " +
+                "long press is detected after the idle time." +
                 "\n" +
                 "  - Else, when the MSM feature flag is set, this event:" +
                 "\n" +
-                "  - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
+                "    - shall NOT be generated during a multi-press sequence (since a long press is a separate cycle " +
                 "from any multi-press cycles);" +
                 "\n" +
-                "  - shall only be generated after the first InitialPress following a MultiPressComplete when a long " +
-                "press is detected after the idle time;" +
+                "    - shall only be generated after the first InitialPress following a MultiPressComplete when a " +
+                "long press is detected after the idle time;" +
                 "\n" +
-                "  - shall NOT be generated after a MultiPressOngoing event without an intervening MultiPressComplete " +
-                "event." +
+                "    - shall NOT be generated after a MultiPressOngoing event without an intervening " +
+                "MultiPressComplete event." +
                 "\n" +
                 "The above constraints imply that for a given activity detection cycle of a switch having MSM and/or " +
                 "MSL feature flags set, the entire activity is either a single long press detection cycle of " +

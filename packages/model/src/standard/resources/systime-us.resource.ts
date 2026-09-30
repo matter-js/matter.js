@@ -8,4 +8,9 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "systime-us", description: "System Time in microseconds", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "systime-us", description: "System Time in microseconds",
+    xref: "core§7.19.2.6",
+    details: "System time in microseconds is an unsigned 64-bit value representing the number of microseconds " +
+        "since boot."
+});

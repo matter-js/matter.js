@@ -491,6 +491,46 @@ describe("Constraint", () => {
         });
     });
 
+    describe("constantOf", () => {
+        it("computes an expression of numbers", () => {
+            expect(Constraint.constantOf(new Constraint("max 2^62").max)).equal(4611686018427387904n);
+            expect(Constraint.constantOf(new Constraint("min -2^62").min)).equal(-4611686018427387904n);
+            expect(Constraint.constantOf(new Constraint("max (2^62) - 1").max)).equal(4611686018427387903n);
+            expect(Constraint.constantOf(new Constraint("max minOf(3, 2)").max)).equal(2);
+        });
+
+        it("computes nothing from a name", () => {
+            expect(Constraint.constantOf(new Constraint("max Limit - 1").max)).equal(undefined);
+            expect(Constraint.constantOf(new Constraint("max minOf(Limit, 2)").max)).equal(undefined);
+        });
+
+        it("computes nothing from a unit", () => {
+            expect(Constraint.constantOf(new Constraint("max 100% - 1%").max)).equal(undefined);
+        });
+
+        it("computes nothing that is no number", () => {
+            expect(Constraint.constantOf(new Constraint("max 1 / 0").max)).equal(undefined);
+            expect(Constraint.constantOf(new Constraint("max 0^-1").max)).equal(undefined);
+        });
+
+        it("compares a bigint with a number in a function", () => {
+            expect(Constraint.constantOf(new Constraint("max maxOf(2^62, 2)").max)).equal(4611686018427387904n);
+            expect(Constraint.constantOf(new Constraint("max minOf(2^62, 2)").max)).equal(2);
+        });
+
+        it("multiplies a bigint", () => {
+            expect(Constraint.constantOf(new Constraint("max 2^62 * 2").max)).equal(9223372036854775808n);
+        });
+
+        it("computes a fractional power beyond the safe integers as a number", () => {
+            expect(typeof Constraint.constantOf(new Constraint("max 1.5^100").max)).equal("number");
+        });
+
+        it("leaves a number as stated", () => {
+            expect(Constraint.constantOf(new Constraint("max 5").max)).equal(undefined);
+        });
+    });
+
     describe("a bound wider than a number states exactly", () => {
         it("keeps the magnitude of a decimal bound", () => {
             const constraint = new Constraint("0 to 18446744073709551615");

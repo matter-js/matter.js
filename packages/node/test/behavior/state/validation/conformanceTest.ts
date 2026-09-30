@@ -922,6 +922,15 @@ const AllTests = Tests({
             "allows omission": {},
         }),
 
+        obsolete: Tests(Fields({ conformance: "Z" }), {
+            "disallows the field": {
+                record: { test: 1234 },
+                error: disallowed("Z"),
+            },
+
+            "allows omission": {},
+        }),
+
         provisional: Tests(Fields({ conformance: "P" }), {
             "allows the field": {
                 record: { test: 1234 },

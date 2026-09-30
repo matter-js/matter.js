@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterElement, ClusterModel, Matter, MatterElement, MatterModel } from "#index.js";
+import { AttributeModel, ClusterElement, ClusterModel, Matter, MatterElement, MatterModel } from "#index.js";
 import { MergedModel } from "#logic/index.js";
 
 // Utility function to perform merge.  Type resolution works differently
@@ -20,7 +20,69 @@ function merge({ spec, chip }: { spec: MatterElement.Child; chip: MatterElement.
     });
 }
 
+/** The quality a spec attribute ends up with after a local override stating the given quality */
+function qualityWithLocal(specQuality: string, localQuality: string) {
+    const attribute = (quality: string) => ({
+        tag: "cluster" as const,
+        name: "QualityFixture",
+        id: 0xfff1,
+        children: [{ tag: "attribute" as const, name: "Attr", id: 1, type: "uint8", quality }],
+    });
+    const spec = new MatterModel({ name: "Spec" }, ...Matter.seedGlobals, attribute(specQuality));
+    const local = new MatterModel({ name: "Local" }, ...Matter.seedGlobals, attribute(localQuality));
+
+    const merged = MergedModel("1.1", {
+        spec: spec.children[spec.children.length - 1],
+        local: local.children[local.children.length - 1],
+    });
+    const attr = merged.children[0];
+    expect(attr).instanceof(AttributeModel);
+    return attr instanceof AttributeModel ? attr.quality : undefined;
+}
+
 describe("MergedModels", () => {
+    it("applies a local bindable override to the specification's cluster", () => {
+        const spec = new MatterModel(
+            { name: "Spec" },
+            ...Matter.seedGlobals,
+            new ClusterModel({
+                name: "BindableFixture",
+                id: 0xfff1,
+                classification: ClusterElement.Classification.Application,
+            }),
+        );
+        const local = new MatterModel(
+            { name: "Local" },
+            ...Matter.seedGlobals,
+            new ClusterModel({ name: "BindableFixture", id: 0xfff1, bindable: false }),
+        );
+
+        const merged = MergedModel("1.1", {
+            spec: spec.children[spec.children.length - 1],
+            local: local.children[local.children.length - 1],
+        });
+
+        expect(merged).instanceof(ClusterModel);
+        if (merged instanceof ClusterModel) {
+            expect(merged.bindable).false;
+            expect(merged.classification).equals(ClusterElement.Classification.Application);
+        }
+    });
+
+    describe("a local quality override", () => {
+        it("adds a flag to the specification's qualities", () => {
+            const quality = qualityWithLocal("X", "Q");
+            expect(quality?.nullable).true;
+            expect(quality?.quieter).true;
+        });
+
+        it("removes a flag and keeps the others", () => {
+            const quality = qualityWithLocal("X N", "!N");
+            expect(quality?.nullable).true;
+            expect(quality?.nonvolatile).not.true;
+        });
+    });
+
     it("merges children by ID", () => {
         expect(merge(Fixtures.OccupancySensing).children.length).equal(1);
     });

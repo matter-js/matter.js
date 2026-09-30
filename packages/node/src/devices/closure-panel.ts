@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { DescriptorServer as BaseDescriptorServer } from "../behaviors/descriptor/DescriptorServer.js";
 import {
     ClosureDimensionServer as BaseClosureDimensionServer
 } from "../behaviors/closure-dimension/ClosureDimensionServer.js";
@@ -45,11 +46,18 @@ import { Identity } from "@matter/general";
  * ClosurePanelDevice requires ClosureDimension cluster but ClosureDimension is not added by default because you must
  * select the features your device supports. You can add manually using ClosurePanelDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 8.6
+ * @see {@link MatterSpecification.v161.Device} § 8.6
  */
 export interface ClosurePanelDevice extends Identity<typeof ClosurePanelDeviceDefinition> {}
 
 export namespace ClosurePanelRequirements {
+    /**
+     * The Descriptor cluster is required by the Matter specification.
+     *
+     * This version of {@link DescriptorServer} is specialized per the specification.
+     */
+    export const DescriptorServer = BaseDescriptorServer.with("TagList");
+
     /**
      * The ClosureDimension cluster is required by the Matter specification.
      *
@@ -60,7 +68,7 @@ export namespace ClosurePanelRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { ClosureDimension: ClosureDimensionServer } };
+    export const server = { mandatory: { Descriptor: DescriptorServer, ClosureDimension: ClosureDimensionServer } };
 }
 
 export const ClosurePanelDeviceDefinition = MutableEndpoint({
@@ -68,7 +76,7 @@ export const ClosurePanelDeviceDefinition = MutableEndpoint({
     deviceType: 0x231,
     deviceRevision: 1,
     requirements: ClosurePanelRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(ClosurePanelRequirements.server.mandatory.Descriptor)
 });
 
 Object.freeze(ClosurePanelDeviceDefinition);

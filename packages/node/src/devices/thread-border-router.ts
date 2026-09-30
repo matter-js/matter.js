@@ -128,7 +128,7 @@ import { Identity } from "@matter/general";
  *
  * Note 2 : This configuration should remain very rare if the previous installations followed the previous use cases.
  *
- * @see {@link MatterSpecification.v16.Device} § 15.4
+ * @see {@link MatterSpecification.v161.Device} § 15.4
  */
 export interface ThreadBorderRouterDevice extends Identity<typeof ThreadBorderRouterDeviceDefinition> {}
 

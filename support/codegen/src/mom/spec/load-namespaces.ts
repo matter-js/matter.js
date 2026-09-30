@@ -9,6 +9,7 @@ import { SpecReference } from "./spec-types.js";
 
 export function* loadNamespaces(namespaces: SpecReference) {
     let ns: SpecReference | undefined;
+    let nsDepth = 0;
 
     function* emit() {
         if (ns) {
@@ -17,25 +18,29 @@ export function* loadNamespaces(namespaces: SpecReference) {
         }
     }
 
+    // A namespace is a chapter through 1.6.1 and a section of a chapter from 1.7; its tags are one level deeper
     for (const section of scanSpec(namespaces)) {
         const depth = section.xref.section.split(".").length;
-        switch (depth) {
-            case 1:
-                yield* emit();
-                if (section.name.match(/semantic tag namespace$/i)) {
-                    ns = section;
-                }
-                break;
 
-            case 2:
-                if (ns && section.name.match(/ tag$/i)) {
-                    if (ns.details) {
-                        ns.details.push(section);
-                    } else {
-                        ns.details = [section];
-                    }
-                }
-                break;
+        if (section.name.match(/semantic tag namespace$/i)) {
+            yield* emit();
+            ns = section;
+            nsDepth = depth;
+            continue;
+        }
+
+        if (!ns) {
+            continue;
+        }
+
+        if (depth <= nsDepth) {
+            yield* emit();
+        } else if (depth === nsDepth + 1 && section.name.match(/ tag$/i)) {
+            if (ns.details) {
+                ns.details.push(section);
+            } else {
+                ns.details = [section];
+            }
         }
     }
 

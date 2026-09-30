@@ -51,7 +51,7 @@ import { Identity } from "@matter/general";
  * light effects that require dimming of the light output, and such is not possible on this device type, the specified
  * light effects may be replaced by pure on/off light effects.
  *
- * @see {@link MatterSpecification.v16.Device} § 5.3
+ * @see {@link MatterSpecification.v161.Device} § 5.3
  */
 export interface MountedOnOffControlDevice extends Identity<typeof MountedOnOffControlDeviceDefinition> {}
 
@@ -130,7 +130,7 @@ export namespace MountedOnOffControlRequirements {
 export const MountedOnOffControlDeviceDefinition = MutableEndpoint({
     name: "MountedOnOffControl",
     deviceType: 0x10f,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: MountedOnOffControlRequirements,
 
     behaviors: SupportedBehaviors(

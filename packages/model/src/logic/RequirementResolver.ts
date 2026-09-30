@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { collectDotSegments, Conformance } from "../aspects/Conformance.js";
 import { DeviceClassification, ElementTag } from "../common/index.js";
 import { RequirementElement } from "../elements/index.js";
 import {
@@ -29,9 +30,9 @@ import { ModelTraversal } from "./ModelTraversal.js";
  * separate question, which model validation answers. A feature code in conformance must match exactly, so below a
  * cluster requirement whose cluster defines the feature `NODE`, the name `NODE` resolves to the feature while `Node`
  * resolves to the Base condition `Node`. {@link featureOf}, which answers what a feature requirement itself names,
- * follows its own rule.
+ * matches the code exactly as well.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.2.6
+ * @see {@link MatterSpecification.v161.Core} § 9.2.6
  */
 export namespace RequirementResolver {
     /**
@@ -126,6 +127,26 @@ export namespace RequirementResolver {
     }
 
     /**
+     * A requirement's conformance with every condition it names spelled as the condition is declared, or undefined if
+     * every name already is.
+     *
+     * Each name is decided by {@link resolve}: a feature of the cluster in context stays as written, and so does a name
+     * that resolves to nothing. A qualified name (`Declarer.Condition`) takes the spelling of both the declaring device
+     * type and the condition.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
+     */
+    export function declaredConformanceOf(requirement: RequirementModel): Conformance.Ast | undefined {
+        return canonicalizedAst(requirement.conformance.ast, segments => {
+            const resolved = resolve(requirement, segments);
+            if (!(resolved instanceof ConditionModel)) {
+                return undefined;
+            }
+            return segments.length === 1 ? [resolved.name] : [resolved.parent?.name ?? segments[0], resolved.name];
+        });
+    }
+
+    /**
      * The cluster a requirement belongs to: the one a cluster requirement names, or the one enclosing a requirement
      * nested in a cluster requirement. Undefined for any other requirement or a cluster the model does not define.
      */
@@ -140,7 +161,7 @@ export namespace RequirementResolver {
      * The device type a component requirement names, by its ID and otherwise by its name. Undefined for a requirement
      * that is not a component requirement or a device type the model does not define.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function deviceTypeOf(requirement: RequirementModel): DeviceTypeModel | undefined {
         if (requirement.element !== RequirementElement.ElementType.DeviceType) {
@@ -153,10 +174,28 @@ export namespace RequirementResolver {
      * The feature of its cluster that a feature requirement names, or undefined if it names none or is not a feature
      * requirement.
      *
-     * A requirement names a feature by its code or by its title in any case and spacing. The title match holds only
-     * while requirement names are not canonicalized to feature codes.
+     * A requirement names a feature by its code, which matches exactly.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function featureOf(requirement: RequirementModel): FieldModel | undefined {
+        if (requirement.element !== RequirementElement.ElementType.Feature) {
+            return undefined;
+        }
+
+        return endpointScopeOf(requirement).cluster?.features.find(feature => feature.name === requirement.name);
+    }
+
+    /**
+     * The feature of its cluster that a feature requirement names by its code or by its title, ignoring case and
+     * whitespace, or undefined if it names none or is not a feature requirement.
+     *
+     * The specification's element requirement tables name a feature by its title ("LongIdleTimeSupport" for `LITS`),
+     * so this is the lookup for a requirement as scraped. {@link featureOf} is the lookup for a finished model.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
+     */
+    export function featureMatching(requirement: RequirementModel): FieldModel | undefined {
         if (requirement.element !== RequirementElement.ElementType.Feature) {
             return undefined;
         }
@@ -166,14 +205,11 @@ export namespace RequirementResolver {
             return undefined;
         }
 
-        const code = requirement.name.toLowerCase();
-        const byCode = features.find(feature => feature.name.toLowerCase() === code);
-        if (byCode !== undefined) {
-            return byCode;
-        }
-
-        const title = titleKey(requirement.name);
-        return features.find(feature => titleKey(feature.title) === title);
+        const key = featureKeyOf(requirement.name);
+        return (
+            features.find(feature => featureKeyOf(feature.name) === key) ??
+            features.find(feature => feature.title !== undefined && featureKeyOf(feature.title) === key)
+        );
     }
 
     /**
@@ -182,7 +218,7 @@ export namespace RequirementResolver {
      *
      * The name matches exactly and only an element of the kind the requirement states.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function elementOf(requirement: RequirementModel): Model | undefined {
         const tag = elementTagOf(requirement.element);
@@ -199,7 +235,7 @@ export namespace RequirementResolver {
      * The specification's tables name a command field by the command's name followed by the field's, with nothing
      * between them, and state it directly in the cluster requirement. Both names match exactly.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function commandFieldOf(requirement: RequirementModel): Model | undefined {
         if (requirement.element !== RequirementElement.ElementType.CommandField) {
@@ -225,7 +261,7 @@ export namespace RequirementResolver {
      * The condition a condition requirement asserts, named by its type and otherwise by its name, or undefined if it
      * names none or is not a condition requirement.
      *
-     * @see {@link MatterSpecification.v16.Core} § 9.2.6
+     * @see {@link MatterSpecification.v161.Core} § 9.2.6
      */
     export function conditionOf(requirement: RequirementModel): ConditionModel | undefined {
         if (requirement.element !== RequirementElement.ElementType.Condition) {
@@ -291,10 +327,6 @@ function qualifiedKey(declarer: DeviceTypeModel, condition: ConditionModel) {
     return `${declarer.name}.${condition.name}`.toLowerCase();
 }
 
-function titleKey(title: string | undefined) {
-    return title?.toLowerCase().replace(/\s/g, "");
-}
-
 function elementTagOf(element: RequirementElement.ElementType) {
     switch (element) {
         case RequirementElement.ElementType.Attribute:
@@ -320,4 +352,93 @@ function isClusterRequirement(requirement: RequirementModel) {
 
 function clusterNamedBy(matter: MatterModel | undefined, clusterRequirement: RequirementModel) {
     return matter?.clusters(clusterRequirement.id ?? clusterRequirement.name);
+}
+
+function featureKeyOf(name: string) {
+    return name.toLowerCase().replace(/\s/g, "");
+}
+
+/**
+ * A copy of {@link ast} with every name the caller renames replaced, or undefined if it renames none.
+ *
+ * A name arrives as its segments, one for a plain name and several for a qualified one, and is renamed segment for
+ * segment.
+ */
+function canonicalizedAst(
+    ast: Conformance.Ast,
+    rename: (segments: string[]) => string[] | undefined,
+): Conformance.Ast | undefined {
+    switch (ast.type) {
+        case Conformance.Special.Name:
+        case Conformance.Operator.DOT: {
+            const segments = collectDotSegments(ast);
+            if (segments === undefined) {
+                return undefined;
+            }
+            const renamed = rename(segments);
+            if (renamed === undefined || renamed.join(".") === segments.join(".")) {
+                return undefined;
+            }
+            return qualifiedName(renamed);
+        }
+
+        case Conformance.Operator.AND:
+        case Conformance.Operator.OR:
+        case Conformance.Operator.XOR:
+        case Conformance.Operator.EQ:
+        case Conformance.Operator.NE:
+        case Conformance.Operator.GT:
+        case Conformance.Operator.LT:
+        case Conformance.Operator.GTE:
+        case Conformance.Operator.LTE: {
+            const lhs = canonicalizedAst(ast.param.lhs, rename);
+            const rhs = canonicalizedAst(ast.param.rhs, rename);
+            if (lhs === undefined && rhs === undefined) {
+                return undefined;
+            }
+            return { type: ast.type, param: { lhs: lhs ?? ast.param.lhs, rhs: rhs ?? ast.param.rhs } };
+        }
+
+        case Conformance.Operator.NOT: {
+            const param = canonicalizedAst(ast.param, rename);
+            return param === undefined ? undefined : { type: ast.type, param };
+        }
+
+        case Conformance.Special.OptionalIf: {
+            const param = canonicalizedAst(ast.param, rename);
+            return param === undefined ? undefined : { type: ast.type, param };
+        }
+
+        case Conformance.Special.Choice: {
+            const expr = canonicalizedAst(ast.param.expr, rename);
+            return expr === undefined ? undefined : { type: ast.type, param: { ...ast.param, expr } };
+        }
+
+        case Conformance.Special.Otherwise: {
+            let changed = false;
+            const param = ast.param.map(entry => {
+                const canonicalized = canonicalizedAst(entry, rename);
+                if (canonicalized === undefined) {
+                    return entry;
+                }
+                changed = true;
+                return canonicalized;
+            });
+            return changed ? { type: ast.type, param } : undefined;
+        }
+
+        default:
+            return undefined;
+    }
+}
+
+function qualifiedName([first, ...rest]: string[]): Conformance.Ast {
+    let ast: Conformance.Ast = { type: Conformance.Special.Name, param: first };
+    for (const segment of rest) {
+        ast = {
+            type: Conformance.Operator.DOT,
+            param: { lhs: ast, rhs: { type: Conformance.Special.Name, param: segment } },
+        };
+    }
+    return ast;
 }

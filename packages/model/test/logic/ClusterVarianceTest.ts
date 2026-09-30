@@ -27,6 +27,14 @@ describe("ClusterVariance", () => {
             });
         });
 
+        it("omits disallowed elements (characterization)", () => {
+            expectComponents(attrs({ name: "attr", conformance: "X" }));
+        });
+
+        it("classifies obsolete as optional, as it does deprecated", () => {
+            expectComponents(attrs({ name: "attr", conformance: "Z" }), { optional: ["attr"] });
+        });
+
         it("ignores deprecation", () => {
             expectComponents(attrs({ name: "attr", conformance: "D" }), { optional: ["attr"] });
         });
@@ -157,6 +165,26 @@ describe("ClusterVariance", () => {
             );
         });
 
+        it("parses pipe otherwise-list with a conjunction term FOO | BAR | (BAZ & QUX)", () => {
+            expectComponents(
+                attrs(["FOO", "BAR", "BAZ", "QUX"], { name: "attr", conformance: "FOO | BAR | (BAZ & QUX)" }),
+                { mandatory: ["attr"], condition: { anyOf: ["FOO", "BAR"] } },
+                { mandatory: ["attr"], condition: { allOf: ["BAZ", "QUX"] } },
+            );
+        });
+
+        it("parses provisional pipe otherwise-list P, FOO | BAR | (BAZ & QUX)", () => {
+            expectComponents(
+                attrs(["FOO", "BAR", "BAZ", "QUX"], { name: "attr", conformance: "P, FOO | BAR | (BAZ & QUX)" }),
+                { optional: ["attr"], condition: { anyOf: ["FOO", "BAR"] } },
+                { optional: ["attr"], condition: { allOf: ["BAZ", "QUX"] } },
+            );
+        });
+
+        it("parses fieldName > num, O as optional", () => {
+            expectComponents(attrs({ name: "attr", conformance: "FieldRef > 0, O" }), { optional: ["attr"] });
+        });
+
         it("parses [FOO & !fieldRef].x+ ignoring the field reference", () => {
             expectComponents(attrs(["FOO"], { name: "attr", conformance: "[FOO & !FieldRef].b+" }), {
                 optional: ["attr"],
@@ -191,6 +219,19 @@ describe("ClusterVariance", () => {
             expect(
                 illegalCombinations({ name: "FOO", conformance: "D" }, { name: "BAR", conformance: "X" }),
             ).deep.equal([{ FOO: true }, { BAR: true }]);
+        });
+
+        it("disallows an obsolete feature", () => {
+            expect(illegalCombinations({ name: "FOO", conformance: "Z" })).deep.equal([{ FOO: true }]);
+        });
+
+        it("reads a misplaced obsolete entry as it reads a disallowed one", () => {
+            // "Z, BAR" is invalid and model validation reports it; the analysis must still not fail on it
+            expect(
+                illegalCombinations({ name: "BAR", conformance: "O" }, { name: "FOO", conformance: "Z, BAR" }),
+            ).deep.equal(
+                illegalCombinations({ name: "BAR", conformance: "O" }, { name: "FOO", conformance: "X, BAR" }),
+            );
         });
 
         it("requires a feature another feature mandates", () => {
