@@ -498,6 +498,416 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(node.close());
     });
 
+    /**
+     * A subscription to one attribute whose reports, by index in `held`, are acknowledged only once the test
+     * releases them.  `sends` records the time each report opens its exchange, `messages` the time each report
+     * message is sent, both on the monotonic clock.
+     */
+    async function subscribeWithSlowReports(
+        node: MockServerNode,
+        options: {
+            held?: number[];
+            minIntervalFloorSeconds?: number;
+            maxInterval: Duration;
+            sendInterval: Duration;
+            beforeInitialReport?: () => void;
+            beforeActivate?: () => void;
+        },
+    ) {
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        let version = 1;
+        const emitChange = () =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                ++version,
+            );
+        const emitUnselectedChange = () =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [AttributeId(BasicInformation.attributes.nodeLabel.id)],
+                ++version,
+            );
+
+        const sends = new Array<number>();
+        const messages = new Array<number>();
+        const releases = new Map((options.held ?? []).map(index => [index, new DataReadQueue<void>()]));
+        const done = new Array<Promise<void>>();
+        const subscription = await createSubscription(
+            node,
+            () => {
+                const index = sends.length;
+                sends.push(Time.nowUs);
+                const completion = createPromise<void>();
+                done.push(completion.promise);
+                const exchange = new ProtocolMocks.Exchange({
+                    index: index + 2,
+                    context: { session },
+                    maxPayloadSize: 1200,
+                });
+                exchange.send = async () => {
+                    messages.push(Time.nowUs);
+                    await releases.get(index)?.read();
+                    await exchange.writeStatus();
+                };
+                exchange.close = async () => {
+                    completion.resolver();
+                };
+                return exchange;
+            },
+            {
+                session,
+                attributeRequests: [changedPath],
+                minIntervalFloorSeconds: options.minIntervalFloorSeconds,
+                maxInterval: options.maxInterval,
+                sendInterval: options.sendInterval,
+            },
+        );
+
+        await initialExchange.writeStatus();
+        options.beforeInitialReport?.();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        options.beforeActivate?.();
+        subscription.activate();
+        const start = Time.nowUs;
+
+        // A report's message goes out only after its payload iteration has had its turns, so advance in small steps
+        async function at(ms: number) {
+            while (Time.nowUs < start + ms) {
+                await MockTime.advance(Math.min(10, start + ms - Time.nowUs));
+                await MockTime.yield3();
+            }
+        }
+
+        async function completed(index: number) {
+            await MockTime.resolve(done[index]);
+            await MockTime.yield3();
+        }
+
+        return {
+            subscription,
+            sends,
+            messages,
+            emitChange,
+            emitUnselectedChange,
+            at,
+            completed,
+            async release(index: number) {
+                releases.get(index)?.write();
+                await completed(index);
+            },
+        };
+    }
+
+    describe("with a slow report in flight", () => {
+        const intervals = { maxInterval: Seconds(10), sendInterval: Seconds(8) };
+
+        /**
+         * Report A is in flight from 0 s to 5 s; a change at 1 s queues report B, which goes out at 5 s.  The send
+         * interval restarted by that change ends at 9 s.
+         */
+        async function reportQueuedBehindSlowReport(node: MockServerNode, held = [0, 1]) {
+            const reports = await subscribeWithSlowReports(node, { held, ...intervals });
+            reports.emitChange();
+            await reports.at(1000);
+            reports.emitChange();
+            await reports.at(1100);
+            expect(reports.sends).length(1);
+
+            await reports.at(5000);
+            await reports.release(0);
+            expect(reports.sends).length(2);
+            return reports;
+        }
+
+        it("sends the keep-alive that fell due while a report was in flight when that report completes", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, at, release } = await reportQueuedBehindSlowReport(node);
+            const bSentAt = sends[1];
+
+            await at(9500);
+            expect(sends).length(2);
+            await release(1);
+            await at(20_000);
+            expect(sends.length).at.least(3);
+            expect(sends[2] - bSentAt).at.most(Seconds(8));
+
+            await MockTime.resolve(node.close());
+        });
+
+        // Characterization: passes without the owed keep-alive too; guards against sending an empty report
+        // whenever a pass is queued behind a report
+        it("sends nothing for a queued pass with only unselected changes when no keep-alive is owed", async () => {
+            const node = await MockServerNode.createOnline();
+            const { messages, emitChange, emitUnselectedChange, at, release } = await subscribeWithSlowReports(node, {
+                held: [0],
+                ...intervals,
+            });
+
+            emitChange();
+            await at(1000);
+            emitUnselectedChange();
+            await at(5000);
+            await release(0);
+            await at(5500);
+            expect(messages).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("sends nothing for a later queued pass with only unselected changes once the owed keep-alive went out", async () => {
+            const node = await MockServerNode.createOnline();
+            const { messages, emitChange, emitUnselectedChange, at, release } = await reportQueuedBehindSlowReport(
+                node,
+                [0, 1, 3],
+            );
+
+            await at(9500);
+            await release(1);
+            await at(9600);
+            expect(messages).length(3);
+
+            // Report D is in flight from 10 s; a change it does not select queues a pass behind it
+            emitChange();
+            await at(10_200);
+            expect(messages).length(4);
+            emitUnselectedChange();
+            await at(11_000);
+            await release(3);
+            await at(11_500);
+            expect(messages).length(4);
+
+            await MockTime.resolve(node.close());
+        });
+
+        // Characterization: passes without the owed keep-alive too; guards against sending it on a closed subscription
+        it("does not send the keep-alive that fell due while a report was in flight once closed", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, at, release } = await reportQueuedBehindSlowReport(node);
+
+            await at(9200);
+            const closing = subscription.close();
+            await release(1);
+            await MockTime.resolve(closing);
+            await MockTime.advance(1000);
+            expect(sends).length(2);
+
+            await MockTime.resolve(node.close());
+        });
+    });
+
+    describe("after a wall clock step", () => {
+        const intervals = { minIntervalFloorSeconds: 2, maxInterval: Seconds(10), sendInterval: Seconds(8) };
+
+        // GeneralDiagnostics fails to take the node offline after a backward step longer than the node's uptime, so
+        // each test undoes its steps before closing the node
+        let stepped = 0;
+        beforeEach(() => (stepped = 0));
+        const stepWallClock = (ms: number) => {
+            stepped += ms;
+            MockTime.stepWallClock(ms);
+        };
+        const closeNode = async (node: MockServerNode) => {
+            MockTime.stepWallClock(-stepped);
+            stepped = 0;
+            await MockTime.resolve(node.close());
+        };
+
+        it("sends a change held by the min interval floor when the floor ends although the wall clock stepped backwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            await at(500);
+            emitChange();
+            stepWallClock(-60_000);
+
+            await at(1900);
+            expect(sends).length(0);
+            await at(2100);
+            expect(sends).length(1);
+
+            await closeNode(node);
+        });
+
+        it("sends the keep-alive at the send interval although the wall clock stepped backwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, at } = await subscribeWithSlowReports(node, intervals);
+
+            await at(1000);
+            stepWallClock(-60_000);
+
+            await at(7900);
+            expect(sends).length(0);
+            await at(8100);
+            expect(sends).length(1);
+
+            await closeNode(node);
+        });
+
+        it("sends a change held by a deferral when the deferral ends although the wall clock stepped backwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            subscription.deferReports(Seconds(3));
+            stepWallClock(-60_000);
+            emitChange();
+
+            await at(2900);
+            expect(sends).length(0);
+            await at(3100);
+            expect(sends).length(1);
+
+            await closeNode(node);
+        });
+
+        it("holds a change inside the min interval floor after the wall clock stepped forwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            await at(300);
+            stepWallClock(60_000);
+            await at(500);
+            emitChange();
+
+            await at(1900);
+            expect(sends).length(0);
+            await at(2100);
+            expect(sends).length(1);
+
+            await closeNode(node);
+        });
+
+        it("holds a change until its deferral ends after the wall clock stepped forwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            await at(1000);
+            subscription.deferReports(Seconds(5));
+            await at(1500);
+            stepWallClock(60_000);
+            await at(2000);
+            emitChange();
+
+            await at(5900);
+            expect(sends).length(0);
+            await at(6100);
+            expect(sends).length(1);
+
+            await closeNode(node);
+        });
+
+        it("holds a report queued behind a report being sent until its deferral ends after the wall clock stepped forwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at, release } = await subscribeWithSlowReports(node, {
+                held: [0],
+                maxInterval: Seconds(10),
+                sendInterval: Seconds(8),
+            });
+
+            emitChange();
+            await at(500);
+            emitChange();
+            await at(1000);
+            subscription.deferReports(Seconds(5));
+            stepWallClock(60_000);
+
+            await at(2000);
+            await release(0);
+            await MockTime.advance(100);
+            expect(sends).length(1);
+            await at(6100);
+            expect(sends).length(2);
+
+            await closeNode(node);
+        });
+
+        it("keeps the deferral bound set at activation when the wall clock stepped backwards before it", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, {
+                maxInterval: Seconds(10),
+                sendInterval: Seconds(8),
+                beforeActivate: () => stepWallClock(-60_000),
+            });
+
+            subscription.deferReports(Seconds(3));
+            emitChange();
+            await at(2900);
+            expect(sends).length(0);
+            await at(3100);
+            expect(sends).length(1);
+
+            await closeNode(node);
+        });
+
+        it("sends a change at the end of a deferral requested after the wall clock stepped backwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            stepWallClock(-60_000);
+            subscription.deferReports(Seconds(3));
+            emitChange();
+
+            await at(2900);
+            expect(sends).length(0);
+            await at(3100);
+            expect(sends).length(1);
+
+            await closeNode(node);
+        });
+
+        // Characterization, this test and the next: both also pass when every computation reads the wall clock; each
+        // guards one computation against reading a different clock than the others
+        it("keeps the keep-alive on time after a report sent after the wall clock stepped forwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, messages, emitChange, at, completed } = await subscribeWithSlowReports(node, intervals);
+
+            await at(500);
+            emitChange();
+            stepWallClock(60_000);
+            await at(2100);
+            expect(sends).length(1);
+            await completed(0);
+
+            await MockTime.advance(messages[0] + Seconds(8) + 1 - Time.nowUs);
+            expect(sends).length(2);
+
+            await closeNode(node);
+        });
+
+        it("keeps the min interval floor after the initial report when the wall clock stepped forwards before it", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, emitChange, at } = await subscribeWithSlowReports(node, {
+                ...intervals,
+                beforeInitialReport: () => stepWallClock(60_000),
+            });
+
+            await at(500);
+            emitChange();
+            await at(1900);
+            expect(sends).length(0);
+            await at(2100);
+            expect(sends).length(1);
+
+            await closeNode(node);
+        });
+    });
+
     it("flushes a report queued behind a report being sent on close despite a deferral", async () => {
         const node = await MockServerNode.createOnline();
         const fabric = await node.addFabric();
