@@ -38,6 +38,9 @@ type ServerRecord = {
     established: Map<string, EstablishedEntry>;
     /** Every registered group entry, resolved or waiting for the fabric to hold a key for its group. */
     groups: Map<string, QueueItem>;
+    /** Entries that resolve once something observes `established`. */
+    dormant: Map<string, QueueItem>;
+    releaseListenerWatch?: () => void;
 };
 
 /**
@@ -123,7 +126,7 @@ export class BindingManager {
         const ep = server.endpoint;
         let rec = this.#serverMap.get(ep);
         if (rec === undefined) {
-            rec = { server, pending: new Map(), established: new Map(), groups: new Map() };
+            rec = { server, pending: new Map(), established: new Map(), groups: new Map(), dormant: new Map() };
             this.#serverMap.set(ep, rec);
         }
         return rec;
@@ -147,14 +150,14 @@ export class BindingManager {
         if (groupRec?.groups.delete(key)) {
             this.#forgetIfEmpty(groupRec);
         }
-        if (this.#clearPending(server, entry)) {
+        if (this.#clearDormant(server, key) || this.#clearPending(server, entry)) {
             return;
         }
         await this.#dropEstablished(server, key);
     }
 
     #forgetIfEmpty(rec: ServerRecord) {
-        if (rec.established.size === 0 && rec.pending.size === 0 && rec.groups.size === 0) {
+        if (rec.established.size === 0 && rec.pending.size === 0 && rec.groups.size === 0 && rec.dormant.size === 0) {
             this.#serverMap.delete(rec.server.endpoint);
         }
     }
@@ -206,6 +209,8 @@ export class BindingManager {
         if (rec === undefined) return;
         const snapshot = [...rec.established.values()];
         this.#serverMap.delete(server.endpoint);
+        rec.releaseListenerWatch?.();
+        rec.dormant.clear();
         for (const { cancel } of rec.pending.values()) {
             cancel();
         }
@@ -248,7 +253,7 @@ export class BindingManager {
     }
 
     async #resolveAndEmit(item: QueueItem): Promise<void> {
-        const { server, endpoint: sourceEp, entry } = item;
+        const { endpoint: sourceEp, entry } = item;
 
         const hasNode = entry.node !== undefined;
         const hasGroup = entry.group !== undefined;
@@ -256,8 +261,6 @@ export class BindingManager {
             logger.warn("Binding entry must have exactly one of node/group", Diagnostic.dict({ entry }));
             return;
         }
-
-        let resolution: BindingResolution;
 
         const { clients: declaredClients, unbindable } = this.#selectClientClusters(sourceEp, entry.cluster);
         if (!declaredClients.length) {
@@ -268,6 +271,7 @@ export class BindingManager {
             return;
         }
 
+        const isOurNode = hasNode && this.#isOurNode(entry.node!, entry.fabricIndex);
         if (hasGroup) {
             if (!this.#fabrics.has(entry.fabricIndex)) {
                 logger.warn("Group binding fabric unknown", Diagnostic.dict({ entry }));
@@ -276,6 +280,32 @@ export class BindingManager {
             if (!this.#isRegisteredGroup(item)) {
                 return;
             }
+        } else if (isOurNode) {
+            if (entry.endpoint === undefined || !this.#node.endpoints.has(entry.endpoint)) {
+                logger.warn("Self-binding to non-existent endpoint", Diagnostic.dict({ endpoint: entry.endpoint }));
+                return;
+            }
+            if (
+                entry.cluster !== undefined &&
+                !this.#endpointHasClusterServer(this.#node.endpoints.for(entry.endpoint), entry.cluster)
+            ) {
+                logger.warn(
+                    "Self-binding references cluster not installed as server on target endpoint",
+                    Diagnostic.dict({ entry }),
+                );
+                return;
+            }
+        } else if (entry.endpoint === undefined) {
+            logger.warn("Client binding entry missing endpoint", Diagnostic.dict({ entry }));
+            return;
+        }
+
+        if (this.#parkUnlessListened(item)) {
+            return;
+        }
+
+        let resolution: BindingResolution;
+        if (hasGroup) {
             this.#watchGroupKeys(entry.fabricIndex);
             if (!this.#holdsGroupKey(entry)) {
                 logger.info(
@@ -289,25 +319,14 @@ export class BindingManager {
                 return;
             }
             resolution = group;
-        } else if (this.#isOurNode(entry.node!, entry.fabricIndex)) {
-            if (entry.endpoint === undefined || !this.#node.endpoints.has(entry.endpoint)) {
-                logger.warn("Self-binding to non-existent endpoint", Diagnostic.dict({ endpoint: entry.endpoint }));
-                return;
-            }
-            const endpoint = this.#node.endpoints.for(entry.endpoint);
-            if (entry.cluster !== undefined && !this.#endpointHasClusterServer(endpoint, entry.cluster)) {
-                logger.warn(
-                    "Self-binding references cluster not installed as server on target endpoint",
-                    Diagnostic.dict({ entry }),
-                );
-                return;
-            }
-            resolution = { kind: "server", node: this.#node, endpoint, entry };
+        } else if (isOurNode) {
+            resolution = {
+                kind: "server",
+                node: this.#node,
+                endpoint: this.#node.endpoints.for(entry.endpoint!),
+                entry,
+            };
         } else {
-            if (entry.endpoint === undefined) {
-                logger.warn("Client binding entry missing endpoint", Diagnostic.dict({ entry }));
-                return;
-            }
             const addr = PeerAddress({ fabricIndex: entry.fabricIndex, nodeId: entry.node! });
             let peer: ClientNode;
             try {
@@ -316,13 +335,13 @@ export class BindingManager {
                 logger.warn("Client binding peer registration failed", Diagnostic.dict({ entry }), error);
                 return;
             }
-            const endpoint = peer.endpoints.require(entry.endpoint);
+            const endpoint = peer.endpoints.require(entry.endpoint!);
             this.#installClientBehaviors(endpoint, declaredClients);
             resolution = { kind: "client", node: peer, endpoint, entry };
         }
 
         if (resolution.kind === "client") {
-            this.#establishClientKind(server, resolution);
+            this.#establishClientKind(item, resolution);
             return;
         }
 
@@ -330,11 +349,20 @@ export class BindingManager {
         if (resolution.kind === "group" && (!this.#isRegisteredGroup(item) || !this.#holdsGroupKey(entry))) {
             return;
         }
-        this.#recordEstablished(server, resolution);
-        const { server: canonicalServer } = this.#record(server);
-        if (!this.#shouldEmitEstablished(canonicalServer, resolution)) {
+        await this.#emitEstablished(item, resolution);
+    }
+
+    /**
+     * Records {@link resolution} and emits `established` for it, or parks the entry again when nothing observes
+     * `established` any more, such as after a `once` observer took an earlier entry.
+     */
+    async #emitEstablished(item: QueueItem, resolution: BindingResolution) {
+        if (this.#parkUnlessListened(item)) {
             return;
         }
+        const { server } = item;
+        this.#recordEstablished(server, resolution);
+        const { server: canonicalServer } = this.#record(server);
         logger.debug(
             "Binding established",
             Diagnostic.dict({
@@ -348,10 +376,77 @@ export class BindingManager {
         } catch (err) {
             logger.warn(
                 "Binding established handler failed",
-                Diagnostic.dict({ endpoint: sourceEp.number, kind: resolution.kind }),
+                Diagnostic.dict({ endpoint: server.endpoint.number, kind: resolution.kind }),
                 Diagnostic.error(err),
             );
         }
+    }
+
+    /**
+     * Keeps an entry dormant while nothing observes `established`, so an application that never observes it causes
+     * no peer registration and no CASE session.  The entry resolves once an observer attaches.
+     *
+     * @returns true if the entry is dormant
+     */
+    #parkUnlessListened(item: QueueItem): boolean {
+        const established = item.server.endpoint.eventsOf(BindingServer).established;
+        if (established.isObserved) {
+            return false;
+        }
+        const rec = this.#record(item.server);
+        const key = BindingManager.entryKey(item.entry);
+        const known = rec.dormant.has(key);
+        rec.dormant.set(key, item);
+        if (known) {
+            return true;
+        }
+        logger.info(
+            "Binding entry waits until something observes binding.established",
+            Diagnostic.dict({ endpoint: item.endpoint.number, entry: item.entry }),
+        );
+        if (rec.releaseListenerWatch === undefined) {
+            const { observed } = established;
+            const listened = (isObserved: boolean) => {
+                if (isObserved) {
+                    this.#multiplex.add(
+                        Promise.resolve().then(() => this.#wake(rec)),
+                        "binding listener attached",
+                    );
+                }
+            };
+            observed.on(listened);
+            rec.releaseListenerWatch = () => {
+                observed.off(listened);
+                rec.releaseListenerWatch = undefined;
+            };
+        }
+        return true;
+    }
+
+    /** Resolves the dormant entries of {@link rec}. */
+    async #wake(rec: ServerRecord) {
+        if (this.#serverMap.get(rec.server.endpoint) !== rec) {
+            return;
+        }
+        rec.releaseListenerWatch?.();
+        const items = [...rec.dormant.values()];
+        rec.dormant.clear();
+        await Promise.all(items.map(item => this.#resolveAndEmit(item)));
+        if (this.#serverMap.get(rec.server.endpoint) === rec) {
+            this.#forgetIfEmpty(rec);
+        }
+    }
+
+    #clearDormant(server: BindingServer, key: string): boolean {
+        const rec = this.#serverMap.get(server.endpoint);
+        if (rec === undefined || !rec.dormant.delete(key)) {
+            return false;
+        }
+        if (rec.dormant.size === 0) {
+            rec.releaseListenerWatch?.();
+        }
+        this.#forgetIfEmpty(rec);
+        return true;
     }
 
     /** Resolves a group entry to its {@link ClientGroup}, or `undefined` where it cannot or no longer should. */
@@ -487,7 +582,8 @@ export class BindingManager {
         }
     }
 
-    #establishClientKind(server: BindingServer, resolution: BindingResolution & { kind: "client" }): void {
+    #establishClientKind(item: QueueItem, resolution: BindingResolution & { kind: "client" }): void {
+        const { server } = item;
         this.#multiplex.add(resolution.node.start(), `start peer ${resolution.node}`);
 
         try {
@@ -512,27 +608,7 @@ export class BindingManager {
         const rec = this.#record(server);
         const handler = async () => {
             this.#clearPending(server, resolution.entry);
-            this.#recordEstablished(server, resolution);
-            if (!this.#shouldEmitEstablished(rec.server, resolution)) {
-                return;
-            }
-            logger.debug(
-                "Binding established",
-                Diagnostic.dict({
-                    endpoint: rec.server.endpoint.number,
-                    kind: resolution.kind,
-                    entry: resolution.entry,
-                }),
-            );
-            try {
-                await rec.server.events.established.emit(resolution);
-            } catch (err) {
-                logger.error(
-                    "Binding established handler failed",
-                    Diagnostic.dict({ endpoint: server.endpoint.number, kind: resolution.kind }),
-                    Diagnostic.error(err),
-                );
-            }
+            await this.#emitEstablished(item, resolution);
         };
 
         // lifecycle.online is edge-triggered.  If the peer is already online (e.g. an earlier
@@ -548,20 +624,6 @@ export class BindingManager {
         const key = BindingManager.entryKey(resolution.entry);
         rec.pending.get(key)?.cancel();
         rec.pending.set(key, { cancel });
-    }
-
-    /** Returns true when emission should proceed.  Warns and returns false when no subscriber is attached. */
-    #shouldEmitEstablished(server: BindingServer, resolution: BindingResolution): boolean {
-        if (server.endpoint.eventsOf(BindingServer).established.isObserved) {
-            return true;
-        }
-        if (Object.keys(server.endpoint.type.clientClusters).length > 0) {
-            logger.warn(
-                "Binding established on endpoint with declared client clusters but no subscriber attached",
-                Diagnostic.dict({ endpoint: server.endpoint.number, kind: resolution.kind }),
-            );
-        }
-        return false;
     }
 
     #clearPending(server: BindingServer, entry: Binding.Target): boolean {
@@ -623,6 +685,8 @@ export class BindingManager {
             }
             rec.pending.clear();
             rec.groups.clear();
+            rec.releaseListenerWatch?.();
+            rec.dormant.clear();
         }
         for (const release of this.#groupKeyWatches.values()) {
             release();
