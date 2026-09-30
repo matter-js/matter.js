@@ -15,6 +15,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Upgraded to Matter specification version 1.6.1. The Groupcast cluster and the Access Control auxiliary ACL are no longer provisional, and the device types that gained a Groupcast condition report their new revision. `BasicInformation.specificationVersion` defaults to 1.6.1 (`0x01060100`)
     - Breaking: `Status.UnreportableAttribute` (0x8c) and `Status.NoUpstreamSubscription` (0xc5) are removed, as Matter 1.6.1 deletes both status codes
     - Enhancement: Specification references in API documentation name the Matter 1.6.1 documents, and references that pointed at the wrong section are corrected
+    - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
 
 - @matter/general
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
@@ -24,8 +25,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `StandardCrypto` computes SHA3-256, SHA-512/224 and SHA-512/256 without Web Crypto, which lacks SHA-512/224 and SHA-512/256 and, on some runtimes, SHA3-256, so a DCL CRL or OTA image with a SHA3-256 digest verifies wherever `StandardCrypto` is in use
     - Fix: `isDeepEqual` compares `Date` values by their time and `Map` and `Set` values by their entries; it treated any two dates, any two maps and any two sets as equal
     - Fix: The plain log format puts the `+` or `-` of an added or deleted list entry on that entry's line instead of at the end of the line before it
+    - Fix: `serializeToJs` writes a `Date` with its ISO timestamp instead of as `new Date(undefined)`
 
 - @matter/model
+    - Feature: Conformance `Z` (obsolete, Matter 1.7) parses as `Conformance.Flag.Obsolete`, and `isObsolete` reports it on `Conformance`, `ValueModel` and `RequirementModel`. `Z` combined with anything else is a conformance error
+    - Feature: `Conformance.applicabilityFor()` takes `deprecatedIsOptional`, which reads deprecated ("D") and obsolete ("Z") conformance as optional instead of disallowed
     - Feature: `Specification.ENABLE_FORWARD_MATTER_FEATURES` (off in releases) and `Specification.isForwardFeatureEnabled()` gate behaviour implemented ahead of a released specification
     - Feature: Forward feature `delay-report-data` (DelayReportData on invoke)
     - Fix: A constraint bound the specification computes from numbers alone, such as `2^62` or `(2^62) - 1`, is restated as the number it computes once its units are counted, so model validation judges it against the type and the TLV schema carries it. `Constraint.constantOf()` computes such an expression; one that names a value stays an expression. The constraint evaluator compares bigint with number arguments in `minOf` and `maxOf`, multiplies bigints, and no longer throws for a fractional power beyond the safe integers or a negative exponent of zero
@@ -87,10 +91,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: An OTA requestor that a provider answers `Busy` keeps `UpdateState` at `DelayedOnQuery` until its retry; it reset the attribute to `Idle` in the same transaction, so a read never showed the wait. After three `Busy` retries it treats the provider as having no update and waits for its next regular query; before, it queried a `Busy` provider again without limit
+    - Fix: A deprecated or obsolete attribute that a device reports is an optional attribute of the client behavior, so it has `$Changing` and `$Changed` events and a property on the behavior's state class
     - Fix: After a factory reset, event reads and subscriptions still see new events: the node keeps its cleared event manager instead of creating a second one they did not know about
     - Fix: Creating a peer no longer closes the node's own event manager
+    - Fix: The remote API (WebSocket, MQTT) `add` method appends the requested entry to a list attribute and validates it; it failed for every list attribute
     - Feature: An invoke with DelayReportData holds off the next report of every subscription that selects an endpoint the invoke dispatches to, by DelayMinMs plus a random jitter below DelayJitterWindowMs; a deferral that ends earlier is kept, and no report is held past the send interval after the last report was sent, counted from when its sending started. Behind the `delay-report-data` forward feature; while `Specification.ENABLE_FORWARD_MATTER_FEATURES` is off the field is ignored. `ServerSubscription.deferReports()`, which holds off a subscription's next report, is available regardless
     - Enhancement: The log line of an inbound invoke received as a group message names the group
+    - Feature: A server rejects an obsolete (`Z`) element or value as it does a disallowed one; a client sends and decodes it without declining it locally
+    - Fix: The remote API validates a write or command on a peer as the peer's own actions do, so the device decides on conformance and a device's response is not rejected for conformance
     - Fix: A command invoked on a `ClientGroup` endpoint, such as the endpoint of a group binding, is sent as a group command without an endpoint in its path instead of failing with `InvalidGroupOperationError`. A group command with a response resolves to `undefined`
     - Fix: A group binding resolves once the fabric holds a key for the group, whether or not its source endpoint is a member of the group, including a key provisioned after the binding was written; a key whose epoch keys all start in the future counts as held, and a send through a binding whose key has gone away fails with a `NoUsableGroupKeyError`
     - Fix: A binding entry that is still waiting to resolve when its endpoint is disposed no longer resolves afterwards
@@ -118,6 +126,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A server endpoint's structure is checked against the device types it declares, at construction and as it changes afterward, and each violation is logged as a warning; `endpoint.validation` (`MATTER_ENDPOINT_VALIDATION`: `off`, `warn` or `strict`, default `warn`) turns the checks off or refuses construction instead, `DeviceTypeConformanceService.validate()` checks on request and returns the violations per endpoint, and `Endpoint.Options.deviceConditions` states conditions the structure does not show
     - Breaking: A server cluster that a device type of the node declares a singleton refuses construction with `DeviceTypeConformanceError` on an endpoint whose device types neither declare the singleton nor list the cluster as a server cluster; with `endpoint.validation` `off` only when a device type above the endpoint declares the singleton
     - Enhancement: The Descriptor `PartsList` update no longer looks up the endpoint's device types in the model on every change, so adding endpoints under an aggregator is about a third faster
+    - Enhancement: `EndpointType.is()` tells whether a value is shaped like an endpoint type
+    - Breaking: The Closure, Closure Panel and Electrical Energy Tariff device types include `DescriptorServer.with("TagList")`, as they require. An endpoint of these device types must set `descriptor.tagList` to 1 to 6 tags, or it fails to initialize
 
 - @matter/testing
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line

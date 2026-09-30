@@ -52,6 +52,10 @@ export class Conformance extends Aspect<Conformance.Definition> {
 
         this.isEmpty = this.type === Conformance.Special.Empty;
 
+        if (this.type !== Conformance.Flag.Obsolete && containsObsolete(this.ast)) {
+            this.error("INVALID_OBSOLETE", 'Obsolete conformance "Z" must stand alone');
+        }
+
         this.freeze();
     }
 
@@ -123,14 +127,29 @@ export class Conformance extends Aspect<Conformance.Definition> {
     }
 
     /**
+     * Is the associated element obsolete?
+     *
+     * An obsolete element stays in the model with its ID and name.  A server may not implement it and rejects values
+     * for it as it does for a disallowed element; a client may still send it and decode it, as it may a deprecated one.
+     *
+     * @see Matter Core Specification 1.7 § 14.3.9
+     */
+    get isObsolete() {
+        return this.ast.type === Conformance.Flag.Obsolete;
+    }
+
+    /**
      * Perform limited conformance evaluation to determine whether this conformance is applicable given a feature
      * combination.
      *
      * This is useful for filtering elements at compile time.  For complete accuracy you then need to filter at runtime
      * once field values are known.
      */
-    applicabilityFor({ definedFeatures: features, supportedFeatures }: Conformance.FeatureContext) {
-        return computeApplicability(features, supportedFeatures, this);
+    applicabilityFor(
+        { definedFeatures: features, supportedFeatures }: Conformance.FeatureContext,
+        options?: Conformance.ApplicabilityOptions,
+    ) {
+        return computeApplicability(features, supportedFeatures, this, options);
     }
 
     override toString() {
@@ -147,6 +166,20 @@ export namespace Conformance {
     export interface FeatureContext {
         definedFeatures: Set<string>;
         supportedFeatures: Set<string>;
+    }
+
+    export interface ApplicabilityOptions {
+        /**
+         * Treat a deprecated ("D") or obsolete ("Z") element as optional instead of disallowed.
+         *
+         * A device may still implement such an element because earlier revisions allowed it.  A client judging the
+         * elements a device reports sets this; a server, which does not offer them, does not.  A list ending in ", D" is
+         * decided by the terms before the "D" either way.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 7.3.8
+         * @see Matter Core Specification 1.7 § 14.3.9
+         */
+        deprecatedIsOptional?: boolean;
     }
 
     export enum Applicability {
@@ -258,6 +291,7 @@ export namespace Conformance {
         Provisional = "P",
         Deprecated = "D",
         Disallowed = "X",
+        Obsolete = "Z",
     }
 
     export enum Operator {
@@ -279,6 +313,7 @@ export namespace Conformance {
     export const P = Flag.Provisional;
     export const D = Flag.Deprecated;
     export const X = Flag.Disallowed;
+    export const Z = Flag.Obsolete;
     export const EQ = Operator.EQ;
     export const NE = Operator.NE;
     export const OR = Operator.OR;
@@ -821,6 +856,51 @@ export function collectDotSegments(ast: Conformance.Ast): string[] | undefined {
     return undefined;
 }
 
+function containsObsolete(ast: Conformance.Ast): boolean {
+    switch (ast.type) {
+        case Conformance.Flag.Obsolete:
+            return true;
+
+        case Conformance.Operator.DOT:
+        case Conformance.Operator.OR:
+        case Conformance.Operator.XOR:
+        case Conformance.Operator.AND:
+        case Conformance.Operator.EQ:
+        case Conformance.Operator.NE:
+        case Conformance.Operator.GT:
+        case Conformance.Operator.LT:
+        case Conformance.Operator.GTE:
+        case Conformance.Operator.LTE:
+            return containsObsolete(ast.param.lhs) || containsObsolete(ast.param.rhs);
+
+        case Conformance.Operator.NOT:
+        case Conformance.Special.OptionalIf:
+            return containsObsolete(ast.param);
+
+        case Conformance.Special.Choice:
+            return containsObsolete(ast.param.expr);
+
+        case Conformance.Special.Otherwise:
+            return ast.param.some(containsObsolete);
+
+        case Conformance.Special.Empty:
+        case Conformance.Special.Desc:
+        case Conformance.Special.Name:
+        case Conformance.Special.Value:
+        case Conformance.Special.Revision:
+        case Conformance.Flag.Mandatory:
+        case Conformance.Flag.Optional:
+        case Conformance.Flag.Provisional:
+        case Conformance.Flag.Deprecated:
+        case Conformance.Flag.Disallowed:
+            return false;
+
+        default:
+            ast satisfies never;
+            return false;
+    }
+}
+
 namespace Parser {
     // Highest precedence first
     export const BinaryOperatorPrecedence = [[">", "<", ">=", "<="], ["==", "!="], ["&"], ["|", "^"]];
@@ -830,7 +910,12 @@ namespace Parser {
 
 const operators = new Set<string>(Object.values(Conformance.Operator));
 
-function computeApplicability(features: Set<string>, supportedFeatures: Set<string>, conformance: Conformance) {
+function computeApplicability(
+    features: Set<string>,
+    supportedFeatures: Set<string>,
+    conformance: Conformance,
+    options?: Conformance.ApplicabilityOptions,
+) {
     const { None, Optional, Conditional, Mandatory } = Conformance.Applicability;
 
     // Handle otherwise lists (must be at top level)
@@ -846,6 +931,11 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
         for (const node of ast.param) {
             if (node.type === Conformance.Flag.Provisional) {
                 provisional = true;
+                continue;
+            }
+
+            // A trailing "D" announces a future deprecation; the terms before it decide
+            if (node.type === Conformance.Flag.Deprecated && node === ast.param[ast.param.length - 1]) {
                 continue;
             }
 
@@ -890,8 +980,11 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                 return applicability;
 
             case Conformance.Flag.Disallowed:
-            case Conformance.Flag.Deprecated:
                 return None;
+
+            case Conformance.Flag.Deprecated:
+            case Conformance.Flag.Obsolete:
+                return options?.deprecatedIsOptional ? Optional : None;
 
             case Conformance.Flag.Provisional:
                 return Optional;

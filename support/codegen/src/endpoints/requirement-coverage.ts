@@ -5,7 +5,7 @@
  */
 
 import { InternalError, Logger } from "#general";
-import { RequirementElement } from "#model";
+import { ClusterModel, RequirementElement, RequirementModel } from "#model";
 import { EndpointFile } from "./EndpointFile.js";
 
 const logger = Logger.get("requirement-coverage");
@@ -42,6 +42,22 @@ const MODEL_ONLY_KINDS = new Set<string>([
     RequirementElement.ElementType.DeviceType,
     RequirementElement.ElementType.Condition,
 ]);
+
+export const DESCRIPTOR_CLUSTER_ID = 0x1d;
+
+/**
+ * Does the device type model, rather than the generated cluster, carry this element requirement?
+ *
+ * A Descriptor `DeviceTypeList` requirement states the device type itself, which the generated endpoint type carries as
+ * its device type and revision.
+ */
+export function isModelCarried(cluster: ClusterModel, requirement: RequirementModel) {
+    return (
+        cluster.id === DESCRIPTOR_CLUSTER_ID &&
+        requirement.element === RequirementElement.ElementType.Attribute &&
+        requirement.name === "DeviceTypeList"
+    );
+}
 
 /**
  * Fail on a requirement kind nothing accounts for.

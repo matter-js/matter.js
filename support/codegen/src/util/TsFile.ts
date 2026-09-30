@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FormattedText, InternalError, serialize } from "#general";
+import { FormattedText, InternalError } from "#general";
 import { Specification } from "#model";
 import { Package } from "#tools";
 import { posix, relative, sep } from "node:path";
 import { absolute, readMatterFile, writeMatterFile } from "./file.js";
 import { SPECIFICATION_NAMESPACE } from "./specification-namespace.js";
-import { asObjectKey } from "./string.js";
+import { asObjectKey, serialize } from "./string.js";
 
 const HEADER = `/**
  * @license
@@ -31,6 +31,7 @@ export type Documentation = {
     details?: string;
     xref?: Specification.CrossReference;
     isDeprecated?: boolean;
+    isObsolete?: boolean;
 };
 
 function mapSpec(xref?: Specification.CrossReference) {
@@ -63,6 +64,7 @@ export abstract class Entry {
             this.documentation?.details ||
             this.documentation?.xref ||
             this.documentation?.isDeprecated ||
+            this.documentation?.isObsolete ||
             this.docText
         );
     }
@@ -110,11 +112,13 @@ export abstract class Entry {
             lines.push(`@see {@link ${spec}} § ${this.documentation?.xref?.section}`);
         }
 
-        if (this.documentation?.isDeprecated) {
+        if (this.documentation?.isObsolete || this.documentation?.isDeprecated) {
             if (lines.length) {
                 lines.push("");
             }
-            lines.push("@deprecated");
+            lines.push(
+                this.documentation.isObsolete ? "@deprecated Obsolete; a server must not implement it" : "@deprecated",
+            );
         }
 
         if (lines.length) {

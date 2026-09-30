@@ -12,6 +12,7 @@ import { CookSurfaceDevice } from "@matter/main/devices/cook-surface";
 import { CooktopDevice } from "@matter/main/devices/cooktop";
 import { EndpointNumber } from "@matter/main/types";
 import { registerDeviceType } from "./DeviceTypeRegistry.js";
+import type { EndpointNumberAllocator } from "./EndpointNumberAllocator.js";
 
 // Two Cook Surface children share one parent and device type, so each carries a distinct
 // position semantic tag (Left/Right) to disambiguate them per the device spec.
@@ -19,14 +20,24 @@ const CookSurface = CookSurfaceDevice.with(IdentifyServer, OnOffServer, Descript
 
 registerDeviceType({
     name: "cooktop",
-    async create(serverNode: ServerNode, endpoint: EndpointNumber) {
-        const ep = new Endpoint(CooktopDevice, { number: endpoint });
+    async create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
+        // Children come with their parent, so the parent's composition is judged complete at construction
+        const ep = new Endpoint(CooktopDevice, {
+            number: endpoint,
+            parts: [
+                new Endpoint(CookSurface, {
+                    id: "surface-1",
+                    number: numbers.next(),
+                    descriptor: { tagList: [CommonPositionTag.Left] },
+                }),
+                new Endpoint(CookSurface, {
+                    id: "surface-2",
+                    number: numbers.next(),
+                    descriptor: { tagList: [CommonPositionTag.Right] },
+                }),
+            ],
+        });
         await serverNode.add(ep);
-
-        await ep.add(new Endpoint(CookSurface, { id: "surface-1", descriptor: { tagList: [CommonPositionTag.Left] } }));
-        await ep.add(
-            new Endpoint(CookSurface, { id: "surface-2", descriptor: { tagList: [CommonPositionTag.Right] } }),
-        );
 
         return { endpoint: ep };
     },

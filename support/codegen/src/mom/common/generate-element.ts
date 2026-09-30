@@ -63,7 +63,7 @@ export function generateElement({
     const start: Record<string, unknown> = { name: element.name };
     delete fields.name;
     if (element.id !== undefined) {
-        const idStr = element.id < 0 ? element : serialize.asIs(`0x${element.id.toString(16)}`);
+        const idStr = element.id < 0 ? element.id : serialize.asIs(`0x${element.id.toString(16)}`);
         start.id = idStr;
     }
     if (element.type) {

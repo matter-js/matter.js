@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FormattedText, serialize } from "#general";
+import { FormattedText } from "#general";
 import { CrossReference } from "#model";
+import { serialize } from "#util/string.js";
 import { Block } from "#util/TsFile.js";
 
 export function addProperties(target: Block, ...sets: Record<string, unknown>[]) {

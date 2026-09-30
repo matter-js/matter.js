@@ -334,6 +334,50 @@ describe("ValueValidator", () => {
         });
     });
 
+    describe("obsolete elements", () => {
+        function obsoleteCluster() {
+            const cluster = new ClusterModel({
+                name: "Test",
+                children: [
+                    new AttributeModel({ id: 0, name: "Legacy", type: "uint8", conformance: "Z" }),
+                    new AttributeModel(
+                        { id: 1, name: "Mode", type: "enum8" },
+                        Field({ id: 0, name: "on", conformance: "Z" }),
+                        Field({ id: 1, name: "off" }),
+                    ),
+                    new AttributeModel({ id: 2, name: "Untyped", conformance: "Z" }),
+                ],
+            });
+            return {
+                validate: RootSupervisor.for(cluster).get(cluster).validate!,
+                path: { path: new DataModelPath(cluster.path) },
+            };
+        }
+
+        const server = {} as ValueSupervisor.Session;
+        const peer = { clientPeerContext: {} } as ValueSupervisor.Session;
+
+        it("rejects an obsolete attribute on a server write", () => {
+            const { validate, path } = obsoleteCluster();
+            expect(() => validate({ legacy: 1 }, server, path)).throws(ConformanceError);
+        });
+
+        it("forwards an obsolete attribute on a client peer write", () => {
+            const { validate, path } = obsoleteCluster();
+            expect(() => validate({ legacy: 1 }, peer, path)).not.throws();
+        });
+
+        it("rejects an obsolete enum value on a server write", () => {
+            const { validate, path } = obsoleteCluster();
+            expect(() => validate({ mode: 0 }, server, path)).throws(EnumValueConformanceError);
+        });
+
+        it("forwards an obsolete enum value on a client peer write", () => {
+            const { validate, path } = obsoleteCluster();
+            expect(() => validate({ mode: 0 }, peer, path)).not.throws();
+        });
+    });
+
     describe("client peer leniency", () => {
         // Enum value gated by an unsupported feature, mirroring FanControl FanMode=Auto(5) with conformance "AUT"
         // when the peer reports FeatureMap=0 (the SwitchBot air purifier case).
