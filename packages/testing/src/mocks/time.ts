@@ -224,7 +224,7 @@ class MockTimer {
 
         if (isPeriodic) {
             this.#callback = async () => {
-                this.#mockTime.callbackAtTime(this.#mockTime.nowMs + this.#armedInterval, this.#callback);
+                this.#mockTime.callbackAtTime(this.#mockTime.nowUs + this.#armedInterval, this.#callback);
                 await callback();
             };
         } else {
@@ -260,7 +260,7 @@ class MockTimer {
         registry.register(this);
         timerNames.set(this.#callback, `${this.name}(${this.#interval}${this.isPeriodic ? ",periodic" : ""})`);
         this.#armedInterval = this.#interval;
-        this.#mockTime.callbackAtTime(this.#mockTime.nowMs + this.#armedInterval, this.#callback);
+        this.#mockTime.callbackAtTime(this.#mockTime.nowUs + this.#armedInterval, this.#callback);
         this.isRunning = true;
         return this;
     }
@@ -300,7 +300,8 @@ interface StaticTimeLike {
 }
 
 let callbacks = new Array<{ atMs: number; callback: TimerCallback }>();
-let nowMs = 0;
+let monotonicMs = 0;
+let wallClockOffsetMs = 0;
 let real = undefined as undefined | TimeLike;
 let enabled = false;
 let defaultToMacrotasks = false;
@@ -344,7 +345,8 @@ export const MockTime = {
         callbacks = [];
         dependents.clear();
         abandonedHostAsyncOps = 0;
-        nowMs = new Date(time).getTime();
+        monotonicMs = new Date(time).getTime();
+        wallClockOffsetMs = 0;
         defaultToMacrotasks = false;
         MockTime.enable();
     },
@@ -421,36 +423,52 @@ export const MockTime = {
         return count;
     },
 
+    /**
+     * Run {@link actor} with the clocks set so that {@link nowMs} reads {@link time}, a wall-clock time, and restore
+     * them afterwards.
+     */
     atTime<T>(time: number | Date, actor: () => T): T {
-        const revertTo = nowMs;
+        const revertTo = monotonicMs;
         let isAsync = false;
         try {
-            nowMs = typeof time === "number" ? time : time.getTime();
+            monotonicMs = (typeof time === "number" ? time : time.getTime()) - wallClockOffsetMs;
             const result = actor();
             if (typeof (result as any)?.then === "function") {
                 isAsync = true;
                 return Promise.resolve(result).finally(() => {
-                    nowMs = revertTo;
+                    monotonicMs = revertTo;
                 }) as T;
             }
             return result;
         } finally {
             if (!isAsync) {
-                nowMs = revertTo;
+                monotonicMs = revertTo;
             }
         }
     },
 
     get now(): Date {
-        return new Date(nowMs);
+        return new Date(monotonicMs + wallClockOffsetMs);
     },
 
     get nowMs() {
-        return nowMs;
+        return monotonicMs + wallClockOffsetMs;
     },
 
+    /**
+     * The monotonic clock, in milliseconds like the production `Time.nowUs`.  Timers run on this clock, so
+     * {@link stepWallClock} does not move it.
+     */
     get nowUs() {
-        return nowMs;
+        return monotonicMs;
+    },
+
+    /**
+     * Step the wall clock ({@link now}, {@link nowMs}) by `offsetMs`, which may be negative, as an NTP step or a
+     * manual clock set does.  The monotonic clock ({@link nowUs}) and pending timers are unaffected.
+     */
+    stepWallClock(offsetMs: number) {
+        wallClockOffsetMs += offsetMs;
     },
 
     getTimer(name: string, duration: number, callback: TimerCallback): MockTimer {
@@ -607,7 +625,7 @@ export const MockTime = {
      * Move time forward.  Runs tasks scheduled during this interval.
      */
     async advance(ms: number) {
-        const newTimeMs = nowMs + ms;
+        const newTimeMs = monotonicMs + ms;
 
         let previousAtMs: number | undefined;
         let iterationsAtSameTime = 0;
@@ -615,7 +633,7 @@ export const MockTime = {
             const { atMs, callback } = callbacks[0];
             if (atMs > newTimeMs) break;
             callbacks.shift();
-            nowMs = atMs;
+            monotonicMs = atMs;
 
             // A timer that rearms at the current time never lets the mock clock advance, so without this guard the
             // loop spins indefinitely
@@ -630,7 +648,7 @@ export const MockTime = {
             await callback();
         }
 
-        nowMs = newTimeMs;
+        monotonicMs = newTimeMs;
     },
 
     /**
@@ -723,6 +741,9 @@ export const MockTime = {
         return [...registry.timers].filter(timer => timer.name === name).length;
     },
 
+    /**
+     * Schedule {@link callback} at {@link atMs} on the monotonic clock ({@link nowUs}).
+     */
     callbackAtTime(atMs: number, callback: TimerCallback) {
         // Encountered this in chromium web tests and reproduced in chrome.  But adding this test fixes it, so maybe a
         // chrome v8 error?  If it triggers again note the stack trace
@@ -788,6 +809,7 @@ Object.assign(globalThis, { MockTime });
 
 Boot.init(kind => {
     if (kind === "state") {
+        wallClockOffsetMs = 0;
         return;
     }
 
