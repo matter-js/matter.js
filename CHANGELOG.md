@@ -29,6 +29,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Feature: Conformance `Z` (obsolete, Matter 1.7) parses as `Conformance.Flag.Obsolete`, and `isObsolete` reports it on `Conformance`, `ValueModel` and `RequirementModel`. `Z` combined with anything else is a conformance error
+    - Feature: `Conformance.applicabilityFor()` takes `deprecatedIsOptional`, which reads deprecated ("D") and obsolete ("Z") conformance as optional instead of disallowed
     - Feature: `Specification.ENABLE_FORWARD_MATTER_FEATURES` (off in releases) and `Specification.isForwardFeatureEnabled()` gate behaviour implemented ahead of a released specification
     - Feature: Forward feature `delay-report-data` (DelayReportData on invoke)
     - Fix: A constraint bound the specification computes from numbers alone, such as `2^62` or `(2^62) - 1`, is restated as the number it computes once its units are counted, so model validation judges it against the type and the TLV schema carries it. `Constraint.constantOf()` computes such an expression; one that names a value stays an expression. The constraint evaluator compares bigint with number arguments in `minOf` and `maxOf`, multiplies bigints, and no longer throws for a fractional power beyond the safe integers or a negative exponent of zero
@@ -89,6 +90,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 
 - @matter/node
+    - Fix: A deprecated or obsolete attribute that a device reports is an optional attribute of the client behavior, so it has `$Changing` and `$Changed` events and a property on the behavior's state class
     - Fix: After a factory reset, event reads and subscriptions still see new events: the node keeps its cleared event manager instead of creating a second one they did not know about
     - Fix: Creating a peer no longer closes the node's own event manager
     - Feature: An invoke with DelayReportData holds off the next report of every subscription that selects an endpoint the invoke dispatches to, by DelayMinMs plus a random jitter below DelayJitterWindowMs; a deferral that ends earlier is kept, and no report is held past the send interval after the last report was sent, counted from when its sending started. Behind the `delay-report-data` forward feature; while `Specification.ENABLE_FORWARD_MATTER_FEATURES` is off the field is ignored. `ServerSubscription.deferReports()`, which holds off a subscription's next report, is available regardless

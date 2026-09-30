@@ -145,8 +145,11 @@ export class Conformance extends Aspect<Conformance.Definition> {
      * This is useful for filtering elements at compile time.  For complete accuracy you then need to filter at runtime
      * once field values are known.
      */
-    applicabilityFor({ definedFeatures: features, supportedFeatures }: Conformance.FeatureContext) {
-        return computeApplicability(features, supportedFeatures, this);
+    applicabilityFor(
+        { definedFeatures: features, supportedFeatures }: Conformance.FeatureContext,
+        options?: Conformance.ApplicabilityOptions,
+    ) {
+        return computeApplicability(features, supportedFeatures, this, options);
     }
 
     override toString() {
@@ -163,6 +166,20 @@ export namespace Conformance {
     export interface FeatureContext {
         definedFeatures: Set<string>;
         supportedFeatures: Set<string>;
+    }
+
+    export interface ApplicabilityOptions {
+        /**
+         * Treat a deprecated ("D") or obsolete ("Z") element as optional instead of disallowed.
+         *
+         * A device may still implement such an element because earlier revisions allowed it.  A client judging the
+         * elements a device reports sets this; a server, which does not offer them, does not.  A list ending in ", D" is
+         * decided by the terms before the "D" either way.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 7.3.8
+         * @see Matter Core Specification 1.7 § 14.3.9
+         */
+        deprecatedIsOptional?: boolean;
     }
 
     export enum Applicability {
@@ -893,7 +910,12 @@ namespace Parser {
 
 const operators = new Set<string>(Object.values(Conformance.Operator));
 
-function computeApplicability(features: Set<string>, supportedFeatures: Set<string>, conformance: Conformance) {
+function computeApplicability(
+    features: Set<string>,
+    supportedFeatures: Set<string>,
+    conformance: Conformance,
+    options?: Conformance.ApplicabilityOptions,
+) {
     const { None, Optional, Conditional, Mandatory } = Conformance.Applicability;
 
     // Handle otherwise lists (must be at top level)
@@ -909,6 +931,11 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
         for (const node of ast.param) {
             if (node.type === Conformance.Flag.Provisional) {
                 provisional = true;
+                continue;
+            }
+
+            // "D" in a list announces a future deprecation; the terms before it decide
+            if (node.type === Conformance.Flag.Deprecated) {
                 continue;
             }
 
@@ -953,9 +980,11 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                 return applicability;
 
             case Conformance.Flag.Disallowed:
-            case Conformance.Flag.Obsolete:
-            case Conformance.Flag.Deprecated:
                 return None;
+
+            case Conformance.Flag.Deprecated:
+            case Conformance.Flag.Obsolete:
+                return options?.deprecatedIsOptional ? Optional : None;
 
             case Conformance.Flag.Provisional:
                 return Optional;
