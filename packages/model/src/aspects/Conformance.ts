@@ -934,8 +934,8 @@ function computeApplicability(
                 continue;
             }
 
-            // "D" in a list announces a future deprecation; the terms before it decide
-            if (node.type === Conformance.Flag.Deprecated) {
+            // A trailing "D" announces a future deprecation; the terms before it decide
+            if (node.type === Conformance.Flag.Deprecated && node === ast.param[ast.param.length - 1]) {
                 continue;
             }
 

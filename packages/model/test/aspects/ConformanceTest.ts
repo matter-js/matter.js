@@ -792,6 +792,10 @@ describe("Conformance", () => {
                 expect(peerApplicability("SomeField, D")).equal(Conditional);
             });
 
+            it("makes a deprecated term that does not end the list optional", () => {
+                expect(peerApplicability("D, AA")).equal(Optional);
+            });
+
             it("leaves a disallowed element excluded", () => {
                 expect(peerApplicability("X")).equal(None);
                 expect(peerApplicability("AA, X")).equal(None);
