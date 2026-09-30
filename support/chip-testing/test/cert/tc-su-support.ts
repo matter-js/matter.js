@@ -417,19 +417,48 @@ const OTA_REQUESTOR = Matter.clusters.require("OtaSoftwareUpdateRequestor");
 const OTA_REQUESTOR_ID = requireId(OTA_REQUESTOR.id, "OtaSoftwareUpdateRequestor cluster");
 const UPDATE_STATE_ID = requireId(OTA_REQUESTOR.attributes.require("updateState").id, "UpdateState attribute");
 
-/** `UpdateState` Idle (Matter Core § 11.20.7.4.2), the state the plans' Test Setup requires. */
-const UPDATE_STATE_IDLE = 1;
+/**
+ * `UpdateState` as the cluster enumerates it (Matter Core § 11.20.7.4.2), for the cases that name a
+ * state the requestor passes through.
+ */
+export const OtaUpdateState = {
+    Unknown: 0,
+    Idle: 1,
+    Querying: 2,
+    DelayedOnQuery: 3,
+    Downloading: 4,
+    Applying: 5,
+    DelayedOnApply: 6,
+    RollingBack: 7,
+    DelayedOnUserConsent: 8,
+} as const;
+
+/** The name a state has in the cluster, for a check's own detail text. */
+export function updateStateName(state: unknown) {
+    return typeof state === "number" ? nameOf(OtaUpdateState, state) : `unreadable (${state})`;
+}
+
+/** `UpdateState` Idle, the state the plans' Test Setup requires. */
+const UPDATE_STATE_IDLE = OtaUpdateState.Idle;
 
 /** `UpdateState` Downloading, which a requestor enters once it starts transferring an image. */
-export const UPDATE_STATE_DOWNLOADING = 4;
+export const UPDATE_STATE_DOWNLOADING = OtaUpdateState.Downloading;
 
 /**
  * `UpdateState` DelayedOnUserConsent (Matter Core § 11.20.7.4.2), which a requestor enters while it
  * obtains the consent a provider asked it for.
  */
-export const UPDATE_STATE_DELAYED_ON_USER_CONSENT = 8;
+export const UPDATE_STATE_DELAYED_ON_USER_CONSENT = OtaUpdateState.DelayedOnUserConsent;
 
 const STATE_TRANSITION_ID = requireId(OTA_REQUESTOR.events.require("stateTransition").id, "StateTransition event");
+
+/** Paths of the requestor events a case about its own reporting subscribes to or reads. */
+export const OTA_REQUESTOR_EVENTS = {
+    cluster: OTA_REQUESTOR_ID,
+    stateTransition: STATE_TRANSITION_ID,
+    versionApplied: requireId(OTA_REQUESTOR.events.require("versionApplied").id, "VersionApplied event"),
+    downloadError: requireId(OTA_REQUESTOR.events.require("downloadError").id, "DownloadError event"),
+} as const;
 
 /** One `StateTransition` event of the DUT's requestor: its event number, and the state it entered. */
 export interface RequestorStateChange {

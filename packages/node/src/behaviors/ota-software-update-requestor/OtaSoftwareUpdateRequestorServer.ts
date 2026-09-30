@@ -54,7 +54,11 @@ const logger = Logger.get("OtaSoftwareUpdateRequestorServer");
 const OTA_BDX_MAX_BLOCK_SIZE_TCP = 8_192; // 8192 is the max defined by the spec, we use that for TCP channels
 const OTA_BDX_MAX_BLOCK_SIZE_NON_TCP = 1_024; // 1024 is the max defined by the spec, we use that for non-TCP channels
 
-const MAX_BUSY_RETRIES = 3; // After 3 BUSY responses in a row, we try another provider
+/**
+ * How often a provider answering Busy is queried again before it counts as having no update; the CHIP SDK allows as many
+ * retries, but then moves on to its next provider at once.
+ */
+const MAX_BUSY_RETRIES = 3;
 
 export interface ProviderLocation extends OtaSoftwareUpdateRequestor.ProviderLocation {}
 
@@ -68,6 +72,18 @@ export interface UpdateInProgressDetails {
     newSoftwareVersion: number;
     location?: ProviderLocation;
     updateToken?: Bytes;
+}
+
+/** How a query of a provider ended, which decides whether the requestor returns to Idle. */
+enum QueryOutcome {
+    /** Nothing further is pending. */
+    Finished,
+
+    /** The provider answered Busy and a retry is armed; the requestor waits in DelayedOnQuery. */
+    Delayed,
+
+    /** An update is prepared to be applied once the query's transaction finishes. */
+    ApplyPrepared,
 }
 
 enum ScheduleReason {
@@ -310,6 +326,11 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             logger.info("Disabling OTA update queries because updatePossible was set to false.");
             this.internal.updateQueryTimer?.stop();
             this.internal.updateQueryTimer = undefined;
+
+            // Nothing is scheduled any more, so a Busy provider's retry is no longer awaited
+            if (this.state.updateState === OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery) {
+                this.#resetStateToIdle();
+            }
         }
     }
 
@@ -457,8 +478,10 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
      * Schedule an update query after the given delay (or latest as defined as update interval if no delay is provided)
      * and optionally for a specific provider (otherwise the most recently seen active provider or the default provider
      * is used).
+     *
+     * @returns whether a query is scheduled when this returns
      */
-    #scheduleUpdateQuery(delay?: Duration, reason = ScheduleReason.NewQuery, provider?: ProviderLocation) {
+    #scheduleUpdateQuery(delay?: Duration, reason = ScheduleReason.NewQuery, provider?: ProviderLocation): boolean {
         if (provider !== undefined) {
             this.internal.selectedProviderLocation = provider;
             if (reason === ScheduleReason.Busy) {
@@ -471,21 +494,21 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         if (this.internal.updateQueryTimer) {
             if (delay === undefined && this.internal.updateQueryTimer.isRunning) {
                 // already scheduled, so lets keep that one
-                return;
+                return true;
             }
             this.internal.updateQueryTimer.stop();
             this.internal.updateQueryTimer = undefined;
         }
 
         if (!this.state.updatePossible || !this.state.activeOtaProviders.length) {
-            return;
+            return false;
         }
 
         if (delay === undefined && this.state.updateState !== OtaSoftwareUpdateRequestor.UpdateState.Idle) {
             logger.info(
                 `Cannot schedule update query, current state is ${OtaSoftwareUpdateRequestor.UpdateState[this.state.updateState]}`,
             );
-            return;
+            return false;
         }
 
         if (delay === undefined) {
@@ -498,6 +521,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             delay,
             this.callback(this.#performUpdateQuery),
         ).start();
+        return true;
     }
 
     /** Choose the next OTA provider to use for an update */
@@ -588,10 +612,10 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             OtaSoftwareUpdateRequestor.ChangeReason.Success,
         );
 
-        let applyPrepared = false;
+        let outcome = QueryOutcome.Finished;
         try {
             // Connect to the provider and query for updates
-            applyPrepared = await this.#queryOtaProvider(await this.#connectOtaProviderFor(provider), provider);
+            outcome = await this.#queryOtaProvider(await this.#connectOtaProviderFor(provider), provider);
         } catch (error) {
             logger.warn(`OTA provider communication failed to`, Diagnostic.dict(provider), error);
 
@@ -599,12 +623,17 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             this.#markActiveOtaProviderNoUpdate(provider);
         }
 
-        if (!applyPrepared) {
+        if (outcome === QueryOutcome.Finished) {
             this.#resetStateToIdle();
         }
     }
 
-    /** Query the given OTA provider for an update and handle all non-UpdateAvailable results and error cases */
+    /**
+     * Query the given OTA provider for an update and handle all non-UpdateAvailable results and error cases.
+     *
+     * @returns the update the provider offers, {@link QueryOutcome.Delayed} while a Busy retry is armed, or
+     * `undefined` when there is none
+     */
     async #updateAvailableFromProvider(
         query: OtaSoftwareUpdateProvider.QueryImageRequest,
         ep: Endpoint,
@@ -626,23 +655,22 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         switch (status) {
             case OtaSoftwareUpdateProvider.Status.Busy:
             case OtaSoftwareUpdateProvider.Status.NotAvailable:
-                // If we already had 3 BUSY responses, we treat it as not available and try another provider
+                // A Busy provider is preparing an update, so it is worth asking again rather than waiting for the next
+                // regular query
                 if (
                     status === OtaSoftwareUpdateProvider.Status.Busy &&
-                    this.internal.providerRetryCount <= MAX_BUSY_RETRIES
-                ) {
-                    // For Busy we schedule a new query after the defined time (or min 120s) for the same provider
-                    // because the provider seems to be in progress to provide an update
-                    this.#updateState(
-                        OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery,
-                        OtaSoftwareUpdateRequestor.ChangeReason.DelayByProvider,
-                    );
+                    this.internal.providerRetryCount < MAX_BUSY_RETRIES &&
                     this.#scheduleUpdateQuery(
                         Millis(Math.max(Seconds(delayedActionTime), this.state.minimumQueryInterval)),
                         ScheduleReason.Busy,
                         providerLocation,
+                    )
+                ) {
+                    this.#updateState(
+                        OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery,
+                        OtaSoftwareUpdateRequestor.ChangeReason.DelayByProvider,
                     );
-                    return;
+                    return QueryOutcome.Delayed;
                 }
                 this.#markActiveOtaProviderNoUpdate(providerLocation);
                 this.#resetStateToIdle();
@@ -797,10 +825,8 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
     /**
      * Query the given OTA provider for an update and handle the result.
-     *
-     * @returns whether an update is prepared to be applied once this transaction finishes
      */
-    async #queryOtaProvider(ep: Endpoint, providerLocation: ProviderLocation): Promise<boolean> {
+    async #queryOtaProvider(ep: Endpoint, providerLocation: ProviderLocation): Promise<QueryOutcome> {
         const { vendorId, productId, softwareVersion, hardwareVersion, location, localConfigDisabled } =
             this.#basicInformationState();
 
@@ -819,8 +845,10 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             providerLocation,
         );
         if (updateDetails === undefined) {
-            // No update available
-            return false;
+            return QueryOutcome.Finished;
+        }
+        if (updateDetails === QueryOutcome.Delayed) {
+            return QueryOutcome.Delayed;
         }
 
         const {
@@ -847,13 +875,13 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                     // Consent denied
                     this.#markActiveOtaProviderNoUpdate(providerLocation);
                     this.#resetStateToIdle();
-                    return false;
+                    return QueryOutcome.Finished;
                 }
             } catch (error) {
                 logger.warn(`Failed to request user consent:`, error);
                 this.#markActiveOtaProviderNoUpdate(providerLocation);
                 this.#resetStateToIdle(OtaSoftwareUpdateRequestor.ChangeReason.Failure);
-                return false;
+                return QueryOutcome.Finished;
             }
         }
 
@@ -893,7 +921,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                 MatterError.accept(error);
                 logger.warn(`OTA download failed and deleting partial file also failed:`, error);
             }
-            return false;
+            return QueryOutcome.Finished;
         }
 
         // Inform the provider that we are ready to apply the update
@@ -908,11 +936,11 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             ))
         ) {
             // Not allowed to proceed with the update, so stop here
-            return false;
+            return QueryOutcome.Finished;
         }
 
         this.#prepareApplyUpdate(newSoftwareVersion, fileDesignator, providerLocation, updateToken);
-        return true;
+        return QueryOutcome.ApplyPrepared;
     }
 
     async #handleBdxDownload(endpoint: Endpoint, fileDesignator: FileDesignator) {

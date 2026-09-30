@@ -767,6 +767,40 @@ describe("Conformance", () => {
             // inversion accepts
             expect(applicability("!(SomeField == SomeValue)")).equal(Conditional);
         });
+
+        describe("with deprecated elements optional", () => {
+            function peerApplicability(definition: string, ...supportedFeatures: string[]) {
+                return new Conformance(definition).applicabilityFor(
+                    { definedFeatures: new Set(["AA", "BB"]), supportedFeatures: new Set(supportedFeatures) },
+                    { deprecatedIsOptional: true },
+                );
+            }
+
+            it("makes a deprecated element optional", () => {
+                expect(peerApplicability("D")).equal(Optional);
+            });
+
+            it("makes an obsolete element optional", () => {
+                expect(peerApplicability("Z")).equal(Optional);
+            });
+
+            it("decides a list ending in deprecated by the terms before it", () => {
+                expect(peerApplicability("[AA], D")).equal(None);
+                expect(peerApplicability("[AA], D", "AA")).equal(Optional);
+                expect(peerApplicability("AA, D")).equal(None);
+                expect(peerApplicability("AA, D", "AA")).equal(Mandatory);
+                expect(peerApplicability("SomeField, D")).equal(Conditional);
+            });
+
+            it("makes a deprecated term that does not end the list optional", () => {
+                expect(peerApplicability("D, AA")).equal(Optional);
+            });
+
+            it("leaves a disallowed element excluded", () => {
+                expect(peerApplicability("X")).equal(None);
+                expect(peerApplicability("AA, X")).equal(None);
+            });
+        });
     });
 });
 

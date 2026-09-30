@@ -2168,8 +2168,8 @@ class InProcessCertNodeApi implements CertNodeApi {
             let pending: EventReadEntry[] | undefined = [];
 
             // A read re-broadcasts the events it answers with, so a later read over any of these paths
-            // would otherwise replay history as though it were live. An observation ends with the peer
-            // it watches, so within one an event number identifies an event.
+            // would otherwise replay history as though it were live. A peer keeps numbering its events
+            // across a restart, so within one observation an event number identifies an event.
             const delivered = new Set<bigint>();
 
             const report = (entry: EventReadEntry) => {
