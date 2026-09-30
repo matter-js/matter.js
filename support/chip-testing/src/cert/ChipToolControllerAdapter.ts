@@ -1880,8 +1880,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
 
     /**
      * A discriminator for an enhanced commissioning window, within § 5.1.1.1's 12-bit range. Successive
-     * windows of one adapter differ, and different adapters start in different ranges; both wrap after
-     * 256 windows, which no cert test comes close to.
+     * windows of one adapter differ, and different adapters start in different ranges. After 256 windows
+     * an adapter runs into the next adapter's range, and the value wraps at 4096; no cert test comes
+     * close to either.
      */
     mintDiscriminator() {
         return (this.#nextDiscriminator++ + DISCRIMINATOR_RANGES[this.#commissionerName] * 0x100) & 0xfff;
