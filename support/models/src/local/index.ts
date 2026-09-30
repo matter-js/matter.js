@@ -31,6 +31,7 @@ import "./GeneralCommissioningOverrides.js";
 import "./GroupKeyManagementOverrides.js";
 import "./GroupsOverrides.js";
 import "./hwadr.js";
+import "./IcdManagementOverrides.js";
 import "./IlluminanceMeasurementOverrides.js";
 import "./ipadr.js";
 import "./ipv4adr.js";
