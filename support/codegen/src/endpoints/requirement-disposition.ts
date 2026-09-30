@@ -79,6 +79,7 @@ function dispositionOfTerms(terms: Conformance.Ast[], clusterMandates: boolean):
                 return RequirementDisposition.Provisional;
 
             case Conformance.Flag.Disallowed:
+            case Conformance.Flag.Obsolete:
                 return RequirementDisposition.Disallow;
 
             case Conformance.Flag.Optional:
@@ -102,7 +103,7 @@ export function dispositionOf(conformance: Conformance, context: DispositionCont
         return RequirementDisposition.Unstated;
     }
 
-    if (conformance.isDisallowed) {
+    if (conformance.isDisallowed || conformance.isObsolete) {
         return RequirementDisposition.Disallow;
     }
 

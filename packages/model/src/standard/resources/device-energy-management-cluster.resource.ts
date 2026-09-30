@@ -696,7 +696,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "NormalCompletion",
-                    description: "The ESA completed the power adjustment as requested"
+                    description: "The ESA completed the adjustment as requested"
                 },
                 { tag: "field", name: "Offline", description: "The ESA was set to offline" },
                 {

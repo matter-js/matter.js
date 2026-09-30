@@ -10,6 +10,12 @@ import { Interactable } from "@matter/protocol";
 import { ClientGroupInteraction, InvalidGroupOperationError } from "./client/ClientGroupInteraction.js";
 import { ClientNode } from "./ClientNode.js";
 
+/**
+ * A Matter group, addressed like a peer.  Commands through its endpoints are sent as group commands with no endpoint in
+ * their paths, and nobody answers them: a command with a response resolves to `undefined`.  An attribute write to the
+ * group goes through {@link interaction} with a group path (cluster and attribute, no endpoint); writing state on one
+ * of its endpoints is not supported.  Reads and subscriptions are refused.
+ */
 export class ClientGroup extends ClientNode {
     #interaction?: ClientGroupInteraction;
 

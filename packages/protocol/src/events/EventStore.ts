@@ -38,6 +38,22 @@ export interface EventStore {
     add(event: Occurrence): MaybePromise<OccurrenceSummary>;
     get(number: EventNumber): MaybePromise<Occurrence>;
     delete(number: EventNumber): MaybePromise<void>;
-    clear(): MaybePromise<void>;
+    clear(options?: EventStore.ClearOptions): MaybePromise<void>;
     close(): MaybePromise<void>;
+}
+
+export namespace EventStore {
+    export interface ClearOptions {
+        /**
+         * Discard the stored occurrences but continue numbering after the numbers already used, also across a
+         * restart.  Without it the store numbers from 1 again, which is only correct where the node's life ends.
+         * matter.js treats a factory reset as such an end, which the specification does not count as a restart.
+         *
+         * An implementation that ignores this option still compiles, and numbers from 1 again.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 7.14.1.1
+         * @see {@link MatterSpecification.v161.Core} § 7.12.1
+         */
+        keepNumbering?: boolean;
+    }
 }

@@ -18,7 +18,7 @@ type States = FeatureBitmap[];
 /**
  * Feature combinations a cluster disallows.  A selection matching every flag of any one set violates conformance.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3
+ * @see {@link MatterSpecification.v161.Core} § 7.3
  */
 export type IllegalFeatureCombinations = States;
 
@@ -93,7 +93,7 @@ const STANDALONE: EntryContext = {
  * Throws {@link NotImplementedError} if conformance does not adhere to supported rules.  This indicates the ruleset
  * needs augmentation.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3
+ * @see {@link MatterSpecification.v161.Core} § 7.3
  */
 export function IllegalFeatureCombinations(cluster: ClusterModel) {
     const illegal = new Array<FeatureBitmap>();
@@ -274,6 +274,7 @@ function inapplicable(feature: FieldModel, node: Conformance.Ast): States {
         case Conformance.Flag.Optional:
         case Conformance.Flag.Deprecated:
         case Conformance.Flag.Disallowed:
+        case Conformance.Flag.Obsolete:
         case Conformance.Special.Desc:
             return [];
 
@@ -302,7 +303,7 @@ function inapplicable(feature: FieldModel, node: Conformance.Ast): States {
  * The specification allows a choice set member only optional conformance.  Anything else states that the member is
  * required, which a set of alternatives cannot mean, so it is refused rather than read with its sense reversed.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3.14
+ * @see {@link MatterSpecification.v161.Core} § 7.3.14
  */
 function choiceGate(feature: FieldModel, node: Conformance.Ast) {
     switch (node.type) {
@@ -437,6 +438,7 @@ function addFeatureNode(
 
         case Conformance.Flag.Deprecated:
         case Conformance.Flag.Disallowed:
+        case Conformance.Flag.Obsolete:
             add({ [feature.name]: true });
             break;
 

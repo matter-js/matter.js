@@ -69,6 +69,17 @@ function extractUsefulDocumentation(text: string) {
 }
 
 /**
+ * {@link extractUsefulDocumentation} for a paragraph that may be an indented list item, which keeps its indent.
+ */
+function withUsefulDocumentation(paragraph: string) {
+    const text = extractUsefulDocumentation(paragraph);
+    if (!looksLikeListItem(text)) {
+        return text;
+    }
+    return `${paragraph.slice(0, paragraph.length - paragraph.trimStart().length)}${text}`;
+}
+
+/**
  * Look for obvious split paragraphs and reassemble.
  */
 function mergeSplitParagraphs(paragraphs: string[]) {
@@ -83,7 +94,7 @@ function mergeSplitParagraphs(paragraphs: string[]) {
             paragraph.startsWith("###") ||
             // The specification states a list item on one line, so a paragraph that follows one starts a new block
             // rather than continuing it
-            looksLikeListItem(paragraph)
+            looksLikeListItem(paragraph.trimStart())
         ) {
             continue;
         }
@@ -234,7 +245,7 @@ function cleanParagraphs(paragraphs: string[]) {
 
     mergeSplitParagraphs(paragraphs);
 
-    return paragraphs.map(extractUsefulDocumentation).filter(p => p !== "" && p !== "###");
+    return paragraphs.map(withUsefulDocumentation).filter(p => p !== "" && p !== "###");
 }
 
 /**

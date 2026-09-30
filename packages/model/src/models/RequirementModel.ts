@@ -117,6 +117,15 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
         return this.conformance.isDisallowed;
     }
 
+    /**
+     * Is the element obsolete?
+     *
+     * @see {@link Conformance.isObsolete}
+     */
+    get isObsolete() {
+        return this.conformance.isObsolete;
+    }
+
     constructor(
         definition: Model.Definition<RequirementModel>,
         ...children: Model.ChildDefinition<RequirementModel>[]

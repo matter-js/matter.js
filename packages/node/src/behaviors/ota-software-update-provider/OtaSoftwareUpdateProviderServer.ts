@@ -424,7 +424,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
             return {
                 action: OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue,
-                delayedActionTime: Minutes(2),
+                delayedActionTime: Seconds.of(Minutes(2)),
             };
         }
 

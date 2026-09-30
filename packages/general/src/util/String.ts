@@ -80,7 +80,7 @@ export function serializeToJs(value: unknown) {
     }
 
     if (value instanceof Date) {
-        return `new Date(${JSON.stringify(value.toISOString)})`;
+        return `new Date(${JSON.stringify(value.toISOString())})`;
     }
 
     if (Bytes.isBytes(value)) {

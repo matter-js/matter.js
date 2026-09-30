@@ -51,7 +51,7 @@ export const HeatPumpDt = DeviceType(
         { name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType" },
         Requirement(
             { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-            Requirement({ name: "POWERADJUSTMENT", conformance: "M", element: "feature" })
+            Requirement({ name: "PA", conformance: "M", element: "feature" })
         )
     ),
 
@@ -62,7 +62,7 @@ export const HeatPumpDt = DeviceType(
 
         Requirement(
             { name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" },
-            Requirement({ name: "ALTERNATINGCURRENT", conformance: "M", element: "feature" }),
+            Requirement({ name: "ALTC", conformance: "M", element: "feature" }),
             Requirement({ name: "Voltage", conformance: "M", element: "attribute" }),
             Requirement({ name: "ActiveCurrent", conformance: "M", element: "attribute" })
         ),

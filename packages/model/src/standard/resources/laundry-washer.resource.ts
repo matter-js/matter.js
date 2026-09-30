@@ -47,13 +47,13 @@ Resource.add({
         { tag: "requirement", name: "Identify", xref: "device§13.1.4" },
         {
             tag: "requirement", name: "OnOff", xref: "device§13.1.4",
-            children: [{ tag: "requirement", name: "DEADFRONTBEHAVIOR", xref: "device§13.1.6" }]
+            children: [{ tag: "requirement", name: "DF", xref: "device§13.1.6" }]
         },
 
         {
             tag: "requirement", name: "LaundryWasherMode", xref: "device§13.1.4",
             children: [
-                { tag: "requirement", name: "ONOFF", xref: "device§13.1.6" },
+                { tag: "requirement", name: "DEPONOFF", xref: "device§13.1.6" },
                 { tag: "requirement", name: "StartUpMode", xref: "device§13.1.6" }
             ]
         },

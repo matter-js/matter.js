@@ -22,6 +22,7 @@ export type BackchannelCommand =
     | BackchannelCommand.RvcAddArea
     | BackchannelCommand.SetBooleanState
     | BackchannelCommand.BridgeSimulation
+    | BackchannelCommand.SendOnOffToBindings
     | BackchannelCommand.NoParameters;
 
 export namespace BackchannelCommand {
@@ -40,7 +41,7 @@ export namespace BackchannelCommand {
          * The switch's own FeatureMap. A chip app requires it and simulates the events it implies; a
          * matter.js test device derives them from the switch's own state and ignores it.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.13.4
+         * @see {@link MatterSpecification.v161.Cluster} § 1.13.4
          */
         featureMap: number;
     };
@@ -146,6 +147,21 @@ export namespace BackchannelCommand {
             | "renameBridgedLights"
             | "addBridgedLight"
             | "removeBridgedLight";
+    };
+
+    /**
+     * Asks a binding client to send the OnOff `command` from `endpointId` to the OnOff targets its Binding attribute
+     * names — the "DUT is triggered to send" of the TC-BIND cases, standing in for a user pressing the switch.
+     *
+     * What a subject does beyond sending is its own: the matter.js `light-switch` test app acts on the entries the
+     * attribute holds when the command arrives, and fails the command where an entry does not resolve or a send fails.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.6
+     */
+    export type SendOnOffToBindings = {
+        name: "sendOnOffToBindings";
+        endpointId: number;
+        command: "on" | "off";
     };
 
     export type NoParameters = {

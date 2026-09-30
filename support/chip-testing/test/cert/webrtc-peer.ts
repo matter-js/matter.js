@@ -105,7 +105,7 @@ export class WebRtcPeer {
      * one — which is a different section as soon as a description carries more than one, and a
      * candidate attached to the wrong one is simply ignored by the far end.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+     * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.4
      */
     async add(candidates: readonly WebRtcIceCandidate[]) {
         if (!candidates.length) {

@@ -26,12 +26,15 @@ import {
     Status,
     StatusResponseError,
     TlvAny,
+    TlvBoolean,
     TlvDataReport,
     TlvDataReportForSend,
     TlvDataVersionFilter,
     TlvInvokeRequest,
     TlvInvokeResponse,
     TlvInvokeResponseForSend,
+    TlvObject,
+    TlvOptionalField,
     TlvReadRequest,
     TlvSchema,
     TlvStatusResponse,
@@ -84,6 +87,21 @@ export type WriteRequest = TypeFromSchema<typeof TlvWriteRequest>;
 export type WriteResponse = TypeFromSchema<typeof TlvWriteResponse>;
 
 const logger = Logger.get("InteractionMessenger");
+
+/**
+ * Only the SuppressResponse field of an Invoke or Write request.  Reads a request whose other fields break the schema;
+ * malformed TLV anywhere in the structure still fails the read.
+ */
+const TlvSuppressResponseOnly = TlvObject({ suppressResponse: TlvOptionalField(0, TlvBoolean) });
+
+function suppressResponseOf(payload: Bytes) {
+    try {
+        return TlvSuppressResponseOnly.decode(payload).suppressResponse === true;
+    } catch {
+        // Unreadable means unknown, so the action is answered; the caller rethrows the full decode's error
+        return false;
+    }
+}
 
 /**
  * Maximum number of messages that can be queued for a DataReport because they were not fitting into
@@ -228,6 +246,43 @@ export interface InteractionRecipient {
 }
 
 export class InteractionServerMessenger extends InteractionMessenger {
+    /**
+     * SuppressResponse of the Invoke or Write request decoded last; false when absent or unreadable.  Reset by every
+     * message read through {@link nextMessage}.
+     */
+    #suppressResponse = false;
+
+    /**
+     * Send a Status Response, unless the Invoke or Write request decoded last carries SuppressResponse set to TRUE.
+     * Then the transaction terminates silently.
+     */
+    override async sendStatus(status: Status, options?: ExchangeSendOptions) {
+        if (this.#suppressResponse) {
+            return;
+        }
+        await super.sendStatus(status, options);
+    }
+
+    override async nextMessage(
+        expectedMessageType: number,
+        options?: ExchangeReceiveOptions,
+        expectedMessageInfo?: string,
+    ) {
+        this.#suppressResponse = false;
+        return await super.nextMessage(expectedMessageType, options, expectedMessageInfo);
+    }
+
+    #decodeRequest<T extends { suppressResponse?: boolean }>(schema: TlvSchema<T>, payload: Bytes): T {
+        try {
+            const request = schema.decode(payload);
+            this.#suppressResponse = request.suppressResponse === true;
+            return request;
+        } catch (error) {
+            this.#suppressResponse = suppressResponseOf(payload);
+            throw error;
+        }
+    }
+
     async handleRequest(recipient: InteractionRecipient) {
         let continueExchange = true; // are more messages expected in this "transaction"?
         let isGroupSession = false;
@@ -261,7 +316,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
                         break;
                     }
                     case MessageType.WriteRequest: {
-                        const writeRequest = TlvWriteRequest.decode(message.payload);
+                        const writeRequest = this.#decodeRequest(TlvWriteRequest, message.payload);
                         await recipient.handleWriteRequest(this.exchange, writeRequest, this, message);
                         // response is sent by the handler
                         break;
@@ -279,7 +334,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
                         break;
                     }
                     case MessageType.InvokeRequest: {
-                        const invokeRequest = TlvInvokeRequest.decode(message.payload);
+                        const invokeRequest = this.#decodeRequest(TlvInvokeRequest, message.payload);
                         await recipient.handleInvokeRequest(this.exchange, invokeRequest, this, message);
                         // response is sent by the handler
                         break;
@@ -316,20 +371,30 @@ export class InteractionServerMessenger extends InteractionMessenger {
             }
 
             let errorStatusCode = Status.Failure;
+            const statusMark = this.#suppressResponse ? Mark.SUPPRESSED : Mark.OUTBOUND;
             const sre = StatusResponseError.of(error);
             if (sre) {
+                errorStatusCode = sre.code;
                 logger.info(
                     "Status response",
-                    Mark.OUTBOUND,
+                    statusMark,
                     this.exchange.via,
                     this.exchange.diagnostics,
                     Diagnostic.strong(`${Status[sre.code]}#${sre.code}`),
                     "due to error:",
                     Diagnostic.errorMessage(sre),
                 );
-                errorStatusCode = sre.code;
             } else {
                 logger.warn(this.exchange.via, this.exchange.diagnostics, error);
+                if (this.#suppressResponse && !isGroupSession) {
+                    logger.info(
+                        "Status response",
+                        statusMark,
+                        this.exchange.via,
+                        this.exchange.diagnostics,
+                        Diagnostic.strong(`${Status[Status.Failure]}#${Status.Failure}`),
+                    );
+                }
             }
 
             if (!isGroupSession) {
@@ -805,7 +870,7 @@ export class InteractionServerMessenger extends InteractionMessenger {
     async readNextWriteRequest(): Promise<{ writeRequest: WriteRequest; message: Message }> {
         const message = await this.nextMessage(MessageType.WriteRequest, undefined, "WriteRequest-chunk");
         return {
-            writeRequest: TlvWriteRequest.decode(message.payload),
+            writeRequest: this.#decodeRequest(TlvWriteRequest, message.payload),
             message,
         };
     }

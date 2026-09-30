@@ -176,7 +176,7 @@ Resource.add({
                 "  - The server shall enter a \"pending active\" state for the associated device when the KeepActive " +
                 "command is received. The server \"pending active\" state shall expire after the amount of time " +
                 "defined by the TimeoutMs field, in milliseconds, if no subsequent KeepActive command is " +
-                "    received. When a KeepActive command is received, the \"pending active\" state is set, the " +
+                "received. When a KeepActive command is received, the \"pending active\" state is set, the " +
                 "StayActiveDuration is updated to the greater of the new value and the previously stored value, " +
                 "and the TimeoutMs is updated to the greater of the new value and the remaining time until the " +
                 "prior \"pending active\" state expires." +

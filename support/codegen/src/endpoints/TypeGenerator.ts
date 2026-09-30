@@ -211,7 +211,7 @@ export class TypeGenerator {
         }
 
         for (const child of model.members) {
-            if (child.isDisallowed || (child.isDeprecated && !child.type)) {
+            if (child.isDisallowed || ((child.isDeprecated || child.isObsolete) && !child.type)) {
                 continue;
             }
             return false;

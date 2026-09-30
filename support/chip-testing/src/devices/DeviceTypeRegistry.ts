@@ -8,6 +8,7 @@ import { ImplementationError } from "@matter/general";
 import { Endpoint, ServerNode } from "@matter/main";
 import { EndpointNumber } from "@matter/main/types";
 import { BackchannelCommand } from "@matter/testing";
+import type { EndpointNumberAllocator } from "./EndpointNumberAllocator.js";
 
 export interface EndpointHandle {
     endpoint: Endpoint;
@@ -21,7 +22,11 @@ export interface EndpointHandle {
 
 export interface DeviceTypeEntry {
     name: string;
-    create(serverNode: ServerNode, endpoint: EndpointNumber): Promise<EndpointHandle>;
+
+    /**
+     * Adds the device on {@link endpoint}. A device with child endpoints numbers them from {@link numbers}.
+     */
+    create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator): Promise<EndpointHandle>;
 }
 
 const registry = new Map<string, DeviceTypeEntry>();

@@ -7,6 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
 import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
 import { LevelControlClient as BaseLevelControlClient } from "../behaviors/level-control/LevelControlClient.js";
@@ -23,7 +24,7 @@ import { Identity } from "@matter/general";
  * A Color Dimmer Switch is a controller device that, when bound to a lighting device such as an Extended Color Light,
  * is capable of being used to adjust the color of the light being emitted.
  *
- * @see {@link MatterSpecification.v16.Device} § 6.3
+ * @see {@link MatterSpecification.v161.Device} § 6.3
  */
 export interface ColorDimmerSwitchDevice extends Identity<typeof ColorDimmerSwitchDeviceDefinition> {}
 
@@ -34,6 +35,13 @@ export namespace ColorDimmerSwitchRequirements {
      * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
      */
     export const IdentifyServer = BaseIdentifyServer;
+
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
 
     /**
      * The Identify cluster is required by the Matter specification.
@@ -80,7 +88,7 @@ export namespace ColorDimmerSwitchRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { Identify: IdentifyServer } };
+    export const server = { mandatory: { Identify: IdentifyServer, Binding: BindingServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -100,9 +108,12 @@ export namespace ColorDimmerSwitchRequirements {
 export const ColorDimmerSwitchDeviceDefinition = MutableEndpoint({
     name: "ColorDimmerSwitch",
     deviceType: 0x105,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: ColorDimmerSwitchRequirements,
-    behaviors: SupportedBehaviors(ColorDimmerSwitchRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(
+        ColorDimmerSwitchRequirements.server.mandatory.Identify,
+        ColorDimmerSwitchRequirements.server.mandatory.Binding
+    )
 });
 
 Object.freeze(ColorDimmerSwitchDeviceDefinition);

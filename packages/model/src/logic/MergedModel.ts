@@ -5,7 +5,7 @@
  */
 
 import { InternalError } from "@matter/general";
-import { Constraint } from "../aspects/index.js";
+import { Constraint, Quality } from "../aspects/index.js";
 import { ElementTag, Metatype, Specification } from "../common/index.js";
 import { AnyElement } from "../elements/index.js";
 import { Model, ValueModel } from "../models/index.js";
@@ -82,6 +82,15 @@ export function MergedModel(
                     break;
                 }
             }
+        }
+
+        // A local override adds qualities to or removes them from what the other variants state rather than replacing
+        // the set
+        const { local, ...others } = variantValues;
+        const localQuality = local === undefined ? undefined : visitor.pluck(variants.tag, "quality", { local });
+        if (localQuality !== undefined) {
+            const inherited = new Quality(visitor.pluck(variants.tag, "quality", others));
+            properties.quality = inherited.extend(new Quality(localQuality)).valueOf();
         }
 
         return Model.create(properties as AnyElement);

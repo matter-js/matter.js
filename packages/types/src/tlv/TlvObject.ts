@@ -59,7 +59,7 @@ export type TypeFromFields<F extends TlvFields> = Merge<
 /**
  * Schema to encode an object in TLV.
  *
- * @see {@link MatterSpecification.v16.Core} § A.5.1 and § A.11.4
+ * @see {@link MatterSpecification.v161.Core} § A.5.1 and § A.11.4
  */
 export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<F>> {
     readonly isFabricScoped: boolean;
@@ -77,7 +77,7 @@ export class ObjectSchema<F extends TlvFields> extends TlvSchema<TypeFromFields<
 
         let isFabricScoped = false;
         // TODO Add sorting option to enforce order of fields in encoded TLV If Ty is Structure
-        //  Requirements @see {@link MatterSpecification.Core.v12} § A.2.4
+        //  Requirements @see {@link MatterSpecification.v161.Core} § A.2.4
         for (const name in this.fieldDefinitions) {
             const field = this.fieldDefinitions[name];
             if (field.repeated && type !== TlvType.List) {

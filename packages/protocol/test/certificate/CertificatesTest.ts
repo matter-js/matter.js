@@ -125,8 +125,8 @@ describe("Certificates", () => {
                     // Load from TLV, convert to ASN.1, parse back, and verify
                     const rootFromTlv = Rcac.fromTlv(certs.ROOT.TLV);
                     const rootFromAsn1 = Rcac.fromAsn1(rootFromTlv.asSignedDer());
-                    // issuerDer/tbsDer are only present on ASN.1-parsed certs, strip for structural equality
-                    const { issuerDer: _i, tbsDer: _t, ...asn1Cert } = rootFromAsn1.cert as any;
+                    // issuerDer/subjectDer/tbsDer are only present on ASN.1-parsed certs, strip for structural equality
+                    const { issuerDer: _i, subjectDer: _s, tbsDer: _t, ...asn1Cert } = rootFromAsn1.cert as any;
                     expect(asn1Cert).to.deep.equal(rootFromTlv.cert);
                     if ("ASN1" in certs.ROOT) {
                         expect(Bytes.toHex(rootFromTlv.asUnsignedDer())).to.equal(Bytes.toHex(certs.ROOT.ASN1));
@@ -141,7 +141,7 @@ describe("Certificates", () => {
                     it("parse intermediate certificate from ASN.1", async () => {
                         const icacFromTlv = Icac.fromTlv(certs.ICAC.TLV);
                         const icacFromAsn1 = Icac.fromAsn1(icacFromTlv.asSignedDer());
-                        const { issuerDer: _i, tbsDer: _t, ...asn1Cert } = icacFromAsn1.cert as any;
+                        const { issuerDer: _i, subjectDer: _s, tbsDer: _t, ...asn1Cert } = icacFromAsn1.cert as any;
                         expect(asn1Cert).to.deep.equal(icacFromTlv.cert);
                         const tlvEncoded = icacFromAsn1.asSignedTlv();
                         expect(Bytes.toHex(tlvEncoded)).equal(Bytes.toHex(certs.ICAC.TLV));
@@ -154,7 +154,7 @@ describe("Certificates", () => {
                 it("parse operational certificate from ASN.1", async () => {
                     const nocFromTlv = Noc.fromTlv(certs.NOC.TLV);
                     const nocFromAsn1 = Noc.fromAsn1(nocFromTlv.asSignedDer());
-                    const { issuerDer: _i, tbsDer: _t, ...asn1Cert } = nocFromAsn1.cert as any;
+                    const { issuerDer: _i, subjectDer: _s, tbsDer: _t, ...asn1Cert } = nocFromAsn1.cert as any;
                     expect(asn1Cert).to.deep.equal(nocFromTlv.cert);
                     if ("ASN1" in certs.NOC) {
                         expect(Bytes.toHex(nocFromTlv.asUnsignedDer())).to.equal(Bytes.toHex(certs.NOC.ASN1));
@@ -688,14 +688,18 @@ describe("Certificates", () => {
             expect(() => Vvsc.fromTlv(oversized)).throw(/400/);
         });
 
-        it("rejects a DER certificate larger than 600 bytes (NOC and DAC chains)", () => {
+        it("rejects a DER operational certificate larger than 600 bytes before parsing", () => {
             const oversized = new Uint8Array(601);
             expect(() => Noc.fromAsn1(oversized)).throw(/600/);
             expect(() => Rcac.fromAsn1(oversized)).throw(/600/);
             expect(() => Icac.fromAsn1(oversized)).throw(/600/);
-            expect(() => Paa.fromAsn1(oversized)).throw(/600/);
-            expect(() => Pai.fromAsn1(oversized)).throw(/600/);
-            expect(() => Dac.fromAsn1(oversized)).throw(/600/);
+        });
+
+        it("rejects a DER attestation certificate larger than the PQC limit before parsing", () => {
+            const oversized = new Uint8Array(10241);
+            expect(() => Paa.fromAsn1(oversized)).throw(/10240/);
+            expect(() => Pai.fromAsn1(oversized)).throw(/10240/);
+            expect(() => Dac.fromAsn1(oversized)).throw(/10240/);
         });
     });
 

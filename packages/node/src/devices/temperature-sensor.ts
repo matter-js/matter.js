@@ -27,7 +27,7 @@ import { Identity } from "@matter/general";
  * This cluster provides an interface to allow configuration of the user interface for a temperature sensor that
  * supports keypad or screen.
  *
- * @see {@link MatterSpecification.v16.Device} § 7.4
+ * @see {@link MatterSpecification.v161.Device} § 7.4
  */
 export interface TemperatureSensorDevice extends Identity<typeof TemperatureSensorDeviceDefinition> {}
 

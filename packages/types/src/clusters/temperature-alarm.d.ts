@@ -21,7 +21,7 @@ import type { MaybePromise } from "@matter/general";
  *
  * > NOTE: Support for this cluster is provisional.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 2.17
+ * @see {@link MatterSpecification.v161.Cluster} § 2.17
  */
 export declare namespace TemperatureAlarm {
     /**
@@ -35,7 +35,7 @@ export declare namespace TemperatureAlarm {
     export const name: "TemperatureAlarm";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v161.Cluster}.
      */
     export const revision: 1;
 
@@ -53,7 +53,7 @@ export declare namespace TemperatureAlarm {
         /**
          * Indicates a bitmap where each bit set in the Mask attribute corresponds to an alarm that shall be enabled.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.6.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.6.1
          */
         mask: Alarm;
 
@@ -61,7 +61,7 @@ export declare namespace TemperatureAlarm {
          * Indicates a bitmap where each bit shall represent the state of an alarm. The value of true means the alarm is
          * active, otherwise the alarm is inactive.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.6.3
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.6.3
          */
         state: Alarm;
 
@@ -71,7 +71,7 @@ export declare namespace TemperatureAlarm {
          *
          * If an alarm is not supported, the corresponding bit in Mask, Latch, and State shall be false.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.6.4
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.6.4
          */
         supported: Alarm;
     }
@@ -84,7 +84,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement over which the CriticalOverTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.1
          */
         criticalOverTemperatureThreshold: number;
     }
@@ -97,7 +97,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement over which the MajorOverTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.2
          */
         majorOverTemperatureThreshold: number;
     }
@@ -110,7 +110,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement over which the MinorOverTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.3
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.3
          */
         minorOverTemperatureThreshold: number;
     }
@@ -123,7 +123,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement under which the MinorUnderTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.4
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.4
          */
         minorUnderTemperatureThreshold: number;
     }
@@ -136,7 +136,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement under which the MajorUnderTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.5
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.5
          */
         majorUnderTemperatureThreshold: number;
     }
@@ -149,7 +149,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement under which the CriticalUnderTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.6
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.6
          */
         criticalUnderTemperatureThreshold: number;
     }
@@ -163,7 +163,7 @@ export declare namespace TemperatureAlarm {
          * be latched when set, and will not reset to inactive when the underlying condition which caused the alarm is
          * no longer present, and so requires an explicit reset using the Reset command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.6.2
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.6.2
          */
         latch: Alarm;
     }
@@ -178,7 +178,7 @@ export declare namespace TemperatureAlarm {
         /**
          * Indicates a bitmap where each bit set in the Mask attribute corresponds to an alarm that shall be enabled.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.6.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.6.1
          */
         mask: Alarm;
 
@@ -186,7 +186,7 @@ export declare namespace TemperatureAlarm {
          * Indicates a bitmap where each bit shall represent the state of an alarm. The value of true means the alarm is
          * active, otherwise the alarm is inactive.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.6.3
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.6.3
          */
         state: Alarm;
 
@@ -196,7 +196,7 @@ export declare namespace TemperatureAlarm {
          *
          * If an alarm is not supported, the corresponding bit in Mask, Latch, and State shall be false.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.6.4
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.6.4
          */
         supported: Alarm;
 
@@ -204,7 +204,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement over which the CriticalOverTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.1
          */
         criticalOverTemperatureThreshold: number;
 
@@ -212,7 +212,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement over which the MajorOverTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.2
          */
         majorOverTemperatureThreshold: number;
 
@@ -220,7 +220,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement over which the MinorOverTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.3
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.3
          */
         minorOverTemperatureThreshold: number;
 
@@ -228,7 +228,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement under which the MinorUnderTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.4
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.4
          */
         minorUnderTemperatureThreshold: number;
 
@@ -236,7 +236,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement under which the MajorUnderTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.5
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.5
          */
         majorUnderTemperatureThreshold: number;
 
@@ -244,7 +244,7 @@ export declare namespace TemperatureAlarm {
          * Indicates the threshold for temperature measurement under which the CriticalUnderTemperature alarm shall be
          * active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.6.6
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.6.6
          */
         criticalUnderTemperatureThreshold: number;
 
@@ -253,7 +253,7 @@ export declare namespace TemperatureAlarm {
          * be latched when set, and will not reset to inactive when the underlying condition which caused the alarm is
          * no longer present, and so requires an explicit reset using the Reset command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.6.2
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.6.2
          */
         latch: Alarm;
     }
@@ -265,7 +265,7 @@ export declare namespace TemperatureAlarm {
         /**
          * This command allows a client to request that an alarm be enabled or suppressed at the server.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.7.2
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.7.2
          */
         modifyEnabledAlarms(request: ModifyEnabledAlarmsRequest): MaybePromise;
     }
@@ -283,7 +283,7 @@ export declare namespace TemperatureAlarm {
          * > NOTE: The constraints related to the field values in the table above shall have the relationship as
          *   represented by the illustration below:
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.7.1
          */
         setTemperatureAlarmThresholds(request: SetTemperatureAlarmThresholdsRequest): MaybePromise;
     }
@@ -296,7 +296,7 @@ export declare namespace TemperatureAlarm {
          * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields
          * that represent the state of the server after the command has been processed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.7.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.7.1
          */
         reset(request: ResetRequest): MaybePromise;
     }
@@ -317,7 +317,7 @@ export declare namespace TemperatureAlarm {
         /**
          * This event shall be generated when one or more alarms change state.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.8.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.8.1
          */
         notify: NotifyEvent;
     }
@@ -332,7 +332,7 @@ export declare namespace TemperatureAlarm {
         /**
          * This event shall be generated when one or more alarms change state.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.8.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.8.1
          */
         notify: NotifyEvent;
     }
@@ -389,7 +389,7 @@ export declare namespace TemperatureAlarm {
     /**
      * These are optional features supported by TemperatureAlarmCluster.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.17.4
+     * @see {@link MatterSpecification.v161.Cluster} § 2.17.4
      */
     export enum Feature {
         /**
@@ -467,13 +467,13 @@ export declare namespace TemperatureAlarm {
          *
          * This feature indicates that alarms can be reset via the Reset command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.4.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.4.1
          */
         Reset = "Reset"
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 2.17.5.1
+     * @see {@link MatterSpecification.v161.Cluster} § 2.17.5.1
      */
     export class Alarm {
         constructor(values?: Partial<Alarm> | number);
@@ -512,7 +512,7 @@ export declare namespace TemperatureAlarm {
     /**
      * This command allows a client to request that an alarm be enabled or suppressed at the server.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 1.15.7.2
+     * @see {@link MatterSpecification.v161.Cluster} § 1.15.7.2
      */
     export class ModifyEnabledAlarmsRequest {
         constructor(values?: Partial<ModifyEnabledAlarmsRequest>);
@@ -536,7 +536,7 @@ export declare namespace TemperatureAlarm {
          * field from this command. After that the server shall also update the value of its State attribute to reflect
          * the status of the new alarm set as indicated by the new value of the Mask attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.7.2.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.7.2.1
          */
         mask: Alarm;
     }
@@ -549,7 +549,7 @@ export declare namespace TemperatureAlarm {
      * > NOTE: The constraints related to the field values in the table above shall have the relationship as represented
      *   by the illustration below:
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1
+     * @see {@link MatterSpecification.v161.Cluster} § 2.17.7.1
      */
     export class SetTemperatureAlarmThresholdsRequest {
         constructor(values?: Partial<SetTemperatureAlarmThresholdsRequest>);
@@ -557,42 +557,42 @@ export declare namespace TemperatureAlarm {
         /**
          * This field shall specify the new value of the CriticalOverTemperatureThreshold attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.7.1.1
          */
         criticalOverTemperatureThreshold?: number;
 
         /**
          * This field shall specify the new value of the MajorOverTemperatureThreshold attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.7.1.2
          */
         majorOverTemperatureThreshold?: number;
 
         /**
          * This field shall specify the new value of the MinorOverTemperatureThreshold attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1.3
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.7.1.3
          */
         minorOverTemperatureThreshold?: number;
 
         /**
          * This field shall specify the new value of the MinorUnderTemperatureThreshold attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1.4
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.7.1.4
          */
         minorUnderTemperatureThreshold?: number;
 
         /**
          * This field shall specify the new value of the MajorUnderTemperatureThreshold attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1.5
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.7.1.5
          */
         majorUnderTemperatureThreshold?: number;
 
         /**
          * This field shall specify the new value of the CriticalUnderTemperatureThreshold attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.17.7.1.6
+         * @see {@link MatterSpecification.v161.Cluster} § 2.17.7.1.6
          */
         criticalUnderTemperatureThreshold?: number;
     }
@@ -601,7 +601,7 @@ export declare namespace TemperatureAlarm {
      * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields that
      * represent the state of the server after the command has been processed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 1.15.7.1
+     * @see {@link MatterSpecification.v161.Cluster} § 1.15.7.1
      */
     export class ResetRequest {
         constructor(values?: Partial<ResetRequest>);
@@ -612,7 +612,7 @@ export declare namespace TemperatureAlarm {
          * alarms indicated are successfully reset, the response status code shall be SUCCESS, otherwise, the response
          * status code shall be FAILURE.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.7.1.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.7.1.1
          */
         alarms: Alarm;
     }
@@ -620,7 +620,7 @@ export declare namespace TemperatureAlarm {
     /**
      * This event shall be generated when one or more alarms change state.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 1.15.8.1
+     * @see {@link MatterSpecification.v161.Cluster} § 1.15.8.1
      */
     export class NotifyEvent {
         constructor(values?: Partial<NotifyEvent>);
@@ -628,14 +628,14 @@ export declare namespace TemperatureAlarm {
         /**
          * This field shall indicate those alarms that have become active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.8.1.1
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.8.1.1
          */
         active: Alarm;
 
         /**
          * This field shall indicate those alarms that have become inactive.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.8.1.2
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.8.1.2
          */
         inactive: Alarm;
 
@@ -643,14 +643,14 @@ export declare namespace TemperatureAlarm {
          * This field shall be a copy of the new State attribute value that resulted in the event being generated. That
          * is, this field shall have all the bits in Active set and shall NOT have any of the bits in Inactive set.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.8.1.4
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.8.1.4
          */
         state: Alarm;
 
         /**
          * This field shall be a copy of the Mask attribute when this event was generated.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 1.15.8.1.3
+         * @see {@link MatterSpecification.v161.Cluster} § 1.15.8.1.3
          */
         mask: Alarm;
     }

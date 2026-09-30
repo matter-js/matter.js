@@ -5,7 +5,7 @@
  */
 
 import { CrossReference } from "#models/CrossReference.js";
-import { ElementTag } from "../../common/index.js";
+import { DefinitionError, ElementTag } from "../../common/index.js";
 import { RequirementElement } from "../../elements/index.js";
 import { CommandModel, Model, RequirementModel, ValueModel } from "../../models/index.js";
 
@@ -13,6 +13,11 @@ import { CommandModel, Model, RequirementModel, ValueModel } from "../../models/
  * Base class for all model validators.
  */
 export class ModelValidator<T extends Model> {
+    /**
+     * The errors {@link validate} found.
+     */
+    readonly errors = new Array<DefinitionError>();
+
     constructor(protected model: T) {}
 
     validate() {
@@ -35,7 +40,7 @@ export class ModelValidator<T extends Model> {
     }
 
     error(code: string, message: string) {
-        this.model.error(code, message);
+        this.errors.push(ModelValidator.errorOf(this.model, code, message));
     }
 
     protected validateStructure(requireId: boolean, ...childTypes: Model.Type[]) {
@@ -143,4 +148,11 @@ export namespace ModelValidator {
     export const validators = {} as {
         [key in ElementTag]: new (model: any) => ModelValidator<any>;
     };
+
+    /**
+     * An error about {@link model}.
+     */
+    export function errorOf(model: Model, code: string, message: string): DefinitionError {
+        return { code, source: model.path, message, xref: model.effectiveXref?.toString() };
+    }
 }

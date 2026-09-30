@@ -158,7 +158,7 @@ describe("RequirementResolver", () => {
 
         it("resolves a feature named by a nested requirement", () => {
             const icd = requirement("RootNode", "IcdManagement");
-            const longIdle = icd.requirements.find(child => child.name === "LONGIDLETIMESUPPORT")!;
+            const longIdle = icd.requirements.find(child => child.name === "LITS")!;
             expect(RequirementResolver.resolve(longIdle, "LITS")).equals(
                 Matter.clusters("IcdManagement")?.features.find(feature => feature.name === "LITS"),
             );
@@ -385,20 +385,23 @@ describe("RequirementResolver", () => {
             return requirement;
         }
 
-        it("answers the feature a requirement names by the feature's title", () => {
+        it("answers the feature a shipped requirement names", () => {
             const icd = requirement("RootNode", "IcdManagement");
-            const longIdle = icd.requirements.find(child => child.name === "LONGIDLETIMESUPPORT")!;
+            const longIdle = icd.requirements.find(child => child.name === "LITS")!;
             const feature = RequirementResolver.featureOf(longIdle);
-            expect(feature?.name).equals("LITS");
             expect(feature).equals(Matter.clusters("IcdManagement")?.features.find(feature => feature.name === "LITS"));
         });
 
         it("answers the feature a requirement names by the feature's code", () => {
-            expect(RequirementResolver.featureOf(featureRequirement("lits"))?.name).equals("LITS");
+            expect(RequirementResolver.featureOf(featureRequirement("LITS"))?.name).equals("LITS");
         });
 
-        it("answers the feature named by its title in another case or spacing", () => {
-            expect(RequirementResolver.featureOf(featureRequirement("Long Idle Time Support"))?.name).equals("LITS");
+        it("answers nothing for the feature's code in another case", () => {
+            expect(RequirementResolver.featureOf(featureRequirement("lits"))).undefined;
+        });
+
+        it("answers nothing for the feature's title", () => {
+            expect(RequirementResolver.featureOf(featureRequirement("LongIdleTimeSupport"))).undefined;
         });
 
         it("answers nothing for a requirement naming no feature of the cluster", () => {

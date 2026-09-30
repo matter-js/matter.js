@@ -109,7 +109,7 @@ async function doTestPress(
 }
 
 /**
- * The tests are mainly based on examples described in the @see {@link MatterSpecification.v11.Cluster} §1.12.7/8/9
+ * The tests are mainly based on examples described in the @see {@link MatterSpecification.v161.Cluster} § 1.13.7/8/9
  */
 describe("SwitchServer", () => {
     before(MockTime.enable);

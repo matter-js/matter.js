@@ -39,15 +39,15 @@ Resource.add({
         { tag: "requirement", name: "OccupancySensing", xref: "device§16.6.6" },
         {
             tag: "requirement", name: "ZoneManagement", xref: "device§16.6.6",
-            children: [{ tag: "requirement", name: "TWODIMENSIONALCARTESIANZONE", xref: "device§16.6.7" }]
+            children: [{ tag: "requirement", name: "TWODCART", xref: "device§16.6.7" }]
         },
 
         {
             tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.6.6",
             children: [
-                { tag: "requirement", name: "SNAPSHOT", xref: "device§16.6.7" },
-                { tag: "requirement", name: "VIDEO", xref: "device§16.6.7" },
-                { tag: "requirement", name: "AUDIO", xref: "device§16.6.7" }
+                { tag: "requirement", name: "SNP", xref: "device§16.6.7" },
+                { tag: "requirement", name: "VDO", xref: "device§16.6.7" },
+                { tag: "requirement", name: "ADO", xref: "device§16.6.7" }
             ]
         },
 

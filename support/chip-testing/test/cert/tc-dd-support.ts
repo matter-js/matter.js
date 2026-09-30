@@ -24,6 +24,7 @@ import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.j
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import {
+    attempt,
     CertCleanupError,
     CommissionedRefs,
     expectDeviceLog,
@@ -37,6 +38,7 @@ import {
     recordAll,
     removeFabricSucceeded,
     settleWithin,
+    withChecks,
 } from "./tc-support.js";
 
 /**
@@ -365,26 +367,37 @@ export async function recordDiscoveryCapabilityAbsent(
     // what keeps the capabilities out of the comparison without asserting the payload's own value
     // against itself.
     const { discoveryCapabilities: _capabilities, ...unchanged } = qrPayloadFields(unchangedFrom);
-    record(cx, checkGeneratedPayload(payload, unchanged), `${what}: derived from step 1's payload`);
 
-    const parsed = await cx.controllers.dut.parseQrPayload(payload);
-    const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
-    const names = Object.entries(offered)
-        .filter(([, set]) => set)
-        .map(([name]) => name);
-
-    record(
-        cx,
+    await recordAll(cx, [
         {
-            type: "response",
-            verdict: offered[capability] ? "fail" : "pass",
-            detail:
-                `DUT read ${payload} as offering discovery over ${names.join(", ") || "nothing"} ` +
-                `(bitmask 0b${parsed.discoveryCapabilities.toString(2).padStart(8, "0")}), so ${capability} is ` +
-                `${offered[capability] ? "offered" : "not offered"}`,
+            check: () => checkGeneratedPayload(payload, unchanged),
+            what: `${what}: derived from step 1's payload`,
         },
-        what,
-    );
+        {
+            check: async () => {
+                const parsed = await attempt(
+                    () => cx.controllers.dut.parseQrPayload(payload),
+                    () => "",
+                );
+                if (!parsed.ok) {
+                    return parsed.check;
+                }
+                const offered = DiscoveryCapabilitiesSchema.decode(parsed.value.discoveryCapabilities);
+                const names = Object.entries(offered)
+                    .filter(([, set]) => set)
+                    .map(([name]) => name);
+                return {
+                    type: "response",
+                    verdict: offered[capability] ? "fail" : "pass",
+                    detail:
+                        `DUT read ${payload} as offering discovery over ${names.join(", ") || "nothing"} ` +
+                        `(bitmask 0b${parsed.value.discoveryCapabilities.toString(2).padStart(8, "0")}), so ${capability} is ` +
+                        `${offered[capability] ? "offered" : "not offered"}`,
+                };
+            },
+            what,
+        },
+    ]);
 }
 
 /** Bit offset and length of § 5.1.3.1 Table 59's fields inside the payload's fixed structure. */
@@ -1148,12 +1161,13 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
         detail: `DUT removed its fabric (index ${fabricIndex}) from the TH, giving up node ${ref}`,
     });
 
-    const removed = await expectDeviceLog(th.log, th.flavor, removeFabricSucceeded(fabricIndex), from, LOG_TIMEOUT);
-    const expired = await expectDeviceLog(th.log, th.flavor, fabricSessionsEnded(fabricIndex), from, LOG_TIMEOUT);
-    await recordAll(cx, [
-        { check: () => removed.check, what: "TH reported a successful fabric removal" },
-        { check: () => expired.check, what: "TH ended the DUT's fabric's sessions" },
-    ]);
+    await withChecks(cx, async checks => {
+        const removed = await expectDeviceLog(th.log, th.flavor, removeFabricSucceeded(fabricIndex), from, LOG_TIMEOUT);
+        checks.push({ check: () => removed.check, what: "TH reported a successful fabric removal" });
+
+        const expired = await expectDeviceLog(th.log, th.flavor, fabricSessionsEnded(fabricIndex), from, LOG_TIMEOUT);
+        checks.push({ check: () => expired.check, what: "TH ended the DUT's fabric's sessions" });
+    });
 
     return since;
 }

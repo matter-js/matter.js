@@ -121,7 +121,7 @@ Resource.add({
             tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.3.6",
             children: [{
                 tag: "requirement", name: "DeviceEnergyManagement",
-                children: [{ tag: "requirement", name: "POWERADJUSTMENT", xref: "device§14.3.6.3" }]
+                children: [{ tag: "requirement", name: "PA", xref: "device§14.3.6.3" }]
             }]
         },
 
@@ -139,7 +139,7 @@ Resource.add({
 
                 {
                     tag: "requirement", name: "ElectricalEnergyMeasurement",
-                    children: [{ tag: "requirement", name: "EXPORTEDENERGY", xref: "device§14.3.6.3" }]
+                    children: [{ tag: "requirement", name: "EXPE", xref: "device§14.3.6.3" }]
                 }
             ]
         }

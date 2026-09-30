@@ -20,7 +20,7 @@ Resource.add({
             tag: "attribute", name: "FeatureMap", xref: "core§11.13.4",
             children: [{
                 tag: "field", name: "WTRMRK",
-                details: "Node makes available the metrics for high watermark related to memory consumption."
+                details: "Node makes available the metrics for high watermark related to memory consumption"
             }]
         },
 

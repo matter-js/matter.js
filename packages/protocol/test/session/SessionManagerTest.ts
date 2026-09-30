@@ -145,6 +145,74 @@ describe("SessionManager", () => {
             expect(await sessionManager.getNextAvailableSessionId()).to.equal(first);
             expect(firstClosed).to.be.true;
         });
+
+        describe("with a fixed random seed", () => {
+            class FixedSeedCrypto extends StandardCrypto {
+                constructor(readonly seed: number) {
+                    super();
+                }
+
+                override get randomUint16() {
+                    return this.seed;
+                }
+
+                override get randomUint32() {
+                    return this.seed;
+                }
+            }
+
+            async function managerWithSeed(seed: number) {
+                const manager = new SessionManager({
+                    parameters: {} as SessionParameters,
+                    fabrics: new FabricManager(new FixedSeedCrypto(seed)),
+                    storage: storageContext,
+                });
+                await manager.construction.ready;
+                return manager;
+            }
+
+            async function occupy(manager: SessionManager, id: number) {
+                await manager.createSecureSession({
+                    id,
+                    fabric: undefined,
+                    peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                    peerSessionId: 0x8d4b,
+                    sharedSecret: DUMMY_BYTEARRAY,
+                    salt: DUMMY_BYTEARRAY,
+                    isInitiator: false,
+                    isResumption: false,
+                });
+            }
+
+            it("never allocates 0 when the random seed is 0", async () => {
+                const manager = await managerWithSeed(0);
+
+                expect(await manager.getNextAvailableSessionId()).to.equal(1);
+                expect(await manager.getNextAvailableSessionId()).to.equal(2);
+            });
+
+            it("stays within the ID range after reusing the session with the highest ID", async () => {
+                const manager = await managerWithSeed(0);
+                manager.compressIdRange(3);
+
+                const [first, second, third] = [
+                    await manager.getNextAvailableSessionId(),
+                    await manager.getNextAvailableSessionId(),
+                    await manager.getNextAvailableSessionId(),
+                ];
+                expect([first, second, third]).to.deep.equal([1, 2, 3]);
+                await occupy(manager, third);
+                await MockTime.advance(1000);
+                await occupy(manager, first);
+                await occupy(manager, second);
+
+                const reused = await manager.getNextAvailableSessionId();
+                expect(reused).to.equal(3);
+                await occupy(manager, reused);
+
+                expect(await manager.getNextAvailableSessionId()).to.be.within(1, 3);
+            });
+        });
     });
 
     describe("maybeSessionFor", () => {
