@@ -56,14 +56,16 @@ export class PropertyResource extends ApiResource {
         this.#targetSupervisor.patch({ [this.id]: request.js }, this.#target, this.dataModelPath);
     }
 
-    override add(request: Envelope) {
-        const struct = this.#target;
-        if (!Array.isArray(struct)) {
-            throw new NotImplementedError();
+    override add(request: Envelope.Data) {
+        const list = this.value;
+        const entrySchema = this.schema.conformant.properties("entry");
+        if (!Array.isArray(list) || entrySchema === undefined) {
+            throw new StatusResponse.InvalidActionError(`Cannot add to "${this.dataModelPath}", it is not a list`);
         }
 
-        request = new Envelope({ supervisor: this.supervisor, ...request });
-        struct.push(request.js);
+        const entry = new Envelope({ supervisor: this.supervisorFor(entrySchema), ...request });
+        entry.validate();
+        this.#target[this.id] = [...list, entry.js];
     }
 
     override delete() {
@@ -79,14 +81,14 @@ export class PropertyResource extends ApiResource {
         let mySchema: Schema | undefined;
         switch (this.schema.effectiveMetatype) {
             case Metatype.object:
-                mySchema = this.schema.conformant.properties.for(id);
+                mySchema = this.schema.conformant.properties(id);
                 break;
 
             case Metatype.array:
                 if (!id.match(/^\d+$/)) {
                     mySchema = undefined;
                 } else {
-                    mySchema = this.schema.conformant.properties.for("entry");
+                    mySchema = this.schema.conformant.properties("entry");
                 }
                 break;
 
