@@ -6,7 +6,15 @@
 
 import { ClusterRequirements } from "#endpoints/ClusterRequirements.js";
 import { EndpointFile } from "#endpoints/EndpointFile.js";
-import { AttributeModel, ClusterModel, DeviceTypeModel, FieldModel, MatterModel, RequirementModel } from "#model";
+import {
+    AttributeModel,
+    ClusterModel,
+    ConditionModel,
+    DeviceTypeModel,
+    FieldModel,
+    MatterModel,
+    RequirementModel,
+} from "#model";
 
 /**
  * A device type requiring a cluster with the given requirements nested in it, named as the specification scrape names
@@ -132,6 +140,79 @@ describe("RequirementGenerator", () => {
         const { file } = conformingFixture("IdleFixture", "X");
 
         expect(file.toString()).not.contains("IdleFixtureServer");
+    });
+});
+
+/**
+ * A device type of {@link classification} with {@link requirements}, in a model whose Base mandates the Binding
+ * cluster under `Simple & Client`, as the specification does. The clusters have names no loaded resource describes.
+ */
+function bindingFixture(classification: "simple" | "utility", ...requirements: RequirementModel[]) {
+    const deviceType = new DeviceTypeModel(
+        { name: "SwitchFixture", id: 0xff0c, classification, revision: 1 },
+        ...requirements,
+    );
+    new MatterModel(
+        {},
+        new DeviceTypeModel(
+            { name: "Base", classification: "base" },
+            new ConditionModel({ name: "Simple" }),
+            new ConditionModel({ name: "Client" }),
+            new RequirementModel({
+                name: "BindingFixture",
+                id: 0x1e,
+                element: "serverCluster",
+                conformance: "Simple & Client",
+            }),
+        ),
+        new ClusterModel(
+            { name: "BindingFixture", id: 0x1e },
+            new AttributeModel({ name: "Extra", id: 0x1, type: "uint8", conformance: "O" }),
+        ),
+        new ClusterModel({ name: "SwitchedFixture", id: 0xfff8, classification: "application" }),
+        new ClusterModel({ name: "IdentifyFixture", id: 0xfff9, classification: "endpoint" }),
+        deviceType,
+    );
+
+    return new EndpointFile(deviceType, {}).toString();
+}
+
+function clientRequirement(id: number, conformance: string) {
+    return new RequirementModel({ name: `Client${id}`, id, element: "clientCluster", conformance });
+}
+
+describe("RequirementGenerator for Base's Binding requirement", () => {
+    it("generates a Binding server for a simple device type with a mandatory application client", () => {
+        const source = bindingFixture("simple", clientRequirement(0xfff8, "M"));
+
+        expect(source).contains("server = { mandatory: { BindingFixture: BindingFixtureServer } }");
+        expect(source).contains("SwitchFixtureRequirements.server.mandatory.BindingFixture");
+    });
+
+    it("makes a Binding server the device type states optional mandatory, keeping what it states of it", () => {
+        const source = bindingFixture(
+            "simple",
+            clientRequirement(0xfff8, "M"),
+            new RequirementModel(
+                { name: "BindingFixture", id: 0x1e, element: "serverCluster", conformance: "O" },
+                new RequirementModel({ name: "Extra", element: "attribute", conformance: "M" }),
+            ),
+        );
+
+        expect(source).contains("server = { mandatory: { BindingFixture: BindingFixtureServer } }");
+        expect(source).contains("alter({ attributes: { extra: { optional: false } } })");
+    });
+
+    it("generates no Binding server for a simple device type whose application client is optional", () => {
+        expect(bindingFixture("simple", clientRequirement(0xfff8, "O"))).not.contains("BindingFixtureServer");
+    });
+
+    it("generates no Binding server for a simple device type whose only client is a utility cluster", () => {
+        expect(bindingFixture("simple", clientRequirement(0xfff9, "M"))).not.contains("BindingFixtureServer");
+    });
+
+    it("generates no Binding server for a utility device type with a mandatory application client", () => {
+        expect(bindingFixture("utility", clientRequirement(0xfff8, "M"))).not.contains("BindingFixtureServer");
     });
 });
 

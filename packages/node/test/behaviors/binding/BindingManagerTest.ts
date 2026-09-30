@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, Bytes } from "@matter/general";
+import { AsyncObservable, Bytes, Diagnostic, LogDestination, Logger, LogLevel } from "@matter/general";
 import { Fabric, FabricManager, TestFabric } from "@matter/protocol";
 import { ClusterId, EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
@@ -12,9 +12,16 @@ import { GroupKeyManagement } from "@matter/types/clusters/group-key-management"
 import { LocalActorContext } from "../../../src/behavior/context/server/LocalActorContext.js";
 import { BindingManager, BindingResolution } from "../../../src/behaviors/binding/BindingManager.js";
 import type { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
+import { GroupsClient } from "../../../src/behaviors/groups/GroupsClient.js";
+import { IdentifyClient } from "../../../src/behaviors/identify/IdentifyClient.js";
 import { OnOffClient } from "../../../src/behaviors/on-off/OnOffClient.js";
 import { OnOffServer } from "../../../src/behaviors/on-off/OnOffServer.js";
+import { OtaSoftwareUpdateProviderClient } from "../../../src/behaviors/ota-software-update-provider/OtaSoftwareUpdateProviderClient.js";
+import { WebRtcTransportProviderClient } from "../../../src/behaviors/web-rtc-transport-provider/WebRtcTransportProviderClient.js";
+import { CameraControllerDevice } from "../../../src/devices/camera-controller.js";
 import { OnOffLightSwitchDevice } from "../../../src/devices/on-off-light-switch.js";
+import { OnOffLightDevice } from "../../../src/devices/on-off-light.js";
+import type { EndpointType } from "../../../src/endpoint/type/EndpointType.js";
 import { ClientGroup } from "../../../src/node/ClientGroup.js";
 import { ClientNode } from "../../../src/node/ClientNode.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
@@ -833,5 +840,226 @@ describe("BindingManager", () => {
         expect(installedEndpoint.behaviors.has(OnOffClient)).true;
 
         await node.close();
+    });
+
+    describe("client selection", () => {
+        const switchWithMoreClients = OnOffLightSwitchDevice.withClientClusters(
+            GroupsClient,
+            OtaSoftwareUpdateProviderClient,
+            WebRtcTransportProviderClient,
+        );
+
+        async function resolveClientEntry(cluster?: ClusterId) {
+            const node = await MockServerNode.createOnline(undefined, { device: switchWithMoreClients });
+            const fabric = await node.addFabric();
+            const remoteNodeId = NodeId(BigInt(fabric.nodeId) + 1n);
+            const server = makeFakeBindingServer();
+            const entry = new Binding.Target({
+                node: remoteNodeId,
+                endpoint: EndpointNumber(1),
+                cluster,
+                group: undefined,
+                fabricIndex: fabric.fabricIndex,
+            });
+
+            const peer = await node.peers.forAddress({ fabricIndex: fabric.fabricIndex, nodeId: remoteNodeId });
+            node.env.get(BindingManager).register(server, node.parts.get(1)!, entry);
+            await Promise.resolve();
+            await Promise.resolve();
+            await peer.lifecycle.online.emit(LocalActorContext.ReadOnly);
+
+            return { node, emitted: fakeEmitted(server) };
+        }
+
+        it("installs every declared client on a bound peer except those whose cluster chooses its peer", async () => {
+            const { node, emitted } = await resolveClientEntry();
+
+            expect(emitted).has.length(1);
+            const installed = emitted[0].endpoint.behaviors;
+            expect(installed.has(IdentifyClient)).true;
+            expect(installed.has(GroupsClient)).true;
+            expect(installed.has(OnOffClient)).true;
+            expect(installed.has(OtaSoftwareUpdateProviderClient)).false;
+            expect(installed.has(WebRtcTransportProviderClient)).false;
+
+            await node.close();
+        });
+
+        it("installs the utility client an entry filters to", async () => {
+            // Characterization: passes without the bindable filter too
+            const { node, emitted } = await resolveClientEntry(ClusterId(0x0003));
+
+            expect(emitted).has.length(1);
+            const installed = emitted[0].endpoint.behaviors;
+            expect(installed.has(IdentifyClient)).true;
+            expect(installed.has(OnOffClient)).false;
+
+            await node.close();
+        });
+
+        it("rejects an entry filtered to a client whose cluster chooses its peer, saying so", async () => {
+            const warnings = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "BindingManager" && message.level >= LogLevel.WARN) {
+                        warnings.push(String(message.values[0]));
+                    }
+                },
+            });
+
+            let node: MockServerNode | undefined;
+            try {
+                const resolved = await resolveClientEntry(ClusterId(0x0029));
+                node = resolved.node;
+
+                expect(resolved.emitted).deep.equals([]);
+                expect(warnings).deep.equals([
+                    "Ignoring binding entry for cluster OtaSoftwareUpdateProvider: we never use this client through a binding",
+                ]);
+            } finally {
+                delete Logger.destinations.capture;
+                await node?.close();
+            }
+        });
+
+        async function warningsFor(device: EndpointType, cluster?: ClusterId) {
+            const warnings = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "BindingManager" && message.level >= LogLevel.WARN) {
+                        warnings.push(String(message.values[0]));
+                    }
+                },
+            });
+
+            const node = await MockServerNode.createOnline(undefined, { device });
+            try {
+                const fabric = await node.addFabric();
+                const entry = new Binding.Target({
+                    node: NodeId(BigInt(fabric.nodeId) + 1n),
+                    endpoint: EndpointNumber(1),
+                    cluster,
+                    group: undefined,
+                    fabricIndex: fabric.fabricIndex,
+                });
+                node.env.get(BindingManager).register(makeFakeBindingServer(), node.parts.get(1)!, entry);
+                await settle(() => warnings.length > 0);
+                return warnings;
+            } finally {
+                delete Logger.destinations.capture;
+                await node.close();
+            }
+        }
+
+        it("names both clusters when an entry matches only several clients a binding never directs", async () => {
+            expect(
+                await warningsFor(
+                    OnOffLightDevice.with(OtaSoftwareUpdateProviderClient, WebRtcTransportProviderClient),
+                ),
+            ).deep.equals([
+                "Ignoring binding entry for clusters OtaSoftwareUpdateProvider, WebRtcTransportProvider: we never use these clients through a binding",
+            ]);
+        });
+
+        it("says so when an entry without a cluster reaches an endpoint without client clusters", async () => {
+            expect(await warningsFor(OnOffLightDevice)).deep.equals([
+                "Ignoring binding entry: endpoint 1 has no client cluster declared",
+            ]);
+        });
+
+        it("names a cluster the model does not define by its ID", async () => {
+            expect(await warningsFor(OnOffLightDevice, ClusterId(0xfff1fc01))).deep.equals([
+                "Ignoring binding entry for cluster 0xfff1fc01: endpoint 1 has no client for this cluster declared",
+            ]);
+        });
+
+        it("rejects an entry for a cluster the endpoint has no client for, naming the cluster", async () => {
+            const warnings = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "BindingManager" && message.level >= LogLevel.WARN) {
+                        warnings.push(String(message.values[0]));
+                    }
+                },
+            });
+
+            let node: MockServerNode | undefined;
+            try {
+                const resolved = await resolveClientEntry(ClusterId(0x0008));
+                node = resolved.node;
+
+                expect(resolved.emitted).deep.equals([]);
+                expect(warnings).deep.equals([
+                    "Ignoring binding entry for cluster LevelControl: endpoint 1 has no client for this cluster declared",
+                ]);
+            } finally {
+                delete Logger.destinations.capture;
+                await node?.close();
+            }
+        });
+
+        it("rejects an entry of an endpoint whose only clients choose their peer, saying so", async () => {
+            const warnings = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "BindingManager" && message.level >= LogLevel.WARN) {
+                        warnings.push(String(message.values[0]));
+                    }
+                },
+            });
+
+            let node: MockServerNode | undefined;
+            try {
+                node = await MockServerNode.createOnline(undefined, {
+                    device: CameraControllerDevice,
+                });
+                const fabric = await node.addFabric();
+                const server = makeFakeBindingServer();
+                const entry = new Binding.Target({
+                    node: NodeId(BigInt(fabric.nodeId) + 1n),
+                    endpoint: EndpointNumber(1),
+                    cluster: undefined,
+                    group: undefined,
+                    fabricIndex: fabric.fabricIndex,
+                });
+
+                node.env.get(BindingManager).register(server, node.parts.get(1)!, entry);
+                await settle(() => warnings.length > 0);
+
+                expect(fakeEmitted(server)).deep.equals([]);
+                expect(warnings).deep.equals([
+                    "Ignoring binding entry for cluster WebRtcTransportProvider: we never use this client through a binding",
+                ]);
+            } finally {
+                delete Logger.destinations.capture;
+                await node?.close();
+            }
+        });
+
+        it("leaves a client whose cluster chooses its peer off a bound group", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: switchWithMoreClients });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer();
+            const entry = new Binding.Target({
+                node: undefined,
+                endpoint: undefined,
+                cluster: undefined,
+                group: GroupId(7),
+                fabricIndex: fabric.fabricIndex,
+            });
+            await node.peers.forAddress({ fabricIndex: fabric.fabricIndex, nodeId: NodeId.fromGroupId(GroupId(7)) });
+            await provisionGroupKey(fabric, GroupId(7));
+
+            node.env.get(BindingManager).register(server, node.parts.get(1)!, entry);
+            await settle(() => fakeEmitted(server).length > 0);
+
+            const emitted = fakeEmitted(server);
+            expect(emitted).has.length(1);
+            const installed = emitted[0].endpoint.behaviors;
+            expect(installed.has(OnOffClient)).true;
+            expect(installed.has(WebRtcTransportProviderClient)).false;
+
+            await node.close();
+        });
     });
 });

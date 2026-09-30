@@ -560,6 +560,235 @@ describe("DeviceTypeConformance with facts that are not a node", () => {
     });
 });
 
+const BINDING_ID = 0x1e;
+const TAGGED_ID = 0x7ff1;
+const NETWORKED_ID = 0x7ff2;
+const SWITCH_ID = 0xfff1_0010;
+const UTILITY_ID = 0xfff1_0011;
+
+/**
+ * A model whose Base mandates Binding under `Simple & Client`, as the specification does, plus Tagged under
+ * `Duplicate` and Networked under `CustomNetworkConfig`, which other endpoints and the node's configuration decide.
+ */
+function baseServersModel() {
+    const model = new MatterModel(
+        {},
+        new DeviceTypeModel(
+            { name: "Base", classification: "base" },
+            ...["Simple", "Client", "Duplicate", "CustomNetworkConfig"].map(name => new ConditionModel({ name })),
+            new RequirementModel({
+                name: "Binding",
+                id: BINDING_ID,
+                element: "serverCluster",
+                conformance: "Simple & Client",
+            }),
+            new RequirementModel({ name: "Tagged", id: TAGGED_ID, element: "serverCluster", conformance: "Duplicate" }),
+            new RequirementModel({
+                name: "Networked",
+                id: NETWORKED_ID,
+                element: "serverCluster",
+                conformance: "CustomNetworkConfig",
+            }),
+        ),
+        new DeviceTypeModel({ name: "RootNode", id: ROOT_ID, classification: "node" }),
+        new DeviceTypeModel({ name: "Switch", id: SWITCH_ID, classification: "simple" }),
+        new DeviceTypeModel({ name: "Utility", id: UTILITY_ID, classification: "utility" }),
+        new ClusterModel({ name: "Binding", id: BINDING_ID }),
+        new ClusterModel({ name: "Tagged", id: TAGGED_ID }),
+        new ClusterModel({ name: "Networked", id: NETWORKED_ID }),
+        new ClusterModel({ name: "OnOff", id: ON_OFF_ID, classification: "application" }),
+        new ClusterModel({ name: "Identify", id: 3, classification: "endpoint" }),
+    );
+    model.finalize();
+    return model;
+}
+
+/**
+ * Facts that record the endpoints whose device types or clusters a judgement reads.
+ */
+class ReadRecordingFacts extends FakeFacts {
+    read = new Set<FakeEndpoint>();
+
+    override deviceTypeIdsOf(endpoint: FakeEndpoint) {
+        this.read.add(endpoint);
+        return super.deviceTypeIdsOf(endpoint);
+    }
+
+    override serverClustersOf(endpoint: FakeEndpoint) {
+        this.read.add(endpoint);
+        return super.serverClustersOf(endpoint);
+    }
+
+    override clientClustersOf(endpoint: FakeEndpoint) {
+        this.read.add(endpoint);
+        return super.clientClustersOf(endpoint);
+    }
+}
+
+describe("DeviceTypeConformance.missingBaseServersOf", () => {
+    const model = baseServersModel();
+    const cluster = (id: number) => model.clusters(id)!;
+
+    function missingOf(target: FakeEndpoint, facts = new FakeFacts()) {
+        const pass = new DeviceTypeValidationPass(facts, model);
+        const missing = DeviceTypeConformance.missingBaseServersOf(target, pass).map(({ name }) => name);
+
+        // The same judgement check reports
+        expect(
+            DeviceTypeConformance.check(target, new DeviceTypeValidationPass(facts, model))
+                .filter(({ deviceType, kind }) => deviceType === "Base" && kind === "missing")
+                .map(({ requirement }) => requirement),
+        ).deep.equals(missing);
+
+        return missing;
+    }
+
+    it("names Binding for a simple endpoint with an application client", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("switch", SWITCH_ID, { parent: root, clients: [cluster(ON_OFF_ID)] });
+
+        expect(missingOf(target)).deep.equals(["Binding"]);
+    });
+
+    it("names Binding for a simple endpoint whose application client is an extension", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("switch", SWITCH_ID, { parent: root, clients: [cluster(ON_OFF_ID).extend()] });
+
+        expect(missingOf(target)).deep.equals(["Binding"]);
+    });
+
+    it("counts an extended application server for the Server condition", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("switch", SWITCH_ID, { parent: root, servers: [cluster(ON_OFF_ID).extend()] });
+
+        expect(
+            ConditionAssertions.ownConditionsOf(target, new DeviceTypeValidationPass(new FakeFacts(), model)).has(
+                StructuralCondition.Server,
+            ),
+        ).true;
+    });
+
+    it("names nothing for a simple endpoint that carries Binding", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("switch", SWITCH_ID, {
+            parent: root,
+            servers: [cluster(BINDING_ID)],
+            clients: [cluster(ON_OFF_ID)],
+        });
+
+        expect(missingOf(target)).deep.equals([]);
+    });
+
+    it("names nothing for a simple endpoint whose only client is a utility cluster", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("switch", SWITCH_ID, { parent: root, clients: [cluster(3)] });
+
+        expect(missingOf(target)).deep.equals([]);
+    });
+
+    it("names nothing for a utility endpoint with an application client", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("utility", UTILITY_ID, { parent: root, clients: [cluster(ON_OFF_ID)] });
+
+        expect(missingOf(target)).deep.equals([]);
+    });
+
+    it("names nothing for an endpoint of a device type the model does not define", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("custom", 0xfff1_00ff, {
+            parent: root,
+            clients: [cluster(ON_OFF_ID)],
+            stated: ["Simple"],
+        });
+
+        expect(missingOf(target)).deep.equals([]);
+    });
+
+    it("judges an endpoint outside its node scope under no condition", () => {
+        const root = endpoint("root", ROOT_ID);
+        const parent = endpoint("parent", SWITCH_ID, { parent: root });
+        const target = endpoint("switch", SWITCH_ID, { parent, clients: [cluster(ON_OFF_ID)] });
+        const facts = new FakeFacts();
+        facts.absent.add(parent);
+
+        expect(missingOf(target, facts)).deep.equals([]);
+    });
+
+    it("names a requirement a stated condition makes mandatory", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("utility", UTILITY_ID, {
+            parent: root,
+            clients: [cluster(ON_OFF_ID)],
+            stated: ["Simple"],
+        });
+
+        expect(missingOf(target)).deep.equals(["Binding"]);
+    });
+
+    it("judges a condition siblings decide from the node scope", () => {
+        const root = endpoint("root", ROOT_ID);
+        const first = endpoint("first", SWITCH_ID, { parent: root });
+        endpoint("second", SWITCH_ID, { parent: root });
+
+        expect(missingOf(first)).deep.equals(["Tagged"]);
+    });
+
+    it("judges a condition the node's configuration decides", () => {
+        const root = endpoint("root", ROOT_ID);
+        const target = endpoint("switch", SWITCH_ID, { parent: root });
+        const facts = new FakeFacts();
+        facts.nodeConditions.push(NodeCondition.CustomNetworkConfig);
+
+        expect(missingOf(target, facts)).deep.equals(["Networked"]);
+    });
+
+    it("reads no sibling for a requirement whose conditions the endpoint decides", () => {
+        const onlyBinding = new MatterModel(
+            {},
+            new DeviceTypeModel(
+                { name: "Base", classification: "base" },
+                ...["Simple", "Client"].map(name => new ConditionModel({ name })),
+                new RequirementModel({
+                    name: "Binding",
+                    id: BINDING_ID,
+                    element: "serverCluster",
+                    conformance: "Simple & Client",
+                }),
+            ),
+            new DeviceTypeModel({ name: "RootNode", id: ROOT_ID, classification: "node" }),
+            new DeviceTypeModel({ name: "Switch", id: SWITCH_ID, classification: "simple" }),
+            new ClusterModel({ name: "Binding", id: BINDING_ID }),
+            new ClusterModel({ name: "OnOff", id: ON_OFF_ID, classification: "application" }),
+        );
+        onlyBinding.finalize();
+
+        const root = endpoint("root", ROOT_ID);
+        const siblings = [
+            endpoint("first", SWITCH_ID, { parent: root }),
+            endpoint("second", SWITCH_ID, { parent: root }),
+        ];
+        const target = endpoint("switch", SWITCH_ID, { parent: root, clients: [onlyBinding.clusters(ON_OFF_ID)!] });
+        const facts = new ReadRecordingFacts();
+
+        const missing = DeviceTypeConformance.missingBaseServersOf(
+            target,
+            new DeviceTypeValidationPass(facts, onlyBinding),
+        );
+
+        expect(missing.map(({ name }) => name)).deep.equals(["Binding"]);
+        expect(siblings.filter(sibling => facts.read.has(sibling))).deep.equals([]);
+    });
+
+    it("treats every qualified condition name as undecided", () => {
+        const pass = new DeviceTypeValidationPass(new FakeFacts(), model);
+
+        expect(ConditionAssertions.isUndecided("Simple", pass)).false;
+        expect(ConditionAssertions.isUndecided("CustomNetworkConfig", pass)).true;
+        expect(ConditionAssertions.isUndecided("RootNode.CustomNetworkConfig", pass)).true;
+        expect(ConditionAssertions.isUndecided("Switch.Simple", pass)).true;
+    });
+});
+
 /**
  * An index answering from fixed lists rather than the tree.
  */

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Behavior } from "#behavior/Behavior.js";
+import { BindingServer } from "#behaviors/binding";
 import { DescriptorServer } from "#behaviors/descriptor";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
@@ -115,6 +117,10 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     /**
      * Prepare {@link endpoint}, a server endpoint about to initialize its behaviors.
      *
+     * Add the default server for each server cluster the Base device type mandates that the endpoint lacks, judged
+     * as {@link validate} judges it, whatever the mode, unless the endpoint already supports a behavior with that
+     * server's id. Only Binding has one; Descriptor is added to every endpoint before.
+     *
      * For an endpoint constructed on its own rather than with its owner's tree, refuse it when it or a descendant
      * carries a server cluster that a device type of an endpoint above it in the same node scope declares a
      * singleton. This runs before their behaviors initialize, because a behavior that works only on the node endpoint
@@ -128,6 +134,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      * @internal
      */
     constructing(endpoint: Endpoint) {
+        this.#addBaseServers(endpoint);
         if (isConstructionRoot(endpoint)) {
             this.#assertPlacement(endpoint);
         }
@@ -347,6 +354,16 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         this.#release(endpoint);
         if (!this.#isInDestruction(endpoint)) {
             this.#index?.removed(endpoint);
+        }
+    }
+
+    #addBaseServers(endpoint: Endpoint) {
+        const pass = new DeviceTypeValidationPass(new ServerEndpointFacts(endpoint), this.#model ?? this.#node.matter);
+        for (const requirement of DeviceTypeConformance.missingBaseServersOf(endpoint, pass)) {
+            const server = baseServerOf(requirement.id);
+            if (server !== undefined && !endpoint.behaviors.has(server.id)) {
+                endpoint.behaviors.inject(server, undefined, false);
+            }
         }
     }
 
@@ -628,6 +645,13 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 }
 
 const modes: readonly DeviceTypeValidation.Mode[] = ["off", "warn", "strict"];
+
+/**
+ * The default server of {@link clusterId}, a cluster the Base device type may mandate, if matter.js has one to add.
+ */
+function baseServerOf(clusterId: number | undefined): Behavior.Type | undefined {
+    return clusterId === BindingServer.cluster.id ? BindingServer : undefined;
+}
 
 function modeOf(environment: Environment): DeviceTypeValidation.Mode {
     const value = environment.vars.string("endpoint.validation") ?? "warn";

@@ -9,6 +9,10 @@ import {
     ClusterModel,
     ClusterVariance,
     Conformance,
+    DeviceTypeConformance,
+    DeviceTypeFacts,
+    DeviceTypeModel,
+    DeviceTypeValidationPass,
     FeatureSelectionViolations,
     MatterModel,
     RequirementModel,
@@ -57,6 +61,50 @@ function describeConformance(conformance: Conformance, kind: "mandatory" | "opti
     return "optional per the Matter specification.";
 }
 
+/**
+ * The server cluster requirements of Base that an endpoint of {@link deviceType} built from its generated type would
+ * violate, as a server node judges the endpoint before adding the Base servers it lacks: with the clusters the device
+ * type mandates, and the Descriptor server every endpoint receives.
+ *
+ * @see {@link MatterSpecification.v161.Device} § 1.1.7
+ */
+function missingBaseServersOf(deviceType: DeviceTypeModel, model: MatterModel) {
+    const mandatedClusters = (element: "serverCluster" | "clientCluster") => {
+        const clusters = new Array<ClusterModel>();
+        for (const requirement of deviceType.requirements) {
+            if (requirement.element !== element || !requirement.isMandatory) {
+                continue;
+            }
+            const cluster = RequirementResolver.clusterOf(requirement);
+            if (cluster !== undefined) {
+                clusters.push(cluster);
+            }
+        }
+        return clusters;
+    };
+    const servers = mandatedClusters("serverCluster");
+    const clients = mandatedClusters("clientCluster");
+
+    const facts: DeviceTypeFacts<DeviceTypeModel> = {
+        parentOf: () => undefined,
+        partsOf: () => [],
+        isPresent: () => true,
+        deviceTypeIdsOf: ({ id }) => [id],
+        serverClustersOf: () => servers,
+        clientClustersOf: () => clients,
+        elementsOf: (_endpoint, cluster) => {
+            throw new InternalError(`Judging Base servers read the elements of ${cluster.name}`);
+        },
+        statedConditionsOf: () => [],
+        nodeConditionsOf: () => [],
+        describe: ({ name }) => name,
+    };
+
+    return DeviceTypeConformance.missingBaseServersOf(deviceType, new DeviceTypeValidationPass(facts, model)).filter(
+        ({ id }) => id !== DESCRIPTOR_CLUSTER_ID,
+    );
+}
+
 type ClusterDetail = {
     requirement: RequirementModel;
     definition: ClusterModel;
@@ -86,10 +134,25 @@ export class RequirementGenerator {
         private file: EndpointFile,
         private type: "client" | "server",
     ) {
-        if (!file.model.owner(MatterModel)) {
+        const model = file.model.owner(MatterModel);
+        if (!model) {
             throw new InternalError(`Device type ${file.model.name} belongs to no MatterModel`);
         }
         const clusterReqs = this.file.model.requirements.filter(r => r.element === `${type}Cluster`);
+
+        // A requirement the device type states for a cluster Base mandates keeps its nested requirements
+        const baseMandated = new Set<number>();
+        if (type === "server" && file.model.id !== undefined) {
+            for (const baseServer of missingBaseServersOf(file.model, model)) {
+                if (baseServer.id === undefined) {
+                    continue;
+                }
+                baseMandated.add(baseServer.id);
+                if (!clusterReqs.some(({ id }) => id === baseServer.id)) {
+                    clusterReqs.push(baseServer);
+                }
+            }
+        }
 
         if (type === "server" && MANDATORY_PART_ENDPOINTS.includes(file.definitionName)) {
             this.#mandatoryParts = true;
@@ -122,7 +185,7 @@ export class RequirementGenerator {
             const detail = { requirement, definition, requirements };
 
             // The translator states a Descriptor requirement without conformance, but Base mandates Descriptor
-            if (requirement.isMandatory || isDescriptor) {
+            if (requirement.isMandatory || isDescriptor || baseMandated.has(definition.id)) {
                 const variance = ClusterVariance(definition);
 
                 if (variance.requiresFeatures && !selectionIsLegal(definition, requirements.mandatoryFeatureNames)) {

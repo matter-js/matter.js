@@ -12,6 +12,7 @@ import { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { BasicMultiplex, Diagnostic, Environment, Environmental, InternalError, Logger } from "@matter/general";
+import { Matter } from "@matter/model";
 import { Fabric, FabricManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
@@ -258,11 +259,10 @@ export class BindingManager {
 
         let resolution: BindingResolution;
 
-        // Verify source endpoint declares at least one matching client cluster.
-        const declaredClients = this.#selectClientClusters(sourceEp, entry.cluster);
-        if (declaredClients === undefined) {
+        const { clients: declaredClients, unbindable } = this.#selectClientClusters(sourceEp, entry.cluster);
+        if (!declaredClients.length) {
             logger.warn(
-                "Binding source endpoint declares no matching client cluster",
+                ignoredEntryReason(sourceEp, entry.cluster, unbindable),
                 Diagnostic.dict({ entry, sourceEndpoint: sourceEp.number }),
             );
             return;
@@ -458,20 +458,27 @@ export class BindingManager {
         );
     }
 
-    #selectClientClusters(sourceEp: Endpoint, filterCluster: number | undefined): ClusterBehavior.Type[] | undefined {
-        const declared = sourceEp.type.clientClusters;
-        if (declared === undefined) {
-            return undefined;
+    /**
+     * The client behaviors of {@link sourceEp} a binding entry installs on its target: those of the cluster
+     * {@link filterCluster} names, or all without a filter, except those whose cluster model is not
+     * `effectiveBindable`.
+     *
+     * @returns the selected clients, and the clients the entry matches that are left out as not bindable
+     */
+    #selectClientClusters(sourceEp: Endpoint, filterCluster: number | undefined) {
+        const clients = new Array<ClusterBehavior.Type>();
+        const unbindable = new Array<ClusterBehavior.Type>();
+        for (const client of ClusterBehavior.typesOf(Object.values(sourceEp.type.clientClusters))) {
+            if (filterCluster !== undefined && client.cluster.id !== filterCluster) {
+                continue;
+            }
+            if (client.schema.effectiveBindable) {
+                clients.push(client);
+            } else {
+                unbindable.push(client);
+            }
         }
-        const clients = Object.values(declared).filter(b => ClusterBehavior.is(b)) as ClusterBehavior.Type[];
-        if (clients.length === 0) {
-            return undefined;
-        }
-        const selected = filterCluster === undefined ? clients : clients.filter(c => c.cluster.id === filterCluster);
-        if (selected.length === 0) {
-            return undefined;
-        }
-        return selected;
+        return { clients, unbindable };
     }
 
     #installClientBehaviors(endpoint: Endpoint, clients: ClusterBehavior.Type[]): void {
@@ -645,4 +652,22 @@ export namespace BindingManager {
             "/",
         );
     }
+}
+
+/**
+ * Why a binding entry resolves to no client of {@link sourceEp}, phrased for the developer reading the log.
+ */
+function ignoredEntryReason(sourceEp: Endpoint, filterCluster: number | undefined, unbindable: ClusterBehavior.Type[]) {
+    if (unbindable.length === 1) {
+        return `Ignoring binding entry for cluster ${unbindable[0].cluster.name}: we never use this client through a binding`;
+    }
+    if (unbindable.length) {
+        const names = unbindable.map(client => client.cluster.name).join(", ");
+        return `Ignoring binding entry for clusters ${names}: we never use these clients through a binding`;
+    }
+    if (filterCluster === undefined) {
+        return `Ignoring binding entry: endpoint ${sourceEp.number} has no client cluster declared`;
+    }
+    const name = Matter.clusters(filterCluster)?.name ?? `0x${filterCluster.toString(16)}`;
+    return `Ignoring binding entry for cluster ${name}: endpoint ${sourceEp.number} has no client for this cluster declared`;
 }
