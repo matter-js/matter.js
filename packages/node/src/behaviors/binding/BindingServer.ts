@@ -55,6 +55,10 @@ import { BindingManager, type BindingResolution } from "./BindingManager.js";
  * cluster, receives a BindingServer without declaring one; the generated device types that mandate such a client
  * include it.  Declare it with `.with(BindingServer)` to type its state and events on other endpoints.
  *
+ * An entry resolves only while something observes `events.established`, so an endpoint whose application never
+ * observes it registers no peer and opens no CASE session.  Entries written before an observer attaches resolve
+ * when it attaches.
+ *
  * ```ts
  * const LightWithSensorBinding = OnOffLightDevice
  *     .with(BindingServer)
@@ -164,6 +168,9 @@ export namespace BindingServer {
         /**
          * Fires when a binding entry is resolved into a usable peer abstraction — either on
          * startup (for pre-existing entries) or when a controller writes a new entry.
+         *
+         * Entries resolve only while this event has an observer; an entry that arrived earlier resolves once one
+         * attaches.
          *
          * The handler receives a {@link BindingResolution} discriminated by `kind`.  The
          * `endpoint` field carries the declared client cluster behaviors the entry directs

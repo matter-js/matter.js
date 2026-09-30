@@ -75,9 +75,17 @@ export interface Observable<T extends any[] = any[], R = void> extends AsyncIter
     once(observer: Observer<T, R>): void;
 
     /**
-     * True if there is at least one observer registered.
+     * True if at least one observer counts as observant; see {@link observant}.
      */
     isObserved: boolean;
+
+    /**
+     * The value of {@link isObserved}, which emits when it changes.
+     *
+     * Created on first access and brought up to date on each access.  An observable whose `observed` nobody accessed
+     * does not track it.
+     */
+    readonly observed: ObservableValue<[boolean]>;
 
     /**
      * Determine whether an observer is registered.
@@ -185,13 +193,28 @@ export interface AsyncObservableValue<T extends [any, ...any[]] = [boolean]> ext
 export type ObserverErrorHandler = (error: Error, observer: Observer<any[], any>) => void;
 
 /**
+ * Updates {@link BasicObservable.observed} of another instance, for composites whose observed state depends on an
+ * observable they wrap.
+ */
+let refreshObservedOf: (observable: Observable<any[], any>) => void;
+
+/**
  * A concrete {@link Observable} implementation.
  */
 export class BasicObservable<T extends any[] = any[], R = void> implements Observable<T, R> {
     #isAsync = false;
     #observers?: Set<Observer<T, R>>;
     #once?: Set<Observer<T, R>>;
+    #observed?: ObservableValue<[boolean]>;
     #instrumentAs?: string;
+
+    static {
+        refreshObservedOf = observable => {
+            if (observable instanceof BasicObservable) {
+                observable.observersChanged();
+            }
+        };
+    }
 
     #joinIteration?: () => Promise<Next<T>>;
     #removeIterator?: () => void;
@@ -214,6 +237,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         this.#observers = this.#once = undefined;
 
         this.#stopIteration?.();
+        this.observersChanged();
     }
 
     protected handleError(error: Error, _observer: Observer<any[], any>) {
@@ -229,6 +253,24 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
     }
 
     get isObserved() {
+        return this.computeIsObserved();
+    }
+
+    get observed(): ObservableValue<[boolean]> {
+        if (this.#observed === undefined) {
+            this.#observed = ObservableValue<[boolean]>(this.computeIsObserved());
+        } else {
+            // An observer's observant state may change where no mutation here sees it
+            this.observersChanged();
+        }
+        return this.#observed;
+    }
+
+    /**
+     * Determines {@link isObserved} from the current observers.  A subclass whose observed state has another input
+     * extends this and calls {@link observersChanged} when that input changes.
+     */
+    protected computeIsObserved() {
         if (this.#observers) {
             for (const observer of this.#observers) {
                 if (observer[observant] !== false) {
@@ -246,6 +288,20 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         }
 
         return false;
+    }
+
+    /**
+     * Brings {@link observed} up to date after an input of {@link computeIsObserved} changed.
+     */
+    protected observersChanged() {
+        const observed = this.#observed;
+        if (observed === undefined) {
+            return;
+        }
+        const isObserved = this.computeIsObserved();
+        if (observed.value !== isObserved) {
+            observed.emit(isObserved);
+        }
     }
 
     isObservedBy(observer: Observer<T, R>) {
@@ -268,6 +324,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
             if (this.#once?.has(observer)) {
                 this.#once.delete(observer);
                 this.#observers?.delete(observer);
+                this.observersChanged();
             }
 
             if (this.#instrumentAs) {
@@ -362,6 +419,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
             this.#observers = new Set();
         }
         this.#observers.add(observer);
+        this.observersChanged();
     }
 
     use(observer: Observer<T, R>) {
@@ -385,14 +443,15 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
     off(observer: Observer<T, R>) {
         this.#observers?.delete(observer);
         this.#once?.delete(observer);
+        this.observersChanged();
     }
 
     once(observer: Observer<T, R>) {
-        this.on(observer);
         if (!this.#once) {
             this.#once = new Set();
         }
         this.#once.add(observer);
+        this.on(observer);
     }
 
     then<TResult1 = T, TResult2 = never>(
@@ -436,6 +495,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         };
 
         this.#observers = this.#once = undefined;
+        this.observersChanged();
 
         return detached;
     }
@@ -784,9 +844,7 @@ export class ObservableProxy extends BasicObservable {
         super();
 
         Object.defineProperty(this.#emitter, observant, {
-            get() {
-                return super.isObserved;
-            },
+            get: () => this.computeIsObserved(),
         });
 
         this.#target = target;
@@ -801,6 +859,18 @@ export class ObservableProxy extends BasicObservable {
 
     override get isObserved(): boolean {
         return this.#target.isObserved;
+    }
+
+    override get observed() {
+        return this.#target.observed;
+    }
+
+    /**
+     * The observers of the proxy count for the target through the observant state of the proxy's emitter, which the
+     * target does not see change.
+     */
+    protected override observersChanged() {
+        refreshObservedOf(this.#target);
     }
 
     override emit: (...payload: any) => any | undefined;
@@ -963,6 +1033,8 @@ export class QuietObservable<T extends any[] = any[], R extends MaybePromise<voi
     #sink?: Observable<T, R>;
     #sourceObserver?: Observer<T, R>;
     #sinkObserver?: Observer<T, R>;
+    #watchesSink = false;
+    #unwatchSink?: () => void;
     #deferredPayload?: T;
     #lastEmitAt?: number;
     #emitTimer?: Timer;
@@ -1070,12 +1142,46 @@ export class QuietObservable<T extends any[] = any[], R extends MaybePromise<voi
         if (this.#sink && this.#sinkObserver) {
             this.off(this.#sinkObserver);
         }
+        this.#unwatchSink?.();
         this.#sink = sink;
         if (sink) {
             this.#sinkObserver = (...payload) => sink.emit(...payload);
             this.#sinkObserver[observant] = false;
             this.on(this.#sinkObserver);
         }
+        if (this.#watchesSink) {
+            this.#watchSink();
+        }
+        this.observersChanged();
+    }
+
+    /**
+     * Also follows the observers of {@link sink} from first access on.
+     */
+    override get observed() {
+        const observed = super.observed;
+        if (!this.#watchesSink) {
+            this.#watchesSink = true;
+            this.#watchSink();
+        }
+        return observed;
+    }
+
+    #watchSink() {
+        const sink = this.#sink;
+        if (sink === undefined) {
+            return;
+        }
+        const refresh = () => this.observersChanged();
+        sink.observed.on(refresh);
+        this.#unwatchSink = () => {
+            sink.observed.off(refresh);
+            this.#unwatchSink = undefined;
+        };
+    }
+
+    protected override computeIsObserved() {
+        return super.computeIsObserved() || this.#sink?.isObserved === true;
     }
 
     get shouldEmit() {
@@ -1090,12 +1196,8 @@ export class QuietObservable<T extends any[] = any[], R extends MaybePromise<voi
         }
     }
 
-    override get isObserved() {
-        return super.isObserved || this.#sink?.isObserved || false;
-    }
-
     override isObservedBy(observer: Observer<T, R>): boolean {
-        return this.#sink?.isObservedBy(observer) || this.isObservedBy(observer) || false;
+        return this.#sink?.isObservedBy(observer) || super.isObservedBy(observer);
     }
 
     override emit(...payload: T): R | undefined {
@@ -1150,6 +1252,8 @@ export class QuietObservable<T extends any[] = any[], R extends MaybePromise<voi
 
     override [Symbol.dispose]() {
         this.#stop();
+        this.#unwatchSink?.();
+        this.#watchesSink = false;
     }
 
     #emit(payload: T, now?: number) {
