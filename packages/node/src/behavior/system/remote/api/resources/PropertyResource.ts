@@ -64,7 +64,7 @@ export class PropertyResource extends ApiResource {
         }
 
         const entry = new Envelope({ supervisor: this.supervisorFor(entrySchema), ...request });
-        entry.validate();
+        entry.validate(this.session);
         this.#target[this.id] = [...list, entry.js];
     }
 
