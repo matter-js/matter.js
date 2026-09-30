@@ -195,7 +195,7 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
         await this.initialize();
 
         // Some tests (BINFO_2_2 at least) are unhappy if events persist
-        await this.node.env.get(OccurrenceManager).clear();
+        await this.node.env.get(OccurrenceManager).clear({ keepNumbering: true });
 
         await this.start();
     }
