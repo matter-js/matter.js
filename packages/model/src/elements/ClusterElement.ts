@@ -44,7 +44,8 @@ export interface ClusterElement extends BaseElement {
      * `false` when a Binding entry never directs a client of the cluster, because the cluster's own mechanism chooses
      * the peer. Absent means a binding may direct it.
      *
-     * It does not change the Base device type's `Client` condition, which counts every client application cluster.
+     * Such a client does not count for the Base device type's `Client` condition, so it does not make an endpoint need
+     * the Binding cluster.
      *
      * This is a matter.js extension; the Matter specification does not state it.
      */

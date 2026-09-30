@@ -106,12 +106,32 @@ export class ResolvedEndpoint<E> {
     }
 
     /**
-     * Whether a server or client application cluster exists on the endpoint.
+     * Whether a server application cluster exists on the endpoint.
      */
-    hasApplicationCluster(side: "server" | "client") {
-        const clusters = side === "server" ? this.#serverClusters : this.#clientClusters;
-        for (const cluster of clusters.values()) {
+    get hasApplicationServer() {
+        for (const cluster of this.#serverClusters.values()) {
             if (cluster.effectiveClassification === ClusterElement.Classification.Application) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a client application cluster that a binding may direct exists on the endpoint.
+     *
+     * Interpretation: Base's `Client` condition counts every client application cluster, but a client whose cluster is
+     * not {@link ClusterModel.effectiveBindable bindable} never acts through a binding, so it does not make the endpoint
+     * need the Binding cluster.
+     *
+     * @see {@link MatterSpecification.v161.Device} § 1.1.6
+     */
+    get hasBindableApplicationClient() {
+        for (const cluster of this.#clientClusters.values()) {
+            if (
+                cluster.effectiveClassification === ClusterElement.Classification.Application &&
+                cluster.effectiveBindable
+            ) {
                 return true;
             }
         }

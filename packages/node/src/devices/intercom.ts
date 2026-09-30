@@ -15,7 +15,6 @@ import {
 import {
     WebRtcTransportRequestorServer as BaseWebRtcTransportRequestorServer
 } from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorServer.js";
-import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import {
     CameraAvSettingsUserLevelManagementServer as BaseCameraAvSettingsUserLevelManagementServer
@@ -86,13 +85,6 @@ export namespace IntercomRequirements {
     export const WebRtcTransportRequestorServer = BaseWebRtcTransportRequestorServer;
 
     /**
-     * The Binding cluster is required by the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link BindingServer} for convenience.
-     */
-    export const BindingServer = BaseBindingServer;
-
-    /**
      * The Identify cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
@@ -135,10 +127,8 @@ export namespace IntercomRequirements {
         mandatory: {
             CameraAvStreamManagement: CameraAvStreamManagementServer,
             WebRtcTransportProvider: WebRtcTransportProviderServer,
-            WebRtcTransportRequestor: WebRtcTransportRequestorServer,
-            Binding: BindingServer
+            WebRtcTransportRequestor: WebRtcTransportRequestorServer
         },
-
         optional: {
             Identify: IdentifyServer,
             CameraAvSettingsUserLevelManagement: CameraAvSettingsUserLevelManagementServer
@@ -162,12 +152,10 @@ export const IntercomDeviceDefinition = MutableEndpoint({
     deviceType: 0x140,
     deviceRevision: 2,
     requirements: IntercomRequirements,
-
     behaviors: SupportedBehaviors(
         IntercomRequirements.server.mandatory.CameraAvStreamManagement,
         IntercomRequirements.server.mandatory.WebRtcTransportProvider,
-        IntercomRequirements.server.mandatory.WebRtcTransportRequestor,
-        IntercomRequirements.server.mandatory.Binding
+        IntercomRequirements.server.mandatory.WebRtcTransportRequestor
     )
 });
 

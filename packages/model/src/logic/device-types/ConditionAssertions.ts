@@ -594,10 +594,10 @@ function ownStructuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPas
         }
     }
 
-    if (facts.hasApplicationCluster("server")) {
+    if (facts.hasApplicationServer) {
         conditions.add(StructuralCondition.Server);
     }
-    if (facts.hasApplicationCluster("client")) {
+    if (facts.hasBindableApplicationClient) {
         conditions.add(StructuralCondition.Client);
     }
 

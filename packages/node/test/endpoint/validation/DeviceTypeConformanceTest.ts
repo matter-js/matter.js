@@ -13,6 +13,7 @@ import { GroupKeyManagementBehavior } from "#behaviors/group-key-management";
 import { GroupsServer } from "#behaviors/groups";
 import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
+import { CameraControllerDevice } from "#devices/camera-controller";
 import { DoorLockDevice } from "#devices/door-lock";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
 import { OnOffLightSwitchDevice, OnOffLightSwitchRequirements } from "#devices/on-off-light-switch";
@@ -569,6 +570,16 @@ describe("DeviceTypeConformance", () => {
                 const endpoint = await node.add(OnOffLightDevice.withClientClusters(IdentifyClient), { id: "light" });
 
                 expect(endpoint.behaviors.supported.binding).undefined;
+
+                await node.close();
+            });
+
+            it("is neither added nor required where every application client is one a binding never directs", async () => {
+                const node = await createNode();
+                const endpoint = await node.add(CameraControllerDevice, { id: "controller" });
+
+                expect(endpoint.behaviors.supported.binding).undefined;
+                expect(violationsOf(endpoint).filter(({ requirement }) => requirement === "Binding")).deep.equals([]);
 
                 await node.close();
             });
