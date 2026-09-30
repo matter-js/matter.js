@@ -22,16 +22,18 @@ const Cabinet = TemperatureControlledCabinetDevice.with(
 registerDeviceType({
     name: "refrigerator",
     async create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
-        const ep = new Endpoint(RefrigeratorDevice, { number: endpoint });
+        // Children come with their parent, so the parent's composition is judged complete at construction
+        const ep = new Endpoint(RefrigeratorDevice, {
+            number: endpoint,
+            parts: [
+                new Endpoint(Cabinet, {
+                    number: numbers.next(),
+                    id: "cabinet",
+                    temperatureControl: { temperatureSetpoint: 400, minTemperature: 100, maxTemperature: 700 },
+                }),
+            ],
+        });
         await serverNode.add(ep);
-
-        await ep.add(
-            new Endpoint(Cabinet, {
-                number: numbers.next(),
-                id: "cabinet",
-                temperatureControl: { temperatureSetpoint: 400, minTemperature: 100, maxTemperature: 700 },
-            }),
-        );
 
         return { endpoint: ep };
     },

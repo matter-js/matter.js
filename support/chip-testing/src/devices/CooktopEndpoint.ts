@@ -21,23 +21,23 @@ const CookSurface = CookSurfaceDevice.with(IdentifyServer, OnOffServer, Descript
 registerDeviceType({
     name: "cooktop",
     async create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
-        const ep = new Endpoint(CooktopDevice, { number: endpoint });
+        // Children come with their parent, so the parent's composition is judged complete at construction
+        const ep = new Endpoint(CooktopDevice, {
+            number: endpoint,
+            parts: [
+                new Endpoint(CookSurface, {
+                    id: "surface-1",
+                    number: numbers.next(),
+                    descriptor: { tagList: [CommonPositionTag.Left] },
+                }),
+                new Endpoint(CookSurface, {
+                    id: "surface-2",
+                    number: numbers.next(),
+                    descriptor: { tagList: [CommonPositionTag.Right] },
+                }),
+            ],
+        });
         await serverNode.add(ep);
-
-        await ep.add(
-            new Endpoint(CookSurface, {
-                id: "surface-1",
-                number: numbers.next(),
-                descriptor: { tagList: [CommonPositionTag.Left] },
-            }),
-        );
-        await ep.add(
-            new Endpoint(CookSurface, {
-                id: "surface-2",
-                number: numbers.next(),
-                descriptor: { tagList: [CommonPositionTag.Right] },
-            }),
-        );
 
         return { endpoint: ep };
     },

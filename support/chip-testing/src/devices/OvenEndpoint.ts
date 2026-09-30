@@ -28,24 +28,26 @@ const Surface = CookSurfaceDevice.with(IdentifyServer, OnOffServer);
 registerDeviceType({
     name: "oven",
     async create(serverNode: ServerNode, endpoint: EndpointNumber, numbers: EndpointNumberAllocator) {
-        const ep = new Endpoint(OvenDevice, { number: endpoint });
+        // Children come with their parent, so the parent's composition is judged complete at construction
+        const ep = new Endpoint(OvenDevice, {
+            number: endpoint,
+            parts: [
+                new Endpoint(Cavity, {
+                    number: numbers.next(),
+                    id: "cavity",
+                    temperatureControl: { temperatureSetpoint: 18000, minTemperature: 5000, maxTemperature: 25000 },
+                    ovenMode: {
+                        supportedModes: [
+                            { label: "Grill", mode: 1, modeTags: [{ value: OvenMode.ModeTag.Grill }] },
+                            { label: "Bake", mode: 2, modeTags: [{ value: OvenMode.ModeTag.Bake }] },
+                        ],
+                        currentMode: 2,
+                    },
+                }),
+                new Endpoint(Surface, { id: "surface", number: numbers.next() }),
+            ],
+        });
         await serverNode.add(ep);
-
-        await ep.add(
-            new Endpoint(Cavity, {
-                number: numbers.next(),
-                id: "cavity",
-                temperatureControl: { temperatureSetpoint: 18000, minTemperature: 5000, maxTemperature: 25000 },
-                ovenMode: {
-                    supportedModes: [
-                        { label: "Grill", mode: 1, modeTags: [{ value: OvenMode.ModeTag.Grill }] },
-                        { label: "Bake", mode: 2, modeTags: [{ value: OvenMode.ModeTag.Bake }] },
-                    ],
-                    currentMode: 2,
-                },
-            }),
-        );
-        await ep.add(new Endpoint(Surface, { id: "surface", number: numbers.next() }));
 
         return { endpoint: ep };
     },

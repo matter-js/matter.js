@@ -107,6 +107,17 @@ export class AllDevicesTestInstance extends NodeTestInstance {
             );
         }
 
+        // Every type resolves before the node exists, so a bad --device leaves no node holding storage and a socket
+        const factories = specs.map(({ type }) => {
+            const factory = getDeviceType(type);
+            if (!factory) {
+                throw new ValidationError(
+                    `unsupported --device "${type}" (supported: ${listDeviceTypes().join(", ")})`,
+                );
+            }
+            return factory;
+        });
+
         const serverNode = await buildRootNode({
             id: this.id,
             appName: this.appName,
@@ -120,15 +131,10 @@ export class AllDevicesTestInstance extends NodeTestInstance {
         });
 
         const numbers = new EndpointNumberAllocator(specs.flatMap(({ endpoint }) => endpoint ?? []));
-        for (const spec of specs) {
+        for (const [index, spec] of specs.entries()) {
             const { type } = spec;
-            const factory = getDeviceType(type);
-            if (!factory) {
-                throw new ValidationError(
-                    `unsupported --device "${type}" (supported: ${listDeviceTypes().join(", ")})`,
-                );
-            }
-            const endpoint = spec.endpoint === undefined ? numbers.next() : numbers.take(spec.endpoint);
+            const factory = factories[index];
+            const endpoint = spec.endpoint === undefined ? numbers.first() : numbers.take(spec.endpoint);
             logger.info(`Adding device "${type}" on endpoint ${endpoint}`);
             const handle = await factory.create(serverNode, endpoint, numbers);
             this.#endpoints.set(endpoint, handle);

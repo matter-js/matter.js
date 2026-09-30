@@ -50,4 +50,21 @@ describe("EndpointNumberAllocator", () => {
 
         expect(() => numbers.take(3)).throws(ImplementationError, "Endpoint 3 is not reserved, so it cannot be taken");
     });
+
+    it("gives each further device without a number the lowest number still free", () => {
+        const numbers = new EndpointNumberAllocator([2]);
+
+        expect(numbers.first()).equals(1);
+        expect([numbers.next(), numbers.next()]).deep.equals([3, 4]);
+        expect(numbers.take(2)).equals(2);
+        expect(numbers.first()).equals(5);
+    });
+
+    it("gives a device without a number the lowest free number, after an explicit claim too", () => {
+        const numbers = new EndpointNumberAllocator([2]);
+
+        expect(numbers.take(2)).equals(2);
+        expect(numbers.first()).equals(1);
+        expect(numbers.next()).equals(3);
+    });
 });

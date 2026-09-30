@@ -9,7 +9,8 @@ import { EndpointNumber } from "@matter/main/types";
 
 /**
  * Hands out endpoint numbers as devices are created, so a device's child endpoints never take a number that a later
- * `--device type:N` asks for. Mirrors the `DynamicEndpointIdAllocator` of the CHIP all-devices-app.
+ * `--device type:N` asks for. A device's children follow it as with the `DynamicEndpointIdAllocator` of the CHIP
+ * all-devices-app.
  */
 export class EndpointNumberAllocator {
     readonly #reserved: ReadonlySet<number>;
@@ -24,7 +25,17 @@ export class EndpointNumberAllocator {
     }
 
     /**
-     * The next number after the last one handed out that is neither reserved nor taken.
+     * The lowest number that is neither reserved nor taken, for a device the command line gives no number. Its
+     * children continue after it through {@link next}.
+     */
+    first(): EndpointNumber {
+        this.#next = 1;
+        return this.next();
+    }
+
+    /**
+     * The next number after the last one handed out that is neither reserved nor taken, for a device's child
+     * endpoints.
      */
     next(): EndpointNumber {
         while (this.#reserved.has(this.#next) || this.#taken.has(this.#next)) {

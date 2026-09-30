@@ -23,6 +23,7 @@ function fixture(clusterRequirementName: string, ...nested: RequirementModel[]) 
             new FieldModel({ name: "LITS", constraint: "2", title: "LongIdleTimeSupport", conformance: "O" }),
         ),
         new AttributeModel({ name: "ActiveModeThreshold", id: 0x2, type: "uint16", conformance: "O" }),
+        new AttributeModel({ name: "DeviceTypeList", id: 0x3, type: "list", conformance: "O" }),
     );
     const clusterRequirement = new RequirementModel(
         { name: clusterRequirementName, id: 0xfff7, element: "serverCluster", conformance: "O" },
@@ -47,6 +48,10 @@ function requirementsOf(...nested: RequirementModel[]) {
  * the given requirements nested in it.
  */
 function descriptorFixture(...nested: RequirementModel[]) {
+    return descriptorFixtureAs("serverCluster", ...nested);
+}
+
+function descriptorFixtureAs(element: "serverCluster" | "clientCluster", ...nested: RequirementModel[]) {
     const descriptor = new ClusterModel(
         { name: "DescriptorFixture", id: 0x1d },
         new AttributeModel(
@@ -58,7 +63,7 @@ function descriptorFixture(...nested: RequirementModel[]) {
     );
     const deviceType = new DeviceTypeModel(
         { name: "TaggedPanel", id: 0xff0b, classification: "simple", revision: 1 },
-        new RequirementModel({ name: "DescriptorFixture", id: 0x1d, element: "serverCluster" }, ...nested),
+        new RequirementModel({ name: "DescriptorFixture", id: 0x1d, element }, ...nested),
     );
     new MatterModel({}, descriptor, deviceType);
 
@@ -103,6 +108,15 @@ describe("RequirementGenerator", () => {
         expect(source).not.contains("deviceTypeList");
         expect(source).contains("TaggedPanelRequirements.server.mandatory.DescriptorFixture");
     });
+
+    it("generates a Descriptor client requirement instead of skipping it like an unspecialized server one", () => {
+        const source = descriptorFixtureAs(
+            "clientCluster",
+            new RequirementModel({ name: "DeviceTypeList", element: "attribute", default: [] }),
+        );
+
+        expect(source).contains("DescriptorFixtureClient");
+    });
 });
 
 describe("ClusterRequirements", () => {
@@ -121,6 +135,14 @@ describe("ClusterRequirements", () => {
         );
 
         expect(requirements.alterations).deep.equals({ attributes: { activeModeThreshold: { optional: false } } });
+    });
+
+    it("ingests a DeviceTypeList requirement of a cluster other than Descriptor", () => {
+        const requirements = requirementsOf(
+            new RequirementModel({ name: "DeviceTypeList", element: "attribute", conformance: "M" }),
+        );
+
+        expect(requirements.alterations).deep.equals({ attributes: { deviceTypeList: { optional: false } } });
     });
 
     it("is specialized by a default alone", () => {
