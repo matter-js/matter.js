@@ -122,6 +122,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: A server endpoint's structure is checked against the device types it declares, at construction and as it changes afterward, and each violation is logged as a warning; `endpoint.validation` (`MATTER_ENDPOINT_VALIDATION`: `off`, `warn` or `strict`, default `warn`) turns the checks off or refuses construction instead, `DeviceTypeConformanceService.validate()` checks on request and returns the violations per endpoint, and `Endpoint.Options.deviceConditions` states conditions the structure does not show
     - Breaking: A server cluster that a device type of the node declares a singleton refuses construction with `DeviceTypeConformanceError` on an endpoint whose device types neither declare the singleton nor list the cluster as a server cluster; with `endpoint.validation` `off` only when a device type above the endpoint declares the singleton
     - Enhancement: The Descriptor `PartsList` update no longer looks up the endpoint's device types in the model on every change, so adding endpoints under an aggregator is about a third faster
+    - Enhancement: `EndpointType.is()` tells whether a value is shaped like an endpoint type
+    - Breaking: The Closure, Closure Panel and Electrical Energy Tariff device types include `DescriptorServer.with("TagList")`, as they require. An endpoint of these device types must set `descriptor.tagList` to 1 to 6 tags, or it fails to initialize
 
 - @matter/testing
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
