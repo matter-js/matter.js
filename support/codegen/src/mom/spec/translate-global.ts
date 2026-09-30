@@ -84,12 +84,13 @@ const DatatypeSchema = {
  * Extract basic datatypes from core spec.  We are not functional without these so this code is less lenient.
  */
 function* translateDatatypes(ref: GlobalReference): Generator<DatatypeElement> {
-    // Rename detail sections that do not match the name or description of the corresponding table entry
+    // The table names an aliased datatype by its alias or by its struct name depending on revision, so its detail
+    // section must be found under both
     if (ref.details) {
-        for (const detail of ref.details) {
+        for (const detail of [...ref.details]) {
             const name = GlobalDatatypeAliases.get(detail.name.replace(/ Type$/, ""));
             if (name !== undefined) {
-                detail.name = name;
+                ref.details.push({ ...detail, name });
             }
         }
     }
@@ -108,7 +109,7 @@ function* translateDatatypes(ref: GlobalReference): Generator<DatatypeElement> {
                 return;
             }
 
-            name = repairTypeIdentifier(name);
+            name = repairTypeIdentifier(GlobalDatatypeAliases.get(name) ?? name);
             type = repairTypeIdentifier(type);
 
             const element = DatatypeElement({

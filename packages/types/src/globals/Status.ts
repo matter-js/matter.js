@@ -9,7 +9,13 @@
 /**
  * Status Code
  *
- * @see {@link MatterSpecification.v161.Core} § 7.19.2
+ * An enumeration value that indicates the success or error status in response to an action in an interaction.
+ *
+ * See Chapter 8, Interaction Model Specification for details of the interaction model.
+ *
+ * See Section 8.10, "Interaction Model Status Codes" for the defined set of status codes as well as defined ranges.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 7.19.2.21
  */
 export enum Status {
     /**

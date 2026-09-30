@@ -46,13 +46,13 @@ export class PropertyResource extends ApiResource {
 
     override write(request: Envelope.Data) {
         const requestEnv = new Envelope({ supervisor: this.supervisor, ...request });
-        requestEnv.validate();
+        requestEnv.validate(this.session);
         this.#target[this.id] = requestEnv.js;
     }
 
     override patch(request: Envelope) {
         request = new Envelope({ supervisor: this.supervisor, ...request });
-        request.validate();
+        request.validate(this.session);
         this.#targetSupervisor.patch({ [this.id]: request.js }, this.#target, this.dataModelPath);
     }
 

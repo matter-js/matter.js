@@ -62,7 +62,7 @@ export class DefaultValueGenerator {
             }
             const constructor = specialized.type.replace("Tlv", "");
             this.#tlv.importTlv(specialized.category, constructor);
-            return serialize.asIs(`${constructor}(${defaultValue})`);
+            return serialize.asIs(`${constructor}(${serialize(defaultValue)})`);
         }
         return defaultValue;
     }

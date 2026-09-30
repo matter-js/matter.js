@@ -159,6 +159,7 @@ function classify(ast: Conformance.Ast, featureContext: Conformance.FeatureConte
         case Flag.Mandatory:
         case Flag.Optional:
         case Flag.Disallowed:
+        case Flag.Obsolete:
         case Flag.Deprecated:
         case Flag.Provisional:
             return "conditional";
@@ -245,6 +246,7 @@ function extractOtherwiseInterdependencies(
                 break;
 
             case Flag.Disallowed:
+            case Flag.Obsolete:
             case Flag.Deprecated:
             case Flag.Provisional:
                 fallback = Applicability.None;

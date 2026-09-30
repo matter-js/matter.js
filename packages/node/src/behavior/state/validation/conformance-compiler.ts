@@ -260,6 +260,7 @@ export function astToFunction(
                 return createValue(ast.param);
 
             case Conformance.Flag.Disallowed:
+            case Conformance.Flag.Obsolete:
                 return createDisallowed();
 
             case Conformance.Flag.Mandatory:
@@ -549,7 +550,7 @@ export function astToFunction(
     }
 
     /**
-     * "Disallowed" represents "X" in a conformance expression which explicitly disallows the property.
+     * "Disallowed" represents "X" or "Z" in a conformance expression, which explicitly disallow the property.
      */
     function createDisallowed(): StaticNode {
         return {

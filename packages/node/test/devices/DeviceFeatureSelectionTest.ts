@@ -16,13 +16,14 @@ import * as devices from "../../src/devices/index.js";
 describe("device type feature selection", () => {
     it("every device type's default behaviors conform", () => {
         const offenders = new Array<string>();
+        let judged = 0;
 
         for (const [name, device] of Object.entries(devices)) {
-            if (typeof device !== "function" || !("behaviors" in device)) {
+            if (!EndpointType.is(device)) {
                 continue;
             }
 
-            for (const type of Object.values((device as EndpointType).behaviors ?? {})) {
+            for (const type of Object.values(device.behaviors)) {
                 if (!ClusterBehavior.is(type)) {
                     continue;
                 }
@@ -32,12 +33,14 @@ describe("device type feature selection", () => {
                     continue;
                 }
 
+                judged++;
                 for (const error of FeatureSelectionErrors(schema)) {
                     offenders.push(`${name}.${type.id}: ${error}`);
                 }
             }
         }
 
+        expect(judged, "judges the default cluster behaviors of the generated device types").greaterThan(100);
         expect(offenders).deep.equals([]);
     });
 

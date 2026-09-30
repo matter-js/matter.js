@@ -112,7 +112,7 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
         case undefined:
             const type = schema.effectiveType;
             if (type === undefined) {
-                if (schema.isDisallowed || (schema.isDeprecated && !schema.type)) {
+                if (schema.isDisallowed || ((schema.isDeprecated || schema.isObsolete) && !schema.type)) {
                     // We do not need to validate types for disallowed members and the specification may not include
                     // them
                     break;
