@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { DescriptorServer } from "#behaviors/descriptor";
 import * as devices from "#devices/index";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
@@ -33,7 +34,7 @@ import { Thermostat } from "@matter/types/clusters/thermostat";
 import { WaterHeaterManagement } from "@matter/types/clusters/water-heater-management";
 import { WaterHeaterMode } from "@matter/types/clusters/water-heater-mode";
 import { MockServerNode } from "../../node/mock-server-node.js";
-import { createUnjudgedNode, violationsOf } from "./validation-helpers.js";
+import { createNode, createUnjudgedNode, violationsOf } from "./validation-helpers.js";
 
 /**
  * Every standard generated endpoint type, deduplicated by name.
@@ -305,29 +306,18 @@ function pin(reason: string, ...violations: string[]): Pin[] {
 
 const COMPONENTS = "component endpoints are the developer's to add";
 const CONDITION = "the condition is the developer's to state on the component endpoint";
-const BINDING = "Base requires Binding on this type's endpoints, and the generated type does not include it yet";
 
 /**
  * The violations each type carries beyond {@link unimplementedMandatoryServers}, as
  * `"<kind> <deviceType> <requirement>"`.  A type absent from this table is expected to carry no others.
  */
 const pinnedViolations: Record<string, Pin[]> = {
-    AudioDoorbell: pin(BINDING, "missing Base Binding"),
     BatteryStorage: pin(
         COMPONENTS,
         "instanceCount BatteryStorage device:ElectricalSensor",
         "instanceCount BatteryStorage device:PowerSource",
         "instanceCount BatteryStorage device:DeviceEnergyManagement",
     ),
-    Camera: pin(BINDING, "missing Base Binding"),
-    CameraController: pin(BINDING, "missing Base Binding"),
-    CastingVideoClient: pin(BINDING, "missing Base Binding"),
-    ClosureController: pin(BINDING, "missing Base Binding"),
-    ColorDimmerSwitch: pin(BINDING, "missing Base Binding"),
-    ControlBridge: pin(BINDING, "missing Base Binding"),
-    DimmerSwitch: pin(BINDING, "missing Base Binding"),
-    DoorLockController: pin(BINDING, "missing Base Binding"),
-    Doorbell: pin(BINDING, "missing Base Binding"),
     ElectricalMeter: pin(COMPONENTS, "instanceCount ElectricalMeter device:ElectricalSensor"),
     EnergyEvse: pin(
         COMPONENTS,
@@ -346,18 +336,12 @@ const pinnedViolations: Record<string, Pin[]> = {
         "instanceCount HeatPump device:DeviceEnergyManagement",
         "instanceCount HeatPump device:ElectricalSensor",
     ),
-    Intercom: [
-        ...pin(COMPONENTS, "instanceCount Intercom device:GenericSwitch"),
-        ...pin(BINDING, "missing Base Binding"),
-    ],
+    Intercom: pin(COMPONENTS, "instanceCount Intercom device:GenericSwitch"),
     IrrigationSystem: pin(COMPONENTS, "instanceCount IrrigationSystem device:WaterValve"),
-    OnOffLightSwitch: pin(BINDING, "missing Base Binding"),
-    OnOffSensor: pin(BINDING, "missing Base Binding"),
     Oven: [
         ...pin(COMPONENTS, "instanceCount Oven device:TemperatureControlledCabinet"),
         ...pin(CONDITION, "instanceCount Oven condition:Heater"),
     ],
-    PumpController: pin(BINDING, "missing Base Binding"),
     Refrigerator: [
         ...pin(COMPONENTS, "instanceCount Refrigerator device:TemperatureControlledCabinet"),
         ...pin(CONDITION, "instanceCount Refrigerator condition:Cooler"),
@@ -368,14 +352,11 @@ const pinnedViolations: Record<string, Pin[]> = {
         "instanceCount SolarPower device:PowerSource",
         "instanceCount SolarPower device:ElectricalSensor",
     ),
-    ThermostatController: pin(BINDING, "missing Base Binding"),
     VideoDoorbell: pin(
         COMPONENTS,
         "instanceCount VideoDoorbell device:Camera",
         "instanceCount VideoDoorbell device:Doorbell",
     ),
-    VideoRemoteControl: pin(BINDING, "missing Base Binding"),
-    WindowCoveringController: pin(BINDING, "missing Base Binding"),
 };
 
 /**
@@ -427,6 +408,18 @@ function explain(e: unknown, depth = 0): string {
         }
     }
     return parts.join(" <- ");
+}
+
+/**
+ * Expect every cluster server {@link endpoint} supports to come from {@link type}, except the Descriptor server every
+ * server endpoint receives, so no standard type depends on a server the node adds at runtime.
+ */
+function expectOnlyDeclaredServers(endpoint: Endpoint, type: EndpointType) {
+    const declared = new Set(Object.keys(type.behaviors));
+    const added = ClusterBehavior.typesOf(Object.values(endpoint.behaviors.supported))
+        .map(({ id }) => id)
+        .filter(id => id !== DescriptorServer.id && !declared.has(id));
+    expect(added, `${type.name} gains servers at runtime`).deep.equals([]);
 }
 
 function violationStringsOf(endpoint: Endpoint) {
@@ -576,6 +569,7 @@ describe("StandardDeviceTypeCorpus", () => {
                     for (const behavior of Object.values(type.behaviors)) {
                         expect(node.behaviors.has(behavior), behavior.id).true;
                     }
+                    expectOnlyDeclaredServers(node, node.type);
                     expectViolations(node, name, type);
                 } finally {
                     await node.close();
@@ -585,7 +579,7 @@ describe("StandardDeviceTypeCorpus", () => {
         }
 
         it(`judges ${name}`, async () => {
-            const node = await createUnjudgedNode();
+            const node = await createNode();
             try {
                 const parent =
                     placement?.parent === "aggregator"
@@ -601,6 +595,7 @@ describe("StandardDeviceTypeCorpus", () => {
                     expect.fail(`${name} failed to build: ${explain(e)}`);
                 }
 
+                expectOnlyDeclaredServers(endpoint, type);
                 expectViolations(endpoint, name, type);
             } finally {
                 await node.close();

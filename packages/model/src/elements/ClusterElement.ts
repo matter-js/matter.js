@@ -40,6 +40,16 @@ export interface ClusterElement extends BaseElement {
      */
     classification?: `${ClusterElement.Classification}`;
 
+    /**
+     * `false` when a Binding entry never directs a client of the cluster, because the cluster's own mechanism chooses
+     * the peer. Absent means a binding may direct it.
+     *
+     * It does not change the Base device type's `Client` condition, which counts every client application cluster.
+     *
+     * This is a matter.js extension; the Matter specification does not state it.
+     */
+    bindable?: boolean;
+
     children?: ClusterElement.Child[];
 }
 

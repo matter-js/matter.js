@@ -258,11 +258,12 @@ export class BindingManager {
 
         let resolution: BindingResolution;
 
-        // Verify source endpoint declares at least one matching client cluster.
-        const declaredClients = this.#selectClientClusters(sourceEp, entry.cluster);
-        if (declaredClients === undefined) {
+        const { clients: declaredClients, unbindable } = this.#selectClientClusters(sourceEp, entry.cluster);
+        if (!declaredClients.length) {
             logger.warn(
-                "Binding source endpoint declares no matching client cluster",
+                unbindable
+                    ? "Binding entry matches only client clusters that choose their peer themselves, so a binding never directs them"
+                    : "Binding source endpoint declares no matching client cluster",
                 Diagnostic.dict({ entry, sourceEndpoint: sourceEp.number }),
             );
             return;
@@ -458,20 +459,27 @@ export class BindingManager {
         );
     }
 
-    #selectClientClusters(sourceEp: Endpoint, filterCluster: number | undefined): ClusterBehavior.Type[] | undefined {
-        const declared = sourceEp.type.clientClusters;
-        if (declared === undefined) {
-            return undefined;
+    /**
+     * The client behaviors of {@link sourceEp} a binding entry installs on its target: those of the cluster
+     * {@link filterCluster} names, or all without a filter, except those whose cluster model is not
+     * `effectiveBindable`.
+     *
+     * @returns the selected clients, and whether a client the entry matches is left out as not bindable
+     */
+    #selectClientClusters(sourceEp: Endpoint, filterCluster: number | undefined) {
+        const clients = new Array<ClusterBehavior.Type>();
+        let unbindable = false;
+        for (const client of ClusterBehavior.typesOf(Object.values(sourceEp.type.clientClusters))) {
+            if (filterCluster !== undefined && client.cluster.id !== filterCluster) {
+                continue;
+            }
+            if (client.schema.effectiveBindable) {
+                clients.push(client);
+            } else {
+                unbindable = true;
+            }
         }
-        const clients = Object.values(declared).filter(b => ClusterBehavior.is(b)) as ClusterBehavior.Type[];
-        if (clients.length === 0) {
-            return undefined;
-        }
-        const selected = filterCluster === undefined ? clients : clients.filter(c => c.cluster.id === filterCluster);
-        if (selected.length === 0) {
-            return undefined;
-        }
-        return selected;
+        return { clients, unbindable };
     }
 
     #installClientBehaviors(endpoint: Endpoint, clients: ClusterBehavior.Type[]): void {

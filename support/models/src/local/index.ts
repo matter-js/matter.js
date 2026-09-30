@@ -42,6 +42,7 @@ import "./LocalizationConfigurationOverrides.js";
 import "./ModeBaseOverrides.js";
 import "./ModeSelectOverrides.js";
 import "./namespace.js";
+import "./NonBindableClientOverrides.js";
 import "./OperationalCredentialsOverrides.js";
 import "./OtaSoftwareUpdateRequestor.js";
 import "./percent.js";

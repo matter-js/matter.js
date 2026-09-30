@@ -9,6 +9,7 @@
 import {
     WebRtcTransportRequestorServer as BaseWebRtcTransportRequestorServer
 } from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import {
     WebRtcTransportProviderClient as BaseWebRtcTransportProviderClient
 } from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderClient.js";
@@ -55,6 +56,13 @@ export namespace CameraControllerRequirements {
      * We provide this alias to the default implementation {@link WebRtcTransportRequestorServer} for convenience.
      */
     export const WebRtcTransportRequestorServer = BaseWebRtcTransportRequestorServer;
+
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
 
     /**
      * The WebRtcTransportProvider cluster is required by the Matter specification.
@@ -130,7 +138,9 @@ export namespace CameraControllerRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorServer } };
+    export const server = {
+        mandatory: { WebRtcTransportRequestor: WebRtcTransportRequestorServer, Binding: BindingServer }
+    };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -157,7 +167,10 @@ export const CameraControllerDeviceDefinition = MutableEndpoint({
     deviceType: 0x147,
     deviceRevision: 1,
     requirements: CameraControllerRequirements,
-    behaviors: SupportedBehaviors(CameraControllerRequirements.server.mandatory.WebRtcTransportRequestor)
+    behaviors: SupportedBehaviors(
+        CameraControllerRequirements.server.mandatory.WebRtcTransportRequestor,
+        CameraControllerRequirements.server.mandatory.Binding
+    )
 });
 
 Object.freeze(CameraControllerDeviceDefinition);

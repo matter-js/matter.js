@@ -111,7 +111,7 @@ export class ResolvedEndpoint<E> {
     hasApplicationCluster(side: "server" | "client") {
         const clusters = side === "server" ? this.#serverClusters : this.#clientClusters;
         for (const cluster of clusters.values()) {
-            if (cluster.classification === ClusterElement.Classification.Application) {
+            if (cluster.effectiveClassification === ClusterElement.Classification.Application) {
                 return true;
             }
         }

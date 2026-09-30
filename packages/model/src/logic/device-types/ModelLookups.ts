@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { collectDotSegments, Conformance } from "../../aspects/Conformance.js";
 import { DeviceClassification } from "../../common/DeviceClassification.js";
 import { EndpointComposition } from "../../common/EndpointComposition.js";
 import { RequirementElement } from "../../elements/RequirementElement.js";
@@ -74,6 +75,8 @@ class ModelLookups {
     readonly #compositions = new Memo<DeviceTypeModel, EndpointComposition>();
     readonly #base = new Memo<undefined, DeviceTypeModel[]>();
     readonly #aggregator = new Memo<undefined, DeviceTypeModel | undefined>();
+    readonly #assertedNames = new Memo<undefined, ReadonlySet<string>>();
+    readonly #conformanceNames = new Memo<RequirementModel, ReadonlySet<string>>();
 
     constructor(model: MatterModel) {
         this.#model = model;
@@ -184,9 +187,82 @@ class ModelLookups {
     }
 
     /**
+     * The names of the conditions a requirement of a device type of the model asserts.
+     */
+    get assertedConditionNames(): ReadonlySet<string> {
+        return this.#assertedNames.get(undefined, () => {
+            const names = new Set<string>();
+            for (const deviceType of this.#model.deviceTypes) {
+                for (const requirement of this.requirementsOf(deviceType)) {
+                    const condition = this.assertedConditionOf(requirement);
+                    if (condition !== undefined) {
+                        names.add(condition.name);
+                    }
+                }
+            }
+            return names;
+        });
+    }
+
+    /**
+     * The names {@link requirement}'s conformance references, qualified ones joined by dots.
+     */
+    conformanceNamesOf(requirement: RequirementModel): ReadonlySet<string> {
+        return this.#conformanceNames.get(requirement, () => {
+            const names = new Set<string>();
+            collectNames(requirement.conformance.ast, names);
+            return names;
+        });
+    }
+
+    /**
      * The Aggregator device type, undefined when the model does not define one.
      */
     get aggregator(): DeviceTypeModel | undefined {
         return this.#aggregator.get(undefined, () => this.#model.deviceTypes("Aggregator"));
+    }
+}
+
+function collectNames(ast: Conformance.Ast, names: Set<string>) {
+    switch (ast.type) {
+        case Conformance.Special.Name:
+        case Conformance.Operator.DOT: {
+            const segments = collectDotSegments(ast);
+            if (segments !== undefined) {
+                names.add(segments.join("."));
+            } else if (ast.type === Conformance.Operator.DOT) {
+                collectNames(ast.param.lhs, names);
+                collectNames(ast.param.rhs, names);
+            }
+            break;
+        }
+
+        case Conformance.Operator.AND:
+        case Conformance.Operator.OR:
+        case Conformance.Operator.XOR:
+        case Conformance.Operator.EQ:
+        case Conformance.Operator.NE:
+        case Conformance.Operator.GT:
+        case Conformance.Operator.LT:
+        case Conformance.Operator.GTE:
+        case Conformance.Operator.LTE:
+            collectNames(ast.param.lhs, names);
+            collectNames(ast.param.rhs, names);
+            break;
+
+        case Conformance.Operator.NOT:
+        case Conformance.Special.OptionalIf:
+            collectNames(ast.param, names);
+            break;
+
+        case Conformance.Special.Choice:
+            collectNames(ast.param.expr, names);
+            break;
+
+        case Conformance.Special.Otherwise:
+            for (const entry of ast.param) {
+                collectNames(entry, names);
+            }
+            break;
     }
 }

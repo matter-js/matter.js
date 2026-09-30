@@ -287,6 +287,33 @@ export namespace ConditionAssertions {
     }
 
     /**
+     * The conditions true for {@link endpoint} that its own facts decide: its structural conditions but `Duplicate`,
+     * and those it states. For a name not {@link isUndecided undecided}, the set holds it exactly when the conditions
+     * {@link collect} answers for {@link endpoint} in its node scope do, and it reads no other endpoint.
+     */
+    export function ownConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): Set<string> {
+        const conditions = ownStructuralConditionsOf(endpoint, pass);
+        for (const name of statedConditionsOf(endpoint, pass)) {
+            conditions.add(name);
+        }
+        return conditions;
+    }
+
+    /**
+     * Whether other endpoints or the node's configuration may make the condition {@link name} true for an endpoint:
+     * a node condition, `Duplicate`, a condition a requirement of a device type of the model asserts, or any name
+     * qualified by a device type, which may resolve to one of those.
+     */
+    export function isUndecided<E>(name: string, pass: DeviceTypeValidationPass<E>) {
+        return (
+            name.includes(".") ||
+            nodeConditionNames.has(name) ||
+            name === StructuralCondition.Duplicate ||
+            lookupsFor(pass.model).assertedConditionNames.has(name)
+        );
+    }
+
+    /**
      * The node endpoint whose node scope {@link endpoint} belongs to: the closest endpoint at or above it whose device
      * type is classified as a node. Undefined when there is none, so the endpoint belongs to no node scope.
      *
@@ -328,6 +355,8 @@ export enum NodeCondition {
     WiFi = "WiFi",
     Thread = "Thread",
 }
+
+const nodeConditionNames: ReadonlySet<string> = new Set(Object.values(NodeCondition));
 
 const interfaceConditions = new Map<string, NodeCondition>([
     ["WI", NodeCondition.WiFi],
@@ -525,6 +554,17 @@ function matchesOf<E>(facts: ResolvedEndpoint<E>, condition: ConditionModel, pas
  * @see {@link MatterSpecification.v161.Device} § 1.1.6
  */
 function structuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
+    const conditions = ownStructuralConditionsOf(endpoint, pass);
+    if (overlapsSibling(ResolvedEndpoint.of(endpoint, pass), pass)) {
+        conditions.add(StructuralCondition.Duplicate);
+    }
+    return conditions;
+}
+
+/**
+ * The structural conditions of {@link endpoint} its own facts decide: all but `Duplicate`.
+ */
+function ownStructuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>) {
     const facts = ResolvedEndpoint.of(endpoint, pass);
     const conditions = new Set<string>();
 
@@ -559,9 +599,6 @@ function structuralConditionsOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E
     }
     if (facts.hasApplicationCluster("client")) {
         conditions.add(StructuralCondition.Client);
-    }
-    if (overlapsSibling(facts, pass)) {
-        conditions.add(StructuralCondition.Duplicate);
     }
 
     return conditions;

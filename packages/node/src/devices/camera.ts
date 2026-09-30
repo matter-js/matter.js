@@ -12,6 +12,7 @@ import {
 import {
     WebRtcTransportProviderServer as BaseWebRtcTransportProviderServer
 } from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import {
     WebRtcTransportRequestorServer as BaseWebRtcTransportRequestorServer
 } from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorServer.js";
@@ -73,6 +74,13 @@ export namespace CameraRequirements {
      * We provide this alias to the default implementation {@link WebRtcTransportProviderServer} for convenience.
      */
     export const WebRtcTransportProviderServer = BaseWebRtcTransportProviderServer;
+
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
 
     /**
      * The WebRtcTransportRequestor cluster is optional per the Matter specification.
@@ -137,7 +145,8 @@ export namespace CameraRequirements {
     export const server = {
         mandatory: {
             CameraAvStreamManagement: CameraAvStreamManagementServer,
-            WebRtcTransportProvider: WebRtcTransportProviderServer
+            WebRtcTransportProvider: WebRtcTransportProviderServer,
+            Binding: BindingServer
         },
 
         optional: {
@@ -166,7 +175,8 @@ export const CameraDeviceDefinition = MutableEndpoint({
     requirements: CameraRequirements,
     behaviors: SupportedBehaviors(
         CameraRequirements.server.mandatory.CameraAvStreamManagement,
-        CameraRequirements.server.mandatory.WebRtcTransportProvider
+        CameraRequirements.server.mandatory.WebRtcTransportProvider,
+        CameraRequirements.server.mandatory.Binding
     )
 });
 
