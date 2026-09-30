@@ -5,7 +5,7 @@
  */
 
 import { Api } from "#behavior/system/remote/api/Api.js";
-import { RemoteRequest } from "#behavior/system/remote/api/RemoteRequest.js";
+import type { RemoteRequest } from "#behavior/system/remote/api/RemoteRequest.js";
 import { UserLabelServer } from "#behaviors/user-label";
 import { Abort } from "@matter/general";
 import { Status, StatusResponseError } from "@matter/types";
