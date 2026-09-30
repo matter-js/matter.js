@@ -41,6 +41,9 @@ export const HARNESS_COMPOSITION_NAME = "matter.js";
 /** Part name of the harness composition's dbus sidecar. */
 export const HARNESS_DBUS_PART_NAME = "dbus";
 
+/** Container that serializes test runs on one host; see {@link acquireHarnessLock}. */
+export const HARNESS_LOCK_NAME = `${HARNESS_COMPOSITION_NAME}-harness-lock`;
+
 /**
  * Container name of the harness composition's dbus sidecar (`Composition.add` names containers
  * `<composition>-<part>`). Cert-test chip-docker subjects check for this container and reuse the
@@ -76,6 +79,15 @@ export namespace Constants {
      */
     export const imageName = env.MATTER_CHIP_IMAGE || "ghcr.io/matter-js/chip:latest";
     export const mdnsVolumeName = env.MATTER_MDNS_VOLUME || "matter.js-mdns";
+
+    /**
+     * How long a run waits for another run on the same Docker daemon to release the harness
+     * (`MATTER_CHIP_HARNESS_WAIT_MINUTES`, default 60; 0 fails at once when another run holds it). Read when the harness starts, so a bad value
+     * fails only runs that use it.
+     */
+    export function harnessWaitMs() {
+        return harnessWaitMinutes(env.MATTER_CHIP_HARNESS_WAIT_MINUTES) * 60_000;
+    }
 
     export const useLocalController = !!env.MATTER_LOCAL_CONTROLLER;
     export const controllerPort = env.MATTER_CONTROLLER_PORT ? parseInt(env.MATTER_CONTROLLER_PORT, 10) : 9002;
@@ -146,4 +158,15 @@ export namespace Constants {
             { kind: "file", name: "src/chip/matter-js-pics.properties" },
         ],
     };
+}
+
+function harnessWaitMinutes(value: string | undefined) {
+    if (value === undefined || value.trim() === "") {
+        return 60;
+    }
+    const minutes = Number(value);
+    if (!Number.isFinite(minutes) || minutes < 0) {
+        throw new Error(`MATTER_CHIP_HARNESS_WAIT_MINUTES must be a number of minutes >= 0, got "${value}"`);
+    }
+    return minutes;
 }
