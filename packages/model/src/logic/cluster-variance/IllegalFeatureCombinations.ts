@@ -274,6 +274,7 @@ function inapplicable(feature: FieldModel, node: Conformance.Ast): States {
         case Conformance.Flag.Optional:
         case Conformance.Flag.Deprecated:
         case Conformance.Flag.Disallowed:
+        case Conformance.Flag.Obsolete:
         case Conformance.Special.Desc:
             return [];
 
@@ -437,6 +438,7 @@ function addFeatureNode(
 
         case Conformance.Flag.Deprecated:
         case Conformance.Flag.Disallowed:
+        case Conformance.Flag.Obsolete:
             add({ [feature.name]: true });
             break;
 

@@ -8,4 +8,7 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "energy-mVAh", description: "Apparent Energy", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "energy-mVAh", description: "Apparent Energy", xref: "core§7.19.2.15",
+    details: "This type represents apparent energy measured in millivolt-amp-hours."
+});

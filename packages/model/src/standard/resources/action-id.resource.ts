@@ -8,4 +8,7 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "action-id", description: "Action ID", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "action-id", description: "Action ID", xref: "core§7.19.2.35",
+    details: "An identifier that indicates an action as defined in the Interaction Model specification."
+});

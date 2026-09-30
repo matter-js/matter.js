@@ -8,6 +8,20 @@ import { enum8, uint8 } from "#index.js";
 import { AttributeModel, ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
 
 describe("ValueModel", () => {
+    describe("obsolete conformance", () => {
+        it("reads as obsolete but not disallowed", () => {
+            const attribute = new AttributeModel({ id: 1, name: "Legacy", type: "uint8", conformance: "Z" });
+            expect(attribute.isObsolete).true;
+            expect(attribute.isDisallowed).false;
+        });
+
+        it("leaves a disallowed model not obsolete", () => {
+            const attribute = new AttributeModel({ id: 1, name: "Forbidden", type: "uint8", conformance: "X" });
+            expect(attribute.isObsolete).false;
+            expect(attribute.isDisallowed).true;
+        });
+    });
+
     describe("effectiveQuality", () => {
         it("merges an extension's qualities with the base's", () => {
             const base = new AttributeModel({ id: 1, name: "Attr", type: "uint8", quality: "N T" });

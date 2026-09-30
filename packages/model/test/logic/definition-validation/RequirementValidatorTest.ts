@@ -254,6 +254,15 @@ describe("RequirementValidator", () => {
             });
         }
 
+        it("accepts an obsolete element the cluster no longer defines", () => {
+            expect(
+                withClusterRequirement(
+                    "M",
+                    new RequirementModel({ name: "NoSuchElement", element: "attribute", conformance: "Z" }),
+                ),
+            ).deep.equals([]);
+        });
+
         it("accepts disallowing an element the cluster does not define", () => {
             expect(
                 withClusterRequirement(

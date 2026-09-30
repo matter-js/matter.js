@@ -19,6 +19,7 @@ export function documentationOf(model: Model): Documentation {
         details: model.details,
         xref: model.xref,
         isDeprecated: model instanceof ValueModel ? model.isDeprecated : undefined,
+        isObsolete: model instanceof ValueModel ? model.isObsolete : undefined,
     };
 
     if (documentation.details !== undefined) {

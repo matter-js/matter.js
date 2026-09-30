@@ -26,10 +26,17 @@ const POP = () => ScanDirective.POP;
 const POP2 = () => ScanDirective.POP2;
 const NAMESPACE = () => ScanDirective.NAMESPACE;
 
-type HtmlRepairs = Record<
-    string,
-    (ref: SpecReference, ownerRef: ClusterReference | GlobalReference) => ScanDirective | void
->;
+type HtmlRepair = (ref: SpecReference, ownerRef: ClusterReference | GlobalReference) => ScanDirective | void;
+
+type HtmlRepairs = Record<string, HtmlRepair>;
+
+// A cluster's datatypes sit two levels below the cluster heading
+const POP_WHEN_NESTED: HtmlRepair = (ref, ownerRef) =>
+    depthOf(ref) > depthOf(ownerRef) + 2 ? ScanDirective.POP : undefined;
+
+function depthOf(ref: SpecReference) {
+    return ref.xref.section.split(".").length;
+}
 
 export const ClusterHtmlRepairs: Record<string, HtmlRepairs> = {
     "General Commissioning": {
@@ -110,16 +117,13 @@ export const ClusterHtmlRepairs: Record<string, HtmlRepairs> = {
 
     "ICD Management": {
         // ClientTypeEnum is one level too deep (1.4 core)
-        "9.17.5.1.1": POP,
-
-        // It's a fake heading in 1.4.2 (probably was in 1.4 too) and has moved
-        "9.16.5.1.1": POP,
+        "ClientTypeEnum Type": POP_WHEN_NESTED,
     },
 
     "Service Area": {
-        // SelectAreaStatus and SkipAreaStatus enums are too deep (1.4 cluster)
-        "1.17.5.6.1": POP,
-        "1.17.5.6.2": POP,
+        // SelectAreasStatus and SkipAreaStatus enums are too deep (1.4 cluster)
+        "SelectAreasStatus Type": POP_WHEN_NESTED,
+        "SkipAreaStatus Type": POP_WHEN_NESTED,
     },
 
     "Joint Fabric Datastore": {

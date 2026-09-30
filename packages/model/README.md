@@ -103,6 +103,9 @@ npm run generate-spec -- --path ~/matter-spec/1.5.1/markdown
 You can also set the `MATTER_SPECIFICATION_PATH` environment variable or omit `--path` to use the
 default location (`~/Dropbox/matter/<version>`).
 
+A ballot export states a version such as `0.9-1.7-winter2027`, which reads as `0.9`. Pass `--revision 1.7` so the
+intermediate model lands in `v1.7`, and the same option to `generate-model` so it reads that model.
+
 Details we extract from the specification include standard element names, types and detailed documentation including
 cross references to specification documents. We also extract DSL-based definitions of Matter concepts such as
 conformance, constraints, etc.

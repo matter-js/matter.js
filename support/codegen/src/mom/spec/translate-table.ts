@@ -220,6 +220,7 @@ function installPreciseDetails(
     definitions: SpecReference[],
     records: Array<{
         name?: string;
+        description?: string;
         xref?: Specification.CrossReference;
         details?: string;
         children?: AnyElement[];
@@ -287,6 +288,13 @@ function installPreciseDetails(
             }
         }
 
+        // Some global datatypes, such as "medium-type", are detailed under their long name only
+        if (!detail && titleSuffix === "datatype" && record.description !== undefined) {
+            identifiedAs = record.description;
+            const longName = record.description.toLowerCase();
+            detail = lookup[`${longName} type`] ?? lookup[longName];
+        }
+
         // If we didn't identify a detail section we must skip
         if (!detail) {
             continue;
@@ -311,7 +319,7 @@ function installPreciseDetails(
                 detailName !== record.name &&
                 // Don't do this for features where "description" is the long name and may match the "name" except with
                 // incorrect case (which should be uppercase)
-                identifiedAs.toLowerCase() !== (record as { description?: string }).description?.toLowerCase()
+                identifiedAs.toLowerCase() !== record.description?.toLowerCase()
             ) {
                 record.name = detailName;
             }
