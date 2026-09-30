@@ -5,6 +5,7 @@
  */
 
 import { ServerNode } from "#node/ServerNode.js";
+import { commission } from "../../../node/icd-helpers.js";
 import { MockSite } from "../../../node/mock-site.js";
 import { subscribedPeer } from "../../../node/node-helpers.js";
 
@@ -31,6 +32,22 @@ describe("SubscriptionsServer", () => {
 
         // Right after start only the node itself can have restored the subscription; the controller resubscribes only
         // once its subscription times out
+        expect(activeSubscriptionsOf(restarted)).equals(1);
+    });
+
+    it("re-establishes a subscription after the first restart of a node commissioned again after a factory reset", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+
+        await MockTime.resolve(device.erase());
+        await commission(controller, device);
+        await subscribedPeer(controller, "peer2");
+        expect(activeSubscriptionsOf(device)).equals(1);
+
+        await MockTime.resolve(device.close());
+        const restarted = await MockTime.resolve(site.addDevice({ index: 2 }));
+
         expect(activeSubscriptionsOf(restarted)).equals(1);
     });
 });
