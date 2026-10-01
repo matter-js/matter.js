@@ -84,10 +84,10 @@ requests `linux/arm64` — `chip-cert-bins` has never published any other platfo
 architecture; on a non-arm64 host Docker runs the (harmless, `cp`-only) extraction step under
 emulation.
 
-Extraction has no cross-process lock: two runs racing to extract the *same* tag into the same
-`MATTER_CHIP_BINS_DIR` at once can still interleave their `rm -rf`/`cp -a`/stamp-write. Don't point
-concurrent test runs that might resolve to the same tag at one `MATTER_CHIP_BINS_DIR` — give each its
-own directory (or its own `MATTER_CHIP_BINS_TAG`) if they run at the same time.
+Runs on one Docker daemon extract one at a time, since extraction happens while a run holds the harness
+lock (see "Running" below). Runs on different Docker daemons that share one `MATTER_CHIP_BINS_DIR` have no
+such lock: two of them extracting the *same* tag at once can interleave their `rm -rf`/`cp -a`/stamp-write,
+so give each its own directory (or its own `MATTER_CHIP_BINS_TAG`).
 
 Running the extracted binaries afterwards is a different story per consumer, since architecture and
 OS constraints differ by how each one executes them:
@@ -187,6 +187,13 @@ MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000 npx matter-test --spec="test/cert/TC-IDM-2
 
 Both need the shared dbus/mdns/chip harness containers, so Docker still has to be running even for
 the `matterjs` flavor.
+
+Only one run at a time can use those containers: they run on the host network under fixed names. A run
+holds the lock container `matter.js-harness-lock` while it uses them, and a second run on the same Docker
+daemon waits for it, for up to `MATTER_CHIP_HARNESS_WAIT_MINUTES` (default 60; `0` fails at once when another run holds it). The
+lock ends with the process that holds it. A lock that does not run for 30 s (its process died between
+creating and starting it, for example) is left over: no run removes it on another run's behalf, so the
+run fails with the `docker rm -f matter.js-harness-lock` that clears it.
 
 `test-cert` sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS=15000` itself, giving decommissioning fabrics more
 than `matter-test`'s 5s package-wide default to finish closing (see `test/cert/AGENTS.md`'s "Resolved:

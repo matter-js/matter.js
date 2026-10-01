@@ -23,8 +23,15 @@ import { AccessoryServer } from "./accessory-server.js";
 import { createRegisteredCertTest } from "./cert/cert-test.js";
 import { CERT_BINS_PLATFORM, chipBinsPlatformSupported, prepareChipBins, resolveChipBinsSource } from "./chip-bins.js";
 import type { chip } from "./chip.js";
-import { Constants, ContainerPaths, HARNESS_COMPOSITION_NAME, HARNESS_DBUS_PART_NAME } from "./config.js";
+import {
+    Constants,
+    ContainerPaths,
+    HARNESS_COMPOSITION_NAME,
+    HARNESS_DBUS_PART_NAME,
+    HARNESS_LOCK_NAME,
+} from "./config.js";
 import { ContainerCommandPipe } from "./container-command-pipe.js";
+import { acquireHarnessLock } from "./harness-lock.js";
 import { PicsFile, PicsUnavailableError } from "./pics/file.js";
 import { PicsSource } from "./pics/source.js";
 import { PythonTest } from "./python-test.js";
@@ -458,6 +465,15 @@ async function configureContainer() {
         );
     }
 
+    // Registered before every other closer, so the harness is released after all of them ran
+    const releaseHarness = await acquireHarnessLock({
+        name: HARNESS_LOCK_NAME,
+        image: Constants.imageName,
+        platform,
+        waitMs: Constants.harnessWaitMs(),
+    });
+    State.onClose(releaseHarness);
+
     const mdnsVolume = Volume(docker, Constants.mdnsVolumeName);
     await mdnsVolume.open();
 
@@ -591,8 +607,8 @@ async function configureNetwork() {
     //
     // Instead we just rewrite the address back to the default 127.0.0.1 used by every other platform.
     //
-    // While we're at it we rewrite the port so we can rely on dynamic allocation.  This ensures multiple suites may run
-    // in parallel and something unexpectedly running on 9000 doesn't interfere with us.
+    // While we're at it we rewrite the port so we can rely on dynamic allocation.  This ensures something unexpectedly
+    // running on 9000 doesn't interfere with us.
     await State.container.edit(
         edit.sed("s/10.10.10.5/127.0.0.1/g", `s/_PORT = 9000/_PORT = ${accessoryServer.port}/g`),
         ContainerPaths.accessoryClient,

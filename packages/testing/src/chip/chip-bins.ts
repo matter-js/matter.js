@@ -137,10 +137,10 @@ function assertValidTag(tag: string): void {
  * other's `rm -rf`/`cp -a`/stamp-write, even sharing one `MATTER_CHIP_BINS_DIR` — each tag gets its own
  * subtree, created fresh on first use.
  *
- * This does not make same-tag concurrency safe: two runs racing to extract the *same* tag into the
- * same base directory at once can still interleave their `rm -rf`/`cp -a`/stamp-write (no cross-process
- * lock exists). Point concurrent runs at different `MATTER_CHIP_BINS_DIR` values if they might extract
- * the same tag at the same time — see the README's "Choosing a CHIP binary source" section.
+ * Runs on one Docker daemon extract under the harness lock, one at a time. Runs on different daemons that
+ * share one base directory are not serialized, and two of them extracting the *same* tag at once can
+ * interleave their `rm -rf`/`cp -a`/stamp-write; point those at different `MATTER_CHIP_BINS_DIR` values —
+ * see the README's "Choosing a CHIP binary source" section.
  */
 export function chipBinsExtractionDir(tag: string, baseDir: string = chipBinsDir()): string {
     assertValidTag(tag);
