@@ -28,6 +28,7 @@ import {
     Time,
     Timer,
     Timespan,
+    Timestamp,
     UINT16_MAX,
     UINT32_MAX,
 } from "@matter/general";
@@ -55,6 +56,16 @@ const schema = Base.schema.extend(
     {},
     FieldElement({ name: "totalOperationalHoursCounter", type: "uint64", quality: "N", conformance: "M" }),
 );
+
+/**
+ * Time elapsed between {@link start} and {@link end}, floored at zero.
+ *
+ * A backward wall-clock step (e.g. an NTP correction) would otherwise make this negative, which would push the
+ * persisted operational-hours counter below its uint64 minimum and make upTime negative.
+ */
+function elapsedSince(start: Timestamp, end: Timestamp): Duration {
+    return Duration.max(0, Timespan(start, end).duration);
+}
 
 /**
  * This is the default server implementation of GeneralDiagnosticsBehavior.
@@ -346,7 +357,9 @@ export class GeneralDiagnosticsServer extends Base {
         );
 
         // Update the timestamps now that node is really online.
-        this.internal.lastTotalOperationalHoursCounterUpdateTime = Time.nowMs;
+        const now = Time.nowUs;
+        this.internal.lastTotalOperationalHoursCounterUpdateTime = now;
+        this.internal.onlineAtUs = now;
 
         this.internal.lastTotalOperationalHoursTimer = Time.getPeriodicTimer(
             "GeneralDiagnostics.operationalHours",
@@ -360,12 +373,16 @@ export class GeneralDiagnosticsServer extends Base {
     #goingOffline() {
         this.internal.lastTotalOperationalHoursTimer?.stop();
         this.#updateTotalOperationalHoursCounter();
+        this.internal.onlineAtUs = undefined;
     }
 
     #updateTotalOperationalHoursCounter() {
-        const now = Time.nowMs;
-        const elapsedTime = Timespan(this.internal.lastTotalOperationalHoursCounterUpdateTime, now).duration;
-        this.state.totalOperationalHoursCounter = Millis(this.state.totalOperationalHoursCounter + elapsedTime);
+        const now = Time.nowUs;
+        const elapsedTime = elapsedSince(this.internal.lastTotalOperationalHoursCounterUpdateTime, now);
+        // The field is a persisted uint64, so floor the fractional milliseconds Time.nowUs contributes.
+        this.state.totalOperationalHoursCounter = Millis(
+            Math.floor(this.state.totalOperationalHoursCounter + elapsedTime),
+        );
         this.internal.lastTotalOperationalHoursCounterUpdateTime = now;
     }
 
@@ -434,11 +451,20 @@ export class GeneralDiagnosticsServer extends Base {
 
 export namespace GeneralDiagnosticsServer {
     export class Internal {
-        /** Last time the total operational hours counter was updated. */
-        lastTotalOperationalHoursCounterUpdateTime = Time.nowMs;
+        /** Last time the total operational hours counter was updated, on the monotonic clock ({@link Time.nowUs}). */
+        lastTotalOperationalHoursCounterUpdateTime = Time.nowUs;
 
         /** Timer to update the total operational hours counter every 5 minutes. */
         lastTotalOperationalHoursTimer: Timer | undefined;
+
+        /**
+         * Time the node came online, on the monotonic clock ({@link Time.nowUs}); used for {@link upTime}.
+         *
+         * Unlike {@link NodeLifecycle.onlineAt}, which is a wall-clock {@link Date}, this is unaffected by a clock
+         * step where {@link Time.nowUs} is monotonic.  Where it falls back to the wall clock, a step still moves
+         * upTime, and only the clamp keeps it from going negative.
+         */
+        onlineAtUs: Timestamp | undefined;
     }
 
     export class State extends Base.State {
@@ -467,12 +493,12 @@ export namespace GeneralDiagnosticsServer {
                  * our boot time.
                  */
                 get upTime() {
-                    const onlineAt = (endpoint.lifecycle as NodeLifecycle).onlineAt;
-                    if (onlineAt === undefined) {
+                    const { onlineAtUs } = endpoint.behaviors.internalsOf(GeneralDiagnosticsServer);
+                    if (onlineAtUs === undefined) {
                         return 0;
                     }
 
-                    return Seconds.of(Timespan(onlineAt, Time.nowMs).duration);
+                    return Seconds.of(elapsedSince(onlineAtUs, Time.nowUs));
                 },
 
                 /**
@@ -483,10 +509,7 @@ export namespace GeneralDiagnosticsServer {
                     const { lastTotalOperationalHoursCounterUpdateTime } =
                         endpoint.behaviors.internalsOf(GeneralDiagnosticsServer);
 
-                    const timeSinceLastUpdate = Timespan(
-                        lastTotalOperationalHoursCounterUpdateTime,
-                        Time.nowMs,
-                    ).duration;
+                    const timeSinceLastUpdate = elapsedSince(lastTotalOperationalHoursCounterUpdateTime, Time.nowUs);
 
                     const timeAsOfLastUpdate = state.totalOperationalHoursCounter;
 

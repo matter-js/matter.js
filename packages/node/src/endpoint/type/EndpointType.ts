@@ -35,9 +35,41 @@ export function EndpointType<const T extends EndpointType.Options>(options: T) {
     } as unknown as EndpointType.For<T>;
 }
 
+const DEVICE_CLASSIFICATIONS: ReadonlySet<string> = new Set(
+    Object.values(DeviceClassification).filter(value => typeof value === "string"),
+);
+
 export namespace EndpointType {
     export const UNKNOWN_DEVICE_TYPE = DeviceTypeId(-1, false);
     export const UNKNOWN_DEVICE_REVISION = -1;
+
+    /**
+     * Is {@link value} shaped like an {@link EndpointType}?
+     */
+    export function is(value: unknown): value is EndpointType {
+        return (
+            typeof value === "object" &&
+            value !== null &&
+            "name" in value &&
+            typeof value.name === "string" &&
+            "deviceType" in value &&
+            typeof value.deviceType === "number" &&
+            "deviceRevision" in value &&
+            typeof value.deviceRevision === "number" &&
+            "deviceClass" in value &&
+            typeof value.deviceClass === "string" &&
+            DEVICE_CLASSIFICATIONS.has(value.deviceClass) &&
+            "behaviors" in value &&
+            typeof value.behaviors === "object" &&
+            value.behaviors !== null &&
+            "clientClusters" in value &&
+            typeof value.clientClusters === "object" &&
+            value.clientClusters !== null &&
+            "requirements" in value &&
+            typeof value.requirements === "object" &&
+            value.requirements !== null
+        );
+    }
 
     /**
      * An endpoint type with no behaviors, client clusters, or requirements.

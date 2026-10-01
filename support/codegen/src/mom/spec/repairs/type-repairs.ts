@@ -26,11 +26,18 @@ const TYPE_ERRORS: { [badType: string]: string } = {
     "endpoint-id": "endpoint-no",
     "ModeBitmap.": "ModeBitmap",
     StatusCode: "status",
+    boolean: "bool",
+    Boolean: "bool",
 
     // Asciidoctor renders these as "FooType" in table cells but headings strip " Type" suffix
     VideoStreamIDType: "VideoStreamID",
     AudioStreamIDType: "AudioStreamID",
     SnapshotStreamIDType: "SnapshotStreamID",
+    AnalysisStreamIDType: "AnalysisStreamID",
+
+    // Humidistat tables name its enums by their link text rather than their headings
+    HumidistatMode: "ModeEnum",
+    HumidistatSystemStateEnum: "SystemStateEnum",
 
     // Cross-cluster type references (types defined in other clusters referenced by name)
     ChimeSound: "ChimeSoundStruct",

@@ -8,4 +8,8 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "node-id", description: "Node ID", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "node-id", description: "Node ID", xref: "core§7.19.2.24",
+    details: "A 64-bit ID for a node scoped and unique to a particular fabric as indicated by an accompanying " +
+        "fabric-index adjacent instantiation."
+});

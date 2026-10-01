@@ -550,4 +550,20 @@ describe("ClusterBehavior", () => {
             expect(new MyLevelControl2.State().remainingTime).equals(0);
         });
     });
+
+    describe("typesOf", () => {
+        it("keeps only the cluster behaviors, in order", () => {
+            class Plain extends Behavior {
+                static override readonly id = "plain";
+            }
+            class Other extends Behavior {
+                static override readonly id = "other";
+            }
+
+            expect(ClusterBehavior.typesOf([Plain, OnOffServer, Other, LevelControlServer])).deep.equals([
+                OnOffServer,
+                LevelControlServer,
+            ]);
+        });
+    });
 });

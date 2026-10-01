@@ -19,7 +19,14 @@ endpoint lists at least one such device type:
 - **Provisional elements.** A mandatory feature, attribute, command or event that its own cluster marks provisional
   (`P`) is never reported missing. Its disallowed check is unchanged.
 - **Base requirements.** Base's own requirements (e.g. `Binding` under `Simple & Client`) are enforced only where
-  they make something mandatory. A Base requirement that would make something disallowed is not reported.
+  they make something mandatory. A Base requirement that would make something disallowed is not reported. The
+  `Client` condition counts only a client application cluster that a binding may direct: a client whose cluster the
+  model marks `bindable: false` (OTA Software Update Provider, WebRTC Transport) does not count, an interpretation
+  until the specification states it. Before an
+  endpoint's behaviors initialize, in every mode, it receives a `BindingServer` where this judgement finds Binding
+  missing. That judgement reads the device types the endpoint is configured with, so an endpoint that becomes a
+  simple device type with a client application cluster later, through a `DeviceTypeList` persisted from an earlier
+  run or `DescriptorServer.addDeviceTypes()`, is reported as missing Binding.
 - **One report per requirement.** A violation is identified by its kind and requirement path. When several device
   types of an endpoint, or Base and a device type, violate the same requirement, it is reported once, as the first
   listed device type's, never as Base's.

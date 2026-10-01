@@ -6,7 +6,7 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { Abort, MaybePromise, NotImplementedError } from "@matter/general";
+import { Abort, InternalError, MaybePromise, NotImplementedError } from "@matter/general";
 import { any, DataModelPath, Schema } from "@matter/model";
 import { Envelope } from "./Envelope.js";
 import { LocalResponse } from "./LocalResponse.js";
@@ -122,6 +122,16 @@ export abstract class ApiResource {
      */
     get rootSupervisor(): RootSupervisor | undefined {
         return this.parent?.rootSupervisor;
+    }
+
+    /**
+     * The session that validates values for this resource subtree.
+     */
+    get session(): ValueSupervisor.Session {
+        if (this.parent === undefined) {
+            throw new InternalError(`Remote API resource ${this.id} has no endpoint to validate against`);
+        }
+        return this.parent.session;
     }
 
     /**

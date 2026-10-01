@@ -51,6 +51,19 @@ describe("requirement disposition", () => {
         expect(disposition("X", true)).equals(RequirementDisposition.Disallow);
     });
 
+    it("forbids what the requirement makes obsolete", () => {
+        expect(disposition("Z", true)).equals(RequirementDisposition.Disallow);
+    });
+
+    it("forbids an obsolete term below a revision gate", () => {
+        // "Rev >= v3, Z" is invalid and model validation reports it; below the gate it must still read as disallowed
+        expect(disposition("Rev >= v3, Z", true, 2)).equals(RequirementDisposition.Disallow);
+    });
+
+    it("forbids a disallowed term below a revision gate (characterization)", () => {
+        expect(disposition("Rev >= v3, X", true, 2)).equals(RequirementDisposition.Disallow);
+    });
+
     describe("revision gate", () => {
         it("mandates once the device type reaches the revision", () => {
             expect(disposition("Rev >= v2", false, 2)).equals(RequirementDisposition.Mandate);

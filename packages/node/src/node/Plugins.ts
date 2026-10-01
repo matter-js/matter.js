@@ -6,7 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import type { EndpointType } from "#endpoint/type/EndpointType.js";
+import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { ImportError, Logger, MaybePromise } from "@matter/general";
 
 // Must load from public export so node selects the correct format
@@ -104,7 +104,7 @@ export class Plugins {
 
             if (name.endsWith("Server") && isBehaviorType(value)) {
                 serverBehaviors.push(value);
-            } else if (isEndpointType(value)) {
+            } else if (EndpointType.is(value)) {
                 deviceTypes.push(value);
             }
         }
@@ -144,18 +144,4 @@ export namespace Plugins {
 
 function isBehaviorType(value: unknown): value is Behavior.Type {
     return typeof value === "function" && value.prototype instanceof Behavior;
-}
-
-function isEndpointType(value: unknown): value is EndpointType {
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-    const candidate = value as Record<string, unknown>;
-    return (
-        typeof candidate.name === "string" &&
-        typeof candidate.deviceType === "number" &&
-        typeof candidate.deviceRevision === "number" &&
-        typeof candidate.behaviors === "object" &&
-        candidate.behaviors !== null
-    );
 }

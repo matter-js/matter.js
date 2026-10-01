@@ -44,6 +44,7 @@ describe("translation of CHIP data model XML", () => {
             expect(conformance("<attribute><provisionalConform/></attribute>")).equal("P");
             expect(conformance("<attribute><deprecateConform/></attribute>")).equal("D");
             expect(conformance("<attribute><disallowConform/></attribute>")).equal("X");
+            expect(conformance("<attribute><obsoleteConform/></attribute>")).equal("Z");
             expect(conformance("<attribute><describedConform/></attribute>")).equal("desc");
         });
 

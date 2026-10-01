@@ -30594,7 +30594,15 @@ export const SpecMatter = Matter(
         })
     ),
 
-    Datatype({ name: "bool", description: "Boolean", isSeed: true, metatype: "boolean", xref: "core§7.19.1" }),
+    Datatype({
+        name: "bool", description: "Boolean", isSeed: true, metatype: "boolean", xref: "core§7.19.1.1",
+        details: "The Boolean type represents a logical value, either FALSE or TRUE." +
+            "\n" +
+            "  - FALSE shall be equivalent to the value 0 (zero)." +
+            "\n" +
+            "  - TRUE shall be equivalent to the value 1 (one)."
+    }),
+
     Datatype({ name: "map8", byteSize: 1, description: "8-bit bitmap", isSeed: true, metatype: "bitmap", xref: "core§7.19.1" }),
     Datatype({ name: "map16", byteSize: 2, description: "16-bit bitmap", isSeed: true, metatype: "bitmap", xref: "core§7.19.1" }),
     Datatype({ name: "map32", byteSize: 4, description: "32-bit bitmap", isSeed: true, metatype: "bitmap", xref: "core§7.19.1" }),
@@ -30667,11 +30675,25 @@ export const SpecMatter = Matter(
         name: "single", byteSize: 4, description: "Single precision", isSeed: true, metatype: "float",
         xref: "core§7.19.1"
     }),
+
     Datatype({
         name: "double", byteSize: 8, description: "Double precision", isSeed: true, metatype: "float",
-        xref: "core§7.19.1"
+        xref: "core§7.19.1.6",
+
+        details: "The double precision number format is based on the IEEE 754-2019 double precision (64-bit) format " +
+            "for binary floating-point arithmetic." +
+            "\n" +
+            "The format and interpretation of values of this data type follow the same rules as given for the " +
+            "single precision data type, but with wider mantissa and exponent ranges." +
+            "\n" +
+            "See IEEE 754-2019 for more details on the representable values."
     }),
-    Datatype({ name: "octstr", description: "Octet string", isSeed: true, metatype: "bytes", xref: "core§7.19.1" }),
+
+    Datatype({
+        name: "octstr", description: "Octet string", isSeed: true, metatype: "bytes", xref: "core§7.19.1.7",
+        details: "The octet string data type defines a sequence of octets with a finite octet count from 0 to 65534. " +
+            "It is recommended to define a constraint on the maximum possible count."
+    }),
 
     Datatype({
         name: "list", description: "List", isSeed: true, metatype: "array", xref: "core§7.19.1.8",
@@ -30765,18 +30787,94 @@ export const SpecMatter = Matter(
 
     Datatype({ name: "percent", type: "uint8", description: "Percentage units 1%", isSeed: true, xref: "core§7.19.2" }),
     Datatype({ name: "percent100ths", type: "uint16", description: "Percentage units 0.01%", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "epoch-us", type: "uint64", description: "Epoch Time in microseconds", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "epoch-s", type: "uint32", description: "Epoch Time in seconds", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "posix-ms", type: "uint64", description: "POSIX Time in milliseconds", isSeed: true, xref: "core§7.19.2" }),
+
+    Datatype({
+        name: "epoch-us", type: "uint64", description: "Epoch Time in microseconds", isSeed: true,
+        xref: "core§7.19.2.3",
+
+        details: "This type represents an offset, in microseconds, from 0 hours, 0 minutes, 0 seconds, on the 1st of " +
+            "January, 2000 UTC (the Epoch), encoded as an unsigned 64-bit scalar value." +
+            "\n" +
+            "This offset is the sum of two parts: time elapsed, not counting leap-seconds, and a local time " +
+            "offset. The local time offset may include a timezone offset and a may include a DST offset." +
+            "\n" +
+            "Any use of this type shall indicate how the associated local time offset is determined in the " +
+            "specific context of that use. This may be done, for example, by simply saying the time is a UTC " +
+            "time, in which case the local time offset is 0." +
+            "\n" +
+            "A given Epoch Time value may be interpreted in at least two ways:" +
+            "\n" +
+            "  1. The value can be converted to a local clock date/time (year, month, day, hours, minutes, " +
+            "seconds, microseconds) by treating the local time offset as 0 and finding the UTC (year, month, " +
+            "day, hours, minutes, seconds, microseconds) tuple that corresponds to an elapsed time since the " +
+            "epoch time equal to the given value. The value then represents that tuple, but interpreted in " +
+            "the specific timezone and DST situation associated with the value. This procedure does not " +
+            "require knowing the local time offset of the value." +
+            "\n" +
+            "  2. The value can be converted to a UTC time by subtracting the associated local time offset from " +
+            "the Epoch Time value and then treating the resulting value as an elapsed count of microseconds " +
+            "since the epoch time." +
+            "\n" +
+            "For example, an Epoch Time value of 0x0000_0BF1_B7E1_0000 corresponds to an offset of exactly 152 " +
+            "days. This can be interpreted as \"00:00:00 on June 1, 2000\" in whatever local time zone is " +
+            "associated with the value. That corresponds to the following times in ISO 8601 notation:" +
+            "\n" +
+            "  - 2000-06-01T00:00Z if the associated local time offset is 0 (i.e. the value is in UTC)." +
+            "\n" +
+            "  - 2000-05-31T23:00Z if the associated local time offset is +1 hour (e.g. the CET timezone, without " +
+            "daylight savings)." +
+            "\n" +
+            "  - 2000-06-01T00:00+02 if the associated local time offset is +1 hour." +
+            "\n" +
+            "  - 2000-06-01T04:00Z if the associated local time offset is -4 hours (e.g. the EDT time zone, which " +
+            "includes daylight savings)." +
+            "\n" +
+            "  - 2000-06-01T00:00-04 if the associated local time offset is -4 hours."
+    }),
+
+    Datatype({
+        name: "epoch-s", type: "uint32", description: "Epoch Time in seconds", isSeed: true,
+        xref: "core§7.19.2.4",
+
+        details: "This type represents an offset, in seconds, from 0 hours, 0 minutes, 0 seconds, on the 1st of " +
+            "January, 2000 UTC (the Epoch), encoded as an unsigned 32-bit scalar value. Other than that, this " +
+            "type has the same semantics as Epoch Time in Microseconds." +
+            "\n" +
+            "This type is employed where compactness of representation is important and where the resolution of " +
+            "seconds is still satisfactory."
+    }),
+
+    Datatype({
+        name: "posix-ms", type: "uint64", description: "POSIX Time in milliseconds", isSeed: true,
+        xref: "core§7.19.2.5",
+        details: "This type represents an offset, in milliseconds, from the UNIX epoch (1970-01-01 00:00:00 UTC), " +
+            "encoded as an unsigned 64-bit scalar value." +
+            "\n" +
+            "This type is employed for compatibility reasons."
+    }),
+
     Datatype({
         name: "systime-us", type: "uint64", description: "System Time in microseconds", isSeed: true,
-        xref: "core§7.19.2"
+        xref: "core§7.19.2.6",
+        details: "System time in microseconds is an unsigned 64-bit value representing the number of microseconds " +
+            "since boot."
     }),
+
     Datatype({
         name: "systime-ms", type: "uint64", description: "System Time in milliseconds", isSeed: true,
-        xref: "core§7.19.2"
+        xref: "core§7.19.2.7",
+        details: "System time in milliseconds is an unsigned 64-bit value representing the number of milliseconds " +
+            "since boot." +
+            "\n" +
+            "This type is employed for compatibility reasons."
     }),
-    Datatype({ name: "elapsed-s", type: "uint32", description: "Elapsed Time in seconds", isSeed: true, xref: "core§7.19.2" }),
+
+    Datatype({
+        name: "elapsed-s", type: "uint32", description: "Elapsed Time in seconds", isSeed: true,
+        xref: "core§7.19.2.8",
+        details: "Elapsed time in seconds is an unsigned 32-bit value representing the time that has elapsed for an " +
+            "operation or other activity, as determined by the definition of the attribute using this type."
+    }),
 
     Datatype(
         {
@@ -30794,14 +30892,42 @@ export const SpecMatter = Matter(
         }
     ),
 
-    Datatype({ name: "power-mW", type: "int64", description: "Power", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "amperage-mA", type: "int64", description: "Amperage", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "voltage-mV", type: "int64", description: "Voltage", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "energy-mWh", type: "int64", description: "Energy", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "power-mVA", type: "int64", description: "Apparent Power", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "energy-mVAh", type: "int64", description: "Apparent Energy", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "power-mVAR", type: "int64", description: "Reactive Power", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "energy-mVARh", type: "int64", description: "Reactive Energy", isSeed: true, xref: "core§7.19.2" }),
+    Datatype({
+        name: "power-mW", type: "int64", description: "Power", isSeed: true, xref: "core§7.19.2.10",
+        details: "This type represents power measured in milliwatts."
+    }),
+    Datatype({
+        name: "amperage-mA", type: "int64", description: "Amperage", isSeed: true, xref: "core§7.19.2.11",
+        details: "This type represents amperage measured in milliamps."
+    }),
+    Datatype({
+        name: "voltage-mV", type: "int64", description: "Voltage", isSeed: true, xref: "core§7.19.2.12",
+        details: "This type represents voltage measured in millivolts."
+    }),
+    Datatype({
+        name: "energy-mWh", type: "int64", description: "Energy", isSeed: true, xref: "core§7.19.2.13",
+        details: "This type represents energy measured in milliwatt-hours."
+    }),
+    Datatype({
+        name: "power-mVA", type: "int64", description: "Apparent Power", isSeed: true,
+        xref: "core§7.19.2.14",
+        details: "This type represents apparent power measured in millivolt-amps."
+    }),
+    Datatype({
+        name: "energy-mVAh", type: "int64", description: "Apparent Energy", isSeed: true,
+        xref: "core§7.19.2.15",
+        details: "This type represents apparent energy measured in millivolt-amp-hours."
+    }),
+    Datatype({
+        name: "power-mVAR", type: "int64", description: "Reactive Power", isSeed: true,
+        xref: "core§7.19.2.16",
+        details: "This type represents reactive power measured in millivolt-amps reactive."
+    }),
+    Datatype({
+        name: "energy-mVARh", type: "int64", description: "Reactive Energy", isSeed: true,
+        xref: "core§7.19.2.17",
+        details: "This type represents reactive energy measured in millivolt-amp-hours reactive."
+    }),
 
     Datatype({
         name: "money", type: "int64", description: "Money", isSeed: true, xref: "core§7.19.2.18",
@@ -30859,8 +30985,17 @@ export const SpecMatter = Matter(
     Datatype(
         {
             name: "status", type: "enum8", description: "Status Code", isSeed: true, metatype: "enum",
-            xref: "core§7.19.2"
+            xref: "core§7.19.2.21",
+
+            details: "An enumeration value that indicates the success or error status in response to an action in an " +
+                "interaction." +
+                "\n" +
+                "See Chapter 8, Interaction Model Specification for details of the interaction model." +
+                "\n" +
+                "See Section 8.10, \"Interaction Model Status Codes\" for the defined set of status codes as well as " +
+                "defined ranges."
         },
+
         Field({ name: "Success", id: 0x0, description: "Operation was successful", xref: "core§8.10.1" }),
         Field({ name: "Failure", id: 0x1, description: "Operation was not successful", xref: "core§8.10.1" }),
         Field({ name: "InvalidSubscription", id: 0x7d, description: "Subscription ID is not active", xref: "core§8.10.1" }),
@@ -31007,24 +31142,138 @@ export const SpecMatter = Matter(
         })
     ),
 
-    Datatype({ name: "group-id", type: "uint16", description: "Group ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "endpoint-no", type: "uint16", description: "Endpoint Number", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "vendor-id", type: "uint16", description: "Vendor ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "devtype-id", type: "uint32", description: "Device Type ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "fabric-id", type: "uint64", description: "Fabric ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "fabric-idx", type: "uint8", description: "Fabric Index", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "cluster-id", type: "uint32", description: "Cluster ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "attrib-id", type: "uint32", description: "Attribute ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "field-id", type: "uint32", description: "Field ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "event-id", type: "uint32", description: "Event ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "command-id", type: "uint32", description: "Command ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "action-id", type: "uint8", description: "Action ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "trans-id", type: "uint32", description: "Transaction ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "node-id", type: "uint64", description: "Node ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "subject-id", type: "uint64", description: "Subject ID", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "entry-idx", type: "uint16", description: "Entry Index", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "data-ver", type: "uint32", description: "Data Version", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "event-no", type: "uint64", description: "Event Number", isSeed: true, xref: "core§7.19.2" }),
+    Datatype({
+        name: "group-id", type: "uint16", description: "Group ID", isSeed: true, xref: "core§7.19.2.26",
+        details: "A 16-bit ID for a group scoped to a particular fabric as indicated by an accompanying fabric index " +
+            "adjacent instantiation."
+    }),
+
+    Datatype({
+        name: "endpoint-no", type: "uint16", description: "Endpoint Number", isSeed: true,
+        xref: "core§7.19.2.27",
+        details: "An unsigned number that indicates an instance of a device type. Endpoint numbers shall NOT be " +
+            "0xFFFF, to allow all endpoint number values to be expressible in nullable endpoint-no fields."
+    }),
+
+    Datatype({
+        name: "vendor-id", type: "uint16", description: "Vendor ID", isSeed: true, xref: "core§7.19.2.28",
+        details: "A Vendor ID." +
+            "\n" +
+            "Vendor IDs may be used as a prefix in a Manufacturer Extensible Identifier format."
+    }),
+
+    Datatype({
+        name: "devtype-id", type: "uint32", description: "Device Type ID", isSeed: true,
+        xref: "core§7.19.2.29",
+        details: "An identifier that indicates conformance to a device type." +
+            "\n" +
+            "Device Type IDs shall be a Manufacturer Extensible Identifier. The specifics of its representation " +
+            "are described in Data Model Types."
+    }),
+
+    Datatype({
+        name: "fabric-id", type: "uint64", description: "Fabric ID", isSeed: true, xref: "core§7.19.2.22",
+        details: "A value to identify a fabric."
+    }),
+
+    Datatype({
+        name: "fabric-idx", type: "uint8", description: "Fabric Index", isSeed: true,
+        xref: "core§7.19.2.23",
+        details: "This is an index that maps to a particular fabric on the node, see Fabric-Index. It is used for:" +
+            "\n" +
+            "  - the accessing fabric index of an interaction" +
+            "\n" +
+            "  - the FabricIndex global field in fabric-scoped data"
+    }),
+
+    Datatype({
+        name: "cluster-id", type: "uint32", description: "Cluster ID", isSeed: true, xref: "core§7.19.2.30",
+        details: "An identifier that indicates conformance to a cluster specification." +
+            "\n" +
+            "Cluster IDs shall be a Manufacturer Extensible Identifier. The specifics of its representation are " +
+            "described in Data Model Types."
+    }),
+
+    Datatype({
+        name: "attrib-id", type: "uint32", description: "Attribute ID", isSeed: true,
+        xref: "core§7.19.2.31",
+        details: "An identifier that indicates an attribute defined in a cluster specification." +
+            "\n" +
+            "Attribute IDs shall be a Manufacturer Extensible Identifier. The specifics of its representation are " +
+            "described in Data Model Types."
+    }),
+
+    Datatype({
+        name: "field-id", type: "uint32", description: "Field ID", isSeed: true, xref: "core§7.19.2.32",
+        details: "An identifier that indicates a field defined in a struct." +
+            "\n" +
+            "Field IDs shall be a Manufacturer Extensible Identifier. The specifics of its representation are " +
+            "described in Data Model Types."
+    }),
+
+    Datatype({
+        name: "event-id", type: "uint32", description: "Event ID", isSeed: true, xref: "core§7.19.2.33",
+        details: "An identifier that indicates an Event defined in a cluster specification." +
+            "\n" +
+            "Event IDs shall be a Manufacturer Extensible Identifier. The specifics of its representation are " +
+            "described in Data Model Types."
+    }),
+
+    Datatype({
+        name: "command-id", type: "uint32", description: "Command ID", isSeed: true, xref: "core§7.19.2.34",
+        details: "An identifier that indicates a command defined in a cluster specification." +
+            "\n" +
+            "Command IDs shall be a Manufacturer Extensible Identifier. The specifics of its representation are " +
+            "described in Data Model Types."
+    }),
+
+    Datatype({
+        name: "action-id", type: "uint8", description: "Action ID", isSeed: true, xref: "core§7.19.2.35",
+        details: "An identifier that indicates an action as defined in the Interaction Model specification."
+    }),
+
+    Datatype({
+        name: "trans-id", type: "uint32", description: "Transaction ID", isSeed: true,
+        xref: "core§7.19.2.36",
+        details: "An identifier for a transaction as defined in the Interaction Model specification, see Transaction " +
+            "ID."
+    }),
+
+    Datatype({
+        name: "node-id", type: "uint64", description: "Node ID", isSeed: true, xref: "core§7.19.2.24",
+        details: "A 64-bit ID for a node scoped and unique to a particular fabric as indicated by an accompanying " +
+            "fabric-index adjacent instantiation."
+    }),
+
+    Datatype({
+        name: "subject-id", type: "uint64", description: "Subject ID", isSeed: true, xref: "core§7.19.2.25",
+
+        details: "A 64-bit integer that identifies the source of an action, referencing an entity that is " +
+            "authenticated via a method provided by the secure channel architecture." +
+            "\n" +
+            "Any use of a Subject ID needs to be accompanied by a method to determine which type of subject is " +
+            "being represented. There are several types of subjects that may need to be disambiguated, depending " +
+            "on the authentication mode used:" +
+            "\n" +
+            "  - PASE: Lower 16 bits represent the Passcode ID, upper 48 bits are clear." +
+            "\n" +
+            "  - CASE: 64 bits represent either the Node ID or a CASE Authenticated Tag." +
+            "\n" +
+            "  - Group: Lower 16 bits represent the Group ID, upper 48 bits are clear."
+    }),
+
+    Datatype({
+        name: "entry-idx", type: "uint16", description: "Entry Index", isSeed: true, xref: "core§7.19.2.37",
+        details: "This is an index for a list data type."
+    }),
+    Datatype({
+        name: "data-ver", type: "uint32", description: "Data Version", isSeed: true, xref: "core§7.19.2.38",
+        details: "An unsigned number that indicates a Data Version."
+    }),
+    Datatype({
+        name: "event-no", type: "uint64", description: "Event Number", isSeed: true, xref: "core§7.19.2.39",
+        details: "An unsigned number that indicates an Event instance."
+    }),
 
     Datatype(
         {
@@ -31262,13 +31511,88 @@ export const SpecMatter = Matter(
 
     Datatype({
         name: "string", type: "octstr", description: "Character String", isSeed: true, metatype: "string",
-        xref: "core§7.19.2"
+        xref: "core§7.19.2.40",
+
+        details: "The character string data type is derived from an octet string. The octets shall be characters with " +
+            "UTF-8 encoding. An instance of this data type shall NOT contain truncated code points." +
+            "\n" +
+            "Note that the character string type is a bounded sequence of characters whose size bound format is " +
+            "not specified in the data model, but rather a property of the underlying encoding. Therefore, no " +
+            "assumptions are to be made about the presence or absence of a length prefix or NULL-terminator byte, " +
+            "or other implementation considerations." +
+            "\n" +
+            "It is recommended to define constraints on the maximum possible string length." +
+            "\n" +
+            "If at least one of the code points within the string has value 31 (0x1F), which is Unicode " +
+            "INFORMATION SEPARATOR 1 and ASCII Unit Separator, then any client making use of the string shall " +
+            "only consider the code points that appear before the first INFORMATION SEPARATOR 1 as being the " +
+            "textual information carried by the string. Any comparison between such a string and other strings " +
+            "shall use the textual component before the first INFORMATION SEPARATOR 1. The remainder of the " +
+            "character string after a first INFORMATION SEPARATOR 1 is reserved for future use by this " +
+            "specification. Implementations of this version of the specification shall NOT produce character " +
+            "strings containing INFORMATION SEPARATOR 1."
     }),
+
     Datatype({ name: "ipadr", type: "octstr", description: "IP Address", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "ipv4adr", type: "octstr", description: "IPv4 Address", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "ipv6adr", type: "octstr", description: "IPv6 Address", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "ipv6pre", type: "octstr", description: "IPv6 Prefix", isSeed: true, xref: "core§7.19.2" }),
-    Datatype({ name: "hwadr", type: "octstr", description: "Hardware Address", isSeed: true, xref: "core§7.19.2" }),
+
+    Datatype({
+        name: "ipv4adr", type: "octstr", description: "IPv4 Address", isSeed: true, xref: "core§7.19.2.42",
+
+        details: "The IPv4 address data type is derived from an octet string. The octets shall correspond to the four " +
+            "octets in network byte order that comprise an IPv4 address represented utilizing quad-dotted " +
+            "notation." +
+            "\n" +
+            "Examples of encoding:" +
+            "\n" +
+            "  - Address 192.168.2.235 -> C0A802EB" +
+            "\n" +
+            "  - Address 10.4.200.75 -> 0A04C84B"
+    }),
+
+    Datatype({
+        name: "ipv6adr", type: "octstr", description: "IPv6 Address", isSeed: true, xref: "core§7.19.2.43",
+
+        details: "The IPv6 address data type is derived from an octet string. The octets shall correspond to the full " +
+            "16 octets that comprise an IPv6 address as defined by RFC4291. The octets shall be presented in " +
+            "network byte order." +
+            "\n" +
+            "Examples of encoding:" +
+            "\n" +
+            "  - Address 2001:DB8:0:0:8:800:200C:417A -> 20010DB80000000000080800200C417A" +
+            "\n" +
+            "  - Address 2001:0DB8:1122:3344:5566:7788:99AA:BBCC -> 20010DB8112233445566778899AABBCC"
+    }),
+
+    Datatype({
+        name: "ipv6pre", type: "octstr", description: "IPv6 Prefix", isSeed: true, xref: "core§7.19.2.44",
+
+        details: "The IPv6 prefix data type is derived from an octet string. The octets shall be encoded" +
+            "\n" +
+            "  - The first octet shall encode the prefix length, in bits, in the range of 0 to 128." +
+            "\n" +
+            "    - A value of 0 indicates an absent/invalid prefix." +
+            "\n" +
+            "  - The subsequent octets shall encode the contiguous leftmost bits of the prefix, in network byte " +
+            "order, with left justification, such that the first bit of the prefix is in the most significant " +
+            "bit of the first octet. Encoding SHOULD use the least number of bytes to encode the prefix but " +
+            "may include unused trailing zeroes." +
+            "\n" +
+            "Examples of encoding:" +
+            "\n" +
+            "  - Preferred minimal encoding: Prefix 2001:0DB8:0:CD30::/60 -> 9 octets -> 3C20010DB80000CD30" +
+            "\n" +
+            "  - Preferred minimal encoding: Prefix 2001:0DB8:BB00::/40 -> 6 octets -> 2820010DB8BB" +
+            "\n" +
+            "  - Allowed non-minimal encoding: Prefix 2001:0DB8:BB00::/40 -> 7 octets -> 2820010DB8BB00"
+    }),
+
+    Datatype({
+        name: "hwadr", type: "octstr", description: "Hardware Address", isSeed: true,
+        xref: "core§7.19.2.45",
+        details: "The Hardware Address data type shall be either a 48-bit IEEE MAC Address or a 64-bit IEEE MAC " +
+            "Address (e.g. EUI-64). The order of bytes is Big-Endian or display mode, where the first byte in the " +
+            "string is the left most or highest order byte."
+    }),
 
     Datatype(
         {

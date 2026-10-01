@@ -36,14 +36,14 @@ describe("Binding integration", () => {
         await using site = new MockSite();
 
         // Commission the switch (device index 2) to the controller (index 1).
-        // OnOffLightSwitchDevice declares OnOffClient; we add BindingServer so the Binding
-        // cluster is installed and the BindingManager activates on the switch.
+        // OnOffLightSwitchDevice declares OnOffClient and includes BindingServer, so the
+        // BindingManager activates on the switch.
         // MockServerNode.RootEndpoint adds ControllerBehavior so the switch can initiate CASE
         // sessions to the light (required by BindingManager when it resolves the client kind).
         const { controller, device: switchNode } = await site.addCommissionedPair({
             device: {
                 type: MockServerNode.RootEndpoint,
-                device: OnOffLightSwitchDevice.with(BindingServer),
+                device: OnOffLightSwitchDevice,
             },
         });
 
@@ -292,7 +292,7 @@ describe("Binding integration", () => {
 
     it("kind=server: self-binding resolves locally and dispatches to the bound server endpoint", async () => {
         const node = await MockServerNode.createOnline(undefined, {
-            device: OnOffLightSwitchDevice.with(BindingServer),
+            device: OnOffLightSwitchDevice,
         });
         const fabric = await node.addFabric();
         const lightEp = await node.add(OnOffLightDevice, { number: EndpointNumber(2) });
@@ -346,7 +346,7 @@ describe("Binding integration", () => {
 
     it("kind=group: binding resolves to ClientGroup with OnOffClient installed on materialized endpoint", async () => {
         const node = await MockServerNode.createOnline(undefined, {
-            device: OnOffLightSwitchDevice.with(BindingServer),
+            device: OnOffLightSwitchDevice,
         });
         const fabric = await node.addFabric();
 
@@ -425,10 +425,10 @@ describe("Binding integration, group sends", () => {
     const GROUP = GroupId(5);
     const KEY_SET_ID = 0x1a1;
 
-    const SwitchWithBinding = OnOffLightSwitchDevice.with(BindingServer).withClientClusters(GroupsClient);
+    const SwitchWithGroupsClient = OnOffLightSwitchDevice.withClientClusters(GroupsClient);
 
     async function switchNode() {
-        const node = await MockServerNode.createOnline(undefined, { device: SwitchWithBinding });
+        const node = await MockServerNode.createOnline(undefined, { device: SwitchWithGroupsClient });
         const fabric = await node.addFabric();
         const switchEp = node.parts.get(1)!;
         await switchEp.construction;

@@ -52,9 +52,10 @@ export class Time {
     /**
      * The current time as a high-resolution {@link Timestamp}.
      *
-     * Backed by {@link performance} so it carries sub-millisecond precision where the platform supports it (falling
-     * back to {@link nowMs} otherwise). It is monotonic and may drift from UTC, so use it for relative/elapsed timing,
-     * not for absolute wall-clock values.
+     * Backed by {@link performance} where the platform provides `performance.now()` and `performance.timeOrigin`: the
+     * value then has sub-millisecond precision, is monotonic and may drift from UTC. Otherwise it falls back to
+     * {@link nowMs}, which follows wall-clock steps. Use it for relative/elapsed timing, not for absolute wall-clock
+     * values.
      *
      * Despite the name the value is a millisecond {@link Timestamp}, not microseconds. Use
      * {@link Timestamp.toMicroseconds} to obtain a microsecond value.

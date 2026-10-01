@@ -5,9 +5,10 @@
  */
 
 import { Bytes } from "@matter/general";
-import { Endpoint, ServerNode } from "@matter/main";
+import { CommonNumberTag, Endpoint, ServerNode } from "@matter/main";
 import { AdministratorCommissioningServer } from "@matter/main/behaviors/administrator-commissioning";
 import { ApplicationBasicServer } from "@matter/main/behaviors/application-basic";
+import { DescriptorServer } from "@matter/main/behaviors/descriptor";
 import { WakeOnLanServer } from "@matter/main/behaviors/wake-on-lan";
 import { AdministratorCommissioning, ApplicationBasic, BasicInformation } from "@matter/main/clusters";
 import { DimmableLightDevice } from "@matter/main/devices/dimmable-light";
@@ -69,10 +70,16 @@ export class TvTestInstance extends NodeTestInstance {
         );
 
         const endpoint1 = new Endpoint(
-            DimmableLightDevice.with(ApplicationBasicServer, WakeOnLanServer, TestLowPowerServer),
+            DimmableLightDevice.with(
+                DescriptorServer.with("TagList"),
+                ApplicationBasicServer,
+                WakeOnLanServer,
+                TestLowPowerServer,
+            ),
             {
                 number: EndpointNumber(1),
                 id: "app1",
+                descriptor: { tagList: [CommonNumberTag.One] },
                 applicationBasic: {
                     vendorName: "TestVendor",
                     vendorId: VendorId(0x1234),
@@ -93,22 +100,26 @@ export class TvTestInstance extends NodeTestInstance {
         );
         await serverNode.add(endpoint1);
 
-        const endpoint3 = new Endpoint(DimmableLightDevice.with(ApplicationBasicServer), {
-            number: EndpointNumber(3),
-            id: "app3",
-            applicationBasic: {
-                vendorName: "TestVendor",
-                vendorId: VendorId(0x1234),
-                productId: 0x5678,
-                applicationName: "TestApp",
-                application: {
-                    catalogVendorId: VendorId(0x1234),
-                    applicationId: "Test",
+        const endpoint3 = new Endpoint(
+            DimmableLightDevice.with(DescriptorServer.with("TagList"), ApplicationBasicServer),
+            {
+                number: EndpointNumber(3),
+                id: "app3",
+                descriptor: { tagList: [CommonNumberTag.Three] },
+                applicationBasic: {
+                    vendorName: "TestVendor",
+                    vendorId: VendorId(0x1234),
+                    productId: 0x5678,
+                    applicationName: "TestApp",
+                    application: {
+                        catalogVendorId: VendorId(0x1234),
+                        applicationId: "Test",
+                    },
+                    status: ApplicationBasic.ApplicationStatus.Stopped,
+                    applicationVersion: "1",
                 },
-                status: ApplicationBasic.ApplicationStatus.Stopped,
-                applicationVersion: "1",
             },
-        });
+        );
         await serverNode.add(endpoint3);
 
         return serverNode;

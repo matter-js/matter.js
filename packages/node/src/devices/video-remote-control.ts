@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
 import { MediaPlaybackClient as BaseMediaPlaybackClient } from "../behaviors/media-playback/MediaPlaybackClient.js";
 import { KeypadInputClient as BaseKeypadInputClient } from "../behaviors/keypad-input/KeypadInputClient.js";
@@ -37,6 +38,13 @@ import { Identity } from "@matter/general";
 export interface VideoRemoteControlDevice extends Identity<typeof VideoRemoteControlDeviceDefinition> {}
 
 export namespace VideoRemoteControlRequirements {
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
+
     /**
      * The OnOff cluster is required by the Matter specification.
      *
@@ -137,6 +145,11 @@ export namespace VideoRemoteControlRequirements {
     export const ContentControlClient = BaseContentControlClient;
 
     /**
+     * An implementation for each server cluster supported by the endpoint per the Matter specification.
+     */
+    export const server = { mandatory: { Binding: BindingServer } };
+
+    /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
@@ -163,7 +176,7 @@ export const VideoRemoteControlDeviceDefinition = MutableEndpoint({
     deviceType: 0x2a,
     deviceRevision: 2,
     requirements: VideoRemoteControlRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(VideoRemoteControlRequirements.server.mandatory.Binding)
 });
 
 Object.freeze(VideoRemoteControlDeviceDefinition);

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { DescriptorServer } from "#behaviors/descriptor";
@@ -24,6 +23,16 @@ import { ClusterModel, DeviceTypeFacts, NodeCondition } from "@matter/model";
  * persisted from an earlier run is not read until then.
  */
 export class ServerEndpointFacts implements DeviceTypeFacts<Endpoint> {
+    readonly #constructing?: Endpoint;
+
+    /**
+     * @param constructing an endpoint about to initialize its behaviors, counted {@link isPresent present} so it is
+     * judged as it will be once constructed
+     */
+    constructor(constructing?: Endpoint) {
+        this.#constructing = constructing;
+    }
+
     parentOf(endpoint: Endpoint) {
         return endpoint.owner;
     }
@@ -33,6 +42,9 @@ export class ServerEndpointFacts implements DeviceTypeFacts<Endpoint> {
     }
 
     isPresent(endpoint: Endpoint) {
+        if (endpoint === this.#constructing) {
+            return true;
+        }
         const presence = this.presenceOf(endpoint);
         return presence === Presence.Constructing || presence === Presence.Active;
     }
@@ -92,11 +104,11 @@ export class ServerEndpointFacts implements DeviceTypeFacts<Endpoint> {
     }
 
     serverClustersOf(endpoint: Endpoint) {
-        return clusterTypesOf(Object.values(endpoint.behaviors.supported)).map(({ schema }) => schema);
+        return ClusterBehavior.typesOf(Object.values(endpoint.behaviors.supported)).map(({ schema }) => schema);
     }
 
     clientClustersOf(endpoint: Endpoint) {
-        return clusterTypesOf(Object.values(endpoint.type.clientClusters)).map(({ schema }) => schema);
+        return ClusterBehavior.typesOf(Object.values(endpoint.type.clientClusters)).map(({ schema }) => schema);
     }
 
     elementsOf(endpoint: Endpoint, cluster: ClusterModel): DeviceTypeFacts.Elements {
@@ -135,16 +147,6 @@ export class ServerEndpointFacts implements DeviceTypeFacts<Endpoint> {
     describe(endpoint: Endpoint) {
         return endpoint.toString();
     }
-}
-
-function clusterTypesOf(types: Behavior.Type[]) {
-    const clusters = new Array<ClusterBehavior.Type>();
-    for (const type of types) {
-        if (ClusterBehavior.isType(type)) {
-            clusters.push(type);
-        }
-    }
-    return clusters;
 }
 
 /**
