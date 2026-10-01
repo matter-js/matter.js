@@ -72,6 +72,13 @@ const groupPropertiesStructFS = DatatypeElement(
     FieldElement({ name: "HasAuxiliaryAcl", id: 0x2, type: "bool", access: "F", conformance: "M" }),
     FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
 );
+/**
+ * Testing ends after this time when the request omits DurationSeconds.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 11.27.7.6.2
+ */
+const DEFAULT_TESTING_DURATION_SECONDS = 60;
+
 // Listener and Sender meet the Root Node GroupcastListenerCond/GroupcastSenderCond of Matter 1.6.1, and PerGroup keeps
 // groups created through the Groups cluster on their per-group address as the migration to Groupcast requires
 const GroupcastBase = GroupcastBehavior.with("Listener", "Sender", "PerGroup");
@@ -405,7 +412,7 @@ export class GroupcastServer extends GroupcastBase {
     override groupcastTesting(request: Groupcast.GroupcastTestingRequest) {
         assertRemoteActor(this.context);
         const fabricIndex = this.context.session.associatedFabric.fabricIndex;
-        const { testOperation, durationSeconds } = request;
+        const { testOperation, durationSeconds = DEFAULT_TESTING_DURATION_SECONDS } = request;
 
         // Cancel any running auto-disable timer
         if (this.#testingTimer) {
@@ -421,15 +428,12 @@ export class GroupcastServer extends GroupcastBase {
         // Enable testing: set FabricUnderTest to the current fabric index
         this.state.fabricUnderTest = fabricIndex;
 
-        // If durationSeconds is provided, auto-disable after that duration
-        if (durationSeconds !== undefined && durationSeconds > 0) {
-            this.#testingTimer = Time.getTimer(
-                `groupcast-testing-${fabricIndex}`,
-                Seconds(durationSeconds),
-                this.callback(this.#testingTimerExpired),
-            );
-            this.#testingTimer.start();
-        }
+        this.#testingTimer = Time.getTimer(
+            `groupcast-testing-${fabricIndex}`,
+            Seconds(durationSeconds),
+            this.callback(this.#testingTimerExpired),
+        );
+        this.#testingTimer.start();
     }
 
     #testingTimerExpired() {
