@@ -97,6 +97,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Fix: `ServiceAreaServer` without the Maps feature no longer fails to initialize
+    - Fix: `GeneralDiagnosticsServer` uses the monotonic clock when available and clamps elapsed time to zero otherwise, so a backward wall-clock step (e.g. an NTP correction) no longer sends `totalOperationalHoursCounter` below its uint64 minimum, which made taking the node offline fail
     - Fix: (@RaHehl) A node stopped with `stop()` and started again can be commissioned again: an uncommissioned node previously failed to start with "Required dependency CommissioningConfigProvider is not available", and a commissioned node answered `ArmFailSafe`, `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` with `Failure`
     - Fix: An OTA requestor that a provider answers `Busy` keeps `UpdateState` at `DelayedOnQuery` until its retry; it reset the attribute to `Idle` in the same transaction, so a read never showed the wait. After three `Busy` retries it treats the provider as having no update and waits for its next regular query; before, it queried a `Busy` provider again without limit
     - Fix: A deprecated or obsolete attribute that a device reports is an optional attribute of the client behavior, so it has `$Changing` and `$Changed` events and a property on the behavior's state class
