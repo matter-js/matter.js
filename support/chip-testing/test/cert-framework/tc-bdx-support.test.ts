@@ -165,6 +165,21 @@ describe("tc-bdx-support", () => {
             ]);
         });
 
+        it("counts a Block that arrived twice through an MRP retransmission once", async () => {
+            const [header, ...fields] = CHIP_DUMP.slice(0, 11);
+            const log = await follower([
+                header,
+                ...fields,
+                header,
+                ...fields,
+                `${CHIP_DMG}<< from UDP:[fe80::1%eth0]:44141 | 93002293 | [Bulk Data Exchange  (2) / Block (0x11) / Session = 9999 / Exchange = 1]`,
+                ...fields,
+            ]);
+
+            // The same message counter on another session is another message
+            expect(blocksReceived(log, "chip-local", 0)?.map(({ counter }) => counter)).deep.equal([7, 7]);
+        });
+
         it("reads a BlockQuery the receiver sent, which carries no data", async () => {
             const log = await follower(CHIP_DUMP);
 
