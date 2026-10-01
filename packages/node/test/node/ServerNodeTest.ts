@@ -796,6 +796,36 @@ describe("ServerNode", () => {
         expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
     });
 
+    it("keeps serving events from the one event manager across factory reset", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const before = controller.env.get(OccurrenceManager);
+        expect(controller.protocol.eventHandler).equals(before);
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(controller.env.get(OccurrenceManager)).equals(before);
+        expect(controller.protocol.eventHandler).equals(before);
+    });
+
+    it("leaves its own event manager open when it creates a peer", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+        await controller.start();
+        const events = controller.env.get(OccurrenceManager);
+        let closed = false;
+        const close = events.close.bind(events);
+        events.close = async () => {
+            closed = true;
+            await close();
+        };
+
+        await commissionOnto(controller, device);
+
+        expect(controller.peers.commissioned.length).equals(1);
+        expect(closed).equals(false);
+    });
+
     it("commissions again on the same controller instance after factory reset", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();

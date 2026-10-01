@@ -244,7 +244,16 @@ export abstract class ValueModel<T extends ValueElement = ValueElement>
      * Is this model disallowed?
      */
     get isDisallowed() {
-        return this.effectiveConformance.type === Conformance.Flag.Disallowed;
+        return this.effectiveConformance.isDisallowed;
+    }
+
+    /**
+     * Is this model obsolete?
+     *
+     * @see {@link Conformance.isObsolete}
+     */
+    get isObsolete() {
+        return this.effectiveConformance.isObsolete;
     }
 
     /**

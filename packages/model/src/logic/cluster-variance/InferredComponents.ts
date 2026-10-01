@@ -371,11 +371,11 @@ function addElement(components: InferredComponents, element: ValueModel) {
         return;
     }
 
-    let text = element.conformance.toString();
-
-    if (text === "X") {
+    if (element.conformance.isDisallowed) {
         return;
     }
+
+    let text = element.conformance.toString();
 
     // The intended conformance of a provisional element contributes its condition but may not make it mandatory
     let provisional = false;
@@ -390,7 +390,7 @@ function addElement(components: InferredComponents, element: ValueModel) {
         }
     }
 
-    if (text === "D") {
+    if (text === "D" || text === "Z") {
         text = "O";
     } else if (text === "M, D") {
         text = "M";

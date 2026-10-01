@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { ClosureControlClient as BaseClosureControlClient } from "../behaviors/closure-control/ClosureControlClient.js";
 import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
 import {
@@ -40,6 +41,13 @@ export interface ClosureControllerDevice extends Identity<typeof ClosureControll
 
 export namespace ClosureControllerRequirements {
     /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
+
+    /**
      * The ClosureControl cluster is required by the Matter specification.
      *
      * We provide this alias to the default implementation {@link ClosureControlClient} for convenience.
@@ -61,6 +69,11 @@ export namespace ClosureControllerRequirements {
     export const ClosureDimensionClient = BaseClosureDimensionClient;
 
     /**
+     * An implementation for each server cluster supported by the endpoint per the Matter specification.
+     */
+    export const server = { mandatory: { Binding: BindingServer } };
+
+    /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = {
@@ -74,7 +87,7 @@ export const ClosureControllerDeviceDefinition = MutableEndpoint({
     deviceType: 0x23e,
     deviceRevision: 2,
     requirements: ClosureControllerRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(ClosureControllerRequirements.server.mandatory.Binding)
 });
 
 Object.freeze(ClosureControllerDeviceDefinition);

@@ -8,4 +8,7 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "event-no", description: "Event Number", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "event-no", description: "Event Number", xref: "core§7.19.2.39",
+    details: "An unsigned number that indicates an Event instance."
+});

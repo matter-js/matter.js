@@ -3181,11 +3181,11 @@ case time a deferral from the side the DUT's own restart does not disturb, and w
 whether a notification arrived before or after some other command of the same update (`TC-SU-2.5`).
 
 **A requestor's own `StateTransition` events cannot time anything across an apply.** The subject
-restarts into the version it applied, and `NodeTestInstance.restartNode()` clears the occurrence store,
-so a mark taken with `latestRequestorStateChange` before the step excludes everything after the
-restart — the read comes back empty and a check on it fails against a conforming DUT. Time the wait on
-the TH instead. A live *attribute* read during the wait is fine; it is the event log that does not
-survive.
+restarts into the version it applied, and `NodeTestInstance.restartNode()` discards the occurrences the
+old boot recorded. Numbering continues across the restart, so a mark taken with
+`latestRequestorStateChange` before the step still selects what the new boot reports, but what the old
+boot reported after the mark is gone. Time the wait on the TH instead. A live *attribute* read during
+the wait is fine; it is the event log that does not survive.
 
 **The waits `serveOtaUpdate` offers end on what the provider decided, which is not a window the DUT
 has been watched for.** `applyTimeoutMs` settles as soon as the provider allows an apply *or gives up
@@ -3202,6 +3202,27 @@ deferral falls decides which budget covers it: an `AwaitNextAction` is allowed o
 again, so its wait is before the allowance, while a deferred `Proceed` is allowed at once and the DUT
 waits after it. A step that gives its deferral to the wrong budget stops watching before the DUT acts,
 and the failure reads like a device defect.
+
+**`TC-SU-2.7` observes one subscription across three restarts.** Steps 1, 4 and 6 each apply an update,
+and the subject restarts into it. What makes the steps after a restart see anything:
+
+- **One `observeEvents` for the whole case.** Each call adds an observer that lives until the adapter
+  closes, so a call per step reports every state once per earlier step. Clear the collected events per
+  step instead.
+- **The steps after a restart wait 45 s, not 10 s.** The controller ends its sessions on `ShutDown`, the
+  subject deletes the subscription, and `RebootResubscribeArmer` resubscribes only after its 30 s grace
+  from the subject's return, unless the subject restores the subscription itself. Events recorded
+  meanwhile arrive once the subscription is live; that needs the subject's event numbers to keep
+  increasing across the restart, which `NodeTestInstance.restartNode()` does.
+- **Step 6 relies on its `AwaitNextAction` delay outlasting that grace.** It asks for 60 s, and the
+  requestor's own 120 s floor raises it; `SPEC_INTERVALS_ARG` keeps that floor when
+  `MATTER_CERT_OTA_FAST_RETRY` would shorten it. Step 6 starts as the subject returns from step 4's
+  restart; if it applied and restarted again before the resubscription, it would discard DelayedOnApply
+  undelivered.
+- **A second observation of the same paths would see what the first one's reads return.** A read
+  re-broadcasts the events it answers with to every observer, and only the observation that made the
+  read skips them. With one observation per case that read is step 1's seed, which comes before any
+  stimulus.
 
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 
