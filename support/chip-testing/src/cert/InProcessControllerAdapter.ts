@@ -1409,7 +1409,11 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
             if (isConcretePath(path)) {
                 if (statuses.length) {
-                    throw new StatusResponseError(`readAttribute ${JSON.stringify(path)} failed`, statuses[0].status);
+                    throw new StatusResponseError(
+                        `readAttribute ${JSON.stringify(path)} failed`,
+                        statuses[0].status,
+                        statuses[0].clusterStatus,
+                    );
                 }
                 if (values.length === 0) {
                     throw new InternalError(`readAttribute ${JSON.stringify(path)} returned no data`);

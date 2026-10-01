@@ -98,6 +98,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Fix: `GroupKeyManagementServer` accepts a `KeySetWrite` with any `GroupKeyMulticastPolicy` and ignores the field, which has no effect; it rejected every value but PerGroupID with INVALID_COMMAND. `KeySetRead` reports PerGroupID
     - Fix: A `GroupcastTesting` request without `DurationSeconds` ends testing after 60 seconds; testing previously never ended
+    - Fix: A node stopped with `stop()` and started again re-establishes its subscriptions, and afterwards stores only the subscriptions of its current run; it previously re-established none and kept storing subscriptions it could not re-establish
+    - Fix: A node with the default volatile event store keeps none of its earlier events across `stop()` and `start()`, as across a restart; it previously reported them, including `ShutDown`, again to reads and subscriptions without an event filter
     - Fix: `ServiceAreaServer` without the Maps feature no longer fails to initialize
     - Fix: `GeneralDiagnosticsServer` uses the monotonic clock when available and clamps elapsed time to zero otherwise, so a backward wall-clock step (e.g. an NTP correction) no longer sends `totalOperationalHoursCounter` below its uint64 minimum, which made taking the node offline fail
     - Fix: (@RaHehl) A node stopped with `stop()` and started again can be commissioned again: an uncommissioned node previously failed to start with "Required dependency CommissioningConfigProvider is not available", and a commissioned node answered `ArmFailSafe`, `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` with `Failure`
