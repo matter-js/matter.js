@@ -5,7 +5,7 @@
  */
 
 import { ImplementationError, InternalError } from "@matter/general";
-import { PeerConnection, cleanup } from "node-datachannel";
+import { PeerConnection, cleanup, initLogger } from "node-datachannel";
 
 /**
  * Owns one WebRTC peer connection, on behalf of a certification case in the parent process.
@@ -25,6 +25,19 @@ interface Request {
     sdp?: string;
     candidates?: { candidate: string; mid: string }[];
 }
+
+/** How many of the library's own log lines a failed operation reports. */
+const LOG_TAIL_LINES = 200;
+
+// The library's account of an intermittent failure (ICE closing between a description and its candidates)
+// exists only in its own log, so the recent part of it goes out with every error
+const logTail = new Array<string>();
+initLogger("Debug", (level, message) => {
+    logTail.push(`${level}: ${message}`);
+    if (logTail.length > LOG_TAIL_LINES) {
+        logTail.shift();
+    }
+});
 
 const connection = new PeerConnection("dut", { iceServers: [] });
 const candidates = new Array<{ candidate: string; mid: string }>();
@@ -46,6 +59,9 @@ process.on("message", (request: Request) => {
         result = perform(request);
     } catch (e) {
         error = e instanceof Error ? e.message : String(e);
+        if (logTail.length) {
+            error += `\nlibdatachannel log, last ${logTail.length} lines:\n${logTail.join("\n")}`;
+        }
     }
 
     process.send?.({ id: request.id, result, error });
