@@ -28,6 +28,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `serializeToJs` writes a `Date` with its ISO timestamp instead of as `new Date(undefined)`
 
 - @matter/model
+    - Enhancement: Feature conformance analysis supports a choice set bounded from above, such as `O.a-`, and a choice set a member joins under several conditions, such as `[!A & !B].a`
     - Feature: Conformance `Z` (obsolete, Matter 1.7) parses as `Conformance.Flag.Obsolete`, and `isObsolete` reports it on `Conformance`, `ValueModel` and `RequirementModel`. `Z` combined with anything else is a conformance error
     - Feature: `Conformance.applicabilityFor()` takes `deprecatedIsOptional`, which reads deprecated ("D") and obsolete ("Z") conformance as optional instead of disallowed
     - Feature: `Specification.ENABLE_FORWARD_MATTER_FEATURES` (off in releases) and `Specification.isForwardFeatureEnabled()` gate behaviour implemented ahead of a released specification
@@ -90,6 +91,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 
 - @matter/node
+    - Fix: `ServiceAreaServer` without the Maps feature no longer fails to initialize
     - Fix: An OTA requestor that a provider answers `Busy` keeps `UpdateState` at `DelayedOnQuery` until its retry; it reset the attribute to `Idle` in the same transaction, so a read never showed the wait. After three `Busy` retries it treats the provider as having no update and waits for its next regular query; before, it queried a `Busy` provider again without limit
     - Fix: A deprecated or obsolete attribute that a device reports is an optional attribute of the client behavior, so it has `$Changing` and `$Changed` events and a property on the behavior's state class
     - Fix: After a factory reset, event reads and subscriptions still see new events: the node keeps its cleared event manager instead of creating a second one they did not know about
