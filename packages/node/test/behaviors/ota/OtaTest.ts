@@ -2020,10 +2020,6 @@ describe("Ota", () => {
         // OLDER session. The real queryImage session will have a newer activeTimestamp, and a
         // different sessionId → triggers Case B.
         //
-        // IMPORTANT: Use MockTime.nowMs (not Date.now()) for the fake BDX session's
-        // sessionActiveTimestamp so that it is older than session.activeTimestamp, which also uses
-        // MockTime-based timestamps. A timestamp of 0 is always older than any live session.
-        //
         // BDX_FAKE_SESSION_ID uses a high value (0xDEAD) to avoid colliding with real session IDs
         // assigned by the protocol stack in these tests.
         const BDX_FAKE_SESSION_ID = 0xdead;
@@ -2128,7 +2124,7 @@ describe("Ota", () => {
                         peerAddress,
                         session: {
                             id: 42,
-                            activeTimestamp: (MockTime.nowMs + 10000) as Timestamp, // newer than any live session → Case C
+                            activeTimestamp: (MockTime.nowUs + 10000) as Timestamp, // newer than any live session → Case C
                         },
                     } as any;
                 }
