@@ -11,7 +11,7 @@ import { Binding } from "@matter/types/clusters/binding";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { LocalActorContext } from "../../../src/behavior/context/server/LocalActorContext.js";
 import { BindingManager, BindingResolution } from "../../../src/behaviors/binding/BindingManager.js";
-import type { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
+import { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
 import { GroupsClient } from "../../../src/behaviors/groups/GroupsClient.js";
 import { IdentifyClient } from "../../../src/behaviors/identify/IdentifyClient.js";
 import { OnOffClient } from "../../../src/behaviors/on-off/OnOffClient.js";
@@ -31,12 +31,12 @@ interface FakeEvents {
     removed: AsyncObservable<[BindingResolution]> & { removed: BindingResolution[] };
 }
 
-function makeFakeBindingServer(): BindingServer {
+/** A fake whose `established` has an observer unless {@link listening} is false; see {@link listen}. */
+function makeFakeBindingServer({ listening = true } = {}): BindingServer {
     const establishedObs = AsyncObservable<[BindingResolution]>() as AsyncObservable<[BindingResolution]> & {
         emitted: BindingResolution[];
     };
     establishedObs.emitted = new Array<BindingResolution>();
-    establishedObs.on(r => void establishedObs.emitted.push(r));
 
     const removedObs = AsyncObservable<[BindingResolution]>() as AsyncObservable<[BindingResolution]> & {
         removed: BindingResolution[];
@@ -46,14 +46,23 @@ function makeFakeBindingServer(): BindingServer {
 
     const fake = {
         events: { established: establishedObs, removed: removedObs } as unknown as FakeEvents,
-        // Provide a minimal endpoint stub so #warnNoSubscriber doesn't throw.
         endpoint: {
             number: 0,
-            eventsOf: (_: unknown) => ({ established: { isObserved: true } }),
+            eventsOf: (_: unknown) => ({ established: establishedObs }),
             type: { clientClusters: {} },
         },
     };
-    return fake as unknown as BindingServer;
+    const server = fake as unknown as BindingServer;
+    if (listening) {
+        listen(server);
+    }
+    return server;
+}
+
+/** Attaches the observer that records emissions of `established`. */
+function listen(server: BindingServer) {
+    const established = (server as unknown as { events: FakeEvents }).events.established;
+    established.on(r => void established.emitted.push(r));
 }
 
 function fakeEmitted(server: BindingServer): Array<BindingResolution> {
@@ -82,7 +91,7 @@ async function provisionGroupKey(fabric: Fabric, group: GroupId, keySetId = 0x1a
 
 /** Lets the manager's asynchronous resolution run until `done` holds, within a bounded number of turns. */
 async function settle(done: () => boolean) {
-    for (let turn = 0; turn < 50 && !done(); turn++) {
+    for (let turn = 0; turn < 500 && !done(); turn++) {
         await Promise.resolve();
     }
 }
@@ -1060,6 +1069,275 @@ describe("BindingManager", () => {
             expect(installed.has(WebRtcTransportProviderClient)).false;
 
             await node.close();
+        });
+    });
+
+    describe("without an observer of established", () => {
+        function remoteEntry(fabricIndex: FabricIndex, nodeId: NodeId) {
+            return new Binding.Target({
+                node: nodeId,
+                endpoint: EndpointNumber(1),
+                cluster: undefined,
+                group: undefined,
+                fabricIndex,
+            });
+        }
+
+        it("registers no peer until something observes, then resolves the entry", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const peerAddress = { fabricIndex: fabric.fabricIndex, nodeId: NodeId(BigInt(fabric.nodeId) + 1n) };
+            const server = makeFakeBindingServer({ listening: false });
+
+            node.env
+                .get(BindingManager)
+                .register(server, node.parts.get(1)!, remoteEntry(fabric.fabricIndex, peerAddress.nodeId));
+            await settle(() => false);
+            expect(node.peers.get(peerAddress)).undefined;
+
+            listen(server);
+            await settle(() => node.peers.get(peerAddress) !== undefined);
+            expect(node.peers.get(peerAddress)).instanceof(ClientNode);
+
+            await node.close();
+        });
+
+        it("emits a self-binding once something observes", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+
+            node.env
+                .get(BindingManager)
+                .register(server, node.parts.get(1)!, makeSelfBindingEntry(EndpointNumber(1), fabric.nodeId));
+            await settle(() => false);
+            listen(server);
+            await settle(() => fakeEmitted(server).length > 0);
+
+            expect(fakeEmitted(server).map(({ kind }) => kind)).deep.equals(["server"]);
+
+            await node.close();
+        });
+
+        it("registers no group until something observes", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const groupAddress = { fabricIndex: fabric.fabricIndex, nodeId: NodeId.fromGroupId(GroupId(7)) };
+            await provisionGroupKey(fabric, GroupId(7));
+            const server = makeFakeBindingServer({ listening: false });
+            const entry = new Binding.Target({
+                node: undefined,
+                endpoint: undefined,
+                cluster: undefined,
+                group: GroupId(7),
+                fabricIndex: fabric.fabricIndex,
+            });
+
+            node.env.get(BindingManager).register(server, node.parts.get(1)!, entry);
+            await settle(() => false);
+            expect(node.peers.get(groupAddress)).undefined;
+
+            listen(server);
+            await settle(() => fakeEmitted(server).length > 0);
+            expect(fakeEmitted(server).map(({ kind }) => kind)).deep.equals(["group"]);
+            expect(node.peers.get(groupAddress)).instanceof(ClientGroup);
+
+            await node.close();
+        });
+
+        it("leaves an entry dormant that arrives after a once observer was used up", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+            const established = server.endpoint.eventsOf(BindingServer).established;
+            const manager = node.env.get(BindingManager);
+            const taken = new Array<BindingResolution>();
+            established.once(resolution => void taken.push(resolution));
+
+            manager.register(server, node.parts.get(1)!, makeSelfBindingEntry(EndpointNumber(1), fabric.nodeId));
+            manager.register(server, node.parts.get(1)!, makeSelfBindingEntry(EndpointNumber(0), fabric.nodeId));
+            await settle(() => false);
+            expect(taken.map(({ entry }) => entry.endpoint)).deep.equals([EndpointNumber(1)]);
+
+            listen(server);
+            await settle(() => fakeEmitted(server).length > 0);
+            expect(fakeEmitted(server).map(({ entry }) => entry.endpoint)).deep.equals([EndpointNumber(0)]);
+
+            await node.close();
+        });
+
+        it("parks a resolved entry when its once observer was taken while its peer came online", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+            const established = server.endpoint.eventsOf(BindingServer).established;
+            const manager = node.env.get(BindingManager);
+            const taken = new Array<BindingResolution>();
+            established.once(resolution => void taken.push(resolution));
+
+            const peers = new Array<ClientNode>();
+            for (const offset of [1n, 2n]) {
+                const nodeId = NodeId(BigInt(fabric.nodeId) + offset);
+                const peer = await node.peers.forAddress({ fabricIndex: fabric.fabricIndex, nodeId });
+                peer.endpoints.require(1);
+                peers.push(peer);
+                manager.register(server, node.parts.get(1)!, remoteEntry(fabric.fabricIndex, nodeId));
+            }
+            await settle(() => false);
+            for (const peer of peers) {
+                await peer.lifecycle.online.emit(LocalActorContext.ReadOnly);
+            }
+            expect(taken.map(({ node }) => node)).deep.equals([peers[0]]);
+
+            listen(server);
+            await settle(() => fakeEmitted(server).length > 0);
+            expect(fakeEmitted(server).map(({ node }) => node)).deep.equals([peers[1]]);
+
+            await node.close();
+        });
+
+        it("forgets a dormant entry that is unregistered", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+            const manager = node.env.get(BindingManager);
+            const entry = makeSelfBindingEntry(EndpointNumber(1), fabric.nodeId);
+
+            manager.register(server, node.parts.get(1)!, entry);
+            await settle(() => false);
+            await manager.unregister(server, entry);
+            expect(server.endpoint.eventsOf(BindingServer).established.observed.isObserved).false;
+            listen(server);
+            await settle(() => false);
+
+            expect(fakeEmitted(server)).deep.equals([]);
+            expect(fakeRemoved(server)).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("forgets dormant entries of a disposed server", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+            const manager = node.env.get(BindingManager);
+
+            manager.register(server, node.parts.get(1)!, makeSelfBindingEntry(EndpointNumber(1), fabric.nodeId));
+            await settle(() => false);
+            await manager.disposeServer(server);
+            expect(server.endpoint.eventsOf(BindingServer).established.observed.isObserved).false;
+            listen(server);
+            await settle(() => false);
+
+            expect(fakeEmitted(server)).deep.equals([]);
+            expect(fakeRemoved(server)).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("keeps the other dormant entry when one is unregistered", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+            const manager = node.env.get(BindingManager);
+            const kept = makeSelfBindingEntry(EndpointNumber(1), fabric.nodeId);
+            const dropped = makeSelfBindingEntry(EndpointNumber(0), fabric.nodeId);
+
+            manager.register(server, node.parts.get(1)!, kept);
+            manager.register(server, node.parts.get(1)!, dropped);
+            await settle(() => false);
+            await manager.unregister(server, dropped);
+            listen(server);
+            await settle(() => fakeEmitted(server).length > 0);
+
+            expect(fakeEmitted(server).map(({ entry }) => entry.endpoint)).deep.equals([EndpointNumber(1)]);
+
+            await node.close();
+        });
+
+        it("waits again for an observer after the observer it woke for went away", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+            const established = server.endpoint.eventsOf(BindingServer).established;
+            const manager = node.env.get(BindingManager);
+            const first = new Array<BindingResolution>();
+            const observer = (resolution: BindingResolution) => void first.push(resolution);
+
+            manager.register(server, node.parts.get(1)!, makeSelfBindingEntry(EndpointNumber(1), fabric.nodeId));
+            await settle(() => false);
+            established.on(observer);
+            await settle(() => first.length > 0);
+            established.off(observer);
+            manager.register(server, node.parts.get(1)!, makeSelfBindingEntry(EndpointNumber(0), fabric.nodeId));
+            await settle(() => false);
+            listen(server);
+            await settle(() => fakeEmitted(server).length > 0);
+
+            expect(first.map(({ entry }) => entry.endpoint)).deep.equals([EndpointNumber(1)]);
+            expect(fakeEmitted(server).map(({ entry }) => entry.endpoint)).deep.equals([EndpointNumber(0)]);
+
+            await node.close();
+        });
+
+        it("resolves no dormant entry after the manager closed", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+            const manager = node.env.get(BindingManager);
+
+            manager.register(server, node.parts.get(1)!, makeSelfBindingEntry(EndpointNumber(1), fabric.nodeId));
+            await settle(() => false);
+            await manager.close();
+            expect(server.endpoint.eventsOf(BindingServer).established.observed.isObserved).false;
+            listen(server);
+            await settle(() => false);
+
+            expect(fakeEmitted(server)).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("still warns about an entry that can never resolve", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
+            const fabric = await node.addFabric();
+            const server = makeFakeBindingServer({ listening: false });
+            const warnings = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    if (message.facility === "BindingManager" && message.level >= LogLevel.WARN) {
+                        warnings.push(String(message.values[0]));
+                    }
+                },
+            });
+
+            try {
+                node.env
+                    .get(BindingManager)
+                    .register(server, node.parts.get(1)!, makeSelfBindingEntry(EndpointNumber(9), fabric.nodeId));
+                await settle(() => warnings.length > 0);
+
+                expect(warnings).deep.equals(["Self-binding to non-existent endpoint"]);
+
+                warnings.length = 0;
+                node.env.get(BindingManager).register(
+                    server,
+                    node.parts.get(1)!,
+                    new Binding.Target({
+                        node: NodeId(BigInt(fabric.nodeId) + 1n),
+                        endpoint: undefined,
+                        cluster: undefined,
+                        group: undefined,
+                        fabricIndex: fabric.fabricIndex,
+                    }),
+                );
+                await settle(() => warnings.length > 0);
+
+                expect(warnings).deep.equals(["Client binding entry missing endpoint"]);
+            } finally {
+                delete Logger.destinations.capture;
+                await node.close();
+            }
         });
     });
 });
