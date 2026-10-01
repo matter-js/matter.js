@@ -391,12 +391,9 @@ function messagesIn(
             continue;
         }
         const id = CHIP_DMG_MESSAGE_ID.exec(lines[i].text);
-        if (id !== null) {
-            const key = `${id[2]}/${id[1]}`;
-            if (seen.has(key)) {
-                continue;
-            }
-            seen.add(key);
+        const key = id === null ? undefined : `${id[2]}/${id[1]}`;
+        if (key !== undefined && seen.has(key)) {
+            continue;
         }
 
         let counter: number | undefined;
@@ -413,6 +410,10 @@ function messagesIn(
             continue;
         }
 
+        // Only a dump that yielded a record stands for the message; a retransmission of one that did not is read
+        if (key !== undefined) {
+            seen.add(key);
+        }
         records.push({
             counter,
             length: dmg.carriesData && payloadSize !== undefined ? payloadSize - CHIP_BDX_COUNTER_BYTES : undefined,

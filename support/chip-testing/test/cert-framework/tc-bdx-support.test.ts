@@ -180,6 +180,13 @@ describe("tc-bdx-support", () => {
             expect(blocksReceived(log, "chip-local", 0)?.map(({ counter }) => counter)).deep.equal([7, 7]);
         });
 
+        it("reads a retransmitted Block whose first dump carried no counter", async () => {
+            const [header, ...fields] = CHIP_DUMP.slice(0, 11);
+            const log = await follower([header, `${CHIP_DMG}Decrypted Payload (1028 bytes) =`, header, ...fields]);
+
+            expect(blocksReceived(log, "chip-local", 0)?.map(({ counter }) => counter)).deep.equal([7]);
+        });
+
         it("reads a BlockQuery the receiver sent, which carries no data", async () => {
             const log = await follower(CHIP_DUMP);
 
