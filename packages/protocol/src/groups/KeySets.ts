@@ -152,7 +152,6 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
             epochKey2,
             epochStartTime2,
             groupKeySecurityPolicy,
-            groupKeyMulticastPolicy,
         } = groupKeySet;
         return {
             groupKeySetId,
@@ -163,7 +162,6 @@ export class KeySets<T extends OperationalKeySet> extends BasicSet<T> {
             epochKey2,
             epochStartTime2,
             groupKeySecurityPolicy,
-            groupKeyMulticastPolicy,
         };
     }
 
