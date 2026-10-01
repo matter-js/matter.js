@@ -63,6 +63,27 @@ describe("ServiceAreaServer", () => {
         await createNode();
     });
 
+    it("initializes without the Maps feature", async () => {
+        const node = await MockServerNode.create();
+        try {
+            await node.add(RoboticVacuumCleanerDevice.with(ServiceAreaServer), {
+                rvcRunMode: {
+                    supportedModes: [
+                        { label: "Idle", mode: 0, modeTags: [{ value: RvcRunMode.ModeTag.Idle }] },
+                        { label: "Cleaning", mode: 1, modeTags: [{ value: RvcRunMode.ModeTag.Cleaning }] },
+                    ],
+                    currentMode: 0,
+                },
+                rvcOperationalState: {
+                    operationalStateList: [{ operationalStateId: RvcOperationalState.OperationalState.Error }],
+                    operationalState: RvcOperationalState.OperationalState.Error,
+                },
+            });
+        } finally {
+            await node.close();
+        }
+    });
+
     it("correctly validate supportedAreas", async () => {
         await createNode({
             serviceArea: {
