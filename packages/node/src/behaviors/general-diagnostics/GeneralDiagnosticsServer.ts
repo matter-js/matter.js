@@ -461,7 +461,8 @@ export namespace GeneralDiagnosticsServer {
          * Time the node came online, on the monotonic clock ({@link Time.nowUs}); used for {@link upTime}.
          *
          * Unlike {@link NodeLifecycle.onlineAt}, which is a wall-clock {@link Date}, this is unaffected by a clock
-         * step, so upTime does not go negative or jump after one.
+         * step where {@link Time.nowUs} is monotonic.  Where it falls back to the wall clock, a step still moves
+         * upTime, and only the clamp keeps it from going negative.
          */
         onlineAtUs: Timestamp | undefined;
     }

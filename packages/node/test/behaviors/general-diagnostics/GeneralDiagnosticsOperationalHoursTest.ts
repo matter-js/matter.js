@@ -5,6 +5,7 @@
  */
 
 import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
+import { Time } from "@matter/general";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("GeneralDiagnosticsServer operational hours", () => {
@@ -22,13 +23,40 @@ describe("GeneralDiagnosticsServer operational hours", () => {
         await node.close();
     });
 
-    it("keeps totalOperationalHours non-negative across a backward wall-clock step", async () => {
+    it("keeps the operational time counted across a backward wall-clock step", async () => {
+        const node = await MockServerNode.createOnline();
+
+        // Just past the second five-minute update
+        await MockTime.advance(10 * 60_000 + 1_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).totalOperationalHoursCounter).equals(10 * 60_000);
+
+        MockTime.stepWallClock(-2 * 60 * 60_000);
+        await MockTime.advance(5 * 60_000);
+
+        expect(node.stateOf(GeneralDiagnosticsServer).totalOperationalHoursCounter).equals(15 * 60_000);
+
+        await node.close();
+    });
+
+    it("keeps upTime counting across a backward wall-clock step", async () => {
+        const node = await MockServerNode.createOnline();
+
+        await MockTime.advance(5 * 60_000);
+        MockTime.stepWallClock(-2 * 60 * 60_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(300);
+
+        await MockTime.advance(60_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(360);
+
+        await node.close();
+    });
+
+    // MockTime.atTime moves the monotonic clock too, as Time.nowUs does where it falls back to the wall clock
+    it("keeps totalOperationalHours non-negative when the clock steps backwards", async () => {
         const node = await MockServerNode.createOnline();
 
         await MockTime.advance(10 * 60_000);
 
-        // Simulate an NTP correction that steps the wall clock back two hours, well before
-        // lastTotalOperationalHoursCounterUpdateTime.
         MockTime.atTime(MockTime.nowMs - 2 * 60 * 60_000, () => {
             expect(node.stateOf(GeneralDiagnosticsServer).totalOperationalHours).is.at.least(0);
         });
@@ -36,7 +64,7 @@ describe("GeneralDiagnosticsServer operational hours", () => {
         await node.close();
     });
 
-    it("keeps upTime non-negative across a backward wall-clock step", async () => {
+    it("keeps upTime non-negative when the clock steps backwards", async () => {
         const node = await MockServerNode.createOnline();
 
         await MockTime.advance(5 * 60_000);
@@ -53,18 +81,18 @@ describe("GeneralDiagnosticsServer operational hours", () => {
     it("keeps the persisted counter an integer despite a fractional Time.nowUs reading", async () => {
         const node = await MockServerNode.createOnline();
 
-        // Time.nowUs carries sub-millisecond precision on real platforms (see Time.ts); MockTime's nowUs normally
-        // mirrors its integer nowMs, so fake a fractional reading to exercise the rounding.
-        const original = Object.getOwnPropertyDescriptor(MockTime, "nowUs")!;
-        Object.defineProperty(MockTime, "nowUs", {
+        // Time.nowUs carries sub-millisecond precision on real platforms.  Only the production reads are made
+        // fractional; MockTime schedules its timers on its own integer clock.
+        const original = Object.getOwnPropertyDescriptor(Time, "nowUs")!;
+        Object.defineProperty(Time, "nowUs", {
             configurable: true,
-            get: () => MockTime.nowMs + 0.4,
+            get: () => MockTime.nowUs + 0.4,
         });
 
         try {
             await MockTime.advance(10 * 60_000); // let the periodic timer fire at least once
         } finally {
-            Object.defineProperty(MockTime, "nowUs", original);
+            Object.defineProperty(Time, "nowUs", original);
         }
 
         const counter = node.stateOf(GeneralDiagnosticsServer).totalOperationalHoursCounter;
@@ -74,13 +102,11 @@ describe("GeneralDiagnosticsServer operational hours", () => {
         await node.close();
     });
 
-    it("takes the node offline cleanly after a backward wall-clock step", async () => {
+    it("takes the node offline cleanly when the clock steps backwards", async () => {
         const node = await MockServerNode.createOnline();
 
         await MockTime.advance(10 * 60_000);
 
-        // #goingOffline runs #updateTotalOperationalHoursCounter, which on base computes a negative elapsed time
-        // here and fails validation (uint64 minimum 0) while the node is shutting down.
         await MockTime.atTime(MockTime.nowMs - 2 * 60 * 60_000, () => node.close());
 
         expect(node.lifecycle.isOnline).equals(false);
