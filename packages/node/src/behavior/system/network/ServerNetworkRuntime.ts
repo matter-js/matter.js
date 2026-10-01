@@ -44,6 +44,7 @@ import {
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "../product-description/ProductDescriptionServer.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
+import { SubscriptionsServer } from "../subscriptions/SubscriptionsServer.js";
 import { NetworkRuntime } from "./NetworkRuntime.js";
 import { NetworkServer } from "./NetworkServer.js";
 import { ServerGroupNetworking } from "./ServerGroupNetworking.js";
@@ -362,6 +363,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         };
 
         await this.#initializeGroupNetworking();
+
+        // SubscriptionsServer records the subscriptions of this run, so it must start before any can be established
+        await this.owner.act("load-subscriptions", async agent => (await agent.load(SubscriptionsServer)).beginRun());
 
         // Install our interaction server
         const interactionServer = new InteractionServer(this.owner, env.get(SessionManager));
