@@ -10,7 +10,7 @@ import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import type { SecureSession } from "#session/SecureSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { Logger, Minutes, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
+import { Duration, Hours, Logger, Millis, Minutes, ObserverGroup, Seconds, Time, Timer } from "@matter/general";
 
 const logger = Logger.get("RebootResubscribeArmer");
 
@@ -18,12 +18,15 @@ const logger = Logger.get("RebootResubscribeArmer");
 const DEFAULT_REBOOT_RESUBSCRIBE_GRACE = Seconds(30);
 
 /**
- * How long we wait for an armed device to re-establish a session before assuming it restarted silently and forcing
- * recovery.  A device applying an update has normally rebooted and returned within this window, so it is a backstop
- * rather than the common path; kept short so a silently-restarted device recovers well before the full subscription
- * liveness timeout.
+ * How long we wait, beyond the delay the device was given before it restarts, for an armed device to re-establish a
+ * session before assuming it restarted silently and forcing recovery.  A device applying an update has normally
+ * rebooted and returned within this window, so it is a backstop rather than the common path; kept short so a
+ * silently-restarted device recovers well before the full subscription liveness timeout.
  */
 const EXPECTED_RETURN_TIMEOUT = Minutes(3);
+
+/** The longest delay a device waits before it restarts; a requestor may treat a longer `DelayedActionTime` as this. */
+const MAX_RESTART_DELAY = Hours(24);
 
 interface ArmState {
     /**
@@ -64,7 +67,12 @@ export class RebootResubscribeArmer {
         this.#observers.on(subscriptions.reportStarted, session => this.#onReportStarted(session));
     }
 
-    arm(peerAddress: PeerAddress) {
+    /**
+     * Expects `peerAddress` to restart and return. `restartDelay` is how long the device was told to wait before it
+     * restarts, such as the `DelayedActionTime` of an `ApplyUpdateResponse` that allowed the apply; the return deadline
+     * runs from the end of that delay.
+     */
+    arm(peerAddress: PeerAddress, restartDelay: Duration = Millis(0)) {
         peerAddress = PeerAddress(peerAddress);
 
         const previous = this.#armed.get(peerAddress);
@@ -78,8 +86,10 @@ export class RebootResubscribeArmer {
         };
         this.#armed.set(peerAddress, state);
 
-        state.returnTimer = Time.getTimer("Reboot return deadline", EXPECTED_RETURN_TIMEOUT, () =>
-            this.#onReturnTimeout(peerAddress),
+        state.returnTimer = Time.getTimer(
+            "Reboot return deadline",
+            Millis(Math.min(Math.max(restartDelay, 0), MAX_RESTART_DELAY) + EXPECTED_RETURN_TIMEOUT),
+            () => this.#onReturnTimeout(peerAddress),
         );
         state.returnTimer.start();
     }

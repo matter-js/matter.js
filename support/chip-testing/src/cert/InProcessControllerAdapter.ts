@@ -570,6 +570,14 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         };
     }
 
+    #scriptedApplyDelay?: number;
+
+    protected override applyDelayFor(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest, peerAddress: PeerAddress) {
+        return this.#scriptedApplyDelay === undefined
+            ? super.applyDelayFor(request, peerAddress)
+            : Seconds(this.#scriptedApplyDelay);
+    }
+
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
         const receivedAtMs = Time.nowUs;
         const peer = this.#commandPeer;
@@ -592,17 +600,16 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 const peerAddress = this.#commandPeerAddress;
                 await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
             }
-            response = await super.applyUpdateRequest(request);
-
-            // Only over the answer the script named, and only where the provider allowed the apply: the
-            // delay tells the requestor when it may apply, so laying it over a Discontinue would name a
-            // time for something that is not going to happen.
-            if (
-                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed &&
-                scripted?.delayedActionTime !== undefined &&
-                response.action === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
-            ) {
-                response = { ...response, delayedActionTime: scripted.delayedActionTime };
+            // Only for the answer the script named: the base provider applies the delay only where it allows the
+            // apply, so a Discontinue never names a time for something that is not going to happen
+            this.#scriptedApplyDelay =
+                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
+                    ? scripted?.delayedActionTime
+                    : undefined;
+            try {
+                response = await super.applyUpdateRequest(request);
+            } finally {
+                this.#scriptedApplyDelay = undefined;
             }
         }
 

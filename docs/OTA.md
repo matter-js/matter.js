@@ -246,10 +246,11 @@ The SoftwareUpdateManager can be configured via its state variables. The default
 
 ## Enhanced: Extending the OtaSoftwareUpdateProviderServer
 
-The `OtaSoftwareUpdateProviderServer` is the default implementation of the OTA Provider endpoint. It provides two extension methods you can override for custom behavior:
+The `OtaSoftwareUpdateProviderServer` is the default implementation of the OTA Provider endpoint. It provides extension methods you can override for custom behavior:
 
 * `checkUpdateAvailable`: By default, this method uses the `SoftwareUpdateManager` to check for available updates from the DCL or local OTA storage. Override this method to implement vendor-specific update logic.
 * `requestUserConsentForUpdate`: Override this method to gather user consent through alternative means. For example, you could implement automatic consent for certain device types (e.g., sensors and lights) while requiring manual approval for others (e.g., sockets). Consents granted through this method are applied via the update queue.
+* `applyDelayFor`: Returns the delay (`DelayedActionTime`) an update is allowed to apply with; by default none, so the device applies at once. Override this method rather than changing the response of `applyUpdateRequest`, so the controller expects the device's restart only after that delay.
 
 ## Enhanced: Test and Local OTA Images
 

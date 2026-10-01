@@ -18,6 +18,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     createPromise,
+    Duration,
     ImplementationError,
     Millis,
     Minutes,
@@ -33,6 +34,7 @@ import {
     FabricAuthority,
     PeerAddress,
     PersistedFileDesignator,
+    RebootResubscribeArmer,
     SecureSession,
     SessionManager,
     SustainedSubscription,
@@ -1387,6 +1389,96 @@ describe("Ota", () => {
         expect(applyUpdateResponses[0].delayedActionTime).equals(120);
 
         await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("expects the device's restart only after the delay it was allowed to apply with", async () => {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
+            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+        const { queryImagePromise, applyUpdateRequestPromise, checkUpdateAvailablePromise, TestOtaProviderServer } =
+            InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const sentDelays = new Array<number>();
+        class DelayingProviderServer extends TestOtaProviderServer {
+            protected override applyDelayFor() {
+                return Seconds(180);
+            }
+
+            override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
+                const response = await super.applyUpdateRequest(request);
+                sentDelays.push(response.delayedActionTime);
+                return response;
+            }
+        }
+
+        const armed = new Array<Duration | undefined>();
+        const originalArm = RebootResubscribeArmer.prototype.arm;
+        RebootResubscribeArmer.prototype.arm = function (this: RebootResubscribeArmer, peer, restartDelay) {
+            armed.push(restartDelay);
+            return originalArm.call(this, peer, restartDelay);
+        };
+        try {
+            const { site, device, controller, otaProvider } = await initOtaSite(
+                DelayingProviderServer,
+                TestOtaRequestorServer,
+            );
+            await using _localSite = site;
+
+            const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+            data.expectedOtaImage = Bytes.of(otaImage.image);
+            const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+            await otaProvider.act(agent =>
+                agent
+                    .get(SoftwareUpdateManager)
+                    .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+            );
+            await MockTime.resolve(announceOtaProviderPromise);
+            await MockTime.resolve(queryImagePromise);
+            await MockTime.resolve(checkUpdateAvailablePromise);
+            await MockTime.resolve(applyUpdateRequestPromise);
+
+            expect(sentDelays).deep.equal([180]);
+            expect(armed).deep.equal([Seconds(180)]);
+
+            await MockTime.resolve(applyUpdatePromise);
+            await site[Symbol.asyncDispose]();
+        } finally {
+            RebootResubscribeArmer.prototype.arm = originalArm;
+        }
+    }).timeout(10_000);
+
+    it("does not count an update as stalled while the device waits out its apply delay", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .onOtaStatusChange(peerAddress, OtaUpdateStatus.Applying, targetSoftwareVersion, Minutes(30)),
+        );
+
+        const statusOf = async () =>
+            (await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates))[0]?.status;
+
+        await MockTime.advance(Minutes(40));
+        expect(await statusOf()).equals("in-progress");
+
+        // Past the delay and the progress timeout, the queue gives up on the attempt, by status or by its reset
+        await MockTime.advance(Minutes(10));
+        expect(await statusOf()).oneOf(["stalled", "queued"]);
     }).timeout(10_000);
 
     it("Apply failure detected when startUp fires after Applying state", async () => {

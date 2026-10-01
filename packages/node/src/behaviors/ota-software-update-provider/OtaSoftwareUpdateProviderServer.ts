@@ -21,6 +21,7 @@ import {
     Logger,
     MatterError,
     MaybePromise,
+    Millis,
     Minutes,
     Seconds,
     Time,
@@ -395,12 +396,12 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
     /**
      * Default implementation of the ApplyUpdate command according to Matter specification.
-     * We always allow updated to be executed immediately by the device.
+     * An update with consent is allowed to apply after the delay {@link applyDelayFor} returns.
      */
-    override async applyUpdateRequest({
-        updateToken,
-        newVersion,
-    }: OtaSoftwareUpdateProvider.ApplyUpdateRequest): Promise<OtaSoftwareUpdateProvider.ApplyUpdateResponse> {
+    override async applyUpdateRequest(
+        request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
+    ): Promise<OtaSoftwareUpdateProvider.ApplyUpdateResponse> {
+        const { updateToken, newVersion } = request;
         assertRemoteActor(this.context);
         const session = this.context.session;
         NodeSession.assert(session);
@@ -430,12 +431,38 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
         // Invoked by an OTA Requestor once it is ready to apply a previously downloaded Software Image.
         // Disable BDX protocol again
-        this.#updateInProgressDetails(session.peerAddress, updateToken, OtaUpdateStatus.Applying, newVersion);
+        // Whole seconds, as the response carries them, so the controller expects the restart after the delay it sent
+        const delayedActionTime = Math.max(
+            0,
+            Math.round(Seconds.of(await this.applyDelayFor(request, session.peerAddress))),
+        );
+        this.#updateInProgressDetails(
+            session.peerAddress,
+            updateToken,
+            OtaUpdateStatus.Applying,
+            newVersion,
+            undefined,
+            Seconds(delayedActionTime),
+        );
 
         return {
             action: OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed,
-            delayedActionTime: 0, // Allow immediate update
+            delayedActionTime,
         };
+    }
+
+    /**
+     * Override to set the `DelayedActionTime` an update this provider allows is applied with. The default applies at
+     * once. Override this rather than the response of {@link applyUpdateRequest}, so the controller expects the
+     * device's restart only after the delay.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.20.6.5.4.2
+     */
+    protected applyDelayFor(
+        _request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
+        _peerAddress: PeerAddress,
+    ): MaybePromise<Duration> {
+        return Millis(0);
     }
 
     /**
@@ -549,6 +576,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         lastState: OtaUpdateStatus,
         versionToApply?: number,
         directConsentObtained = false,
+        applyDelay?: Duration,
     ) {
         const { fabricIndex, nodeId: requestorNodeId } = peerAddress;
         const key = `${requestorNodeId}-${fabricIndex}-${Bytes.toHex(updateToken)}`;
@@ -584,7 +612,9 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         this.internal.inProgressDetails.set(key, details);
 
         this.endpoint.act(agent =>
-            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, lastState, details.versionToApply),
+            agent
+                .get(SoftwareUpdateManager)
+                .onOtaStatusChange(peerAddress, lastState, details.versionToApply, applyDelay),
         );
 
         // Ensure they don't block future updates
@@ -630,5 +660,15 @@ export namespace OtaSoftwareUpdateProviderServer {
             request: OtaSoftwareUpdateProvider.QueryImageRequest,
             peerAddress: PeerAddress,
         ): MaybePromise<OtaUpdateAvailableDetails | undefined>;
+
+        /**
+         * Override to set the delay an allowed update is applied with.
+         * @param request
+         * @param peerAddress
+         */
+        applyDelayFor(
+            request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
+            peerAddress: PeerAddress,
+        ): MaybePromise<Duration>;
     };
 }
