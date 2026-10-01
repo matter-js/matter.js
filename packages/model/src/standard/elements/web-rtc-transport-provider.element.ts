@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const WebRtcTransportProvider = Cluster(
-    { name: "WebRtcTransportProvider", id: 0x553, classification: "application" },
+    { name: "WebRtcTransportProvider", id: 0x553, bindable: false, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },

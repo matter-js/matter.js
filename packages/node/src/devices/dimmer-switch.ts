@@ -7,6 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
 import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
 import { LevelControlClient as BaseLevelControlClient } from "../behaviors/level-control/LevelControlClient.js";
@@ -33,6 +34,13 @@ export namespace DimmerSwitchRequirements {
      * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
      */
     export const IdentifyServer = BaseIdentifyServer;
+
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
 
     /**
      * The Identify cluster is required by the Matter specification.
@@ -72,7 +80,7 @@ export namespace DimmerSwitchRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { Identify: IdentifyServer } };
+    export const server = { mandatory: { Identify: IdentifyServer, Binding: BindingServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -88,7 +96,10 @@ export const DimmerSwitchDeviceDefinition = MutableEndpoint({
     deviceType: 0x104,
     deviceRevision: 4,
     requirements: DimmerSwitchRequirements,
-    behaviors: SupportedBehaviors(DimmerSwitchRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(
+        DimmerSwitchRequirements.server.mandatory.Identify,
+        DimmerSwitchRequirements.server.mandatory.Binding
+    )
 });
 
 Object.freeze(DimmerSwitchDeviceDefinition);

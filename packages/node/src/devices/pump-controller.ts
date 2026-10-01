@@ -7,6 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
 import {
     PumpConfigurationAndControlClient as BasePumpConfigurationAndControlClient
@@ -42,6 +43,13 @@ export namespace PumpControllerRequirements {
      * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
      */
     export const IdentifyServer = BaseIdentifyServer;
+
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
 
     /**
      * The OnOff cluster is required by the Matter specification.
@@ -109,7 +117,7 @@ export namespace PumpControllerRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { Identify: IdentifyServer } };
+    export const server = { mandatory: { Identify: IdentifyServer, Binding: BindingServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -134,7 +142,10 @@ export const PumpControllerDeviceDefinition = MutableEndpoint({
     deviceType: 0x304,
     deviceRevision: 5,
     requirements: PumpControllerRequirements,
-    behaviors: SupportedBehaviors(PumpControllerRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(
+        PumpControllerRequirements.server.mandatory.Identify,
+        PumpControllerRequirements.server.mandatory.Binding
+    )
 });
 
 Object.freeze(PumpControllerDeviceDefinition);

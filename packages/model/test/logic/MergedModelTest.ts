@@ -41,6 +41,34 @@ function qualityWithLocal(specQuality: string, localQuality: string) {
 }
 
 describe("MergedModels", () => {
+    it("applies a local bindable override to the specification's cluster", () => {
+        const spec = new MatterModel(
+            { name: "Spec" },
+            ...Matter.seedGlobals,
+            new ClusterModel({
+                name: "BindableFixture",
+                id: 0xfff1,
+                classification: ClusterElement.Classification.Application,
+            }),
+        );
+        const local = new MatterModel(
+            { name: "Local" },
+            ...Matter.seedGlobals,
+            new ClusterModel({ name: "BindableFixture", id: 0xfff1, bindable: false }),
+        );
+
+        const merged = MergedModel("1.1", {
+            spec: spec.children[spec.children.length - 1],
+            local: local.children[local.children.length - 1],
+        });
+
+        expect(merged).instanceof(ClusterModel);
+        if (merged instanceof ClusterModel) {
+            expect(merged.bindable).false;
+            expect(merged.classification).equals(ClusterElement.Classification.Application);
+        }
+    });
+
     describe("a local quality override", () => {
         it("adds a flag to the specification's qualities", () => {
             const quality = qualityWithLocal("X", "Q");

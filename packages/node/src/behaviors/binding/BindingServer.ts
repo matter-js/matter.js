@@ -24,12 +24,14 @@ import { BindingManager, type BindingResolution } from "./BindingManager.js";
  *
  * - **`kind: "client"`** — the entry targets a specific remote node.  The framework registers a
  *   {@link ClientNode} for the peer, opens a CASE session in the background, materializes the
- *   target endpoint, and installs each of this endpoint's declared client cluster behaviors on it.
+ *   target endpoint, and installs each of this endpoint's declared client cluster behaviors on it,
+ *   except those of a cluster that chooses its peer itself, such as the OTA Software Update Provider
+ *   and WebRTC transport clusters.
  *   The `established` event fires once the peer is online; the resolution carries the
  *   `ClientNode` plus the materialized endpoint ready for read/write/subscribe/invoke.
  *
  * - **`kind: "group"`** — the entry targets a Matter group (multicast).  The framework provides a
- *   {@link ClientGroup} with the materialized endpoint carrying the declared client behaviors;
+ *   {@link ClientGroup} with the materialized endpoint carrying those same client behaviors;
  *   commands invoked on it are sent as group multicast, with no endpoint in their paths.  Nobody
  *   answers a group message: a command with a response resolves to `undefined`.  To write an
  *   attribute to the group, use `resolution.node.interaction.write(...)` with a group path (cluster
@@ -48,6 +50,14 @@ import { BindingManager, type BindingResolution } from "./BindingManager.js";
  * Declare the client clusters you want to talk to on the source endpoint, install BindingServer,
  * and subscribe to `events.established` on the endpoint.  The framework does the rest.
  * To clean up own logic, use the `events.removed` event, which is also called when the node shuts down.
+ *
+ * An endpoint for which the Base device type mandates Binding, a simple device type with a client application
+ * cluster, receives a BindingServer without declaring one; the generated device types that mandate such a client
+ * include it.  Declare it with `.with(BindingServer)` to type its state and events on other endpoints.
+ *
+ * An entry resolves only while something observes `events.established`, so an endpoint whose application never
+ * observes it registers no peer and opens no CASE session.  Entries written before an observer attaches resolve
+ * when it attaches.
  *
  * ```ts
  * const LightWithSensorBinding = OnOffLightDevice
@@ -159,8 +169,12 @@ export namespace BindingServer {
          * Fires when a binding entry is resolved into a usable peer abstraction — either on
          * startup (for pre-existing entries) or when a controller writes a new entry.
          *
+         * Entries resolve only while this event has an observer; an entry that arrived earlier resolves once one
+         * attaches.
+         *
          * The handler receives a {@link BindingResolution} discriminated by `kind`.  The
-         * `endpoint` field always carries any declared client cluster behaviors pre-installed —
+         * `endpoint` field carries the declared client cluster behaviors the entry directs
+         * pre-installed, which excludes clients of clusters that choose their peer themselves —
          * call `endpoint.eventsOf`, `endpoint.stateOf`, or `endpoint.act` just as you would on
          * any other endpoint.
          *
