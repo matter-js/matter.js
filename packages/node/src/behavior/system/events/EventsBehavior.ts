@@ -42,7 +42,7 @@ export class EventsBehavior extends Behavior {
     }
 
     /**
-     * A device reboot loses volatile events, so a node that goes offline and online again starts with none either.
+     * A device reboot loses volatile events, so a node that goes offline drops the events it recorded so far too.
      */
     async #discardVolatileEvents() {
         if (this.state.nonvolatile) {
