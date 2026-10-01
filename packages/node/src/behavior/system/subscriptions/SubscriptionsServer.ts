@@ -50,11 +50,6 @@ export class SubscriptionsServer extends Behavior {
     declare internal: SubscriptionsServer.Internal;
 
     override initialize() {
-        if (this.state.subscriptions !== undefined && this.state.persistenceEnabled !== false) {
-            this.internal.formerSubscriptions = deepCopy(this.state.subscriptions);
-        }
-        this.state.subscriptions = [];
-
         const sessions = this.agent.get(SessionsBehavior);
         this.reactTo(sessions.events.subscriptionAdded, this.#addSubscription, { lock: true });
     }
@@ -187,6 +182,19 @@ export class SubscriptionsServer extends Behavior {
         await this.context.transaction.begin();
         this.state.subscriptions.splice(index, 1);
         await this.context.transaction.commit();
+    }
+
+    /**
+     * Start recording the subscriptions of a new run of the node.  The subscriptions recorded so far become the former
+     * subscriptions that {@link reestablishFormerSubscriptions} re-establishes.
+     *
+     * The node invokes this each time it starts its network, before it accepts or re-establishes subscriptions.
+     *
+     * @internal
+     */
+    beginRun() {
+        this.internal.formerSubscriptions = deepCopy(this.state.subscriptions);
+        this.state.subscriptions = [];
     }
 
     async reestablishFormerSubscriptions() {
@@ -326,8 +334,8 @@ export namespace SubscriptionsServer {
 
     export class Internal {
         /**
-         * Subscriptions that were established on the former device run. On initialization this will be initialized
-         * with the persisted subscriptions and then used to re-establish the subscriptions.
+         * Subscriptions that were established on the former device run.  {@link SubscriptionsServer.beginRun} sets
+         * them from the recorded subscriptions and they are then used to re-establish the subscriptions.
          */
         formerSubscriptions = Array<PeerSubscription>();
     }
