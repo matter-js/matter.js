@@ -43,6 +43,9 @@ const groupKeySetStructFS = groupKeySetStruct.extend(
     },
     FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
 );
+// GroupKeyMulticastPolicy has no effect here; it is reported as the PerGroupID default until the field is obsolete
+const reportsMulticastPolicy = !groupKeySetStruct.fields.require("GroupKeyMulticastPolicy").isObsolete;
+
 const schema = GroupKeyManagementBase.schema.extend(
     {},
     groupKeySetStructFS,
@@ -57,6 +60,13 @@ const schema = GroupKeyManagementBase.schema.extend(
         FieldElement({ name: "entry", type: "GroupKeySetStructFS" }),
     ),
 );
+
+function withoutMulticastPolicy<T extends GroupKeyManagement.GroupKeySet>({
+    groupKeyMulticastPolicy: _policy,
+    ...keySet
+}: T): Omit<T, "groupKeyMulticastPolicy"> {
+    return keySet;
+}
 
 /**
  * This is the default server implementation of {@link GroupKeyManagementBehavior}.
@@ -75,6 +85,11 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             throw new ImplementationError(
                 "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6.1. Do not enable it.",
             );
+        }
+
+        // Key sets stored by earlier versions still carry the multicast policy
+        if (this.state.groupKeySets.some(({ groupKeyMulticastPolicy }) => groupKeyMulticastPolicy !== undefined)) {
+            this.state.groupKeySets = this.state.groupKeySets.map(withoutMulticastPolicy);
         }
 
         // Validate the state
@@ -333,7 +348,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             epochStartTime1,
             epochStartTime2,
             groupKeySecurityPolicy,
-            groupKeyMulticastPolicy = GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId,
         } = groupKeySet;
 
         // Unclear if that should be checked here, but it basically only makes sense here
@@ -390,13 +404,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             throw new StatusResponseError("GroupKeySecurityPolicy must be TrustFirst", Status.InvalidCommand);
         }
 
-        // GroupKeyMulticastPolicy is provisional and PerGroupId is the default, so do not allow other values for now
-        if (groupKeyMulticastPolicy !== GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId) {
-            throw new StatusResponseError("GroupKeyMulticastPolicy must be PerGroupId", Status.InvalidCommand);
-        }
-
         const fabric = this.context.session.associatedFabric;
         const fabricIndex = fabric.fabricIndex;
+        const keySet = withoutMulticastPolicy(groupKeySet);
 
         // Replace or add the group key set to the internal persisted state
         const existingIndex = this.state.groupKeySets.findIndex(
@@ -405,7 +415,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         );
         if (existingIndex !== -1) {
             // Update existing group key set
-            this.state.groupKeySets[existingIndex] = { ...groupKeySet, fabricIndex };
+            this.state.groupKeySets[existingIndex] = { ...keySet, fabricIndex };
         } else {
             // Add a new group key set
             const keySetsOfFabric =
@@ -416,11 +426,11 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
                     Status.ResourceExhausted,
                 );
             }
-            this.state.groupKeySets.push({ ...groupKeySet, fabricIndex });
+            this.state.groupKeySets.push({ ...keySet, fabricIndex });
         }
 
         // Update the Fabric group manager to kick off the internal processes
-        await fabric.groups.setFromGroupKeySet(groupKeySet);
+        await fabric.groups.setFromGroupKeySet(keySet);
     }
 
     override keySetRead({
@@ -442,6 +452,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
                 epochKey0: null,
                 epochKey1: null,
                 epochKey2: null,
+                ...(reportsMulticastPolicy
+                    ? { groupKeyMulticastPolicy: GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId }
+                    : {}),
             },
         };
     }
