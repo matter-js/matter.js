@@ -22,10 +22,10 @@ export const COMMISSIONING_COMPLETE: LogExpectPatterns = {
     matterjs: MATTERJS_COMMISSIONED_FABRIC,
 };
 
-/** An opened commissioning window: matter.js names it by the timer it arms for it. */
+/** An opened commissioning window, as each device logs it once the window is open. */
 export const WINDOW_OPEN: LogExpectPatterns = {
     chip: /Commissioning window is now open/,
-    matterjs: /AdministratorCommissioningServer Commissioning window timer started/,
+    matterjs: /AdministratorCommissioningServer Commissioning window opened for/,
 };
 
 /**
