@@ -5,7 +5,7 @@
  */
 
 import { NodeJsUdpSocket } from "#net/NodeJsUdpSocket.js";
-import { ImplementationError } from "@matter/general";
+import { ImplementationError, NetworkError } from "@matter/general";
 
 describe("NodeJsUdpSocket", () => {
     it("creates and closes an IPv4 socket", async () => {
@@ -43,6 +43,19 @@ describe("NodeJsUdpSocket", () => {
 
         await socket.send("127.0.0.1", 9, new Uint8Array([1, 2, 3]));
 
+        await socket.close();
+    });
+
+    it("releases the port when the network interface does not exist", async () => {
+        const probe = await NodeJsUdpSocket.create({ type: "udp4", listeningPort: 0 });
+        const { port } = probe;
+        await probe.close();
+
+        await expect(
+            NodeJsUdpSocket.create({ type: "udp4", listeningPort: port, netInterface: "matterjs-missing0" }),
+        ).rejectedWith(NetworkError, "Unknown interface");
+
+        const socket = await NodeJsUdpSocket.create({ type: "udp4", listeningPort: port });
         await socket.close();
     });
 });
