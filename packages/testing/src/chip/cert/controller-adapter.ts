@@ -1073,10 +1073,10 @@ export interface CertNodeApi {
  * request chip-tool has no single command for.
  *
  * Raise this before the operation has any observable effect (a commission, a write, a recorded
- * check). The step runner enforces that: a refusal reaching it before the step recorded anything is
- * a `skipped` step, counted as a coverage gap in the run summary; a refusal arriving after the step
- * recorded evidence fails and aborts the run, because the step did act and no later step can rest on
- * a device state the bundle cannot describe.
+ * check). The step runner enforces that: a refusal reaching it before the step recorded a check or made
+ * a controller call that may change the device is a `skipped` step, counted as a coverage gap in the run
+ * summary; a refusal arriving after either fails and aborts the run, because the step did act and no
+ * later step can rest on a device state the bundle cannot describe.
  *
  * A controller that cannot do something at all should say so in its own PICS
  * (see {@link controllerPicsOverridesFor}), which gates the step before it runs and keeps the rest of
