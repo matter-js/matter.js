@@ -7,6 +7,8 @@
 import { InternalError } from "@matter/main";
 import type {
     CertDevice,
+    CertGroupApi,
+    CertIcdClientApi,
     CertNodeApi,
     CertStepContext,
     CertStepWiring,
@@ -2248,6 +2250,317 @@ describe("CertTest", () => {
             "pass: read the data version",
             "-".repeat(70),
         ]);
+    });
+
+    describe("a controller refusal after a step changed the device without recording a check", () => {
+        const noLines = async function* (): AsyncGenerator<string> {};
+
+        function controllerWith(node: CertNodeApi): ControllerAdapter {
+            return {
+                ...stubControllerAdapter(new LogFollower(noLines(), "dut")),
+                node: () => node,
+            };
+        }
+
+        async function runStep(
+            nodeOrController: CertNodeApi | ControllerAdapter,
+            ...runs: ((cx: CertStepContext) => Promise<void>)[]
+        ) {
+            const controller = "commission" in nodeOrController ? nodeOrController : controllerWith(nodeOrController);
+            const endStepCalls = new Array<{ verdict: StepVerdict; skipReason?: string }>();
+            const definition: CertTestDefinition = {
+                tc: "TC-CADMIN-1.17",
+                plan: "multiplefabrics.adoc",
+                pics: [],
+                app: "all-clusters",
+                steps: runs.map((run, index) => ({ number: index + 1, text: "Step under test", run })),
+            };
+            const cx: CertStepWiring = {
+                controllers: { dut: controller },
+                devices: {},
+                recorder: stubRecorder({
+                    endStep(_step, verdict, skipReason) {
+                        endStepCalls.push({ verdict, skipReason });
+                        return [];
+                    },
+                }),
+            };
+            const test = new TestCertTest(definition, stubDescriptor(), stubContainer(), cx);
+            const outcome = await test
+                .invoke(stubSubject(new PicsFile([])), () => {}, [], false)
+                .then(
+                    () => undefined,
+                    (e: unknown) => e,
+                );
+            return { endStepCalls, outcome };
+        }
+
+        it("fails the run when the step wrote before the refusal", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({ writeAttribute: async () => {} }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+            expect(outcome).instanceOf(Error);
+            expect(String(outcome)).match(
+                /refused "writeAttributes" after the step had already recorded 0 check\(s\) and made 1 controller call\(s\)/,
+            );
+        });
+
+        it("fails the run when a step that wrote declares itself not applicable", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({ writeAttribute: async () => {} }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                    throw new CertStepNotApplicableError("the plan's condition does not hold");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+            expect(String(outcome)).match(
+                /not applicable after recording 0 check\(s\) and making 1 controller call\(s\)/,
+            );
+        });
+
+        it("still skips when the step only read before the refusal", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({ readAttribute: async () => 1 }),
+                async cx => {
+                    await cx.controllers.dut.node("ref").readAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 });
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(outcome).undefined;
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
+        it("still skips when the refused call is the step's only action, since a refusal sends nothing", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({
+                    writeAttribute: () =>
+                        Promise.reject(new UnsupportedByControllerError("writeAttribute", "chip-tool")),
+                }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                },
+            );
+
+            expect(outcome).undefined;
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
+        it("judges each step on its own calls, so an earlier step's write cannot fail a later clean skip", async () => {
+            const { endStepCalls, outcome } = await runStep(
+                fakeCertNode({ writeAttribute: async () => {} }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                    cx.recorder.check({ type: "response", verdict: "pass", detail: "written" });
+                },
+                async () => {
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(outcome).undefined;
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["pass", "skipped"]);
+        });
+
+        it("does not count reads, subscriptions or other members that leave the device as it was", async () => {
+            const { endStepCalls } = await runStep(
+                fakeCertNode({
+                    readAttributes: async () => [],
+                    subscribe: async () => undefined,
+                    readEvents: async () => [],
+                    observeEvents: async () => [],
+                    sessions: async () => [],
+                }),
+                async cx => {
+                    const dut = cx.controllers.dut;
+                    const node = dut.node("ref");
+                    await node.readAttributes([]);
+                    await node.subscribe(
+                        { endpoint: 0 },
+                        { minIntervalFloorSeconds: 0, maxIntervalCeilingSeconds: 10 },
+                    );
+                    await node.readEvents([]);
+                    await node.observeEvents([], {});
+                    await node.sessions();
+                    expect(String(dut)).equal("[object Object]");
+                    expect(dut.valueOf()).property("id", "dut");
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
+        it("counts calls reached through a group or ICD client handle by that API's own members", async () => {
+            const icd: CertIcdClientApi = {
+                register: () => Promise.reject(new InternalError("no answer")),
+                unregister: async () => {},
+                stayActive: async () => 0,
+                stopSubscription: async () => {},
+                events: () => [],
+                waitFor: () => Promise.reject(new InternalError("not used by these tests")),
+            };
+            const group: CertGroupApi = { defineKeySet: async () => {}, invoke: async () => {} };
+            const controller = {
+                ...controllerWith(fakeCertNode({ icdClient: () => icd })),
+                group: () => group,
+            };
+            const keySet = {
+                groupKeySetId: 1,
+                groupKeySecurityPolicy: 0,
+                epochKey0: new Uint8Array(16),
+                epochStartTime0: 0n,
+            };
+
+            const onlyKeySet = await runStep(controller, async cx => {
+                await cx.controllers.dut.group(1).defineKeySet(keySet);
+                throw new UnsupportedByControllerError("invoke", "chip-tool");
+            });
+            const groupInvoke = await runStep(controller, async cx => {
+                await cx.controllers.dut.group(1).invoke(6, "on");
+                throw new UnsupportedByControllerError("invoke", "chip-tool");
+            });
+            const icdRegister = await runStep(controller, async cx => {
+                await expect(cx.controllers.dut.node("ref").icdClient().register()).rejectedWith("no answer");
+                throw new UnsupportedByControllerError("stayActive", "chip-tool");
+            });
+
+            expect(onlyKeySet.endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+            expect(groupInvoke.endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+            expect(icdRegister.endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
+
+        it("takes back a call refused synchronously", async () => {
+            const { endStepCalls } = await runStep(
+                fakeCertNode({
+                    writeAttribute: () => {
+                        throw new UnsupportedByControllerError("writeAttribute", "chip-tool");
+                    },
+                }),
+                async cx => {
+                    await cx.controllers.dut
+                        .node("ref")
+                        .writeAttribute({ endpoint: 0, cluster: 0x28, attribute: 5 }, "x");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["skipped"]);
+        });
+
+        it("counts a call still running when the step is refused", async () => {
+            const inFlight = new Array<Promise<unknown>>();
+            const { endStepCalls } = await runStep(fakeCertNode({ invoke: () => new Promise(() => {}) }), async cx => {
+                inFlight.push(cx.controllers.dut.node("ref").invoke(6, "on"));
+                throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+            });
+
+            expect(inFlight).length(1);
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
+
+        it("takes a late refusal back only from the step that made the call", async () => {
+            let refuseEarlierWrite = () => {};
+            const earlierWrite = new Promise<void>((_resolve, reject) => {
+                refuseEarlierWrite = () => reject(new UnsupportedByControllerError("writeAttribute", "chip-tool"));
+            });
+            const inFlight = new Array<PromiseLike<unknown>>();
+            const path = { endpoint: 0, cluster: 0x28, attribute: 5 };
+            const { endStepCalls } = await runStep(
+                fakeCertNode({ writeAttribute: async () => {}, invoke: () => earlierWrite }),
+                async cx => {
+                    inFlight.push(
+                        expect(cx.controllers.dut.node("ref").invoke(6, "on")).rejectedWith(
+                            UnsupportedByControllerError,
+                        ),
+                    );
+                    cx.recorder.check({ type: "response", verdict: "pass", detail: "started" });
+                },
+                async cx => {
+                    await cx.controllers.dut.node("ref").writeAttribute(path, "x");
+                    refuseEarlierWrite();
+                    await Promise.all(inFlight);
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["pass", "fail"]);
+        });
+
+        it("runs every member on the adapter itself, so its private state stays reachable", async () => {
+            class PrivateController implements ControllerAdapter {
+                readonly id = "dut";
+                readonly log = new LogFollower(noLines(), "dut");
+                readonly #calls = new Array<string>();
+
+                async start() {}
+                async close() {}
+
+                async commission() {
+                    this.#calls.push("commission");
+                    return "ref";
+                }
+
+                async parseQrPayload(): Promise<never> {
+                    this.#calls.push("parse");
+                    throw new UnsupportedByControllerError("parseQrPayload", "test");
+                }
+
+                async parseManualPairingCode(): Promise<never> {
+                    throw new InternalError("not used in this test");
+                }
+
+                node(): CertNodeApi {
+                    this.#calls.push("node");
+                    return fakeCertNode();
+                }
+
+                group(): never {
+                    throw new InternalError("not used in this test");
+                }
+
+                get calls() {
+                    return this.#calls.join(",");
+                }
+            }
+            const controller = new PrivateController();
+
+            const { endStepCalls } = await runStep(controller, async cx => {
+                await cx.controllers.dut.commission({ passcode: 1, discriminator: 1 });
+                cx.controllers.dut.node("ref");
+                await cx.controllers.dut.parseQrPayload("MT:");
+            });
+
+            expect(controller.calls).equal("commission,node,parse");
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
+
+        it("counts a call that failed otherwise, since its request may have reached the device", async () => {
+            const { endStepCalls } = await runStep(
+                fakeCertNode({ invoke: () => Promise.reject(new InternalError("timed out")) }),
+                async cx => {
+                    await expect(cx.controllers.dut.node("ref").invoke(6, "on")).rejectedWith("timed out");
+                    throw new UnsupportedByControllerError("writeAttributes", "chip-tool");
+                },
+            );
+
+            expect(endStepCalls.map(({ verdict }) => verdict)).deep.equal(["fail"]);
+        });
     });
 
     it("judges each step on its own evidence, so an earlier step's checks cannot fail a later clean skip", async () => {

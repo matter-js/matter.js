@@ -39,7 +39,7 @@ async function script(cx: CertStepContext, queryImage: OtaScriptedQueryAnswer[])
         await cx.controllers.th.node(commissioned.require("th", "the DUT")).scriptOtaProvider({ queryImage });
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
-        // recorded nothing
+        // recorded no check and made no call that may change the device
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }

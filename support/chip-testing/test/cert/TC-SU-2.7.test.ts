@@ -87,7 +87,7 @@ async function watchRequestor(cx: CertStepContext) {
         }
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
-        // recorded nothing
+        // recorded no check and made no call that may change the device
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
