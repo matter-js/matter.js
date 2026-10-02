@@ -36,6 +36,14 @@ const GroupcastRootEndpoint = MockServerNode.RootEndpoint.with(
     AccessControlServer.with("Extension", "Auxiliary"),
 );
 
+/** Root endpoint without the Sender feature: a group that loses its last endpoint is removed. */
+const ListenerOnlyGroupcastServer = GroupcastServer.with("Listener");
+const ListenerOnlyRootEndpoint = MockServerNode.RootEndpoint.with(
+    ListenerOnlyGroupcastServer,
+    GroupKeyManagementServer,
+    AccessControlServer.with("Extension", "Auxiliary"),
+);
+
 /** Root endpoint without the PerGroupAddr feature: every group defaults to the shared IanaAddr policy. */
 const IanaOnlyRootEndpoint = MockServerNode.RootEndpoint.with(
     GroupcastServer.with("Listener", "Sender"),
@@ -314,6 +322,87 @@ describe("GroupcastServer", () => {
             expect([...(response.endpoints ?? [])].sort()).deep.equal([1, 2]);
             expect(node.stateOf(GroupcastServer).membership).to.have.length(0);
         });
+
+        it("applies the endpoints of a wildcard request to every group of the fabric", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+            const exchange = fabricExchange(fabric.fabricIndex);
+
+            for (const [groupId, key] of [
+                [GroupId(0x0001), TEST_KEY],
+                [GroupId(0x0002), undefined],
+            ] as const) {
+                await node.online({ exchange, command: true }, agent =>
+                    agent.get(GroupcastServer).joinGroup({
+                        groupId,
+                        endpoints: [EndpointNumber(1), EndpointNumber(2)],
+                        keySetId: 1,
+                        key,
+                        mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                    }),
+                );
+            }
+
+            const response = await node.online({ exchange, command: true }, agent =>
+                agent.get(GroupcastServer).leaveGroup({ groupId: GroupId(0), endpoints: [EndpointNumber(1)] }),
+            );
+
+            expect(response).deep.equal({ groupId: 0, endpoints: [] });
+            expect(
+                node.stateOf(GroupcastServer).membership.map(({ groupId, endpoints }) => ({ groupId, endpoints })),
+            ).deep.equal([
+                { groupId: 0x0001, endpoints: [2] },
+                { groupId: 0x0002, endpoints: [2] },
+            ]);
+        });
+
+        for (const { name, root, groupcast, emptiedGroup } of [
+            {
+                name: "keeps a group a wildcard request empties as sender-only",
+                root: GroupcastRootEndpoint,
+                groupcast: GroupcastServer,
+                emptiedGroup: [],
+            },
+            {
+                name: "removes a group a wildcard request empties without the Sender feature",
+                root: ListenerOnlyRootEndpoint,
+                groupcast: ListenerOnlyGroupcastServer,
+                emptiedGroup: undefined,
+            },
+        ]) {
+            it(name, async () => {
+                await using node = await MockServerNode.createOnline(root, { device: undefined });
+                const fabric = await node.addFabric();
+                const exchange = fabricExchange(fabric.fabricIndex);
+
+                for (const [groupId, endpoints, key] of [
+                    [GroupId(0x0001), [EndpointNumber(1)], TEST_KEY],
+                    [GroupId(0x0002), [EndpointNumber(1), EndpointNumber(2)], undefined],
+                ] as const) {
+                    await node.online({ exchange, command: true }, agent =>
+                        agent.get(groupcast).joinGroup({
+                            groupId,
+                            endpoints: [...endpoints],
+                            keySetId: 1,
+                            key,
+                            mcastAddrPolicy: Groupcast.MulticastAddrPolicy.IanaAddr,
+                        }),
+                    );
+                }
+
+                await node.online({ exchange, command: true }, agent =>
+                    agent.get(groupcast).leaveGroup({ groupId: GroupId(0), endpoints: [EndpointNumber(1)] }),
+                );
+                await MockTime.yield3();
+
+                const membership = node.stateOf(groupcast).membership;
+                expect(membership.find(m => m.groupId === 0x0001)?.endpoints).deep.equal(emptiedGroup);
+                expect(membership.find(m => m.groupId === 0x0002)?.endpoints).deep.equal([2]);
+                expect(
+                    node.stateOf(GroupKeyManagementServer).groupKeyMap.some(entry => entry.groupId === 0x0001),
+                ).equal(emptiedGroup !== undefined);
+            });
+        }
 
         it("removes groupProperties entry", async () => {
             await using node = await createGroupcastNode();
@@ -1532,6 +1621,26 @@ describe("GroupcastServer", () => {
             await MockTime.advance(30_000);
             await MockTime.yield3();
             expect(network.isMemberOf(IANA_GROUPCAST_MULTICAST_ADDRESS)).equal(true);
+        });
+    });
+
+    describe("groupcastTesting duration", () => {
+        it("ends testing after 60 seconds when the request omits the duration", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+
+            await node.online({ exchange: fabricExchange(fabric.fabricIndex), command: true }, agent =>
+                agent.get(GroupcastServer).groupcastTesting({
+                    testOperation: Groupcast.GroupcastTesting.EnableListenerTesting,
+                }),
+            );
+            expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(fabric.fabricIndex);
+
+            await MockTime.advance(59_000);
+            expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(fabric.fabricIndex);
+
+            await MockTime.advance(1_000);
+            expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(FabricIndex.NO_FABRIC);
         });
     });
 
