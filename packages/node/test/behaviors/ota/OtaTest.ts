@@ -19,6 +19,8 @@ import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     createPromise,
+    Duration,
+    Hours,
     ImplementationError,
     Millis,
     Minutes,
@@ -34,6 +36,7 @@ import {
     FabricAuthority,
     PeerAddress,
     PersistedFileDesignator,
+    RebootResubscribeArmer,
     SecureSession,
     SessionManager,
     SustainedSubscription,
@@ -1415,6 +1418,116 @@ describe("Ota", () => {
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);
 
+    /** Drives one update to its apply with a provider whose `applyDelay` is `delay`. */
+    async function applyWithDelay(delay: Duration) {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+        const { announceOtaProviderPromise, TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            data,
+        );
+        const { queryImagePromise, applyUpdateRequestPromise, checkUpdateAvailablePromise, TestOtaProviderServer } =
+            InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const sent = new Array<number>();
+        class DelayingProviderServer extends TestOtaProviderServer {
+            override initialize() {
+                this.state.applyDelay = delay;
+                return super.initialize();
+            }
+
+            override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
+                const response = await super.applyUpdateRequest(request);
+                sent.push(response.delayedActionTime);
+                return response;
+            }
+        }
+
+        const armed = new Array<Duration | undefined>();
+        const originalArm = RebootResubscribeArmer.prototype.arm;
+        RebootResubscribeArmer.prototype.arm = function (this: RebootResubscribeArmer, peer, applyDelay) {
+            armed.push(applyDelay);
+            return originalArm.call(this, peer, applyDelay);
+        };
+        try {
+            const { site, device, controller, otaProvider } = await initOtaSite(
+                DelayingProviderServer,
+                TestOtaRequestorServer,
+            );
+            await using _localSite = site;
+
+            const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+            data.expectedOtaImage = Bytes.of(otaImage.image);
+            const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+            await otaProvider.act(agent =>
+                agent
+                    .get(SoftwareUpdateManager)
+                    .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+            );
+            await MockTime.resolve(announceOtaProviderPromise);
+            await MockTime.resolve(queryImagePromise);
+            await MockTime.resolve(checkUpdateAvailablePromise);
+            await MockTime.resolve(applyUpdateRequestPromise);
+        } finally {
+            RebootResubscribeArmer.prototype.arm = originalArm;
+        }
+        return { sent, armed };
+    }
+
+    it("expects the device's return only after the delay it was allowed to apply with", async () => {
+        const { sent, armed } = await applyWithDelay(Seconds(180));
+
+        expect(sent).deep.equal([180]);
+        expect(armed).deep.equal([Seconds(180)]);
+    }).timeout(10_000);
+
+    it("rounds an apply delay up to whole seconds, since it is a minimum wait", async () => {
+        const { sent, armed } = await applyWithDelay(Millis(1500));
+
+        expect(sent).deep.equal([2]);
+        expect(armed).deep.equal([Seconds(2)]);
+    }).timeout(10_000);
+
+    it("sends at most a day of apply delay, which a requestor may treat a longer one as", async () => {
+        const { sent, armed } = await applyWithDelay(Hours(48));
+
+        expect(sent).deep.equal([86_400]);
+        expect(armed).deep.equal([Seconds(86_400)]);
+    }).timeout(10_000);
+
+    it("does not count an update as stalled while the device waits out its apply delay", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .onOtaStatusChange(peerAddress, OtaUpdateStatus.Applying, targetSoftwareVersion, Minutes(30)),
+        );
+
+        const statusOf = async () =>
+            (await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates))[0]?.status;
+
+        await MockTime.advance(Minutes(40));
+        expect(await statusOf()).equals("in-progress");
+
+        // Past the delay and the progress timeout, the queue gives up on the attempt, by status or by its reset
+        await MockTime.advance(Minutes(10));
+        expect(await statusOf()).oneOf(["stalled", "queued"]);
+    }).timeout(10_000);
+
     it("Apply failure detected when startUp fires after Applying state", async () => {
         // This test verifies the status ordering fix: previousProgressStatus is saved BEFORE the
         // clearing block in #onSoftwareVersionChanged, so the Applying check on startUp works correctly.
@@ -2038,10 +2151,6 @@ describe("Ota", () => {
         // OLDER session. The real queryImage session will have a newer activeTimestamp, and a
         // different sessionId → triggers Case B.
         //
-        // IMPORTANT: Use MockTime.nowMs (not Date.now()) for the fake BDX session's
-        // sessionActiveTimestamp so that it is older than session.activeTimestamp, which also uses
-        // MockTime-based timestamps. A timestamp of 0 is always older than any live session.
-        //
         // BDX_FAKE_SESSION_ID uses a high value (0xDEAD) to avoid colliding with real session IDs
         // assigned by the protocol stack in these tests.
         const BDX_FAKE_SESSION_ID = 0xdead;
@@ -2146,7 +2255,7 @@ describe("Ota", () => {
                         peerAddress,
                         session: {
                             id: 42,
-                            activeTimestamp: (MockTime.nowMs + 10000) as Timestamp, // newer than any live session → Case C
+                            activeTimestamp: (MockTime.nowUs + 10000) as Timestamp, // newer than any live session → Case C
                         },
                     } as any;
                 }

@@ -7,6 +7,14 @@
 import { env } from "node:process";
 import type { SelectableDeviceFlavor } from "./cert-context.js";
 
+/**
+ * Thrown when `MATTER_CERT_DEVICE` or `MATTER_CERT_CONTROLLER` names no known implementation. Extends `Error` because
+ * `@matter/testing` does not depend on `@matter/general`.
+ */
+export class CertConfigError extends Error {
+    override name = "CertConfigError";
+}
+
 function isSelectableDeviceFlavor(value: string): value is SelectableDeviceFlavor {
     return value === "chip-docker" || value === "chip-local" || value === "matterjs";
 }
@@ -32,7 +40,9 @@ export function resolveDeviceFlavor(): SelectableDeviceFlavor {
         return value;
     }
 
-    throw new Error(`Unknown MATTER_CERT_DEVICE "${value}" (expected "chip-docker", "chip-local", or "matterjs")`);
+    throw new CertConfigError(
+        `Unknown MATTER_CERT_DEVICE "${value}" (expected "chip-docker", "chip-local", or "matterjs")`,
+    );
 }
 
 /**
@@ -48,7 +58,8 @@ function isControllerImplementation(value: string): value is ControllerImplement
  * Resolve which controller implementation cert tests run with, from `MATTER_CERT_CONTROLLER`.
  *
  * Unset defaults to `matterjs`, the only implementation that works with no configuration at all:
- * `chip-tool` needs the Linux-only chip-tool binary, so it would guarantee a failing default run.
+ * `chip-tool` needs a chip-tool binary, from `MATTER_CERT_APP_DIR` or the Linux-only cert-bins image, so it would
+ * guarantee a failing default run.
  */
 export function resolveControllerImplementation(): ControllerImplementation {
     const value = env.MATTER_CERT_CONTROLLER;
@@ -61,5 +72,5 @@ export function resolveControllerImplementation(): ControllerImplementation {
         return value;
     }
 
-    throw new Error(`Unknown MATTER_CERT_CONTROLLER "${value}" (expected "chip-tool" or "matterjs")`);
+    throw new CertConfigError(`Unknown MATTER_CERT_CONTROLLER "${value}" (expected "chip-tool" or "matterjs")`);
 }

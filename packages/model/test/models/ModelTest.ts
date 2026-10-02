@@ -129,17 +129,106 @@ describe("Model", () => {
                 { tag: "datatype", name: "Bar5" },
             );
 
-            expect(removed.length === 1);
-            expect(removed[0].name === "Bar2");
-            expect(removed[0].parent === undefined);
+            expect(removed.length).equals(1);
+            expect(removed[0].name).equals("Bar2");
+            expect(removed[0].parent).undefined;
 
-            expect(parent.children.length === 4);
+            expect(parent.children.length).equals(4);
             expect(parent.children.map(({ name, parent }) => ({ name, parent: parent?.name }))).deep.equals([
                 { name: "Bar1", parent: "Foo" },
                 { name: "Bar4", parent: "Foo" },
                 { name: "Bar5", parent: "Foo" },
                 { name: "Bar3", parent: "Foo" },
             ]);
+        });
+
+        it("keeps parent and lookups when splice reorders own children", () => {
+            const parent = new ClusterModel({ name: "Foo" });
+            parent.children = [
+                { tag: "attribute", id: 1, name: "A" },
+                { tag: "attribute", id: 2, name: "B" },
+            ];
+            const [a, b] = parent.children;
+            expect(parent.get(AttributeModel, 1)).equals(a);
+
+            const removed = parent.children.splice(0, 2, b, a);
+
+            expect(removed).deep.equals([a, b]);
+            expect([...parent.children]).deep.equals([b, a]);
+            expect(a.parent).equals(parent);
+            expect(b.parent).equals(parent);
+            expect(parent.get(AttributeModel, 1)).equals(a);
+            expect(parent.get(AttributeModel, "B")).equals(b);
+        });
+
+        it("resolves duplicate IDs in list order after splice", () => {
+            const parent = new ClusterModel({ name: "Foo", children: [{ tag: "attribute", id: 1, name: "Later" }] });
+            expect(parent.get(AttributeModel, 1)?.name).equals("Later");
+
+            const earlier = new AttributeModel({ id: 1, name: "Earlier" });
+            parent.children.splice(0, 0, earlier);
+
+            expect(parent.get(AttributeModel, 1)).equals(earlier);
+            expect(parent.all(AttributeModel, 1).map(({ name }) => name)).deep.equals(["Earlier", "Later"]);
+        });
+
+        it("resolves duplicate IDs in list order after a child moves by index assignment", () => {
+            const parent = new ClusterModel({
+                name: "Foo",
+                children: [
+                    { tag: "attribute", id: 1, name: "First" },
+                    { tag: "attribute", id: 1, name: "Second" },
+                ],
+            });
+            const [first, second] = parent.children;
+            expect(parent.get(AttributeModel, 1)).equals(first);
+
+            parent.children[2] = first;
+
+            expect([...parent.children]).deep.equals([second, first]);
+            expect(parent.get(AttributeModel, 1)).equals(second);
+        });
+
+        it("indexes fields without ID by their current position", () => {
+            const struct = new DatatypeModel({
+                name: "Foo",
+                type: "struct",
+                children: [new FieldModel({ name: "First" }), new FieldModel({ name: "Second" })],
+            });
+            const second = struct.children[1];
+            expect(struct.children.select(1)).equals(second);
+
+            struct.children.splice(0, 1);
+
+            expect(struct.children.select(0)).equals(second);
+            expect(struct.children.select(1)).undefined;
+        });
+
+        it("updates lookups when children are deleted or truncated", () => {
+            const parent = new ClusterModel({
+                name: "Foo",
+                children: [
+                    { tag: "attribute", id: 1, name: "A" },
+                    { tag: "attribute", id: 2, name: "B" },
+                ],
+            });
+            expect(parent.get(AttributeModel, 2)?.name).equals("B");
+
+            parent.children.length = 1;
+            expect(parent.get(AttributeModel, 2)).undefined;
+
+            delete parent.children[0];
+            expect(parent.get(AttributeModel, 1)).undefined;
+        });
+
+        it("finds no child for names of Object.prototype members", () => {
+            const parent = new ClusterModel({ name: "Foo", children: [{ tag: "attribute", id: 1, name: "A" }] });
+
+            for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+                expect(parent.get(AttributeModel, name), name).undefined;
+                expect(parent.children.select(name), name).undefined;
+                expect(parent.all(AttributeModel, name), name).deep.equals([]);
+            }
         });
     });
 
