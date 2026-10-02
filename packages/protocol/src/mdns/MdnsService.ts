@@ -56,11 +56,18 @@ export class MdnsService {
         this.limitedToNetInterface = vars.get("mdns.networkInterface", options?.networkInterface);
 
         this.#construction = Construction(this, async () => {
-            this.#socket = await MdnsSocket.create(network, {
-                lifetime: this.#construction,
-                enableIpv4: this.enableIpv4,
-                netInterface: this.limitedToNetInterface,
-            });
+            try {
+                this.#socket = await MdnsSocket.create(network, {
+                    lifetime: this.#construction,
+                    enableIpv4: this.enableIpv4,
+                    netInterface: this.limitedToNetInterface,
+                });
+            } catch (cause) {
+                // Withdraw before rejecting so a retry constructs a new instance instead of awaiting this crashed one
+                rootEnvironment.delete(MdnsService, this);
+                rootEnvironment.runtime.delete(this);
+                throw cause;
+            }
 
             this.#server = new MdnsServer(this.#socket, this.#construction);
         });

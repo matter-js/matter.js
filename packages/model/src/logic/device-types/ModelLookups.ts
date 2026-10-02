@@ -75,6 +75,7 @@ class ModelLookups {
     readonly #compositions = new Memo<DeviceTypeModel, EndpointComposition>();
     readonly #base = new Memo<undefined, DeviceTypeModel[]>();
     readonly #aggregator = new Memo<undefined, DeviceTypeModel | undefined>();
+    readonly #bridgedNode = new Memo<undefined, DeviceTypeModel | undefined>();
     readonly #assertedNames = new Memo<undefined, ReadonlySet<string>>();
     readonly #conformanceNames = new Memo<RequirementModel, ReadonlySet<string>>();
 
@@ -220,6 +221,13 @@ class ModelLookups {
      */
     get aggregator(): DeviceTypeModel | undefined {
         return this.#aggregator.get(undefined, () => this.#model.deviceTypes("Aggregator"));
+    }
+
+    /**
+     * The BridgedNode device type, undefined when the model does not define one.
+     */
+    get bridgedNode(): DeviceTypeModel | undefined {
+        return this.#bridgedNode.get(undefined, () => this.#model.deviceTypes("BridgedNode"));
     }
 }
 

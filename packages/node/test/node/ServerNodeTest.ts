@@ -26,6 +26,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
+    CrashedDependencyError,
     Crypto,
     DnsCodec,
     DnsMessage,
@@ -37,19 +38,26 @@ import {
     isObject,
     MemoryBlobStorageDriver,
     MemoryStorageDriver,
+    MdnsSocket,
     MockCrypto,
+    MockNetwork,
     MockUdpSocket,
+    Network,
+    NetworkError,
     NetworkSimulator,
     Seconds,
     STANDARD_MATTER_PORT,
     StorageManager,
     StorageService,
+    UdpSocketOptions,
 } from "@matter/general";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
 import {
     AttestationCertificateManager,
     CertificateAuthority,
+    FabricAuthority,
     CertificationDeclaration,
+    ClientSubscriptions,
     FabricManager,
     MdnsService,
     NodeSession,
@@ -546,6 +554,48 @@ describe("ServerNode", () => {
         expect(closes).equals(1);
     });
 
+    it("starts a node after an earlier node could not open the mDNS socket", async () => {
+        class MdnsBlockingNetwork extends MockNetwork {
+            blocked = true;
+
+            override createUdpSocket(options: UdpSocketOptions) {
+                if (this.blocked && options.listeningPort === MdnsSocket.BROADCAST_PORT) {
+                    return Promise.reject(new NetworkError("mDNS port unavailable"));
+                }
+                return super.createUdpSocket(options);
+            }
+        }
+
+        const environment = new Environment("mdns-retry");
+        const network = new MdnsBlockingNetwork(new NetworkSimulator(), "00:11:22:33:44:f0", [
+            "abcd::f0",
+            "10.10.10.240",
+        ]);
+        environment.set(Network, network);
+
+        // Not disposed: a node whose construction fails before its endpoint initializer is installed cannot be closed
+        const site = new MockSite();
+        const options = { environment, device: undefined, commissioning: { enabled: false } };
+
+        const error = await site.addNode(undefined, { ...options, id: "blocked" }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        expect(error).instanceOf(CrashedDependencyError);
+        expect(error).has.nested.property("cause.message", "mDNS port unavailable");
+
+        expect(environment.has(MdnsService)).equals(false);
+        await MockTime.resolve(environment.runtime.inactive);
+
+        network.blocked = false;
+        const node = await site.addNode(undefined, { ...options, id: "recovered" });
+
+        expect(node.lifecycle.isOnline).equals(true);
+        expect(environment.get(MdnsService).construction.status).equals(Lifecycle.Status.Active);
+
+        await MockTime.resolve(node.close(), { macrotasks: true });
+    });
+
     it("frees the endpoint numbers a factory reset erases", async () => {
         await using site = new MockSite();
         const id = "renumbering";
@@ -656,6 +706,20 @@ describe("ServerNode", () => {
         await node.close();
     });
 
+    it("gives a restarted node new, unblocked client subscriptions", async () => {
+        const node = await MockServerNode.createOnline();
+        const before = node.env.get(ClientSubscriptions);
+
+        await MockTime.resolve(node.stop());
+        await MockTime.resolve(node.start());
+
+        const after = node.env.get(ClientSubscriptions);
+        expect(after).not.equal(before);
+        expect(after.isBlocked).false;
+
+        await node.close();
+    });
+
     it("factory reset erases the blobs a transfer left behind", async () => {
         const node = await MockServerNode.createOnline();
 
@@ -690,6 +754,20 @@ describe("ServerNode", () => {
         expect(() => ca.rootCert).throws();
         const { publicKey } = await controller.env.get(Crypto).createKeyPair();
         await expect(ca.generateNoc(publicKey, FabricId(1), NodeId(1))).rejected;
+    });
+
+    it("factory reset closes the fabric authority the node owns", async () => {
+        const node = await MockServerNode.createOnline();
+
+        // As the OTA and WebRTC behaviors obtain it
+        const authority = await node.env.load(FabricAuthority);
+        expect(node.env.owns(FabricAuthority)).equals(true);
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+
+        expect(authority.construction.status).equals(Lifecycle.Status.Destroyed);
+
+        await node.close();
     });
 
     it("completes factory reset when a peer cannot be torn down", async () => {

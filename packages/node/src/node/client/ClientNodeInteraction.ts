@@ -234,7 +234,9 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
     }
 
     get subscriptions(): ClientSubscriptions {
-        return this.#node.env.get(ClientSubscriptions);
+        // The owner's runtime closes and replaces them per run; a lookup from the peer's environment while the owner's
+        // slot is empty would construct a private instance there that nothing closes
+        return (this.#node.owner?.env ?? this.#node.env).get(ClientSubscriptions);
     }
 
     get #interaction() {
