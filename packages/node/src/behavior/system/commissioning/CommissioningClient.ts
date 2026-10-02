@@ -389,8 +389,9 @@ export class CommissioningClient extends Behavior {
 
             // Removal confirmed.  Must run before commit unbinds Peer via peerAddress$Changed.
             const node = this.endpoint as ClientNode;
+            const peer = node.env.maybeGet(Peer);
             try {
-                await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
+                await peer?.disconnect(new PeerLeftError());
             } catch (error) {
                 logger.warn(`Error force-closing sessions for ${formerAddress} after decommission:`, error);
             }
@@ -400,6 +401,12 @@ export class CommissioningClient extends Behavior {
             this.state.fabricIndexOnPeer = undefined;
 
             await this.context.transaction.commit();
+
+            try {
+                await peer?.delete();
+            } catch (error) {
+                logger.warn(`Error removing peer ${formerAddress} after decommission:`, error);
+            }
 
             logger.info(
                 "Decommissioned",
@@ -603,7 +610,7 @@ export class CommissioningClient extends Behavior {
             this.#bindPeer(addr);
             node.lifecycle.commissioned.emit(this.context);
         } else if (oldAddr) {
-            this.#unbindPeer(oldAddr, true);
+            this.#unbindPeer(oldAddr);
             node.lifecycle.decommissioned.emit(this.context);
         }
     }
@@ -687,7 +694,7 @@ export class CommissioningClient extends Behavior {
     /**
      * Uncouple my {@link ClientNode} from a {@link Peer}.
      */
-    #unbindPeer(addr: PeerAddress, remove = false) {
+    #unbindPeer(addr: PeerAddress) {
         const node = this.endpoint as ClientNode;
         const peer = node.env.maybeGet(Peer);
         if (!peer || !PeerAddress.is(peer.address, addr)) {
@@ -703,10 +710,6 @@ export class CommissioningClient extends Behavior {
         }
         if (peer.protocol === node.protocol) {
             peer.protocol = undefined;
-        }
-
-        if (remove) {
-            node.env.get(PeerSet).peers.delete(peer);
         }
     }
 }

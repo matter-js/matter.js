@@ -71,7 +71,11 @@ export namespace ServerEnvironment {
     export async function eraseCredentials(node: ServerNode) {
         const { env } = node;
 
-        env.delete(FabricAuthority);
+        if (env.owns(FabricAuthority)) {
+            await env.close(FabricAuthority);
+        } else {
+            env.delete(FabricAuthority);
+        }
 
         if (env.owns(CertificateAuthority)) {
             try {

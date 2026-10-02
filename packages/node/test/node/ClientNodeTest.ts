@@ -63,6 +63,7 @@ import {
     PeerSet,
     Read,
     ReadResult,
+    SessionManager,
     Val,
     ValidateError,
 } from "@matter/protocol";
@@ -701,6 +702,23 @@ describe("ClientNode", function () {
 
         const peer1b = controllerB.peers.get("peer1")!;
         expect(peer1b).undefined;
+    });
+
+    it("closes the protocol peer on decommission", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const address = peer1.peerAddress!;
+        const protocolPeer = controller.env.get(PeerSet).get(address)!;
+        const sessions = controller.env.get(SessionManager);
+        expect(protocolPeer.lifetime.isClosed).false;
+        expect(sessions.findResumptionRecordByAddress(address)).not.undefined;
+
+        await MockTime.resolve(peer1.decommission());
+
+        expect(protocolPeer.lifetime.isClosed).true;
+        expect(sessions.findResumptionRecordByAddress(address)).undefined;
     });
 
     it("rejects delete after destroyed", async () => {

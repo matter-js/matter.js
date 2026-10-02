@@ -162,6 +162,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: `ClusterBehavior.typesOf()` returns the cluster behaviors of a list of behavior types
     - Fix: A subscription keep-alive that falls due while a report is still being sent goes out when that report completes. Before, it was skipped until the next send interval ended, so the gap between reports could exceed the subscription's max interval and a controller could drop the subscription
     - Fix: A subscription times its min interval floor and DelayReportData deferrals on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A backward step of the wall clock, such as an NTP correction, held reports and keep-alives for up to the length of the step; a forward step let a report through inside the MinIntervalFloor and ended a deferral early
+    - Fix: Decommissioning a node closes its protocol `Peer` and deletes its session resumption record; before, the peer was dropped from the `PeerSet` while still open, so its timers kept running until the process ended
+    - Fix: A factory reset closes the `FabricAuthority` the node owns, such as the one the OTA provider or WebRTC requestor created, instead of only removing it from the environment
 
 - @matter/testing
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
