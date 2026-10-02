@@ -69,6 +69,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Enhancement: `RebootResubscribeArmer.arm()` takes the delay the device waits before it applies, and its return deadline covers that delay
     - Fix: `DeviceCommissioner.allowBasicCommissioning()` and `allowEnhancedCommissioning()` take `DeviceCommissioner.WindowOptions` (timeout, whether an Administrator opens the window, close callback) instead of a close callback, and close the window after its timeout. An Administrator's window replaces a window the node opened itself, the node opening its own window again restarts it, and any other overlap throws `MatterFlowError`. `windowStatus` reports the open window and `isAdministratorWindowOpen` whether an Administrator's window is open or waiting to open
     - Fix: A server sends no Status Response to an Invoke or Write request with SuppressResponse set to TRUE, errors included, as the CHIP SDK 1.6.1 does. A failure after the peer acknowledged an InvokeResponse chunk is still reported
     - Feature: `Invoke()` accepts `delayReportData` to ask the server to hold off the next report of the subscriptions on the endpoints the commands target; such a request is not batched with others. Behind the `delay-report-data` forward feature: while `Specification.ENABLE_FORWARD_MATTER_FEATURES` is off, the `Invoke()` factory refuses it with a `MalformedRequestError`. `Invoke.beforeDispatch` tells a server the endpoints an invoke dispatches to, before any command runs
@@ -101,6 +102,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 
 - @matter/node
+    - Fix: An OTA provider that allows an apply with a `DelayedActionTime` expects the device's restart only after that delay plus the time to apply and restart; it gave up three minutes after allowing the apply and replaced the subscription the device was about to resume
+    - Feature: `OtaSoftwareUpdateProviderServer` state `applyDelay` sets the `DelayedActionTime` a provider allows an apply with
     - Fix: A commissioning window the node opens itself closes after 48 hours (by default) if the node is not commissioned and after 15 minutes if it is; it previously stayed open until the node stopped
     - Fix: `AdministratorCommissioningServer` leaves the window and its timeout to `DeviceCommissioner`; `Internal.commissioningWindowTimeout` is gone
     - Fix: `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` replace a window the node opened itself, and `RevokeCommissioning` closes it. Previously such an open failed with `Failure` or left the cluster unaware of its window, and every further open was answered with `Busy` until the node restarted. A window an Administrator opened still answers `Busy`
