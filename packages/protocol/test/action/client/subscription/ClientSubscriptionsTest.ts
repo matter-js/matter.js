@@ -14,6 +14,7 @@ import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import {
     Duration,
+    Hours,
     ImplementationError,
     Lifetime,
     MemoryStorageDriver,
@@ -47,8 +48,31 @@ describe("ClientSubscriptions", () => {
             const subscription = fakePeerSub(Seconds(10), () => timedOutCount++);
 
             subscriptions.addPeer(subscription);
-            expect(subscription.timeoutAt).equal(Timestamp(Time.nowMs + Seconds(10)));
+            expect(subscription.timeoutAt).equal(Timestamp(Time.nowUs + Seconds(10)));
 
+            await MockTime.advance(Seconds(10));
+
+            expect(timedOutCount).equal(1);
+        });
+
+        it("keeps a healthy subscription alive across a forward wall-clock step", async () => {
+            const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
+            let timedOutCount = 0;
+            subscriptions.addPeer(fakePeerSub(Seconds(10), () => timedOutCount++));
+
+            MockTime.stepWallClock(Hours(1));
+            await MockTime.advance(Seconds(1));
+            subscriptions.resetTimer();
+
+            expect(timedOutCount).equal(0);
+        });
+
+        it("times a subscription out on schedule across a backward wall-clock step", async () => {
+            const subscriptions = new ClientSubscriptions(Lifetime("test client subscriptions"));
+            let timedOutCount = 0;
+            subscriptions.addPeer(fakePeerSub(Seconds(10), () => timedOutCount++));
+
+            MockTime.stepWallClock(-3_600_000);
             await MockTime.advance(Seconds(10));
 
             expect(timedOutCount).equal(1);

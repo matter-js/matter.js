@@ -841,7 +841,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         // Use the current session's createdAt as asOf so it (and newer sessions) are preserved
         // while older sessions (from before the reboot) are closed.  If the currentSession is
-        // undefined (no known session), asOf is undefined and handlePeerShutdown closes all sessions.
+        // undefined (no known session), handlePeerShutdown uses the current Time.nowUs value as its cutoff.
         const sessionManager = this.owner.env.get(SessionManager);
         await sessionManager.handlePeerShutdown(peerAddress, sessionManager.maybeSessionFor(peerAddress)?.createdAt);
     }

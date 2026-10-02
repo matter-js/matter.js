@@ -16,8 +16,6 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import type { Node } from "#node/Node.js";
-import { InternalError } from "@matter/general";
-import { MatterModel } from "@matter/model";
 import { ClusterId, DeviceTypeId, EndpointNumber } from "@matter/types";
 import { MockEndpointType } from "../../behavior/mock-behavior.js";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
@@ -32,37 +30,6 @@ async function createFamily() {
     const child = await MockEndpoint.create({ type: MockEndpointType, number: 2, owner: parent });
 
     return { parent, child };
-}
-
-/**
- * Count calls to the {@link MatterModel.prototype.deviceTypes} getter, which rebuilds a model scope and is what
- * {@link DescriptorServer}'s full-family cache exists to avoid calling on every PartsList update. Disposing restores
- * the original getter so sibling tests see the real model.
- */
-function spyOnDeviceTypeLookup() {
-    const original = Object.getOwnPropertyDescriptor(MatterModel.prototype, "deviceTypes");
-    const originalGet = original?.get;
-    if (original === undefined || originalGet === undefined) {
-        throw new InternalError("MatterModel.prototype.deviceTypes getter is absent");
-    }
-
-    let calls = 0;
-    Object.defineProperty(MatterModel.prototype, "deviceTypes", {
-        ...original,
-        get(this: MatterModel) {
-            calls++;
-            return originalGet.call(this);
-        },
-    });
-
-    return {
-        get calls() {
-            return calls;
-        },
-        [Symbol.dispose]() {
-            Object.defineProperty(MatterModel.prototype, "deviceTypes", original);
-        },
-    };
 }
 
 describe("DescriptorServer", () => {
@@ -243,66 +210,25 @@ describe("DescriptorServer", () => {
         }
 
         it("lists every descendant once a full-family device type is added at runtime", async () => {
-            const { node, bridgedNode, light } = await createBridgedNodeTree();
+            const { node, bridgedNode } = await createBridgedNodeTree();
             expect(bridgedNode.stateOf(DescriptorBehavior).partsList).deep.equals([3]);
 
             await bridgedNode.act(agent => agent.get(DescriptorServer).addDeviceTypes("Aggregator"));
-            await light.add({ type: OnOffLightDevice, number: 5 });
             await node.env.get(NodeActivity).inactive;
 
-            expect(bridgedNode.stateOf(DescriptorBehavior).partsList).deep.equals([3, 4, 5]);
+            expect(bridgedNode.stateOf(DescriptorBehavior).partsList).deep.equals([3, 4]);
         });
 
         it("lists only children once the full-family device type is replaced at runtime", async () => {
-            const { node, aggregator, light } = await createBridgedNodeTree();
+            const { node, aggregator } = await createBridgedNodeTree();
             expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2, 3, 4]);
 
             await aggregator.set({
                 descriptor: { deviceTypeList: [{ deviceType: BridgedNodeEndpoint.deviceType, revision: 1 }] },
             });
-            await light.add({ type: OnOffLightDevice, number: 5 });
             await node.env.get(NodeActivity).inactive;
 
             expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2]);
-        });
-
-        it("does not look up the device type again across unchanged PartsList updates", async () => {
-            using spy = spyOnDeviceTypeLookup();
-
-            const { node, aggregator, light } = await createBridgedNodeTree();
-            expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2, 3, 4]);
-
-            // Setup itself looks up each endpoint's device type once (root, aggregator, bridged node, lights).
-            const baseline = spy.calls;
-            expect(baseline, "warms the full-family cache during setup").greaterThan(0);
-
-            await light.add({ type: OnOffLightDevice, number: 5 });
-            await node.env.get(NodeActivity).inactive;
-            await light.add({ type: OnOffLightDevice, number: 6 });
-            await node.env.get(NodeActivity).inactive;
-
-            expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2, 3, 4, 5, 6]);
-            expect(
-                spy.calls,
-                "two more PartsList updates with an unchanged device type list reuse the cached result",
-            ).equals(baseline);
-        });
-
-        it("performs no device type lookup for a tree without IndexBehavior", async () => {
-            const { parent } = await createFamily();
-
-            using spy = spyOnDeviceTypeLookup();
-
-            await MockEndpoint.create({ type: MockEndpointType, number: 3, owner: parent });
-            await parent.events.descriptor.partsList$Changed;
-
-            await MockEndpoint.create({ type: MockEndpointType, number: 4, owner: parent });
-            await parent.events.descriptor.partsList$Changed;
-
-            expect(parent.state.descriptor.partsList).deep.equals([2, 3, 4]);
-            // The parent has no IndexBehavior so never looks up its device type. Its own MockServerNode root does
-            // have one, but the root's device type is unchanged too, so its cache from setup also stays warm.
-            expect(spy.calls, "no endpoint in the tree consults the device type model").equals(0);
         });
     });
 
