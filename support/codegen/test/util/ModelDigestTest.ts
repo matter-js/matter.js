@@ -36,6 +36,28 @@ describe("model digest", () => {
         expect(keys).contains("cluster#258/attribute#1");
     });
 
+    it("keys a request and a response that share an identifier separately", () => {
+        const withCommands = (requestConformance: string) =>
+            digest({
+                name: "Test",
+                id: 0x101,
+                children: [
+                    { tag: "command", name: "Raise", id: 0x0, direction: "request", conformance: requestConformance },
+                    { tag: "command", name: "ScheduleResponse", id: 0x0, direction: "response", conformance: "Z" },
+                ],
+            } as typeof WITH_ATTRIBUTE);
+
+        expect(Object.keys(withCommands("M"))).deep.equals([
+            "cluster#257",
+            "cluster#257/command#0",
+            "cluster#257/response#0",
+        ]);
+        expect(findLosses(withCommands("M"), withCommands("M"))).deep.equals([]);
+        expect(findLosses(withCommands("M"), withCommands("O")).map(loss => loss.key)).deep.equals([
+            "cluster#257/command#0",
+        ]);
+    });
+
     it("keys an element with no identifier by name", () => {
         const keys = Object.keys(
             digest({
@@ -205,8 +227,8 @@ describe("acknowledged removals", () => {
         }
     });
 
-    it("does not list the same element twice", () => {
-        const keys = AcknowledgedRemovals.map(entry => entry.key);
+    it("does not list the same loss twice", () => {
+        const keys = AcknowledgedRemovals.map(({ key, kind, revision }) => `${revision} ${kind} ${key}`);
         expect(new Set(keys).size).equals(keys.length);
     });
 

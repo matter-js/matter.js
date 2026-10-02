@@ -906,8 +906,8 @@ export interface CertNodeApi {
      * A concrete path the device answers with a status **rejects**: the step asked to be notified about
      * that attribute and never will be, so resolving would only defer the failure until the step's own
      * report budget ran out. A wildcard path is different — the subscription exists, and a per-path
-     * status is one item of its expansion rather than the subscription failing — so those statuses are
-     * reported through the entries and do not reject.
+     * status is one item of its expansion rather than the subscription failing — so those statuses do
+     * not reject; the entries carry only the values.
      *
      * Every adapter must agree on this: a step that fails under one controller and passes under another
      * is supposed to mean an interop finding, so a difference between adapters manufactures that signal

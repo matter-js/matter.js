@@ -31,7 +31,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `QuietObservable.isObservedBy()` no longer recurses without end when its sink does not report the observer, or when it has no sink
 
 - @matter/model
-    - Feature: Conformance `Z` (obsolete, Matter 1.7) parses as `Conformance.Flag.Obsolete`, and `isObsolete` reports it on `Conformance`, `ValueModel` and `RequirementModel`. `Z` combined with anything else is a conformance error
+    - Enhancement: Feature conformance analysis supports a choice set bounded from above, such as `O.a-`, and a choice set a member joins under several conditions, such as `[!A & !B].a`
+    - Feature: Conformance `Z` (obsolete) parses as `Conformance.Flag.Obsolete`, and `isObsolete` reports it on `Conformance`, `ValueModel` and `RequirementModel`. `Z` combined with anything else is a conformance error
     - Feature: `Conformance.applicabilityFor()` takes `deprecatedIsOptional`, which reads deprecated ("D") and obsolete ("Z") conformance as optional instead of disallowed
     - Feature: `Specification.ENABLE_FORWARD_MATTER_FEATURES` (off in releases) and `Specification.isForwardFeatureEnabled()` gate behaviour implemented ahead of a released specification
     - Feature: Forward feature `delay-report-data` (DelayReportData on invoke)
@@ -99,6 +100,13 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: `GroupcastServer` LeaveGroup with GroupID 0 and an Endpoints list removes those endpoints from every group of the fabric; it removed all groups with all their endpoints
+    - Fix: `GroupKeyManagementServer` accepts a `KeySetWrite` with any `GroupKeyMulticastPolicy` and ignores the field, which has no effect; it rejected every value but PerGroupID with INVALID_COMMAND. `KeySetRead` reports PerGroupID
+    - Fix: A `GroupcastTesting` request without `DurationSeconds` ends testing after 60 seconds; testing previously never ended
+    - Fix: A node stopped with `stop()` and started again re-establishes its subscriptions, and afterwards stores only the subscriptions of its current run; it previously re-established none and kept storing subscriptions it could not re-establish
+    - Fix: A node with the default volatile event store keeps none of its earlier events across `stop()` and `start()`, as across a restart; it previously reported them, including `ShutDown`, again to reads and subscriptions without an event filter
+    - Fix: `ServiceAreaServer` without the Maps feature no longer fails to initialize
+    - Fix: `GeneralDiagnosticsServer` uses the monotonic clock when available and clamps elapsed time to zero otherwise, so a backward wall-clock step (e.g. an NTP correction) no longer sends `totalOperationalHoursCounter` below its uint64 minimum, which made taking the node offline fail
     - Fix: (@RaHehl) A node stopped with `stop()` and started again can be commissioned again: an uncommissioned node previously failed to start with "Required dependency CommissioningConfigProvider is not available", and a commissioned node answered `ArmFailSafe`, `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` with `Failure`
     - Fix: An OTA requestor that a provider answers `Busy` keeps `UpdateState` at `DelayedOnQuery` until its retry; it reset the attribute to `Idle` in the same transaction, so a read never showed the wait. After three `Busy` retries it treats the provider as having no update and waits for its next regular query; before, it queried a `Busy` provider again without limit
     - Fix: A deprecated or obsolete attribute that a device reports is an optional attribute of the client behavior, so it has `$Changing` and `$Changed` events and a property on the behavior's state class
@@ -149,6 +157,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/testing
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
+    - Fix: CHIP test runs on one Docker daemon take turns with the shared harness containers instead of recreating each other's `chip` container, which ended the other run with exit code 137. A run holds a lock while it uses the harness and waits while another run holds it (`MATTER_CHIP_HARNESS_WAIT_MINUTES`, default 60; `0` fails at once with `HarnessBusyError` when another run holds it). The lock ends with the process that holds it; a lock that does not run for 30 s is left over and fails the run with the command that removes it
     - Enhancement: `CertNodeApi.observeEvents()` reports a node's events through the subscription the controller already sustains, so a case still sees what a peer reports as it shuts down rather than losing them with the second session a subscription of its own would need; `subscribeEvents()` remains for a case whose subject is the subscribe request itself. Every `CertNodeApi` implementation must provide the new method
     - Enhancement: `BackchannelCommand.SendOnOffToBindings` asks a binding client to send an OnOff command to the targets of its bindings
     - Enhancement: A certification step that finds from the devices of its run that the plan does not apply it throws `CertStepNotApplicableError`, and is recorded as skipped with its reason and counted in `RunRecord.planConditionSkips`; thrown after the step recorded a check, it fails the run

@@ -80,10 +80,11 @@ export interface SubscribeAndModifyTimeouts {
  * A write is confirmed by the report carrying *this* subscription's id in the TH's log, logged after
  * the write and after the previous write's own ack (see {@link expectReportAck}). The callback seam
  * cannot serve as that confirmation: a controller holding several subscriptions to one path delivers
- * one callback per subscription per change, and chip-tool's report JSON carries no subscription id to
- * tell them apart. Each window therefore opens on a specific, already-observed log event rather than a
- * bare mark taken after subscribe() — subscribe() resolving only means the client has sent the priming
- * ack, not that this log has decoded it yet.
+ * at least one callback per subscription per change (chip-tool N each for N subscriptions: it sends N
+ * reports, and every report reaches every subscription covering its path), and chip-tool's report JSON
+ * carries no subscription id to tell them apart. Each window therefore opens on a specific,
+ * already-observed log event rather than a bare mark taken after subscribe() — subscribe() resolving
+ * only means the client has sent the priming ack, not that this log has decoded it yet.
  *
  * `onUpdate` is secondary evidence, and asserts values rather than arrival counts: a value this step
  * never wrote fails it, while `values` failing to come back as an in-order subsequence is recorded

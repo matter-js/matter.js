@@ -6,6 +6,7 @@
 
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { OtaUpdateStatus, SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
+import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import {
@@ -168,7 +169,9 @@ describe("Ota", () => {
         // This should resolve when update is applied and data match
         await MockTime.resolve(applyUpdatePromise);
 
-        // Shutdown node because our test node does not restart automatically and simulate update applied
+        // Shutdown node because our test node does not restart automatically and simulate update applied.  The harness
+        // reports Applying→Idle before this restart, so a subscription the device re-establishes would report it twice
+        await device.setStateOf(SubscriptionsServer, { persistenceEnabled: false });
         await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: 1 });
 
@@ -684,25 +687,13 @@ describe("Ota", () => {
 
         await MockTime.resolve(applyUpdatePromise);
 
-        // Simulate reboot with the new version — CASE resumes quickly, but the pre-reboot subscription was
-        // deleted server-side by the restart, so this harness's device never reports again. A persistent device
-        // would keep feeding its subscription; simulate that below rather than waiting out the real timeout, so
-        // the test verifies the armer's grace-window decision deterministically.
+        // Simulate reboot with the new version.  The device re-establishes its persisted subscription over the session
+        // it opens, so it keeps feeding the subscription.  The sibling Mechanism B test proves the grace window reaches
+        // closeForPeer in this harness, so the keep asserted below is a decision and not an absence of one.
         await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
         await MockTime.resolve(device.start());
         await MockTime.resolve(notifyUpdateAppliedPromise);
-
-        // Model a persistent device that keeps feeding its subscription: report over the session the returning
-        // device opened, which is the only session it still holds once Mechanism A has closed the pre-reboot ones.
-        // The sibling Mechanism B test proves the grace window reaches closeForPeer in this harness, so the keep
-        // asserted below is a decision and not an absence of one.
-        await otaProvider.act(agent => {
-            const sessions = agent.env.get(SessionManager);
-            const live = sessions.sessions.filter(session => PeerAddress.is(session.peerAddress, peerAddress));
-            expect(live.length).equals(1);
-            agent.env.get(ClientSubscriptions).reportStarted.emit(live[0]);
-        });
 
         // Let the grace window elapse.
         await MockTime.advance(Seconds(30));
@@ -783,7 +774,8 @@ describe("Ota", () => {
 
         await MockTime.resolve(applyUpdatePromise);
 
-        // Simulate reboot with the new version.
+        // Simulate reboot with the new version of a device that does not persist subscriptions
+        await device.setStateOf(SubscriptionsServer, { persistenceEnabled: false });
         await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
         await MockTime.resolve(device.start());

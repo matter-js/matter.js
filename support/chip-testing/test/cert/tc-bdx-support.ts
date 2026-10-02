@@ -291,6 +291,9 @@ const CHIP_DATA_LENGTH = /\[ATM\]\s+Data Length: (\d+)\s*$/;
 
 /** Fields of one message in chip's own dump: the counter it carries, and the payload it arrived in. */
 const CHIP_DMG_BLOCK_COUNTER = /\[DMG\]\s+BlockCounter = (\d+)\s*$/;
+
+/** The message counter and session a chip DMG header names, which identify one message across MRP retransmissions. */
+const CHIP_DMG_MESSAGE_ID = /\| (\d+) \| \[.*\/ Session = (\d+)/;
 const CHIP_DMG_PAYLOAD_SIZE = /\[DMG\] Decrypted Payload \((\d+) bytes\)/;
 
 /** Bytes of a BDX payload the block counter itself occupies, ahead of any data (§ 11.22.5.6). */
@@ -379,9 +382,17 @@ function messagesIn(
             .padStart(2, "0")}\\)`,
     );
 
+    // chip dumps every datagram it receives, an MRP retransmission of a message it already has included, and
+    // then drops the copy as a duplicate; counting the dump would count the message twice
+    const seen = new Set<string>();
     const records = new Array<BdxMessageRecord>();
     for (let i = 0; i < lines.length; i++) {
         if (!header.test(lines[i].text)) {
+            continue;
+        }
+        const id = CHIP_DMG_MESSAGE_ID.exec(lines[i].text);
+        const key = id === null ? undefined : `${id[2]}/${id[1]}`;
+        if (key !== undefined && seen.has(key)) {
             continue;
         }
 
@@ -399,6 +410,10 @@ function messagesIn(
             continue;
         }
 
+        // Only a dump that yielded a record stands for the message; a retransmission of one that did not is read
+        if (key !== undefined) {
+            seen.add(key);
+        }
         records.push({
             counter,
             length: dmg.carriesData && payloadSize !== undefined ? payloadSize - CHIP_BDX_COUNTER_BYTES : undefined,

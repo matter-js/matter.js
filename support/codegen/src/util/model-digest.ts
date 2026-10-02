@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Model, RequirementModel, ValueModel } from "#model";
+import { CommandModel, Model, RequirementModel, ValueModel } from "#model";
 
 /**
  * What one element of a model contributes to a removal comparison.
@@ -121,6 +121,11 @@ function localKeyOf(model: Model) {
     if (model instanceof RequirementModel) {
         const instance = model.instanceNumber === undefined ? "" : `@${model.instanceNumber}`;
         return `${model.element}${identity}${instance}`;
+    }
+
+    // A request and a response reserve their identifiers separately, so the same identifier names two commands
+    if (model instanceof CommandModel && model.isResponse) {
+        return `response${identity}`;
     }
 
     return `${model.tag}${identity}`;
