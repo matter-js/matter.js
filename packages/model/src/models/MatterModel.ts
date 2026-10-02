@@ -7,7 +7,7 @@
 import { ElementTag } from "#common/ElementTag.js";
 import { Specification } from "#common/Specification.js";
 import { MatterElement } from "../elements/index.js";
-import { ModelIndex, MutableModelIndex } from "../logic/ModelIndex.js";
+import { ModelIndex } from "../logic/ModelIndex.js";
 import { ModelTraversal } from "../logic/ModelTraversal.js";
 import { AttributeModel } from "./AttributeModel.js";
 import { ClusterModel } from "./ClusterModel.js";
@@ -21,11 +21,6 @@ import { ResourceBundle } from "./Resource.js";
 import { ScopeModel } from "./ScopeModel.js";
 import { SemanticNamespaceModel } from "./SemanticNamespaceModel.js";
 
-interface Members<T extends Model> {
-    generation: number;
-    index: ModelIndex<T>;
-}
-
 /**
  * The root of a Matter model.  This is the parent for global models.
  */
@@ -33,11 +28,11 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
     override tag: MatterElement.Tag = MatterElement.Tag;
     revision?: Specification.Revision;
     #permanentDatatypes?: { generation: number; byName: Readonly<Record<string, Model>> };
-    #clusters?: Members<ClusterModel>;
-    #deviceTypes?: Members<DeviceTypeModel>;
-    #datatypes?: Members<DatatypeModel>;
-    #fields?: Members<FieldModel>;
-    #attributes?: Members<AttributeModel>;
+    #clusters?: ScopeModel.Members<ClusterModel>;
+    #deviceTypes?: ScopeModel.Members<DeviceTypeModel>;
+    #datatypes?: ScopeModel.Members<DatatypeModel>;
+    #fields?: ScopeModel.Members<FieldModel>;
+    #attributes?: ScopeModel.Members<AttributeModel>;
     #resources?: ResourceBundle;
 
     /**
@@ -52,10 +47,7 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
      * Clusters.
      */
     get clusters(): ModelIndex<ClusterModel> {
-        return (
-            this.#inheritedMembersOf(ClusterModel) ??
-            (this.#clusters = this.#membersOf(ClusterModel, this.#clusters)).index
-        );
+        return (this.#clusters = this.membersOfType(ClusterModel, this.#clusters)).index;
     }
 
     /**
@@ -84,10 +76,7 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
      * Device types.
      */
     get deviceTypes(): ModelIndex<DeviceTypeModel> {
-        return (
-            this.#inheritedMembersOf(DeviceTypeModel) ??
-            (this.#deviceTypes = this.#membersOf(DeviceTypeModel, this.#deviceTypes)).index
-        );
+        return (this.#deviceTypes = this.membersOfType(DeviceTypeModel, this.#deviceTypes)).index;
     }
 
     /**
@@ -101,62 +90,21 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
      * Global datatypes.
      */
     get datatypes(): ModelIndex<DatatypeModel> {
-        return (
-            this.#inheritedMembersOf(DatatypeModel) ??
-            (this.#datatypes = this.#membersOf(DatatypeModel, this.#datatypes)).index
-        );
+        return (this.#datatypes = this.membersOfType(DatatypeModel, this.#datatypes)).index;
     }
 
     /**
      * Global fields.
      */
     get fields(): ModelIndex<FieldModel> {
-        return this.#inheritedMembersOf(FieldModel) ?? (this.#fields = this.#membersOf(FieldModel, this.#fields)).index;
+        return (this.#fields = this.membersOfType(FieldModel, this.#fields)).index;
     }
 
     /**
      * Global attributes.
      */
     get attributes(): ModelIndex<AttributeModel> {
-        return (
-            this.#inheritedMembersOf(AttributeModel) ??
-            (this.#attributes = this.#membersOf(AttributeModel, this.#attributes)).index
-        );
-    }
-
-    /**
-     * The members of {@link type} an extension of another matter model reports, which include its base's.  Undefined
-     * when this model extends none.
-     */
-    #inheritedMembersOf<T extends MatterModel.Child>(type: Model.ConcreteType<T>): ModelIndex<T> | undefined {
-        if (!this.operationalBase) {
-            return;
-        }
-        const { Tag } = type;
-        const isOfType = (model: Model): model is T => model.tag === Tag;
-        const members = new Array<T>();
-        for (const member of this.scope.membersOf(this, { tags: [Tag] })) {
-            if (isOfType(member)) {
-                members.push(member);
-            }
-        }
-        return new MutableModelIndex(members);
-    }
-
-    /**
-     * The children of {@link type}, reusing {@link members} while the children are unchanged.  Without a base these
-     * are exactly the members the scope would report, without building the scope.
-     */
-    #membersOf<T extends MatterModel.Child>(type: Model.ConcreteType<T>, members?: Members<T>): Members<T> {
-        const generation = this.childrenGeneration;
-        if (members?.generation === generation) {
-            return members;
-        }
-        const { Tag } = type;
-        return {
-            generation,
-            index: new MutableModelIndex(this.children.filter((child): child is T => child.tag === Tag)),
-        };
+        return (this.#attributes = this.membersOfType(AttributeModel, this.#attributes)).index;
     }
 
     /**
@@ -191,7 +139,7 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
      * overriding these values.
      */
     get permanentDatatypes(): Readonly<Record<string, Model>> {
-        const generation = this.childrenGeneration;
+        const generation = Model.childrenGenerationOf(this);
         if (this.#permanentDatatypes?.generation !== generation) {
             const byName: Record<string, Model> = Object.create(null);
             for (const model of this.children) {
