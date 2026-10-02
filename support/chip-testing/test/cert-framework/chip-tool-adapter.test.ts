@@ -801,7 +801,6 @@ describe("ChipToolControllerAdapter", function () {
                             { providerNodeId: 0x1234_5678_9abc_def0n, endpoint: 0, fabricIndex: 1 },
                             { providerNodeId: 1, endpoint: 0 },
                         ],
-                        dataVersion: 7,
                     },
                 ]),
             ).deep.equal([{ ...path, status: Status.ConstraintError }]);
@@ -812,7 +811,7 @@ describe("ChipToolControllerAdapter", function () {
             expect(fake.commands).deep.equal([
                 `otasoftwareupdaterequestor write default-otaproviders ` +
                     `[{"providerNodeID":"1311768467463790320","endpoint":"0","fabricIndex":"1"},` +
-                    `{"providerNodeID":"1","endpoint":"0"}] ${ref} 0 --data-version 7`,
+                    `{"providerNodeID":"1","endpoint":"0"}] ${ref} 0`,
                 `otasoftwareupdaterequestor write default-otaproviders [] ${ref} 0 --timedInteractionTimeoutMs 200`,
             ]);
         });

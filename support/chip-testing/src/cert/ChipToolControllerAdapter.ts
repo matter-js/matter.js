@@ -1398,7 +1398,7 @@ class ChipToolCertNodeApi implements CertNodeApi {
                     operation,
                     CONTROLLER,
                     `${typed.command} writes one attribute per request, so it cannot carry ` +
-                        `${entries.length - 1} other attribute(s) alongside it`,
+                        `${entries.length - 1} other entries alongside it`,
                 );
             }
             return this.#writeTypedList(typed, entry, options);

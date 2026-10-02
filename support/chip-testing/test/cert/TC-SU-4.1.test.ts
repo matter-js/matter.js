@@ -75,8 +75,9 @@ async function writeProviders(cx: CertStepContext, role: "th" | "th3", providers
 }
 
 /**
- * A list write is an empty REPLACE and one ADD per entry, and the DUT answers each with its own status (Matter Core,
- * Interaction Model, Write Response Action). The write works when every one is SUCCESS, and is refused when one carries `refusal`.
+ * A list write is an empty REPLACE and one ADD per entry, each with its own status (Matter Core, Interaction Model,
+ * Write Response Action). The matter.js controller reports every one; chip-tool merges them into one per path, the
+ * first failure. The write works when every reported status is SUCCESS, and is refused when one carries `refusal`.
  */
 function writeCheck(statuses: AttributeWriteStatus[], what: string, refusal?: number): CheckRecord {
     const found = statuses.map(({ status }) => status);
