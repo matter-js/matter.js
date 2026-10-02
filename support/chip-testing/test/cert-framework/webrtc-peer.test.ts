@@ -61,7 +61,12 @@ describe("WebRtcPeer", () => {
                 (e: unknown) => e,
             );
 
-            expect(failure).instanceOf(Error).with.property("message").that.contains("libdatachannel log, last");
+            // A line the failing call itself logged, which reaches JavaScript only after the call threw
+            expect(failure)
+                .instanceOf(Error)
+                .with.property("message")
+                .that.contains("libdatachannel log, last")
+                .and.contains("setRemoteDescription() called");
         } finally {
             await offerer.close();
         }

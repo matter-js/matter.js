@@ -29,6 +29,9 @@ interface Request {
 /** How many of the library's own log lines a failed operation reports. */
 const LOG_TAIL_LINES = 200;
 
+/** How long a failed operation waits for the library's log lines about it before it reports. */
+const LOG_SETTLE_MS = 20;
+
 // The library's account of an intermittent failure (ICE closing between a description and its candidates)
 // exists only in its own log, so the recent part of it goes out with every error
 const logTail = new Array<string>();
@@ -51,7 +54,7 @@ connection.onStateChange(next => {
     everConnected ||= next === "connected";
 });
 
-process.on("message", (request: Request) => {
+process.on("message", async (request: Request) => {
     let result: unknown;
     let error: string | undefined;
 
@@ -59,6 +62,12 @@ process.on("message", (request: Request) => {
         result = perform(request);
     } catch (e) {
         error = e instanceof Error ? e.message : String(e);
+
+        // The library hands its log lines to JavaScript through a queue drained only after the native call returned,
+        // so the failing call's own lines arrive after its error
+        await new Promise(resolve => setImmediate(resolve));
+        await new Promise(resolve => setTimeout(resolve, LOG_SETTLE_MS));
+
         if (logTail.length) {
             error += `\nlibdatachannel log, last ${logTail.length} lines:\n${logTail.join("\n")}`;
         }
