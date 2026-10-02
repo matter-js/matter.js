@@ -18,6 +18,7 @@ export class PeerSubscription extends ClientSubscription {
     readonly #maxPeerResponseTime: Duration;
     isReading = false;
 
+    /** Liveness deadline on the clock of `Time.nowUs`. */
     timeoutAt?: Timestamp;
 
     constructor(config: PeerSubscription.Configuration) {
