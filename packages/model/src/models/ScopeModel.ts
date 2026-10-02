@@ -68,12 +68,12 @@ export abstract class ScopeModel<
         const inputs = new Array<unknown>();
         const traversal = new ModelTraversal();
         traversal.visitInheritance(this, model => {
-            inputs.push(model, model.childrenGeneration);
+            inputs.push(model, Model.childrenGenerationOf(model));
         });
         if (tag === ElementTag.Attribute) {
             const root = traversal.findRoot(this);
             if (root !== undefined && root !== this) {
-                inputs.push(root, root.childrenGeneration);
+                inputs.push(root, Model.childrenGenerationOf(root));
             }
         }
         return inputs;

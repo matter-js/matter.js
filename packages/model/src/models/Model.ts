@@ -234,13 +234,11 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     /**
-     * Changes whenever {@link children} or the ID or name of a child changes.  Unique across all models, so a value
-     * seen once never reappears after the children are replaced.
-     *
-     * @internal
+     * Changes whenever the children of {@link model} or the ID or name of a child changes.  Unique across all models,
+     * so a value seen once never reappears after the children are replaced.
      */
-    get childrenGeneration() {
-        return this.#children?.generation ?? 0;
+    protected static childrenGenerationOf(model: Model) {
+        return model.#children?.generation ?? 0;
     }
 
     /**

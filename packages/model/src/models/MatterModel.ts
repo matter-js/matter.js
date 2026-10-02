@@ -139,7 +139,7 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
      * overriding these values.
      */
     get permanentDatatypes(): Readonly<Record<string, Model>> {
-        const generation = this.childrenGeneration;
+        const generation = Model.childrenGenerationOf(this);
         if (this.#permanentDatatypes?.generation !== generation) {
             const byName: Record<string, Model> = Object.create(null);
             for (const model of this.children) {
