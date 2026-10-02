@@ -44,6 +44,13 @@ import { OtaSoftwareUpdateProviderBehavior } from "./OtaSoftwareUpdateProviderBe
 
 const logger = Logger.get("OtaSoftwareUpdateProviderServer");
 
+/**
+ * The longest `DelayedActionTime` this provider sends, in seconds; a requestor may treat a longer one as this.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 11.20.6.5.4.2
+ */
+const MAX_DELAYED_ACTION_TIME = 86_400;
+
 const OTA_UPDATE_TOKEN_LENGTH_BYTES = 32;
 
 interface OtaUpdateInProgressDetails {
@@ -431,10 +438,11 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
         // Invoked by an OTA Requestor once it is ready to apply a previously downloaded Software Image.
         // Disable BDX protocol again
-        // Whole seconds, as the response carries them, so the controller expects the restart after the delay it sent
-        const delayedActionTime = Math.max(
-            0,
-            Math.round(Seconds.of(await this.applyDelayFor(request, session.peerAddress))),
+        // Whole seconds as the response carries them, rounded up because the delay is a minimum wait, and at most a
+        // day, which a requestor may treat any longer delay as; the controller expects the restart after what it sent
+        const delayedActionTime = Math.min(
+            MAX_DELAYED_ACTION_TIME,
+            Math.max(0, Math.ceil(Seconds.fractionalOf(await this.applyDelayFor(request, session.peerAddress)))),
         );
         this.#updateInProgressDetails(
             session.peerAddress,

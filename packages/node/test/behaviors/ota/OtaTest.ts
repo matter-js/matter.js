@@ -19,6 +19,7 @@ import {
     Bytes,
     createPromise,
     Duration,
+    Hours,
     ImplementationError,
     Millis,
     Minutes,
@@ -1391,22 +1392,25 @@ describe("Ota", () => {
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);
 
-    it("expects the device's restart only after the delay it was allowed to apply with", async () => {
+    /** Drives one update to its apply with a provider whose {@link applyDelayFor} returns `delay`. */
+    async function applyWithDelay(delay: Duration) {
         const data = { expectedOtaImage: Bytes.fromHex("") };
-        const { applyUpdatePromise, announceOtaProviderPromise, TestOtaRequestorServer } =
-            InstrumentedOtaRequestorServer({ requestUserConsent: false }, data);
+        const { announceOtaProviderPromise, TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            data,
+        );
         const { queryImagePromise, applyUpdateRequestPromise, checkUpdateAvailablePromise, TestOtaProviderServer } =
             InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
 
-        const sentDelays = new Array<number>();
+        const sent = new Array<number>();
         class DelayingProviderServer extends TestOtaProviderServer {
             protected override applyDelayFor() {
-                return Seconds(180);
+                return delay;
             }
 
             override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
                 const response = await super.applyUpdateRequest(request);
-                sentDelays.push(response.delayedActionTime);
+                sent.push(response.delayedActionTime);
                 return response;
             }
         }
@@ -1437,15 +1441,31 @@ describe("Ota", () => {
             await MockTime.resolve(queryImagePromise);
             await MockTime.resolve(checkUpdateAvailablePromise);
             await MockTime.resolve(applyUpdateRequestPromise);
-
-            expect(sentDelays).deep.equal([180]);
-            expect(armed).deep.equal([Seconds(180)]);
-
-            await MockTime.resolve(applyUpdatePromise);
-            await site[Symbol.asyncDispose]();
         } finally {
             RebootResubscribeArmer.prototype.arm = originalArm;
         }
+        return { sent, armed };
+    }
+
+    it("expects the device's restart only after the delay it was allowed to apply with", async () => {
+        const { sent, armed } = await applyWithDelay(Seconds(180));
+
+        expect(sent).deep.equal([180]);
+        expect(armed).deep.equal([Seconds(180)]);
+    }).timeout(10_000);
+
+    it("rounds an apply delay up to whole seconds, since it is a minimum wait", async () => {
+        const { sent, armed } = await applyWithDelay(Millis(1500));
+
+        expect(sent).deep.equal([2]);
+        expect(armed).deep.equal([Seconds(2)]);
+    }).timeout(10_000);
+
+    it("sends at most a day of apply delay, which a requestor may treat a longer one as", async () => {
+        const { sent, armed } = await applyWithDelay(Hours(48));
+
+        expect(sent).deep.equal([86_400]);
+        expect(armed).deep.equal([Seconds(86_400)]);
     }).timeout(10_000);
 
     it("does not count an update as stalled while the device waits out its apply delay", async () => {
