@@ -39,10 +39,35 @@ export class BtpSessionHandler {
         await this.close();
     });
     readonly #closed = Observable<[]>();
+    readonly #stalledAfterHandshake = Observable<[messagesToReplay: readonly Bytes[]]>();
+
+    /**
+     * Matter messages handed to {@link sendMatterMessage} while the peer has not acknowledged anything yet. Dropped as
+     * soon as any BTP packet arrives, because from then on {@link stalledAfterHandshake} can no longer fire, and the
+     * ack timeout bounds how much can accumulate.
+     */
+    #messagesPendingFirstAck: Bytes[] | undefined = new Array<Bytes>();
 
     /** Emitted exactly once when the session transitions to closed. */
     get closed() {
         return this.#closed;
+    }
+
+    /**
+     * Emitted instead of {@link closed} when the peer completed the handshake and then never responded to any data
+     * packet, carrying the Matter messages the peer never acknowledged in submission order.
+     *
+     * A peripheral whose link layer cannot carry a BTP segment spanning several link-layer packets fails exactly this
+     * way. Recovering from it is an interop workaround with no basis in the specification: the transport may establish
+     * a fresh session with a smaller segment size and resend the messages, which the specification neither describes
+     * nor forbids.
+     *
+     * The session is suspended when this fires: it no longer touches the transport, and the transport owns what happens
+     * next. A session nobody observes closes on the acknowledgement timeout as it always did, so a transport that
+     * cannot renegotiate needs no changes.
+     */
+    get stalledAfterHandshake() {
+        return this.#stalledAfterHandshake;
     }
 
     /** Factory method to create a new BTPSessionHandler from a received handshake request */
@@ -118,18 +143,24 @@ export class BtpSessionHandler {
         return btpSession;
     }
 
+    /**
+     * @param requestedSegmentSize The segment size offered in our handshake request. A peripheral must not select more
+     *     than we offered, so it also bounds the session; without it a peripheral that echoes an oversized value would
+     *     defeat a deliberate reduction of the segment size.
+     */
     static async createAsCentral(
         handshakeResponsePayload: Bytes,
         writeBleCallback: (data: Bytes) => Promise<void>,
         disconnectBleCallback: () => Promise<void>,
         handleMatterMessagePayload: (data: Bytes) => Promise<void>,
+        requestedSegmentSize: number,
     ) {
         const handshakeRequest = BtpCodec.decodeBtpHandshakeResponsePayload(handshakeResponsePayload);
 
         logger.debug("Handshake request", Diagnostic.dict(handshakeRequest));
 
         const { version, attMtu: handshakeMtu, windowSize } = handshakeRequest;
-        const fragmentSize = Math.min(handshakeMtu, MatterBle.MAXIMUM_BTP_MTU);
+        const fragmentSize = Math.min(handshakeMtu, requestedSegmentSize, MatterBle.MAXIMUM_BTP_MTU);
 
         return new BtpSessionHandler(
             "central",
@@ -229,6 +260,7 @@ export class BtpSessionHandler {
                 throw new BtpProtocolError("Expected and actual BTP packets sequence number does not match");
             }
             this.prevIncomingSequenceNumber = sequenceNumber;
+            this.#messagesPendingFirstAck = undefined;
 
             if (!this.sendAckTimer.isRunning) {
                 this.sendAckTimer.start();
@@ -336,6 +368,7 @@ export class BtpSessionHandler {
             throw new BtpFlowError("BTP packet must not be empty");
         }
         const dataReader = new DataReader(data, Endian.Little);
+        this.#messagesPendingFirstAck?.push(data);
         this.queuedOutgoingMatterMessages.push(dataReader);
         await this.processSendQueue();
     }
@@ -436,6 +469,14 @@ export class BtpSessionHandler {
                 return;
             }
 
+            if (!this.isActive) {
+                // A suspend during the write hands the transport to someone else; further segments of this session
+                // would reach a peer that has already renegotiated
+                this.queuedOutgoingMatterMessages.length = 0;
+                this.sendInProgress = false;
+                return;
+            }
+
             if (!this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
             }
@@ -464,9 +505,7 @@ export class BtpSessionHandler {
      * Close the BTP session. This method is called when the BLE transport is disconnected and so the BTP session gets closed.
      */
     public async close() {
-        this.sendAckTimer.stop();
-        this.ackReceiveTimer.stop();
-        this.idleTimeout.stop();
+        this.#stopTimers();
         if (this.isActive) {
             logger.debug(`Closing BTP session`);
             this.isActive = false;
@@ -478,6 +517,21 @@ export class BtpSessionHandler {
                 this.#closed.emit();
             }
         }
+    }
+
+    /**
+     * End the session without touching the transport, so the same BLE connection can carry a renegotiated session.
+     * Unlike {@link close} this emits neither {@link closed} nor a disconnect.
+     */
+    suspend() {
+        this.#stopTimers();
+        this.isActive = false;
+    }
+
+    #stopTimers() {
+        this.sendAckTimer.stop();
+        this.ackReceiveTimer.stop();
+        this.idleTimeout.stop();
     }
 
     /**
@@ -558,10 +612,33 @@ export class BtpSessionHandler {
      * the peer SHALL close the BTP session and report an error to the application.
      */
     private async btpAckTimeoutTriggered() {
-        if (this.prevIncomingAckNumber !== this.sequenceNumber) {
-            logger.warn("Acknowledgement for the sent sequence number was not received ... disconnect");
-            await this.close();
+        if (!this.isActive || this.prevIncomingAckNumber === this.sequenceNumber) {
+            return;
         }
+        if (
+            this.#messagesPendingFirstAck !== undefined &&
+            this.#stalledAfterHandshake.isObserved &&
+            this.#isStalledAfterHandshake()
+        ) {
+            logger.warn(
+                `No BTP response at all since the handshake with a segment size of ${this.fragmentSize} bytes ... renegotiate`,
+            );
+            const messagesToReplay = this.#messagesPendingFirstAck;
+            this.#messagesPendingFirstAck = undefined;
+            this.suspend();
+            this.#stalledAfterHandshake.emit(messagesToReplay);
+            return;
+        }
+        logger.warn("Acknowledgement for the sent sequence number was not received ... disconnect");
+        await this.close();
+    }
+
+    /**
+     * True when we sent data and the peer has since sent nothing at all — neither an acknowledgement nor a packet of
+     * its own. A smaller segment size is the only lever left, so a session already at the minimum is excluded.
+     */
+    #isStalledAfterHandshake() {
+        return this.role === "central" && this.fragmentSize > MatterBle.MINIMUM_ATT_MTU;
     }
 
     /**

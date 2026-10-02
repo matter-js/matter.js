@@ -764,6 +764,7 @@ describe("BtpSessionHandler", () => {
                 async () => {
                     throw new Error("Should not be called");
                 },
+                MatterBle.MAXIMUM_BTP_MTU,
             );
 
             for (let i = 0; i < 6; i++) {
@@ -866,6 +867,7 @@ describe("BtpSessionHandler", () => {
                 async () => {
                     throw new Error("Should not be called");
                 },
+                MatterBle.MAXIMUM_BTP_MTU,
             );
 
             let raised: unknown;
@@ -1067,6 +1069,7 @@ describe("BtpSessionHandler", () => {
                 async () => {
                     throw new Error("Should not be called");
                 },
+                MatterBle.MAXIMUM_BTP_MTU,
             );
 
             // Send enough single-fragment messages that the central's sequence number wraps past 255.
@@ -1121,6 +1124,7 @@ describe("BtpSessionHandler", () => {
             async () => {
                 throw new Error("Should not be called");
             },
+            MatterBle.MAXIMUM_BTP_MTU,
         );
 
         const message = Bytes.fromHex("aabbccdd".repeat(50)); // 200 bytes, far exceeds window * fragment size
@@ -1131,6 +1135,198 @@ describe("BtpSessionHandler", () => {
 
         await central.close();
         await peripheral.close();
+    });
+
+    describe("Test stalled peer detection", () => {
+        function centralFor(
+            attMtu: number,
+            written: Bytes[],
+            disconnected: { value: boolean },
+            requestedSegmentSize = MatterBle.MAXIMUM_BTP_MTU,
+        ) {
+            return BtpSessionHandler.createAsCentral(
+                BtpCodec.encodeBtpHandshakeResponse({ version: 4, attMtu, windowSize: 8 }),
+                async data => {
+                    written.push(data);
+                },
+                async () => {
+                    disconnected.value = true;
+                },
+                async () => {
+                    throw new Error("Should not be called");
+                },
+                requestedSegmentSize,
+            );
+        }
+
+        it("reports a stall instead of closing when the peer never answers a data packet", async () => {
+            const written = new Array<Bytes>();
+            const disconnected = { value: false };
+            const central = await centralFor(244, written, disconnected);
+
+            let stalled = 0;
+            let closed = 0;
+            let replayed: readonly Bytes[] | undefined;
+            central.stalledAfterHandshake.on(messagesToReplay => {
+                stalled++;
+                replayed = messagesToReplay;
+            });
+            central.closed.on(() => {
+                closed++;
+            });
+
+            const first = Bytes.fromHex("0102030405");
+            const second = Bytes.fromHex("060708");
+            await central.sendMatterMessage(first);
+            await central.sendMatterMessage(second);
+            expect(written.length).equal(2);
+
+            await MockTime.advance(15000);
+
+            expect(stalled).equal(1);
+            expect(closed).equal(0);
+            expect(disconnected.value).equal(false);
+            expect(replayed).deep.equal([first, second]);
+        });
+
+        it("closes when nobody observes the stall", async () => {
+            const written = new Array<Bytes>();
+            const disconnected = { value: false };
+            const central = await centralFor(244, written, disconnected);
+
+            const { promise: closedPromise, resolver: closedResolver } = createPromise<void>();
+            central.closed.on(() => closedResolver());
+
+            await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            await MockTime.advance(15000);
+            await closedPromise;
+
+            // A transport that cannot renegotiate must still see the session close
+            expect(disconnected.value).equal(true);
+        });
+
+        it("closes when a session already at the minimum segment size is not answered", async () => {
+            const written = new Array<Bytes>();
+            const disconnected = { value: false };
+            const central = await centralFor(MatterBle.MINIMUM_ATT_MTU, written, disconnected);
+
+            let stalled = 0;
+            central.stalledAfterHandshake.on(() => {
+                stalled++;
+            });
+            const { promise: closedPromise, resolver: closedResolver } = createPromise<void>();
+            central.closed.on(() => closedResolver());
+
+            await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            await MockTime.advance(15000);
+            await closedPromise;
+
+            expect(stalled).equal(0);
+            expect(disconnected.value).equal(true);
+        });
+
+        it("closes once the peer has sent anything at all", async () => {
+            const written = new Array<Bytes>();
+            const disconnected = { value: false };
+            const central = await BtpSessionHandler.createAsCentral(
+                BtpCodec.encodeBtpHandshakeResponse({ version: 4, attMtu: 244, windowSize: 8 }),
+                async data => {
+                    written.push(data);
+                },
+                async () => {
+                    disconnected.value = true;
+                },
+                async () => {},
+                MatterBle.MAXIMUM_BTP_MTU,
+            );
+
+            let stalled = 0;
+            let replayed: readonly Bytes[] | undefined;
+            central.stalledAfterHandshake.on(messagesToReplay => {
+                stalled++;
+                replayed = messagesToReplay;
+            });
+            const { promise: closedPromise, resolver: closedResolver } = createPromise<void>();
+            central.closed.on(() => closedResolver());
+
+            await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+
+            const segmentPayload = Bytes.fromHex("aabb");
+            await central.handleIncomingBleData(
+                BtpCodec.encodeBtpPacket({
+                    header: {
+                        isHandshakeRequest: false,
+                        hasManagementOpcode: false,
+                        hasAckNumber: false,
+                        isBeginningSegment: true,
+                        isContinuingSegment: false,
+                        isEndingSegment: true,
+                    },
+                    payload: {
+                        ackNumber: undefined,
+                        sequenceNumber: 1,
+                        messageLength: segmentPayload.byteLength,
+                        segmentPayload,
+                    },
+                }),
+            );
+
+            await MockTime.advance(15000);
+            await closedPromise;
+
+            expect(stalled).equal(0);
+            expect(replayed).equal(undefined);
+        });
+
+        it("stops writing the remaining fragments of a suspended session", async () => {
+            const written = new Array<Bytes>();
+            let releaseWrite: (() => void) | undefined;
+            const central = await BtpSessionHandler.createAsCentral(
+                BtpCodec.encodeBtpHandshakeResponse({ version: 4, attMtu: 244, windowSize: 8 }),
+                async data => {
+                    written.push(data);
+                    if (written.length === 2) {
+                        await new Promise<void>(resolve => (releaseWrite = resolve));
+                    }
+                },
+                async () => {},
+                async () => {},
+                MatterBle.MAXIMUM_BTP_MTU,
+            );
+
+            let stalled = 0;
+            central.stalledAfterHandshake.on(() => {
+                stalled++;
+            });
+
+            // The first message starts the acknowledgement timer; the second stalls mid-write while it runs out
+            await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            const sending = central.sendMatterMessage(Bytes.fromHex("bb".repeat(500)));
+            expect(written.length).equal(2);
+
+            await MockTime.advance(15000);
+            expect(stalled).equal(1);
+
+            releaseWrite?.();
+            await sending;
+
+            expect(written.length).equal(2);
+        });
+
+        it("keeps the segment size we offered when the peer answers with a larger one", async () => {
+            const written = new Array<Bytes>();
+            const disconnected = { value: false };
+            const central = await centralFor(244, written, disconnected, MatterBle.MINIMUM_ATT_MTU);
+
+            await central.sendMatterMessage(Bytes.fromHex("aa".repeat(60)));
+
+            expect(written.length).greaterThan(1);
+            for (const packet of written) {
+                expect(packet.byteLength).most(MatterBle.MINIMUM_ATT_MTU);
+            }
+
+            await central.close();
+        });
     });
 
     describe("Test ATT_MTU fragment derivation", () => {
