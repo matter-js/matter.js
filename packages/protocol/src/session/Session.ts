@@ -155,7 +155,8 @@ export abstract class Session {
      * for exposure as absolute times.  An {@link activeTimestamp} of 0 stays 0.
      */
     get wallClockActivity() {
-        const offset = Time.nowMs - Time.nowUs;
+        const monotonic = Time.nowUs;
+        const offset = Time.nowMs - monotonic;
         return {
             lastInteractionTimestamp: Timestamp(Math.round(this.timestamp + offset)),
             lastActiveTimestamp: this.activeTimestamp === 0 ? 0 : Timestamp(Math.round(this.activeTimestamp + offset)),

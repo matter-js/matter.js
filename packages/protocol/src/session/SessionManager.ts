@@ -617,6 +617,9 @@ export class SessionManager {
     /**
      * Removes all Peer sessions but keeps subscriptions intact because they could be refreshed on restart when the
      * device supports persistent subscriptions.
+     *
+     * @param asOf sessions created at or after this instant are kept; on the clock of {@link Time.nowUs} like
+     * {@link Session.createdAt}, not a wall-clock time.  Defaults to now.
      */
     handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
         return this.#handlePeerLoss({
