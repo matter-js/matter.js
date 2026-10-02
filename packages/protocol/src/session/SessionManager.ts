@@ -1023,7 +1023,11 @@ export class SessionManager {
     async close() {
         await this.#construction.close(async () => {
             this.#observers.close();
-            await this.closeAllSessions();
+            try {
+                await this.closeAllSessions();
+            } finally {
+                await this.#groupDataMessageCounter?.close();
+            }
         });
     }
 
@@ -1035,6 +1039,7 @@ export class SessionManager {
         await this.closeAllSessions();
         await this.#context.storage.clearAll();
         this.#resumptionRecords.clear();
+        await this.#groupDataMessageCounter?.close();
         this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
     }
 
