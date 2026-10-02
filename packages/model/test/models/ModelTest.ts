@@ -283,7 +283,9 @@ describe("Model", () => {
                 const { parent, names } = abcd();
                 const z = new AttributeModel({ id: 26, name: "Z" });
                 expect(parent.children.unshift(z)).equals(5);
-                expect(names()).equals("ZABCD");
+                expect(parent.children.unshift({ tag: "attribute", id: 27, name: "Y" })).equals(6);
+                expect(parent.children[0].name).equals("Y");
+                expect(names()).equals("YZABCD");
                 expect(z.parent).equals(parent);
                 expect(parent.get(AttributeModel, 26)).equals(z);
             });
@@ -378,6 +380,7 @@ describe("Model", () => {
                     ImplementationError,
                 );
                 expect(() => parent.children.reverse()).throws(ImplementationError);
+                expect(() => (parent.children.length = 10)).throws(ImplementationError);
 
                 const other = new ClusterModel({ name: "Other" });
                 expect(() => other.children.push(children[0])).throws(ImplementationError);

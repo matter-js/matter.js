@@ -45,6 +45,14 @@ export interface Children<T extends Model = Model> extends Array<T> {
     splice(index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]): T[];
 
     /**
+     * Add children at the start.
+     *
+     * Operates like a standard array unshift but allows insertion of elements as well as models.  A model that is
+     * already a child moves to the start; listing a model twice in one call throws.
+     */
+    unshift(...children: Model.TaggedDefinition<T>[]): number;
+
+    /**
      * Access a model of specific type by ID or name.  This is an optimized operation that uses internal index lookup.
      */
     get<C extends Model>(type: Model.Type<C>, idOrName: number | string): C | undefined;
@@ -599,6 +607,9 @@ class ChildList<T extends Model = Model> {
                 const length = Number(value);
                 if (length >>> 0 !== length) {
                     throw new ImplementationError(`Invalid children length ${value}`);
+                }
+                if (length !== this.#children.length) {
+                    this.#assertMutable();
                 }
 
                 // Do not allow preallocation that would create gaps
