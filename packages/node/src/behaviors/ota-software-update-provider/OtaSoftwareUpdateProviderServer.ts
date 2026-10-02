@@ -21,7 +21,6 @@ import {
     Logger,
     MatterError,
     MaybePromise,
-    Millis,
     Minutes,
     Seconds,
     Time,
@@ -91,6 +90,7 @@ export enum OtaSoftwareUpdateConsentState {
  */
 export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBehavior {
     declare readonly internal: OtaSoftwareUpdateProviderServer.Internal;
+    declare readonly state: OtaSoftwareUpdateProviderServer.State;
 
     override async initialize() {
         (await this.agent.load(DescriptorServer)).addDeviceTypes("OtaProvider");
@@ -403,7 +403,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
     /**
      * Default implementation of the ApplyUpdate command according to Matter specification.
-     * An update with consent is allowed to apply after the delay {@link applyDelayFor} returns.
+     * An update with consent is allowed to apply after {@link OtaSoftwareUpdateProviderServer.State.applyDelay}.
      */
     override async applyUpdateRequest(
         request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
@@ -439,10 +439,10 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         // Invoked by an OTA Requestor once it is ready to apply a previously downloaded Software Image.
         // Disable BDX protocol again
         // Whole seconds as the response carries them, rounded up because the delay is a minimum wait, and at most a
-        // day, which a requestor may treat any longer delay as; the controller expects the restart after what it sent
+        // day, which a requestor may treat any longer delay as; the controller arms its restart window with what it sent
         const delayedActionTime = Math.min(
             MAX_DELAYED_ACTION_TIME,
-            Math.max(0, Math.ceil(Seconds.fractionalOf(await this.applyDelayFor(request, session.peerAddress)))),
+            Math.max(0, Math.ceil(Seconds.fractionalOf(this.state.applyDelay))),
         );
         this.#updateInProgressDetails(
             session.peerAddress,
@@ -457,20 +457,6 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             action: OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed,
             delayedActionTime,
         };
-    }
-
-    /**
-     * Override to set the `DelayedActionTime` an update this provider allows is applied with. The default applies at
-     * once. Override this rather than the response of {@link applyUpdateRequest}, so the controller expects the
-     * device's restart only after the delay.
-     *
-     * @see {@link MatterSpecification.v161.Core} § 11.20.6.5.4.2
-     */
-    protected applyDelayFor(
-        _request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
-        _peerAddress: PeerAddress,
-    ): MaybePromise<Duration> {
-        return Millis(0);
     }
 
     /**
@@ -634,6 +620,16 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 }
 
 export namespace OtaSoftwareUpdateProviderServer {
+    export class State extends OtaSoftwareUpdateProviderBehavior.State {
+        /**
+         * How long a requestor allowed to apply an update waits before it applies, sent as `DelayedActionTime` in
+         * whole seconds, rounded up and at most a day.  The default applies at once.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 11.20.6.5.4.2
+         */
+        applyDelay: Duration = 0;
+    }
+
     export class Internal {
         /** Keyed by the requestorNodeId+fabricIndex+updateToken */
         inProgressDetails = new Map<string, OtaUpdateInProgressDetails>();
@@ -668,15 +664,5 @@ export namespace OtaSoftwareUpdateProviderServer {
             request: OtaSoftwareUpdateProvider.QueryImageRequest,
             peerAddress: PeerAddress,
         ): MaybePromise<OtaUpdateAvailableDetails | undefined>;
-
-        /**
-         * Override to set the delay an allowed update is applied with.
-         * @param request
-         * @param peerAddress
-         */
-        applyDelayFor(
-            request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
-            peerAddress: PeerAddress,
-        ): MaybePromise<Duration>;
     };
 }

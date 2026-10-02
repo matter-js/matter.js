@@ -570,14 +570,6 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         };
     }
 
-    #scriptedApplyDelay?: number;
-
-    protected override applyDelayFor(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest, peerAddress: PeerAddress) {
-        return this.#scriptedApplyDelay === undefined
-            ? super.applyDelayFor(request, peerAddress)
-            : Seconds(this.#scriptedApplyDelay);
-    }
-
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
         const receivedAtMs = Time.nowUs;
         const peer = this.#commandPeer;
@@ -600,16 +592,22 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 const peerAddress = this.#commandPeerAddress;
                 await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
             }
-            // Only for the answer the script named: the base provider applies the delay only where it allows the
-            // apply, so a Discontinue never names a time for something that is not going to happen
-            this.#scriptedApplyDelay =
+            // Only for the answer the script named: the base provider sends its delay only where it allows the apply,
+            // so a Discontinue never names a time for something that is not going to happen
+            const scriptedDelay =
                 scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
                     ? scripted?.delayedActionTime
                     : undefined;
+            const configuredDelay = this.state.applyDelay;
+            if (scriptedDelay !== undefined) {
+                this.state.applyDelay = Seconds(scriptedDelay);
+            }
             try {
                 response = await super.applyUpdateRequest(request);
             } finally {
-                this.#scriptedApplyDelay = undefined;
+                if (scriptedDelay !== undefined) {
+                    this.state.applyDelay = configuredDelay;
+                }
             }
         }
 

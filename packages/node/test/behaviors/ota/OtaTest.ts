@@ -1392,7 +1392,7 @@ describe("Ota", () => {
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);
 
-    /** Drives one update to its apply with a provider whose {@link applyDelayFor} returns `delay`. */
+    /** Drives one update to its apply with a provider whose `applyDelay` is `delay`. */
     async function applyWithDelay(delay: Duration) {
         const data = { expectedOtaImage: Bytes.fromHex("") };
         const { announceOtaProviderPromise, TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
@@ -1404,8 +1404,9 @@ describe("Ota", () => {
 
         const sent = new Array<number>();
         class DelayingProviderServer extends TestOtaProviderServer {
-            protected override applyDelayFor() {
-                return delay;
+            override initialize() {
+                this.state.applyDelay = delay;
+                return super.initialize();
             }
 
             override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
@@ -1417,9 +1418,9 @@ describe("Ota", () => {
 
         const armed = new Array<Duration | undefined>();
         const originalArm = RebootResubscribeArmer.prototype.arm;
-        RebootResubscribeArmer.prototype.arm = function (this: RebootResubscribeArmer, peer, restartDelay) {
-            armed.push(restartDelay);
-            return originalArm.call(this, peer, restartDelay);
+        RebootResubscribeArmer.prototype.arm = function (this: RebootResubscribeArmer, peer, applyDelay) {
+            armed.push(applyDelay);
+            return originalArm.call(this, peer, applyDelay);
         };
         try {
             const { site, device, controller, otaProvider } = await initOtaSite(
@@ -1447,7 +1448,7 @@ describe("Ota", () => {
         return { sent, armed };
     }
 
-    it("expects the device's restart only after the delay it was allowed to apply with", async () => {
+    it("expects the device's return only after the delay it was allowed to apply with", async () => {
         const { sent, armed } = await applyWithDelay(Seconds(180));
 
         expect(sent).deep.equal([180]);

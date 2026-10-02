@@ -76,7 +76,7 @@ interface UpdateQueueEntry extends UpdateConsent {
     lastProgressUpdateTime?: Timestamp;
     lastProgressStatus?: OtaUpdateStatus;
     lastBdxTransferredBytes?: number;
-    /** With `Applying`, the delay the device waits out before it restarts; progress is not expected meanwhile. */
+    /** With `Applying`, the delay the device waits out before it applies; progress is not expected meanwhile. */
     applyDelay?: Duration;
 }
 
@@ -1190,7 +1190,7 @@ export class SoftwareUpdateManager extends Behavior {
      * messages, and triggers the necessary events.
      *
      * With `Applying`, `applyDelay` is the `DelayedActionTime` the provider allowed the apply with, which the device
-     * waits out before it restarts.
+     * waits out before it applies and restarts.
      */
     onOtaStatusChange(peerAddress: PeerAddress, status: OtaUpdateStatus, toVersion?: number, applyDelay?: Duration) {
         if (this.internal.suppressUpdates) {

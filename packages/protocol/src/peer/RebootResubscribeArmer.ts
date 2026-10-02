@@ -18,15 +18,15 @@ const logger = Logger.get("RebootResubscribeArmer");
 const DEFAULT_REBOOT_RESUBSCRIBE_GRACE = Seconds(30);
 
 /**
- * How long we wait, beyond the delay the device was given before it restarts, for an armed device to re-establish a
- * session before assuming it restarted silently and forcing recovery.  A device applying an update has normally
+ * How long we wait, beyond the delay the device was given before it applies, for an armed device to apply, restart and
+ * re-establish a session before assuming it restarted silently and forcing recovery.  A device applying an update has normally
  * rebooted and returned within this window, so it is a backstop rather than the common path; kept short so a
  * silently-restarted device recovers well before the full subscription liveness timeout.
  */
 const EXPECTED_RETURN_TIMEOUT = Minutes(3);
 
-/** The longest delay a device waits before it restarts; a requestor may treat a longer `DelayedActionTime` as this. */
-const MAX_RESTART_DELAY = Hours(24);
+/** The longest delay a device waits before it applies; a requestor may treat a longer `DelayedActionTime` as this. */
+const MAX_APPLY_DELAY = Hours(24);
 
 interface ArmState {
     /**
@@ -68,11 +68,11 @@ export class RebootResubscribeArmer {
     }
 
     /**
-     * Expects `peerAddress` to restart and return. `restartDelay` is how long the device was told to wait before it
-     * restarts, such as the `DelayedActionTime` of an `ApplyUpdateResponse` that allowed the apply; the return deadline
-     * runs from the end of that delay.
+     * Expects `peerAddress` to restart and return. `applyDelay` is how long the device was told to wait before it
+     * applies, such as the `DelayedActionTime` of an `ApplyUpdateResponse` that allowed the apply; the return deadline
+     * covers that wait, the apply and the restart.
      */
-    arm(peerAddress: PeerAddress, restartDelay: Duration = Millis(0)) {
+    arm(peerAddress: PeerAddress, applyDelay: Duration = Millis(0)) {
         peerAddress = PeerAddress(peerAddress);
 
         const previous = this.#armed.get(peerAddress);
@@ -88,7 +88,7 @@ export class RebootResubscribeArmer {
 
         state.returnTimer = Time.getTimer(
             "Reboot return deadline",
-            Millis(Math.min(Math.max(restartDelay, 0), MAX_RESTART_DELAY) + EXPECTED_RETURN_TIMEOUT),
+            Millis(Math.min(Math.max(applyDelay, 0), MAX_APPLY_DELAY) + EXPECTED_RETURN_TIMEOUT),
             () => this.#onReturnTimeout(peerAddress),
         );
         state.returnTimer.start();

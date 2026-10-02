@@ -367,13 +367,13 @@ describe("RebootResubscribeArmer", () => {
         expect(isSubscribed(subscription)).equals(false); // closeForPeer forced re-subscription
     });
 
-    it("runs the return deadline from the end of the restart delay the device was given", async () => {
+    it("extends the return deadline by the delay the device waits before it applies", async () => {
         const { armer, registerSubscription, isSubscribed } = await setup();
         using _armer = armer;
         const subscription = registerSubscription();
         armer.arm(PEER, Minutes(3));
 
-        // A device told to wait three minutes before it restarts has not overstayed after the plain deadline. The
+        // A device told to wait three minutes before it applies has not overstayed after the plain deadline. The
         // recovery a deadline starts is asynchronous, so it gets the turns it would need before the check.
         await MockTime.advance(Minutes(5));
         for (let turn = 0; turn < 50 && isSubscribed(subscription); turn++) {
