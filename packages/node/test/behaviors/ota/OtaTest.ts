@@ -736,6 +736,10 @@ describe("Ota", () => {
         // …and because the subscription was fed, the armer chose KEEP: no force re-subscribe.
         expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
 
+        // The armer watches the ClientSubscriptions of one run; the next run must not reuse it
+        await MockTime.resolve(controller.stop());
+        expect(otaProvider.behaviors.internalsOf(SoftwareUpdateManager).rebootResubscribeArmer).undefined;
+
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);
 

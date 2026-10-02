@@ -50,6 +50,7 @@ import {
     AttestationCertificateManager,
     CertificateAuthority,
     CertificationDeclaration,
+    ClientSubscriptions,
     FabricManager,
     MdnsService,
     NodeSession,
@@ -653,6 +654,20 @@ describe("ServerNode", () => {
         expect(await persisted.keys([])).deep.equals([]);
 
         await store.close();
+        await node.close();
+    });
+
+    it("gives a restarted node new, unblocked client subscriptions", async () => {
+        const node = await MockServerNode.createOnline();
+        const before = node.env.get(ClientSubscriptions);
+
+        await MockTime.resolve(node.stop());
+        await MockTime.resolve(node.start());
+
+        const after = node.env.get(ClientSubscriptions);
+        expect(after).not.equal(before);
+        expect(after.isBlocked).false;
+
         await node.close();
     });
 
