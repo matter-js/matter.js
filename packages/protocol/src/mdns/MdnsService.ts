@@ -15,6 +15,7 @@ import {
     MatterAggregateError,
     MdnsSocket,
     Network,
+    RuntimeService,
     VariableService,
 } from "@matter/general";
 import { MdnsServer } from "../mdns/MdnsServer.js";
@@ -28,6 +29,7 @@ const MATTER_SERVICE_SUFFIXES = ["._matter._tcp.local", "._matterc._udp.local", 
 export class MdnsService {
     readonly #entropy: Entropy;
     readonly #construction: Construction<MdnsService>;
+    readonly #runtime: RuntimeService;
     readonly #enableIpv4: boolean;
     readonly limitedToNetInterface?: string;
 
@@ -44,7 +46,10 @@ export class MdnsService {
         const network = environment.get(Network);
         const rootEnvironment = environment.root;
         rootEnvironment.set(MdnsService, this);
-        rootEnvironment.runtime.add(this);
+        this.#runtime = rootEnvironment.runtime;
+
+        // Added before #construction exists so a failed mDNS start does not crash the runtime; close() removes it
+        this.#runtime.add(this);
 
         const vars = environment.get(VariableService);
         this.#enableIpv4 = vars.boolean("mdns.ipv4") ?? options?.ipv4 ?? true;
@@ -101,22 +106,24 @@ export class MdnsService {
     }
 
     async close() {
-        await this.#construction.close(async () => {
-            try {
-                await MatterAggregateError.allSettled(
-                    [this.#server, this.#names].map(svc => svc?.close()),
-                    "Error disposing MDNS services",
-                );
-            } catch (e) {
-                logger.warn("Error disposing MDNS services", e);
-            }
+        try {
+            await this.#construction.close(async () => {
+                try {
+                    await MatterAggregateError.allSettled(
+                        [this.#server, this.#names].map(svc => svc?.close()),
+                        "Error disposing MDNS services",
+                    );
+                } catch (e) {
+                    logger.warn("Error disposing MDNS services", e);
+                }
 
-            if (this.#socket) {
                 await this.#socket?.close();
-            }
 
-            this.#server = this.#names = undefined;
-        });
+                this.#server = this.#names = undefined;
+            });
+        } finally {
+            this.#runtime.delete(this);
+        }
     }
 }
 
