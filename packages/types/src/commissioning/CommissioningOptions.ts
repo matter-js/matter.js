@@ -50,9 +50,11 @@ export namespace CommissioningOptions {
         readonly additionalBleAdvertisementData?: Bytes;
 
         /**
-         * Maximum time to advdertise.  Must be > 3 minutes and < 48 hours.
+         * How long a window an uncommissioned node opens itself stays open, from 3 minutes to 48 hours.
          *
-         * Defaults to 15 minutes.
+         * Defaults to 48 hours.  A window a commissioned node opens itself stays open for 15 minutes.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 5.4.2.3
          */
         readonly advertisementWindow?: Duration;
     }

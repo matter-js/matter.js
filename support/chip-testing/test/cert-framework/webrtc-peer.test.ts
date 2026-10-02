@@ -50,6 +50,28 @@ describe("WebRtcPeer", () => {
         }
     });
 
+    it("reports the library's recent log with an operation that failed", async function () {
+        this.timeout(30_000);
+
+        const offerer = new WebRtcPeer("offerer");
+        try {
+            await offerer.offer();
+            const failure = await offerer.accept("v=0\r\nnot a session description\r\n").then(
+                () => undefined,
+                (e: unknown) => e,
+            );
+
+            // A line the failing call itself logged, which reaches JavaScript only after the call threw
+            expect(failure)
+                .instanceOf(Error)
+                .with.property("message")
+                .that.contains("libdatachannel log, last")
+                .and.contains("setRemoteDescription() called");
+        } finally {
+            await offerer.close();
+        }
+    });
+
     it("settles a DTLS role the answer left open, and says that it did", async function () {
         this.timeout(30_000);
 
