@@ -68,7 +68,7 @@ export class IcdModeState {
             return;
         }
         this.#running = true;
-        this.#enterActive(this.#activeModeDuration);
+        this.#enterActive(this.#activeModeDuration, Time.nowUs);
     }
 
     /** Node going offline: pause; stop the active-window timer without emitting transitions. Idempotent. */
@@ -84,9 +84,9 @@ export class IcdModeState {
             return;
         }
         if (this.#mode === IcdMode.Idle) {
-            this.#enterActive(this.#activeModeThreshold);
+            this.#enterActive(this.#activeModeThreshold, Time.nowUs);
         } else {
-            this.#scheduleActiveFor(this.#activeModeThreshold);
+            this.#scheduleActiveFor(this.#activeModeThreshold, Time.nowUs);
         }
     }
 
@@ -98,12 +98,13 @@ export class IcdModeState {
         if (!this.#running) {
             return Millis(0);
         }
+        const now = Time.nowUs;
         if (this.#mode === IcdMode.Idle) {
-            this.#enterActive(duration);
+            this.#enterActive(duration, now);
         } else {
-            this.#scheduleActiveFor(duration);
+            this.#scheduleActiveFor(duration, now);
         }
-        return this.#remainingActive();
+        return Millis.floor(this.#remainingActive(now));
     }
 
     /** Force Idle mode now (unconditional — harness/app control). No-op when not running or already Idle. */
@@ -120,26 +121,26 @@ export class IcdModeState {
         this.stop();
     }
 
-    #remainingActive(): Duration {
-        return Duration.max(Millis(0), Timespan(Time.nowMs, this.#activeUntil).duration);
+    #remainingActive(now: Timestamp): Duration {
+        return Duration.max(Millis(0), Timespan(now, this.#activeUntil).duration);
     }
 
-    #enterActive(forAtLeast: Duration) {
+    #enterActive(forAtLeast: Duration, now: Timestamp) {
         this.#mode = IcdMode.Active;
         this.#activeUntil = Timestamp(0); // reset so the next schedule sets the floor from now
-        this.#scheduleActiveFor(Duration.max(this.#activeModeDuration, forAtLeast));
+        this.#scheduleActiveFor(Duration.max(this.#activeModeDuration, forAtLeast), now);
         this.#onActiveEntered();
     }
 
     /** Extend the active deadline to at least now + `fromNow`, never shortening it; rearm the one-shot window timer. */
-    #scheduleActiveFor(fromNow: Duration) {
-        const candidate = Timestamp(Time.nowMs + fromNow);
+    #scheduleActiveFor(fromNow: Duration, now: Timestamp) {
+        const candidate = Timestamp(now + fromNow);
         if (candidate <= this.#activeUntil) {
             return;
         }
         this.#activeUntil = candidate;
         this.#activeTimer?.stop();
-        this.#activeTimer = Time.getTimer("icd-active-window", this.#remainingActive(), () =>
+        this.#activeTimer = Time.getTimer("icd-active-window", this.#remainingActive(now), () =>
             this.#onWindowExpired(),
         ).start();
     }

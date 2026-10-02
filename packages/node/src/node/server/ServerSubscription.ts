@@ -771,6 +771,7 @@ export class ServerSubscription implements Subscription {
             return;
         }
         this.#isClosed = true;
+        using _closing = this.#lifetime?.closing();
 
         await this.#cancel(flushViaSession, currentExchange);
 
@@ -786,6 +787,7 @@ export class ServerSubscription implements Subscription {
             return;
         }
         this.#isClosed = true;
+        using _closing = this.#lifetime?.closing();
         await this.#cancel();
     }
 

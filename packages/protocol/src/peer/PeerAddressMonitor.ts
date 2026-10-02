@@ -187,7 +187,7 @@ export class PeerAddressMonitor {
                 return true;
             }
             const lastKnownGood = Timestamp(Math.max(this.#lastProbeAt ?? 0, session.activeTimestamp));
-            if (lastKnownGood > 0 && Timestamp.delta(lastKnownGood) < this.#currentCooldown) {
+            if (lastKnownGood > 0 && Timestamp.delta(lastKnownGood, Time.nowUs) < this.#currentCooldown) {
                 return true;
             }
             logger.info(
@@ -196,7 +196,7 @@ export class PeerAddressMonitor {
                 Diagnostic.strong(ServerAddress.urlFor(currentAddress)),
                 "no longer in mDNS results, probing",
             );
-            this.#lastProbeAt = Time.nowMs;
+            this.#lastProbeAt = Time.nowUs;
         }
 
         const network = this.#peer.network;
