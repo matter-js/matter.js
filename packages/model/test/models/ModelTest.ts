@@ -418,6 +418,71 @@ describe("Model", () => {
                 expect(parent.get(AttributeModel, 2)?.name).equals("B");
             });
 
+            it("validates every child added by push or unshift", () => {
+                const { parent, names } = abcd();
+                const bogus = { tag: "bogus", name: "X" };
+                expect(() => Reflect.apply(parent.children.push, parent.children, [bogus])).throws(ImplementationError);
+                expect(() => Reflect.apply(parent.children.unshift, parent.children, [bogus])).throws(
+                    ImplementationError,
+                );
+                expect(names()).equals("ABCD");
+            });
+
+            it("splice without arguments changes nothing", () => {
+                const { parent, names } = abcd();
+                expect(Reflect.apply(parent.children.splice, parent.children, [])).deep.equals([]);
+                expect(names()).equals("ABCD");
+            });
+
+            it("refuses an invalid length", () => {
+                const { parent, names } = abcd();
+                expect(() => (parent.children.length = -1)).throws(ImplementationError);
+                expect(() => (parent.children.length = 1.5)).throws(ImplementationError);
+                expect(names()).equals("ABCD");
+            });
+
+            it("moves no child when one of several cannot leave its parent", () => {
+                const { parent, children } = abcd();
+                const frozen = new ClusterModel({
+                    name: "Frozen",
+                    children: [new AttributeModel({ id: 9, name: "F" })],
+                });
+                frozen.finalize();
+                const destination = new ClusterModel({ name: "Destination" });
+
+                expect(() => destination.children.push(children[0], frozen.children[0])).throws(ImplementationError);
+
+                expect(destination.children.length).equals(0);
+                expect(children[0].parent).equals(parent);
+                expect(parent.children[0]).equals(children[0]);
+            });
+
+            it("refuses a reorder that changes the list meanwhile", () => {
+                const { parent, ownedBy } = abcd();
+                expect(() =>
+                    parent.children.sort(() => {
+                        parent.children.pop();
+                        return 0;
+                    }),
+                ).throws(ImplementationError);
+                expect(parent.children.every(child => child.parent === parent)).equals(true);
+                expect(ownedBy(parent).length).equals(parent.children.length);
+            });
+
+            it("select with several tags visits children in list order", () => {
+                const parent = new ClusterModel({
+                    name: "Foo",
+                    children: [
+                        { tag: "command", id: 1, name: "Go", direction: "request" },
+                        { tag: "attribute", id: 2, name: "A" },
+                    ],
+                });
+
+                expect(parent.children.select(() => true, [ElementTag.Attribute, ElementTag.Command])?.name).equals(
+                    "Go",
+                );
+            });
+
             it("all and select visit children in list order", () => {
                 const parent = new ClusterModel({
                     name: "Foo",

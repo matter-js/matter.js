@@ -355,11 +355,15 @@ class ChildList<T extends Model = Model> {
     }
 
     #indexApply(selector: (child: Model) => boolean, allowedTags: Children.TagSelector, except?: Set<Model>) {
-        for (const type of this.#selectTypes(allowedTags)) {
-            for (const child of this.#children) {
-                if (child instanceof type && !except?.has(child) && selector(child)) {
-                    return child;
-                }
+        const types = this.#selectTypes(allowedTags);
+        for (const child of this.#children) {
+            if (
+                child instanceof ModelConstructor &&
+                types.some(type => child instanceof type) &&
+                !except?.has(child) &&
+                selector(child)
+            ) {
+                return child;
             }
         }
     }
@@ -396,6 +400,9 @@ class ChildList<T extends Model = Model> {
 
     #splice(index: number, deleteCount: number, ...toAdd: Model.TaggedDefinition<T>[]) {
         this.#assertMutable();
+        for (const child of toAdd) {
+            this.#validateChild(child);
+        }
         toAdd = toAdd.map(child => this.#insertionFormOf(child));
 
         const models = toAdd.filter(child => child instanceof ModelConstructor);
@@ -403,15 +410,23 @@ class ChildList<T extends Model = Model> {
             throw new ImplementationError("A model cannot be listed twice among the children of one model");
         }
 
-        // Adopting removes a model from its former parent, which may refuse, so do it before changing this list
-        for (const model of models) {
+        const own = new Set(models.filter(model => model.parent?.children === this.#proxy));
+        const joining = models.filter(model => !own.has(model));
+
+        // Adopting removes a model from its former parent, so check every parent before moving any model
+        for (const model of joining) {
+            if (model.parent !== undefined && Object.isFrozen(model.parent.children)) {
+                throw new ImplementationError(`Cannot move ${model} out of finalized ${model.parent}`);
+            }
+        }
+        for (const model of joining) {
             this.#doAdopt(model);
         }
 
         let start = relativeIndex(index, this.#children.length);
         const count = Math.max(Math.trunc(deleteCount) || 0, 0);
 
-        for (const model of models) {
+        for (const model of own) {
             const current = this.#children.indexOf(model);
             if (current === -1 || (current >= start && current < start + count)) {
                 continue;
@@ -443,7 +458,11 @@ class ChildList<T extends Model = Model> {
         this.#assertMutable();
         this.#reify();
         const next = this.#children.filter((child): child is T => child instanceof ModelConstructor);
+        const generation = this.#generation;
         operation(next);
+        if (this.#generation !== generation) {
+            throw new ImplementationError("Children changed while they were being reordered");
+        }
         for (let i = 0; i < next.length; i++) {
             this.#children[i] = next[i];
         }
@@ -521,6 +540,9 @@ class ChildList<T extends Model = Model> {
 
             case "splice":
                 return (...args: [index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]]) => {
+                    if (!args.length) {
+                        return [];
+                    }
                     const [index, deleteCount, ...toAdd] = args;
                     return this.#splice(index, args.length < 2 ? Infinity : (deleteCount ?? 0), ...toAdd);
                 };
@@ -574,9 +596,14 @@ class ChildList<T extends Model = Model> {
     #proxySet(name: string | symbol, value: any, receiver: unknown) {
         if (typeof name !== "string" || !name.match(/^\d+$/)) {
             if (name === "length") {
+                const length = Number(value);
+                if (length >>> 0 !== length) {
+                    throw new ImplementationError(`Invalid children length ${value}`);
+                }
+
                 // Do not allow preallocation that would create gaps
-                if (value < this.#children.length) {
-                    this.#splice(value, Infinity);
+                if (length < this.#children.length) {
+                    this.#splice(length, Infinity);
                 }
                 return true;
             }
