@@ -227,7 +227,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
             return;
         }
 
-        const now = Time.nowMs;
+        const now = Time.nowUs;
         let nextTimeoutAt: Timestamp | undefined;
 
         // Process each subscription

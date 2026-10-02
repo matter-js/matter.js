@@ -31,7 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `QuietObservable.isObservedBy()` no longer recurses without end when its sink does not report the observer, or when it has no sink
 
 - @matter/model
-    - Enhancement: `MatterModel` lookups (`clusters`, `deviceTypes`, `datatypes`, `fields`, `attributes`) on non-inherited models reuse their index until the model's children change instead of rebuilding the model scope on each access; `Matter.clusters(id)` drops from about 180 µs to under 1 µs
+    - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
     - Fix: Child lookups (`Model.get()`, `Model.all()`, `children.select()`) follow changes made by `splice()`, so they no longer return a removed child or miss an added one; duplicate IDs resolve in list order and names such as `constructor` match nothing. A child that `splice()` removes and adds back keeps its parent
     - Fix: `MatterModel.permanentDatatypes` lists seed datatypes only and keeps a seed datatype replaced by one of the same name
     - Enhancement: Feature conformance analysis supports a choice set bounded from above, such as `O.a-`, and a choice set a member joins under several conditions, such as `[!A & !B].a`
@@ -69,6 +69,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: A closed `MdnsService` no longer stays registered as a runtime worker, so the runtime can go inactive after its nodes close
+    - Feature: `PersistedMessageCounter` and `DeviceCertification` have `close()`
     - Enhancement: `RebootResubscribeArmer.arm()` takes the delay the device waits before it applies, and its return deadline covers that delay
     - Fix: `DeviceCommissioner.allowBasicCommissioning()` and `allowEnhancedCommissioning()` take `DeviceCommissioner.WindowOptions` (timeout, whether an Administrator opens the window, close callback) instead of a close callback, and close the window after its timeout. An Administrator's window replaces a window the node opened itself, the node opening its own window again restarts it, and any other overlap throws `MatterFlowError`. `windowStatus` reports the open window and `isAdministratorWindowOpen` whether an Administrator's window is open or waiting to open
     - Fix: A server sends no Status Response to an Invoke or Write request with SuppressResponse set to TRUE, errors included, as the CHIP SDK 1.6.1 does. A failure after the peer acknowledged an InvokeResponse chunk is still reported
@@ -100,8 +102,14 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A commissioner rejects a `PBKDFParamResponse` whose PBKDF iteration count is outside 1000..100000 and answers `InvalidParam`, instead of deriving the PASE key with whatever count the device sent. A PASE message that fails schema validation is reported as an `UnexpectedDataError` naming the message and field, and ends only the commissioning candidate that sent it, instead of cancelling every other candidate. The commissioner passes each address of a device as a separate candidate, so its other addresses are still tried
     - Fix: A new PASE or CASE session never gets local session ID 0, the ID of the unsecured session. Roughly one start in 65536 gave the first session ID 0, so the peer's replies were dropped as unsecured and commissioning failed with `peer-unresponsive`. After all IDs are taken, reusing the session with the highest ID no longer hands out an ID above 65535 next
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
+    - Fix: A controller times the liveness of its subscriptions on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A forward step of the wall clock, such as an NTP correction, timed out healthy subscriptions and resubscribed; a backward step delayed the detection of a lost subscription by the length of the step
+    - Fix: Sessions time their activity on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step classified the peer as active or idle wrongly, which sets the MRP retransmission intervals, and could make a node pick, evict or keep after a peer loss the wrong session
+    - Breaking: `Session.timestamp`, `activeTimestamp` and `createdAt`, and the `asOf` of `PeerLossContext` and `SessionManager.handlePeerShutdown()`, are on the clock of `Time.nowUs`, not `Time.nowMs`; the timestamps `getActiveSessionInformation()` and `SessionsBehavior` report stay wall-clock times
+    - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: A closed subscription releases its diagnostic lifetime, so a long-running device no longer keeps one per subscription it ever served
+    - Fix: A closed node closes its group message counter, its device certification, the controller's fabric authority and its client subscriptions
     - Fix: An OTA provider that allows an apply with a `DelayedActionTime` expects the device's restart only after that delay plus the time to apply and restart; it gave up three minutes after allowing the apply and replaced the subscription the device was about to resume
     - Feature: `OtaSoftwareUpdateProviderServer` state `applyDelay` sets the `DelayedActionTime` a provider allows an apply with
     - Fix: A commissioning window the node opens itself closes after 48 hours (by default) if the node is not commissioned and after 15 minutes if it is; it previously stayed open until the node stopped
@@ -164,6 +172,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A subscription times its min interval floor and DelayReportData deferrals on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A backward step of the wall clock, such as an NTP correction, held reports and keep-alives for up to the length of the step; a forward step let a report through inside the MinIntervalFloor and ended a deferral early
     - Fix: Decommissioning a node closes its protocol `Peer` and deletes its session resumption record; before, the peer was dropped from the `PeerSet` while still open, so its timers kept running until the process ended
     - Fix: A factory reset closes the `FabricAuthority` the node owns, such as the one the OTA provider or WebRTC requestor created, instead of only removing it from the environment
+    - Fix: An ICD times its active window on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or extended the window, and after a backward step the device answered a StayActiveRequest with an active time as long as the step
 
 - @matter/testing
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line

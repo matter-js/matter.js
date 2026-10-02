@@ -541,7 +541,7 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     #messageExchangeContextFor(session: Session): MessageExchangeContext {
-        const createdAt = Time.nowMs;
+        const createdAt = Time.nowUs;
         return {
             session,
             localSessionParameters: this.#sessions.sessionParameters,

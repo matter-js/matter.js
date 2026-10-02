@@ -140,6 +140,20 @@ describe("MatterModel", () => {
             expect([...model.clusters].map(({ name }) => name)).deep.equals(["A", "B"]);
         });
 
+        it("follow changes to the base of an extended model", () => {
+            const base = new MatterModel({
+                name: "Base",
+                children: [new ClusterModel({ id: 0xfff4_fc61, name: "A" })],
+            });
+            const extended = base.extend();
+            expect(extended.clusters(0xfff4_fc62)).undefined;
+
+            const added = new ClusterModel({ id: 0xfff4_fc62, name: "B" });
+            base.children.push(added);
+
+            expect(extended.clusters(0xfff4_fc62)).equals(added);
+        });
+
         it("include the base's members in an extended model", () => {
             const extended = Matter.extend({}, new ClusterModel({ id: 0xfff4_fc60, name: "Extra" }));
 
