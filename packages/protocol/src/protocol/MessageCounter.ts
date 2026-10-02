@@ -153,6 +153,11 @@ export class PersistedMessageCounter extends MessageCounter {
         });
     }
 
+    /** Release the counter's lifetime.  The counter keeps counting. */
+    close() {
+        return this.#construction.close();
+    }
+
     async #reserveAhead() {
         this.#reserved = Math.min(this.messageCounter + this.#reserve!, MAX_COUNTER_VALUE_32BIT);
         await this.storageContext.set(this.storageKey, this.#reserved);
