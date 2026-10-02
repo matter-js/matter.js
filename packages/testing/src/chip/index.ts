@@ -118,7 +118,7 @@ export type {
     WebRtcSessionSpec,
     WebRtcSignalRecord,
 } from "./cert/controller-adapter.js";
-export { resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
+export { CertConfigError, resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
 export type { ControllerImplementation } from "./cert/device-config.js";
 export { EvidenceRecorder } from "./cert/evidence.js";
 export type { RunDeviceRecord, RunRecord, StepRecord } from "./cert/evidence.js";

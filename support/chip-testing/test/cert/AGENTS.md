@@ -3224,6 +3224,18 @@ and the subject restarts into it. What makes the steps after a restart see anyth
   read skips them. With one observation per case that read is step 1's seed, which comes before any
   stimulus.
 
+## DefaultOTAProviders on two fabrics (`TC-SU-4.1`)
+
+**TC-SU-4.1 step 5's outcome depends on how the list write is encoded.** The plan expects TH4 to remain
+after the refused `[TH4, TH2]` write. That holds only for the encoding the specification requires for a
+non-ACL list: an empty REPLACE, then one ADD per entry, so only the last ADD is refused. A whole-list REPLACE
+in one `AttributeDataIB` is refused as a unit by the matter.js requestor (the list stays `[TH2]`) and applied
+entry by entry by chip's (TH4 stays). `any write-by-id` sends that forbidden form, so the chip-tool adapter
+writes `DefaultOTAProviders` through `TYPED_LIST_WRITES` instead, one attribute per request: a `writeAttributes`
+call that adds another attribute to it is refused as unsupported. A new case whose refusal step writes another
+non-ACL list from chip-tool needs an entry there too. The requestor endpoint differs between the two
+requestors (matter.js 1, chip 0), so step 0 finds it with a wildcard read.
+
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 
 Four "DUT sends *command* to TH" steps against chip's network-manager app, the same shape as the
