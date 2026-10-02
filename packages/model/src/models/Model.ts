@@ -68,9 +68,11 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     set id(value: E["id"]) {
-        const oldId = this.effectiveId;
+        if (value === this.#id) {
+            return;
+        }
         this.#id = value;
-        (this.#position.parent?.children as InternalChildren | undefined)?.updateId(this, oldId);
+        (this.#position.parent?.children as InternalChildren | undefined)?.keysChanged();
     }
 
     get name() {
@@ -78,9 +80,11 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     set name(value: string) {
-        const oldName = this.#name;
+        if (value === this.#name) {
+            return;
+        }
         this.#name = value;
-        (this.#position.parent?.children as InternalChildren | undefined)?.updateName(this, oldName);
+        (this.#position.parent?.children as InternalChildren | undefined)?.keysChanged();
     }
 
     /**
@@ -227,6 +231,13 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
 
     get hasChildren(): boolean {
         return !!this.#children?.length;
+    }
+
+    /**
+     * Changes whenever {@link children} or the ID or name of a child changes.
+     */
+    protected get childrenGeneration() {
+        return this.#children?.generation ?? 0;
     }
 
     /**
