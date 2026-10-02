@@ -617,12 +617,15 @@ export class SessionManager {
     /**
      * Removes all Peer sessions but keeps subscriptions intact because they could be refreshed on restart when the
      * device supports persistent subscriptions.
+     *
+     * @param asOf sessions created at or after this instant are kept; on the clock of {@link Time.nowUs} like
+     * {@link Session.createdAt}, not a wall-clock time.  Defaults to now.
      */
     handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
         return this.#handlePeerLoss({
             address,
             cause: new PeerShutdownError(),
-            asOf: asOf ?? Time.nowMs,
+            asOf: asOf ?? Time.nowUs,
             keepSubscriptions: true,
         });
     }
@@ -631,7 +634,7 @@ export class SessionManager {
      * Removes all Peer sessions and closes subscriptions.
      */
     async handlePeerLoss(address: PeerAddress, context: PeerLossContext) {
-        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowMs });
+        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowUs });
     }
 
     /**
@@ -1007,17 +1010,20 @@ export class SessionManager {
         this.#construction.assert();
         return [...this.#sessions]
             .filter(session => session.isSecure && !session.isPase)
-            .map(session => ({
-                name: `${session.via}`,
-                nodeId: session.nodeId,
-                peerNodeId: session.peerNodeId,
-                fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,
-                isPeerActive: session.isPeerActive,
-                secure: session.isSecure,
-                lastInteractionTimestamp: session instanceof SecureSession ? session.timestamp : undefined,
-                lastActiveTimestamp: session instanceof SecureSession ? session.activeTimestamp : undefined,
-                numberOfActiveSubscriptions: session instanceof SecureSession ? session.subscriptions.size : 0,
-            }));
+            .map(session => {
+                const activity = session instanceof SecureSession ? session.wallClockActivity : undefined;
+                return {
+                    name: `${session.via}`,
+                    nodeId: session.nodeId,
+                    peerNodeId: session.peerNodeId,
+                    fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,
+                    isPeerActive: session.isPeerActive,
+                    secure: session.isSecure,
+                    lastInteractionTimestamp: activity?.lastInteractionTimestamp,
+                    lastActiveTimestamp: activity?.lastActiveTimestamp,
+                    numberOfActiveSubscriptions: session instanceof SecureSession ? session.subscriptions.size : 0,
+                };
+            });
     }
 
     async close() {
