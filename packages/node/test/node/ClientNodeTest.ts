@@ -63,6 +63,7 @@ import {
     PeerSet,
     Read,
     ReadResult,
+    SessionManager,
     Val,
     ValidateError,
 } from "@matter/protocol";
@@ -82,6 +83,7 @@ import { Descriptor } from "@matter/types/clusters/descriptor";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
+import { captureErrorsOf } from "../endpoint/validation/validation-helpers.js";
 import { MockSite } from "./mock-site.js";
 import { seedPeerCache, subscribedPeer } from "./node-helpers.js";
 
@@ -701,6 +703,51 @@ describe("ClientNode", function () {
 
         const peer1b = controllerB.peers.get("peer1")!;
         expect(peer1b).undefined;
+    });
+
+    it("closes the protocol peer on decommission", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const address = peer1.peerAddress!;
+        const protocolPeer = controller.env.get(PeerSet).get(address)!;
+        const sessions = controller.env.get(SessionManager);
+        expect(protocolPeer.lifetime.isClosed).false;
+        expect(sessions.findResumptionRecordByAddress(address)).not.undefined;
+
+        await MockTime.resolve(peer1.decommission());
+
+        expect(protocolPeer.lifetime.isClosed).true;
+        expect(sessions.findResumptionRecordByAddress(address)).undefined;
+    });
+
+    it("closes the protocol peer when the node's address is cleared", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const address = peer1.peerAddress!;
+        const protocolPeer = controller.env.get(PeerSet).get(address)!;
+
+        const errors = await captureErrorsOf(async () => {
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.commissioning.state.peerAddress = undefined;
+                }),
+            );
+
+            // The peer is removed by an offline reaction that settles after the transaction
+            const sessions = controller.env.get(SessionManager);
+            for (let wait = 0; sessions.findResumptionRecordByAddress(address) !== undefined && wait < 50; wait++) {
+                await MockTime.resolve(MockTime.sleep("peer removal", Millis(100)));
+            }
+        });
+
+        expect(errors).deep.equals([]);
+        expect(protocolPeer.lifetime.isClosed).true;
+        expect(controller.env.get(PeerSet).has(protocolPeer)).false;
+        expect(controller.env.get(SessionManager).findResumptionRecordByAddress(address)).undefined;
     });
 
     it("rejects delete after destroyed", async () => {

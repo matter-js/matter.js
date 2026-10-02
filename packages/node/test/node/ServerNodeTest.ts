@@ -49,6 +49,7 @@ import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/m
 import {
     AttestationCertificateManager,
     CertificateAuthority,
+    FabricAuthority,
     CertificationDeclaration,
     FabricManager,
     MdnsService,
@@ -690,6 +691,20 @@ describe("ServerNode", () => {
         expect(() => ca.rootCert).throws();
         const { publicKey } = await controller.env.get(Crypto).createKeyPair();
         await expect(ca.generateNoc(publicKey, FabricId(1), NodeId(1))).rejected;
+    });
+
+    it("factory reset closes the fabric authority the node owns", async () => {
+        const node = await MockServerNode.createOnline();
+
+        // As the OTA and WebRTC behaviors obtain it
+        const authority = await node.env.load(FabricAuthority);
+        expect(node.env.owns(FabricAuthority)).equals(true);
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+
+        expect(authority.construction.status).equals(Lifecycle.Status.Destroyed);
+
+        await node.close();
     });
 
     it("completes factory reset when a peer cannot be torn down", async () => {
