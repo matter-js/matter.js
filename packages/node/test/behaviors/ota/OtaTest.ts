@@ -13,6 +13,7 @@ import {
     OtaSoftwareUpdateRequestorClient,
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
+import { Endpoint } from "#endpoint/Endpoint.js";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
 import {
@@ -509,40 +510,57 @@ describe("Ota", () => {
     }).timeout(10_000);
 
     describe("with a provider that answers Busy", () => {
-        /** A provider answering every query Busy, which a test can wait on by the number of queries answered. */
+        /** A provider answering every query Busy, recording the virtual time of each answer. */
         function BusyOtaProviderServer() {
-            let answered = 0;
-            const waiters = new Map<number, () => void>();
+            const answeredAt = new Array<number>();
 
             class TestOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 override async queryImage(): Promise<OtaSoftwareUpdateProvider.QueryImageResponse> {
-                    answered++;
-                    waiters.get(answered)?.();
+                    answeredAt.push(MockTime.nowUs);
                     return { status: OtaSoftwareUpdateProvider.Status.Busy, delayedActionTime: 60 };
                 }
             }
 
+            return { TestOtaProviderServer, answeredAt };
+        }
+
+        /**
+         * The requestor's state transitions, which a test can wait on by the number of transitions into a state.  Waits
+         * on the requestor's own events, so they do not depend on how far mock network delivery lags virtual time.
+         */
+        function stateTransitionsOf(otaRequestor: Endpoint) {
+            const transitions = new Array<OtaSoftwareUpdateRequestor.StateTransitionEvent>();
+            const waiters = new Array<{
+                state: OtaSoftwareUpdateRequestor.UpdateState;
+                count: number;
+                resolver: () => void;
+            }>();
+
+            const reached = (state: OtaSoftwareUpdateRequestor.UpdateState, count: number) =>
+                transitions.filter(({ newState }) => newState === state).length >= count;
+
+            otaRequestor.eventsOf(OtaSoftwareUpdateRequestorServer).stateTransition.on(event => {
+                transitions.push(event);
+                for (const waiter of [...waiters]) {
+                    if (reached(waiter.state, waiter.count)) {
+                        waiters.splice(waiters.indexOf(waiter), 1);
+                        waiter.resolver();
+                    }
+                }
+            });
+
             return {
-                TestOtaProviderServer,
-                get answered() {
-                    return answered;
-                },
-                answer(count: number) {
+                transitions,
+                into(state: OtaSoftwareUpdateRequestor.UpdateState, count = 1) {
                     const { promise, resolver } = createPromise<void>();
-                    if (answered >= count) {
+                    if (reached(state, count)) {
                         resolver();
                     } else {
-                        waiters.set(count, resolver);
+                        waiters.push({ state, count, resolver });
                     }
                     return promise;
                 },
             };
-        }
-
-        /** Gives the requestor a second of virtual time to handle the answer it received. */
-        async function settle() {
-            await MockTime.advance(Seconds(1));
-            await MockTime.macrotasks;
         }
 
         it("waits in DelayedOnQuery while the retry is armed, and queries again when it is due", async () => {
@@ -552,24 +570,24 @@ describe("Ota", () => {
                 OtaSoftwareUpdateRequestorServer,
             );
             await using _localSite = site;
+            const states = stateTransitionsOf(otaRequestor);
 
-            await MockTime.resolve(busy.answer(1));
-            await settle();
-            expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
-                OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery,
-            );
+            await MockTime.resolve(states.into(OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery));
+            await MockTime.resolve(states.into(OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery, 2));
+
+            const { Querying, DelayedOnQuery } = OtaSoftwareUpdateRequestor.UpdateState;
+            expect(states.transitions.map(({ newState }) => newState)).deep.equals([
+                Querying,
+                DelayedOnQuery,
+                Querying,
+                DelayedOnQuery,
+            ]);
+
+            expect(busy.answeredAt.length).equals(2);
 
             // The provider asked for 60 s, and the requestor's minimum query interval of 120 s is longer
-            await MockTime.advance(Seconds(110));
-            await MockTime.macrotasks;
-            expect(busy.answered).equals(1);
-            await MockTime.advance(Seconds(20));
-            await MockTime.macrotasks;
-            expect(busy.answered).equals(2);
-            await settle();
-            expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
-                OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery,
-            );
+            const [first, second] = busy.answeredAt;
+            expect(second - first).within(Seconds(120), Seconds(130));
         });
 
         it("gives up on the provider after three Busy retries", async () => {
@@ -579,16 +597,16 @@ describe("Ota", () => {
                 OtaSoftwareUpdateRequestorServer,
             );
             await using _localSite = site;
+            const states = stateTransitionsOf(otaRequestor);
 
-            await MockTime.resolve(busy.answer(4));
-            await settle();
-            expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
-                OtaSoftwareUpdateRequestor.UpdateState.Idle,
-            );
+            await MockTime.resolve(states.into(OtaSoftwareUpdateRequestor.UpdateState.Idle));
+            expect(busy.answeredAt.length).equals(4);
 
+            const transitions = states.transitions.length;
             await MockTime.advance(Minutes(10));
             await MockTime.macrotasks;
-            expect(busy.answered).equals(4);
+            expect(states.transitions.length).equals(transitions);
+            expect(busy.answeredAt.length).equals(4);
         });
 
         it("returns to Idle when updates are disabled while it waits", async () => {
@@ -598,17 +616,21 @@ describe("Ota", () => {
                 OtaSoftwareUpdateRequestorServer,
             );
             await using _localSite = site;
-            await MockTime.resolve(busy.answer(1));
-            await settle();
+            const states = stateTransitionsOf(otaRequestor);
+            await MockTime.resolve(states.into(OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery));
 
-            await otaRequestor.setStateOf(OtaSoftwareUpdateRequestorServer, { updatePossible: false });
+            await MockTime.resolve(
+                otaRequestor.setStateOf(OtaSoftwareUpdateRequestorServer, { updatePossible: false }),
+            );
 
             expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
                 OtaSoftwareUpdateRequestor.UpdateState.Idle,
             );
+            const transitions = states.transitions.length;
             await MockTime.advance(Minutes(10));
             await MockTime.macrotasks;
-            expect(busy.answered).equals(1);
+            expect(states.transitions.length).equals(transitions);
+            expect(busy.answeredAt.length).equals(1);
         });
     });
 
