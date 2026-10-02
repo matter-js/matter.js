@@ -139,6 +139,7 @@ export class CommissioningClient extends Behavior {
         const node = this.endpoint as ClientNode;
         this.reactTo(node.lifecycle.partsReady, this.#initializeNode);
         this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
+        this.reactTo(this.events.peerAddress$Changed, this.#deleteFormerPeer, { offline: true });
         this.reactTo(this.events.addresses$Changed, this.#operationalAddressesChanged);
         this.reactTo(this.events.caseAuthenticatedTags$Changed, this.#catsChanged);
     }
@@ -389,9 +390,8 @@ export class CommissioningClient extends Behavior {
 
             // Removal confirmed.  Must run before commit unbinds Peer via peerAddress$Changed.
             const node = this.endpoint as ClientNode;
-            const peer = node.env.maybeGet(Peer);
             try {
-                await peer?.disconnect(new PeerLeftError());
+                await node.env.maybeGet(Peer)?.disconnect(new PeerLeftError());
             } catch (error) {
                 logger.warn(`Error force-closing sessions for ${formerAddress} after decommission:`, error);
             }
@@ -401,12 +401,6 @@ export class CommissioningClient extends Behavior {
             this.state.fabricIndexOnPeer = undefined;
 
             await this.context.transaction.commit();
-
-            try {
-                await peer?.delete();
-            } catch (error) {
-                logger.warn(`Error removing peer ${formerAddress} after decommission:`, error);
-            }
 
             logger.info(
                 "Decommissioned",
@@ -612,6 +606,22 @@ export class CommissioningClient extends Behavior {
         } else if (oldAddr) {
             this.#unbindPeer(oldAddr);
             node.lifecycle.decommissioned.emit(this.context);
+        }
+    }
+
+    /**
+     * Close and forget the protocol peer of an address the node no longer has.
+     */
+    async #deleteFormerPeer(addr?: ProtocolPeerAddress, oldAddr?: ProtocolPeerAddress) {
+        if (addr !== undefined || oldAddr === undefined || this.state.peerAddress !== undefined) {
+            return;
+        }
+
+        const formerAddress = ProtocolPeerAddress(oldAddr);
+        try {
+            await this.env.maybeGet(PeerSet)?.get(formerAddress)?.delete();
+        } catch (error) {
+            logger.warn(`Error removing peer ${formerAddress} after its address was cleared:`, error);
         }
     }
 
