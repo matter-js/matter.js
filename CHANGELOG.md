@@ -29,6 +29,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: `Observable` has `observed`, an `ObservableValue` of `isObserved` that emits when it changes. It is created on first access; an observable whose `observed` nobody accesses does not track it. An implementation of the `Observable` interface that does not extend `BasicObservable` must add it
     - Fix: An `ObservableProxy` without observers no longer counts as an observer of its target, so `isObserved` of an event a behavior only accessed through `this.events` is `false`
     - Fix: `QuietObservable.isObservedBy()` no longer recurses without end when its sink does not report the observer, or when it has no sink
+    - Fix: `UdpMulticastServer.create()` closes the sockets it already opened when it fails, such as the IPv4 socket when the IPv6 socket cannot be created
 
 - @matter/model
     - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
@@ -70,6 +71,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: An `MdnsService` that cannot open its socket removes itself from the environment and the runtime, so a node started afterwards creates a new one instead of failing again, and the runtime can stop
     - Fix: A closed `MdnsService` no longer stays registered as a runtime worker, so the runtime can go inactive after its nodes close
     - Feature: `PersistedMessageCounter` and `DeviceCertification` have `close()`
     - Enhancement: `RebootResubscribeArmer.arm()` takes the delay the device waits before it applies, and its return deadline covers that delay
@@ -242,6 +244,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs
     - Fix: The Node.js environment uses standard crypto where Node.js's crypto module offers no SHA-256 digest, or no `aes-128-ccm` cipher or decipher, which is the case on Bun and Deno, and says which was missing. It previously made that choice by runtime name, so it covered Bun alone and left Deno on an implementation that fails commissioning. Where the process restricts its cryptographic provider it keeps Node.js crypto rather than evading the restriction, and reports that Matter will fail where it needs the missing primitive
     - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
+    - Fix: `NodeJsUdpSocket.create()` closes the bound socket when it cannot configure it, such as for a network interface that does not exist, so the port is not held
 
 - @matter/protocol
     - Breaking: `ClientSubscriptions.lastReportStartedAtFor()` and `PeerSubscription.lastReportStartedAt` are removed; the new `ClientSubscriptions.reportStarted` observable emits the session each inbound report arrives over

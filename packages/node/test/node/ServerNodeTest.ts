@@ -26,6 +26,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
+    CrashedDependencyError,
     Crypto,
     DnsCodec,
     DnsMessage,
@@ -37,13 +38,18 @@ import {
     isObject,
     MemoryBlobStorageDriver,
     MemoryStorageDriver,
+    MdnsSocket,
     MockCrypto,
+    MockNetwork,
     MockUdpSocket,
+    Network,
+    NetworkError,
     NetworkSimulator,
     Seconds,
     STANDARD_MATTER_PORT,
     StorageManager,
     StorageService,
+    UdpSocketOptions,
 } from "@matter/general";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
 import {
@@ -546,6 +552,48 @@ describe("ServerNode", () => {
             .rejected;
 
         expect(closes).equals(1);
+    });
+
+    it("starts a node after an earlier node could not open the mDNS socket", async () => {
+        class MdnsBlockingNetwork extends MockNetwork {
+            blocked = true;
+
+            override createUdpSocket(options: UdpSocketOptions) {
+                if (this.blocked && options.listeningPort === MdnsSocket.BROADCAST_PORT) {
+                    return Promise.reject(new NetworkError("mDNS port unavailable"));
+                }
+                return super.createUdpSocket(options);
+            }
+        }
+
+        const environment = new Environment("mdns-retry");
+        const network = new MdnsBlockingNetwork(new NetworkSimulator(), "00:11:22:33:44:f0", [
+            "abcd::f0",
+            "10.10.10.240",
+        ]);
+        environment.set(Network, network);
+
+        // Not disposed: a node whose construction fails before its endpoint initializer is installed cannot be closed
+        const site = new MockSite();
+        const options = { environment, device: undefined, commissioning: { enabled: false } };
+
+        const error = await site.addNode(undefined, { ...options, id: "blocked" }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        expect(error).instanceOf(CrashedDependencyError);
+        expect(error).has.nested.property("cause.message", "mDNS port unavailable");
+
+        expect(environment.has(MdnsService)).equals(false);
+        await MockTime.resolve(environment.runtime.inactive);
+
+        network.blocked = false;
+        const node = await site.addNode(undefined, { ...options, id: "recovered" });
+
+        expect(node.lifecycle.isOnline).equals(true);
+        expect(environment.get(MdnsService).construction.status).equals(Lifecycle.Status.Active);
+
+        await MockTime.resolve(node.close(), { macrotasks: true });
     });
 
     it("frees the endpoint numbers a factory reset erases", async () => {
