@@ -121,6 +121,18 @@ describe("DescriptorServer", () => {
         expect(partsState.partsList).deep.equals([]);
     });
 
+    it("stops watching a removed part", async () => {
+        const { parent, child } = await createFamily();
+
+        await child.close();
+        if (parent.state.descriptor.partsList.length) {
+            await parent.events.descriptor.partsList$Changed;
+        }
+
+        expect(parent.state.descriptor.partsList).deep.equals([]);
+        expect(child.lifecycle.destroyed.isObserved).equals(false);
+    });
+
     it("fully populates device types", async () => {
         const light = await MockEndpoint.create(ColorTemperatureLightDevice, {
             colorControl: {
