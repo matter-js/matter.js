@@ -1535,6 +1535,26 @@ describe("GroupcastServer", () => {
         });
     });
 
+    describe("groupcastTesting duration", () => {
+        it("ends testing after 60 seconds when the request omits the duration", async () => {
+            await using node = await createGroupcastNode();
+            const fabric = await node.addFabric();
+
+            await node.online({ exchange: fabricExchange(fabric.fabricIndex), command: true }, agent =>
+                agent.get(GroupcastServer).groupcastTesting({
+                    testOperation: Groupcast.GroupcastTesting.EnableListenerTesting,
+                }),
+            );
+            expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(fabric.fabricIndex);
+
+            await MockTime.advance(59_000);
+            expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(fabric.fabricIndex);
+
+            await MockTime.advance(1_000);
+            expect(node.stateOf(GroupcastServer).fabricUnderTest).equal(FabricIndex.NO_FABRIC);
+        });
+    });
+
     describe("groupcastTesting events", () => {
         it("derives multicast destination and source addresses for testing events", async () => {
             await using node = await createGroupcastNode();

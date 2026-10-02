@@ -96,6 +96,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 
 - @matter/node
+    - Fix: `GroupKeyManagementServer` accepts a `KeySetWrite` with any `GroupKeyMulticastPolicy` and ignores the field, which has no effect; it rejected every value but PerGroupID with INVALID_COMMAND. `KeySetRead` reports PerGroupID
+    - Fix: A `GroupcastTesting` request without `DurationSeconds` ends testing after 60 seconds; testing previously never ended
     - Fix: A node stopped with `stop()` and started again re-establishes its subscriptions, and afterwards stores only the subscriptions of its current run; it previously re-established none and kept storing subscriptions it could not re-establish
     - Fix: A node with the default volatile event store keeps none of its earlier events across `stop()` and `start()`, as across a restart; it previously reported them, including `ShutDown`, again to reads and subscriptions without an event filter
     - Fix: `ServiceAreaServer` without the Maps feature no longer fails to initialize

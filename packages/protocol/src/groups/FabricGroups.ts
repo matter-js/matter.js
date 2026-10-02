@@ -48,7 +48,6 @@ export class FabricGroups {
             epochStartTime2: null,
             groupSessionId2: null,
             groupKeySecurityPolicy: 0, // GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst, the other option is provisional
-            groupKeyMulticastPolicy: 0, // GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId, provisional!
         });
         if (storage !== undefined) {
             this.storage = storage;
