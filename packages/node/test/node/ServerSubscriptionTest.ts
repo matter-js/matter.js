@@ -715,34 +715,20 @@ describe("ServerSubscription", () => {
     describe("after a wall clock step", () => {
         const intervals = { minIntervalFloorSeconds: 2, maxInterval: Seconds(10), sendInterval: Seconds(8) };
 
-        // GeneralDiagnostics fails to take the node offline after a backward step longer than the node's uptime, so
-        // each test undoes its steps before closing the node
-        let stepped = 0;
-        beforeEach(() => (stepped = 0));
-        const stepWallClock = (ms: number) => {
-            stepped += ms;
-            MockTime.stepWallClock(ms);
-        };
-        const closeNode = async (node: MockServerNode) => {
-            MockTime.stepWallClock(-stepped);
-            stepped = 0;
-            await MockTime.resolve(node.close());
-        };
-
         it("sends a change held by the min interval floor when the floor ends although the wall clock stepped backwards", async () => {
             const node = await MockServerNode.createOnline();
             const { sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
 
             await at(500);
             emitChange();
-            stepWallClock(-60_000);
+            MockTime.stepWallClock(-60_000);
 
             await at(1900);
             expect(sends).length(0);
             await at(2100);
             expect(sends).length(1);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         it("sends the keep-alive at the send interval although the wall clock stepped backwards", async () => {
@@ -750,14 +736,14 @@ describe("ServerSubscription", () => {
             const { sends, at } = await subscribeWithSlowReports(node, intervals);
 
             await at(1000);
-            stepWallClock(-60_000);
+            MockTime.stepWallClock(-60_000);
 
             await at(7900);
             expect(sends).length(0);
             await at(8100);
             expect(sends).length(1);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         it("sends a change held by a deferral when the deferral ends although the wall clock stepped backwards", async () => {
@@ -765,7 +751,7 @@ describe("ServerSubscription", () => {
             const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
 
             subscription.deferReports(Seconds(3));
-            stepWallClock(-60_000);
+            MockTime.stepWallClock(-60_000);
             emitChange();
 
             await at(2900);
@@ -773,7 +759,7 @@ describe("ServerSubscription", () => {
             await at(3100);
             expect(sends).length(1);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         it("holds a change inside the min interval floor after the wall clock stepped forwards", async () => {
@@ -781,7 +767,7 @@ describe("ServerSubscription", () => {
             const { sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
 
             await at(300);
-            stepWallClock(60_000);
+            MockTime.stepWallClock(60_000);
             await at(500);
             emitChange();
 
@@ -790,7 +776,7 @@ describe("ServerSubscription", () => {
             await at(2100);
             expect(sends).length(1);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         it("holds a change until its deferral ends after the wall clock stepped forwards", async () => {
@@ -800,7 +786,7 @@ describe("ServerSubscription", () => {
             await at(1000);
             subscription.deferReports(Seconds(5));
             await at(1500);
-            stepWallClock(60_000);
+            MockTime.stepWallClock(60_000);
             await at(2000);
             emitChange();
 
@@ -809,7 +795,7 @@ describe("ServerSubscription", () => {
             await at(6100);
             expect(sends).length(1);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         it("holds a report queued behind a report being sent until its deferral ends after the wall clock stepped forwards", async () => {
@@ -825,7 +811,7 @@ describe("ServerSubscription", () => {
             emitChange();
             await at(1000);
             subscription.deferReports(Seconds(5));
-            stepWallClock(60_000);
+            MockTime.stepWallClock(60_000);
 
             await at(2000);
             await release(0);
@@ -834,7 +820,7 @@ describe("ServerSubscription", () => {
             await at(6100);
             expect(sends).length(2);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         it("keeps the deferral bound set at activation when the wall clock stepped backwards before it", async () => {
@@ -842,7 +828,7 @@ describe("ServerSubscription", () => {
             const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, {
                 maxInterval: Seconds(10),
                 sendInterval: Seconds(8),
-                beforeActivate: () => stepWallClock(-60_000),
+                beforeActivate: () => MockTime.stepWallClock(-60_000),
             });
 
             subscription.deferReports(Seconds(3));
@@ -852,14 +838,14 @@ describe("ServerSubscription", () => {
             await at(3100);
             expect(sends).length(1);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         it("sends a change at the end of a deferral requested after the wall clock stepped backwards", async () => {
             const node = await MockServerNode.createOnline();
             const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
 
-            stepWallClock(-60_000);
+            MockTime.stepWallClock(-60_000);
             subscription.deferReports(Seconds(3));
             emitChange();
 
@@ -868,7 +854,7 @@ describe("ServerSubscription", () => {
             await at(3100);
             expect(sends).length(1);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         // Characterization, this test and the next: both also pass when every computation reads the wall clock; each
@@ -879,7 +865,7 @@ describe("ServerSubscription", () => {
 
             await at(500);
             emitChange();
-            stepWallClock(60_000);
+            MockTime.stepWallClock(60_000);
             await at(2100);
             expect(sends).length(1);
             await completed(0);
@@ -887,14 +873,14 @@ describe("ServerSubscription", () => {
             await MockTime.advance(messages[0] + Seconds(8) + 1 - Time.nowUs);
             expect(sends).length(2);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
 
         it("keeps the min interval floor after the initial report when the wall clock stepped forwards before it", async () => {
             const node = await MockServerNode.createOnline();
             const { sends, emitChange, at } = await subscribeWithSlowReports(node, {
                 ...intervals,
-                beforeInitialReport: () => stepWallClock(60_000),
+                beforeInitialReport: () => MockTime.stepWallClock(60_000),
             });
 
             await at(500);
@@ -904,7 +890,7 @@ describe("ServerSubscription", () => {
             await at(2100);
             expect(sends).length(1);
 
-            await closeNode(node);
+            await MockTime.resolve(node.close());
         });
     });
 
