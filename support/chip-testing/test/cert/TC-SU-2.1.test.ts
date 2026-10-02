@@ -68,8 +68,8 @@ async function announce(
     try {
         announced = await cx.controllers.th.node(ref).announceOtaProvider(options);
     } catch (e) {
-        // Before the check, not after: the runner turns this into a skipped step only while the step
-        // has recorded nothing
+        // Before the check, not after: the runner turns this into a skipped step only while the step has
+        // recorded no check and made no call that may change the device
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
