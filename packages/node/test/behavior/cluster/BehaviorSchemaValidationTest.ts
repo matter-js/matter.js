@@ -26,6 +26,7 @@ const INTERNAL_ELEMENTS: Record<string, string[]> = {
     Identify: ["isIdentifying"],
     LevelControl: ["managedTransitionTimeHandling", "transitionEndTime", "transitionStepInterval"],
     OperationalCredentials: ["certification"],
+    OtaSoftwareUpdateProvider: ["applyDelay"],
     OtaSoftwareUpdateRequestor: [
         "activeOtaProviders",
         "announcedUpdateQueryDelay",
