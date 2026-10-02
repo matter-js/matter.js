@@ -30,7 +30,7 @@ const MATTERJS = {
     commissioned:
         "2026-08-23 22:41:11.299 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: 0670b2d454b688b9 (#1) node: 0000000000000001",
     windowOpen:
-        "2026-08-23 22:41:11.766 DEBUG AdministratorCommissioningServer Commissioning window timer started for 3m for @1:d8845766d0bbb69f•d9ca.",
+        "2026-08-23 22:41:11.766 DEBUG AdministratorCommissioningServer Commissioning window opened for 3m by fabric 1",
 };
 
 async function check(flavor: string, patterns: LogExpectPatterns, lines: string[]) {
