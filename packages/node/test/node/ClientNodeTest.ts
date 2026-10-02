@@ -85,7 +85,10 @@ import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
 import { MockSite } from "./mock-site.js";
 import { seedPeerCache, subscribedPeer } from "./node-helpers.js";
 
-describe("ClientNode", () => {
+describe("ClientNode", function () {
+    // Commissioning runs real crypto, which a loaded CI runner can stretch past the 2 s wall-clock default
+    this.timeout(10_000);
+
     before(() => {
         MockTime.init();
     });
