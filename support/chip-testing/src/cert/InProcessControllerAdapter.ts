@@ -592,17 +592,22 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 const peerAddress = this.#commandPeerAddress;
                 await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
             }
-            response = await super.applyUpdateRequest(request);
-
-            // Only over the answer the script named, and only where the provider allowed the apply: the
-            // delay tells the requestor when it may apply, so laying it over a Discontinue would name a
-            // time for something that is not going to happen.
-            if (
-                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed &&
-                scripted?.delayedActionTime !== undefined &&
-                response.action === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
-            ) {
-                response = { ...response, delayedActionTime: scripted.delayedActionTime };
+            // Only for the answer the script named: the base provider sends its delay only where it allows the apply,
+            // so a Discontinue never names a time for something that is not going to happen
+            const scriptedDelay =
+                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
+                    ? scripted?.delayedActionTime
+                    : undefined;
+            const configuredDelay = this.state.applyDelay;
+            if (scriptedDelay !== undefined) {
+                this.state.applyDelay = Seconds(scriptedDelay);
+            }
+            try {
+                response = await super.applyUpdateRequest(request);
+            } finally {
+                if (scriptedDelay !== undefined) {
+                    this.state.applyDelay = configuredDelay;
+                }
             }
         }
 

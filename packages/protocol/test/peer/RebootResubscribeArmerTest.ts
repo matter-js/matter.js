@@ -13,7 +13,15 @@ import { RebootResubscribeArmer } from "#peer/RebootResubscribeArmer.js";
 import type { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Environment, MemoryStorageDriver, Minutes, Seconds, StandardCrypto, StorageContext } from "@matter/general";
+import {
+    Environment,
+    Hours,
+    MemoryStorageDriver,
+    Minutes,
+    Seconds,
+    StandardCrypto,
+    StorageContext,
+} from "@matter/general";
 import { FabricIndex, NodeId } from "@matter/types";
 
 const PEER = PeerAddress({ fabricIndex: FabricIndex.NO_FABRIC, nodeId: NodeId(0x44cn) });
@@ -357,6 +365,48 @@ describe("RebootResubscribeArmer", () => {
 
         expect(sessionLives(stale)).equals(false); // handlePeerLoss dropped the stale session
         expect(isSubscribed(subscription)).equals(false); // closeForPeer forced re-subscription
+    });
+
+    it("extends the return deadline by the delay the device waits before it applies", async () => {
+        const { armer, registerSubscription, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER, Minutes(3));
+
+        // A device told to wait three minutes before it applies has not overstayed after the plain deadline. The
+        // recovery a deadline starts is asynchronous, so it gets the turns it would need before the check.
+        await MockTime.advance(Minutes(5));
+        for (let turn = 0; turn < 50 && isSubscribed(subscription); turn++) {
+            await MockTime.yield();
+        }
+        expect(isSubscribed(subscription)).equals(true);
+
+        await MockTime.advance(Minutes(2));
+        await MockTime.resolve(
+            (async () => {
+                while (isSubscribed(subscription)) {
+                    await MockTime.yield();
+                }
+            })(),
+        );
+        expect(isSubscribed(subscription)).equals(false);
+    });
+
+    it("waits at most a day for the restart, as a requestor may cap a longer delay to that", async () => {
+        const { armer, registerSubscription, isSubscribed } = await setup();
+        using _armer = armer;
+        const subscription = registerSubscription();
+        armer.arm(PEER, Hours(24 * 30));
+
+        await MockTime.advance(Hours(24) + Minutes(4));
+        await MockTime.resolve(
+            (async () => {
+                for (let turn = 0; turn < 50 && isSubscribed(subscription); turn++) {
+                    await MockTime.yield();
+                }
+            })(),
+        );
+        expect(isSubscribed(subscription)).equals(false);
     });
 
     it("cancels the return deadline once the device returns", async () => {

@@ -3196,7 +3196,9 @@ exactly as the query side checks `observedMs` from `announceOtaProvider`. Measur
 runtime is how to tell the two apart: raising the window should raise the runtime by the same amount.
 
 **`TC-SU-2.5` is matterjs-only and mostly `longRunning`.** Steps 1, 2 and 4 read `SoftwareVersion`
-after an apply, which needs `REBOOT_AFTER_APPLY_ARG`; step 3 is about the DUT's own two-minute floor
+after an apply, which needs `REBOOT_AFTER_APPLY_ARG`. Steps 1 to 4 restart the DUT and each waits until the TH's
+subscription delivered the `StartUp` with the applied version, so the next step does not serve while the TH
+still has the restart to learn about; step 3 is about the DUT's own two-minute floor
 under an `AwaitNextAction`, so it needs `SPEC_INTERVALS_ARG` and the run must not shorten it. Where the
 deferral falls decides which budget covers it: an `AwaitNextAction` is allowed only once the DUT asks
 again, so its wait is before the allowance, while a deferred `Proceed` is allowed at once and the DUT
@@ -3223,6 +3225,18 @@ and the subject restarts into it. What makes the steps after a restart see anyth
   re-broadcasts the events it answers with to every observer, and only the observation that made the
   read skips them. With one observation per case that read is step 1's seed, which comes before any
   stimulus.
+
+## DefaultOTAProviders on two fabrics (`TC-SU-4.1`)
+
+**TC-SU-4.1 step 5's outcome depends on how the list write is encoded.** The plan expects TH4 to remain
+after the refused `[TH4, TH2]` write. That holds only for the encoding the specification requires for a
+non-ACL list: an empty REPLACE, then one ADD per entry, so only the last ADD is refused. A whole-list REPLACE
+in one `AttributeDataIB` is refused as a unit by the matter.js requestor (the list stays `[TH2]`) and applied
+entry by entry by chip's (TH4 stays). `any write-by-id` sends that forbidden form, so the chip-tool adapter
+writes `DefaultOTAProviders` through `TYPED_LIST_WRITES` instead, one attribute per request: a `writeAttributes`
+call that adds another attribute to it is refused as unsupported. A new case whose refusal step writes another
+non-ACL list from chip-tool needs an entry there too. The requestor endpoint differs between the two
+requestors (matter.js 1, chip 0), so step 0 finds it with a wildcard read.
 
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 

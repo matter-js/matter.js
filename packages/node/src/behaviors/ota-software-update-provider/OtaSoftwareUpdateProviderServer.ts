@@ -43,6 +43,13 @@ import { OtaSoftwareUpdateProviderBehavior } from "./OtaSoftwareUpdateProviderBe
 
 const logger = Logger.get("OtaSoftwareUpdateProviderServer");
 
+/**
+ * The longest `DelayedActionTime` this provider sends, in seconds; a requestor may treat a longer one as this.
+ *
+ * @see {@link MatterSpecification.v161.Core} § 11.20.6.5.4.2
+ */
+const MAX_DELAYED_ACTION_TIME = 86_400;
+
 const OTA_UPDATE_TOKEN_LENGTH_BYTES = 32;
 
 interface OtaUpdateInProgressDetails {
@@ -83,6 +90,7 @@ export enum OtaSoftwareUpdateConsentState {
  */
 export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBehavior {
     declare readonly internal: OtaSoftwareUpdateProviderServer.Internal;
+    declare readonly state: OtaSoftwareUpdateProviderServer.State;
 
     override async initialize() {
         (await this.agent.load(DescriptorServer)).addDeviceTypes("OtaProvider");
@@ -395,12 +403,12 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
     /**
      * Default implementation of the ApplyUpdate command according to Matter specification.
-     * We always allow updated to be executed immediately by the device.
+     * An update with consent is allowed to apply after {@link OtaSoftwareUpdateProviderServer.State.applyDelay}.
      */
-    override async applyUpdateRequest({
-        updateToken,
-        newVersion,
-    }: OtaSoftwareUpdateProvider.ApplyUpdateRequest): Promise<OtaSoftwareUpdateProvider.ApplyUpdateResponse> {
+    override async applyUpdateRequest(
+        request: OtaSoftwareUpdateProvider.ApplyUpdateRequest,
+    ): Promise<OtaSoftwareUpdateProvider.ApplyUpdateResponse> {
+        const { updateToken, newVersion } = request;
         assertRemoteActor(this.context);
         const session = this.context.session;
         NodeSession.assert(session);
@@ -430,11 +438,24 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 
         // Invoked by an OTA Requestor once it is ready to apply a previously downloaded Software Image.
         // Disable BDX protocol again
-        this.#updateInProgressDetails(session.peerAddress, updateToken, OtaUpdateStatus.Applying, newVersion);
+        // Whole seconds as the response carries them, rounded up because the delay is a minimum wait, and at most a
+        // day, which a requestor may treat any longer delay as; the controller arms its restart window with what it sent
+        const delayedActionTime = Math.min(
+            MAX_DELAYED_ACTION_TIME,
+            Math.max(0, Math.ceil(Seconds.fractionalOf(this.state.applyDelay))),
+        );
+        this.#updateInProgressDetails(
+            session.peerAddress,
+            updateToken,
+            OtaUpdateStatus.Applying,
+            newVersion,
+            undefined,
+            Seconds(delayedActionTime),
+        );
 
         return {
             action: OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed,
-            delayedActionTime: 0, // Allow immediate update
+            delayedActionTime,
         };
     }
 
@@ -549,6 +570,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         lastState: OtaUpdateStatus,
         versionToApply?: number,
         directConsentObtained = false,
+        applyDelay?: Duration,
     ) {
         const { fabricIndex, nodeId: requestorNodeId } = peerAddress;
         const key = `${requestorNodeId}-${fabricIndex}-${Bytes.toHex(updateToken)}`;
@@ -584,7 +606,9 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
         this.internal.inProgressDetails.set(key, details);
 
         this.endpoint.act(agent =>
-            agent.get(SoftwareUpdateManager).onOtaStatusChange(peerAddress, lastState, details.versionToApply),
+            agent
+                .get(SoftwareUpdateManager)
+                .onOtaStatusChange(peerAddress, lastState, details.versionToApply, applyDelay),
         );
 
         // Ensure they don't block future updates
@@ -596,6 +620,16 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
 }
 
 export namespace OtaSoftwareUpdateProviderServer {
+    export class State extends OtaSoftwareUpdateProviderBehavior.State {
+        /**
+         * How long a requestor allowed to apply an update waits before it applies, sent as `DelayedActionTime` in
+         * whole seconds, rounded up and at most a day.  The default applies at once.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 11.20.6.5.4.2
+         */
+        applyDelay: Duration = 0;
+    }
+
     export class Internal {
         /** Keyed by the requestorNodeId+fabricIndex+updateToken */
         inProgressDetails = new Map<string, OtaUpdateInProgressDetails>();
