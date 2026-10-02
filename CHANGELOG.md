@@ -108,6 +108,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
     - Fix: A closed subscription releases its diagnostic lifetime, so a long-running device no longer keeps one per subscription it ever served
     - Fix: A closed node closes its group message counter, its device certification, the controller's fabric authority and its client subscriptions
     - Fix: An OTA provider that allows an apply with a `DelayedActionTime` expects the device's restart only after that delay plus the time to apply and restart; it gave up three minutes after allowing the apply and replaced the subscription the device was about to resume

@@ -667,6 +667,25 @@ describe("ClientNode", function () {
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
+    it("receives state updates after the controller restarts", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+
+        await MockTime.resolve(controller.stop());
+        await MockTime.resolve(controller.start());
+
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const ep1 = peer1.parts.get("ep1")!;
+        const receivedUpdate = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
+
+        const toggledAt = MockTime.nowUs;
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+
+        await MockTime.resolve(receivedUpdate);
+        expect(MockTime.nowUs - toggledAt).lessThan(Seconds(10));
+    });
+
     it("decommissions", async () => {
         // *** SETUP ***
 
