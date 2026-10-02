@@ -192,6 +192,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
     - Feature: `MockTime.stepWallClock()` steps the wall clock (`now`, `nowMs`) without moving the monotonic clock (`nowUs`), on which mock timers run, as an NTP step does
 
+- @matter/examples
+    - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2) instead of one fewer; a node stored by an earlier run gains the missing endpoint on its next start
+
 - @matter/general
     - Breaking: `camelize()` treats a pluralised acronym as one word wherever it occurs in an identifier, so `TariffComponentIDs` normalises to `tariffComponentIds` where it previously passed through unchanged
     - Enhancement: A log message names where it came from via `Diagnostic.Message.origin`, which `Logger.get()` accepts and `Environment.logger()` supplies from `Environment.logOrigin`, so a destination can attribute a line written from a socket or timer callback
