@@ -19,6 +19,7 @@ describe("GeneralDiagnosticsServer operational hours", () => {
         await MockTime.advance(90 * 60_000);
 
         expect(node.stateOf(GeneralDiagnosticsServer).totalOperationalHours).equals(1);
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(90 * 60);
 
         await node.close();
     });
@@ -47,6 +48,48 @@ describe("GeneralDiagnosticsServer operational hours", () => {
 
         await MockTime.advance(60_000);
         expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(360);
+
+        await node.close();
+    });
+
+    it("folds a forward wall-clock step (a suspend) into upTime", async () => {
+        const node = await MockServerNode.createOnline();
+
+        await MockTime.advance(5 * 60_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(300);
+
+        // The monotonic clock does not move, as it would not across a real suspend; the wall clock jumps ahead.
+        MockTime.stepWallClock(10 * 60_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(900);
+
+        await node.close();
+    });
+
+    it("never lowers upTime when a backward step follows a forward one", async () => {
+        const node = await MockServerNode.createOnline();
+
+        await MockTime.advance(5 * 60_000);
+        MockTime.stepWallClock(10 * 60_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(900);
+
+        // A correction back past the suspended wall-clock reading must not undo the upTime already reported.
+        MockTime.stepWallClock(-20 * 60_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(900);
+
+        await node.close();
+    });
+
+    it("resets upTime's high-water mark across a restart", async () => {
+        const node = await MockServerNode.createOnline();
+
+        await MockTime.advance(5 * 60_000);
+        MockTime.stepWallClock(10 * 60_000);
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(900);
+
+        await MockTime.resolve(node.stop());
+        await MockTime.resolve(node.start());
+
+        expect(node.stateOf(GeneralDiagnosticsServer).upTime).equals(0);
 
         await node.close();
     });
