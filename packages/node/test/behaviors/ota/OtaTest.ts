@@ -516,7 +516,7 @@ describe("Ota", () => {
 
             class TestOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 override async queryImage(): Promise<OtaSoftwareUpdateProvider.QueryImageResponse> {
-                    answeredAt.push(MockTime.nowMs);
+                    answeredAt.push(MockTime.nowUs);
                     return { status: OtaSoftwareUpdateProvider.Status.Busy, delayedActionTime: 60 };
                 }
             }
