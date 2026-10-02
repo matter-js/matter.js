@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ElementTag } from "#common/ElementTag.js";
 import { SchemaImplementationError } from "#common/errors.js";
 import { BaseElement } from "#elements/BaseElement.js";
+import { ModelIndex, MutableModelIndex } from "#logic/ModelIndex.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { Scope } from "#logic/Scope.js";
 import { Model } from "./Model.js";
@@ -33,6 +35,50 @@ export abstract class ScopeModel<
         return Scope(this);
     }
 
+    /**
+     * The members of {@link type}, reusing {@link cached} while the children of every model they derive from are
+     * unchanged: the inheritance chain and, for attributes, the root, which supplies global attributes.
+     */
+    protected membersOfType<M extends Model>(
+        type: Model.ConcreteType<M>,
+        cached?: ScopeModel.Members<M>,
+    ): ScopeModel.Members<M> {
+        const { Tag } = type;
+        if (cached !== undefined && isSame(cached.inputs, this.#memberInputs(Tag))) {
+            return cached;
+        }
+
+        const isOfType = (model: Model): model is M => model.tag === Tag;
+        const members = new Array<M>();
+        const inputs = this.#memberInputs(Tag);
+
+        // Without base or root the members are the children themselves
+        const candidates = inputs.length === 2 ? this.children : this.scope.membersOf(this, { tags: [Tag] });
+        for (const member of candidates) {
+            if (isOfType(member)) {
+                members.push(member);
+            }
+        }
+
+        // Resolving members creates children lists that did not exist, so the inputs read afterward stay reusable
+        return { inputs: this.#memberInputs(Tag), index: new MutableModelIndex(members) };
+    }
+
+    #memberInputs(tag: ElementTag) {
+        const inputs = new Array<unknown>();
+        const traversal = new ModelTraversal();
+        traversal.visitInheritance(this, model => {
+            inputs.push(model, Model.childrenGenerationOf(model));
+        });
+        if (tag === ElementTag.Attribute) {
+            const root = traversal.findRoot(this);
+            if (root !== undefined && root !== this) {
+                inputs.push(root, Model.childrenGenerationOf(root));
+            }
+        }
+        return inputs;
+    }
+
     override finalize() {
         if (!this.#operationalScope) {
             this.#operationalScope = Scope(this);
@@ -58,4 +104,20 @@ export abstract class ScopeModel<
 
         return scope;
     }
+}
+
+export namespace ScopeModel {
+    /**
+     * Members of one element type with the inputs they derive from.
+     *
+     * @internal
+     */
+    export interface Members<M extends Model> {
+        inputs: unknown[];
+        index: ModelIndex<M>;
+    }
+}
+
+function isSame(a: unknown[], b: unknown[]) {
+    return a.length === b.length && a.every((value, i) => value === b[i]);
 }

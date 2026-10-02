@@ -23,6 +23,7 @@ import {
     StorageService,
 } from "@matter/general";
 import {
+    ClientSubscriptions,
     CertificateAuthority,
     FabricAuthority,
     FabricManager,
@@ -96,6 +97,9 @@ export namespace ServerEnvironment {
 
         await env.close(FabricManager);
         await env.close(PeerSet);
+        if (env.owns(ClientSubscriptions)) {
+            await env.close(ClientSubscriptions);
+        }
         await env.close(ChangeNotificationService);
         await env.close(SessionManager);
         await env.close(OccurrenceManager);
