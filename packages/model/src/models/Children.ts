@@ -21,20 +21,26 @@ let ModelConstructor: typeof Model = undefined as unknown as typeof Model;
 /**
  * Children of a model.  This is a {@link Model} array with some specialization for model-specific operations.
  *
+ * A model is listed at most once and its parent is the model that lists it.  Inserting a model that is already a child
+ * moves it, so array algorithms applied through `Array.prototype` methods that assign indices one by one do not keep
+ * the order; use the methods of this interface.
+ *
  * @template T the type of model that owns the children
  */
 export interface Children<T extends Model = Model> extends Array<T> {
     /**
      * Add children.
      *
-     * Operates like a standard array push but we adjust the type to allow insertion of elements as well as models.
+     * Operates like a standard array push but we adjust the type to allow insertion of elements as well as models.  A
+     * model that is already a child moves to the end; listing a model twice in one call throws.
      */
     push(...children: Model.TaggedDefinition<T>[]): number;
 
     /**
      * Array splice.
      *
-     * Allows splicing in elements or models.
+     * Allows splicing in elements or models.  A model that is already a child moves to the insertion point; listing a
+     * model twice in one call throws.
      */
     splice(index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]): T[];
 
@@ -44,7 +50,7 @@ export interface Children<T extends Model = Model> extends Array<T> {
     get<C extends Model>(type: Model.Type<C>, idOrName: number | string): C | undefined;
 
     /**
-     * Access all models of a specific type, optionally filtered to a specific ID or number.  Even if filtered there
+     * Access all models of a specific type in list order, optionally filtered to a specific ID or name.  Even if filtered there
      * may be multiple return values if there are different variants of the element defined.
      */
     all<C extends Model>(type: Model.Type<C>, idOrName?: number | string): C[];
@@ -269,11 +275,12 @@ class ChildList<T extends Model = Model> {
     }
 
     #all(type: typeof Model, idOrName?: number | string) {
-        const slot = this.#indices?.get(type) ?? this.#buildIndex(type);
         if (idOrName === undefined) {
-            return [...slot.byName.values()].flat();
+            this.#reify();
+            return this.#children.filter(child => child instanceof type);
         }
 
+        const slot = this.#indices?.get(type) ?? this.#buildIndex(type);
         const result = typeof idOrName === "number" ? slot.byId.get(idOrName) : slot.byName.get(idOrName);
 
         if (result === undefined) {
@@ -349,27 +356,9 @@ class ChildList<T extends Model = Model> {
 
     #indexApply(selector: (child: Model) => boolean, allowedTags: Children.TagSelector, except?: Set<Model>) {
         for (const type of this.#selectTypes(allowedTags)) {
-            const index = this.#indices?.get(type)?.byName ?? this.#buildIndex(type).byName;
-
-            for (const entry of index.values()) {
-                if (Array.isArray(entry)) {
-                    for (const subentry of entry) {
-                        if (except?.has(subentry)) {
-                            continue;
-                        }
-                        if (selector(subentry)) {
-                            return subentry;
-                        }
-                    }
-                    continue;
-                }
-
-                if (except?.has(entry)) {
-                    continue;
-                }
-
-                if (selector(entry)) {
-                    return entry;
+            for (const child of this.#children) {
+                if (child instanceof type && !except?.has(child) && selector(child)) {
+                    return child;
                 }
             }
         }
@@ -405,30 +394,67 @@ class ChildList<T extends Model = Model> {
         return results;
     }
 
-    // We implement "splice" for efficiency...  The default implementation moves elements one at a time, forcing us to
-    // search the array to see if it's already present each time
-    #splice(index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]) {
+    #splice(index: number, deleteCount: number, ...toAdd: Model.TaggedDefinition<T>[]) {
+        this.#assertMutable();
         toAdd = toAdd.map(child => this.#insertionFormOf(child));
 
-        const removed = this.#children.splice(index, deleteCount ?? 0, ...toAdd);
-        this.#touch();
+        const models = toAdd.filter(child => child instanceof ModelConstructor);
+        if (new Set(models).size !== models.length) {
+            throw new ImplementationError("A model cannot be listed twice among the children of one model");
+        }
 
-        // Disown first so a child that is removed and re-added in one call ends up adopted
-        const result = removed.map(child => {
-            if (!(child instanceof ModelConstructor)) {
-                return ModelConstructor.create(child as unknown as AnyElement) as T;
+        // Adopting removes a model from its former parent, which may refuse, so do it before changing this list
+        for (const model of models) {
+            this.#doAdopt(model);
+        }
+
+        let start = relativeIndex(index, this.#children.length);
+        const count = Math.max(Math.trunc(deleteCount) || 0, 0);
+
+        for (const model of models) {
+            const current = this.#children.indexOf(model);
+            if (current === -1 || (current >= start && current < start + count)) {
+                continue;
             }
-            this.#doDisown(child);
-            return child;
-        });
-
-        for (const child of toAdd) {
-            if (child instanceof ModelConstructor) {
-                this.#doAdopt(child);
+            this.#children.splice(current, 1);
+            if (current < start) {
+                start--;
             }
         }
 
-        return result;
+        const removed = this.#children.splice(start, count, ...toAdd);
+        this.#touch();
+
+        return removed.map(child => {
+            if (!(child instanceof ModelConstructor)) {
+                return ModelConstructor.create(child as unknown as AnyElement) as T;
+            }
+            if (!models.includes(child)) {
+                this.#doDisown(child);
+            }
+            return child;
+        });
+    }
+
+    /**
+     * Reorder the list with an array operation that keeps its members.
+     */
+    #reorder(operation: (children: T[]) => void) {
+        this.#assertMutable();
+        this.#reify();
+        const next = this.#children.filter((child): child is T => child instanceof ModelConstructor);
+        operation(next);
+        for (let i = 0; i < next.length; i++) {
+            this.#children[i] = next[i];
+        }
+        this.#touch();
+        return this.#proxy;
+    }
+
+    #assertMutable() {
+        if (Object.isFrozen(this.#children)) {
+            throw new ImplementationError("Cannot change the children of a finalized model");
+        }
     }
 
     #finalize() {
@@ -494,8 +520,40 @@ class ChildList<T extends Model = Model> {
                 return () => this.#touch();
 
             case "splice":
-                return (index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]) =>
-                    this.#splice(index, deleteCount, ...toAdd);
+                return (...args: [index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]]) => {
+                    const [index, deleteCount, ...toAdd] = args;
+                    return this.#splice(index, args.length < 2 ? Infinity : (deleteCount ?? 0), ...toAdd);
+                };
+
+            case "push":
+                return (...toAdd: Model.TaggedDefinition<T>[]) => {
+                    this.#splice(this.#children.length, 0, ...toAdd);
+                    return this.#children.length;
+                };
+
+            case "unshift":
+                return (...toAdd: Model.TaggedDefinition<T>[]) => {
+                    this.#splice(0, 0, ...toAdd);
+                    return this.#children.length;
+                };
+
+            case "pop":
+                return () => this.#splice(this.#children.length - 1, 1)[0];
+
+            case "shift":
+                return () => this.#splice(0, 1)[0];
+
+            case "reverse":
+                return () => this.#reorder(children => children.reverse());
+
+            case "sort":
+                return (compare?: (a: T, b: T) => number) => this.#reorder(children => children.sort(compare));
+
+            case "fill":
+            case "copyWithin":
+                return () => {
+                    throw new ImplementationError(`Children do not support ${name}`);
+                };
 
             case "freeze":
                 return () => this.#finalize();
@@ -515,80 +573,42 @@ class ChildList<T extends Model = Model> {
 
     #proxySet(name: string | symbol, value: any, receiver: unknown) {
         if (typeof name !== "string" || !name.match(/^\d+$/)) {
-            switch (name) {
-                case "length":
-                    if (value > this.#children.length) {
-                        // Do not allow preallocation that would create gaps
-                        return true;
-                    }
-                    if (value < this.#children.length) {
-                        Reflect.set(this.#children, name, value, receiver);
-                        this.#touch();
-                        return true;
-                    }
-                    break;
+            if (name === "length") {
+                // Do not allow preallocation that would create gaps
+                if (value < this.#children.length) {
+                    this.#splice(value, Infinity);
+                }
+                return true;
             }
             return Reflect.set(this.#children, name, value, receiver);
         }
 
         this.#validateChild(value);
 
-        const existing = this.#children[name as unknown as number];
-        if (existing !== undefined) {
-            if (existing === value) {
-                return true;
-            }
-            if (existing instanceof ModelConstructor) {
-                this.#doDisown(existing);
-            }
+        const index = Math.min(Number(name), this.#children.length);
+        if (this.#children[index] === value) {
+            return true;
         }
 
-        let targetIndex = name as unknown as number;
-
-        if (value.parent?.children === this.#proxy) {
-            const currentIndex = this.#children.indexOf(value);
-            if (currentIndex !== -1) {
-                this.#children.splice(currentIndex, 1);
-
-                if (currentIndex < targetIndex) {
-                    targetIndex--;
-                }
-            }
-        } else {
-            value = this.#insertionFormOf(value);
-            if (value instanceof ModelConstructor) {
-                this.#doAdopt(value);
-            }
-        }
-
-        if (targetIndex > this.#children.length) {
-            targetIndex = this.#children.length;
-        }
-
-        this.#children[targetIndex] = value;
-        this.#touch();
-
+        this.#splice(index, 1, value);
         return true;
     }
 
     #proxyDeleteProperty(p: string | symbol) {
-        let child: undefined | Model.TaggedDefinition<T>;
-
         if (typeof p === "string" && p.match(/^\d+$/)) {
-            child = this.#children[p as unknown as number];
+            this.#splice(Number(p), 1);
+            return true;
         }
-
-        // oxlint-disable-next-line @typescript-eslint/no-array-delete
-        delete this.#children[p as unknown as number];
-        this.#touch();
-
-        // Child may have been added elsewhere in the index so only delete if not still present
-        if (child instanceof ModelConstructor && !this.#children.includes(child)) {
-            this.#doDisown(child);
-        }
-
-        return true;
+        return Reflect.deleteProperty(this.#children, p);
     }
+}
+
+/**
+ * Resolve a negative or fractional splice index the way {@link Array.prototype.splice} does.
+ */
+function relativeIndex(index: number, length: number) {
+    const relative = Math.trunc(index) || 0;
+    return relative < 0 ? Math.max(length + relative, 0) : relative;
 }
 
 /**
