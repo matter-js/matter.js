@@ -8,6 +8,7 @@ import { Behavior } from "#behavior/Behavior.js";
 import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { BindingServer } from "#behaviors/binding";
 import { BooleanStateBehavior, BooleanStateServer } from "#behaviors/boolean-state";
+import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
 import { GroupKeyManagementBehavior } from "#behaviors/group-key-management";
 import { GroupsServer } from "#behaviors/groups";
@@ -709,12 +710,21 @@ describe("DeviceTypeConformance", () => {
             await node.close();
         });
 
-        it("requires no TagList of an aggregator's children, which disambiguate by NodeLabel", async () => {
+        it("requires no TagList of an aggregator's bridged devices, which disambiguate by NodeLabel", async () => {
             const node = await createNode();
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
-            const bridged = [
-                await aggregator.add(OnOffLightDevice, { id: "first" }),
-                await aggregator.add(OnOffLightDevice, { id: "second" }),
+            const bridged = new Array<Endpoint>();
+            for (const id of ["first", "second"]) {
+                bridged.push(
+                    await aggregator.add(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
+                        id,
+                        bridgedDeviceBasicInformation: { nodeLabel: id },
+                    }),
+                );
+            }
+            const plain = [
+                await aggregator.add(OnOffLightDevice, { id: "third" }),
+                await aggregator.add(OnOffLightDevice, { id: "fourth" }),
             ];
             const parent = await node.add(DescribedLight, { id: "parent" });
             const composed = [
@@ -730,7 +740,7 @@ describe("DeviceTypeConformance", () => {
                 expect(serverPass().isDuplicate(endpoint)).true;
                 expect(tagList(endpoint)).deep.equals([]);
             }
-            for (const endpoint of composed) {
+            for (const endpoint of [...plain, ...composed]) {
                 expect(tagList(endpoint)).deep.equals(["Base"]);
             }
 

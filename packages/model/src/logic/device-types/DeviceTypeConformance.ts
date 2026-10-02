@@ -1117,15 +1117,20 @@ const AGGREGATED: ReadonlySet<string> = new Set(["Descriptor.TAGLIST"]);
  * The paths of Base requirements not judged on the endpoint of {@link facts}.
  *
  * Base requires a TagList of an endpoint that duplicates a sibling unless its device types define another way to
- * disambiguate. Aggregator defines one for its children, the bridged devices' NodeLabel, which the model cannot express.
+ * disambiguate. Aggregator defines one for its children that represent bridged devices, their NodeLabel, which the
+ * model cannot express.
  *
  * @see {@link MatterSpecification.v161.Core} § 9.2.9
  * @see {@link MatterSpecification.v161.Device} § 11.2.6
  */
 function baseWaiversOf<E>(facts: ResolvedEndpoint<E>, pass: DeviceTypeValidationPass<E>) {
     const owner = pass.facts.parentOf(facts.endpoint);
-    const aggregator = lookupsFor(pass.model).aggregator;
-    if (owner === undefined || aggregator === undefined) {
+    const { aggregator, bridgedNode } = lookupsFor(pass.model);
+    if (owner === undefined || aggregator === undefined || bridgedNode === undefined) {
+        return NONE;
+    }
+
+    if (!facts.deviceTypes.some(({ id }) => id === bridgedNode.id)) {
         return NONE;
     }
 
