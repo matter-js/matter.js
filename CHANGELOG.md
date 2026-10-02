@@ -31,7 +31,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `QuietObservable.isObservedBy()` no longer recurses without end when its sink does not report the observer, or when it has no sink
 
 - @matter/model
-    - Enhancement: `MatterModel` lookups (`clusters`, `deviceTypes`, `datatypes`, `fields`, `attributes`) reuse their index until the model's children change instead of rebuilding the model scope on each access; `Matter.clusters(id)` drops from about 180 µs to under 1 µs
+    - Enhancement: `MatterModel` lookups (`clusters`, `deviceTypes`, `datatypes`, `fields`, `attributes`) on non-inherited models reuse their index until the model's children change instead of rebuilding the model scope on each access; `Matter.clusters(id)` drops from about 180 µs to under 1 µs
     - Fix: Child lookups (`Model.get()`, `Model.all()`, `children.select()`) follow changes made by `splice()`, so they no longer return a removed child or miss an added one; duplicate IDs resolve in list order and names such as `constructor` match nothing. A child that `splice()` removes and adds back keeps its parent
     - Fix: `MatterModel.permanentDatatypes` lists seed datatypes only and keeps a seed datatype replaced by one of the same name
     - Enhancement: Feature conformance analysis supports a choice set bounded from above, such as `O.a-`, and a choice set a member joins under several conditions, such as `[!A & !B].a`
