@@ -3196,7 +3196,9 @@ exactly as the query side checks `observedMs` from `announceOtaProvider`. Measur
 runtime is how to tell the two apart: raising the window should raise the runtime by the same amount.
 
 **`TC-SU-2.5` is matterjs-only and mostly `longRunning`.** Steps 1, 2 and 4 read `SoftwareVersion`
-after an apply, which needs `REBOOT_AFTER_APPLY_ARG`; step 3 is about the DUT's own two-minute floor
+after an apply, which needs `REBOOT_AFTER_APPLY_ARG`. Steps 1 to 4 restart the DUT and each waits until the TH's
+subscription delivered the `StartUp` with the applied version, so the next step does not serve while the TH
+still has the restart to learn about; step 3 is about the DUT's own two-minute floor
 under an `AwaitNextAction`, so it needs `SPEC_INTERVALS_ARG` and the run must not shorten it. Where the
 deferral falls decides which budget covers it: an `AwaitNextAction` is allowed only once the DUT asks
 again, so its wait is before the allowance, while a deferred `Proceed` is allowed at once and the DUT
