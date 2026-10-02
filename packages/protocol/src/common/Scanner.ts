@@ -225,6 +225,12 @@ export interface Scanner {
      */
     cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers, resolvePromise?: boolean): void;
 
+    /**
+     * Forget the device reachable at these addresses, if the scanner's records describe a commissioning window
+     * rather than an operational device. A device that advertises again is discovered again.
+     */
+    forgetCommissionedDevice?(addresses: readonly ServerAddress[]): void;
+
     /** Close the scanner server and free resources. */
     close(): Promise<void>;
 }
