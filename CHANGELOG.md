@@ -32,7 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Enhancement: Feature conformance analysis supports a choice set bounded from above, such as `O.a-`, and a choice set a member joins under several conditions, such as `[!A & !B].a`
-    - Feature: Conformance `Z` (obsolete, Matter 1.7) parses as `Conformance.Flag.Obsolete`, and `isObsolete` reports it on `Conformance`, `ValueModel` and `RequirementModel`. `Z` combined with anything else is a conformance error
+    - Feature: Conformance `Z` (obsolete) parses as `Conformance.Flag.Obsolete`, and `isObsolete` reports it on `Conformance`, `ValueModel` and `RequirementModel`. `Z` combined with anything else is a conformance error
     - Feature: `Conformance.applicabilityFor()` takes `deprecatedIsOptional`, which reads deprecated ("D") and obsolete ("Z") conformance as optional instead of disallowed
     - Feature: `Specification.ENABLE_FORWARD_MATTER_FEATURES` (off in releases) and `Specification.isForwardFeatureEnabled()` gate behaviour implemented ahead of a released specification
     - Feature: Forward feature `delay-report-data` (DelayReportData on invoke)
@@ -96,6 +96,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 
 - @matter/node
+    - Fix: `GroupcastServer` LeaveGroup with GroupID 0 and an Endpoints list removes those endpoints from every group of the fabric; it removed all groups with all their endpoints
     - Fix: `GroupKeyManagementServer` accepts a `KeySetWrite` with any `GroupKeyMulticastPolicy` and ignores the field, which has no effect; it rejected every value but PerGroupID with INVALID_COMMAND. `KeySetRead` reports PerGroupID
     - Fix: A `GroupcastTesting` request without `DurationSeconds` ends testing after 60 seconds; testing previously never ended
     - Fix: A node stopped with `stop()` and started again re-establishes its subscriptions, and afterwards stores only the subscriptions of its current run; it previously re-established none and kept storing subscriptions it could not re-establish
