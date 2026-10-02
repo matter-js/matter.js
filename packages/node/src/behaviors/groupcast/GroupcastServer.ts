@@ -301,32 +301,36 @@ export class GroupcastServer extends GroupcastBase {
         const fabricIndex = this.context.session.associatedFabric.fabricIndex;
         const { groupId, endpoints: requestedEndpoints } = request;
 
-        const gkm = this.agent.get(GroupKeyManagementServer);
-        const fabric = this.env.get(FabricManager).for(fabricIndex);
-
-        // GroupID 0 = wildcard: leave ALL groups for this fabric
-        if (groupId === GroupId.NO_GROUP_ID) {
-            const removedGroupIds = this.state.membership
-                .filter(m => m.fabricIndex === fabricIndex)
-                .map(m => m.groupId);
-            if (removedGroupIds.length === 0) {
-                throw new StatusResponseError("No groups to leave", Status.NotFound);
-            }
-            const removed = new Set<GroupId>(removedGroupIds);
-            for (const removedGroupId of removedGroupIds) {
-                const table = gkm.state.groupTable.find(
-                    g => g.fabricIndex === fabricIndex && g.groupId === removedGroupId,
-                );
-                for (const ep of [...(table?.endpoints ?? [])]) {
-                    gkm.removeEndpoint(fabric, ep, removedGroupId);
-                }
-                this.#removeGroupProperties(fabricIndex, removedGroupId);
-            }
-            this.#removeGroupKeyMappings(fabric, fabricIndex, removed);
-            this.#deriveMembership();
-            return { groupId: GroupId.NO_GROUP_ID, endpoints: [] };
+        const groupIds =
+            groupId === GroupId.NO_GROUP_ID
+                ? this.state.membership.filter(m => m.fabricIndex === fabricIndex).map(m => m.groupId)
+                : [groupId];
+        if (groupId === GroupId.NO_GROUP_ID && groupIds.length === 0) {
+            throw new StatusResponseError("No groups to leave", Status.NotFound);
         }
 
+        const fabric = this.env.get(FabricManager).for(fabricIndex);
+        const results = groupIds.map(id => ({ id, ...this.#leave(fabric, id, requestedEndpoints) }));
+
+        this.#deriveMembership();
+
+        // Marked last, so a throw earlier in this method leaves no mark for the offline groupTable$Changed prune
+        for (const { id, keepsSenderOnly } of results) {
+            if (keepsSenderOnly) {
+                this.internal.retainedSenderOnly.add(`${fabricIndex}:${id}`);
+            }
+        }
+
+        return groupId === GroupId.NO_GROUP_ID
+            ? { groupId: GroupId.NO_GROUP_ID, endpoints: [] }
+            : { groupId, endpoints: results[0].removedEndpoints };
+    }
+
+    /**
+     * Withdraw the given endpoints, or all of them, from one group of the fabric.  The caller derives the membership.
+     */
+    #leave(fabric: Fabric, groupId: GroupId, requestedEndpoints: EndpointNumber[] | undefined) {
+        const { fabricIndex } = fabric;
         const entry = this.state.membership.find(m => m.groupId === groupId && m.fabricIndex === fabricIndex);
         if (entry === undefined) {
             throw new StatusResponseError(`Group ${groupId} not found`, Status.NotFound);
@@ -338,7 +342,6 @@ export class GroupcastServer extends GroupcastBase {
         let keepsSenderOnly = false;
 
         if (!requestedEndpoints || requestedEndpoints.length === 0) {
-            // No specific endpoints specified → remove entire entry
             removedEndpoints = [...currentEndpoints];
             entryRemoved = true;
         } else {
@@ -357,6 +360,7 @@ export class GroupcastServer extends GroupcastBase {
             // last endpoint; groupProperties keeps it a member
             this.#upsertGroupProperties(fabricIndex, groupId, { mcastAddrPolicy: entry.mcastAddrPolicy });
         }
+        const gkm = this.agent.get(GroupKeyManagementServer);
         for (const ep of removedEndpoints) {
             gkm.removeEndpoint(fabric, ep, groupId);
         }
@@ -365,14 +369,7 @@ export class GroupcastServer extends GroupcastBase {
             this.#removeGroupProperties(fabricIndex, groupId);
         }
 
-        this.#deriveMembership();
-
-        // Marked last, so a throw earlier in this method leaves no mark for the offline groupTable$Changed prune
-        if (keepsSenderOnly) {
-            this.internal.retainedSenderOnly.add(`${fabricIndex}:${groupId}`);
-        }
-
-        return { groupId, endpoints: removedEndpoints };
+        return { removedEndpoints, keepsSenderOnly };
     }
 
     override async updateGroupKey(request: Groupcast.UpdateGroupKeyRequest) {
