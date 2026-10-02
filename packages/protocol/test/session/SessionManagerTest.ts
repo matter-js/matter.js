@@ -19,6 +19,7 @@ import {
     Hours,
     ImplementationError,
     Key,
+    Lifetime,
     Logger,
     LogLevel,
     MemoryStorageDriver,
@@ -501,6 +502,30 @@ describe("SessionManager", () => {
             const first = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
             const second = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
             expect(second).equal(first + 1);
+        });
+
+        it("closes the counter it replaces when cleared", async () => {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["sessions"]),
+            });
+            await sessionManager.construction.ready;
+
+            const counterLifetimes = () => {
+                using probe = Lifetime.process.join("probe");
+                return [...(probe.owner?.spans ?? [])].filter(({ name }) => name === "persisted message counter")
+                    .length;
+            };
+            const before = counterLifetimes();
+
+            await sessionManager.clear();
+
+            expect(counterLifetimes()).equal(before);
+            await sessionManager.close();
+            expect(counterLifetimes()).equal(before - 1);
         });
 
         it("seeds the global counter above legacy per-key counters and clears them (Q-02 migration)", async () => {

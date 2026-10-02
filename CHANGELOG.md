@@ -69,6 +69,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: A closed `MdnsService` no longer stays registered as a runtime worker, so the runtime can go inactive after its nodes close
+    - Feature: `PersistedMessageCounter` and `DeviceCertification` have `close()`
     - Enhancement: `RebootResubscribeArmer.arm()` takes the delay the device waits before it applies, and its return deadline covers that delay
     - Fix: `DeviceCommissioner.allowBasicCommissioning()` and `allowEnhancedCommissioning()` take `DeviceCommissioner.WindowOptions` (timeout, whether an Administrator opens the window, close callback) instead of a close callback, and close the window after its timeout. An Administrator's window replaces a window the node opened itself, the node opening its own window again restarts it, and any other overlap throws `MatterFlowError`. `windowStatus` reports the open window and `isAdministratorWindowOpen` whether an Administrator's window is open or waiting to open
     - Fix: A server sends no Status Response to an Invoke or Write request with SuppressResponse set to TRUE, errors included, as the CHIP SDK 1.6.1 does. A failure after the peer acknowledged an InvokeResponse chunk is still reported
@@ -106,6 +108,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: A closed subscription releases its diagnostic lifetime, so a long-running device no longer keeps one per subscription it ever served
+    - Fix: A closed node closes its group message counter, its device certification, the controller's fabric authority and its client subscriptions
     - Fix: An OTA provider that allows an apply with a `DelayedActionTime` expects the device's restart only after that delay plus the time to apply and restart; it gave up three minutes after allowing the apply and replaced the subscription the device was about to resume
     - Feature: `OtaSoftwareUpdateProviderServer` state `applyDelay` sets the `DelayedActionTime` a provider allows an apply with
     - Fix: A commissioning window the node opens itself closes after 48 hours (by default) if the node is not commissioned and after 15 minutes if it is; it previously stayed open until the node stopped

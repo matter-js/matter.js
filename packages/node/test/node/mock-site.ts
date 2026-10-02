@@ -17,6 +17,7 @@ import {
     MockStorageService,
     Network,
     NetworkSimulator,
+    RuntimeService,
     Seconds,
     StorageDriver,
 } from "@matter/general";
@@ -30,6 +31,7 @@ import { MockServerNode } from "./mock-server-node.js";
 export class MockSite {
     #simulator = new NetworkSimulator();
     #nodes = new Set<ServerNode>();
+    #environments = new Set<Environment>();
     #nextNetworkIndex = 1;
     #storage = {} as Record<string, Record<string, any>>;
     #createStorageDriver: (store: Record<string, any>) => StorageDriver;
@@ -58,7 +60,11 @@ export class MockSite {
 
         const index = (config.index ??= this.#nextNetworkIndex++);
         const id = (config.id ??= `device${index}`);
-        const env = (config.environment ??= new Environment(id));
+        if (config.environment === undefined) {
+            config.environment = new Environment(id);
+            this.#environments.add(config.environment);
+        }
+        const env = config.environment;
         if (!env.has(Crypto)) {
             const crypto = MockCrypto(index);
             env.set(Entropy, crypto);
@@ -158,6 +164,20 @@ export class MockSite {
             ),
 
             // Not sure why macrotasks are necessary; something hangs with microtasks but haven't tracked down
+            { macrotasks: true },
+        );
+
+        const environments = [...this.#environments];
+        this.#environments.clear();
+        await MockTime.resolve(
+            MatterAggregateError.allSettled(
+                environments.map(async env => {
+                    if (env.owns(RuntimeService)) {
+                        await env.get(RuntimeService).close();
+                    }
+                    env[Symbol.dispose]();
+                }),
+            ),
             { macrotasks: true },
         );
     }

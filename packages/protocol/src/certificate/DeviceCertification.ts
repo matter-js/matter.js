@@ -79,6 +79,11 @@ export class DeviceCertification {
         });
     }
 
+    /** Release the certification's lifetime. */
+    close() {
+        return this.#construction.close();
+    }
+
     #assertServable() {
         const certificate = this.#certificate;
         const intermediateCertificate = this.#intermediateCertificate;
