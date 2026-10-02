@@ -98,7 +98,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `PersistedFileDesignator` reused for a second download answers `openBlob()` with what that download delivered; it previously kept serving the blob it opened for the first, and kept serving one it had deleted
 
 - @matter/node
-    - Fix: A node that is stopped and started again accepts the data reports of its client subscriptions; after a restart it rejected every report except the initial data of a new subscription
+    - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
     - Fix: A commissioning window the node opens itself closes after 48 hours (by default) if the node is not commissioned and after 15 minutes if it is; it previously stayed open until the node stopped
     - Fix: `AdministratorCommissioningServer` leaves the window and its timeout to `DeviceCommissioner`; `Internal.commissioningWindowTimeout` is gone
     - Fix: `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` replace a window the node opened itself, and `RevokeCommissioning` closes it. Previously such an open failed with `Failure` or left the cluster unaware of its window, and every further open was answered with `Busy` until the node restarted. A window an Administrator opened still answers `Busy`
