@@ -16,6 +16,7 @@ import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { expect } from "chai";
 import {
+    convertMatterToWebSocketTagBased,
     convertWebsocketDataToMatter,
     discoveryIdentifierFor,
     discoveryResponseFor,
@@ -49,6 +50,23 @@ describe("ChipToolWebSocketHandler convertWebsocketDataToMatter octet strings", 
     it("leaves a non-empty unprefixed string unchanged", () => {
         const decoded = convertWebsocketDataToMatter("not-a-prefix-abcd", LAST_NETWORK_ID_ATTRIBUTE);
         expect(decoded).to.equal("not-a-prefix-abcd");
+    });
+});
+
+describe("ChipToolWebSocketHandler convertMatterToWebSocketTagBased bitmaps", () => {
+    const onOff = Matter.clusters.require("OnOff");
+
+    it("sets the bit of each supported feature in a FeatureMap", () => {
+        const featureMap = onOff.attributes.require("FeatureMap");
+        expect(convertMatterToWebSocketTagBased({ offOnly: true }, featureMap, onOff)).equal(4);
+        expect(convertMatterToWebSocketTagBased({ lighting: true, deadFrontBehavior: true }, featureMap, onOff)).equal(
+            3,
+        );
+    });
+
+    it("sets the bit of a bitmap member keyed by its name", () => {
+        const onOffControl = onOff.commands.require("OnWithTimedOff").fields.require("OnOffControl");
+        expect(convertMatterToWebSocketTagBased({ acceptOnlyWhenOn: true }, onOffControl, onOff)).equal(1);
     });
 });
 

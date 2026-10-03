@@ -338,7 +338,11 @@ export function ownFailureResponse(error: unknown): ChipWebSocketCommandResponse
  * Uses the matter.js Model to convert the response data for read, subscribe and invoke into a tag based response
  * including conversion of data types.
  */
-function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clusterModel: ClusterModel): unknown {
+export function convertMatterToWebSocketTagBased(
+    value: unknown,
+    model: ValueModel,
+    clusterModel: ClusterModel,
+): unknown {
     if (value === null) {
         return null;
     }
@@ -357,15 +361,13 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
         return result;
     }
     if (isObject(value) && model.metabase?.metatype === "bitmap") {
+        const flags = value;
         let numberValue = 0;
 
         for (const member of clusterModel.scope.membersOf(model)) {
-            const memberValue =
-                member.name !== undefined && value[member.propertyName]
-                    ? value[member.propertyName]
-                    : member.description !== undefined && value[camelize(member.description)]
-                      ? value[camelize(member.description)]
-                      : undefined;
+            // Feature flags are keyed as ClusterType.features() keys them, other bitmap members by their name
+            const keys = [member.propertyName, camelize(member.title ?? member.name)];
+            const memberValue = keys.map(key => flags[key]).find(memberValue => memberValue);
 
             if (!memberValue) {
                 continue;
