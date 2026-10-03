@@ -16,6 +16,7 @@ import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { expect } from "chai";
 import {
+    convertMatterToWebSocketTagBased,
     convertWebsocketDataToMatter,
     discoveryIdentifierFor,
     discoveryResponseFor,
@@ -30,25 +31,83 @@ const LAST_NETWORK_ID_ATTRIBUTE = NETWORK_COMMISSIONING.attributes.require("last
 
 describe("ChipToolWebSocketHandler convertWebsocketDataToMatter octet strings", () => {
     it("decodes an empty string with no prefix as an empty byte array", () => {
-        const decoded = convertWebsocketDataToMatter("", LAST_NETWORK_ID_ATTRIBUTE);
+        const decoded = convertWebsocketDataToMatter("", LAST_NETWORK_ID_ATTRIBUTE, NETWORK_COMMISSIONING);
         expect(Bytes.isBytes(decoded) && Bytes.toHex(decoded)).to.equal("");
     });
 
     it("still decodes a hex: prefixed string as bytes", () => {
         const bytes = Bytes.fromHex("0102030405");
-        const decoded = convertWebsocketDataToMatter(`hex:${Bytes.toHex(bytes)}`, LAST_NETWORK_ID_ATTRIBUTE);
+        const decoded = convertWebsocketDataToMatter(
+            `hex:${Bytes.toHex(bytes)}`,
+            LAST_NETWORK_ID_ATTRIBUTE,
+            NETWORK_COMMISSIONING,
+        );
         expect(Bytes.isBytes(decoded) && Bytes.toHex(decoded)).to.equal(Bytes.toHex(bytes));
     });
 
     it("decodes a base64: prefixed string as bytes", () => {
         const bytes = Bytes.fromHex("0102030405");
-        const decoded = convertWebsocketDataToMatter(`base64:${Bytes.toBase64(bytes)}`, LAST_NETWORK_ID_ATTRIBUTE);
+        const decoded = convertWebsocketDataToMatter(
+            `base64:${Bytes.toBase64(bytes)}`,
+            LAST_NETWORK_ID_ATTRIBUTE,
+            NETWORK_COMMISSIONING,
+        );
         expect(Bytes.isBytes(decoded) && Bytes.toHex(decoded)).to.equal(Bytes.toHex(bytes));
     });
 
     it("leaves a non-empty unprefixed string unchanged", () => {
-        const decoded = convertWebsocketDataToMatter("not-a-prefix-abcd", LAST_NETWORK_ID_ATTRIBUTE);
+        const decoded = convertWebsocketDataToMatter(
+            "not-a-prefix-abcd",
+            LAST_NETWORK_ID_ATTRIBUTE,
+            NETWORK_COMMISSIONING,
+        );
         expect(decoded).to.equal("not-a-prefix-abcd");
+    });
+});
+
+describe("ChipToolWebSocketHandler convertMatterToWebSocketTagBased bitmaps", () => {
+    const onOff = Matter.clusters.require("OnOff");
+
+    it("sets the bit of each supported feature in a FeatureMap", () => {
+        const featureMap = onOff.attributes.require("FeatureMap");
+        expect(convertMatterToWebSocketTagBased({ offOnly: true }, featureMap, onOff)).equal(4);
+        expect(convertMatterToWebSocketTagBased({ lighting: true, deadFrontBehavior: true }, featureMap, onOff)).equal(
+            3,
+        );
+    });
+
+    it("sets the bit of a bitmap member keyed by its name", () => {
+        const onOffControl = onOff.commands.require("OnWithTimedOff").fields.require("OnOffControl");
+        expect(convertMatterToWebSocketTagBased({ acceptOnlyWhenOn: true }, onOffControl, onOff)).equal(1);
+    });
+});
+
+describe("ChipToolWebSocketHandler convertWebsocketDataToMatter bitmaps", () => {
+    const thermostat = Matter.clusters.require("Thermostat");
+    const hvacSystemType = thermostat.attributes.require("HvacSystemTypeConfiguration");
+    const onOff = Matter.clusters.require("OnOff");
+    const onOffControl = onOff.commands.require("OnWithTimedOff").fields.require("OnOffControl");
+
+    it("reads a multi-bit member as its value", () => {
+        // CoolingStage 2 (bits 0-1), HeatingStage 1 (bits 2-3), HeatingUsesFuel (bit 5)
+        expect(convertWebsocketDataToMatter("38", hvacSystemType, thermostat)).deep.equal({
+            coolingStage: 2,
+            heatingStage: 1,
+            heatingUsesFuel: true,
+        });
+    });
+
+    it("reads a bitmap whose datatype the cluster defines", () => {
+        const dishwasherAlarm = Matter.clusters.require("DishwasherAlarm");
+        const mask = dishwasherAlarm.commands.require("ModifyEnabledAlarms").fields.require("Mask");
+        expect(convertWebsocketDataToMatter("5", mask, dishwasherAlarm)).deep.equal({
+            inflowError: true,
+            doorError: true,
+        });
+    });
+
+    it("reads a bitmap given as a number", () => {
+        expect(convertWebsocketDataToMatter(1, onOffControl, onOff)).deep.equal({ acceptOnlyWhenOn: true });
     });
 });
 
