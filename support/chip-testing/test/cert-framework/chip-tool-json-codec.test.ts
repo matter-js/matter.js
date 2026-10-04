@@ -271,6 +271,17 @@ describe("chip-tool json codec", () => {
         expect(matterToChipJson({ sign: true }, WIDE_BITMAP, WIDE_BITMAP_CLUSTER, "hex")).to.equal(0x8000_0000);
     });
 
+    it("refuses a bitmap member that is not a non-negative integer, NaN included", () => {
+        for (const sign of [Number.NaN, -1, 1.5]) {
+            expect(() => matterToChipJson({ sign }, WIDE_BITMAP, WIDE_BITMAP_CLUSTER, "hex")).to.throw(
+                ImplementationError,
+            );
+        }
+        expect(matterToChipJson({ sign: 0, low: null, high: false }, WIDE_BITMAP, WIDE_BITMAP_CLUSTER, "hex")).to.equal(
+            0,
+        );
+    });
+
     it("resolves a FeatureMap bit by its short property name as well as its title, on encode", () => {
         const decoded = chipJsonToMatter(0b001, ACCESS_CONTROL_FEATURE_MAP_ATTRIBUTE, ACCESS_CONTROL);
         expect(decoded).to.deep.equal({ extension: true, managedDevice: false, auxiliary: false });

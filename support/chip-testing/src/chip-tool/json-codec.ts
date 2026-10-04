@@ -140,7 +140,7 @@ function bitmapMemberName(member: FieldModel, model: ValueModel): string | undef
  * anywhere, not just this codec's own decode.
  */
 function bitmapMemberValue(member: FieldModel, value: Record<string, unknown>): unknown {
-    if (member.name !== undefined && value[member.propertyName]) {
+    if (member.name !== undefined && Object.hasOwn(value, member.propertyName)) {
         return value[member.propertyName];
     }
     const memberTitle = member.title !== undefined ? camelize(member.title) : undefined;
@@ -187,7 +187,7 @@ export function encodeBitmap(
     let bits = 0n;
     for (const member of getBitmapMembers(model, clusterModel)) {
         const memberValue = bitmapMemberValue(member, value);
-        if (!memberValue) continue;
+        if (memberValue === undefined || memberValue === null || memberValue === false || memberValue === 0) continue;
         if (typeof memberValue !== "boolean" && typeof memberValue !== "number") {
             throw new ImplementationError(
                 `Bitmap member "${member.propertyName}" of "${model.name}" must be boolean or number, got ${typeof memberValue}`,
