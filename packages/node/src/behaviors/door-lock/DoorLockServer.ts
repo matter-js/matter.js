@@ -10,7 +10,10 @@ import {
     Bytes,
     type Cipher,
     Crypto,
+    Hours,
     ImplementationError,
+    Instant,
+    Logger,
     MaybePromise,
     Minutes,
     Seconds,
@@ -37,6 +40,11 @@ import OperationError = DoorLock.OperationError;
 import OperationSource = DoorLock.OperationSource;
 import UserStatus = DoorLock.UserStatus;
 import UserType = DoorLock.UserType;
+
+const logger = Logger.get("DoorLockServer");
+
+/** Bounded below the timer maximum; a longer wait re-arms, so a wall clock far behind the deadline cannot overflow */
+const MAX_EXPIRY_DELAY = Hours(24);
 
 const DoorLockBaseServerClass = DoorLockBehavior.with(
     "PinCredential",
@@ -213,6 +221,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 expiringUserExpiresAt: null,
             });
 
+            this.#warnIfExpiryUnbounded(request.userType);
             this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Add, userIndex, fabricIndex, null);
         } else if (operationType === DataOperationType.Modify) {
             if (!existing) {
@@ -249,6 +258,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 expiringUserExpiresAt: restartsExpiry ? null : (existing.expiringUserExpiresAt ?? null),
             });
 
+            this.#warnIfExpiryUnbounded(request.userType);
             this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Modify, userIndex, fabricIndex, null);
         } else {
             throw new StatusResponseError("Invalid operation type", Status.InvalidCommand);
@@ -394,6 +404,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                     expiringUserExpiresAt: null,
                 });
                 createdUserIndex = newUserIndex;
+                this.#warnIfExpiryUnbounded(userType);
 
                 this.#emitLockUserChange(
                     LockDataType.UserIndex,
@@ -907,7 +918,12 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 if (userIndex !== null) {
                     const user = auth.findUser(userIndex);
                     if (user) {
-                        if (user.userStatus === UserStatus.OccupiedDisabled || hasExpired(user)) {
+                        const expired = hasExpired(user);
+                        if (expired && user.userStatus !== UserStatus.OccupiedDisabled) {
+                            this.#armExpiryTimer(userIndex, user.expiringUserExpiresAt);
+                        }
+
+                        if (user.userStatus === UserStatus.OccupiedDisabled || expired) {
                             this.#emitLockOperationError(operationType, OperationError.DisabledUserDenied);
                             throw new StatusResponseError("User is disabled", Status.Failure);
                         }
@@ -923,6 +939,14 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                         ) {
                             this.#emitLockOperationError(operationType, OperationError.Restricted);
                             throw new StatusResponseError("Access denied by schedule", Status.Failure);
+                        }
+
+                        if (user.userType === UserType.ExpiringUser && this.state.expiringUserTimeout === undefined) {
+                            this.#emitLockOperationError(operationType, OperationError.Restricted);
+                            throw new StatusResponseError(
+                                "ExpiringUser cannot be granted access without ExpiringUserTimeout",
+                                Status.Failure,
+                            );
                         }
 
                         this.#armExpiringUserOnFirstUse(auth, userIndex, user);
@@ -962,7 +986,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
     // ── ExpiringUser Timeout (spec § 5.2.6.18.8) ─────────────────────────────────
     //
     // The persisted deadline is the source of truth; the timer only triggers a re-check against it. The deadline
-    // is wall-clock time because it has to survive a reboot.
+    // is wall-clock time because it has to survive a reboot. Expiry is applied only in the timer's own action.
 
     #armExpiringUserOnFirstUse(auth: LockAuth.Store, userIndex: number, user: LockAuth.User) {
         if (user.userType !== UserType.ExpiringUser || user.expiringUserExpiresAt != null) {
@@ -983,14 +1007,18 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         this.#stopExpiryTimer(userIndex);
 
         const remaining = Timestamp.delta(Time.nowMs, expiresAt);
-        if (remaining <= 0) {
-            this.#expireUser(userIndex);
-            return;
-        }
-
         const { internal } = this;
-        const timer = Time.getTimer("expiring-user-timeout", remaining, () => internal.expireUser?.(userIndex)).start();
+        const delay = remaining <= 0 ? Instant : remaining > MAX_EXPIRY_DELAY ? MAX_EXPIRY_DELAY : remaining;
+        const timer = Time.getTimer("expiring-user-timeout", delay, () => internal.expireUser?.(userIndex)).start();
         internal.expiryTimers.set(userIndex, timer);
+    }
+
+    #warnIfExpiryUnbounded(userType: UserType | null) {
+        if (userType === UserType.ExpiringUser && this.state.expiringUserTimeout === undefined) {
+            logger.warn(
+                "ExpiringUser provisioned without ExpiringUserTimeout; its PIN is denied until the attribute is set",
+            );
+        }
     }
 
     #stopExpiryTimer(userIndex: number) {
@@ -1335,6 +1363,7 @@ export namespace DoorLockBaseServer {
  */
 export class DoorLockServer extends DoorLockBaseServer.with() {}
 
-function hasExpired({ userType, expiringUserExpiresAt }: LockAuth.User) {
+function hasExpired(user: LockAuth.User): user is LockAuth.User & { expiringUserExpiresAt: Timestamp } {
+    const { userType, expiringUserExpiresAt } = user;
     return userType === UserType.ExpiringUser && expiringUserExpiresAt != null && expiringUserExpiresAt <= Time.nowMs;
 }

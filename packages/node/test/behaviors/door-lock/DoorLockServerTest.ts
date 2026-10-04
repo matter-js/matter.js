@@ -8,7 +8,7 @@ import { DoorLockBaseServer, DoorLockClient, DoorLockServer, LockSchedule } from
 import { DoorLockDevice } from "#devices/door-lock";
 import { Endpoint } from "#endpoint/index.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Hours, Minutes, Seconds, Time, Timestamp } from "@matter/general";
+import { Days, Hours, Minutes, Seconds, Time, Timestamp } from "@matter/general";
 import { ClusterId, CommandId, EndpointNumber, FabricIndex, Status, TlvOfModel } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
@@ -990,17 +990,25 @@ describe("DoorLockServer", () => {
             }
         });
 
-        it("denies once the wall clock passes the deadline, before the timer fires", async () => {
+        it("denies and disables once the wall clock passes the deadline, before the timer fires", async () => {
             const lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser)],
             });
             try {
                 await unlockScheduled(lock);
+                lock.userChanges.length = 0;
 
                 MockTime.stepWallClock(Minutes(2));
                 try {
                     await expectScheduledDenial(lock, OperationError.DisabledUserDenied);
+                    await MockTime.advance(0);
+                    await settled(lock.device);
+
+                    expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+                    expect(
+                        lock.userChanges.map(({ userIndex, operationSource }) => ({ userIndex, operationSource })),
+                    ).deep.equals([{ userIndex: 1, operationSource: DoorLock.OperationSource.Unspecified }]);
                 } finally {
                     MockTime.stepWallClock(Minutes(-2));
                 }
@@ -1034,13 +1042,45 @@ describe("DoorLockServer", () => {
             }
         });
 
+        it("denies an ExpiringUser while ExpiringUserTimeout is not set", async () => {
+            const lock = await setUpScheduledLock({ users: [scheduledUser(UserType.ExpiringUser)] });
+            try {
+                await expectScheduledDenial(lock, OperationError.Restricted);
+            } finally {
+                await lock.site.close();
+            }
+        });
+
         it("disables at startup a user whose stored deadline has passed", async () => {
             const lock = await setUpScheduledLock({
                 expiringUserTimeout: 1,
                 users: [scheduledUser(UserType.ExpiringUser, Timestamp(Time.nowMs - Minutes(1)))],
             });
             try {
+                await MockTime.advance(0);
+                await settled(lock.device);
                 expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+            } finally {
+                await lock.site.close();
+            }
+        });
+
+        it("starts with a deadline beyond the timer range and still disables once it passes", async () => {
+            const lock = await setUpScheduledLock({
+                expiringUserTimeout: 1,
+                users: [scheduledUser(UserType.ExpiringUser, Timestamp(Time.nowMs + Days(60)))],
+            });
+            try {
+                expect(userStatusOf(lock)).equals(UserStatus.OccupiedEnabled);
+
+                MockTime.stepWallClock(Days(60));
+                try {
+                    await MockTime.advance(Hours(24));
+                    await settled(lock.device);
+                    expect(userStatusOf(lock)).equals(UserStatus.OccupiedDisabled);
+                } finally {
+                    MockTime.stepWallClock(Days(-60));
+                }
             } finally {
                 await lock.site.close();
             }
