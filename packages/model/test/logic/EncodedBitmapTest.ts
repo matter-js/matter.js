@@ -120,6 +120,17 @@ describe("EncodedBitmap", () => {
     });
 });
 
+describe("EncodedBitmap with conformance", () => {
+    it("encodes only the conformant definition of a member", () => {
+        const model = new AttributeModel(
+            { id: 6, name: "Alternatives", type: "bitmap8" },
+            Field({ name: "Mode", constraint: "0" }),
+            Field({ name: "Mode", constraint: "1", conformance: "X" }),
+        );
+        expect(EncodedBitmap(model, { mode: true }, undefined, { conformance: "conformant" })).equals(0b01);
+    });
+});
+
 describe("EncodedBitmap and DecodedBitmap", () => {
     it("place a member with no upper bound from its lowest bit and read it back", () => {
         expect(EncodedBitmap(OpenBitmapAttr, { flag: true, rest: 5 })).equals(0b1010001);

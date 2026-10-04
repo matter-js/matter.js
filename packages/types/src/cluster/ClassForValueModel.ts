@@ -41,7 +41,7 @@ export function ClassForValueModel(model: ValueModel): ValueClass {
     let defaults = DefaultValue(scope, model);
     if (metatype === Metatype.bitmap && defaults !== undefined && defaults !== null) {
         // A bitmap's default is a whole value, so every member takes its part of it
-        defaults = DecodedBitmap(model, EncodedBitmap(model, defaults, scope), scope, completeBitmap);
+        defaults = DecodedBitmap(model, EncodedBitmap(model, defaults, scope, completeBitmap), scope, completeBitmap);
     }
 
     klass = GeneratedClass({

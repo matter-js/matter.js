@@ -18,6 +18,7 @@ export function EncodedBitmap(
     model: ValueModel,
     value: number | bigint | DecodedBitmap,
     scope?: Scope,
+    options?: Scope.MemberOptions,
 ): number | bigint {
     if (typeof value !== "object") {
         return value;
@@ -25,7 +26,7 @@ export function EncodedBitmap(
 
     let bitmap = 0n;
 
-    for (const member of BitmapMembers.of(model, scope)) {
+    for (const member of BitmapMembers.of(model, scope, options)) {
         const memberValue = value[BitmapMembers.keyOf(model, member)];
         if (!memberValue) {
             continue;
