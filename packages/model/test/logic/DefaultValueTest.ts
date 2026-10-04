@@ -12,6 +12,7 @@ import {
     bool,
     double,
     list,
+    map8,
     percent100ths,
     single,
     string,
@@ -99,6 +100,38 @@ describe("DefaultValue", () => {
 
         it("is absent when the type it derives from requires an entry", () => {
             expect(listDefaultOf("min 1")).undefined;
+        });
+    });
+
+    describe("bitmap", () => {
+        function bitmapDefaultOf(...members: { constraint: string; default: number }[]) {
+            const Matter = new MatterModel(
+                {},
+                map8.clone(),
+                new ClusterModel(
+                    { name: "Test", id: 0xfff1 },
+                    Datatype(
+                        { name: "Flags", type: "map8" },
+                        ...members.map((member, index) => Field({ name: `Member${index}`, ...member })),
+                    ),
+                    Attribute({ name: "Flags", id: 1, type: "Flags" }),
+                ),
+            );
+            Matter.finalize();
+
+            return DefaultValue(Scope(Matter), Matter.get(ClusterModel, "Test")!.attributes("Flags")!);
+        }
+
+        it("places a single-bit member at its bit", () => {
+            expect(bitmapDefaultOf({ constraint: "0", default: 1 })).equal(0b1);
+        });
+
+        it("places every bit of a multi-bit member, its last bit included", () => {
+            expect(bitmapDefaultOf({ constraint: "0", default: 1 }, { constraint: "1 to 2", default: 3 })).equal(0b111);
+        });
+
+        it("places a member with no upper bound from its lowest bit", () => {
+            expect(bitmapDefaultOf({ constraint: "min 4", default: 3 })).equal(0b110000);
         });
     });
 });

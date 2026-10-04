@@ -34,6 +34,12 @@ const LargeBitmapAttr = new AttributeModel(
     Field({ name: "largeBits", constraint: "0 to 56" }), // 57-bit field
 );
 
+// Bitmap attribute with a wide range field that does not start at bit 0
+const ShiftedLargeBitmapAttr = new AttributeModel(
+    { id: 4, name: "ShiftedLargeBitmap", type: "bitmap64" },
+    Field({ name: "highBits", constraint: "4 to 63" }),
+);
+
 describe("EncodedBitmap", () => {
     it("returns numeric input unchanged", () => {
         expect(EncodedBitmap(BitmapAttr, 42)).equals(42);
@@ -77,5 +83,22 @@ describe("EncodedBitmap", () => {
         // produce a proper bitmask covering all 56 bit positions, preserving the value intact.
         const value = 2n ** 53n + 1n;
         expect(EncodedBitmap(LargeBitmapAttr, { largeBits: value } as unknown as DecodedBitmap)).equals(value);
+    });
+
+    it("encodes the top bit of a multi-bit numeric field", () => {
+        expect(EncodedBitmap(MultiBitAttr, { multiA: 7 })).equals(0b111);
+        expect(EncodedBitmap(MultiBitAttr, { multiB: 7 })).equals(0b1110000);
+    });
+
+    it("encodes the top bit of a multi-bit bigint field", () => {
+        const value = 2n ** 56n;
+        expect(EncodedBitmap(LargeBitmapAttr, { largeBits: value } as unknown as DecodedBitmap)).equals(value);
+    });
+
+    it("places a multi-bit bigint field at its lowest bit", () => {
+        const value = 2n ** 54n + 1n;
+        expect(EncodedBitmap(ShiftedLargeBitmapAttr, { highBits: value } as unknown as DecodedBitmap)).equals(
+            value << 4n,
+        );
     });
 });

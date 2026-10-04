@@ -192,25 +192,20 @@ function buildBitmap(scope: Scope, model: ValueModel) {
             result = 0;
         }
 
-        let minBit, maxBit;
+        // Bit ranges are inclusive, as in the TLV schema the model produces
+        let minBit, endBit;
 
         const constraintValue = FieldValue.countValue(m.constraint.value);
         if (constraintValue !== undefined) {
             minBit = constraintValue;
-            maxBit = constraintValue + 1;
+            endBit = constraintValue + 1;
         } else {
-            minBit = FieldValue.countValue(m.constraint.min);
-            maxBit = FieldValue.countValue(m.constraint.max);
+            minBit = FieldValue.countValue(m.constraint.min) ?? 0;
+            const maxBit = FieldValue.countValue(m.constraint.max);
+            endBit = maxBit === undefined ? minBit + Math.trunc(Math.log2(defaultValue)) + 1 : maxBit + 1;
         }
 
-        if (minBit === undefined) {
-            minBit = 0;
-        }
-        if (maxBit === undefined) {
-            maxBit = Math.trunc(Math.log2(defaultValue)) + 1;
-        }
-
-        for (let i = 0, mask = 1 << minBit; i < maxBit - minBit; i++, mask <<= 1) {
+        for (let i = 0, mask = 1 << minBit; i < endBit - minBit; i++, mask <<= 1) {
             if (fieldsDefined & mask) {
                 continue;
             }

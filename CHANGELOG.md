@@ -32,6 +32,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `UdpMulticastServer.create()` closes the sockets it already opened when it fails, such as the IPv4 socket when the IPv6 socket cannot be created
 
 - @matter/model
+    - Fix: A multi-bit bitmap member keeps its last bit in a bitmap default built from member defaults and in `EncodedBitmap()`, which also places a bigint member at its lowest bit. A member with no upper bound is placed from its lowest bit in a bitmap default
     - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
     - Fix: Child lookups (`Model.get()`, `Model.all()`, `children.select()`) follow changes made by `splice()`, so they no longer return a removed child or miss an added one; duplicate IDs resolve in list order and names such as `constructor` match nothing. A child that `splice()` removes and adds back keeps its parent
     - Fix: `MatterModel.permanentDatatypes` lists seed datatypes only and keeps a seed datatype replaced by one of the same name
