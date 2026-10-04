@@ -2068,20 +2068,45 @@ const STATUS_RESPONSE_MESSAGE = /\[DMG\] StatusResponseMessage =\s*$/;
 const ANY_STATUS_LINE = /Status = 0x[\da-fA-F]+ \(\w+\),?\s*$/;
 const ACK_STATUS_SEQUENCE = [STATUS_RESPONSE_MESSAGE, /\{\s*$/, ANY_STATUS_LINE];
 
-// How far back from a matched ReportDataMessage's own decode dump to look for its trace line —
+// How far back from a matched message's own decode dump to look for its trace line —
 // generous relative to the largest gap seen in a real capture (chunked multi-attribute priming
 // reports, tens of lines), so this is a runaway-loop guard, not a tuned bound.
 const EXCHANGE_LOOKBACK_LINES = 1000;
 
-/**
- * The trace line naming a message's own Exchange id is the *nearest* one preceding that message's
- * decode dump: chip logs one message at a time, so no other message's own trace line can land in
- * between. Scanning backward from the decode dump (rather than forward from a fixed cursor) is what
- * makes this correct regardless of how many raw-frame lines chip printed for this particular
- * message's payload size.
- */
+/** The Exchange id on this message's own trace line (see {@link chipHeaderBefore}). */
 function exchangeIdBefore(log: LogFollower, trace: RegExp, beforeIndex: number): string | undefined {
-    return log.lastMatchBefore(trace, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
+    return chipHeaderBefore(log, trace, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
+}
+
+/**
+ * The name line every top-level Interaction Model message's decode dump opens with. Each message prints
+ * exactly one only while the TH does not trace-decode inbound messages, as the chip example apps
+ * configure it (`mEnableProtocolInteractionModelResponse = false`).
+ */
+const CHIP_MESSAGE_DUMP = /\[DMG\] \w+Message =\s*$/;
+
+/**
+ * The nearest line matching `header` before `index`, where `index` lies in a message's decode dump at
+ * or after its name line, or `undefined` if that line is not this message's own.
+ *
+ * chip logs one message at a time, its header lines before its dump, so a header with another
+ * message's dump between it and `index` belongs to that earlier message: this message logged no header
+ * of its own, and nothing it carries may be attributed to it.
+ */
+export function chipHeaderBefore(
+    log: LogFollower,
+    header: RegExp,
+    index: number,
+    within: number,
+): { line: LogLine; match: RegExpExecArray } | undefined {
+    const found = log.lastMatchBefore(header, index, within);
+    if (found === undefined) {
+        return undefined;
+    }
+    const dumps = log
+        .window(found.line.index + 1, index - found.line.index)
+        .filter(({ synthetic, text }) => !synthetic && CHIP_MESSAGE_DUMP.test(text)).length;
+    return dumps === 1 ? found : undefined;
 }
 
 // matter.js names the exchange on the report line itself, so a chunk carries its own attribution;
@@ -2098,8 +2123,7 @@ const MATTERJS_MORE_CHUNKS = /Message » for: I\/ReportData [^⇵]*\bmoreChunked
 const MATTERJS_SUPPRESSED_RESPONSE = /Message » for: I\/ReportData [^⇵]*\bsuppressResponse\b/;
 const CHIP_MORE_CHUNKS = /\[DMG\]\s+MoreChunkedMessages = true,\s*$/;
 
-// chip logs one message at a time, each dump preceded by its own trace line, whichever direction it
-// went — the same invariant `exchangeIdBefore` reads backward.
+// chip logs one message at a time, its trace line before its dump, whichever direction it went.
 const CHIP_MESSAGE_TRACE_LINE = /\[DMG\] (?:>> to|<< from) UDP:/;
 const CHIP_SUPPRESSED_RESPONSE = /\[DMG\]\s+SuppressResponse = true,\s*$/;
 
@@ -2138,13 +2162,13 @@ const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: Chunk
         request: {
             exchangeOf: (log, line) => exchangeIdBefore(log, READ_REQUEST_RECEIVED_LINE, line.index),
             attribution: String(READ_REQUEST_RECEIVED_LINE),
-            unattributed: "No inbound Read Request trace line (carrying an Exchange id) found",
+            unattributed: "No inbound Read Request trace line of its own (carrying an Exchange id)",
         },
         chunk: {
             line: REPORT_DATA_MESSAGE,
             exchangeOf: (log, line) => exchangeIdBefore(log, REPORT_SENT_LINE, line.index),
             attribution: String(REPORT_SENT_LINE),
-            unattributed: "No outbound Report Data trace line (carrying an Exchange id) found",
+            unattributed: "No outbound Report Data trace line of its own (carrying an Exchange id)",
         },
         finality: (log, chunk) => chipChunkFinality(log, chunk),
         ack: reportAckedOnExchange,
@@ -2308,7 +2332,7 @@ export async function expectReportAck(
                 type: "device-log",
                 verdict: "fail",
                 pattern,
-                detail: `No outbound Report Data trace line (carrying an Exchange id) found before line ${report.last.index}`,
+                detail: `No outbound Report Data trace line of its own (carrying an Exchange id) before line ${report.last.index}`,
                 logLine: report.last.index,
             };
         }
