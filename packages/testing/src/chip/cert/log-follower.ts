@@ -110,6 +110,10 @@ export function flavorFamily(flavor: LogFlavor | undefined): FlavorFamily | unde
         case "python-wrapped":
         case undefined:
             return undefined;
+        default: {
+            const unclassified: never = flavor;
+            return unclassified;
+        }
     }
 }
 
