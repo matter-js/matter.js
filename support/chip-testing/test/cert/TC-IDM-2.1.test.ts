@@ -7,7 +7,7 @@
 import { InternalError } from "@matter/main";
 import { Matter } from "@matter/model";
 import type { AttributePathSpec, CertStepContext, CheckRecord } from "@matter/testing";
-import { certTest } from "@matter/testing";
+import { certTest, flavorFamily } from "@matter/testing";
 import type { RecordedCheck } from "./tc-support.js";
 import {
     attempt,
@@ -782,7 +782,7 @@ certTest("TC-IDM-2.1", { plan: "interactiondatamodel.adoc", pics: ["MCORE.IDM.C.
                 {
                     what: "Manufacturer-specific clusters in the wildcard read",
                     check: () => {
-                        if (!th.flavor.startsWith("chip")) {
+                        if (flavorFamily(th.flavor) !== "chip") {
                             return {
                                 type: "response",
                                 verdict: "unverified",
