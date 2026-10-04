@@ -764,8 +764,8 @@ export class InteractionClient {
             abort: options.abort,
             ...Write({
                 writes: writeRequests,
-                timed: asTimedRequest,
-                timeout: timedRequestTimeout,
+                timed: timedRequest,
+                timeout: timedRequest ? timedRequestTimeout : undefined,
                 suppressResponse,
             }),
             [Diagnostic.value]: () =>

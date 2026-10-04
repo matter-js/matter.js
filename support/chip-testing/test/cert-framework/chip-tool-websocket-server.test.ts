@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, NodeId, Observable } from "@matter/main";
+import { Logger, Millis, NodeId, Observable } from "@matter/main";
 import { Status, StatusResponseError, TlvOfModel, TlvUInt32 } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
@@ -46,6 +46,7 @@ class FakeCommandHandler extends CommandHandler {
     startCalls = 0;
     disconnectedNodes = new Array<NodeId>();
     writes = new Array<WriteAttributeRequest>();
+    writesById = new Array<WriteAttributeByIdRequest>();
     discoveries = new Array<DiscoveryRequest>();
     invokes = new Array<InvokeRequest>();
     paseConnections = new Array<NodeId>();
@@ -124,7 +125,8 @@ class FakeCommandHandler extends CommandHandler {
         this.#throwIfFailing();
     }
 
-    async handleWriteAttributeById(_data: WriteAttributeByIdRequest) {
+    async handleWriteAttributeById(data: WriteAttributeByIdRequest) {
+        this.writesById.push(data);
         this.#throwIfFailing();
     }
 
@@ -373,6 +375,52 @@ describe("ChipToolWebSocketHandler over the wire", () => {
         );
 
         expect(reply.results).deep.equal([{ error: "UNSUPPORTED_WRITE" }, { error: "FAILURE" }]);
+    });
+
+    it("hands a write the timed interaction timeout its step declared, and none where it declared none", async () => {
+        for (const timedInteractionTimeoutMs of ["2000", undefined]) {
+            await send(
+                port,
+                jsonFrame({
+                    cluster: "onoff",
+                    command: "write",
+                    command_specifier: "on-time",
+                    arguments: {
+                        "destination-id": "0x12344321",
+                        "endpoint-id-ignored-for-group-commands": "1",
+                        "attribute-values": "5",
+                        ...(timedInteractionTimeoutMs === undefined ? {} : { timedInteractionTimeoutMs }),
+                    },
+                }),
+            );
+        }
+
+        expect(handler.writes.map(({ timedInteractionTimeout }) => timedInteractionTimeout)).deep.equal([
+            Millis(2000),
+            undefined,
+        ]);
+    });
+
+    it("hands a write by id the timed interaction timeout its step declared", async () => {
+        await send(
+            port,
+            jsonFrame({
+                cluster: "any",
+                command: "write-by-id",
+                arguments: {
+                    "destination-id": "0x12344321",
+                    "endpoint-id-ignored-for-group-commands": "1",
+                    "cluster-ids": "6",
+                    "attribute-ids": "16385",
+                    "attribute-values": "5",
+                    timedInteractionTimeoutMs: "2000",
+                },
+            }),
+        );
+
+        expect(handler.writesById.map(({ timedInteractionTimeout }) => timedInteractionTimeout)).deep.equal([
+            Millis(2000),
+        ]);
     });
 
     it("answers a fault of its own as its own, not as the bare failure a device gives", async () => {
