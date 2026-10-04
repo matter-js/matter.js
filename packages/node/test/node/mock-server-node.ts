@@ -53,17 +53,19 @@ beforeEach(() => {
 // A node a test leaves open keeps its timers running into later tests
 afterEach(async function () {
     const open = [...(nodesOfCurrentTest ?? [])].filter(
-        ({ construction: { status } }) => status !== Lifecycle.Status.Destroyed && status !== Lifecycle.Status.Crashed,
+        ({ construction: { status } }) => status !== Lifecycle.Status.Destroyed,
     );
     nodesOfCurrentTest = undefined;
     if (!open.length) {
         return;
     }
 
-    // A failed test may not have reached its own close; its failure is reported already
+    // A node whose construction failed cannot be handed to the test, but still holds its environment until closed.  A
+    // failed test may not have reached its own close; its failure is reported already
     const title = this.currentTest?.fullTitle();
-    if (!this.currentTest?.isFailed()) {
-        leaks.push(`${title}: ${open.map(String).join(", ")}`);
+    const leaked = open.filter(({ construction: { status } }) => status !== Lifecycle.Status.Crashed);
+    if (leaked.length && !this.currentTest?.isFailed()) {
+        leaks.push(`${title}: ${leaked.map(String).join(", ")}`);
     }
 
     try {
