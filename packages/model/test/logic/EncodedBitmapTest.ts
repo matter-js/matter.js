@@ -101,4 +101,8 @@ describe("EncodedBitmap", () => {
             value << 4n,
         );
     });
+
+    it("encodes a numeric multi-bit field beyond 32 bits", () => {
+        expect(EncodedBitmap(LargeBitmapAttr, { largeBits: 2 ** 40 })).equals(2 ** 40);
+    });
 });
