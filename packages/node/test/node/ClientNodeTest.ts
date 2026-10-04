@@ -66,6 +66,7 @@ import {
     PeerSet,
     Read,
     ReadResult,
+    SessionManager,
     Val,
     ValidateError,
 } from "@matter/protocol";
@@ -86,6 +87,7 @@ import { LevelControl } from "@matter/types/clusters/level-control";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
+import { captureErrorsOf } from "../endpoint/validation/validation-helpers.js";
 import { MockSite } from "./mock-site.js";
 import { clientStructureOf, seedPeerCache, subscribedPeer } from "./node-helpers.js";
 
@@ -669,6 +671,25 @@ describe("ClientNode", function () {
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
+    it("receives state updates after the controller restarts", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+
+        await MockTime.resolve(controller.stop());
+        await MockTime.resolve(controller.start());
+
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const ep1 = peer1.parts.get("ep1")!;
+        const receivedUpdate = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
+
+        const toggledAt = MockTime.nowUs;
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+
+        await MockTime.resolve(receivedUpdate);
+        expect(MockTime.nowUs - toggledAt).lessThan(Seconds(10));
+    });
+
     it("decommissions", async () => {
         // *** SETUP ***
 
@@ -705,6 +726,51 @@ describe("ClientNode", function () {
 
         const peer1b = controllerB.peers.get("peer1")!;
         expect(peer1b).undefined;
+    });
+
+    it("closes the protocol peer on decommission", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const address = peer1.peerAddress!;
+        const protocolPeer = controller.env.get(PeerSet).get(address)!;
+        const sessions = controller.env.get(SessionManager);
+        expect(protocolPeer.lifetime.isClosed).false;
+        expect(sessions.findResumptionRecordByAddress(address)).not.undefined;
+
+        await MockTime.resolve(peer1.decommission());
+
+        expect(protocolPeer.lifetime.isClosed).true;
+        expect(sessions.findResumptionRecordByAddress(address)).undefined;
+    });
+
+    it("closes the protocol peer when the node's address is cleared", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const address = peer1.peerAddress!;
+        const protocolPeer = controller.env.get(PeerSet).get(address)!;
+
+        const errors = await captureErrorsOf(async () => {
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.commissioning.state.peerAddress = undefined;
+                }),
+            );
+
+            // The peer is removed by an offline reaction that settles after the transaction
+            const sessions = controller.env.get(SessionManager);
+            for (let wait = 0; sessions.findResumptionRecordByAddress(address) !== undefined && wait < 50; wait++) {
+                await MockTime.resolve(MockTime.sleep("peer removal", Millis(100)));
+            }
+        });
+
+        expect(errors).deep.equals([]);
+        expect(protocolPeer.lifetime.isClosed).true;
+        expect(controller.env.get(PeerSet).has(protocolPeer)).false;
+        expect(controller.env.get(SessionManager).findResumptionRecordByAddress(address)).undefined;
     });
 
     it("rejects delete after destroyed", async () => {

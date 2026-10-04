@@ -9,6 +9,6 @@ import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("ThermostatUserInterfaceConfigurationServer", () => {
     it("instantiates", async () => {
-        await MockServerNode.create({ parts: [RoomAirConditionerDevice] });
+        await using _node = await MockServerNode.create({ parts: [RoomAirConditionerDevice] });
     });
 });

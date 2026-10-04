@@ -172,10 +172,10 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
 The root `npm test` does **not** cover this package: `support/chip-testing/package.json` sets
 `nacho.test: false`, because the app legs need Docker and chip binaries, and the opt-out is per
 package rather than per spec. The hermetic tests under `test/cert-framework/**` are dropped with
-them. A cert change therefore needs its own command:
+them. A cert change therefore needs its own command, run before the change is declared done:
 
 ```bash
-# what CI runs (esm and cjs legs)
+# what CI runs (the package builds esm only)
 npm --prefix support/chip-testing run test-cert-framework -- --no-pull
 
 # one leg, for iteration
@@ -189,7 +189,10 @@ flag.
 
 Docker is required either way, and no flag avoids it: the specs themselves use fakes, but
 `test/test.config.ts` awaits `chip.initialize()` at module scope, so every leg starts the harness
-containers before any spec runs.
+containers before any spec runs. Moving that start into a before-run hook does not work: `chip("X/*")` resolves its
+descriptor globs and PICS while the spec files load, `RvcTestInstance` loads its PICS at import, `matter-test
+inspect` reads the default PICS without running hooks, and specs such as `TC-SC-3.5` read `chip.container`
+without defining a harness test.
 
 The second form sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS` by hand because it bypasses the npm script
 that would have set it — without it a run can end in exit 101 during normal cleanup (see
@@ -513,7 +516,8 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   corroboration of it.
 - **Never leave the DUT commissioned.** With ~21 steps sharing one commissioned node, the step engine aborts
   (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — except a
-  step that throws `UnsupportedByControllerError`, which is recorded `"skipped"` and lets later steps run.
+  step that throws `UnsupportedByControllerError` before it recorded a check or made a controller call that
+  may change the device, which is recorded `"skipped"` and lets later steps run.
   Either way a decommission written into any single step is unreliable. `.finalize()` owns it instead (see
   "Commission/decommission lifecycle" above).
 
@@ -546,7 +550,10 @@ this reason, matching the `"all-clusters"` registration already there.
 `MATTER_CERT_CONTROLLER=chip-tool` swaps `InProcessControllerAdapter` for
 `ChipToolControllerAdapter`, and the two are not interchangeable in every direction. A step asking for
 something chip-tool cannot express gets `UnsupportedByControllerError` — recorded `"skipped"`, later
-steps still run — rather than a wrong answer, and today that means:
+steps still run — rather than a wrong answer. That holds only while the step has neither recorded a check
+nor made a controller call that may change the device (`step-actions.ts` classifies every controller API member); a
+refusal after either fails the run, so a step that needs such an operation after acting declares it in the
+controller's PICS instead. Today the refusals are:
 
 - **A `writeAttributes` mixing versioned and unversioned entries** — chip-tool takes `--data-version`
   once per command, applying to all its paths or none, so a request where only some entries carry a
@@ -2332,7 +2339,7 @@ keeps `{ tag, channel, controllerSessionId }` rather than the tag alone.
 
 **A session operation naming a session the controller does not hold is a state error, not a refusal.**
 `UnsupportedByControllerError` means "this controller cannot do this kind of thing" and the step runner
-records it as *skipped*; using it for a runtime state would turn the precise defect step 1 exists to
+records it as *skipped* when the step has not acted yet; using it for a runtime state would turn the precise defect step 1 exists to
 rule out into a clean-looking run. The in-process adapter throws `SessionStateError` for an unknown id,
 a detached channel, or a transport with no connection to sever, so such a step fails.
 
@@ -3359,7 +3366,7 @@ Which branch a run takes is read, not declared: step 5 reads the root Descriptor
 decides. It fails when the two disagree, and when the branch is not the one the run's devices were chosen for, so a
 device that lost its Groupcast cluster cannot turn the Groupcast run into a second legacy run. The steps of the other branch throw `CertStepNotApplicableError`, which the engine
 records as skipped with the plan's own reason and counts in `RunRecord.planConditionSkips`; a step that throws it after
-recording a check fails the run instead.
+recording a check or making a controller call that may change the device fails the run instead.
 The Groupcast branch needs only the Groupcast cluster (`GroupcastServer` implements the FeatureMap, JoinGroup and, with
 the Sender feature, an empty endpoint list); the provisional GroupKeyManagement Groupcast feature plays no part.
 

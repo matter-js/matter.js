@@ -236,6 +236,10 @@ export class SoftwareUpdateManager extends Behavior {
         // #nodeOnline installs a fresh instance.
         await this.internal.announcements?.close();
         this.internal.announcements = undefined;
+
+        // Bound to the ClientSubscriptions the stopping runtime closes; the getter creates a new armer for the next run
+        this.internal.rebootResubscribeArmer?.[Symbol.dispose]();
+        this.internal.rebootResubscribeArmer = undefined;
     }
 
     #updateAnnouncementSettings() {

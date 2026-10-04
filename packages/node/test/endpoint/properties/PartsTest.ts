@@ -25,7 +25,7 @@ function createChild() {
 async function assembleIncrementally(
     assemble: (child: Endpoint, parent: Endpoint, grandparent: Endpoint) => Promise<void>,
 ) {
-    const grandparent = new MockEndpoint(MockEndpointType);
+    await using grandparent = new MockEndpoint(MockEndpointType);
     const parent = new MockEndpoint(MockEndpointType, { owner: undefined });
     const child = new MockEndpoint(MockEndpointType, { owner: undefined });
 
@@ -40,7 +40,7 @@ async function assembleIncrementally(
 
 describe("Parts", () => {
     it("adopts parts", async () => {
-        const parent = createParent();
+        await using parent = createParent();
         await parent.construction;
         const child = createChild();
 
@@ -53,7 +53,7 @@ describe("Parts", () => {
     });
 
     it("disowns destroyed parts", async () => {
-        const parent = createParent();
+        await using parent = createParent();
         const child = createChild();
 
         const parts = parent.parts;
@@ -68,7 +68,7 @@ describe("Parts", () => {
     });
 
     it("bubbles initialization", async () => {
-        const parent = createParent();
+        await using parent = createParent();
         await parent.construction;
 
         const child = createParentAndChild();
@@ -95,7 +95,7 @@ describe("Parts", () => {
     });
 
     it("bubbles destruction", async () => {
-        const parent = createParent();
+        await using parent = createParent();
         await parent.construction;
 
         const child = createParentAndChild();

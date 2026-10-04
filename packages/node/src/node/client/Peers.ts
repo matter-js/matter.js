@@ -514,18 +514,21 @@ export class Peers extends EndpointContainer<ClientNode> {
      * If required, installs a listener in the environment's {@link InteractionServer} to handle subscription responses.
      */
     #configureInteractionServer() {
+        if (this.#closed || !this.owner.env.has(InteractionServer)) {
+            return;
+        }
+
+        // A node restart replaces the InteractionServer and ClientSubscriptions, so each new server needs a handler
+        // bound to the current subscriptions
+        const interactionServer = this.owner.env.get(InteractionServer);
         if (
-            this.#closed ||
-            this.#installedSubscriptionHandler !== undefined ||
-            !this.owner.env.has(InteractionServer)
+            this.#installedSubscriptionHandler !== undefined &&
+            interactionServer.clientHandler === this.#installedSubscriptionHandler
         ) {
             return;
         }
 
-        const subscriptions = this.owner.env.get(ClientSubscriptions);
-        const interactionServer = this.owner.env.get(InteractionServer);
-
-        this.#installedSubscriptionHandler = new ClientSubscriptionHandler(subscriptions);
+        this.#installedSubscriptionHandler = new ClientSubscriptionHandler(this.owner.env.get(ClientSubscriptions));
         interactionServer.clientHandler = this.#installedSubscriptionHandler;
     }
 

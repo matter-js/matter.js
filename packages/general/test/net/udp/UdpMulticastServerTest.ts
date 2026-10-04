@@ -4,7 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MockNetwork, NetworkSimulator, UdpMulticastServer } from "#index.js";
+import {
+    MockNetwork,
+    NetworkError,
+    NetworkSimulator,
+    NoAddressAvailableError,
+    UdpMulticastServer,
+    UdpSocketOptions,
+} from "#index.js";
 
 const BROADCAST_PORT = 5540;
 const BROADCAST_IPV4 = "224.0.0.251";
@@ -134,4 +141,58 @@ describe("UdpMulticastServer", () => {
             await network.close();
         }
     });
+
+    it("closes the IPv4 socket when the IPv6 socket cannot be created", async () => {
+        await expectFailedStartToCloseSockets("create", "00:11:22:33:44:04", ["192.168.1.5", "fe80::4"]);
+    });
+
+    it("closes both sockets when the IPv6 socket cannot join the multicast group", async () => {
+        await expectFailedStartToCloseSockets("membership", "00:11:22:33:44:05", ["192.168.1.6", "fe80::5"]);
+    });
 });
+
+/** A network whose IPv6 socket fails to open or to join a group, and that counts the sockets left open. */
+class Ipv6FailingNetwork extends MockNetwork {
+    openSockets = 0;
+    failure: "create" | "membership" = "create";
+
+    override async createUdpSocket(options: UdpSocketOptions) {
+        if (options.type === "udp6" && this.failure === "create") {
+            throw new NoAddressAvailableError("IPv6 socket failed");
+        }
+        const socket = await super.createUdpSocket(options);
+        this.openSockets++;
+        const close = socket.close.bind(socket);
+        socket.close = async () => {
+            this.openSockets--;
+            await close();
+        };
+        if (options.type === "udp6") {
+            socket.addMembership = async () => {
+                throw new NetworkError("IPv6 socket failed");
+            };
+        }
+        return socket;
+    }
+}
+
+async function expectFailedStartToCloseSockets(failure: Ipv6FailingNetwork["failure"], mac: string, ips: string[]) {
+    const network = new Ipv6FailingNetwork(new NetworkSimulator(), mac, ips);
+    network.failure = failure;
+
+    try {
+        await expect(
+            UdpMulticastServer.create({
+                network,
+                listeningPort: BROADCAST_PORT,
+                broadcastAddressIpv4: BROADCAST_IPV4,
+                broadcastAddressIpv6: BROADCAST_IPV6,
+                netInterface: NET_INTERFACE,
+            }),
+        ).rejectedWith("IPv6 socket failed");
+
+        expect(network.openSockets).equals(0);
+    } finally {
+        await network.close();
+    }
+}

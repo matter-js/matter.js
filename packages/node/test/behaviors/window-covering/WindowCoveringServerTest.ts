@@ -38,7 +38,7 @@ async function createTiltBlindLift() {
 
 describe("WindowCoveringServer", () => {
     it("emits operationalStatus change events when target position changes", async () => {
-        const device = await createTiltBlindLift();
+        await using device = await createTiltBlindLift();
 
         const events = device.captureEvents(WindowCoveringServer, {
             names: ["operationalStatus$Changing", "operationalStatus$Changed"],
@@ -116,11 +116,11 @@ describe("WindowCoveringServer type", () => {
     };
 
     it("accepts a shutter that lifts", async () => {
-        await MockEndpoint.createWith(WindowCoveringServer.with("Lift").set(shutter));
+        await using _endpoint = await MockEndpoint.createWith(WindowCoveringServer.with("Lift").set(shutter));
     });
 
     it("accepts a shutter that tilts", async () => {
-        await MockEndpoint.createWith(WindowCoveringServer.with("Tilt").set(shutter));
+        await using _endpoint = await MockEndpoint.createWith(WindowCoveringServer.with("Tilt").set(shutter));
     });
 
     it("rejects a shutter that lifts and tilts", async () => {

@@ -44,8 +44,9 @@ endpoint lists at least one such device type:
   scope is reported as an `unknownCondition` violation.
 
 An endpoint that duplicates a sibling's application device type normally needs a `Descriptor` `TagList` to
-disambiguate (Base, `Duplicate`). Children of an `Aggregator` are exempt: Aggregator disambiguates bridged devices by
-their `NodeLabel` (Device § 11.2.6; Core § 9.2.9).
+disambiguate (Base, `Duplicate`). Bridged devices below an `Aggregator`, children that list the `BridgedNode` device
+type, are exempt: Aggregator disambiguates them by their `NodeLabel` (Device § 11.2.6; Core § 9.2.9). Other children of
+an `Aggregator` need a `TagList` like any other endpoint.
 
 Peers — `ClientNode` instances mirroring a remote device — are never checked; validation runs only on the server
 side.
@@ -55,8 +56,9 @@ side.
 - **Construction.** A misplaced singleton whose declaring device type sits above the endpoint being constructed is
   refused before that endpoint's behaviors initialize. Once the endpoint's parts have initialized, the node scope is
   checked in one pass for the node endpoint; for an endpoint added later, the check covers what the addition may
-  change. A new misplaced singleton found then is refused; every other new violation is refused only in `strict` mode
-  and otherwise logged.
+  change. Any other endpoint it reaches that is still being constructed, such as a parent whose other parts are still
+  initializing, is left to the check of that construction, which follows once it completes. A new misplaced singleton
+  found then is refused; every other new violation is refused only in `strict` mode and otherwise logged.
 - **After construction.** Destroying an endpoint or a device type list change (a `Descriptor` cluster's
   `DeviceTypeList` attribute changing) re-checks what the change may affect. This only logs and records, and never
   refuses, even in `strict` mode and even for a misplaced singleton.
@@ -73,8 +75,9 @@ other value fails the node's construction with an `ImplementationError` as the c
 - **`warn`** (default). A violation logs a warning; only a misplaced singleton is refused.
 - **`strict`**. Any new violation that a construction check finds is refused instead of logged. An addition checks
   more than the added endpoints: their ancestors, siblings whose `Duplicate` condition changes, and in some cases the
-  whole node scope. So a strict refusal can name an endpoint other than the one added, such as its parent when the
-  addition breaks the parent's composition. Changes after construction are still only logged.
+  whole node scope, except those other endpoints still being constructed. So a strict refusal can name an endpoint other than the
+  one added, such as its parent when the addition breaks the parent's composition. Changes after construction are
+  still only logged.
 - **`off`**. The node checks no device types on its own, neither at construction nor after it, and keeps nothing
   between checks. Only the misplaced-singleton check before an endpoint's behaviors initialize still runs, because a
   behavior that works only on the root endpoint otherwise fails with an untyped error.

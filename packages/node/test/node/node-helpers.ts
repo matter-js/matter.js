@@ -17,7 +17,7 @@ import {
     NetworkClient,
     ServerNode,
 } from "#index.js";
-import { Bytes, Crypto, type Environment, InternalError, Seconds } from "@matter/general";
+import { Bytes, Crypto, type Environment, InternalError, Millis, Seconds } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     Certificate,
@@ -493,7 +493,13 @@ export async function subscribedPeer(controller: ServerNode, id: string) {
     const peer = controller.peers.get(id);
     expect(peer).not.undefined;
 
-    const subscription = peer!.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
+    // A peer that starts with its node sets activeSubscription only once it has sent its subscribe request
+    const network = peer!.behaviors.internalsOf(NetworkClient);
+    for (let wait = 0; network.activeSubscription === undefined && wait < 100; wait++) {
+        await MockTime.resolve(MockTime.sleep("subscription pending", Millis(100)));
+    }
+
+    const subscription = network.activeSubscription as SustainedSubscription;
     expect(subscription).not.undefined;
 
     await MockTime.resolve(subscription.active);
