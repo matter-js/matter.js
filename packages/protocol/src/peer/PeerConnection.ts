@@ -186,18 +186,6 @@ export async function PeerConnection(
     // Enqueue the "fallback" address if the service is undiscovered
     maybeAttemptFallback();
 
-    // TEMPORARY address trace for CI diagnosis, not for merge
-    logger.info(
-        "[addr-trace] connect",
-        peer.address.toString(),
-        "fallback:",
-        peer.descriptor.operationalAddress === undefined
-            ? "none"
-            : ServerAddress.urlFor(peer.descriptor.operationalAddress),
-        "known:",
-        [...service.addresses].map(address => ServerAddress.urlFor(address)).join(", "),
-    );
-
     // Manage connection attempts until connected or aborted
     for await (const { kind, address } of service.addressChanges({ abort: overallAbort })) {
         switch (kind) {
