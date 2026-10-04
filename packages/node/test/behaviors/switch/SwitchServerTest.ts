@@ -80,6 +80,15 @@ async function createMsAsMslMsmSwitch() {
         ),
     );
 }
+
+/** Advances mock time in small steps so the reaction to each expired timer completes before the next timer fires. */
+async function advanceInSteps(ms: number, stepMs = 50) {
+    for (let elapsed = 0; elapsed < ms; elapsed += stepMs) {
+        await MockTime.advance(Math.min(stepMs, ms - elapsed));
+        await MockTime.macrotask;
+    }
+}
+
 async function doTestPress(
     device: MockEndpoint<EndpointType>,
     delay: number,
@@ -116,24 +125,24 @@ describe("SwitchServer", () => {
 
     describe("test custom validators", () => {
         it("Accept valid currentPosition", async () => {
-            const device = await createLatchingSwitch();
+            await using device = await createLatchingSwitch();
             await expect(device.set({ switch: { currentPosition: 1 } })).to.not.be.rejected;
         });
 
         it("Reject invalid currentPosition", async () => {
-            const device = await createLatchingSwitch();
+            await using device = await createLatchingSwitch();
             await expect(device.set({ switch: { currentPosition: 2 } })).to.be.rejectedWith(
                 'Validating node0.part0.switch.state: Constraint "max numberOfPositions - 1": Value 2 is not within bounds defined by constraint (135)',
             );
         });
 
         it("Accept valid rawPosition", async () => {
-            const device = await createLatchingSwitch();
+            await using device = await createLatchingSwitch();
             await expect(device.set({ switch: { rawPosition: 1 } })).to.not.be.rejected;
         });
 
         it("Reject invalid rawPosition", async () => {
-            const device = await createLatchingSwitch();
+            await using device = await createLatchingSwitch();
             await expect(device.set({ switch: { rawPosition: 2 } })).to.be.rejectedWith(
                 "Error in reactor<node0.part0.switch.#assertPositionInRange>: Position 2 invalid",
             );
@@ -146,6 +155,10 @@ describe("SwitchServer", () => {
         beforeEach(async () => {
             device = await createLatchingSwitch();
             await device.set({ switch: { debounceDelay: Millis(50) } });
+        });
+
+        afterEach(async () => {
+            await device.close();
         });
 
         it("set currentState is immediately", async () => {
@@ -524,7 +537,7 @@ describe("SwitchServer", () => {
 
     describe("Test LS", () => {
         it("Test Single Press with 2 positions", async () => {
-            const device = await createLatchingSwitch();
+            await using device = await createLatchingSwitch();
 
             await doTestPress(device, 0, [
                 {
@@ -549,7 +562,7 @@ describe("SwitchServer", () => {
         });
 
         it("Test Single Press with 3 positions", async () => {
-            const device = await createLatchingSwitch();
+            await using device = await createLatchingSwitch();
 
             await doTestPress(
                 device,
@@ -594,6 +607,10 @@ describe("SwitchServer", () => {
         beforeEach(async () => {
             device = await createMsMsrMslSwitch();
             await device.set({ switch: { longPressDelay: Millis(100) } });
+        });
+
+        afterEach(async () => {
+            await device.close();
         });
 
         it("Test short Press with 2 positions", async () => {
@@ -689,6 +706,10 @@ describe("SwitchServer", () => {
 
         beforeEach(async () => {
             device = await createMsMsrSwitch();
+        });
+
+        afterEach(async () => {
+            await device.close();
         });
 
         it("Test short Press with 2 positions", async () => {
@@ -863,6 +884,10 @@ describe("SwitchServer", () => {
             device = await createMsSwitch();
         });
 
+        afterEach(async () => {
+            await device.close();
+        });
+
         it("Test short Press with 2 positions", async () => {
             await doTestPress(device, 50, [
                 {
@@ -929,6 +954,10 @@ describe("SwitchServer", () => {
             await device.set({
                 switch: { longPressDelay: Millis(100), multiPressDelay: Millis(150), multiPressMax: 3 },
             });
+        });
+
+        afterEach(async () => {
+            await device.close();
         });
 
         it("Test long Press with 2 positions", async () => {
@@ -1725,6 +1754,10 @@ describe("SwitchServer", () => {
             });
         });
 
+        afterEach(async () => {
+            await device.close();
+        });
+
         it("Test long Press with 2 positions", async () => {
             await doTestPress(device, 110, [
                 {
@@ -2392,7 +2425,7 @@ describe("SwitchServer", () => {
                 },
             });
 
-            await MockTime.advance(400);
+            await advanceInSteps(400);
 
             await device.set({
                 switch: {
@@ -2400,7 +2433,7 @@ describe("SwitchServer", () => {
                 },
             });
 
-            await MockTime.advance(400);
+            await advanceInSteps(400);
 
             expect(events).deep.equals([
                 {
@@ -2429,6 +2462,13 @@ describe("SwitchServer", () => {
                     newValue: 0,
                     oldValue: 1,
                 },
+                {
+                    name: "multiPressComplete",
+                    value: {
+                        previousPosition: 1,
+                        totalNumberOfPressesCounted: 2,
+                    },
+                },
             ]);
         });
     });
@@ -2440,6 +2480,10 @@ describe("SwitchServer", () => {
             await device.set({
                 switch: { longPressDelay: Millis(100), multiPressDelay: Millis(150), multiPressMax: 3 },
             });
+        });
+
+        afterEach(async () => {
+            await device.close();
         });
 
         async function press() {
