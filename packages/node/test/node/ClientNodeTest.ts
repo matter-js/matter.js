@@ -2341,8 +2341,11 @@ describe("ClientNode", function () {
 
             await MockTime.resolve(controller.close());
             const controllerB = await site.addNode(undefined, { id: controllerId, index: 1, online: false });
-            expectNoOnOffTransition(controllerB.peers.get("peer1")!.parts.get("ep1")!);
 
+            // The value stays as last known state until the device confirms or drops it
+            expect(
+                controllerB.peers.get("peer1")!.parts.get("ep1")!.stateOf(LevelControlClient).onOffTransitionTime,
+            ).equals(5);
             expect(storedOnOffTransitionKeys(site, controllerId)).not.empty;
 
             // The device's data version is unchanged, so only a forgotten version makes it resend the cluster

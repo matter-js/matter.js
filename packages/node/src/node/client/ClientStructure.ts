@@ -202,7 +202,7 @@ export class ClientStructure {
             // Load state for each behavior
             for (const id of knownBehaviors) {
                 const cluster = this.#clusterFor(endpoint, id);
-                this.#hideUnlistedSeedValues(cluster);
+                this.#checkUnlistedSeedValues(cluster);
                 this.#synchronizeCluster(endpoint, cluster);
             }
         }
@@ -658,9 +658,8 @@ export class ClientStructure {
      * Mark stored values of attributes a reported attribute list omits for deletion.
      *
      * A value reported alongside the list shows the peer still has the attribute, so only stored values are pruned.
-     * Values already cleared in memory count as stored, so a copy {@link #hideUnlistedSeedValues} left in storage is
-     * deleted too.  Entries added to {@link values} are removed by the pending
-     * {@link Datasource.ExternallyMutableStore.externalSet}; a value of `undefined` deletes a key.
+     * Entries added to {@link values} are removed by the pending {@link Datasource.ExternallyMutableStore.externalSet};
+     * a value of `undefined` deletes a key.
      */
     #pruneUnlistedAttributes(cluster: ClusterStructure, values: Val.StructMap) {
         const attributeList = authoritativeAttributeList(values.get(AttributeList.id));
@@ -668,7 +667,10 @@ export class ClientStructure {
             return;
         }
 
-        const stored = Object.keys(cluster.store.currentValues ?? {}).filter(key => !values.has(Number(key)));
+        // A key that is undefined in memory has no copy under that key in storage
+        const stored = Object.entries(cluster.store.currentValues ?? {})
+            .filter(([key, value]) => value !== undefined && !values.has(Number(key)))
+            .map(([key]) => key);
         for (const key of this.#unlistedKeys(cluster, attributeList, stored)) {
             values.set(key, undefined);
         }
@@ -701,18 +703,18 @@ export class ClientStructure {
     }
 
     /**
-     * Hide cached values for attributes the cached attribute list omits, and have the peer resend the cluster.
+     * Have the peer resend a cluster whose cache holds values for attributes the cached attribute list omits.
      *
      * A cache written before the attribute list change was detected holds such values, and a peer whose data version
-     * is unchanged never sends the cluster again.  Loading is synchronous and cannot write storage, so the values are
-     * only cleared in memory here.  Forgetting the version makes the next read fetch the whole cluster, and
-     * {@link #pruneUnlistedAttributes} then deletes what the peer no longer has, in memory and in storage, and restores
-     * what it still sends.  A value under a property name is legacy residue the datasource never rewrites, so it is
-     * hidden on every load but does not make the peer resend.  A peer that reports a value its own list omits keeps
-     * that value under its ID, so its cluster is read in full on every load; we accept that cost for a non-compliant
-     * peer over showing a value it no longer has.
+     * is unchanged never sends the cluster again.  Forgetting the version makes the next wildcard read fetch the whole
+     * cluster, and {@link #pruneUnlistedAttributes} then deletes what the peer no longer sends and keeps what it still
+     * does.  Until then the values stay, as the last known state.  A peer that reports a value its own list omits
+     * keeps that value, so its cluster is read in full on every load.
+     *
+     * A value under a property name is legacy residue that the datasource never rewrites and would otherwise migrate
+     * to the attribute's ID on each load, so it is hidden here instead and does not make the peer resend.
      */
-    #hideUnlistedSeedValues(cluster: ClusterStructure) {
+    #checkUnlistedSeedValues(cluster: ClusterStructure) {
         const values = cluster.store.initialValues;
         if (values === undefined) {
             return;
@@ -725,8 +727,11 @@ export class ClientStructure {
 
         let resend = false;
         for (const key of this.#unlistedKeys(cluster, attributeList, Object.keys(values))) {
-            values[key] = undefined;
-            resend ||= isIdKey(key);
+            if (isIdKey(key)) {
+                resend = true;
+            } else {
+                values[key] = undefined;
+            }
         }
 
         if (resend) {
