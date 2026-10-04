@@ -59,7 +59,8 @@ const NOT_COMMISSIONABLE_UNAVAILABLE =
  * `.a` records the gap, and says what its own leg does instead, rather than leaving the bundle to imply
  * otherwise.
  *
- * **`.c` records the parse alone, not the plan's second sentence.** The plan also asks to verify the TH
+ * **`.c` records the parse and the leg's payload offering, as `.b` does, not the plan's second
+ * sentence.** The plan also asks to verify the TH
  * was not commissioned, but the only thing `.c` asks of the DUT is `parseQrPayload`, which decodes
  * locally on both controllers and reaches no network — so a check that the TH was not commissioned by
  * it examines a window nothing could have written to, and would record a pass for a claim nobody
@@ -167,7 +168,9 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                 `${leg.n}.c`,
                 "DUT parses QR code.",
                 async cx => {
-                    await recordParse(cx, await payloadFor(cx));
+                    const payload = await payloadFor(cx);
+                    await recordParse(cx, payload);
+                    await recordPayloadOffering(cx, payload, leg.capability, flowType);
                 },
                 {
                     pics: scanGate,

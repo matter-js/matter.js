@@ -1229,8 +1229,9 @@ What the plan asks to verify, and how each part is evidenced:
   CI load, so the TC asks for 2s.
 - **The message was unicast** — chip's own receive line categorises the session: `(S)` secure unicast,
   `(U)` unencrypted unicast, `(G)` secure groupcast (`src/messaging/README.md`). `expectUnicastReceipt`
-  scans *backward* from the decode dump for the nearest `Msg RX from` line, which is this message's own
-  since chip logs one message at a time.
+  scans *backward* from the decode dump for the nearest Interaction Model `Msg RX from` line, and
+  `chipHeaderBefore` accepts it only when exactly one decode dump (this message's) lies between: a
+  message that logged no receive line otherwise borrows the previous message's.
 - **The follow-up is the one this request opened** — matched by the session *and* exchange chip names
   on both messages' receive lines (`[E:<exchange> S:<session> …]`), not by "the next message after the
   timed request". A retry of this interaction, or a second administrator's own timed interaction with
@@ -2010,7 +2011,7 @@ ungated `.c` would record a parse pass beside `.b`'s skip — the contradiction 
 rule above exists to prevent. Where a step genuinely re-does the gated operation the fix is the gate,
 not dropping the claim.
 
-**`.c` records the parse and stops there, and the plan's second sentence is why this is worth stating.**
+**`.c` records the parse and the leg's payload offering, as `.b` does, and stops there; the plan's second sentence is why this is worth stating.**
 The plan asks to verify the DUT parsed the code *and* that the TH has not been commissioned. The
 second half looks like the valuable claim and is not testable here: the only thing `.c` asks of the
 DUT is `parseQrPayload`, which is a local decode on both controllers — `singleQrPayload` in-process,
