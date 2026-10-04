@@ -425,6 +425,13 @@ describe("expectChunkedTransfer", function () {
         expect(record.detail).match(/No outbound Report Data trace line/);
     });
 
+    it("does not count a chunk without a trace line of its own as the previous chunk's exchange", async () => {
+        const record = await check([...chunkLines(), ackLine(), CHUNK, SUPPRESSED]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/No outbound Report Data trace line of its own/);
+    });
+
     it("fails when the read never chunked", async () => {
         const record = await check([...chunkLines(), ackLine()]);
 
@@ -1286,6 +1293,17 @@ describe("expectReportAck against a chip TH", () => {
 
         expect(check.verdict).equal("fail");
         expect(check.detail).contains("FAILURE");
+    });
+
+    it("fails a report that logged no trace line of its own, rather than take an earlier report's exchange", async () => {
+        const otherSubscription = reportLines("9000").map(line =>
+            line.replace(SUBSCRIPTION_ID.toString(16), (SUBSCRIPTION_ID + 1).toString(16)),
+        );
+        const [, ...withoutTrace] = reportLines("9001");
+        const check = await ack([...otherSubscription, ...withoutTrace, ...ackLines("9000", "0x00 (SUCCESS)")]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("No outbound Report Data trace line");
     });
 
     // A well-formed block further on is another message's; taking its status would credit our report

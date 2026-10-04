@@ -276,10 +276,10 @@ export class LogFollower implements LogSource {
      * The nearest line before `before` matching `pattern`, searching back at most `within` lines,
      * with the match it produced. Skips synthetic lines, as {@link expect} does.
      *
-     * chip logs one message at a time, so the nearest preceding trace line belongs to the message
-     * whose decode dump starts at `before` — which is what makes scanning backward correct however
-     * many raw-frame lines that message's payload produced. `within` bounds it: unbounded, a search
-     * that finds nothing nearby keeps going and attributes a line from minutes earlier.
+     * The nearest match is not necessarily related to the line at `before`; a caller attributing it
+     * to that line has to establish the relation itself.
+     * `within` bounds the search: unbounded, one that finds nothing nearby keeps going and attributes
+     * a line from minutes earlier.
      *
      * The match comes back with the line so a caller reading capture groups does not re-`exec` the
      * pattern it passed: this scans with a `g`/`y`-stripped copy, and a second `exec` of the
