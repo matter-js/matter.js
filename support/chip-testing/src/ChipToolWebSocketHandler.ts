@@ -144,32 +144,25 @@ export function parseNumber(number: string): number | bigint {
     return parsed;
 }
 
-/** JSON stringify with BigInt handling if number, if bigger than max int  */
-function toChipJson(object: object, spaces?: number): string {
-    const replacements = new Array<{ from: string; to: string }>();
-    let result = JSON.stringify(
+/**
+ * Marks a bigint while it passes through `JSON.stringify`, which cannot write one. A private-use character, which
+ * the strings a device answers with do not carry in practice.
+ */
+const BIGINT_MARK = "\uE000";
+const BIGINT_PLACEHOLDER = new RegExp(`"${BIGINT_MARK}(-?\\d+)"`, "g");
+
+/**
+ * JSON as the runner reads it: a bigint is a plain number, wherever it sits and however large, since the runner parses
+ * integers at full width while a JS number above 2^53 has already lost precision.
+ */
+export function toChipJson(object: object, spaces?: number): string {
+    return JSON.stringify(
         object,
-        (_key, value) => {
-            if (typeof value === "bigint") {
-                if (value > Number.MAX_SAFE_INTEGER) {
-                    replacements.push({ from: `":"0x${value.toString(16)}"`, to: `":${value.toString()}` });
-                    return `0x${value.toString(16)}`;
-                } else {
-                    return Number(value);
-                }
-            }
-            return value;
+        (_key, value: unknown) => {
+            return typeof value === "bigint" ? `${BIGINT_MARK}${value.toString()}` : value;
         },
         spaces,
-    );
-    // CHip JSON is no JS JSON, so we need to replace the hex strings with the correct full number again
-    if (replacements.length > 0) {
-        replacements.forEach(({ from, to }) => {
-            result = result.replaceAll(from, to);
-        });
-    }
-
-    return result;
+    ).replace(BIGINT_PLACEHOLDER, "$1");
 }
 
 /**

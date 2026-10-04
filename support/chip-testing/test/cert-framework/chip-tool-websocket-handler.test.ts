@@ -23,6 +23,7 @@ import {
     isOwnFailure,
     ownFailureResponse,
     parseWritePayload,
+    toChipJson,
 } from "../../src/ChipToolWebSocketHandler.js";
 
 const NETWORK_COMMISSIONING = Matter.clusters.require("NetworkCommissioning");
@@ -204,5 +205,26 @@ describe("ownFailureResponse", () => {
             "Test harness failure — InternalError: ",
         );
         expect(ownFailureResponse("").results[0].error).equal("Test harness failure — no message");
+    });
+});
+
+describe("ChipToolWebSocketHandler toChipJson", () => {
+    it("writes a bigint outside the safe range as a plain number, in an object and in a list", () => {
+        expect(
+            toChipJson({
+                fabricId: 0xffff_ffff_fffe_0001n,
+                subjects: [112233n, 0xffff_ffff_fffd_0001n],
+                offset: -0x20_0000_0000_0001n,
+            }),
+        ).equal(
+            '{"fabricId":18446744073709420545,"subjects":[112233,18446744073709355009],' +
+                '"offset":-9007199254740993}',
+        );
+    });
+
+    it("writes the same numbers when the JSON is indented, and inside nested lists", () => {
+        expect(toChipJson({ entries: [{ subjects: [0x20_0000_0000_0001n] }] }, 1)).equal(
+            '{\n "entries": [\n  {\n   "subjects": [\n    9007199254740993\n   ]\n  }\n ]\n}',
+        );
     });
 });
