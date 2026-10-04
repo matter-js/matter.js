@@ -86,11 +86,20 @@ describe("ChipToolWebSocketHandler convertWebsocketDataToMatter bitmaps", () => 
         });
     });
 
-    it("refuses a bitmap value that is not a number", () => {
-        expect(() =>
-            convertWebsocketDataToMatter("visual", ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION),
-        ).throw(ImplementationError, /Invalid bitmap value visual/);
+    it("decodes a bitmap given as a hex string", () => {
+        expect(convertWebsocketDataToMatter("0x2", ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION)).deep.equal({
+            visual: false,
+            audible: true,
+        });
     });
+
+    for (const value of ["visual", "", "12abc", "1.5", 1.5, -1]) {
+        it(`refuses ${JSON.stringify(value)} as a bitmap value rather than sending a different one`, () => {
+            expect(() =>
+                convertWebsocketDataToMatter(value, ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION),
+            ).throw(ImplementationError, /Invalid bitmap value/);
+        });
+    }
 });
 
 describe("discoveryIdentifierFor", () => {

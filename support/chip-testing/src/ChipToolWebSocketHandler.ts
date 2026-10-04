@@ -442,8 +442,9 @@ export function convertWebsocketDataToMatter(value: any, model: ValueModel, clus
     }
 
     if (model.metabase?.metatype === "bitmap" && (typeof value === "number" || typeof value === "string")) {
-        const numberValue = typeof value === "number" ? value : parseInt(value);
-        if (isNaN(numberValue)) {
+        const numberValue =
+            typeof value === "number" ? value : /^(0x[\da-fA-F]+|\d+)$/.test(value) ? Number(value) : NaN;
+        if (!Number.isSafeInteger(numberValue) || numberValue < 0) {
             throw new ImplementationError(`Invalid bitmap value ${value}`);
         }
         return decodeBitmap(numberValue, model, clusterModel);
