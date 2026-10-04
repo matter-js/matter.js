@@ -1249,6 +1249,81 @@ function ownedBy(endpoint: Endpoint, owner: Endpoint) {
     return false;
 }
 
+/** An event observation as {@link EventReadGate} sees it. */
+interface GatedObservation {
+    readonly peer: ClientNode;
+    /** What arrived while a read of {@link peer}'s events was running. */
+    readonly held: EventReadEntry[];
+    /** Hands on what the gate has attributed to the subscription. */
+    release(entries: EventReadEntry[]): void;
+}
+
+/**
+ * Keeps the events a read brings in away from event observations, which are about what the subscription
+ * delivered.
+ *
+ * `ClientStructure` broadcasts every event a read returns through `ChangeNotificationService` exactly as it
+ * does a subscription's, and does not deduplicate, so an event both deliver is broadcast twice and the two
+ * broadcasts look alike. `readEvents` goes through this gate, and a completed read has broadcast its events
+ * before it returns. So an observation holds what it receives while a read of its peer runs, and the read
+ * removes one held entry per event it returned; what remains came from a subscription.
+ *
+ * Not covered: a `subscribeEvents` subscription's reports, which are subscription deliveries too, and an
+ * event `ClientStructure` delayed to the end of an interaction that a concurrent interaction then flushes
+ * after the read returned (its delayed events are one list shared by all interactions).
+ */
+class EventReadGate {
+    readonly #running = new Map<ClientNode, number>();
+    readonly #observations = new Set<GatedObservation>();
+
+    attach(observation: GatedObservation) {
+        this.#observations.add(observation);
+        return () => this.#observations.delete(observation);
+    }
+
+    admit(observation: GatedObservation, entry: EventReadEntry) {
+        if (this.#running.has(observation.peer)) {
+            observation.held.push(entry);
+        } else {
+            observation.release([entry]);
+        }
+    }
+
+    /** Runs `read`, which collects the events it reads into `returned`. */
+    async reading(peer: ClientNode, returned: ReadResult.EventValue[], read: () => Promise<void>) {
+        this.#running.set(peer, (this.#running.get(peer) ?? 0) + 1);
+        try {
+            await read();
+        } finally {
+            const remaining = (this.#running.get(peer) ?? 1) - 1;
+            if (remaining > 0) {
+                this.#running.set(peer, remaining);
+            } else {
+                this.#running.delete(peer);
+            }
+            for (const observation of this.#observations) {
+                if (observation.peer !== peer) {
+                    continue;
+                }
+                for (const { number } of returned) {
+                    const index = observation.held.findIndex(({ eventNumber }) => eventNumber === number);
+                    if (index !== -1) {
+                        observation.held.splice(index, 1);
+                    }
+                }
+                if (remaining === 0) {
+                    observation.release(observation.held.splice(0));
+                }
+            }
+        }
+    }
+
+    close() {
+        this.#observations.clear();
+        this.#running.clear();
+    }
+}
+
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
@@ -1258,6 +1333,7 @@ class InProcessCertNodeApi implements CertNodeApi {
 
     /** The adapter's own collection, because that is where an observation's lifetime ends. */
     readonly #eventObservers: ObserverGroup[];
+    readonly #eventReads: EventReadGate;
 
     constructor(
         adapterId: string,
@@ -1266,6 +1342,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         ref: CertNodeRef,
         icdClients: Map<NodeId, InProcessIcdClient>,
         eventObservers: ObserverGroup[],
+        eventReads: EventReadGate,
     ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
@@ -1273,6 +1350,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         this.#nodeId = NodeId(ref);
         this.#icdClients = icdClients;
         this.#eventObservers = eventObservers;
+        this.#eventReads = eventReads;
     }
 
     icdClient(): CertIcdClientApi {
@@ -2083,15 +2161,18 @@ class InProcessCertNodeApi implements CertNodeApi {
                 eventFilters: eventFiltersFor(options),
                 fabricFilter: options?.fabricFiltered,
             });
-            for await (const chunk of this.#peer.interaction.read(request)) {
-                for await (const report of chunk) {
-                    if (report.kind === "event-value") {
-                        values.push(report);
-                    } else if (report.kind === "event-status") {
-                        statuses.push(report);
+            const peer = this.#peer;
+            await this.#eventReads.reading(peer, values, async () => {
+                for await (const chunk of peer.interaction.read(request)) {
+                    for await (const report of chunk) {
+                        if (report.kind === "event-value") {
+                            values.push(report);
+                        } else if (report.kind === "event-status") {
+                            statuses.push(report);
+                        }
                     }
                 }
-            }
+            });
             assertNoConcreteEventStatus(paths, statuses, "readEvents");
             return toWireEvents(values);
         });
@@ -2176,9 +2257,8 @@ class InProcessCertNodeApi implements CertNodeApi {
             // reach `onUpdate` as well, and which those are is not known until the read returns.
             let pending: EventReadEntry[] | undefined = [];
 
-            // A read re-broadcasts the events it answers with, so a later read over any of these paths
-            // would otherwise replay history as though it were live. A peer keeps numbering its events
-            // across a restart, so within one observation an event number identifies an event.
+            // A peer keeps numbering its events across a restart, so within one observation an event
+            // number identifies an event.
             const delivered = new Set<bigint>();
 
             const report = (entry: EventReadEntry) => {
@@ -2199,6 +2279,13 @@ class InProcessCertNodeApi implements CertNodeApi {
                 }
             };
 
+            const gated: GatedObservation = {
+                peer,
+                held: new Array<EventReadEntry>(),
+                release: entries => entries.forEach(report),
+            };
+            const detach = this.#eventReads.attach(gated);
+
             // Its own group, so a seed read that rejects takes the observer with it rather than leaving
             // it buffering reports for a call that never returned
             const observers = new ObserverGroup();
@@ -2217,7 +2304,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 if (!matches || cluster === undefined) {
                     return;
                 }
-                report({
+                this.#eventReads.admit(gated, {
                     endpoint,
                     cluster,
                     event: change.event.id,
@@ -2231,6 +2318,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 seed = await this.readEvents(paths);
             } catch (e) {
                 observers.close();
+                detach();
                 throw e;
             }
             this.#eventObservers.push(observers);
@@ -2588,6 +2676,9 @@ export class InProcessControllerAdapter implements ControllerAdapter {
      */
     readonly #eventObservers = new Array<ObserverGroup>();
 
+    /** Shared by every `node()` handle for the same reason as {@link #eventObservers}. */
+    readonly #eventReads = new EventReadGate();
+
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
             throw new InternalError(
@@ -2687,6 +2778,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                     observers.close();
                 }
                 this.#eventObservers.length = 0;
+                this.#eventReads.close();
                 this.#webRtcRequestor?.close();
                 await this.#controller?.close();
                 await this.#attestation?.close();
@@ -2779,6 +2871,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             ref,
             this.#icdClients,
             this.#eventObservers,
+            this.#eventReads,
         );
     }
 
