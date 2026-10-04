@@ -1148,6 +1148,7 @@ namespace EventedOnOffServer {
 describe("InteractionProtocol", () => {
     let interactionProtocol: InteractionServer;
     let node: MockServerNode;
+    const createdNodes = new Array<MockServerNode>();
 
     async function createNode(maxPathsPerInvoke = 100) {
         node = await MockServerNode.createOnline({
@@ -1176,11 +1177,18 @@ describe("InteractionProtocol", () => {
             device: undefined,
         });
 
+        createdNodes.push(node);
         interactionProtocol = node.env.get(InteractionServer);
     }
 
     beforeEach(async () => {
         await createNode();
+    });
+
+    afterEach(async () => {
+        for (const created of createdNodes.splice(0)) {
+            await created.close();
+        }
     });
 
     describe("handleReadRequest", () => {
