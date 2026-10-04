@@ -287,7 +287,6 @@ describe("ChipToolWebSocketHandler convertWebsocketDataToMatter bitmaps", () => 
         });
     });
 
-    // Characterization: the previous decoder refused these too
     it("refuses a bitmap value that is negative or not an integer", () => {
         expect(() => convertWebsocketDataToMatter(-1, wide, cluster)).throw(ImplementationError);
         expect(() => convertWebsocketDataToMatter(1.5, wide, cluster)).throw(ImplementationError);
