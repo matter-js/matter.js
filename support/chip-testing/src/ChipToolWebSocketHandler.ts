@@ -62,6 +62,7 @@ import {
 } from "@matter/protocol";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
+import { stringifyChipJson } from "./chip-tool/json-codec.js";
 import { log } from "./GenericTestApp.js";
 import {
     AttributeResponseData,
@@ -142,27 +143,6 @@ export function parseNumber(number: string): number | bigint {
         throw new ImplementationError(`Failed to parse number: ${number}`);
     }
     return parsed;
-}
-
-/**
- * Marks a bigint while it passes through `JSON.stringify`, which cannot write one. A private-use character, which
- * the strings a device answers with do not carry in practice.
- */
-const BIGINT_MARK = "\uE000";
-const BIGINT_PLACEHOLDER = new RegExp(`"${BIGINT_MARK}(-?\\d+)"`, "g");
-
-/**
- * JSON as the runner reads it: a bigint is a plain number, wherever it sits and however large, since the runner parses
- * integers at full width while a JS number above 2^53 has already lost precision.
- */
-export function toChipJson(object: object, spaces?: number): string {
-    return JSON.stringify(
-        object,
-        (_key, value: unknown) => {
-            return typeof value === "bigint" ? `${BIGINT_MARK}${value.toString()}` : value;
-        },
-        spaces,
-    ).replace(BIGINT_PLACEHOLDER, "$1");
 }
 
 /**
@@ -732,7 +712,7 @@ export class ChipToolWebSocketHandler {
         const response: OutgoingChipWebSocketCommandResponse = { results, logs };
         this.#startRecording!();
 
-        return toChipJson(response);
+        return stringifyChipJson(response);
     }
 
     /** Handles an incoming one line text command */
@@ -840,7 +820,7 @@ export class ChipToolWebSocketHandler {
             ...incoming,
             arguments: commandArguments,
         };
-        logger.info("Received JSON", toChipJson(data));
+        logger.info("Received JSON", stringifyChipJson(data));
 
         const deadline = stepDeadline(commandArguments);
         if (deadline === undefined) {
