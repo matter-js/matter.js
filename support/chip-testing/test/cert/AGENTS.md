@@ -1689,10 +1689,11 @@ its own) but because recording a PAF-leg scan while the PAF leg is out of scope 
 `pics` takes a full expression (`&`, `|`, `!`, parentheses), and `certTest` parses it at declaration
 time so a typo cannot surface as the step failing.
 
-**A scan step must judge the field that defines its leg.** `recordParse` settles its verdict on the
-discriminator and passcode alone, so every leg's scan step otherwise passes on identical evidence and
-one handed another leg's payload still passes. `recordPayloadOffering` puts the capability and the
-commissioning flow into the verdict, read back through the DUT's own parse.
+**A scan step must judge the field that defines its leg.** `recordParse` alone settles its verdict on
+the discriminator and passcode, so every leg's scan step otherwise passes on identical evidence and one
+handed another leg's payload still passes. Its `offering` option adds a second check on the same parse
+that puts the capability and the commissioning flow into the verdict; both checks are recorded even
+when the first fails.
 
 **The TH's own QR code already satisfies the plan's precondition**, so this TC verifies rather than
 fabricates: both chip builds publish `flowType` 0 — `MT:-24J042C00KA0648G00` from the cert-bins app,
@@ -1987,7 +1988,7 @@ something the harness can produce. `qrPayloadWith` gained a `flowType` field for
 scan step reads it back through the DUT's own parser — which is what makes the step evidence about the
 flow rather than about the TH.
 
-**`recordPayloadOffering` takes the expected flow as a parameter.** A helper whose verdict names a
+**`recordParse`'s `offering` takes the expected flow from the caller.** A helper whose verdict names a
 property must take that property from the caller; one holding the value itself records a `pass` whose
 text names a flow nobody checked, and the second test case to use it silently asserts the first one's
 value.

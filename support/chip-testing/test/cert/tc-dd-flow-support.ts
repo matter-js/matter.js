@@ -16,7 +16,6 @@ import {
     recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
-    recordPayloadOffering,
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
@@ -156,8 +155,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                 "Scan the QR code from the previous step using the DUT.",
                 async cx => {
                     const payload = await payloadFor(cx);
-                    await recordParse(cx, payload);
-                    await recordPayloadOffering(cx, payload, leg.capability, flowType);
+                    await recordParse(cx, payload, { offering: { capability: leg.capability, flowType } });
                 },
                 {
                     pics: scanGate,
@@ -169,8 +167,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                 "DUT parses QR code.",
                 async cx => {
                     const payload = await payloadFor(cx);
-                    await recordParse(cx, payload);
-                    await recordPayloadOffering(cx, payload, leg.capability, flowType);
+                    await recordParse(cx, payload, { offering: { capability: leg.capability, flowType } });
                 },
                 {
                     pics: scanGate,
