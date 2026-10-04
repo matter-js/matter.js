@@ -10,7 +10,7 @@ import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("UnitLocalizationServer", () => {
     it("initializes", async () => {
-        const node = await MockServerNode.create(MockServerNode.RootEndpoint.with(UnitLocalizationServer));
+        await using node = await MockServerNode.create(MockServerNode.RootEndpoint.with(UnitLocalizationServer));
         expect(node.state.unitLocalization.temperatureUnit).equals(UnitLocalization.TempUnit.Celsius);
         expect(node.state.unitLocalization.supportedTemperatureUnits).deep.equals([
             UnitLocalization.TempUnit.Celsius,

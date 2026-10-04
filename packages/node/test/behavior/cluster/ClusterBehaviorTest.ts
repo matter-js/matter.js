@@ -242,7 +242,7 @@ describe("ClusterBehavior", () => {
         });
 
         it("instance exposes values for enabled cluster elements", async () => {
-            const endpoint = await MockEndpoint.createWith(MyBehavior);
+            await using endpoint = await MockEndpoint.createWith(MyBehavior);
             await endpoint.act(agent => {
                 const behavior = agent.myCluster;
                 expect(behavior.state.reqAttr).equals("hello");
@@ -261,7 +261,7 @@ describe("ClusterBehavior", () => {
         });
 
         it("instance does not expose values for disabled cluster elements", async () => {
-            const endpoint = await MockEndpoint.createWith(MyBehavior);
+            await using endpoint = await MockEndpoint.createWith(MyBehavior);
             await endpoint.act(agent => {
                 const behavior = agent.myCluster;
                 expect(behavior.state.optAttr).undefined;
@@ -519,7 +519,7 @@ describe("ClusterBehavior", () => {
                 override nonMatterMethod() {}
             }
 
-            const endpoint = await MockEndpoint.createWith(MyTestBehavior);
+            await using endpoint = await MockEndpoint.createWith(MyTestBehavior);
             await endpoint.act(agent => {
                 const state = agent.testWithMethod.state as unknown as GlobalAttributeState;
                 expect(state.acceptedCommandList).deep.equals([CommandId(0x01)]);
