@@ -7,6 +7,7 @@
 import { Bytes, Duration, NotImplementedError } from "@matter/general";
 import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
+import { BitmapMembers } from "./BitmapMembers.js";
 import { DecodedBitmap } from "./DecodedBitmap.js";
 import { EncodedValue } from "./EncodedValue.js";
 import { Scope } from "./Scope.js";
@@ -23,7 +24,7 @@ import { Scope } from "./Scope.js";
  * @param ifValid some structs only have partial defaults defined so would be invalid; do not return these
  */
 export function DefaultValue(scope: Scope, model: ValueModel, ifValid = false): any {
-    const value = castValue(model, FieldValue.stated(model.default));
+    const value = castValue(scope, model, FieldValue.stated(model.default));
     if (value === undefined) {
         return createValue(scope, model, ifValid);
     }
@@ -33,7 +34,7 @@ export function DefaultValue(scope: Scope, model: ValueModel, ifValid = false): 
 /**
  * When an explicit value is present, cast to native JS type.
  */
-function castValue(model: ValueModel, modelDefault?: FieldValue): unknown {
+function castValue(scope: Scope, model: ValueModel, modelDefault?: FieldValue): unknown {
     if (modelDefault === undefined) {
         return;
     }
@@ -72,7 +73,7 @@ function castValue(model: ValueModel, modelDefault?: FieldValue): unknown {
             // bit fields (composed above)
             if (typeof modelDefault === "number" || typeof modelDefault === "bigint") {
                 // Default value is a number
-                return DecodedBitmap(model, modelDefault);
+                return DecodedBitmap(model, modelDefault, scope);
             }
 
             // Default value may be an object
@@ -109,7 +110,7 @@ function castValue(model: ValueModel, modelDefault?: FieldValue): unknown {
             if (Array.isArray(modelDefault)) {
                 const entry = model.member("entry");
                 if (entry?.isType) {
-                    return modelDefault.map(value => castValue(entry as ValueModel, FieldValue.stated(value)));
+                    return modelDefault.map(value => castValue(scope, entry as ValueModel, FieldValue.stated(value)));
                 }
                 return modelDefault;
             }
@@ -178,44 +179,27 @@ function buildObject(scope: Scope, model: ValueModel, ifValid: boolean) {
 }
 
 function buildBitmap(scope: Scope, model: ValueModel) {
-    let result;
-    let fieldsDefined = 0;
+    let bitmap: bigint | undefined;
 
-    for (const m of scope.membersOf(model, { conformance: "conformant" })) {
-        // The bits compose with 32 bit arithmetic, so a magnitude a number cannot state has no place in them
-        const defaultValue = FieldValue.numericValue(m.default);
-        if (typeof defaultValue !== "number") {
+    // Where members overlap, the first to claim a bit decides it
+    let claimed = 0n;
+
+    for (const member of BitmapMembers.of(model, scope, { conformance: "conformant" })) {
+        const defaultValue = FieldValue.numericValue(member.default);
+        if (typeof defaultValue !== "number" && typeof defaultValue !== "bigint") {
             continue;
         }
 
-        if (result === undefined) {
-            result = 0;
+        bitmap ??= 0n;
+
+        const range = BitmapMembers.rangeOf(member, defaultValue);
+        if (range === undefined) {
+            continue;
         }
 
-        // Bit ranges are inclusive, as in the TLV schema the model produces
-        let minBit, endBit;
-
-        const constraintValue = FieldValue.countValue(m.constraint.value);
-        if (constraintValue !== undefined) {
-            minBit = constraintValue;
-            endBit = constraintValue + 1;
-        } else {
-            minBit = FieldValue.countValue(m.constraint.min) ?? 0;
-            const maxBit = FieldValue.countValue(m.constraint.max);
-            endBit = maxBit === undefined ? minBit + Math.trunc(Math.log2(defaultValue)) + 1 : maxBit + 1;
-        }
-
-        for (let i = 0, mask = 1 << minBit; i < endBit - minBit; i++, mask <<= 1) {
-            if (fieldsDefined & mask) {
-                continue;
-            }
-            fieldsDefined |= mask;
-            if (defaultValue & (1 << i)) {
-                result |= mask;
-            }
-        }
+        bitmap |= BitmapMembers.place(range, defaultValue) & ~claimed;
+        claimed |= BitmapMembers.maskOf(range);
     }
 
-    // The bitwise operators yield signed 32-bit values; bit 31 belongs to the bitmap, not the sign
-    return result === undefined ? undefined : result >>> 0;
+    return bitmap === undefined ? undefined : BitmapMembers.toNumeric(bitmap);
 }

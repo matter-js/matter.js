@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AttributeModel, DecodedBitmap, EncodedBitmap, FeatureMap, FieldElement as Field } from "#index.js";
+import {
+    AttributeModel,
+    DecodedBitmap,
+    EncodedBitmap,
+    FeatureMap,
+    FieldElement as Field,
+    Matter,
+    Scope,
+} from "#index.js";
 
 // Simple bitmap attribute with two single-bit flags (bits 0 and 1) — matches real featureMap usage
 const BitmapAttr = new AttributeModel(
@@ -39,6 +47,12 @@ const ShiftedLargeBitmapAttr = new AttributeModel(
     Field({ name: "highBits", constraint: "4 to 63" }),
 );
 
+const OpenBitmapAttr = new AttributeModel(
+    { id: 5, name: "OpenBitmap", type: "bitmap16" },
+    Field({ name: "flag", constraint: "0" }),
+    Field({ name: "rest", constraint: "min 4" }),
+);
+
 describe("EncodedBitmap", () => {
     it("returns numeric input unchanged", () => {
         expect(EncodedBitmap(BitmapAttr, 42)).equals(42);
@@ -68,20 +82,16 @@ describe("EncodedBitmap", () => {
         ).equals(0b11);
     });
 
-    it("encodes multi-bit numeric field (typeof bitval === 'number' branch)", () => {
+    it("encodes a multi-bit field given as a number", () => {
         // Field "multiA" spans bit positions 0–2; value 3 means bits 0 and 1 are set → bitmap 0b011 = 3
         expect(EncodedBitmap(MultiBitAttr, { multiA: 3 })).equals(3);
         // Field "multiB" spans bit positions 4–6; value 3 means bits 4 and 5 are set → bitmap 0b110000 = 48
         expect(EncodedBitmap(MultiBitAttr, { multiB: 3 })).equals(48);
     });
 
-    it("encodes multi-bit bigint field value above MAX_SAFE_INTEGER (bigint mask fix)", () => {
-        // 2n**53n + 1n > Number.MAX_SAFE_INTEGER; the result should be returned as a BigInt.
-        // With the old (buggy) mask `2n**56n << 0n` this would be masked to 0n because neither
-        // set bit (0 and 53) matches the single bit at position 56. The fix subtracts 1n to
-        // produce a proper bitmask covering all 56 bit positions, preserving the value intact.
+    it("encodes a multi-bit field above MAX_SAFE_INTEGER as a bigint", () => {
         const value = 2n ** 53n + 1n;
-        expect(EncodedBitmap(LargeBitmapAttr, { largeBits: value } as unknown as DecodedBitmap)).equals(value);
+        expect(EncodedBitmap(LargeBitmapAttr, { largeBits: value })).equals(value);
     });
 
     it("encodes the top bit of a multi-bit numeric field", () => {
@@ -91,17 +101,56 @@ describe("EncodedBitmap", () => {
 
     it("encodes the top bit of a multi-bit bigint field", () => {
         const value = 2n ** 56n;
-        expect(EncodedBitmap(LargeBitmapAttr, { largeBits: value } as unknown as DecodedBitmap)).equals(value);
+        expect(EncodedBitmap(LargeBitmapAttr, { largeBits: value })).equals(value);
     });
 
     it("places a multi-bit bigint field at its lowest bit", () => {
         const value = 2n ** 54n + 1n;
-        expect(EncodedBitmap(ShiftedLargeBitmapAttr, { highBits: value } as unknown as DecodedBitmap)).equals(
-            value << 4n,
-        );
+        expect(EncodedBitmap(ShiftedLargeBitmapAttr, { highBits: value })).equals(value << 4n);
     });
 
     it("encodes a numeric multi-bit field beyond 32 bits", () => {
         expect(EncodedBitmap(LargeBitmapAttr, { largeBits: 2 ** 40 })).equals(2 ** 40);
+    });
+
+    it("encodes a bitmap whose datatype the cluster inherits, given the cluster's scope", () => {
+        const dishwasherAlarm = Matter.clusters.require("DishwasherAlarm");
+        const mask = dishwasherAlarm.commands.require("ModifyEnabledAlarms").fields.require("Mask");
+        expect(EncodedBitmap(mask, { inflowError: true, doorError: true }, Scope(dishwasherAlarm))).equals(0b101);
+    });
+});
+
+describe("EncodedBitmap and DecodedBitmap", () => {
+    it("place a member with no upper bound from its lowest bit and read it back", () => {
+        expect(EncodedBitmap(OpenBitmapAttr, { flag: true, rest: 5 })).equals(0b1010001);
+        expect(DecodedBitmap(OpenBitmapAttr, 0b1010001)).deep.equals({ flag: true, rest: 5 });
+    });
+});
+
+describe("DecodedBitmap", () => {
+    it("decodes flags and multi-bit fields", () => {
+        expect(DecodedBitmap(BitmapAttr, 0b101)).deep.equals({ flagA: true, flagC: true });
+        expect(DecodedBitmap(MultiBitAttr, 0b1110111)).deep.equals({ multiA: 7, multiB: 7 });
+    });
+
+    it("decodes a field above bit 31", () => {
+        expect(DecodedBitmap(ShiftedLargeBitmapAttr, 2 ** 40)).deep.equals({ highBits: 2 ** 36 });
+    });
+
+    it("decodes a field a number cannot hold exactly as a bigint", () => {
+        expect(DecodedBitmap(LargeBitmapAttr, 2n ** 56n + 1n)).deep.equals({ largeBits: 2n ** 56n + 1n });
+    });
+
+    it("decodes a bitmap whose datatype the cluster inherits, given the cluster's scope", () => {
+        const dishwasherAlarm = Matter.clusters.require("DishwasherAlarm");
+        const mask = dishwasherAlarm.commands.require("ModifyEnabledAlarms").fields.require("Mask");
+        expect(DecodedBitmap(mask, 0b101, Scope(dishwasherAlarm))).deep.equals({ inflowError: true, doorError: true });
+    });
+
+    it("keys FeatureMap features by their title", () => {
+        expect(DecodedBitmap(FeatureMapAttr as unknown as AttributeModel, 0b11)).deep.equals({
+            latchingSwitch: true,
+            momentarySwitch: true,
+        });
     });
 });
