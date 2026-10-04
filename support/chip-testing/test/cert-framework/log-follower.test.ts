@@ -5,7 +5,7 @@
  */
 
 import type { LogSource } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, LogFollower } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, flavorFamily, forFlavor, LogFollower } from "@matter/testing";
 
 /**
  * A push-controlled `AsyncIterable<string>` so tests can decide exactly when lines arrive, without
@@ -567,5 +567,29 @@ describe("LogFollower", () => {
             expect(follower.lastMatchBefore(global, 1, 10)?.line.text, "first call").equal("trace 1");
             expect(follower.lastMatchBefore(global, 1, 10)?.line.text, "reused").equal("trace 1");
         });
+    });
+});
+
+describe("flavorFamily", () => {
+    it("puts every chip flavor in the chip family and matterjs in its own", () => {
+        expect(flavorFamily("chip-local")).equal("chip");
+        expect(flavorFamily("chip-docker")).equal("chip");
+        expect(flavorFamily("matterjs")).equal("matterjs");
+    });
+
+    it("puts python-wrapped and an absent flavor in no family", () => {
+        expect(flavorFamily("python-wrapped")).equal(undefined);
+        expect(flavorFamily(undefined)).equal(undefined);
+    });
+});
+
+describe("forFlavor", () => {
+    it("picks no variant for a flavor of no family, even where both are supplied", () => {
+        const variants = { chip: "chip", matterjs: "matterjs" };
+
+        expect(forFlavor(variants, "chip-local")).equal("chip");
+        expect(forFlavor(variants, "matterjs")).equal("matterjs");
+        expect(forFlavor(variants, "python-wrapped")).equal(undefined);
+        expect(forFlavor(variants, undefined)).equal(undefined);
     });
 });

@@ -114,6 +114,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: A peer's state drops the value of an attribute its `AttributeList` omits, such as one a firmware update removed, also when the value was cached before the list changed; such a cluster is read again in full after the controller starts. `Datasource.ExternallyMutableStore` has an optional `invalidateVersion()`
     - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
     - Fix: A closed subscription releases its diagnostic lifetime, so a long-running device no longer keeps one per subscription it ever served
     - Fix: A closed node closes its group message counter, its device certification, the controller's fabric authority and its client subscriptions
@@ -185,6 +186,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: An ICD times its active window on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or extended the window, and after a backward step the device answered a StayActiveRequest with an active time as long as the step
 
 - @matter/testing
+    - Breaking: `forFlavor()` and `LogExpectOptions.flavor` take a `LogFlavor` (a `DeviceFlavor`, or `"chip"`/`"matterjs"`) instead of a string; `flavorFamily()` answers which family a flavor belongs to, and a flavor of neither family, such as `python-wrapped`, selects no variant
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
     - Fix: CHIP test runs on one Docker daemon take turns with the shared harness containers instead of recreating each other's `chip` container, which ended the other run with exit code 137. A run holds a lock while it uses the harness and waits while another run holds it (`MATTER_CHIP_HARNESS_WAIT_MINUTES`, default 60; `0` fails at once with `HarnessBusyError` when another run holds it). The lock ends with the process that holds it; a lock that does not run for 30 s is left over and fails the run with the command that removes it
     - Fix: A certification step that made a controller call that may change the device and is then refused by the controller fails the run instead of being recorded as skipped, as a step that already recorded a check does

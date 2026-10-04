@@ -39,8 +39,8 @@ import {
     type FeatureBitmap,
 } from "@matter/model";
 import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
-import { EndpointNumber } from "@matter/types";
-import type { AttributeId, ClusterId, CommandId } from "@matter/types";
+import { AttributeId, EndpointNumber } from "@matter/types";
+import type { ClusterId, CommandId } from "@matter/types";
 import { Status } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import type { ClientEventEmitter } from "./ClientEventEmitter.js";
@@ -77,6 +77,28 @@ function getStoreValue(values: Record<string | number, unknown> | undefined, id:
         return undefined;
     }
     return memberValueOf(values, id, name);
+}
+
+/**
+ * Whether a key of an id-keyed cluster store addresses an attribute by its numeric ID rather than its property name.
+ */
+function isIdKey(key: string) {
+    return /^\d+$/.test(key);
+}
+
+/**
+ * The attribute list a peer reported, if it describes the attribute set.
+ *
+ * A non-empty AttributeList is authoritative.  An empty list is ignored so it doesn't churn against the
+ * received-attribute fallback some devices need.
+ */
+function authoritativeAttributeList(value: unknown) {
+    if (!Array.isArray(value)) {
+        return;
+    }
+
+    const ids = value.filter((id): id is number => typeof id === "number");
+    return ids.length ? ids : undefined;
 }
 
 /**
@@ -179,7 +201,9 @@ export class ClientStructure {
 
             // Load state for each behavior
             for (const id of knownBehaviors) {
-                this.#synchronizeCluster(endpoint, this.#clusterFor(endpoint, id));
+                const cluster = this.#clusterFor(endpoint, id);
+                this.#checkUnlistedSeedValues(cluster);
+                this.#synchronizeCluster(endpoint, cluster);
             }
         }
 
@@ -370,6 +394,7 @@ export class ClientStructure {
                     this.#clustersWithDataThisInteraction.add(cluster);
                     this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
+                    this.#pruneUnlistedAttributes(cluster, values);
                     this.#invalidateOnDefinitionChange(cluster, values);
 
                     await cluster.store.externalSet(values);
@@ -550,6 +575,7 @@ export class ClientStructure {
         this.#clustersWithDataThisInteraction.add(cluster);
         this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
+        this.#pruneUnlistedAttributes(cluster, attrs.values);
         this.#invalidateOnDefinitionChange(cluster, attrs.values);
 
         await cluster.store.externalSet(attrs.values);
@@ -604,21 +630,13 @@ export class ClientStructure {
             return;
         }
 
-        // A non-empty AttributeList is authoritative for the attribute set.  An empty list is ignored so it doesn't
-        // churn against the received-attribute fallback.  Detect the change before discarding the behavior, whose
-        // schema names the attributes to prune.
-        const attributeList = values.get(AttributeList.id);
-        const newAttributes = Array.isArray(attributeList) && attributeList.length ? attributeList : undefined;
+        const newAttributes = authoritativeAttributeList(values.get(AttributeList.id));
         const attributeSetChanged =
             newAttributes !== undefined &&
             !isDeepEqual(
                 cluster.attributes,
                 [...newAttributes].sort((a, b) => a - b),
             );
-
-        if (attributeSetChanged) {
-            this.#pruneDroppedAttributes(cluster, newAttributes, values);
-        }
 
         const acceptedCommands = values.get(AcceptedCommandList.id);
 
@@ -637,35 +655,87 @@ export class ClientStructure {
     }
 
     /**
-     * Mark values for attributes dropped by a new attribute list for deletion.
+     * Mark stored values of attributes a reported attribute list omits for deletion.
      *
-     * The client store keys attribute values by both numeric attribute ID (protocol updates) and property name (seed
-     * data), so we clear both forms.  Entries added to {@link values} are removed by the pending
-     * {@link Datasource.ExternallyMutableStore.externalSet}; a value of `undefined` deletes a key.
+     * A value reported alongside the list shows the peer still has the attribute, so only stored values are pruned.
+     * Entries added to {@link values} are removed by the pending {@link Datasource.ExternallyMutableStore.externalSet};
+     * a value of `undefined` deletes a key.
      */
-    #pruneDroppedAttributes(cluster: ClusterStructure, newAttributeList: readonly unknown[], values: Val.StructMap) {
-        if (!cluster.attributes) {
+    #pruneUnlistedAttributes(cluster: ClusterStructure, values: Val.StructMap) {
+        const attributeList = authoritativeAttributeList(values.get(AttributeList.id));
+        if (attributeList === undefined) {
             return;
         }
 
-        const retained = new Set(newAttributeList);
-        const oldAttributes = cluster.behavior?.cluster?.attributes;
+        // A key that is undefined in memory has no copy under that key in storage
+        const stored = Object.entries(cluster.store.currentValues ?? {})
+            .filter(([key, value]) => value !== undefined && !values.has(Number(key)))
+            .map(([key]) => key);
+        for (const key of this.#unlistedKeys(cluster, attributeList, stored)) {
+            values.set(key, undefined);
+        }
+    }
 
-        for (const id of cluster.attributes) {
-            if (retained.has(id)) {
-                continue;
+    /**
+     * The value keys of {@link keys} that address an attribute absent from {@link attributeList}.
+     *
+     * The client store keys attribute values by both numeric attribute ID (protocol updates) and property name (seed
+     * data), so both forms resolve to an attribute ID.  Keys that resolve to no attribute, such as metadata, are kept,
+     * as are global attributes, which the specification requires in every list and the discovered schema depends on.
+     */
+    #unlistedKeys(cluster: ClusterStructure, attributeList: readonly number[], keys: Iterable<string>) {
+        const unlisted = new Set<string>();
+        if (cluster.primaryKey !== "id") {
+            return unlisted;
+        }
+
+        const listed = new Set(attributeList);
+        const ids = this.#attributeIdsFor(cluster.id);
+
+        for (const key of keys) {
+            const id = isIdKey(key) ? Number(key) : ids.get(key);
+            if (id !== undefined && !listed.has(id) && !AttributeId.isGlobal(id)) {
+                unlisted.add(key);
             }
+        }
 
-            values.set(id, undefined);
+        return unlisted;
+    }
 
-            if (oldAttributes) {
-                for (const [name, def] of Object.entries(oldAttributes)) {
-                    if (def.id === id) {
-                        values.set(name, undefined);
-                        break;
-                    }
-                }
+    /**
+     * Have the peer resend a cluster whose cache holds values for attributes the cached attribute list omits.
+     *
+     * A cache written before the attribute list change was detected holds such values, and a peer whose data version
+     * is unchanged never sends the cluster again.  Forgetting the version makes the next wildcard read fetch the whole
+     * cluster, and {@link #pruneUnlistedAttributes} then deletes what the peer no longer sends and keeps what it still
+     * does.  Until then the values stay, as the last known state.  A peer that reports a value its own list omits
+     * keeps that value, so its cluster is read in full on every load.
+     *
+     * A value under a property name is legacy residue that the datasource never rewrites and would otherwise migrate
+     * to the attribute's ID on each load, so it is hidden here instead and does not make the peer resend.
+     */
+    #checkUnlistedSeedValues(cluster: ClusterStructure) {
+        const values = cluster.store.initialValues;
+        if (values === undefined) {
+            return;
+        }
+
+        const attributeList = authoritativeAttributeList(getStoreValue(values, AttributeList.id, "attributeList"));
+        if (attributeList === undefined) {
+            return;
+        }
+
+        let resend = false;
+        for (const key of this.#unlistedKeys(cluster, attributeList, Object.keys(values))) {
+            if (isIdKey(key)) {
+                resend = true;
+            } else {
+                values[key] = undefined;
             }
+        }
+
+        if (resend) {
+            cluster.store.invalidateVersion?.();
         }
     }
 

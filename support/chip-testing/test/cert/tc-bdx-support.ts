@@ -5,13 +5,14 @@
  */
 
 import { Seconds } from "@matter/main";
-import { UnsupportedByControllerError } from "@matter/testing";
+import { flavorFamily, UnsupportedByControllerError } from "@matter/testing";
 import type {
     BdxTransferAccept,
     BdxTransferProposal,
     CertNodeRef,
     CertStepContext,
     CheckRecord,
+    LogFlavor,
     LogFollower,
     OtaBdxTransfer,
 } from "@matter/testing";
@@ -135,7 +136,7 @@ export async function serveOtaTransfer(
     // --autoApplyImage, and chip's own certification material starts it without that flag for the
     // download cases (Test_TC_SU_3_3; Test_TC_SU_3_4, which is about applying, passes it). So a chip
     // receiver is expected to ask only where the case started it with that flag and said so.
-    const expectApply = expectApplyOverride ?? device.flavor === "matterjs";
+    const expectApply = expectApplyOverride ?? flavorFamily(device.flavor) === "matterjs";
 
     let transfer: OtaBdxTransfer;
     try {
@@ -344,13 +345,14 @@ function chipSequence(lines: ChipMessageLines | undefined) {
  */
 function messagesIn(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     kind: BdxMessageKind,
     from: number,
 ): BdxMessageRecord[] | undefined {
     const lines = log.lines.filter(line => !line.synthetic && line.index >= Math.max(0, from));
 
-    if (flavor === "matterjs") {
+    const family = flavorFamily(flavor);
+    if (family === "matterjs") {
         if (kind.matterjs === undefined) {
             return undefined;
         }
@@ -373,7 +375,7 @@ function messagesIn(
     // LogMessage names only some of them — `TransferSession::HandleBlock` records a received Block and
     // returns, and `PrepareBlockQuery` likewise, so a receiver's whole account lives here.
     const dmg = kind.chipDmg;
-    if (!flavor.startsWith("chip") || dmg === undefined) {
+    if (family !== "chip" || dmg === undefined) {
         return undefined;
     }
 
@@ -456,17 +458,17 @@ export function overMessages(
 }
 
 /** {@link messagesIn} for the `Block` messages the TH took in. */
-export function blocksReceived(log: LogFollower, flavor: string, from: number) {
+export function blocksReceived(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_RECEIVED, from);
 }
 
 /** {@link messagesIn} for the `BlockEOF` the TH took in. */
-export function blockEofReceived(log: LogFollower, flavor: string, from: number) {
+export function blockEofReceived(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_EOF_RECEIVED, from);
 }
 
 /** {@link messagesIn} for the `BlockQuery` messages the TH sent. */
-export function blockQueriesSent(log: LogFollower, flavor: string, from: number) {
+export function blockQueriesSent(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_QUERY_SENT, from);
 }
 
@@ -486,7 +488,7 @@ function endOfTransferLines() {
 }
 
 /** {@link messagesIn} for the `BlockAckEOF` the TH sent. */
-export function blockAckEofSent(log: LogFollower, flavor: string, from: number) {
+export function blockAckEofSent(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_ACK_EOF_SENT, from);
 }
 
