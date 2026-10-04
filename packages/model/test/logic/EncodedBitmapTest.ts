@@ -120,6 +120,17 @@ describe("EncodedBitmap", () => {
     });
 });
 
+describe("EncodedBitmap with conformance", () => {
+    it("encodes only the conformant definition of a member", () => {
+        const model = new AttributeModel(
+            { id: 6, name: "Alternatives", type: "bitmap8" },
+            Field({ name: "Mode", constraint: "0" }),
+            Field({ name: "Mode", constraint: "1", conformance: "X" }),
+        );
+        expect(EncodedBitmap(model, { mode: true }, undefined, { conformance: "conformant" })).equals(0b01);
+    });
+});
+
 describe("EncodedBitmap and DecodedBitmap", () => {
     it("place a member with no upper bound from its lowest bit and read it back", () => {
         expect(EncodedBitmap(OpenBitmapAttr, { flag: true, rest: 5 })).equals(0b1010001);
@@ -152,5 +163,22 @@ describe("DecodedBitmap", () => {
             latchingSwitch: true,
             momentarySwitch: true,
         });
+    });
+
+    it("names every member, clear ones as false or 0, when asked for a complete object", () => {
+        expect(DecodedBitmap(MultiBitAttr, 0b0010000, undefined, { complete: true })).deep.equals({
+            multiA: 0,
+            multiB: 1,
+        });
+        expect(DecodedBitmap(BitmapAttr, 0, undefined, { complete: true })).deep.equals({
+            flagA: false,
+            flagB: false,
+            flagC: false,
+        });
+    });
+
+    it("names a clear member with no upper bound in a complete object", () => {
+        expect(DecodedBitmap(OpenBitmapAttr, 0, undefined, { complete: true })).deep.equals({ flag: false, rest: 0 });
+        expect(DecodedBitmap(OpenBitmapAttr, 1, undefined, { complete: true })).deep.equals({ flag: true, rest: 0 });
     });
 });
