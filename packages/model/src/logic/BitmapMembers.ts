@@ -62,11 +62,11 @@ export namespace BitmapMembers {
 
     /**
      * The bits of {@link member} within {@link bitmap}.  A member with a lower bound only extends to the bitmap's
-     * highest set bit.
+     * highest set bit, and is one bit wide where none of its bits is set.
      */
     export function rangeIn(member: ValueModel, bitmap: bigint): Range | undefined {
         const min = FieldValue.countValue(member.effectiveConstraint.min) ?? 0;
-        return rangeOf(member) ?? rangeOf(member, bitmap >> BigInt(min));
+        return rangeOf(member) ?? rangeOf(member, bitmap >> BigInt(min) || 1n);
     }
 
     export function maskOf({ min, max }: Range) {

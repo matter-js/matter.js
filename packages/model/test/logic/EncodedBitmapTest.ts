@@ -165,4 +165,9 @@ describe("DecodedBitmap", () => {
             flagC: false,
         });
     });
+
+    it("names a clear member with no upper bound in a complete object", () => {
+        expect(DecodedBitmap(OpenBitmapAttr, 0, undefined, { complete: true })).deep.equals({ flag: false, rest: 0 });
+        expect(DecodedBitmap(OpenBitmapAttr, 1, undefined, { complete: true })).deep.equals({ flag: true, rest: 0 });
+    });
 });

@@ -10,6 +10,7 @@ import { Thermostat } from "#clusters/thermostat.js";
 import { ImplementationError } from "@matter/general";
 import {
     ClusterModel,
+    DatatypeElement,
     DatatypeModel,
     FieldElement,
     FieldElement as Field,
@@ -56,6 +57,22 @@ describe("ClassForValueModel bitmap classes", () => {
         expect({ ...new Bitmap(0b11) }).deep.equal({ kept: true });
     });
 
+    it("clear a member with no upper bound whose default is set when constructed from 0", () => {
+        const Bitmap = classFor(Field({ name: "Rest", constraint: "min 4", default: 3 }));
+        expect({ ...new Bitmap() }).deep.equal({ rest: 3 });
+        expect({ ...new Bitmap(0) }).deep.equal({ rest: 0 });
+    });
+
+    it("construct empty when the bitmap's default is null", () => {
+        const Bitmap = classFor(Field({ name: "Flag", constraint: "0" }));
+        expect({ ...new Bitmap() }).deep.equal({});
+
+        const Nullable = classForDatatype({ name: "TestBitmap", type: "map64", quality: "X", default: null }, [
+            Field({ name: "Flag", constraint: "0" }),
+        ]);
+        expect({ ...new Nullable() }).deep.equal({});
+    });
+
     it("key a FeatureMap feature by its title whether set or clear", () => {
         const FeatureMap = ClassForValueModel(Matter.clusters.require("Groups").attributes.require("FeatureMap"));
         expect({ ...new FeatureMap(0) }).deep.equal({ groupNames: false });
@@ -64,16 +81,17 @@ describe("ClassForValueModel bitmap classes", () => {
 });
 
 function classFor(...members: FieldElement[]) {
+    return classForDatatype({ name: "TestBitmap", type: "map64" }, members);
+}
+
+function classForDatatype(definition: DatatypeElement.Properties, members: FieldElement[]) {
     const model = new MatterModel(
         {},
         map64.clone(),
-        new ClusterModel(
-            { name: "Test", id: 0xfff1 },
-            new DatatypeModel({ name: "TestBitmap", type: "map64" }, ...members),
-        ),
+        new ClusterModel({ name: "Test", id: 0xfff1 }, new DatatypeModel(definition, ...members)),
     );
     model.finalize();
-    return ClassForValueModel(model.get(ClusterModel, "Test")!.datatypes("TestBitmap")!);
+    return ClassForValueModel(model.get(ClusterModel, "Test")!.datatypes(definition.name)!);
 }
 
 describe("ClassForValueModel", () => {
