@@ -199,7 +199,7 @@ export class DescriptorServer extends DescriptorBehavior {
      * Monitor endpoint for removal.
      */
     #monitorDestruction(endpoint: Endpoint) {
-        this.reactTo(endpoint.lifecycle.destroyed, this.#updatePartsList);
+        this.reactTo(endpoint.lifecycle.destroyed, this.#updatePartsList, { once: true });
     }
 
     /**

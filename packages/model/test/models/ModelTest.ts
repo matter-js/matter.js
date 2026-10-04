@@ -10,13 +10,16 @@ import {
     ClusterModel,
     CommandModel,
     DatatypeModel,
+    ElementTag,
     FieldModel,
     Matter,
     MatterModel,
     Metatype,
+    Model,
     uint16,
     uint32,
 } from "#index.js";
+import { ImplementationError } from "@matter/general";
 
 describe("Model", () => {
     describe("parent", () => {
@@ -219,6 +222,288 @@ describe("Model", () => {
 
             delete parent.children[0];
             expect(parent.get(AttributeModel, 1)).undefined;
+        });
+
+        describe("array methods", () => {
+            function abcd() {
+                const parent = new ClusterModel({
+                    name: "Foo",
+                    children: ["A", "B", "C", "D"].map((name, i) => ({ tag: "attribute", id: i + 1, name })),
+                });
+                const children = [...parent.children];
+                const names = () => parent.children.map(({ name }) => name).join("");
+                const ownedBy = (model: Model) =>
+                    children.filter(child => child.parent === model).map(({ name }) => name);
+                return { parent, children, names, ownedBy };
+            }
+
+            it("reverse keeps every child", () => {
+                const { parent, names, ownedBy } = abcd();
+                expect(parent.children.reverse()).equals(parent.children);
+                expect(names()).equals("DCBA");
+                expect(ownedBy(parent)).deep.equals(["A", "B", "C", "D"]);
+                expect(parent.get(AttributeModel, 1)?.name).equals("A");
+            });
+
+            it("sort keeps every child", () => {
+                const { parent, names, ownedBy } = abcd();
+                parent.children.sort((a, b) => b.name.localeCompare(a.name));
+                expect(names()).equals("DCBA");
+                expect(ownedBy(parent)).deep.equals(["A", "B", "C", "D"]);
+            });
+
+            it("sort compares models of children given as elements", () => {
+                const parent = new ClusterModel({
+                    name: "Foo",
+                    children: [
+                        { tag: "attribute", id: 1, name: "A" },
+                        { tag: "attribute", id: 2, name: "B" },
+                    ],
+                });
+
+                parent.children.sort((a, b) => {
+                    expect(a).instanceof(AttributeModel);
+                    expect(b).instanceof(AttributeModel);
+                    return b.name.localeCompare(a.name);
+                });
+
+                expect(parent.children.map(({ name }) => name)).deep.equals(["B", "A"]);
+            });
+
+            it("shift and pop remove and disown one child", () => {
+                const { parent, children, names, ownedBy } = abcd();
+                expect(parent.children.shift()).equals(children[0]);
+                expect(parent.children.pop()).equals(children[3]);
+                expect(names()).equals("BC");
+                expect(ownedBy(parent)).deep.equals(["B", "C"]);
+                expect(parent.get(AttributeModel, 1)).undefined;
+            });
+
+            it("unshift adds and adopts", () => {
+                const { parent, names } = abcd();
+                const z = new AttributeModel({ id: 26, name: "Z" });
+                expect(parent.children.unshift(z)).equals(5);
+                expect(parent.children.unshift({ tag: "attribute", id: 27, name: "Y" })).equals(6);
+                expect(parent.children[0].name).equals("Y");
+                expect(names()).equals("YZABCD");
+                expect(z.parent).equals(parent);
+                expect(parent.get(AttributeModel, 26)).equals(z);
+            });
+
+            it("moves a child that is inserted again", () => {
+                const { parent, children, names, ownedBy } = abcd();
+                parent.children.push(children[0]);
+                expect(names()).equals("BCDA");
+                parent.children.unshift(children[3]);
+                expect(names()).equals("DBCA");
+                parent.children.splice(3, 0, children[1]);
+                expect(names()).equals("DCBA");
+                parent.children.splice(-2, 0, children[0]);
+                expect(names()).equals("DCAB");
+                expect(ownedBy(parent)).deep.equals(["A", "B", "C", "D"]);
+                expect(parent.children.pop()).equals(children[1]);
+                expect(new ClusterModel({ name: "Empty" }).children.shift()).undefined;
+            });
+
+            it("refuses to list a model twice", () => {
+                const { parent, names } = abcd();
+                const z = new AttributeModel({ id: 26, name: "Z" });
+                expect(() => parent.children.splice(0, 0, z, z)).throws(ImplementationError);
+                expect(names()).equals("ABCD");
+                expect(z.parent).undefined;
+            });
+
+            it("does not support fill and copyWithin", () => {
+                const { parent, children, names } = abcd();
+                expect(() => parent.children.fill(children[0])).throws(ImplementationError);
+                expect(() => parent.children.copyWithin(0, 1)).throws(ImplementationError);
+                expect(names()).equals("ABCD");
+            });
+
+            it("clamps the position of a moved child to the list", () => {
+                const { parent, children, names } = abcd();
+                expect(parent.children.push(children[0])).equals(4);
+                expect(names()).equals("BCDA");
+                parent.children.splice(-10, 0, children[2]);
+                expect(names()).equals("CBDA");
+                parent.children.splice(99, 0, children[1]);
+                expect(names()).equals("CDAB");
+                parent.children.splice(-10, 1, children[2]);
+                expect(names()).equals("CDAB");
+                expect(children[3].parent).equals(parent);
+            });
+
+            it("does not grow by setting length", () => {
+                const { parent, names } = abcd();
+                parent.children.length = 10;
+                expect(parent.children.length).equals(4);
+                expect(names()).equals("ABCD");
+            });
+
+            it("splice resolves its arguments as Array.prototype.splice does", () => {
+                const { parent, children, names, ownedBy } = abcd();
+                parent.children.splice(2.5, 0, children[2]);
+                expect(names()).equals("ABCD");
+                parent.children.splice(2.5, 0, children[0]);
+                expect(names()).equals("BACD");
+
+                expect(parent.children.splice(2).map(({ name }) => name)).deep.equals(["C", "D"]);
+                expect(names()).equals("BA");
+                expect(ownedBy(parent)).deep.equals(["A", "B"]);
+            });
+
+            it("index assignment disowns the replaced child", () => {
+                const { parent, children, names, ownedBy } = abcd();
+                const z = new AttributeModel({ id: 26, name: "Z" });
+                parent.children[1] = z;
+                expect(names()).equals("AZCD");
+                expect(ownedBy(parent)).deep.equals(["A", "C", "D"]);
+                expect(z.parent).equals(parent);
+                expect(children[1].parent).undefined;
+            });
+
+            it("moves a child from another model", () => {
+                const { parent, children, names } = abcd();
+                const other = new ClusterModel({ name: "Other" });
+                other.children.push(children[1], children[2]);
+                expect(names()).equals("AD");
+                expect(other.children.map(({ name }) => name)).deep.equals(["B", "C"]);
+                expect(children[1].parent).equals(other);
+                expect(parent.get(AttributeModel, 2)).undefined;
+                expect(other.get(AttributeModel, 2)).equals(children[1]);
+            });
+
+            it("refuses changes once finalized and keeps a child moved from it", () => {
+                const { parent, children, names } = abcd();
+                parent.finalize();
+                expect(() => parent.children.push(new AttributeModel({ id: 26, name: "Z" }))).throws(
+                    ImplementationError,
+                );
+                expect(() => parent.children.reverse()).throws(ImplementationError);
+                expect(() => (parent.children.length = 10)).throws(ImplementationError);
+
+                const other = new ClusterModel({ name: "Other" });
+                expect(() => other.children.push(children[0])).throws(ImplementationError);
+                expect(names()).equals("ABCD");
+                expect(other.children.length).equals(0);
+                expect(children[0].parent).equals(parent);
+            });
+
+            it("length truncation disowns the removed children", () => {
+                const { parent, names, ownedBy } = abcd();
+                parent.children.length = 2;
+                expect(names()).equals("AB");
+                expect(ownedBy(parent)).deep.equals(["A", "B"]);
+            });
+
+            it("delete removes and disowns the child without leaving a hole", () => {
+                const { parent, children, names, ownedBy } = abcd();
+
+                delete parent.children[0];
+
+                expect(names()).equals("BCD");
+                expect(ownedBy(parent)).deep.equals(["B", "C", "D"]);
+                expect(children[0].parent).undefined;
+            });
+
+            it("delete on children given as elements leaves no hole", () => {
+                const parent = new ClusterModel({
+                    name: "Foo",
+                    children: [
+                        { tag: "attribute", id: 1, name: "A" },
+                        { tag: "attribute", id: 2, name: "B" },
+                    ],
+                });
+
+                delete parent.children[0];
+
+                expect(parent.children.length).equals(1);
+                expect(parent.get(AttributeModel, 2)?.name).equals("B");
+            });
+
+            it("validates every child added by push or unshift", () => {
+                const { parent, names } = abcd();
+                const bogus = { tag: "bogus", name: "X" };
+                expect(() => Reflect.apply(parent.children.push, parent.children, [bogus])).throws(ImplementationError);
+                expect(() => Reflect.apply(parent.children.unshift, parent.children, [bogus])).throws(
+                    ImplementationError,
+                );
+                expect(names()).equals("ABCD");
+            });
+
+            it("splice without arguments changes nothing", () => {
+                const { parent, names } = abcd();
+                expect(Reflect.apply(parent.children.splice, parent.children, [])).deep.equals([]);
+                expect(names()).equals("ABCD");
+            });
+
+            it("refuses an invalid length", () => {
+                const { parent, names } = abcd();
+                expect(() => (parent.children.length = -1)).throws(ImplementationError);
+                expect(() => (parent.children.length = 1.5)).throws(ImplementationError);
+                expect(names()).equals("ABCD");
+            });
+
+            it("moves no child when one of several cannot leave its parent", () => {
+                const { parent, children } = abcd();
+                const frozen = new ClusterModel({
+                    name: "Frozen",
+                    children: [new AttributeModel({ id: 9, name: "F" })],
+                });
+                frozen.finalize();
+                const destination = new ClusterModel({ name: "Destination" });
+
+                expect(() => destination.children.push(children[0], frozen.children[0])).throws(ImplementationError);
+
+                expect(destination.children.length).equals(0);
+                expect(children[0].parent).equals(parent);
+                expect(parent.children[0]).equals(children[0]);
+            });
+
+            it("refuses a reorder that changes the list meanwhile", () => {
+                const { parent, ownedBy } = abcd();
+                expect(() =>
+                    parent.children.sort(() => {
+                        parent.children.pop();
+                        return 0;
+                    }),
+                ).throws(ImplementationError);
+                expect(parent.children.every(child => child.parent === parent)).equals(true);
+                expect(ownedBy(parent).length).equals(parent.children.length);
+            });
+
+            it("select with several tags visits children in list order", () => {
+                const parent = new ClusterModel({
+                    name: "Foo",
+                    children: [
+                        { tag: "command", id: 1, name: "Go", direction: "request" },
+                        { tag: "attribute", id: 2, name: "A" },
+                    ],
+                });
+
+                expect(parent.children.select(() => true, [ElementTag.Attribute, ElementTag.Command])?.name).equals(
+                    "Go",
+                );
+            });
+
+            it("all and select visit children in list order", () => {
+                const parent = new ClusterModel({
+                    name: "Foo",
+                    children: [
+                        { tag: "attribute", id: 1, name: "Same" },
+                        { tag: "attribute", id: 2, name: "Other" },
+                        { tag: "attribute", id: 3, name: "Same" },
+                    ],
+                });
+
+                expect(parent.all(AttributeModel).map(({ id }) => id)).deep.equals([1, 2, 3]);
+                expect(parent.children.select(child => child.id !== 1)?.id).equals(2);
+                const [, other] = parent.children;
+                expect(
+                    parent.children.select(child => child.id !== 1, ElementTag.Attribute, new Set([other]))?.id,
+                ).equals(3);
+                expect(parent.children.select(() => true, ElementTag.Command)).undefined;
+            });
         });
 
         it("finds no child for names of Object.prototype members", () => {

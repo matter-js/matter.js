@@ -360,6 +360,8 @@ export class GeneralDiagnosticsServer extends Base {
         const now = Time.nowUs;
         this.internal.lastTotalOperationalHoursCounterUpdateTime = now;
         this.internal.onlineAtUs = now;
+        this.internal.onlineAtMs = Time.nowMs;
+        this.internal.upTimeHighWaterMark = 0;
 
         this.internal.lastTotalOperationalHoursTimer = Time.getPeriodicTimer(
             "GeneralDiagnostics.operationalHours",
@@ -374,6 +376,7 @@ export class GeneralDiagnosticsServer extends Base {
         this.internal.lastTotalOperationalHoursTimer?.stop();
         this.#updateTotalOperationalHoursCounter();
         this.internal.onlineAtUs = undefined;
+        this.internal.onlineAtMs = undefined;
     }
 
     #updateTotalOperationalHoursCounter() {
@@ -465,6 +468,24 @@ export namespace GeneralDiagnosticsServer {
          * upTime, and only the clamp keeps it from going negative.
          */
         onlineAtUs: Timestamp | undefined;
+
+        /**
+         * Time the node came online, on the wall clock ({@link Time.nowMs}); used for {@link upTime}.
+         *
+         * Where the monotonic clock does not advance while the host is suspended (Node on Linux, and several other
+         * runtimes), {@link onlineAtUs} alone would stop counting upTime for the duration of a suspend.  Comparing against this wall-clock timestamp folds suspend
+         * time back in wherever the wall clock actually advanced past it.
+         */
+        onlineAtMs: Timestamp | undefined;
+
+        /**
+         * Highest upTime computed since the node came online.
+         *
+         * A suspend makes {@link onlineAtMs}'s elapsed time jump ahead of {@link onlineAtUs}'s; a later backward
+         * wall-clock step (an NTP correction) must not then make upTime, already reported at the higher value, go
+         * down again.
+         */
+        upTimeHighWaterMark: Duration = 0;
     }
 
     export class State extends Base.State {
@@ -493,12 +514,23 @@ export namespace GeneralDiagnosticsServer {
                  * our boot time.
                  */
                 get upTime() {
-                    const { onlineAtUs } = endpoint.behaviors.internalsOf(GeneralDiagnosticsServer);
-                    if (onlineAtUs === undefined) {
+                    const internal = endpoint.behaviors.internalsOf(GeneralDiagnosticsServer);
+                    const { onlineAtUs, onlineAtMs } = internal;
+                    if (onlineAtUs === undefined || onlineAtMs === undefined) {
                         return 0;
                     }
 
-                    return Seconds.of(elapsedSince(onlineAtUs, Time.nowUs));
+                    // Take whichever clock elapsed more so a suspend (wall clock advances, monotonic clock does
+                    // not) is counted.  A forward wall-clock step is folded in the same way, which can make upTime
+                    // run ahead of real elapsed time; accepted since upTime has no deadline consequences. The
+                    // high-water mark then keeps a later backward step from lowering what was already reported.
+                    const elapsed = Duration.max(
+                        Duration.max(elapsedSince(onlineAtUs, Time.nowUs), elapsedSince(onlineAtMs, Time.nowMs)),
+                        internal.upTimeHighWaterMark,
+                    );
+                    internal.upTimeHighWaterMark = elapsed;
+
+                    return Seconds.of(elapsed);
                 },
 
                 /**
