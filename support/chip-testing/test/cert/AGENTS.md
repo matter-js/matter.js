@@ -86,6 +86,11 @@ skips the case before any subject is built (`TC-TBRM-3.1`).
 Three flavors can be selected (`SelectableDeviceFlavor` in `cert-context.ts`): `chip-local`,
 `chip-docker`, `matterjs`. `DeviceFlavor` adds `python-wrapped`, which only ever appears in evidence,
 for a device a wrapped python script spawns for itself.
+Code that branches per flavor asks `flavorFamily()` (or picks a value with `forFlavor()`), never
+`startsWith("chip")` or `=== "matterjs"` on a device flavor. A log check given a flavor of neither family
+resolves `"unverified"` through `forFlavor`; a yes/no question about the family answers as for a flavor that
+is not the one asked about. No run hands `python-wrapped` to these helpers today.
+
 The convention this series has followed, worth stating explicitly for the next TC:
 
 - **At least one chip flavor (`chip-local` or `chip-docker`) passing is the actual certification
@@ -1426,7 +1431,7 @@ TC has not driven the steps itself:
 
 ```ts
 await cx.controllers.dut.node(ref).decommission();
-if (th.flavor !== "matterjs") {
+if (flavorFamily(th.flavor) === "chip") {
     const from = th.log.mark();
     await th.backchannel({ name: "factoryReset" });
     // wait for the restarted app's own SetupQRCode line before any mDNS check

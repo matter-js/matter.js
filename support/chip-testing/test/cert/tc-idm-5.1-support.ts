@@ -5,8 +5,8 @@
  */
 
 import { Duration, InternalError, Millis, Seconds, Time } from "@matter/main";
-import type { CheckRecord, LogFollower, LogLine } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/testing";
+import type { CheckRecord, LogFlavor, LogFollower, LogLine } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, flavorFamily } from "@matter/testing";
 import { expectAdjacentLines, INVOKE_REQUEST_MESSAGE, literally, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
 
 // TC-IDM-5.1's own checks live beside the test case rather than inside it because a `TC-*.test.ts`
@@ -195,17 +195,13 @@ async function matterjsTimedRequest(
  */
 export async function expectTimedRequest(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     timeout: Duration,
     from: number,
     wait: Duration,
 ): Promise<TimedRequestLookup> {
-    if (!flavor.startsWith("chip")) {
-        const matterjs = forFlavor({ matterjs: matterjsTimedRequestPattern(timeout) }, flavor);
-        if (matterjs === undefined) {
-            return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
-        }
-        return matterjsTimedRequest(log, matterjs, from, wait);
+    if (flavorFamily(flavor) === "matterjs") {
+        return matterjsTimedRequest(log, matterjsTimedRequestPattern(timeout), from, wait);
     }
 
     const pattern = `TimedRequestMessage(TimeoutMs = 0x${timeout.toString(16)})`;
@@ -362,7 +358,7 @@ async function matterjsTimedFollowUp(
  */
 export async function expectTimedFollowUp(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     interaction: TimedInteraction,
     timed: TimedRequestLookup,
     budget: Duration,
@@ -373,10 +369,11 @@ export async function expectTimedFollowUp(
     }
     const { line: timedLine, receipt } = timed;
 
-    if (!flavor.startsWith("chip")) {
-        if (forFlavor({ matterjs: interaction }, flavor) === undefined) {
-            return { type: "device-log", verdict: "unverified" };
-        }
+    const family = flavorFamily(flavor);
+    if (family === undefined) {
+        return { type: "device-log", verdict: "unverified" };
+    }
+    if (family === "matterjs") {
         if (receipt?.session === undefined) {
             throw new InternalError("A matter.js timed request always names its own session and exchange");
         }
@@ -480,7 +477,7 @@ export async function expectTimedFollowUp(
  */
 async function waitForLaggingFlag(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     braceIndex: number,
     remaining: Duration,
 ): Promise<boolean | "unverified"> {

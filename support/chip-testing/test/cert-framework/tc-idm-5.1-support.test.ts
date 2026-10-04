@@ -253,7 +253,7 @@ describe("expectTimedRequest", () => {
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
         const result = await withFollower(timedRequestLines(T0), follower =>
-            expectTimedRequest(follower, "python", TIMEOUT, 0, Millis(500)),
+            expectTimedRequest(follower, "python-wrapped", TIMEOUT, 0, Millis(500)),
         );
 
         expect(result.check.verdict).equal("unverified");
@@ -434,5 +434,27 @@ describe("expectTimedFollowUp", () => {
 
         expect(check.verdict).equal("fail");
         expect(check.detail).contains("carries no timedRequest flag");
+    });
+
+    // A lookup without a receive line is a chip failure, and must not become one on a flavor no
+    // pattern speaks for
+    // Characterization: the previous implementation gives the same verdict
+    it("reports unverified for a flavor of no family, before judging the lookup", async () => {
+        const check = await withFollower([], follower =>
+            expectTimedFollowUp(
+                follower,
+                "python-wrapped",
+                "invoke",
+                {
+                    outcome: "found",
+                    line: { index: 0, at: new Date(0), text: "timed request" },
+                    check: { type: "device-log", verdict: "pass" },
+                },
+                TIMEOUT,
+                Millis(200),
+            ),
+        );
+
+        expect(check.verdict).equal("unverified");
     });
 });

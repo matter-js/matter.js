@@ -122,12 +122,14 @@ export { CertConfigError, resolveControllerImplementation, resolveDeviceFlavor }
 export type { ControllerImplementation } from "./cert/device-config.js";
 export { EvidenceRecorder } from "./cert/evidence.js";
 export type { RunDeviceRecord, RunRecord, StepRecord } from "./cert/evidence.js";
-export { CertLogClosedError, CertLogTimeoutError, forFlavor, LogFollower } from "./cert/log-follower.js";
+export { CertLogClosedError, CertLogTimeoutError, flavorFamily, forFlavor, LogFollower } from "./cert/log-follower.js";
 export type {
+    FlavorFamily,
     LogExpectOptions,
     LogExpectPatterns,
     LogExpectResult,
     LogExpectSequences,
+    LogFlavor,
     LogLine,
 } from "./cert/log-follower.js";
 export { registerMatterJsCertSubject } from "./cert/matterjs-subject-registry.js";
