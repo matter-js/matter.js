@@ -153,4 +153,16 @@ describe("DecodedBitmap", () => {
             momentarySwitch: true,
         });
     });
+
+    it("names every member, clear ones as false or 0, when asked for a complete object", () => {
+        expect(DecodedBitmap(MultiBitAttr, 0b0010000, undefined, { complete: true })).deep.equals({
+            multiA: 0,
+            multiB: 1,
+        });
+        expect(DecodedBitmap(BitmapAttr, 0, undefined, { complete: true })).deep.equals({
+            flagA: false,
+            flagB: false,
+            flagC: false,
+        });
+    });
 });

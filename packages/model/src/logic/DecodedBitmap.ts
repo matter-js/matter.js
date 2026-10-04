@@ -19,30 +19,46 @@ export type DecodedBitmap = Record<string, boolean | number | bigint>;
  *
  * Pass the {@link scope} of the cluster the bitmap belongs to where its datatype may come from a base cluster.
  */
-export function DecodedBitmap(model: ValueModel, value: number | bigint | DecodedBitmap, scope?: Scope): DecodedBitmap {
+export function DecodedBitmap(
+    model: ValueModel,
+    value: number | bigint | DecodedBitmap,
+    scope?: Scope,
+    options?: DecodedBitmap.Options,
+): DecodedBitmap {
     if (typeof value === "object") {
         return value;
     }
 
     const bitmap = BigInt(value);
     const decoded: DecodedBitmap = {};
-    if (bitmap === 0n) {
+    if (bitmap === 0n && !options?.complete) {
         return decoded;
     }
 
-    for (const member of BitmapMembers.of(model, scope)) {
+    for (const member of BitmapMembers.of(model, scope, options)) {
         const range = BitmapMembers.rangeIn(member, bitmap);
         if (range === undefined) {
             continue;
         }
 
         const memberValue = BitmapMembers.read(bitmap, range);
-        if (memberValue === 0n) {
+        if (memberValue === 0n && !options?.complete) {
             continue;
         }
 
-        decoded[BitmapMembers.keyOf(model, member)] = range.isFlag ? true : BitmapMembers.toNumeric(memberValue);
+        decoded[BitmapMembers.keyOf(model, member)] = range.isFlag
+            ? memberValue !== 0n
+            : BitmapMembers.toNumeric(memberValue);
     }
 
     return decoded;
+}
+
+export namespace DecodedBitmap {
+    export interface Options extends Scope.MemberOptions {
+        /**
+         * Include clear members, as `false` or 0, so the object names every member.
+         */
+        complete?: boolean;
+    }
 }

@@ -8,7 +8,15 @@ import { ClassForValueModel } from "#cluster/ClassForValueModel.js";
 import { Groups } from "#clusters/groups.js";
 import { Thermostat } from "#clusters/thermostat.js";
 import { ImplementationError } from "@matter/general";
-import { ClusterModel, DatatypeModel, FieldElement as Field, Matter, MatterModel, map64 } from "@matter/model";
+import {
+    ClusterModel,
+    DatatypeModel,
+    FieldElement,
+    FieldElement as Field,
+    Matter,
+    MatterModel,
+    map64,
+} from "@matter/model";
 
 describe("ClassForValueModel bitmap classes", () => {
     it("apply the defaults the bitmap's members state", () => {
@@ -25,24 +33,48 @@ describe("ClassForValueModel bitmap classes", () => {
     });
 
     it("set a member above bit 31 from a numeric value", () => {
-        const model = new MatterModel(
-            {},
-            map64.clone(),
-            new ClusterModel(
-                { name: "Wide", id: 0xfff1 },
-                new DatatypeModel(
-                    { name: "WideBitmap", type: "map64" },
-                    Field({ name: "Low", constraint: "0" }),
-                    Field({ name: "High", constraint: "32 to 33" }),
-                ),
-            ),
+        const WideBitmap = classFor(
+            Field({ name: "Low", constraint: "0" }),
+            Field({ name: "High", constraint: "32 to 33" }),
         );
-        model.finalize();
-        const WideBitmap = ClassForValueModel(model.get(ClusterModel, "Wide")!.datatypes("WideBitmap")!);
-
         expect({ ...new WideBitmap(2 ** 33 + 1) }).deep.equal({ low: true, high: 2 });
     });
+
+    it("name every member when the members' defaults are all clear", () => {
+        const Bitmap = classFor(
+            Field({ name: "Flag", constraint: "0", default: 0 }),
+            Field({ name: "Stages", constraint: "1 to 2", default: 0 }),
+        );
+        expect({ ...new Bitmap() }).deep.equal({ flag: false, stages: 0 });
+    });
+
+    it("leave out a member the bitmap's conformance excludes, even when its bit is set", () => {
+        const Bitmap = classFor(
+            Field({ name: "Kept", constraint: "0" }),
+            Field({ name: "Dropped", constraint: "1", conformance: "X" }),
+        );
+        expect({ ...new Bitmap(0b11) }).deep.equal({ kept: true });
+    });
+
+    it("key a FeatureMap feature by its title whether set or clear", () => {
+        const FeatureMap = ClassForValueModel(Matter.clusters.require("Groups").attributes.require("FeatureMap"));
+        expect({ ...new FeatureMap(0) }).deep.equal({ groupNames: false });
+        expect({ ...new FeatureMap(1) }).deep.equal({ groupNames: true });
+    });
 });
+
+function classFor(...members: FieldElement[]) {
+    const model = new MatterModel(
+        {},
+        map64.clone(),
+        new ClusterModel(
+            { name: "Test", id: 0xfff1 },
+            new DatatypeModel({ name: "TestBitmap", type: "map64" }, ...members),
+        ),
+    );
+    model.finalize();
+    return ClassForValueModel(model.get(ClusterModel, "Test")!.datatypes("TestBitmap")!);
+}
 
 describe("ClassForValueModel", () => {
     it("refuses a model that is neither struct nor bitmap", () => {
