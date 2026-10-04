@@ -30,25 +30,66 @@ const LAST_NETWORK_ID_ATTRIBUTE = NETWORK_COMMISSIONING.attributes.require("last
 
 describe("ChipToolWebSocketHandler convertWebsocketDataToMatter octet strings", () => {
     it("decodes an empty string with no prefix as an empty byte array", () => {
-        const decoded = convertWebsocketDataToMatter("", LAST_NETWORK_ID_ATTRIBUTE);
+        const decoded = convertWebsocketDataToMatter("", LAST_NETWORK_ID_ATTRIBUTE, NETWORK_COMMISSIONING);
         expect(Bytes.isBytes(decoded) && Bytes.toHex(decoded)).to.equal("");
     });
 
     it("still decodes a hex: prefixed string as bytes", () => {
         const bytes = Bytes.fromHex("0102030405");
-        const decoded = convertWebsocketDataToMatter(`hex:${Bytes.toHex(bytes)}`, LAST_NETWORK_ID_ATTRIBUTE);
+        const decoded = convertWebsocketDataToMatter(
+            `hex:${Bytes.toHex(bytes)}`,
+            LAST_NETWORK_ID_ATTRIBUTE,
+            NETWORK_COMMISSIONING,
+        );
         expect(Bytes.isBytes(decoded) && Bytes.toHex(decoded)).to.equal(Bytes.toHex(bytes));
     });
 
     it("decodes a base64: prefixed string as bytes", () => {
         const bytes = Bytes.fromHex("0102030405");
-        const decoded = convertWebsocketDataToMatter(`base64:${Bytes.toBase64(bytes)}`, LAST_NETWORK_ID_ATTRIBUTE);
+        const decoded = convertWebsocketDataToMatter(
+            `base64:${Bytes.toBase64(bytes)}`,
+            LAST_NETWORK_ID_ATTRIBUTE,
+            NETWORK_COMMISSIONING,
+        );
         expect(Bytes.isBytes(decoded) && Bytes.toHex(decoded)).to.equal(Bytes.toHex(bytes));
     });
 
     it("leaves a non-empty unprefixed string unchanged", () => {
-        const decoded = convertWebsocketDataToMatter("not-a-prefix-abcd", LAST_NETWORK_ID_ATTRIBUTE);
+        const decoded = convertWebsocketDataToMatter(
+            "not-a-prefix-abcd",
+            LAST_NETWORK_ID_ATTRIBUTE,
+            NETWORK_COMMISSIONING,
+        );
         expect(decoded).to.equal("not-a-prefix-abcd");
+    });
+});
+
+const WINDOW_COVERING = Matter.clusters.require("WindowCovering");
+const OPERATIONAL_STATUS_ATTRIBUTE = WINDOW_COVERING.attributes.require("operationalStatus");
+
+const BOOLEAN_STATE_CONFIGURATION = Matter.clusters.require("BooleanStateConfiguration");
+const ALARMS_ACTIVE_ATTRIBUTE = BOOLEAN_STATE_CONFIGURATION.attributes.require("alarmsActive");
+
+describe("ChipToolWebSocketHandler convertWebsocketDataToMatter bitmaps", () => {
+    it("decodes a multi-bit field to its value rather than a flag", () => {
+        expect(convertWebsocketDataToMatter("12", OPERATIONAL_STATUS_ATTRIBUTE, WINDOW_COVERING)).deep.equal({
+            global: 0,
+            lift: 3,
+            tilt: 0,
+        });
+    });
+
+    it("decodes a bitmap given as a number, as a step's JSON payload carries it", () => {
+        expect(convertWebsocketDataToMatter(1, ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION)).deep.equal({
+            visual: true,
+            audible: false,
+        });
+    });
+
+    it("refuses a bitmap value that is not a number", () => {
+        expect(() =>
+            convertWebsocketDataToMatter("visual", ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION),
+        ).throw(ImplementationError, /Invalid bitmap value visual/);
     });
 });
 
