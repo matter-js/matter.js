@@ -318,5 +318,24 @@ describe("chip-tool json codec", () => {
             expect(result).to.equal('{"value":18446744073709551000}');
             expect(result).to.not.include('"18446744073709551000"');
         });
+
+        it("stringifies a bigint outside the safe range in a list, nested, and negative", () => {
+            expect(
+                stringifyChipJson({
+                    subjects: [112233n, 0xffff_ffff_fffd_0001n],
+                    entries: [{ ids: [0x20_0000_0000_0001n] }],
+                    offset: -0x20_0000_0000_0001n,
+                }),
+            ).to.equal(
+                '{"subjects":[112233,18446744073709355009],"entries":[{"ids":[9007199254740993]}],' +
+                    '"offset":-9007199254740993}',
+            );
+        });
+
+        it("leaves a string alone that spells what a fixed marker would look like", () => {
+            expect(stringifyChipJson({ label: "\uE000123", other: "chip-bigint-1" })).to.equal(
+                '{"label":"\uE000123","other":"chip-bigint-1"}',
+            );
+        });
     });
 });

@@ -16,7 +16,7 @@ import type {
     OtaQueryImageExchange,
     OtaQueryImageResponseRecord,
 } from "@matter/testing";
-import { resolveDeviceFlavor } from "@matter/testing";
+import { flavorFamily, resolveDeviceFlavor } from "@matter/testing";
 import { otaFastRetryEnabled } from "../../src/OtaRequestorTestInstance.js";
 import { CertCheckFailedError, record, requireId } from "./tc-support.js";
 
@@ -345,7 +345,7 @@ export function unsupportedByDut(capability: string) {
  * real time. chip's requestor floors the wait at compile time, so there it costs what the plan costs.
  */
 export function otaDelaysShortened() {
-    return otaFastRetryEnabled() && resolveDeviceFlavor() === "matterjs";
+    return otaFastRetryEnabled() && flavorFamily(resolveDeviceFlavor()) === "matterjs";
 }
 
 /** The plan's own `DelayedActionTime`, in seconds, or the short stand-in a shortened run uses. */

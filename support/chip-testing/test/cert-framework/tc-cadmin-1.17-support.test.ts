@@ -7,7 +7,7 @@
 import { ImplementationError, Millis } from "@matter/main";
 import { PeerCommunicationError } from "@matter/main/protocol";
 import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
-import type { LogExpectPatterns } from "@matter/testing";
+import type { LogExpectPatterns, LogFlavor } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { NoCommissionedPeerError } from "../../src/cert/InProcessControllerAdapter.js";
@@ -33,7 +33,7 @@ const MATTERJS = {
         "2026-08-23 22:41:11.766 DEBUG AdministratorCommissioningServer Commissioning window opened for 3m by fabric 1",
 };
 
-async function check(flavor: string, patterns: LogExpectPatterns, lines: string[]) {
+async function check(flavor: LogFlavor, patterns: LogExpectPatterns, lines: string[]) {
     const source = new LineQueue();
     const follower = new LogFollower(source.follow(), "th");
     for (const text of lines) {

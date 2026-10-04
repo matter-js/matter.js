@@ -14,7 +14,7 @@ import type {
     CheckRecord,
     SelectableDeviceFlavor,
 } from "@matter/testing";
-import { resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
+import { flavorFamily, resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
 import {
     CertCheckFailedError,
     CommissionedRefs,
@@ -449,7 +449,7 @@ export async function regularSizedRequestCheck(
  */
 export async function noFurtherSessionCheck(cx: CertStepContext, from: number, until: number): Promise<CheckRecord> {
     const dut = cx.devices.dut;
-    if (dut.flavor !== "matterjs") {
+    if (flavorFamily(dut.flavor) !== "matterjs") {
         return { type: "device-log", verdict: "unverified" };
     }
 
@@ -831,7 +831,7 @@ export async function recordReestablishedSession(
  */
 export async function furtherSessionCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
     const dut = cx.devices.dut;
-    if (dut.flavor !== "matterjs") {
+    if (flavorFamily(dut.flavor) !== "matterjs") {
         return { type: "device-log", verdict: "unverified", accepted: `no pattern for a ${dut.flavor} device` };
     }
 
