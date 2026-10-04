@@ -673,6 +673,53 @@ describe("SwitchServer", () => {
             ]);
             expect(device.stateOf(SwitchServer).currentPosition).equals(0);
         });
+
+        it("applies a raw position set while debouncing is off after a debounced position still to be written", async () => {
+            const events = createEventCatcher(device);
+
+            await device.set({ switch: { rawPosition: 1 } });
+
+            // Forces the debounce to expire, then debouncing off and the raw position back to the current position,
+            // before the debounced position is written
+            await holdingSwitchLock(device, async ({ state }) => {
+                await MockTime.advance(50);
+                state.debounceDelay = Instant;
+                state.rawPosition = 0;
+            });
+            await MockTime.macrotask;
+
+            expect(events).deep.equals([
+                {
+                    name: "rawPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+                {
+                    name: "rawPosition$Changed",
+                    newValue: 0,
+                    oldValue: 1,
+                },
+                {
+                    name: "switchLatched",
+                    value: { newPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+                {
+                    name: "switchLatched",
+                    value: { newPosition: 0 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 0,
+                    oldValue: 1,
+                },
+            ]);
+            expect(device.stateOf(SwitchServer).currentPosition).equals(0);
+        });
     });
 
     describe("Test LS", () => {
@@ -940,6 +987,47 @@ describe("SwitchServer", () => {
                     name: "currentPosition$Changed",
                     newValue: 0,
                     oldValue: 1,
+                },
+            ]);
+        });
+
+        it("Test long press followed by a move releases long without a further InitialPress", async () => {
+            await device.set({ switch: { numberOfPositions: 3 } });
+            const events = createEventCatcher(device);
+
+            await device.set({ switch: { currentPosition: 1 } });
+            await MockTime.advance(150);
+            await MockTime.macrotask;
+            await device.set({ switch: { currentPosition: 2 } });
+            await device.set({ switch: { currentPosition: 0 } });
+
+            expect(events).deep.equals([
+                {
+                    name: "initialPress",
+                    value: { newPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+                {
+                    name: "longPress",
+                    value: { newPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 2,
+                    oldValue: 1,
+                },
+                {
+                    name: "longRelease",
+                    value: { previousPosition: 2 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 0,
+                    oldValue: 2,
                 },
             ]);
         });
@@ -1568,7 +1656,33 @@ describe("SwitchServer", () => {
             ]);
         });
 
-        it("Test three short Presses, but we only support max 2, but we continue as normal for now with 2 positions", async () => {
+        it("Test a press after an aborted sequence reports neither InitialPress nor ShortRelease", async () => {
+            const events = createEventCatcher(device);
+            await device.set({ switch: { multiPressMax: 2 } });
+
+            for (let press = 0; press < 4; press++) {
+                await device.set({ switch: { currentPosition: 1 } });
+                await MockTime.advance(50);
+                await device.set({ switch: { currentPosition: 0 } });
+                await MockTime.advance(50);
+            }
+            await MockTime.advance(160);
+            await MockTime.macrotask;
+
+            // The fourth press got no InitialPress, so its release reports nothing either
+            expect(events.filter(({ name }) => name !== "currentPosition$Changed")).deep.equals([
+                { name: "initialPress", value: { newPosition: 1 } },
+                { name: "shortRelease", value: { previousPosition: 1 } },
+                { name: "initialPress", value: { newPosition: 1 } },
+                { name: "multiPressOngoing", value: { newPosition: 1, currentNumberOfPressesCounted: 2 } },
+                { name: "shortRelease", value: { previousPosition: 1 } },
+                { name: "initialPress", value: { newPosition: 1 } },
+                { name: "shortRelease", value: { previousPosition: 1 } },
+                { name: "multiPressComplete", value: { previousPosition: 1, totalNumberOfPressesCounted: 0 } },
+            ]);
+        });
+
+        it("Test three short Presses with max 2 abort the sequence with 2 positions", async () => {
             const events = createEventCatcher(device);
             await device.set({
                 switch: {
@@ -1890,7 +2004,7 @@ describe("SwitchServer", () => {
             await device.set({ switch: { currentPosition: 1 } });
             await MockTime.advance(150);
             await MockTime.macrotask;
-            // The move generates an InitialPress, but LongPress is reported once per press and its release is a LongRelease
+            // A press reported as long stays one press until its release, so the move generates no InitialPress
             await device.set({ switch: { currentPosition: 2 } });
             await MockTime.advance(50);
             await device.set({ switch: { currentPosition: 0 } });
@@ -1910,10 +2024,6 @@ describe("SwitchServer", () => {
                 {
                     name: "longPress",
                     value: { newPosition: 1 },
-                },
-                {
-                    name: "initialPress",
-                    value: { newPosition: 2 },
                 },
                 {
                     name: "currentPosition$Changed",
@@ -2151,6 +2261,95 @@ describe("SwitchServer", () => {
                     name: "currentPosition$Changed",
                     newValue: 0,
                     oldValue: 1,
+                },
+            ]);
+        });
+
+        it("Test debounced further press stops the multi press timer when it occurs", async () => {
+            await device.set({ switch: { debounceDelay: Millis(50) } });
+            const events = createEventCatcher(device);
+
+            await device.set({ switch: { rawPosition: 1 } });
+            await MockTime.advance(50);
+            await MockTime.macrotask;
+            await device.set({ switch: { rawPosition: 0 } });
+            await MockTime.advance(50);
+            await MockTime.macrotask;
+            await device.set({ switch: { rawPosition: 1 } });
+
+            // Forces the further press to be debounced, then the multi press delay counted from the release to end,
+            // before the reaction to either runs
+            await advanceHoldingSwitchLock(device, 200);
+            await device.set({ switch: { rawPosition: 0 } });
+            await MockTime.advance(50);
+            await MockTime.macrotask;
+            await MockTime.advance(150);
+            await MockTime.macrotask;
+
+            expect(events).deep.equals([
+                {
+                    name: "rawPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+                {
+                    name: "initialPress",
+                    value: { newPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+                {
+                    name: "rawPosition$Changed",
+                    newValue: 0,
+                    oldValue: 1,
+                },
+                {
+                    name: "shortRelease",
+                    value: { previousPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 0,
+                    oldValue: 1,
+                },
+                {
+                    name: "rawPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+                {
+                    name: "initialPress",
+                    value: { newPosition: 1 },
+                },
+                {
+                    name: "multiPressOngoing",
+                    value: { newPosition: 1, currentNumberOfPressesCounted: 2 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+                {
+                    name: "rawPosition$Changed",
+                    newValue: 0,
+                    oldValue: 1,
+                },
+                {
+                    name: "shortRelease",
+                    value: { previousPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 0,
+                    oldValue: 1,
+                },
+                {
+                    name: "multiPressComplete",
+                    value: { previousPosition: 1, totalNumberOfPressesCounted: 2 },
                 },
             ]);
         });
@@ -2456,7 +2655,7 @@ describe("SwitchServer", () => {
             ]);
         });
 
-        it("Test three short Presses, but we only support max 2, but we continue as normal for now with 2 positions", async () => {
+        it("Test three short Presses with max 2 abort the sequence with 2 positions", async () => {
             const events = createEventCatcher(device);
             await device.set({
                 switch: {
@@ -3028,6 +3227,22 @@ describe("SwitchServer", () => {
             await device.close();
         });
 
+        it("Test a press after an aborted sequence reports no ShortRelease", async () => {
+            const events = createEventCatcher(device);
+            await device.set({ switch: { multiPressMax: 2 } });
+
+            for (let press = 0; press < 4; press++) {
+                await device.set({ switch: { currentPosition: 1 } });
+                await MockTime.advance(50);
+                await device.set({ switch: { currentPosition: 0 } });
+                await MockTime.advance(50);
+            }
+            await MockTime.advance(160);
+            await MockTime.macrotask;
+
+            expect(events.filter(({ name }) => name === "initialPress" || name === "shortRelease").length).equals(6);
+        });
+
         it("Test press held longer than the multi press delay", async () => {
             const events = createEventCatcher(device);
 
@@ -3187,6 +3402,38 @@ describe("SwitchServer", () => {
             await reset;
 
             expect(device.stateOf(SwitchServer).rawPosition).equals(0);
+        });
+
+        it("drops long press timing of a press committed while the reset waits for the lock", async () => {
+            const events = createEventCatcher(device);
+
+            // Forces the reset to be called while another transaction holds the lock with a press it then commits
+            let reset: MaybePromise<void> | undefined;
+            await holdingSwitchLock(device, async ({ state }) => {
+                state.currentPosition = 1;
+                reset = device.act(agent => agent.get(SwitchServer).resetState());
+                await MockTime.macrotask;
+            });
+            await reset;
+            await MockTime.advance(200);
+            await MockTime.macrotask;
+
+            expect(events).deep.equals([
+                {
+                    name: "initialPress",
+                    value: { newPosition: 1 },
+                },
+                {
+                    name: "currentPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+                {
+                    name: "rawPosition$Changed",
+                    newValue: 1,
+                    oldValue: 0,
+                },
+            ]);
         });
 
         it("drops a position still being debounced", async () => {

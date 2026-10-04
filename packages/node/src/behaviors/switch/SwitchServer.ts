@@ -85,34 +85,36 @@ export class SwitchBaseServer extends SwitchServerBase {
         this.reactTo(this.events.rawPosition$Changing, this.#assertPositionInRange);
         this.reactTo(this.events.currentPosition$Changing, this.#assertPositionInRange);
 
-        // Debounce raw position changes
-        this.reactTo(this.events.rawPosition$Changed, this.#debounceRawPosition);
-
-        // Handle switch position changes and timer expiries in the order they occurred
-        this.reactTo(this.events.currentPosition$Changed, this.#handleCommittedPosition);
-        this.reactTo(this.internal.inputQueued, this.#processQueuedInputs, { lock: true });
+        // Input reactors stay synchronous and unlocked so each input is decided when it occurs; only the resulting
+        // events and position writes wait for the lock, and apply in that order
+        this.reactTo(this.events.rawPosition$Changed, this.#handleRawPosition);
+        this.reactTo(this.events.currentPosition$Changed, this.#handleWrittenPosition);
+        this.reactTo(this.internal.debounceExpired, this.#handleDebouncedPosition);
+        this.reactTo(this.internal.longPressExpired, this.#handleLongPress);
+        this.reactTo(this.internal.multiPressExpired, this.#handleMultiPressComplete);
+        this.reactTo(this.internal.resultsQueued, this.#applyQueuedResults, { lock: true });
     }
 
     /**
      * Method to reset the state of the Switch to start a clean new cycle. Mainly relevant for automated testing.
      *
-     * Drops pending debounced positions and timer expiries, so nothing from before the reset is reported or written
-     * after it, and continues from the current position.
+     * Waits for the switch state lock, then drops pending debounced positions, timers and results not applied yet, so
+     * nothing from before the reset is reported or written after it, and continues from the current position.
      */
     resetState(): MaybePromise<void> {
-        this.internal.debounceTimer?.stop();
-        this.internal.multiPressTimer?.stop();
-        this.internal.longPressTimer?.stop();
-        this.internal.inputs.length = 0;
-        this.internal.previouslyReportedPosition = this.state.currentPosition;
-        this.internal.currentLongPressPosition = null;
-        this.internal.currentIsLongPress = false;
-        this.#endMultiPressSequence();
-        logger.info("State of Switch got reset");
-
-        // The commit of a debounced position may still hold the lock
         return MaybePromise.then(this.context.transaction.lock(this), () => {
+            this.internal.debounceTimer?.stop();
+            this.internal.multiPressTimer?.stop();
+            this.internal.longPressTimer?.stop();
+            this.internal.results.length = 0;
+            this.internal.positionBeingWritten = undefined;
+            this.internal.previouslyReportedPosition = this.state.currentPosition;
+            this.internal.currentLongPressPosition = null;
+            this.internal.currentIsLongPress = false;
+            this.internal.currentPressReported = false;
+            this.#endMultiPressSequence();
             this.state.rawPosition = this.state.currentPosition;
+            logger.info("State of Switch got reset");
         });
     }
 
@@ -123,93 +125,110 @@ export class SwitchBaseServer extends SwitchServerBase {
         }
     }
 
-    #debounceRawPosition(newPosition: number) {
+    #handleRawPosition(newPosition: number) {
         this.internal.debounceTimer?.stop();
 
-        // When a debounce delay is set then we debounce the raw position, else we set the current position immediately
+        // When a debounce delay is set then we debounce the raw position, else we use it immediately
         if (this.state.debounceDelay) {
-            this.internal.debounceTimer = this.#startInputTimer("debounce", this.state.debounceDelay, {
-                kind: "position",
-                position: newPosition,
-            });
+            const { debounceExpired } = this.internal;
+            this.internal.debounceTimer = Time.getTimer("debounce", this.state.debounceDelay, () =>
+                debounceExpired.emit(newPosition),
+            ).start();
+            return;
+        }
+
+        // With nothing queued currentPosition equals the decided position, so a direct write is decided correctly
+        if (this.internal.results.length) {
+            this.#handleDebouncedPosition(newPosition);
         } else {
             this.state.currentPosition = newPosition;
         }
     }
 
-    /**
-     * Starts a timer that queues {@link input} when it expires.
-     *
-     * The input is queued synchronously, so it is processed in expiry order relative to every other input even when
-     * the locked reaction runs later.
-     */
-    #startInputTimer(name: string, delay: Duration, input: SwitchBaseServer.Input) {
-        const { inputs, inputQueued } = this.internal;
-        return Time.getTimer(name, delay, () => {
-            inputs.push(input);
-            inputQueued.emit();
-        }).start();
-    }
-
-    #processQueuedInputs() {
-        this.#processInputs(true);
-    }
-
-    /**
-     * Processes queued inputs in the order they occurred.
-     *
-     * @param writePositions whether to write debounced positions to the currentPosition attribute; false while a later
-     * committed position is being handled, which a write would revert
-     */
-    #processInputs(writePositions: boolean) {
-        const { inputs } = this.internal;
-        for (let input = inputs.shift(); input !== undefined; input = inputs.shift()) {
-            switch (input.kind) {
-                case "position":
-                    this.#handleSwitchPositionChange(input.position);
-                    if (writePositions) {
-                        this.state.currentPosition = input.position;
-
-                        // Each debounced position commits in a transaction of its own so no change is coalesced away
-                        if (inputs.length) {
-                            this.internal.inputQueued.emit();
-                        }
-                        return;
-                    }
-                    break;
-
-                case "longPress":
-                    this.#handleLongPress();
-                    break;
-
-                case "multiPress":
-                    this.#handleMultiPressComplete();
-                    break;
-            }
+    #handleDebouncedPosition(newPosition: number) {
+        if (this.#queuePosition(newPosition)) {
+            this.internal.resultsQueued.emit();
         }
     }
 
-    #handleCommittedPosition(newPosition: number) {
-        // This server handled the positions it wrote itself before writing them
+    /**
+     * Decides a change to {@link newPosition} and queues its events and its write to currentPosition.
+     *
+     * @returns false if the position is unchanged
+     */
+    #queuePosition(newPosition: number) {
         if (newPosition === this.internal.previouslyReportedPosition) {
-            return;
+            return false;
         }
-
-        // Inputs queued before this write precede it
-        this.#processInputs(false);
-        this.#handleSwitchPositionChange(newPosition);
+        this.#decidePosition(newPosition);
+        this.internal.results.push({ kind: "position", position: newPosition });
+        return true;
     }
 
-    #handleSwitchPositionChange(newPosition: number) {
-        const previousPosition = this.internal.previouslyReportedPosition;
-        if (newPosition === previousPosition) {
+    /**
+     * A write to currentPosition by the application is an input of its own; the writes of this server were decided
+     * when they were queued.
+     */
+    #handleWrittenPosition(newPosition: number) {
+        if (newPosition === this.internal.positionBeingWritten) {
+            this.internal.positionBeingWritten = undefined;
             return;
         }
+
+        // The written position supersedes queued writes, which would revert it, but not the events queued before it
+        this.internal.results = this.internal.results.filter(({ kind }) => kind === "event");
+
+        if (newPosition !== this.internal.previouslyReportedPosition) {
+            this.#decidePosition(newPosition);
+        }
+        this.#applyResults();
+    }
+
+    #applyQueuedResults() {
+        if (this.#applyResults()) {
+            this.internal.resultsQueued.emit();
+        }
+    }
+
+    /**
+     * Applies queued results in order, up to and including the next position write, so each write commits in a
+     * transaction of its own and no change is coalesced away.
+     *
+     * @returns whether results remain queued
+     */
+    #applyResults() {
+        const { results } = this.internal;
+        for (let result = results.shift(); result !== undefined; result = results.shift()) {
+            if (result.kind === "event") {
+                result.emit(this);
+                continue;
+            }
+
+            this.internal.positionBeingWritten = result.position;
+            this.state.currentPosition = result.position;
+            break;
+        }
+        return results.length > 0;
+    }
+
+    #queueEvent<T>(
+        event: (events: SwitchBaseServer.Events) => { emit(payload: T, context: ActionContext): unknown } | undefined,
+        payload: NoInfer<T>,
+    ) {
+        this.internal.results.push({
+            kind: "event",
+            emit: server => event(server.events)?.emit(payload, server.context),
+        });
+    }
+
+    /** Decides the events of a change to {@link newPosition} and starts or stops the timers it affects. */
+    #decidePosition(newPosition: number) {
+        const previousPosition = this.internal.previouslyReportedPosition;
+        this.internal.previouslyReportedPosition = newPosition;
 
         if (this.features.latchingSwitch) {
             // This event SHALL be generated, when the latching switch is moved to a new position.
-            this.events.switchLatched?.emit({ newPosition }, this.context);
-            this.internal.previouslyReportedPosition = newPosition;
+            this.#queueEvent(events => events.switchLatched, { newPosition });
             return;
         }
 
@@ -221,14 +240,18 @@ export class SwitchBaseServer extends SwitchServerBase {
 
         const { actionSwitch } = this.features;
 
+        // A press reported as long stays one press until its release; an action switch reports one press per cycle
+        const isNewPress = actionSwitch
+            ? !isMove && !this.internal.multiPressSequenceActive
+            : !(isMove && this.internal.currentIsLongPress);
+
         // Momentary Switch
-        if (
-            isPressed &&
-            !this.internal.multiPressReportingAborted &&
-            (!actionSwitch || (!isMove && !this.internal.multiPressSequenceActive))
-        ) {
-            // This event SHALL be generated, when the momentary switch starts to be pressed.
-            this.events.initialPress?.emit({ newPosition }, this.context);
+        if (isPressed && isNewPress) {
+            this.internal.currentPressReported = !this.internal.multiPressReportingAborted;
+            if (this.internal.currentPressReported) {
+                // This event SHALL be generated, when the momentary switch starts to be pressed.
+                this.#queueEvent(events => events.initialPress, { newPosition });
+            }
         }
 
         if (this.features.momentarySwitchLongPress) {
@@ -237,42 +260,51 @@ export class SwitchBaseServer extends SwitchServerBase {
                     // This event SHALL be generated, when the momentary switch has been released (after debouncing) and
                     // after having been pressed for a long time, i.e. this event SHALL be generated when the switch is
                     // released if a LongPress event has been generated since the previous InitialPress event.
-                    this.events.longRelease?.emit({ previousPosition }, this.context);
-                } else if (this.internal.currentLongPressPosition !== null && !actionSwitch) {
+                    this.#queueEvent(events => events.longRelease, { previousPosition });
+                } else if (
+                    this.internal.currentLongPressPosition !== null &&
+                    !actionSwitch &&
+                    this.internal.currentPressReported
+                ) {
                     // If the server supports the Momentary Switch LongPress (MSL) feature, this event SHALL be generated
                     // when the switch is released if no LongPress event had been generated since the previous InitialPress
                     // event.
-                    this.events.shortRelease?.emit({ previousPosition }, this.context);
+                    this.#queueEvent(events => events.shortRelease, { previousPosition });
                 }
 
                 this.internal.longPressTimer?.stop();
                 this.internal.currentIsLongPress = false;
                 this.internal.currentLongPressPosition = null;
             } else if (isMove && (actionSwitch || this.internal.currentIsLongPress)) {
-                // Long press detection restarts with each InitialPress, which an action switch does not report for a
-                // move; a press reported as long stays long until its release
+                // Long press detection restarts with each InitialPress, which this move does not report
                 this.internal.currentLongPressPosition = newPosition;
             } else {
                 this.internal.longPressTimer?.stop();
                 this.internal.currentIsLongPress = false;
                 this.internal.currentLongPressPosition = newPosition;
-                this.internal.longPressTimer = this.#startInputTimer("longPress", this.state.longPressDelay, {
-                    kind: "longPress",
-                });
+                const { longPressExpired } = this.internal;
+                this.internal.longPressTimer = Time.getTimer("longPress", this.state.longPressDelay, () =>
+                    longPressExpired.emit(),
+                ).start();
             }
-        } else if (this.features.momentarySwitchRelease && !isPressed) {
+        } else if (this.features.momentarySwitchRelease && !isPressed && this.internal.currentPressReported) {
             // If the server does not support the Momentary Switch LongPress (MSL) feature, this event SHALL be generated
             // when the switch is released - even when the switch was pressed for a long time.
-            this.events.shortRelease?.emit({ previousPosition }, this.context);
+            this.#queueEvent(events => events.shortRelease, { previousPosition });
+        }
+
+        if (!isPressed) {
+            this.internal.currentPressReported = false;
         }
 
         if (this.features.momentarySwitchMultiPress) {
             if (!isPressed) {
                 if (this.internal.multiPressSequenceActive) {
                     this.internal.previousMultiPressPosition = previousPosition;
-                    this.internal.multiPressTimer = this.#startInputTimer("multiPress", this.state.multiPressDelay, {
-                        kind: "multiPress",
-                    });
+                    const { multiPressExpired } = this.internal;
+                    this.internal.multiPressTimer = Time.getTimer("multiPress", this.state.multiPressDelay, () =>
+                        multiPressExpired.emit(),
+                    ).start();
                 }
             } else if (!isMove) {
                 this.internal.multiPressTimer?.stop();
@@ -284,56 +316,47 @@ export class SwitchBaseServer extends SwitchServerBase {
                 }
             }
         }
-
-        this.internal.previouslyReportedPosition = newPosition;
     }
 
     #countFurtherPress(newPosition: number) {
         this.internal.currentNumberOfPressesCounter++;
+        const currentNumberOfPressesCounted = this.internal.currentNumberOfPressesCounter;
 
-        if (
-            this.state.multiPressMax !== undefined &&
-            this.internal.currentNumberOfPressesCounter > this.state.multiPressMax
-        ) {
+        if (this.state.multiPressMax !== undefined && currentNumberOfPressesCounted > this.state.multiPressMax) {
             this.internal.multiPressReportingAborted = true;
             return;
         }
 
         if (!this.features.actionSwitch) {
-            this.events.multiPressOngoing?.emit(
-                {
-                    newPosition,
-                    currentNumberOfPressesCounted: this.internal.currentNumberOfPressesCounter,
-                },
-                this.context,
-            );
+            this.#queueEvent(events => events.multiPressOngoing, { newPosition, currentNumberOfPressesCounted });
         }
     }
 
     /** The switch was held in one press for longPressDelay. */
     #handleLongPress() {
         // A long press only starts a cycle of its own; a long press inside a multi-press sequence counts as a press
-        if (this.internal.currentLongPressPosition === null || this.internal.currentNumberOfPressesCounter > 1) {
+        const newPosition = this.internal.currentLongPressPosition;
+        if (newPosition === null || this.internal.currentNumberOfPressesCounter > 1) {
             return;
         }
         // This event SHALL be generated, when the momentary switch has been pressed for a "long" time.
-        this.events.longPress?.emit({ newPosition: this.internal.currentLongPressPosition }, this.context);
+        this.#queueEvent(events => events.longPress, { newPosition });
         this.internal.currentIsLongPress = true;
         this.#endMultiPressSequence();
+        this.internal.resultsQueued.emit();
     }
 
     /** The switch stayed released for multiPressDelay. */
     #handleMultiPressComplete() {
-        if (this.internal.previousMultiPressPosition !== null) {
-            this.events.multiPressComplete?.emit(
-                {
-                    previousPosition: this.internal.previousMultiPressPosition,
-                    totalNumberOfPressesCounted: this.internal.multiPressReportingAborted
-                        ? 0
-                        : this.internal.currentNumberOfPressesCounter,
-                },
-                this.context,
-            );
+        const previousPosition = this.internal.previousMultiPressPosition;
+        if (previousPosition !== null) {
+            this.#queueEvent(events => events.multiPressComplete, {
+                previousPosition,
+                totalNumberOfPressesCounted: this.internal.multiPressReportingAborted
+                    ? 0
+                    : this.internal.currentNumberOfPressesCounter,
+            });
+            this.internal.resultsQueued.emit();
         }
 
         this.#endMultiPressSequence();
@@ -355,20 +378,17 @@ export class SwitchBaseServer extends SwitchServerBase {
 }
 
 export namespace SwitchBaseServer {
-    /** An input that decides which events the switch generates, other than a write to currentPosition. */
-    export type Input =
+    /** A decided consequence of a switch input, applied in the order the inputs occurred. */
+    export type Result =
         | {
-              /** A raw position stayed stable for debounceDelay. */
+              /** Emits an event. */
+              kind: "event";
+              emit(server: SwitchBaseServer): void;
+          }
+        | {
+              /** Writes the currentPosition attribute. */
               kind: "position";
               position: number;
-          }
-        | {
-              /** The switch was held in one press for longPressDelay. */
-              kind: "longPress";
-          }
-        | {
-              /** The switch stayed released for multiPressDelay. */
-              kind: "multiPress";
           };
 
     export class Internal {
@@ -381,11 +401,23 @@ export namespace SwitchBaseServer {
         /** Timer to detect the end of a multi press sequence; runs only while the switch is released. */
         multiPressTimer?: Timer;
 
-        /** Inputs in the order they occurred whose consequences are not processed yet. */
-        inputs = new Array<Input>();
+        /** Emits the raw position that stayed stable for debounceDelay. */
+        debounceExpired = Observable<[position: number]>();
 
-        /** Emits when an input was queued. */
-        inputQueued = Observable();
+        /** Emits when the switch was held in one press for longPressDelay. */
+        longPressExpired = Observable();
+
+        /** Emits when the switch stayed released for multiPressDelay. */
+        multiPressExpired = Observable();
+
+        /** Results in the order their inputs occurred that are not applied yet. */
+        results = new Array<Result>();
+
+        /** Emits when a result was queued. */
+        resultsQueued = Observable();
+
+        /** Position this server writes to currentPosition, whose change it decided already. */
+        positionBeingWritten?: number;
 
         /** Indicator if a multi press sequence is in progress, from its first press until it ends. */
         multiPressSequenceActive = false;
@@ -396,7 +428,10 @@ export namespace SwitchBaseServer {
         /** Indicator if the multi press sequence was aborted. */
         multiPressReportingAborted = false;
 
-        /** Position previously reported in events. */
+        /** Indicator if the current press was reported with InitialPress; the release events refer to that report. */
+        currentPressReported = false;
+
+        /** Position of the latest decided change; it leads currentPosition while position writes are queued. */
         previouslyReportedPosition: number = 0;
 
         /** Position of the previous multi press. */
