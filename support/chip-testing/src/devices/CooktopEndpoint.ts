@@ -16,7 +16,11 @@ import type { EndpointNumberAllocator } from "./EndpointNumberAllocator.js";
 
 // Two Cook Surface children share one parent and device type, so each carries a distinct
 // position semantic tag (Left/Right) to disambiguate them per the device spec.
-const CookSurface = CookSurfaceDevice.with(IdentifyServer, OnOffServer, DescriptorServer.with("TagList"));
+const CookSurface = CookSurfaceDevice.with(
+    IdentifyServer,
+    OnOffServer.with("OffOnly"),
+    DescriptorServer.with("TagList"),
+);
 
 registerDeviceType({
     name: "cooktop",
