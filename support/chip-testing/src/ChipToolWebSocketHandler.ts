@@ -61,7 +61,7 @@ import {
 } from "@matter/protocol";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
-import { decodeBitmap, encodeBitmap } from "./chip-tool/json-codec.js";
+import { decodeBitmap, encodeBitmap, stringifyChipJson } from "./chip-tool/json-codec.js";
 import { log } from "./GenericTestApp.js";
 import {
     AttributeResponseData,
@@ -142,34 +142,6 @@ export function parseNumber(number: string): number | bigint {
         throw new ImplementationError(`Failed to parse number: ${number}`);
     }
     return parsed;
-}
-
-/** JSON stringify with BigInt handling if number, if bigger than max int  */
-function toChipJson(object: object, spaces?: number): string {
-    const replacements = new Array<{ from: string; to: string }>();
-    let result = JSON.stringify(
-        object,
-        (_key, value) => {
-            if (typeof value === "bigint") {
-                if (value > Number.MAX_SAFE_INTEGER) {
-                    replacements.push({ from: `":"0x${value.toString(16)}"`, to: `":${value.toString()}` });
-                    return `0x${value.toString(16)}`;
-                } else {
-                    return Number(value);
-                }
-            }
-            return value;
-        },
-        spaces,
-    );
-    // CHip JSON is no JS JSON, so we need to replace the hex strings with the correct full number again
-    if (replacements.length > 0) {
-        replacements.forEach(({ from, to }) => {
-            result = result.replaceAll(from, to);
-        });
-    }
-
-    return result;
 }
 
 /**
@@ -442,12 +414,18 @@ export function convertWebsocketDataToMatter(value: any, model: ValueModel, clus
     }
 
     if (model.metabase?.metatype === "bitmap" && (typeof value === "number" || typeof value === "string")) {
-        const numberValue =
-            typeof value === "number" ? value : /^(0x[\da-fA-F]+|\d+)$/.test(value) ? Number(value) : NaN;
-        if (!Number.isSafeInteger(numberValue) || numberValue < 0) {
+        const bits =
+            typeof value === "string"
+                ? /^(0x[\da-fA-F]+|\d+)$/.test(value)
+                    ? BigInt(value)
+                    : undefined
+                : Number.isSafeInteger(value)
+                  ? BigInt(value)
+                  : undefined;
+        if (bits === undefined || bits < 0n) {
             throw new ImplementationError(`Invalid bitmap value ${value}`);
         }
-        return decodeBitmap(numberValue, model, clusterModel);
+        return decodeBitmap(bits, model, clusterModel);
     }
 
     if (
@@ -704,7 +682,7 @@ export class ChipToolWebSocketHandler {
         const response: OutgoingChipWebSocketCommandResponse = { results, logs };
         this.#startRecording!();
 
-        return toChipJson(response);
+        return stringifyChipJson(response);
     }
 
     /** Handles an incoming one line text command */
@@ -812,7 +790,7 @@ export class ChipToolWebSocketHandler {
             ...incoming,
             arguments: commandArguments,
         };
-        logger.info("Received JSON", toChipJson(data));
+        logger.info("Received JSON", stringifyChipJson(data));
 
         const deadline = stepDeadline(commandArguments);
         if (deadline === undefined) {

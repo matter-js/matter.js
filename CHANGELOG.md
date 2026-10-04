@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
 
 - @matter/general
+    - Fix: DNS-SD discovery no longer takes records from the known-answer list of mDNS queries, its own looped-back queries included. A link-local address learned on one interface was stored under every interface such a query arrived on, so a controller could dial a node through the wrong interface and spend its connection attempt waiting for a timeout
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
     - Feature: `Crypto` creates, signs and verifies ML-DSA-44 and ML-DSA-65 (FIPS 204), the algorithms PQC Phase 1 allows for PAA and PAI certificates. Node.js signs and verifies natively where its crypto supports ML-DSA; key generation and all other runtimes use `@noble/post-quantum`, which loads only when an ML-DSA operation first needs it. `MlDsa` encodes and decodes the RFC 9881 public keys and algorithm identifiers, and `NodeJsCryptoApiLike` gains optional `sign` and `verify` members for the native path
     - Fix: `MockFetch` serves a binary `Uint8Array` response that is a view into a larger buffer as just that view, not the whole buffer
@@ -75,6 +76,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: A node advertises one DNS-SD host name on all its interfaces, so a controller that hears it on several interfaces reports its host name
     - Fix: An `MdnsService` that cannot open its socket removes itself from the environment and the runtime, so a node started afterwards creates a new one instead of failing again, and the runtime can stop
     - Fix: A closed `MdnsService` no longer stays registered as a runtime worker, so the runtime can go inactive after its nodes close
     - Feature: `PersistedMessageCounter` and `DeviceCertification` have `close()`
@@ -185,8 +187,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Decommissioning a node closes its protocol `Peer` and deletes its session resumption record; before, the peer was dropped from the `PeerSet` while still open, so its timers kept running until the process ended
     - Fix: A factory reset closes the `FabricAuthority` the node owns, such as the one the OTA provider or WebRTC requestor created, instead of only removing it from the environment
     - Fix: An ICD times its active window on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or extended the window, and after a backward step the device answered a StayActiveRequest with an active time as long as the step
+    - Fix: `SwitchServer` decides position changes and debounce, long press and multi-press timer expiries when they occur, not when their reactions run. A move between two pressed positions does not count as a further press and, after a reported LongPress, generates no InitialPress. MultiPressOngoing stops at `MultiPressMax` with MultiPressComplete(0) at the end of the aborted sequence, whose further presses report no InitialPress and no ShortRelease. `resetState()` returns a promise while it waits for the switch state lock, then drops pending debounced positions, timers and events. The server no longer leaks a reactor per press
+    - Fix: Discovery and `Peers.forDescriptor()` return the `ClientNode` still under construction for a device instead of creating a second node for it, so concurrent discoveries no longer create duplicate peers
 
 - @matter/testing
+    - Breaking: `forFlavor()` and `LogExpectOptions.flavor` take a `LogFlavor` (a `DeviceFlavor`, or `"chip"`/`"matterjs"`) instead of a string; `flavorFamily()` answers which family a flavor belongs to, and a flavor of neither family, such as `python-wrapped`, selects no variant
     - Feature: `MockForwardFeatures.enableAll()` enables every forward feature for a whole run, for a harness that tests against peers of the next Matter line
     - Fix: CHIP test runs on one Docker daemon take turns with the shared harness containers instead of recreating each other's `chip` container, which ended the other run with exit code 137. A run holds a lock while it uses the harness and waits while another run holds it (`MATTER_CHIP_HARNESS_WAIT_MINUTES`, default 60; `0` fails at once with `HarnessBusyError` when another run holds it). The lock ends with the process that holds it; a lock that does not run for 30 s is left over and fails the run with the command that removes it
     - Fix: A certification step that made a controller call that may change the device and is then refused by the controller fails the run instead of being recorded as skipped, as a step that already recorded a check does

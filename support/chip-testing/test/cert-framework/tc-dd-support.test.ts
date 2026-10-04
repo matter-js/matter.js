@@ -48,7 +48,7 @@ import {
     recordDiscriminatorHonored,
     recordBackInCommissioningMode,
     recordGeneratedManualCode,
-    recordPayloadOffering,
+    recordParse,
     recordGeneratedPayload,
     recordNotCommissioned,
     recordUnpair,
@@ -362,7 +362,7 @@ describe("CommissioningRefusals", () => {
     });
 });
 
-describe("recordPayloadOffering", () => {
+describe("recordParse", () => {
     function contextWithParser(): CertStepContext {
         const cx = contextWith(() => Promise.reject(new InternalError("not used by these tests")));
         cx.controllers.dut.parseQrPayload = async payload => {
@@ -373,23 +373,60 @@ describe("recordPayloadOffering", () => {
         return cx;
     }
 
+    /** A TH whose own setup code is the one `payload` carries. */
+    function thOf(payload: string): CertDevice {
+        const { discriminator, passcode } = qrPayloadFields(payload);
+        return {
+            id: "th",
+            app: "all-clusters",
+            commissioning: { kind: "on-network", passcode, discriminator, qrPairingCode: payload },
+            pics: new PicsFile([]),
+            async initialize() {},
+            async start() {},
+            async stop() {},
+            async close() {},
+            async snapshot() {
+                return {};
+            },
+            async restore() {},
+            backchannel: async () => {},
+            flavor: "matterjs",
+            log: new LogFollower(new LineQueue().follow(), "th"),
+            exit: new Promise<DeviceExitInfo>(() => {}),
+        };
+    }
+
     // chip-all-clusters-app's own payload: standard flow, BLE alone
     const BLE_PAYLOAD = "MT:-24J042C00KA0648G00";
 
     it("passes for a standard-flow payload offering the capability asked for", async () => {
         const cx = contextWithParser();
 
-        await recordPayloadOffering(cx, BLE_PAYLOAD, "ble");
+        await recordParse(cx, BLE_PAYLOAD, { th: thOf(BLE_PAYLOAD), offering: { capability: "ble" } });
 
-        expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["pass"]);
+        expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["pass", "pass"]);
     });
 
     it("fails when the payload offers a capability other than the one asked for", async () => {
         const cx = contextWithParser();
+        const payload = qrPayloadWith(BLE_PAYLOAD, { discoveryCapabilities: ON_NETWORK_ONLY });
 
-        await expect(
-            recordPayloadOffering(cx, qrPayloadWith(BLE_PAYLOAD, { discoveryCapabilities: ON_NETWORK_ONLY }), "ble"),
-        ).rejectedWith(CertCheckFailedError, /does not offer ble/);
+        await expect(recordParse(cx, payload, { th: thOf(payload), offering: { capability: "ble" } })).rejectedWith(
+            CertCheckFailedError,
+            /does not offer ble/,
+        );
+    });
+
+    it("records the offering even when the setup code is not the TH's", async () => {
+        const cx = contextWithParser();
+        const otherTh = thOf(qrPayloadWith(BLE_PAYLOAD, { discriminator: 1234 }));
+
+        await expect(recordParse(cx, BLE_PAYLOAD, { th: otherTh, offering: { capability: "ble" } })).rejectedWith(
+            CertCheckFailedError,
+            /1 of 2 checks failed/,
+        );
+        expect(checksOf(cx).map(({ verdict }) => verdict)).deep.equal(["fail", "pass"]);
+        expect(checksOf(cx)[1]?.detail).contains("offering discovery over ble");
     });
 
     // The flow a test case is named for is the caller's, not a constant: TC-DD-3.12 and 3.13 fabricate
@@ -398,7 +435,10 @@ describe("recordPayloadOffering", () => {
     it("judges the payload against the flow the caller asked for", async () => {
         const cx = contextWithParser();
 
-        await recordPayloadOffering(cx, PLAN_PAYLOAD, "onIpNetwork", CUSTOM_FLOW);
+        await recordParse(cx, PLAN_PAYLOAD, {
+            th: thOf(PLAN_PAYLOAD),
+            offering: { capability: "onIpNetwork", flowType: CUSTOM_FLOW },
+        });
 
         const check = checksOf(cx).at(-1);
         expect(check?.verdict).equal("pass");
@@ -408,20 +448,21 @@ describe("recordPayloadOffering", () => {
     it("fails when the payload carries a different flow from the one asked for", async () => {
         const cx = contextWithParser();
 
-        await expect(recordPayloadOffering(cx, PLAN_PAYLOAD, "onIpNetwork", USER_INTENT_FLOW)).rejectedWith(
-            CertCheckFailedError,
-            /flowType 2 rather than the user-intent flow/,
-        );
+        await expect(
+            recordParse(cx, PLAN_PAYLOAD, {
+                th: thOf(PLAN_PAYLOAD),
+                offering: { capability: "onIpNetwork", flowType: USER_INTENT_FLOW },
+            }),
+        ).rejectedWith(CertCheckFailedError, /flowType 2 rather than the user-intent flow/);
     });
 
     it("fails when the payload names a commissioning flow other than the standard one", async () => {
         const cx = contextWithParser();
 
         // The plan's own example payload, which carries the custom flow
-        await expect(recordPayloadOffering(cx, PLAN_PAYLOAD, "onIpNetwork")).rejectedWith(
-            CertCheckFailedError,
-            /flowType 2 rather than the standard flow/,
-        );
+        await expect(
+            recordParse(cx, PLAN_PAYLOAD, { th: thOf(PLAN_PAYLOAD), offering: { capability: "onIpNetwork" } }),
+        ).rejectedWith(CertCheckFailedError, /flowType 2 rather than the standard flow/);
     });
 });
 
@@ -1629,6 +1670,22 @@ describe("recordBackInCommissioningMode", () => {
         });
 
         expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+    });
+
+    it("refuses a python-wrapped TH before resetting or probing it", async () => {
+        const fixture = new UnpairFixture("python-wrapped");
+        const probed = new Array<string>();
+
+        await expect(
+            recordBackInCommissioningMode(fixture.cx, {
+                what: "TH advertising again",
+                probeCommissionable: async (_cx, what) => void probed.push(what),
+            }),
+        ).rejectedWith(ImplementationError, "python-wrapped");
+
+        expect(fixture.calls).deep.equal([]);
+        expect(fixture.checks).deep.equal([]);
+        expect(probed).deep.equal([]);
     });
 
     it("fails, without probing, when the restarted chip TH never prints its payload", async () => {

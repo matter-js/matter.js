@@ -17,6 +17,7 @@ import type {
     ControllerAdapter,
     DeviceExitInfo,
     LogExpectPatterns,
+    LogFlavor,
 } from "@matter/testing";
 import { LogFollower, PicsFile, UnsupportedByControllerError } from "@matter/testing";
 import {
@@ -55,6 +56,7 @@ import {
     removeFabricSucceeded,
     requireId,
     runCleanups,
+    sameMessageFrom,
     statedInPrompt,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
@@ -170,7 +172,7 @@ const requestCheck = (logLine?: number): CheckRecord =>
 async function checkFrom(
     lines: string[],
     request: CheckRecord,
-    flavor = "chip-docker",
+    flavor: LogFlavor = "chip-docker",
     endSource = false,
     budget = Seconds(1),
 ) {
@@ -182,7 +184,7 @@ async function checkFrom(
 
 // Every case about the reports themselves gets the read request in front of them, anchored where the
 // step's own path check leaves its match: inside the request's decode dump.
-async function check(lines: string[], flavor = "chip-docker", endSource = false, budget = Seconds(1)) {
+async function check(lines: string[], flavor: LogFlavor = "chip-docker", endSource = false, budget = Seconds(1)) {
     return checkFrom([...readLines(), ...lines], requestCheck(1), flavor, endSource, budget);
 }
 
@@ -423,6 +425,13 @@ describe("expectChunkedTransfer", function () {
         expect(record.detail).match(/No outbound Report Data trace line/);
     });
 
+    it("does not count a chunk without a trace line of its own as the previous chunk's exchange", async () => {
+        const record = await check([...chunkLines(), ackLine(), CHUNK, SUPPRESSED]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/No outbound Report Data trace line of its own/);
+    });
+
     it("fails when the read never chunked", async () => {
         const record = await check([...chunkLines(), ackLine()]);
 
@@ -506,7 +515,7 @@ describe("expectChunkedTransfer", function () {
     });
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
-        const record = await check([], "python");
+        const record = await check([], "python-wrapped");
 
         expect(record.verdict).equal("unverified");
     });
@@ -680,7 +689,7 @@ describe("expectMessageWithPath", () => {
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
         const record = await withFollower([WRITE, ...PATH], follower =>
-            expectMessageWithPath(follower, "python", "write", FIELDS, 0, Seconds(1)),
+            expectMessageWithPath(follower, "python-wrapped", "write", FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
@@ -1285,6 +1294,42 @@ describe("expectReportAck against a chip TH", () => {
         expect(check.verdict).equal("fail");
         expect(check.detail).contains("FAILURE");
     });
+
+    it("fails a report that logged no trace line of its own, rather than take an earlier report's exchange", async () => {
+        const otherSubscription = reportLines("9000").map(line =>
+            line.replace(SUBSCRIPTION_ID.toString(16), (SUBSCRIPTION_ID + 1).toString(16)),
+        );
+        const [, ...withoutTrace] = reportLines("9001");
+        const check = await ack([...otherSubscription, ...withoutTrace, ...ackLines("9000", "0x00 (SUCCESS)")]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("No outbound Report Data trace line");
+    });
+
+    // A well-formed block further on is another message's; taking its status would credit our report
+    // with someone else's answer
+    // Characterization: the previous implementation gives the same verdict
+    it("fails when our ack's own dump is malformed, though a later block reads success", async () => {
+        const [header, name] = ackLines("9000", "0x00 (SUCCESS)");
+        const check = await ack([
+            ...reportLines("9000"),
+            header,
+            name,
+            "[DMG] (unexpected)",
+            ...ackLines("9001", "0x00 (SUCCESS)"),
+        ]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("is not followed by");
+    });
+
+    // Characterization: the previous implementation gives the same verdict
+    it("fails when our ack's own dump is malformed and nothing follows", async () => {
+        const [header, name] = ackLines("9000", "0x00 (SUCCESS)");
+        const check = await ack([...reportLines("9000"), header, name, "[DMG] (unexpected)"]);
+
+        expect(check.verdict).equal("fail");
+    });
 });
 
 describe("expectSubscriptionId and expectReportAck against a matter.js TH", () => {
@@ -1476,13 +1521,13 @@ describe("fabric-removal log patterns", () => {
         "2026-08-22 21:48:06.406 INFO ProtocolService Invoke » binford-6100.operationalCredentials.removeFabric @1:9a52bb47a4ee167d•c675⇵68ce✉09f1964b statusCode: 0 fabricIndex: 2";
     const MATTERJS_SESSION_ENDED = "2026-08-22 21:48:06.401 INFO Session @2:1946ee4c0f86d574•c677 Session ended";
 
-    async function check(flavor: string, patterns: LogExpectPatterns, lines: string[]) {
+    async function check(flavor: LogFlavor, patterns: LogExpectPatterns, lines: string[]) {
         return withFollower(lines, async follower => {
             return (await expectDeviceLog(follower, flavor, patterns, 0, Millis(100))).check;
         });
     }
 
-    const removalCheck = (flavor: string, fabricIndex: number, lines: string[]) =>
+    const removalCheck = (flavor: LogFlavor, fabricIndex: number, lines: string[]) =>
         check(flavor, removeFabricSucceeded(fabricIndex), lines);
 
     it("finds the removal of the fabric it asked about", async () => {
@@ -1581,7 +1626,7 @@ describe("expectCommandInvoke", () => {
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
         const record = await withFollower([...PATH], follower =>
-            expectCommandInvoke(follower, "python", 1, 0x6, 0x1, [], 0, Seconds(1)),
+            expectCommandInvoke(follower, "python-wrapped", 1, 0x6, 0x1, [], 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
@@ -1647,7 +1692,7 @@ describe("expectNoCommandInvoke", () => {
         "[DMG] },",
     ];
 
-    function absent(follower: LogFollower, flavor = "matterjs", from = 0) {
+    function absent(follower: LogFollower, flavor: LogFlavor = "matterjs", from = 0) {
         return expectNoCommandInvoke(follower, flavor, 2, 0x6, 0x0, from, Millis(50));
     }
 
@@ -1750,7 +1795,7 @@ describe("expectNoCommandInvoke", () => {
     });
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
-        const record = await withFollower([invokeLine("2.onOff.off")], follower => absent(follower, "python"));
+        const record = await withFollower([invokeLine("2.onOff.off")], follower => absent(follower, "python-wrapped"));
 
         expect(record.verdict).equal("unverified");
     });
@@ -1777,7 +1822,7 @@ describe("group message patterns", () => {
         expect(matterjsGroupInvokeSent(1, 0x6, 0x1).test(SENT.replace("*.onOff.on", "1.onOff.on"))).equal(false);
     });
 
-    async function arrival(lines: string[], flavor: string, group: number, endpoint = 1) {
+    async function arrival(lines: string[], flavor: LogFlavor, group: number, endpoint = 1) {
         return withFollower(lines, follower =>
             expectGroupCommandArrival(
                 follower,
@@ -2487,5 +2532,44 @@ describe("statedInPrompt()", () => {
             InternalError,
             "a discriminator",
         );
+    });
+});
+
+describe("the flavor-branching checks on a flavor of no family (characterization)", () => {
+    const FLAVOR = "python-wrapped";
+
+    it("hands back the step's own mark from sameMessageFrom", () => {
+        const earlier: CheckRecord = { type: "device-log", verdict: "pass", logLine: 7 };
+
+        expect(sameMessageFrom("chip-local", earlier, 3)).equal(8);
+        expect(sameMessageFrom("matterjs", earlier, 3)).equal(3);
+        expect(sameMessageFrom(FLAVOR, earlier, 3)).equal(3);
+    });
+
+    it("resolves the subscription and group checks unverified without waiting", async () => {
+        const verdicts = await withFollower([], async follower => [
+            (
+                await expectGroupCommandArrival(
+                    follower,
+                    FLAVOR,
+                    "arrival",
+                    { group: 1, endpoint: 1, cluster: 0x6, command: 0x1 },
+                    0,
+                    Millis(5_000),
+                )
+            ).verdict,
+            (await expectSubscriptionId(follower, FLAVOR, 0, Millis(5_000))).check.verdict,
+            (
+                await expectReportAck(
+                    follower,
+                    FLAVOR,
+                    { outcome: "found", subscriptionId: 1, check: { type: "device-log", verdict: "pass" } },
+                    0,
+                    Millis(5_000),
+                )
+            ).verdict,
+        ]);
+
+        expect(verdicts).deep.equal(["unverified", "unverified", "unverified"]);
     });
 });
