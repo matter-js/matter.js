@@ -13,7 +13,7 @@ import {
     UnexpectedDataError,
 } from "@matter/main";
 import { Status, StatusResponseError } from "@matter/main/types";
-import { Matter } from "@matter/model";
+import { AttributeModel, ClusterModel, FieldModel, Matter } from "@matter/model";
 import { expect } from "chai";
 import {
     convertWebsocketDataToMatter,
@@ -254,5 +254,42 @@ describe("ownFailureResponse", () => {
             "Test harness failure — InternalError: ",
         );
         expect(ownFailureResponse("").results[0].error).equal("Test harness failure — no message");
+    });
+});
+
+describe("ChipToolWebSocketHandler convertWebsocketDataToMatter bitmaps", () => {
+    const cluster = new ClusterModel({
+        name: "WideBitmap",
+        id: 0xfff1fc10,
+        children: [
+            new AttributeModel({
+                name: "Wide",
+                id: 0,
+                type: "map64",
+                children: [
+                    new FieldModel({ name: "Low", constraint: "0" }),
+                    new FieldModel({ name: "Sign", constraint: "31" }),
+                    new FieldModel({ name: "High", constraint: "63" }),
+                ],
+            }),
+        ],
+    });
+    const wide = cluster.attributes.require("wide");
+
+    it("decodes a step's bitmap beyond the safe integer range, given as a number string or a hex string", () => {
+        const expected = { low: true, sign: true, high: true };
+        expect(convertWebsocketDataToMatter("9223372039002259457", wide, cluster)).deep.equal(expected);
+        expect(convertWebsocketDataToMatter("0x8000000080000001", wide, cluster)).deep.equal(expected);
+        expect(convertWebsocketDataToMatter(0x8000_0000, wide, cluster)).deep.equal({
+            low: false,
+            sign: true,
+            high: false,
+        });
+    });
+
+    it("refuses a bitmap value that is negative or not an integer", () => {
+        expect(() => convertWebsocketDataToMatter(-1, wide, cluster)).throw(ImplementationError);
+        expect(() => convertWebsocketDataToMatter(1.5, wide, cluster)).throw(ImplementationError);
+        expect(() => convertWebsocketDataToMatter("x1", wide, cluster)).throw(ImplementationError);
     });
 });
