@@ -55,7 +55,7 @@ export function EncodedBitmap(model: ValueModel, value: number | bigint | Decode
         if (bitval === true) {
             bitmap |= 1n << BigInt(min);
         } else {
-            // In bigint, as number bitwise operators truncate to 32 bits
+            // Number bitwise operators truncate to 32 bits, so wider members are masked and shifted as bigint
             bitmap |= (BigInt(bitval) & (2n ** BigInt(max - min + 1) - 1n)) << BigInt(min);
         }
     }

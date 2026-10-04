@@ -12,6 +12,7 @@ import {
     bool,
     double,
     list,
+    map32,
     map8,
     percent100ths,
     single,
@@ -108,10 +109,11 @@ describe("DefaultValue", () => {
             const Matter = new MatterModel(
                 {},
                 map8.clone(),
+                map32.clone(),
                 new ClusterModel(
                     { name: "Test", id: 0xfff1 },
                     Datatype(
-                        { name: "Flags", type: "map8" },
+                        { name: "Flags", type: "map32" },
                         ...members.map((member, index) => Field({ name: `Member${index}`, ...member })),
                     ),
                     Attribute({ name: "Flags", id: 1, type: "Flags" }),
@@ -132,6 +134,10 @@ describe("DefaultValue", () => {
 
         it("places a member with no upper bound from its lowest bit", () => {
             expect(bitmapDefaultOf({ constraint: "min 4", default: 3 })).equal(0b110000);
+        });
+
+        it("keeps bit 31 a bit, not a sign", () => {
+            expect(bitmapDefaultOf({ constraint: "0 to 31", default: 2 ** 31 })).equal(2 ** 31);
         });
     });
 });

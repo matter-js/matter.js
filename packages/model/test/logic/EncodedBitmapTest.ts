@@ -34,7 +34,6 @@ const LargeBitmapAttr = new AttributeModel(
     Field({ name: "largeBits", constraint: "0 to 56" }), // 57-bit field
 );
 
-// Bitmap attribute with a wide range field that does not start at bit 0
 const ShiftedLargeBitmapAttr = new AttributeModel(
     { id: 4, name: "ShiftedLargeBitmap", type: "bitmap64" },
     Field({ name: "highBits", constraint: "4 to 63" }),

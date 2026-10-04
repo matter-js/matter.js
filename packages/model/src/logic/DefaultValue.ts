@@ -216,5 +216,6 @@ function buildBitmap(scope: Scope, model: ValueModel) {
         }
     }
 
-    return result;
+    // The bitwise operators yield signed 32-bit values; bit 31 belongs to the bitmap, not the sign
+    return result === undefined ? undefined : result >>> 0;
 }
