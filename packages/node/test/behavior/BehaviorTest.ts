@@ -81,7 +81,7 @@ describe("Behavior", () => {
         TestBehavior.id satisfies "test";
         NewBehavior.id satisfies "test";
 
-        const endpoint = await MockEndpoint.createWith(NewBehavior);
+        await using endpoint = await MockEndpoint.createWith(NewBehavior);
         await endpoint.act(agent => {
             const behavior = agent.test;
 

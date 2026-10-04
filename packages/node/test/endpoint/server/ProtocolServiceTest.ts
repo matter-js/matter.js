@@ -260,7 +260,7 @@ describe("ProtocolServiceTest", () => {
 
         const MyDevice = OnOffLightDevice.with(MyServer);
 
-        const node = await MockServerNode.createOnline(undefined, { device: MyDevice });
+        await using node = await MockServerNode.createOnline(undefined, { device: MyDevice });
 
         const fabric = await node.addFabric();
 
@@ -286,7 +286,7 @@ describe("ProtocolServiceTest", () => {
 
         const MyDevice = OnOffLightDevice.with(MyServer);
 
-        const node = await MockServerNode.createOnline(undefined, { device: MyDevice });
+        await using node = await MockServerNode.createOnline(undefined, { device: MyDevice });
 
         const featureMap = await interaction.read(node, await node.addFabric(), false, {
             endpointId: EndpointNumber(1),
@@ -317,7 +317,7 @@ describe("ProtocolServiceTest", () => {
 
         const MyDevice = OnOffLightDevice.with(MyServer);
 
-        const node = await MockServerNode.createOnline(undefined, { device: MyDevice });
+        await using node = await MockServerNode.createOnline(undefined, { device: MyDevice });
 
         await interaction.invoke(
             node,
