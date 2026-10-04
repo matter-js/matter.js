@@ -1631,6 +1631,22 @@ describe("recordBackInCommissioningMode", () => {
         expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
     });
 
+    it("refuses a python-wrapped TH before resetting or probing it", async () => {
+        const fixture = new UnpairFixture("python-wrapped");
+        const probed = new Array<string>();
+
+        await expect(
+            recordBackInCommissioningMode(fixture.cx, {
+                what: "TH advertising again",
+                probeCommissionable: async (_cx, what) => void probed.push(what),
+            }),
+        ).rejectedWith(ImplementationError, "python-wrapped");
+
+        expect(fixture.calls).deep.equal([]);
+        expect(fixture.checks).deep.equal([]);
+        expect(probed).deep.equal([]);
+    });
+
     it("fails, without probing, when the restarted chip TH never prints its payload", async () => {
         const fixture = new UnpairFixture("chip-local", { backchannel: () => fixture.close() });
         const probed = new Array<string>();

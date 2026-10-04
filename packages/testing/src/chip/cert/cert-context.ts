@@ -9,7 +9,7 @@ import type { ChipBinsSource } from "../chip-bins.js";
 import type { CertAppVariant } from "./cert-dsl.js";
 import type { ControllerTransport } from "./controller-adapter.js";
 import type { ControllerAdapter } from "./controller-adapter.js";
-import type { LogFollower } from "./log-follower.js";
+import { forFlavor, type LogFollower } from "./log-follower.js";
 
 /**
  * Access to a single device's log stream.
@@ -303,10 +303,13 @@ export interface CertTestDefinition {
  */
 export type CertAppArgs = string[] | { chip?: string[]; matterjs?: string[] };
 
-/** The arguments {@link CertAppArgs} gives the app a run of `flavor` starts. */
+/**
+ * The arguments {@link CertAppArgs} gives the app a run of `flavor` starts. A flavor of neither family
+ * gets no keyed arguments at all.
+ */
 export function appArgsFor(args: CertAppArgs | undefined, flavor: DeviceFlavor): string[] | undefined {
     if (args === undefined || Array.isArray(args)) {
         return args;
     }
-    return flavor === "matterjs" ? args.matterjs : args.chip;
+    return forFlavor(args, flavor);
 }

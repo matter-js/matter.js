@@ -19,7 +19,7 @@ import {
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
 import type { CertNodeRef, CertStepContext, CheckRecord, CommissioningTarget } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { forFlavor, resolveControllerImplementation } from "@matter/testing";
+import { flavorFamily, forFlavor, resolveControllerImplementation } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
@@ -1179,7 +1179,8 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
  *
  * A chip TH needs a factory reset: removing its last fabric leaves it re-advertising with
  * `commissioning mode 0` (`kDisabled`), which publishes no commissionable service. A matter.js
- * device returns on its own, and erasing it would restart a TH that needs nothing.
+ * device returns on its own, and erasing it would restart a TH that needs nothing. A TH of neither
+ * family has no known means, so this throws before resetting or probing it.
  *
  * **The device's line is what witnesses the transition; the mDNS probe corroborates it.** A probe on
  * its own is answered by any live record for the TH's discriminator, including one cached before it
@@ -1208,6 +1209,10 @@ export async function recordBackInCommissioningMode(
     } = {},
 ): Promise<void> {
     const th = options.th ?? theTh(cx);
+    const family = flavorFamily(th.flavor);
+    if (family === undefined) {
+        throw new ImplementationError(`No means is known to return a ${th.flavor} TH to commissioning mode`);
+    }
     const {
         what = "TH advertising as commissionable again",
         // Bound to this device rather than to the plan's single-device role, which a multi-device
@@ -1217,7 +1222,7 @@ export async function recordBackInCommissioningMode(
     } = options;
     const from = since;
 
-    if (th.flavor !== "matterjs") {
+    if (family === "chip") {
         await th.backchannel({ name: "factoryReset" });
 
         // A chip app's start() returns when the process is up, not when the app is, so without this
