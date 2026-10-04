@@ -50,7 +50,6 @@ import {
     CommandModel,
     EventModel,
     FeatureMap,
-    FieldValue,
     GeneratedCommandList,
     MatterModel,
     ValueModel,
@@ -62,6 +61,7 @@ import {
 } from "@matter/protocol";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
+import { decodeBitmap, encodeBitmap } from "./chip-tool/json-codec.js";
 import { log } from "./GenericTestApp.js";
 import {
     AttributeResponseData,
@@ -357,33 +357,7 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
         return result;
     }
     if (isObject(value) && model.metabase?.metatype === "bitmap") {
-        let numberValue = 0;
-
-        for (const member of clusterModel.scope.membersOf(model)) {
-            const memberValue =
-                member.name !== undefined && value[member.propertyName]
-                    ? value[member.propertyName]
-                    : member.description !== undefined && value[camelize(member.description)]
-                      ? value[camelize(member.description)]
-                      : undefined;
-
-            if (!memberValue) {
-                continue;
-            }
-            if (typeof memberValue !== "boolean" && typeof memberValue !== "number") {
-                throw new ImplementationError(`Invalid bitmap value ${JSON.stringify(memberValue)}`);
-            }
-
-            const constraintValue = FieldValue.countValue(member.constraint.value);
-            if (constraintValue !== undefined) {
-                numberValue |= 1 << constraintValue;
-            } else {
-                const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
-                numberValue |= (typeof memberValue === "boolean" ? 1 : memberValue) << minBit;
-            }
-        }
-
-        return numberValue;
+        return encodeBitmap(value, model, clusterModel);
     }
 
     if (Bytes.isBytes(value) && model.metabase?.metatype === "bytes") {
@@ -424,7 +398,7 @@ function parseChipJSON(json: string) {
  * `packages/testing/src/chip/cert/controller-adapter.ts` for the same pattern); no production
  * caller outside this module should import it.
  */
-export function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
+export function convertWebsocketDataToMatter(value: any, model: ValueModel, clusterModel: ClusterModel): any {
     if (value === undefined) {
         return undefined;
     }
@@ -437,7 +411,7 @@ export function convertWebsocketDataToMatter(value: any, model: ValueModel): any
             value = parseChipJSON(value);
         }
         if (Array.isArray(value)) {
-            return value.map(v => convertWebsocketDataToMatter(v, model.members.at(0)!));
+            return value.map(v => convertWebsocketDataToMatter(v, model.members.at(0)!, clusterModel));
         }
     }
 
@@ -460,11 +434,20 @@ export function convertWebsocketDataToMatter(value: any, model: ValueModel): any
             valueKeys.forEach(key => {
                 const member = members[camelize(key).toLowerCase()];
                 if (member !== undefined) {
-                    result[member.propertyName] = convertWebsocketDataToMatter(value[key], member);
+                    result[member.propertyName] = convertWebsocketDataToMatter(value[key], member, clusterModel);
                 }
             });
             return result;
         }
+    }
+
+    if (model.metabase?.metatype === "bitmap" && (typeof value === "number" || typeof value === "string")) {
+        const numberValue =
+            typeof value === "number" ? value : /^(0x[\da-fA-F]+|\d+)$/.test(value) ? Number(value) : NaN;
+        if (!Number.isSafeInteger(numberValue) || numberValue < 0) {
+            throw new ImplementationError(`Invalid bitmap value ${value}`);
+        }
+        return decodeBitmap(numberValue, model, clusterModel);
     }
 
     if (
@@ -494,24 +477,6 @@ export function convertWebsocketDataToMatter(value: any, model: ValueModel): any
             if (value.startsWith("hex:")) {
                 return Bytes.fromHex(value.slice(4));
             }
-        }
-
-        if (model.metabase?.metatype === "bitmap") {
-            const numberValue = parseInt(value);
-            if (isNaN(numberValue)) {
-                throw new ImplementationError(`Invalid bitmap value ${value}`);
-            }
-            const bitmapValue: { [key: string]: boolean } = {};
-            model.members.forEach(member => {
-                if (
-                    member.constraint !== undefined &&
-                    member.name !== undefined &&
-                    numberValue & (1 << parseInt(member.constraint as unknown as string))
-                ) {
-                    bitmapValue[member.propertyName] = true;
-                }
-            });
-            return bitmapValue;
         }
 
         if (
@@ -1453,7 +1418,7 @@ export class ChipToolWebSocketHandler {
         ) {
             parsedValue = parseWritePayload(value, `write of ${cluster}.${commandSpecifier}`);
         }
-        const matterValue = convertWebsocketDataToMatter(parsedValue, attributeModel);
+        const matterValue = convertWebsocketDataToMatter(parsedValue, attributeModel, clusterData.model);
         const nodeId = NodeId(parseNumber(destinationId));
         try {
             await handler.handleWriteAttribute({
@@ -1507,6 +1472,7 @@ export class ChipToolWebSocketHandler {
                 data: convertWebsocketDataToMatter(
                     Object.keys(commandData).length ? commandData : undefined,
                     commandModel,
+                    clusterData.model,
                 ),
                 timedInteractionTimeout:
                     timedInteractionTimeoutMs !== undefined ? Millis(parseInt(timedInteractionTimeoutMs)) : undefined,
