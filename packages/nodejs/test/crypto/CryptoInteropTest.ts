@@ -32,6 +32,13 @@ function hex(bytes: Bytes): string {
 
 describe("Crypto interop (StandardCrypto <-> NodeJsCrypto)", () => {
     describe("AES-CCM encrypt/decrypt", () => {
+        // Some runtimes emulate Node.js without an aes-128-ccm cipher, so these cannot run there
+        before(function () {
+            if (NodeJsCrypto.defect !== undefined) {
+                this.skip();
+            }
+        });
+
         const cases: Array<{ name: string; nonce: Bytes; tagLength: number }> = [
             { name: "tag=16, nonce=13 (L=2, Matter default)", nonce: NONCE_13, tagLength: 16 },
             { name: "tag=8, nonce=13 (L=2)", nonce: NONCE_13, tagLength: 8 },

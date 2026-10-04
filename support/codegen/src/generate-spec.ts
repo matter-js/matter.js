@@ -18,8 +18,12 @@ environment variable or --path= command line argument.`;
 
 import "./util/setup.js";
 
+import { Logger } from "#general";
 import { IntermediateModel } from "./mom/common/intermediate-model.js";
 import { SpecFile } from "./mom/spec/spec-file.js";
+import { normalizeRevision } from "./util/revision.js";
+
+const logger = Logger.get("generate-spec");
 
 const args = await yargs(hideBin(process.argv))
     .usage(USAGE)
@@ -33,7 +37,11 @@ const args = await yargs(hideBin(process.argv))
         describe: "limit ingestion to a specific document",
         choices: ["core", "cluster", "device", "namespace"],
     })
-    .option("revision", { type: "string", describe: "spec version if path is unspecified" })
+    .option("revision", {
+        type: "string",
+        describe:
+            "spec version; replaces the version the documents state and names the default location when neither path nor MATTER_SPECIFICATION_PATH is set",
+    })
     .wrap(null) // Grr ESM version word wrap is broken so we just wrap manually to 79 chars
     .strict().argv;
 
@@ -44,16 +52,23 @@ if (!args.clusters && !args.devices && !args.namespaces) {
     }
 }
 
-let version = args.revision;
+const files = [...SpecFile.load({ version: args.revision, path: args.path, document: args.document })];
 
-const files = [...SpecFile.load({ version, path: args.path, document: args.document })];
-
+let documentVersion: string | undefined;
 for (const file of files) {
-    if (version === undefined) {
-        version = file.version;
-    } else if (version !== file.version) {
-        throw new Error(`Version mismatch for file ${file.path} (version is ${file.version} but expected ${version})`);
+    if (documentVersion === undefined) {
+        documentVersion = file.version;
+    } else if (documentVersion !== file.version) {
+        throw new Error(
+            `Version mismatch for file ${file.path} (version is ${file.version} but expected ${documentVersion})`,
+        );
     }
+}
+
+// A ballot export states a version such as "0.9-1.7-winter2027", which reads as 0.9
+const version = args.revision === undefined ? documentVersion : normalizeRevision(args.revision);
+if (version !== undefined && documentVersion !== undefined && version !== documentVersion) {
+    logger.warn(`Generating revision ${version} from documents that state version ${documentVersion}`);
 }
 
 if (version === undefined || !files.length) {

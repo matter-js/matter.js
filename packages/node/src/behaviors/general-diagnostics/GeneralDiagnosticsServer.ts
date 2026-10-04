@@ -28,6 +28,7 @@ import {
     Time,
     Timer,
     Timespan,
+    Timestamp,
     UINT16_MAX,
     UINT32_MAX,
 } from "@matter/general";
@@ -55,6 +56,16 @@ const schema = Base.schema.extend(
     {},
     FieldElement({ name: "totalOperationalHoursCounter", type: "uint64", quality: "N", conformance: "M" }),
 );
+
+/**
+ * Time elapsed between {@link start} and {@link end}, floored at zero.
+ *
+ * A backward wall-clock step (e.g. an NTP correction) would otherwise make this negative, which would push the
+ * persisted operational-hours counter below its uint64 minimum and make upTime negative.
+ */
+function elapsedSince(start: Timestamp, end: Timestamp): Duration {
+    return Duration.max(0, Timespan(start, end).duration);
+}
 
 /**
  * This is the default server implementation of GeneralDiagnosticsBehavior.
@@ -108,7 +119,7 @@ export class GeneralDiagnosticsServer extends Base {
     /**
      * DataModelTest is mandatory above a maxPathsPerInvoke of one.
      *
-     * @see {@link MatterSpecification.v16.Core} § 11.12.4.1
+     * @see {@link MatterSpecification.v161.Core} § 11.12.4.1
      * @throws {@link ImplementationError} if the feature is absent above a maxPathsPerInvoke of one
      */
     #assertDataModelTest() {
@@ -346,7 +357,11 @@ export class GeneralDiagnosticsServer extends Base {
         );
 
         // Update the timestamps now that node is really online.
-        this.internal.lastTotalOperationalHoursCounterUpdateTime = Time.nowMs;
+        const now = Time.nowUs;
+        this.internal.lastTotalOperationalHoursCounterUpdateTime = now;
+        this.internal.onlineAtUs = now;
+        this.internal.onlineAtMs = Time.nowMs;
+        this.internal.upTimeHighWaterMark = 0;
 
         this.internal.lastTotalOperationalHoursTimer = Time.getPeriodicTimer(
             "GeneralDiagnostics.operationalHours",
@@ -360,12 +375,17 @@ export class GeneralDiagnosticsServer extends Base {
     #goingOffline() {
         this.internal.lastTotalOperationalHoursTimer?.stop();
         this.#updateTotalOperationalHoursCounter();
+        this.internal.onlineAtUs = undefined;
+        this.internal.onlineAtMs = undefined;
     }
 
     #updateTotalOperationalHoursCounter() {
-        const now = Time.nowMs;
-        const elapsedTime = Timespan(this.internal.lastTotalOperationalHoursCounterUpdateTime, now).duration;
-        this.state.totalOperationalHoursCounter = Millis(this.state.totalOperationalHoursCounter + elapsedTime);
+        const now = Time.nowUs;
+        const elapsedTime = elapsedSince(this.internal.lastTotalOperationalHoursCounterUpdateTime, now);
+        // The field is a persisted uint64, so floor the fractional milliseconds Time.nowUs contributes.
+        this.state.totalOperationalHoursCounter = Millis(
+            Math.floor(this.state.totalOperationalHoursCounter + elapsedTime),
+        );
         this.internal.lastTotalOperationalHoursCounterUpdateTime = now;
     }
 
@@ -434,11 +454,38 @@ export class GeneralDiagnosticsServer extends Base {
 
 export namespace GeneralDiagnosticsServer {
     export class Internal {
-        /** Last time the total operational hours counter was updated. */
-        lastTotalOperationalHoursCounterUpdateTime = Time.nowMs;
+        /** Last time the total operational hours counter was updated, on the monotonic clock ({@link Time.nowUs}). */
+        lastTotalOperationalHoursCounterUpdateTime = Time.nowUs;
 
         /** Timer to update the total operational hours counter every 5 minutes. */
         lastTotalOperationalHoursTimer: Timer | undefined;
+
+        /**
+         * Time the node came online, on the monotonic clock ({@link Time.nowUs}); used for {@link upTime}.
+         *
+         * Unlike {@link NodeLifecycle.onlineAt}, which is a wall-clock {@link Date}, this is unaffected by a clock
+         * step where {@link Time.nowUs} is monotonic.  Where it falls back to the wall clock, a step still moves
+         * upTime, and only the clamp keeps it from going negative.
+         */
+        onlineAtUs: Timestamp | undefined;
+
+        /**
+         * Time the node came online, on the wall clock ({@link Time.nowMs}); used for {@link upTime}.
+         *
+         * Where the monotonic clock does not advance while the host is suspended (Node on Linux, and several other
+         * runtimes), {@link onlineAtUs} alone would stop counting upTime for the duration of a suspend.  Comparing against this wall-clock timestamp folds suspend
+         * time back in wherever the wall clock actually advanced past it.
+         */
+        onlineAtMs: Timestamp | undefined;
+
+        /**
+         * Highest upTime computed since the node came online.
+         *
+         * A suspend makes {@link onlineAtMs}'s elapsed time jump ahead of {@link onlineAtUs}'s; a later backward
+         * wall-clock step (an NTP correction) must not then make upTime, already reported at the higher value, go
+         * down again.
+         */
+        upTimeHighWaterMark: Duration = 0;
     }
 
     export class State extends Base.State {
@@ -467,12 +514,23 @@ export namespace GeneralDiagnosticsServer {
                  * our boot time.
                  */
                 get upTime() {
-                    const onlineAt = (endpoint.lifecycle as NodeLifecycle).onlineAt;
-                    if (onlineAt === undefined) {
+                    const internal = endpoint.behaviors.internalsOf(GeneralDiagnosticsServer);
+                    const { onlineAtUs, onlineAtMs } = internal;
+                    if (onlineAtUs === undefined || onlineAtMs === undefined) {
                         return 0;
                     }
 
-                    return Seconds.of(Timespan(onlineAt, Time.nowMs).duration);
+                    // Take whichever clock elapsed more so a suspend (wall clock advances, monotonic clock does
+                    // not) is counted.  A forward wall-clock step is folded in the same way, which can make upTime
+                    // run ahead of real elapsed time; accepted since upTime has no deadline consequences. The
+                    // high-water mark then keeps a later backward step from lowering what was already reported.
+                    const elapsed = Duration.max(
+                        Duration.max(elapsedSince(onlineAtUs, Time.nowUs), elapsedSince(onlineAtMs, Time.nowMs)),
+                        internal.upTimeHighWaterMark,
+                    );
+                    internal.upTimeHighWaterMark = elapsed;
+
+                    return Seconds.of(elapsed);
                 },
 
                 /**
@@ -483,10 +541,7 @@ export namespace GeneralDiagnosticsServer {
                     const { lastTotalOperationalHoursCounterUpdateTime } =
                         endpoint.behaviors.internalsOf(GeneralDiagnosticsServer);
 
-                    const timeSinceLastUpdate = Timespan(
-                        lastTotalOperationalHoursCounterUpdateTime,
-                        Time.nowMs,
-                    ).duration;
+                    const timeSinceLastUpdate = elapsedSince(lastTotalOperationalHoursCounterUpdateTime, Time.nowUs);
 
                     const timeAsOfLastUpdate = state.totalOperationalHoursCounter;
 

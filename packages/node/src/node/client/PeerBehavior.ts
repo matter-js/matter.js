@@ -34,7 +34,7 @@ const discoveredCaches = new Map<
 >();
 const knownCaches = new Map<ClusterBehaviorType.CommandFactory, WeakMap<ClusterBehavior.Type, ClusterBehavior.Type>>();
 
-const isPeer = Symbol("is-peer");
+const peerTypes = new WeakSet<ClusterBehavior.Type>();
 
 /**
  * Obtain a {@link ClusterBehavior.Type} for a remote cluster.
@@ -42,9 +42,10 @@ const isPeer = Symbol("is-peer");
 export function PeerBehavior(shape: PeerBehavior.ClusterShape): ClusterBehavior.Type {
     let type: ClusterBehavior.Type;
 
-    switch (shape.kind) {
+    const { kind } = shape;
+    switch (kind) {
         case "known":
-            if (Object.hasOwn(shape.behavior, isPeer)) {
+            if (peerTypes.has(shape.behavior)) {
                 return shape.behavior;
             }
             type = instrumentKnownShape(shape);
@@ -55,10 +56,10 @@ export function PeerBehavior(shape: PeerBehavior.ClusterShape): ClusterBehavior.
             break;
 
         default:
-            throw new InternalError(`Unknown cluster shape kind ${(shape as any).kind}`);
+            throw new InternalError(`Unknown cluster shape kind ${kind}`);
     }
 
-    (type as any)[isPeer] = true;
+    peerTypes.add(type);
 
     return type;
 }
@@ -155,7 +156,6 @@ function instrumentKnownShape(shape: PeerBehavior.KnownClusterShape) {
     type = ClusterBehaviorType({
         base,
         namespace: base.cluster,
-        schema: base.schema,
         name: `${base.schema.name}Client`,
         forClient: true,
         commandFactory: factory,
@@ -245,7 +245,7 @@ function generateDiscoveredType(
 
         if (attrSupportOverrides.size) {
             for (const [attr, isSupported] of attrSupportOverrides.entries()) {
-                schema.children.push(attr.extend({ operationalIsSupported: isSupported }));
+                schema.children.push(attr.extend(supportOverrideOf(attr, isSupported, schema)));
             }
         }
 
@@ -256,7 +256,7 @@ function generateDiscoveredType(
 
         if (commandSupportOverrides.size) {
             for (const [command, isSupported] of commandSupportOverrides.entries()) {
-                schema.children.push(command.extend({ operationalIsSupported: isSupported }));
+                schema.children.push(command.extend(supportOverrideOf(command, isSupported, schema)));
             }
         }
 
@@ -375,6 +375,25 @@ function createFingerprint(analysis: DiscoveredShapeAnalysis) {
             fingerprint.push(`${prefix}-`, createElementFingerprint(unsupported));
         }
     }
+}
+
+/**
+ * The properties that record an element's support on the peer.
+ *
+ * An element the peer implements although its conformance deprecates it becomes optional, so the client exposes it as
+ * it does any optional element the peer supports.
+ */
+function supportOverrideOf(element: AttributeModel | CommandModel, isSupported: boolean, cluster: ClusterModel) {
+    const conformance = element.effectiveConformance;
+    if (
+        isSupported &&
+        conformance.applicabilityFor(cluster) === Conformance.Applicability.None &&
+        conformance.applicabilityFor(cluster, { deprecatedIsOptional: true }) !== Conformance.Applicability.None
+    ) {
+        return { operationalIsSupported: true, conformance: Conformance.Flag.Optional };
+    }
+
+    return { operationalIsSupported: isSupported };
 }
 
 function createUnknownName(prefix: string, id: number) {

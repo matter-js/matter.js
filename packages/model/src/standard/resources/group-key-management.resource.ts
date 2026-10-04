@@ -54,21 +54,22 @@ Resource.add({
                 "\n" +
                 "  - When Groupcast is adopted (the GroupcastAdoption entry has GroupcastAdopted set to true):" +
                 "\n" +
-                "  - This attribute shall be empty." +
+                "    - This attribute shall be empty." +
                 "\n" +
-                "  - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code." +
+                "    - Any attempt to write to this attribute shall fail with an INVALID_IN_STATE status code." +
                 "\n" +
                 "  - Otherwise (Groupcast is not adopted or the entry is missing):" +
                 "\n" +
-                "  - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's " +
+                "    - This attribute shall contain the Group Key Set mappings derived from the Groupcast cluster's " +
                 "Membership attribute (one mapping per group per fabric)." +
                 "\n" +
-                "  - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership " +
-                "attribute (by GroupID) to be updated with the provided GroupKeySetID. If an entry is missing for " +
-                "a given GroupID in the GroupKeyMap, which exists in the Groupcast cluster's Membership attribute " +
-                "for a given fabric, then the Groupcast cluster's membership attribute shall use placeholder " +
-                "value 65535 for the KeySetID. While this KeySetID is technically valid, administrators SHOULD " +
-                "avoid allocating it for actual usage to avoid value aliasing for this field." +
+                "    - GroupKeyMapStruct entry updates shall cause the associated Groupcast cluster's Membership " +
+                "attribute (by GroupID) to be updated with the provided GroupKeySetID. If an entry is missing " +
+                "for a given GroupID in the GroupKeyMap, which exists in the Groupcast cluster's Membership " +
+                "attribute for a given fabric, then the Groupcast cluster's membership attribute shall use " +
+                "placeholder value 65535 for the KeySetID. While this KeySetID is technically valid, " +
+                "administrators SHOULD avoid allocating it for actual usage to avoid value aliasing for this " +
+                "field." +
                 "\n" +
                 "This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with " +
                 "a particular group key set."
@@ -87,9 +88,8 @@ Resource.add({
                 "\n" +
                 "This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information " +
                 "about how a given logical Group ID maps to a particular set of endpoints, and a name for the group. " +
-                "The content of this attribute reflects data managed via the Groups cluster (see " +
-                "[[AppClusters]](#ref_AppClusters)), and is in general terms referred to as the 'node-wide Group " +
-                "Table'." +
+                "The content of this attribute reflects data managed via the Groups cluster (see AppClusters), and is " +
+                "in general terms referred to as the 'node-wide Group Table'." +
                 "\n" +
                 "The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If " +
                 "a RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped " +
@@ -164,7 +164,7 @@ Resource.add({
                 "GroupKeySetID for all Group Key Sets associated with the scoped Fabric.",
 
             children: [{
-                tag: "field", name: "GroupKeySetIDs", xref: "core§11.2.7.6.1",
+                tag: "field", name: "GroupKeySetIds", xref: "core§11.2.7.6.1",
                 details: "This field references the set of group keys that generate operational group keys for use with the " +
                     "accessing fabric." +
                     "\n" +

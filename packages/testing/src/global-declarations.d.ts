@@ -8,6 +8,7 @@ import type * as Chai from "chai" with { "resolution-mode": "import" };
 import type {} from "chai-as-promised" with { "resolution-mode": "import" };
 import type { DiffMarker } from "./chai.js";
 import type { BootKind } from "./mocks/boot.js";
+import type { MockForwardFeatures } from "./mocks/forward-features.js";
 import type { DiagnosticMessageLike, MockLogger } from "./mocks/logging.js";
 import type { MockTime } from "./mocks/time.js";
 import type { TestDescriptor, TestSuiteDescriptor } from "./test-descriptor.js";
@@ -36,6 +37,9 @@ declare global {
 
     // Expose API for controlling logging
     let MockLogger: MockLogger;
+
+    // Expose API for enabling forward Matter features
+    let MockForwardFeatures: MockForwardFeatures;
 
     /**
      * If present, the following hooks are engaged by matter.js packages to enable mocking.  We use globals rather than
@@ -68,6 +72,11 @@ declare global {
                * Receive intercepted log messages.
                */
               loggerSink?: (text: string, message: DiagnosticMessageLike) => void;
+
+              /**
+               * Whether a test enabled a forward Matter feature.
+               */
+              forwardFeatureEnabled?: (feature: string) => boolean;
 
               /**
                * Dump information about current state of process to log.

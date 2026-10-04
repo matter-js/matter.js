@@ -15,7 +15,7 @@ import {
     RequirementElement,
 } from "#elements/index.js";
 import { ValidateModel } from "#logic/ValidateModel.js";
-import { MatterModel } from "#models/index.js";
+import { ConditionModel, MatterModel } from "#models/index.js";
 
 const TEST_DEFINITIONS = [
     "M",
@@ -23,9 +23,15 @@ const TEST_DEFINITIONS = [
     "P",
     "D",
     "X",
+    "Z",
     "WBL",
     "AX | WBL",
     "AX, WBL",
+
+    // Pipe "otherwise" list with a conjunction term (spec 1.6.1 feature conformance, e.g. AmbientContextSensing)
+    "HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD",
     "[WIRED]",
     "!AB",
     "!(LT | DF)",
@@ -71,6 +77,9 @@ const TEST_DEFINITIONS = [
 
 const TEST_DEFINITIONS2 = {
     "(AX | WBL)": "AX | WBL",
+    // & binds tighter than |, so redundant parens drop
+    "HA | OI | AUD | (OC & OI)": "HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD | (OC & OI)": "P, HA | OI | AUD | OC & OI",
     "[!(LT)]": "[!LT]",
     "!((LT | DF))": "!(LT | DF)",
     "RequiresEncodedPixels == True": "RequiresEncodedPixels == true",
@@ -145,6 +154,72 @@ describe("Conformance", () => {
         });
     });
 
+    describe("obsolete conformance", () => {
+        it("stands alone without error", () => {
+            const conformance = new Conformance("Z");
+            expect(conformance.errors).undefined;
+            expect(conformance.type).equal(Conformance.Z);
+        });
+
+        it("is obsolete but not disallowed", () => {
+            const conformance = new Conformance("Z");
+            expect(conformance.isObsolete).true;
+            expect(conformance.isDisallowed).false;
+        });
+
+        it("leaves a disallowed element not obsolete", () => {
+            expect(new Conformance("X").isObsolete).false;
+        });
+
+        for (const definition of ["Z | AA", "AA & Z", "!Z", "Z, O", "O, Z", "[Z]", "Z.a", "Z.Foo"]) {
+            it(`rejects "${definition}"`, () => {
+                expect(new Conformance(definition).errors?.map(e => e.code)).deep.equal(["INVALID_OBSOLETE"]);
+            });
+        }
+
+        it('parses "Z.Foo" as a qualified name', () => {
+            expect(new Conformance("Z.Foo").type).equal(Conformance.Operator.DOT);
+        });
+
+        it("rejects an obsolete entry in a list definition", () => {
+            expect(new Conformance(["Z", "O"]).errors?.map(e => e.code)).deep.equal(["INVALID_OBSOLETE"]);
+        });
+
+        it("does not require a type for an obsolete element", () => {
+            const matter = new MatterModel({
+                name: "Matter",
+                children: [
+                    ClusterElement({
+                        id: 0xfff1_fc02,
+                        name: "UntypedTest",
+                        children: [
+                            { tag: "attribute", id: 1, name: "Legacy", conformance: "Z" },
+                            { tag: "attribute", id: 2, name: "Current", conformance: "M" },
+                        ],
+                    }),
+                ],
+            });
+            const errors = ValidateModel(matter).errors.filter(e => e.code === "NO_TYPE");
+            expect(errors.map(e => e.source)).deep.equal(["UntypedTest.state.current"]);
+        });
+
+        it("reports the misuse through model validation", () => {
+            const matter = new MatterModel({
+                name: "Matter",
+                children: [
+                    ClusterElement({
+                        id: 0xfff1_fc01,
+                        name: "ObsoleteTest",
+                        children: [{ tag: "attribute", id: 1, name: "Legacy", type: "uint8", conformance: "Z, O" }],
+                    }),
+                ],
+            });
+            const errors = ValidateModel(matter).errors.filter(e => e.code === "INVALID_OBSOLETE");
+            expect(errors.length).equal(1);
+            expect(errors[0].source).equal("ObsoleteTest.state.legacy");
+        });
+    });
+
     describe("enum value resolution in == expressions", () => {
         // Simulates the PushAvStreamTransport scenario:
         // - TriggerTypeEnum with values Command(0) and Motion(1)
@@ -200,6 +275,27 @@ describe("Conformance", () => {
         it("resolves enum field == value in OR expression", () => {
             const orExpr = validate().filter(e => e.source?.includes("maxPreRollLenOr"));
             expect(orExpr).deep.equal([]);
+        });
+    });
+
+    describe("comparison whose left side is not a value", () => {
+        function unresolvedIn(definition: string) {
+            const declared = new ConditionModel({ name: "Declared" });
+            const errors = new Array<string>();
+            new Conformance(definition).validateReferences({ error: (_code, message) => errors.push(message) }, name =>
+                name === "Declared" ? declared : undefined,
+            );
+            return errors;
+        }
+
+        it("resolves the right side through the resolver", () => {
+            expect(unresolvedIn("Declared == Declared")).deep.equals([]);
+        });
+
+        it("reports a right side the resolver does not know", () => {
+            expect(unresolvedIn("Declared != Other")).deep.equals([
+                'Conformance name reference "Other" does not resolve',
+            ]);
         });
     });
 
@@ -351,6 +447,44 @@ describe("Conformance", () => {
         it("reports unresolved qualified reference", () => {
             const badErrors = validate().filter(e => e.source?.endsWith(".BadRef"));
             expect(badErrors.length).equal(1);
+        });
+    });
+
+    describe("names inside optional conformance and choices", () => {
+        const cluster = ClusterElement({
+            name: "BracketRefCluster",
+            id: 0xfffb,
+            children: [
+                FieldElement({ name: "Present", id: 0, type: "uint8" }),
+                FieldElement({ name: "OptionalRef", id: 1, type: "uint8", conformance: "[Present]" }),
+                FieldElement({ name: "ChoiceRef", id: 2, type: "uint8", conformance: "[Present].a+" }),
+                FieldElement({ name: "BadOptionalRef", id: 3, type: "uint8", conformance: "[NonExistent]" }),
+                FieldElement({ name: "BadChoiceRef", id: 4, type: "uint8", conformance: "NonExistent.a" }),
+            ],
+        });
+
+        const matter = new MatterModel({ name: "BracketRefMatter", children: [cluster] });
+
+        let errors: ValidateModel.Result["errors"] | undefined;
+
+        function unresolved(field: string) {
+            if (!errors) {
+                errors = ValidateModel(matter).errors.filter(e => e.code?.includes("UNRESOLVED_CONFORMANCE"));
+            }
+            return errors.filter(e => e.source?.endsWith(`.${field}`));
+        }
+
+        it("resolves names inside brackets and choices", () => {
+            expect(unresolved("OptionalRef")).deep.equal([]);
+            expect(unresolved("ChoiceRef")).deep.equal([]);
+        });
+
+        it("reports an unresolved name inside brackets", () => {
+            expect(unresolved("BadOptionalRef").length).equal(1);
+        });
+
+        it("reports an unresolved name inside a choice", () => {
+            expect(unresolved("BadChoiceRef").length).equal(1);
         });
     });
 
@@ -578,6 +712,7 @@ describe("Conformance", () => {
             expect(applicability("M")).equal(Mandatory);
             expect(applicability("O")).equal(Optional);
             expect(applicability("X")).equal(None);
+            expect(applicability("Z")).equal(None);
             expect(applicability("D")).equal(None);
         });
 
@@ -632,5 +767,62 @@ describe("Conformance", () => {
             // inversion accepts
             expect(applicability("!(SomeField == SomeValue)")).equal(Conditional);
         });
+
+        describe("with deprecated elements optional", () => {
+            function peerApplicability(definition: string, ...supportedFeatures: string[]) {
+                return new Conformance(definition).applicabilityFor(
+                    { definedFeatures: new Set(["AA", "BB"]), supportedFeatures: new Set(supportedFeatures) },
+                    { deprecatedIsOptional: true },
+                );
+            }
+
+            it("makes a deprecated element optional", () => {
+                expect(peerApplicability("D")).equal(Optional);
+            });
+
+            it("makes an obsolete element optional", () => {
+                expect(peerApplicability("Z")).equal(Optional);
+            });
+
+            it("decides a list ending in deprecated by the terms before it", () => {
+                expect(peerApplicability("[AA], D")).equal(None);
+                expect(peerApplicability("[AA], D", "AA")).equal(Optional);
+                expect(peerApplicability("AA, D")).equal(None);
+                expect(peerApplicability("AA, D", "AA")).equal(Mandatory);
+                expect(peerApplicability("SomeField, D")).equal(Conditional);
+            });
+
+            it("makes a deprecated term that does not end the list optional", () => {
+                expect(peerApplicability("D, AA")).equal(Optional);
+            });
+
+            it("leaves a disallowed element excluded", () => {
+                expect(peerApplicability("X")).equal(None);
+                expect(peerApplicability("AA, X")).equal(None);
+            });
+        });
+    });
+});
+
+describe("provisionality", () => {
+    it("finds a provisional term anywhere in an otherwise list", () => {
+        expect(new Conformance("P, M").isProvisional).true;
+        expect(new Conformance("D, P, M").isProvisional).true;
+        expect(new Conformance("M, P").isProvisional).true;
+        expect(new Conformance("P").isProvisional).true;
+    });
+
+    it("is false where nothing is provisional", () => {
+        expect(new Conformance("M").isProvisional).false;
+        expect(new Conformance("O").isProvisional).false;
+        expect(new Conformance(undefined).isProvisional).false;
+    });
+
+    it("does not make an element optional where a mandatory term precedes the provisional one", () => {
+        // isMandatory stops at whichever of Mandatory and Provisional comes first, so the two are not opposites
+        for (const definition of ["P, M", "D, P, M"]) {
+            expect(new Conformance(definition).isMandatory, definition).false;
+        }
+        expect(new Conformance("M, P").isMandatory).true;
     });
 });

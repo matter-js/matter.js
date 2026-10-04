@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
 import { MediaPlaybackClient as BaseMediaPlaybackClient } from "../behaviors/media-playback/MediaPlaybackClient.js";
 import { KeypadInputClient as BaseKeypadInputClient } from "../behaviors/keypad-input/KeypadInputClient.js";
@@ -32,11 +33,18 @@ import { Identity } from "@matter/general";
  * A Video Remote Control is a client that can control a Video Player, for example, a traditional universal remote
  * control.
  *
- * @see {@link MatterSpecification.v16.Device} § 10.7
+ * @see {@link MatterSpecification.v161.Device} § 10.7
  */
 export interface VideoRemoteControlDevice extends Identity<typeof VideoRemoteControlDeviceDefinition> {}
 
 export namespace VideoRemoteControlRequirements {
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
+
     /**
      * The OnOff cluster is required by the Matter specification.
      *
@@ -129,11 +137,17 @@ export namespace VideoRemoteControlRequirements {
     export const AccountLoginClient = BaseAccountLoginClient;
 
     /**
-     * The ContentControl cluster is optional per the Matter specification.
+     * The ContentControl cluster is provisional per the Matter specification (conformance P, O), so it is treated as
+     * optional.
      *
      * We provide this alias to the default implementation {@link ContentControlClient} for convenience.
      */
     export const ContentControlClient = BaseContentControlClient;
+
+    /**
+     * An implementation for each server cluster supported by the endpoint per the Matter specification.
+     */
+    export const server = { mandatory: { Binding: BindingServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -162,7 +176,7 @@ export const VideoRemoteControlDeviceDefinition = MutableEndpoint({
     deviceType: 0x2a,
     deviceRevision: 2,
     requirements: VideoRemoteControlRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(VideoRemoteControlRequirements.server.mandatory.Binding)
 });
 
 Object.freeze(VideoRemoteControlDeviceDefinition);

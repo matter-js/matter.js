@@ -12,13 +12,31 @@
  * It can be used as CLI script and starting point for your own device node implementation.
  */
 
-import { Endpoint, Environment, Logger, ServerNode, StorageService, Time } from "@matter/main";
+import {
+    CommonNumberTag,
+    Endpoint,
+    Environment,
+    ImplementationError,
+    Logger,
+    ServerNode,
+    StorageService,
+    Time,
+} from "@matter/main";
+import { DescriptorServer } from "@matter/main/behaviors/descriptor";
 import { OnOffLightDevice } from "@matter/main/devices/on-off-light";
 import { OnOffPlugInUnitDevice } from "@matter/main/devices/on-off-plug-in-unit";
 import { DeviceTypeId, VendorId } from "@matter/main/types";
 import { execSync } from "node:child_process";
 
 const logger = Logger.get("ComposedDeviceNode");
+
+const TaggedDescriptorServer = DescriptorServer.with("TagList");
+
+/**
+ * Each endpoint's number is tagged with the matching Common Number tag, so the highest device number the Common
+ * Number namespace can label bounds how many devices this example supports.
+ */
+const MAX_TAGGED_DEVICES = Math.max(...Object.values(CommonNumberTag).map(({ tag }) => tag));
 
 /** Initialize configuration values */
 const { isSocket, deviceName, vendorName, passcode, discriminator, vendorId, productName, productId, port, uniqueId } =
@@ -69,7 +87,8 @@ const server = await ServerNode.create({
  * Matter Nodes are a composition of endpoints. Create and add a single multiple endpoint to the node to make it a
  * composed device. This example uses the OnOffLightDevice or OnOffPlugInUnitDevice depending on the value of the type
  * parameter. It also assigns each Endpoint a unique ID to store the endpoint number for it in the storage to restore
- * the device on restart.
+ * the device on restart. Endpoints of the same device type next to each other need a semantic tag that tells them
+ * apart, so each endpoint carries its number as a tag in the Descriptor's TagList.
  *
  * In this case we directly use the default command implementation from matter.js. Check out the DeviceNodeFull example
  * to see how to customize the command handlers.
@@ -78,7 +97,12 @@ const server = await ServerNode.create({
 for (let idx = 0; idx < isSocket.length; idx++) {
     const i = idx + 1;
     const isASocket = isSocket[idx]; // Is the Device we add a Socket or a Light?
-    const endpoint = new Endpoint(isASocket ? OnOffPlugInUnitDevice : OnOffLightDevice, { id: `onoff-${i}` });
+    const id = `onoff-${i}`;
+
+    const tagList = Object.values(CommonNumberTag).filter(({ tag }) => tag === i);
+    const endpoint = isASocket
+        ? new Endpoint(OnOffPlugInUnitDevice.with(TaggedDescriptorServer), { id, descriptor: { tagList } })
+        : new Endpoint(OnOffLightDevice.with(TaggedDescriptorServer), { id, descriptor: { tagList } });
     await server.add(endpoint);
 
     /**
@@ -141,12 +165,18 @@ async function getConfiguration() {
     const isSocket = Array<boolean>();
     const numDevices = environment.vars.number("num") || 2;
     if (await deviceStorage.has("isSocket")) {
-        console.log(`Device types found in storage. --type parameter is ignored.`);
+        console.log(`Device types found in storage. --typeX applies only to devices not stored yet.`);
         (await deviceStorage.get<Array<boolean>>("isSocket")).forEach(type => isSocket.push(type));
     }
-    for (let i = 1; i < numDevices; i++) {
+    for (let i = 1; i <= numDevices; i++) {
         if (isSocket[i - 1] !== undefined) continue;
         isSocket.push(environment.vars.string(`type${i}`) === "socket");
+    }
+
+    if (isSocket.length > MAX_TAGGED_DEVICES) {
+        throw new ImplementationError(
+            `This configuration would create ${isSocket.length} devices, more than the ${MAX_TAGGED_DEVICES} endpoints the Common Number tag namespace can label; lower --num, or use --storage-clear if the count comes from a previous run's storage.`,
+        );
     }
 
     const deviceName = "Matter test device";
@@ -155,7 +185,8 @@ async function getConfiguration() {
     const discriminator = environment.vars.number("discriminator") ?? (await deviceStorage.get("discriminator", 3840));
     // product name / id and vendor id should match what is in the device certificate
     const vendorId = environment.vars.number("vendorid") ?? (await deviceStorage.get("vendorid", 0xfff1));
-    const productName = `node-matter OnOff ${isSocket ? "Socket" : "Light"}`;
+    const kind = isSocket.every(socket => socket) ? "Socket" : isSocket.some(socket => socket) ? "Composed" : "Light";
+    const productName = `node-matter OnOff ${kind}`;
     const productId = environment.vars.number("productid") ?? (await deviceStorage.get("productid", 0x8000));
 
     const port = environment.vars.number("port") ?? 5540;

@@ -14,6 +14,7 @@ import { PeerLossContext } from "#peer/PeerLossContext.js";
 import { SessionClosedError } from "#protocol/errors.js";
 import { GroupSession, GroupSessionDecodeError, GroupSessionNoKeyError } from "#session/GroupSession.js";
 import {
+    Diagnostic,
     BasicSet,
     Bytes,
     causedBy,
@@ -53,8 +54,6 @@ import { SessionIntervals } from "./SessionIntervals.js";
 import { SessionParameters } from "./SessionParameters.js";
 import { UnsecuredSession } from "./UnsecuredSession.js";
 
-const logger = Logger.get("SessionManager");
-
 /**
  * Reject a locally-configured Session Active Threshold that cannot be encoded: SAT is a uint16 millisecond value on the
  * wire. SII/SAI are uint32 and intentionally not bounded here.
@@ -63,6 +62,19 @@ function assertActiveThreshold(activeThreshold: Duration) {
     if (activeThreshold > SessionIntervals.maxActiveThreshold) {
         throw new ImplementationError(
             `Session Active Threshold ${activeThreshold}ms exceeds the maximum of ${SessionIntervals.maxActiveThreshold}ms`,
+        );
+    }
+}
+
+/**
+ * Reject a locally-configured MaxPathsPerInvoke that is not a whole count of at least one. The setter installs the
+ * value we advertise without normalizing it, and a fractional count encodes truncated while our own limit keeps the
+ * remainder.
+ */
+function assertMaxPathsPerInvoke(maxPathsPerInvoke: number) {
+    if (!Number.isInteger(maxPathsPerInvoke) || maxPathsPerInvoke < 1) {
+        throw new ImplementationError(
+            `Max Paths Per Invoke of ${maxPathsPerInvoke} is not a whole number of at least 1`,
         );
     }
 }
@@ -123,9 +135,17 @@ export interface ActiveSessionInformation {
 export interface GroupMessageEventInfo {
     result: Groupcast.GroupcastTestResult;
     fabric?: Fabric;
+
+    /** Authenticated group id.  Only set when the message decoded successfully for a known fabric. */
     groupId?: GroupId;
+
+    /**
+     * Group id taken from the unauthenticated wire header of a message that failed decode.  Suitable to derive the
+     * multicast destination address for reporting, but must not be reported as the authenticated GroupID.
+     */
+    headerGroupId?: GroupId;
+
     sourceIp?: string;
-    destIp?: string;
     endpointId?: EndpointNumber;
     clusterId?: ClusterId;
     elementId?: number;
@@ -140,6 +160,12 @@ export interface GroupMessageEventInfo {
 export interface SessionManagerContext {
     fabrics: FabricManager;
     storage: StorageContext;
+
+    /**
+     * Where this manager's log messages come from, so a destination can attribute the ones it emits from a timer or
+     * transport callback, which carries no call stack of its own.
+     */
+    origin?: Diagnostic.Origin;
 
     /**
      * Parameter overrides.
@@ -168,7 +194,7 @@ const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
 /**
  * Reserve block size for the persisted group data counter; matches CHIP `GROUP_MSG_COUNTER_MIN_INCREMENT`. The counter
  * is persisted this far ahead so an unclean restart never rolls it back.
- * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+ * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
  */
 const GROUP_DATA_COUNTER_RESERVE = 1000;
 
@@ -192,6 +218,7 @@ export class ShutdownError extends ClosedError {
  * Manages Matter sessions associated with peer connections.
  */
 export class SessionManager {
+    readonly #logger: Logger;
     readonly #context: SessionManagerContext;
     readonly #unsecuredSessions = new Map<NodeId, UnsecuredSession>();
     readonly #sessions = new BasicSet<NodeSession>();
@@ -225,12 +252,16 @@ export class SessionManager {
 
     constructor(context: SessionManagerContext) {
         this.#context = context;
+        this.#logger = Logger.get("SessionManager", context.origin);
         const {
             fabrics: { crypto },
         } = context;
+        if (context.parameters?.maxPathsPerInvoke !== undefined) {
+            assertMaxPathsPerInvoke(context.parameters.maxPathsPerInvoke);
+        }
         this.#sessionParameters = SessionParameters({ ...SessionParameters.defaults, ...context.parameters });
         assertActiveThreshold(this.#sessionParameters.activeThreshold);
-        this.#nextSessionId = crypto.randomUint16;
+        this.#nextSessionId = (crypto.randomUint16 % ID_SPACE_UPPER_BOUND) + 1;
         this.#globalUnencryptedMessageCounter = new MessageCounter(crypto);
 
         // When fabric is removed, also remove the resumption record
@@ -272,6 +303,7 @@ export class SessionManager {
         const instance = new SessionManager({
             storage: env.get(StorageManager).createContext("sessions"),
             fabrics: env.get(FabricManager),
+            origin: env.logOrigin,
         });
         env.set(SessionManager, instance);
         return instance;
@@ -291,7 +323,7 @@ export class SessionManager {
 
     /**
      * The single node-global Group Encrypted Data Message Counter shared by all group sessions.
-     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
      */
     get groupDataMessageCounter() {
         this.#construction.assert();
@@ -336,6 +368,9 @@ export class SessionManager {
     set sessionParameters(parameters: Partial<SessionParameters>) {
         if (parameters.activeThreshold !== undefined) {
             assertActiveThreshold(parameters.activeThreshold);
+        }
+        if (parameters.maxPathsPerInvoke !== undefined) {
+            assertMaxPathsPerInvoke(parameters.maxPathsPerInvoke);
         }
         for (const [key, value] of Object.entries(parameters)) {
             if (value !== undefined) {
@@ -487,14 +522,18 @@ export class SessionManager {
         return oldest;
     }
 
+    /**
+     * Allocates a local ID for a new secure unicast session, PASE or CASE.  The ID is never 0 because 0 identifies the
+     * unsecured session.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 4.4.1.3.4
+     * @see {@link MatterSpecification.v161.Core} § 4.13.2.4
+     */
     async getNextAvailableSessionId() {
         await this.#construction;
 
         for (let i = 0; i < this.#idUpperBound; i++) {
-            const id = this.#nextSessionId;
-            this.#nextSessionId = (this.#nextSessionId + 1) & this.#idUpperBound;
-            if (this.#nextSessionId === 0) this.#nextSessionId++;
-
+            const id = this.#takeSessionId();
             if (this.getSession(id) === undefined) {
                 return id;
             }
@@ -507,7 +546,14 @@ export class SessionManager {
             await oldestSession.closeSubscriptions(true);
         });
         this.#nextSessionId = oldestSession.id;
-        return this.#nextSessionId++;
+        return this.#takeSessionId();
+    }
+
+    /** Returns the next candidate ID and advances the cursor, cycling through 1..{@link #idUpperBound}. */
+    #takeSessionId() {
+        const id = this.#nextSessionId;
+        this.#nextSessionId = (id % this.#idUpperBound) + 1;
+        return id;
     }
 
     getSession(sessionId: number) {
@@ -571,12 +617,15 @@ export class SessionManager {
     /**
      * Removes all Peer sessions but keeps subscriptions intact because they could be refreshed on restart when the
      * device supports persistent subscriptions.
+     *
+     * @param asOf sessions created at or after this instant are kept; on the clock of {@link Time.nowUs} like
+     * {@link Session.createdAt}, not a wall-clock time.  Defaults to now.
      */
     handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
         return this.#handlePeerLoss({
             address,
             cause: new PeerShutdownError(),
-            asOf: asOf ?? Time.nowMs,
+            asOf: asOf ?? Time.nowUs,
             keepSubscriptions: true,
         });
     }
@@ -585,7 +634,7 @@ export class SessionManager {
      * Removes all Peer sessions and closes subscriptions.
      */
     async handlePeerLoss(address: PeerAddress, context: PeerLossContext) {
-        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowMs });
+        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowUs });
     }
 
     /**
@@ -614,7 +663,7 @@ export class SessionManager {
                 return;
             }
 
-            logger.info(
+            this.#logger.info(
                 session.via,
                 `Closing least recently used session; ${PeerAddress(address)} exceeds ${MAX_SESSIONS_PER_PEER} sessions`,
             );
@@ -702,18 +751,34 @@ export class SessionManager {
      * Note that the resulting session is non-operational in the sense that attempting outbound communication will
      * result in an error.
      */
-    groupSessionFromPacket(packet: DecodedPacket, aad: Bytes) {
+    groupSessionFromPacket(packet: DecodedPacket, aad: Bytes, sourceIp?: string) {
         this.#construction.assert();
         let decoded;
         try {
             decoded = GroupSession.decode(this.#context.fabrics, packet, aad);
         } catch (error) {
-            // Groupcast testing event on decode failure.  Observable is a no-op unless a listener is attached.  A failed
-            // decode is unauthenticated, so per the Groupcast spec we report only the result, never a group id.
+            // Per the Groupcast spec a failed decode reports only the result, never a group id.  The header group id is passed
+            // separately so the listener can derive the multicast address: from the plain wire header, or — when
+            // privacy obfuscates the header — from a key set that authenticated the message but is not mapped to any
+            // group, which also names that key set's fabric.
+            const headerGroupId =
+                !packet.header.hasPrivacyEnhancements && packet.header.destGroupId !== undefined
+                    ? GroupId(packet.header.destGroupId)
+                    : undefined;
             if (causedBy(error, GroupSessionNoKeyError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.NoAvailableKey });
+                const noKey = error instanceof GroupSessionNoKeyError ? error : undefined;
+                this.#onGroupMessage.emit({
+                    result: Groupcast.GroupcastTestResult.NoAvailableKey,
+                    fabric: noKey?.fabric,
+                    headerGroupId: headerGroupId ?? noKey?.groupId,
+                    sourceIp,
+                });
             } else if (causedBy(error, GroupSessionDecodeError)) {
-                this.#onGroupMessage.emit({ result: Groupcast.GroupcastTestResult.FailedAuth });
+                this.#onGroupMessage.emit({
+                    result: Groupcast.GroupcastTestResult.FailedAuth,
+                    headerGroupId,
+                    sourceIp,
+                });
             }
             throw error;
         }
@@ -879,12 +944,12 @@ export class SessionManager {
             }) => {
                 const fabric = this.#maybeFabricForId(fabricId, fabricIndex);
                 if (!fabric) {
-                    logger.warn(
+                    this.#logger.warn(
                         `Ignoring resumption record for fabric 0x${toHex(fabricId)} and index ${fabricIndex} because we cannot find a matching fabric`,
                     );
                     return;
                 }
-                logger.info(
+                this.#logger.info(
                     "restoring resumption record for node",
                     fabric.addressOf(nodeId).toString(),
                     "and peer node",
@@ -911,7 +976,7 @@ export class SessionManager {
      * Build the node-global group data message counter. On the first run after upgrading from the legacy per-key
      * model, seed it above every value any per-key counter could already have used so it never rolls back below a
      * value already sent with a surviving key; then clear the legacy entries.
-     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
      */
     async #createGroupDataMessageCounter() {
         const storage = this.#context.storage;
@@ -928,7 +993,7 @@ export class SessionManager {
             // TODO Expose this "group epoch keys must be rotated" signal to external logic instead of only logging, so
             //  the controller key-management layer can act on it.
             aboutToRolloverCallback: async () => {
-                logger.warn(
+                this.#logger.warn(
                     "Group data message counter is approaching rollover; group epoch keys should be rotated to avoid message counter reuse.",
                 );
             },
@@ -945,23 +1010,30 @@ export class SessionManager {
         this.#construction.assert();
         return [...this.#sessions]
             .filter(session => session.isSecure && !session.isPase)
-            .map(session => ({
-                name: `${session.via}`,
-                nodeId: session.nodeId,
-                peerNodeId: session.peerNodeId,
-                fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,
-                isPeerActive: session.isPeerActive,
-                secure: session.isSecure,
-                lastInteractionTimestamp: session instanceof SecureSession ? session.timestamp : undefined,
-                lastActiveTimestamp: session instanceof SecureSession ? session.activeTimestamp : undefined,
-                numberOfActiveSubscriptions: session instanceof SecureSession ? session.subscriptions.size : 0,
-            }));
+            .map(session => {
+                const activity = session instanceof SecureSession ? session.wallClockActivity : undefined;
+                return {
+                    name: `${session.via}`,
+                    nodeId: session.nodeId,
+                    peerNodeId: session.peerNodeId,
+                    fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,
+                    isPeerActive: session.isPeerActive,
+                    secure: session.isSecure,
+                    lastInteractionTimestamp: activity?.lastInteractionTimestamp,
+                    lastActiveTimestamp: activity?.lastActiveTimestamp,
+                    numberOfActiveSubscriptions: session instanceof SecureSession ? session.subscriptions.size : 0,
+                };
+            });
     }
 
     async close() {
         await this.#construction.close(async () => {
             this.#observers.close();
-            await this.closeAllSessions();
+            try {
+                await this.closeAllSessions();
+            } finally {
+                await this.#groupDataMessageCounter?.close();
+            }
         });
     }
 
@@ -973,6 +1045,7 @@ export class SessionManager {
         await this.closeAllSessions();
         await this.#context.storage.clearAll();
         this.#resumptionRecords.clear();
+        await this.#groupDataMessageCounter?.close();
         this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
     }
 
@@ -1007,7 +1080,7 @@ export class SessionManager {
             }
         }
         await MatterAggregateError.allSettled(closePromises, "Error closing sessions").catch(error =>
-            logger.warn("Error closing sessions:", error),
+            this.#logger.warn("Error closing sessions:", error),
         );
     }
 
@@ -1016,13 +1089,6 @@ export class SessionManager {
      */
     compressIdRange(upperBound: number) {
         this.#idUpperBound = upperBound;
-        this.#nextSessionId = this.#context.fabrics.crypto.randomUint32 % upperBound;
-        if (this.#nextSessionId === 0) this.#nextSessionId++;
-    }
-}
-
-namespace SessionManager {
-    export interface Options {
-        maxPathsPerInvoke?: number;
+        this.#nextSessionId = (this.#context.fabrics.crypto.randomUint32 % upperBound) + 1;
     }
 }

@@ -19,19 +19,19 @@ export const EnergyEvseDt = DeviceType(
     Requirement({ name: "EnergyEvse", id: 0x99, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "EnergyEvseMode", id: 0x9d, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "PowerSource", id: 0x11, conformance: "M", element: "deviceType" }),
+    Requirement({ name: "PowerSource", id: 0x11, conformance: "M", constraint: "min 1", element: "deviceType" }),
 
     Requirement(
-        { name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", element: "deviceType" },
+        { name: "DeviceEnergyManagement", id: 0x50d, conformance: "M", constraint: "min 1", element: "deviceType" },
         Requirement(
             { name: "DeviceEnergyManagement", id: 0x98, element: "serverCluster" },
-            Requirement({ name: "POWERFORECASTREPORTING", conformance: "M", element: "feature" }),
-            Requirement({ name: "POWERADJUSTMENT", conformance: "desc", element: "feature" })
+            Requirement({ name: "PFR", conformance: "M", element: "feature" }),
+            Requirement({ name: "PA", conformance: "desc", element: "feature" })
         )
     ),
 
     Requirement(
-        { name: "ElectricalSensor", id: 0x510, conformance: "M", element: "deviceType" },
+        { name: "ElectricalSensor", id: 0x510, conformance: "M", constraint: "min 1", element: "deviceType" },
         Requirement({ name: "ElectricalPowerMeasurement", id: 0x90, conformance: "M", element: "serverCluster" }),
         Requirement({ name: "ElectricalEnergyMeasurement", id: 0x91, conformance: "M", element: "serverCluster" })
     )

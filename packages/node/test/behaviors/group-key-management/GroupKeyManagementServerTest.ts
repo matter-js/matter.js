@@ -8,11 +8,22 @@ import { GroupKeyManagementClient, GroupKeyManagementServer } from "#behaviors/g
 import { ServerNode } from "#node/index.js";
 import { Bytes } from "@matter/general";
 import { FabricIndex, GroupId } from "@matter/types";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
+import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
+import { causeMessagesOf } from "../../node/node-helpers.js";
 
 describe("GroupKeyManagementServer", () => {
     before(() => {
         MockTime.init();
+    });
+
+    it("rejects the provisional Groupcast feature", async () => {
+        const messages = await causeMessagesOf(
+            MockServerNode.create(MockServerNode.RootEndpoint.with(GroupKeyManagementServer.with("Groupcast"))),
+        );
+
+        expect(messages).contains("Groupcast feature of GroupKeyManagement is provisional");
     });
 
     it("does not implement the provisional GroupcastAdoption attribute by default", () => {
@@ -79,6 +90,83 @@ describe("GroupKeyManagementServer", () => {
                 },
             }),
         ).rejectedWith("Resource exhausted (code 137)");
+    });
+
+    describe("GroupKeyMulticastPolicy", () => {
+        const keySet = {
+            groupKeySetId: 1,
+            groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
+            epochKey0: Bytes.fromHex("d0d1d2d3d4d5d6d7d8d9dadbdcdddedf"),
+            epochStartTime0: 18446744073709551612n,
+            epochKey1: null,
+            epochStartTime1: null,
+            epochKey2: null,
+            epochStartTime2: null,
+        };
+
+        it("accepts a key set whose multicast policy is not PerGroupID and does not store the policy", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint },
+            });
+            const cmds = controller.peers.get("peer1")!.commandsOf(GroupKeyManagementClient);
+
+            await cmds.keySetWrite({
+                groupKeySet: {
+                    ...keySet,
+                    groupKeyMulticastPolicy: GroupKeyManagement.GroupKeyMulticastPolicy.AllNodes,
+                },
+            });
+
+            const [stored] = device.stateOf(GroupKeyManagementServer).groupKeySets;
+            expect(stored.groupKeySetId).equals(1);
+            expect(stored.groupKeyMulticastPolicy).undefined;
+        });
+
+        it("reports PerGroupID for a written key set and for the IPK key set", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: { type: ServerNode.RootEndpoint },
+            });
+            const cmds = controller.peers.get("peer1")!.commandsOf(GroupKeyManagementClient);
+
+            await cmds.keySetWrite({
+                groupKeySet: {
+                    ...keySet,
+                    groupKeyMulticastPolicy: GroupKeyManagement.GroupKeyMulticastPolicy.AllNodes,
+                },
+            });
+
+            for (const groupKeySetId of [0, 1]) {
+                const { groupKeySet } = await cmds.keySetRead({ groupKeySetId });
+                expect(groupKeySet.groupKeySetId).equals(groupKeySetId);
+                expect(groupKeySet.groupKeyMulticastPolicy).equals(
+                    GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId,
+                );
+            }
+        });
+
+        it("drops the policy from key sets stored by earlier versions", async () => {
+            const node = await MockServerNode.create(MockServerNode.RootEndpoint, {
+                groupKeyManagement: {
+                    groupKeySets: [
+                        {
+                            ...keySet,
+                            groupKeyMulticastPolicy: GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId,
+                            fabricIndex: FabricIndex(1),
+                        },
+                    ],
+                },
+            });
+
+            try {
+                const [stored] = node.stateOf(GroupKeyManagementServer).groupKeySets;
+                expect(stored.groupKeySetId).equals(1);
+                expect(stored.groupKeyMulticastPolicy).undefined;
+            } finally {
+                await node.close();
+            }
+        });
     });
 
     it("prunes GroupKeyMap entries that reference a removed key set", async () => {

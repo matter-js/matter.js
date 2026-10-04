@@ -15,6 +15,7 @@ const FLAGS: Record<string, Conformance.Ast["type"]> = {
     provisionalConform: Conformance.Flag.Provisional,
     deprecateConform: Conformance.Flag.Deprecated,
     disallowConform: Conformance.Flag.Disallowed,
+    obsoleteConform: Conformance.Flag.Obsolete,
     describedConform: Conformance.Special.Desc,
 };
 

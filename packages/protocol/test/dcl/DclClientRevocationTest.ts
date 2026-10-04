@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DclClient } from "#dcl/DclClient.js";
+import { DclClient, MatterDclError } from "#dcl/DclClient.js";
 import { DclConfig } from "#dcl/DclConfig.js";
 import { MockFetch } from "@matter/general";
 
@@ -247,6 +247,21 @@ describe("DclClient revocation distribution points", () => {
         });
     });
 
+    describe("fetchRevocationDistributionPoints schema versions", () => {
+        it("ignores revocation points with an unsupported schema version", async () => {
+            const [first, second] = mockRevocationPointsPage1.PkiRevocationDistributionPoint;
+            fetchMock.addResponse("/dcl/pki/revocation-points", {
+                PkiRevocationDistributionPoint: [first, { ...second, schemaVersion: 1 }],
+                pagination: {},
+            });
+            fetchMock.install();
+
+            const points = await new DclClient(DclConfig.production).fetchRevocationDistributionPoints();
+
+            expect(points.map(({ label }) => label)).to.deep.equal([first.label]);
+        });
+    });
+
     describe("fetchRevocationDistributionPointsByIssuer", () => {
         it("fetches revocation points for a specific issuer", async () => {
             fetchMock.addResponse(
@@ -287,6 +302,40 @@ describe("DclClient revocation distribution points", () => {
 
             // Second point has a non-zero dataFileSize
             expect(points[1].dataFileSize).to.equal(1234);
+        });
+
+        it("ignores revocation points with an unsupported schema version", async () => {
+            const [supported, unsupported] =
+                mockRevocationPointsByIssuer.pkiRevocationDistributionPointsByIssuerSubjectKeyID.points;
+            fetchMock.addResponse("/dcl/pki/revocation-points/A303136D54A84BE24C4887B341066DC270962F99", {
+                pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                    ...mockRevocationPointsByIssuer.pkiRevocationDistributionPointsByIssuerSubjectKeyID,
+                    points: [supported, { ...unsupported, schemaVersion: 1 }],
+                },
+            });
+            fetchMock.install();
+
+            const points = await new DclClient(DclConfig.production).fetchRevocationDistributionPointsByIssuer(
+                "A303136D54A84BE24C4887B341066DC270962F99",
+            );
+
+            expect(points.map(({ label }) => label)).to.deep.equal(["label1"]);
+        });
+
+        it("rejects a response with an unsupported schema version", async () => {
+            fetchMock.addResponse("/dcl/pki/revocation-points/A303136D54A84BE24C4887B341066DC270962F99", {
+                pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                    ...mockRevocationPointsByIssuer.pkiRevocationDistributionPointsByIssuerSubjectKeyID,
+                    schemaVersion: 1,
+                },
+            });
+            fetchMock.install();
+
+            await expect(
+                new DclClient(DclConfig.production).fetchRevocationDistributionPointsByIssuer(
+                    "A303136D54A84BE24C4887B341066DC270962F99",
+                ),
+            ).to.be.rejectedWith(MatterDclError, "Unsupported DCL revocation points schema version");
         });
 
         it("returns empty array when issuer has no revocation points", async () => {

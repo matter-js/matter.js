@@ -6,7 +6,9 @@
 
 // Local override files included here.  Local overrides need not contain full
 // element definitions.  The ID or name is enough to match existing entries,
-// then only fields present will override during merge.
+// then only fields present will override during merge.  A quality is the
+// exception: it adds flags to or removes them ("!N") from the quality it
+// overrides rather than replacing it.
 //
 // Note that for many cluster elements the data structures require both the
 // ID and name so we provide both even though only one is required for
@@ -29,18 +31,23 @@ import "./GeneralCommissioningOverrides.js";
 import "./GroupKeyManagementOverrides.js";
 import "./GroupsOverrides.js";
 import "./hwadr.js";
+import "./IcdManagementOverrides.js";
 import "./IlluminanceMeasurementOverrides.js";
 import "./ipadr.js";
 import "./ipv4adr.js";
 import "./ipv6adr.js";
 import "./ipv6pre.js";
+import "./JointFabricDatastoreOverrides.js";
 import "./LevelControlOverrides.js";
 import "./LocalizationConfigurationOverrides.js";
 import "./ModeBaseOverrides.js";
 import "./ModeSelectOverrides.js";
 import "./namespace.js";
+import "./NonBindableClientOverrides.js";
 import "./OperationalCredentialsOverrides.js";
 import "./OtaSoftwareUpdateRequestor.js";
+import "./percent.js";
+import "./percent100ths.js";
 import "./PumpConfigurationAndControlOverrides.js";
 import "./ScenesManagementOverrides.js";
 import "./ScenesOverrides.js";
@@ -52,6 +59,7 @@ import "./TemperatureMeasurementOverrides.js";
 import "./ThermostatOverrides.js";
 import "./TimeFormatLocalizationOverrides.js";
 import "./TimeSynchronizationOverrides.js";
+import "./TlsClientManagementOverrides.js";
 import "./UserLabelOverrides.js";
 import "./WiFiNetworkManagementOverrides.js";
 import "./WildcardPathFlagsBitmap.js";

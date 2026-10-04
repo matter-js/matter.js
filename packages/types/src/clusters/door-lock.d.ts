@@ -22,9 +22,7 @@ import type { StatusResponseError } from "../common/StatusResponseError.js";
  * locking functionality is abstracted from the cluster. The cluster has a small list of mandatory attributes and
  * functions and a list of optional features.
  *
- * !image2
- *
- * @see {@link MatterSpecification.v16.Cluster} § 5.2
+ * @see {@link MatterSpecification.v161.Cluster} § 5.2
  */
 export declare namespace DoorLock {
     /**
@@ -38,7 +36,7 @@ export declare namespace DoorLock {
     export const name: "DoorLock";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v161.Cluster}.
      */
     export const revision: 10;
 
@@ -62,14 +60,14 @@ export declare namespace DoorLock {
          * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and
          * not in a dead latched state.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.1
          */
         lockState: LockState | null;
 
         /**
          * Indicates the type of door lock as defined in LockTypeEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.2
          */
         lockType: LockType;
 
@@ -77,14 +75,14 @@ export declare namespace DoorLock {
          * Indicates if the lock is currently able to (Enabled) or not able to (Disabled) process remote Lock, Unlock,
          * or Unlock with Timeout commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.3
          */
         actuatorEnabled: boolean;
 
         /**
          * Indicates the current operating mode of the lock as defined in OperatingModeEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.24
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.24
          */
         operatingMode: OperatingMode;
 
@@ -101,7 +99,7 @@ export declare namespace DoorLock {
          * DoorLockOperatingModeEnum whose equivalent same-named bit from OperatingModesBitmap is set to zero in this
          * attribute. WARNING: This is the opposite of most other semantically similar bitmaps in this specification.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.25
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.25
          */
         supportedOperatingModes: OperatingModes;
 
@@ -109,14 +107,14 @@ export declare namespace DoorLock {
          * Indicates the language for the on-screen or audible user interface using a 2-byte language code from
          * ISO-639-1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.20
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.20
          */
         language?: string;
 
         /**
          * Indicates the settings for the LED support, as defined by LEDSettingEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.21
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.21
          */
         ledSettings?: LedSetting;
 
@@ -125,14 +123,14 @@ export declare namespace DoorLock {
          * 0=disabled. If set, unlock operations from any source will be timed. For one time unlock with timeout use the
          * specific command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.22
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.22
          */
         autoRelockTime?: number;
 
         /**
          * Indicates the sound volume on a door lock as defined by SoundVolumeEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.23
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.23
          */
         soundVolume?: SoundVolume;
 
@@ -153,7 +151,7 @@ export declare namespace DoorLock {
          * current Sound Volume is High Volume. Therefore, if the client wants to query/modify the current Sound Volume
          * setting on the server, the client SHOULD read/write to the Sound Volume attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.26
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.26
          */
         defaultConfigurationRegister?: ConfigurationRegister;
 
@@ -164,14 +162,14 @@ export declare namespace DoorLock {
          * those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local programming shall be
          * enabled by default.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.27
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.27
          */
         enableLocalProgramming?: boolean;
 
         /**
          * This attribute shall enable/disable the ability to lock the door lock with a single touch on the door lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.28
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.28
          */
         enableOneTouchLocking?: boolean;
 
@@ -179,7 +177,7 @@ export declare namespace DoorLock {
          * This attribute shall enable/disable an inside LED that allows the user to see at a glance if the door is
          * locked.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.29
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.29
          */
         enableInsideStatusLed?: boolean;
 
@@ -187,7 +185,7 @@ export declare namespace DoorLock {
          * This attribute shall enable/disable a button inside the door that is used to put the lock into privacy mode.
          * When the lock is in privacy mode it cannot be manipulated from the outside.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.30
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.30
          */
         enablePrivacyModeButton?: boolean;
 
@@ -200,12 +198,12 @@ export declare namespace DoorLock {
          *
          * The features that can be disabled from local programming are defined in LocalProgrammingFeaturesBitmap.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.31
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.31
          */
         localProgrammingFeatures?: LocalProgrammingFeatures;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9
          * @deprecated
          */
         securityLevel?: any;
@@ -220,21 +218,21 @@ export declare namespace DoorLock {
          *
          * Null only if an internal error prevents the retrieval of the current door state.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.4
          */
         doorState: DoorState | null;
 
         /**
          * This attribute shall hold the number of door open events that have occurred since it was last zeroed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.5
          */
         doorOpenEvents?: number;
 
         /**
          * This attribute shall hold the number of door closed events that have occurred since it was last zeroed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.6
          */
         doorClosedEvents?: number;
 
@@ -242,7 +240,7 @@ export declare namespace DoorLock {
          * This attribute shall hold the number of minutes the door has been open since the last time it transitioned
          * from closed to open.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.7
          */
         openPeriod?: number;
     }
@@ -254,7 +252,7 @@ export declare namespace DoorLock {
         /**
          * Indicates the number of total users supported by the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.8
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.8
          */
         numberOfTotalUsersSupported: number;
 
@@ -262,7 +260,7 @@ export declare namespace DoorLock {
          * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
          * this device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.18
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.18
          */
         credentialRulesSupport: CredentialRules;
 
@@ -277,7 +275,7 @@ export declare namespace DoorLock {
          * be possible to actually assign 10 credentials for a user because maximum number of credentials in the
          * database is 8.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.19
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.19
          */
         numberOfCredentialsSupportedPerUser: number;
 
@@ -286,7 +284,7 @@ export declare namespace DoorLock {
          * ExpiringUser shall remain valid after its first use before expiring. When the credential expires the
          * UserStatus for the corresponding user record shall be set to OccupiedDisabled.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.36
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.36
          */
         expiringUserTimeout?: number;
     }
@@ -298,21 +296,21 @@ export declare namespace DoorLock {
         /**
          * Indicates the number of PIN users supported.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.9
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.9
          */
         numberOfPinUsersSupported: number;
 
         /**
          * Indicates the maximum length in bytes of a PIN Code on this device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.14
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.14
          */
         maxPinCodeLength: number;
 
         /**
          * Indicates the minimum length in bytes of a PIN Code on this device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.15
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.15
          */
         minPinCodeLength: number;
     }
@@ -324,7 +322,7 @@ export declare namespace DoorLock {
         /**
          * Indicates the number of RFID users supported.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.10
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.10
          */
         numberOfRfidUsersSupported: number;
 
@@ -333,7 +331,7 @@ export declare namespace DoorLock {
          * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 20
          * (equals 10 Byte ISO 14443A UID) is recommended.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.16
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.16
          */
         maxRfidCodeLength: number;
 
@@ -342,7 +340,7 @@ export declare namespace DoorLock {
          * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 8
          * (equals 4 Byte ISO 14443A UID) is recommended.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.17
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.17
          */
         minRfidCodeLength: number;
     }
@@ -354,7 +352,7 @@ export declare namespace DoorLock {
         /**
          * Indicates the number of configurable week day schedule supported per user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.11
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.11
          */
         numberOfWeekDaySchedulesSupportedPerUser: number;
     }
@@ -366,7 +364,7 @@ export declare namespace DoorLock {
         /**
          * Indicates the number of configurable year day schedule supported per user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.12
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.12
          */
         numberOfYearDaySchedulesSupportedPerUser: number;
     }
@@ -378,7 +376,7 @@ export declare namespace DoorLock {
         /**
          * Indicates the number of holiday schedules supported for the entire door lock device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.13
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.13
          */
         numberOfHolidaySchedulesSupported: number;
     }
@@ -399,7 +397,7 @@ export declare namespace DoorLock {
          * logic, environmental events, or other reasons. The lock shall reset the counter if a valid credential is
          * presented.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.32
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.32
          */
         wrongCodeEntryLimit: number;
 
@@ -409,7 +407,7 @@ export declare namespace DoorLock {
          * guess a PIN for the device.) If the attribute accepts writes and an attempt to write the attribute to 0 is
          * made, the device shall respond with CONSTRAINT_ERROR.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.33
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.33
          */
         userCodeTemporaryDisableTime: number;
     }
@@ -428,7 +426,7 @@ export declare namespace DoorLock {
          * 0x34 shall be used in the PIN field in any door lock cluster message payload. If the attribute value is
          * False, 0x04 0xFF 0xFF 0xFF 0xFF shall be used.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.34
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.34
          */
         sendPinOverTheAir?: boolean;
     }
@@ -442,7 +440,7 @@ export declare namespace DoorLock {
          * requires that an optional PINs be included in the payload of remote lock operation events like Lock, Unlock,
          * Unlock with Timeout and Toggle in order to function.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.35
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.35
          */
         requirePinForRemoteOperation: boolean;
     }
@@ -452,45 +450,44 @@ export declare namespace DoorLock {
      */
     export interface AliroProvisioningAttributes {
         /**
-         * Indicates the verification key component of the Reader's key pair as defined in [[Aliro]](#ref_Aliro). The
-         * value, if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         * Indicates the verification key component of the Reader's key pair as defined in Aliro. The value, if not
+         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
          *
          * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
          * Command".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.37
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.37
          */
         aliroReaderVerificationKey: Bytes | null;
 
         /**
-         * Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the reader_group_identifier as defined in Aliro.
          *
          * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26,
          * "SetAliroReaderConfig Command".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.38
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.38
          */
         aliroReaderGroupIdentifier: Bytes | null;
 
         /**
-         * Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the reader_group_sub_identifier as defined in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.39
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.39
          */
         aliroReaderGroupSubIdentifier: Bytes;
 
         /**
-         * Indicates the list of protocol versions supported for expedited transactions as defined in
-         * [[Aliro]](#ref_Aliro).
+         * Indicates the list of protocol versions supported for expedited transactions as defined in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.40
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.40
          */
         aliroExpeditedTransactionSupportedProtocolVersions: Bytes[];
 
         /**
          * Indicates the maximum number of AliroCredentialIssuerKey credentials that can be stored on the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.44
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.44
          */
         numberOfAliroCredentialIssuerKeysSupported: number;
 
@@ -507,7 +504,7 @@ export declare namespace DoorLock {
          *   and also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials
          *   would exist on the server.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.45
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.45
          */
         numberOfAliroEndpointKeysSupported: number;
     }
@@ -517,27 +514,27 @@ export declare namespace DoorLock {
      */
     export interface AliroBleuwbAttributes {
         /**
-         * Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the Group Resolving Key as defined in Aliro.
          *
          * Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
          * Command".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.41
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.41
          */
         aliroGroupResolvingKey: Bytes | null;
 
         /**
          * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
-         * in [[Aliro]](#ref_Aliro).
+         * in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.42
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.42
          */
         aliroSupportedBleuwbProtocolVersions: Bytes[];
 
         /**
-         * Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the version of the Bluetooth LE advertisement as defined in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.43
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.43
          */
         aliroBleAdvertisingVersion: number;
     }
@@ -558,14 +555,14 @@ export declare namespace DoorLock {
          * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and
          * not in a dead latched state.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.1
          */
         lockState: LockState | null;
 
         /**
          * Indicates the type of door lock as defined in LockTypeEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.2
          */
         lockType: LockType;
 
@@ -573,14 +570,14 @@ export declare namespace DoorLock {
          * Indicates if the lock is currently able to (Enabled) or not able to (Disabled) process remote Lock, Unlock,
          * or Unlock with Timeout commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.3
          */
         actuatorEnabled: boolean;
 
         /**
          * Indicates the current operating mode of the lock as defined in OperatingModeEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.24
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.24
          */
         operatingMode: OperatingMode;
 
@@ -597,7 +594,7 @@ export declare namespace DoorLock {
          * DoorLockOperatingModeEnum whose equivalent same-named bit from OperatingModesBitmap is set to zero in this
          * attribute. WARNING: This is the opposite of most other semantically similar bitmaps in this specification.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.25
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.25
          */
         supportedOperatingModes: OperatingModes;
 
@@ -605,14 +602,14 @@ export declare namespace DoorLock {
          * Indicates the language for the on-screen or audible user interface using a 2-byte language code from
          * ISO-639-1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.20
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.20
          */
         language: string;
 
         /**
          * Indicates the settings for the LED support, as defined by LEDSettingEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.21
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.21
          */
         ledSettings: LedSetting;
 
@@ -621,14 +618,14 @@ export declare namespace DoorLock {
          * 0=disabled. If set, unlock operations from any source will be timed. For one time unlock with timeout use the
          * specific command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.22
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.22
          */
         autoRelockTime: number;
 
         /**
          * Indicates the sound volume on a door lock as defined by SoundVolumeEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.23
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.23
          */
         soundVolume: SoundVolume;
 
@@ -649,7 +646,7 @@ export declare namespace DoorLock {
          * current Sound Volume is High Volume. Therefore, if the client wants to query/modify the current Sound Volume
          * setting on the server, the client SHOULD read/write to the Sound Volume attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.26
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.26
          */
         defaultConfigurationRegister: ConfigurationRegister;
 
@@ -660,14 +657,14 @@ export declare namespace DoorLock {
          * those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local programming shall be
          * enabled by default.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.27
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.27
          */
         enableLocalProgramming: boolean;
 
         /**
          * This attribute shall enable/disable the ability to lock the door lock with a single touch on the door lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.28
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.28
          */
         enableOneTouchLocking: boolean;
 
@@ -675,7 +672,7 @@ export declare namespace DoorLock {
          * This attribute shall enable/disable an inside LED that allows the user to see at a glance if the door is
          * locked.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.29
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.29
          */
         enableInsideStatusLed: boolean;
 
@@ -683,7 +680,7 @@ export declare namespace DoorLock {
          * This attribute shall enable/disable a button inside the door that is used to put the lock into privacy mode.
          * When the lock is in privacy mode it cannot be manipulated from the outside.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.30
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.30
          */
         enablePrivacyModeButton: boolean;
 
@@ -696,12 +693,12 @@ export declare namespace DoorLock {
          *
          * The features that can be disabled from local programming are defined in LocalProgrammingFeaturesBitmap.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.31
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.31
          */
         localProgrammingFeatures: LocalProgrammingFeatures;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9
          * @deprecated
          */
         securityLevel: any;
@@ -711,21 +708,21 @@ export declare namespace DoorLock {
          *
          * Null only if an internal error prevents the retrieval of the current door state.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.4
          */
         doorState: DoorState | null;
 
         /**
          * This attribute shall hold the number of door open events that have occurred since it was last zeroed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.5
          */
         doorOpenEvents: number;
 
         /**
          * This attribute shall hold the number of door closed events that have occurred since it was last zeroed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.6
          */
         doorClosedEvents: number;
 
@@ -733,14 +730,14 @@ export declare namespace DoorLock {
          * This attribute shall hold the number of minutes the door has been open since the last time it transitioned
          * from closed to open.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.7
          */
         openPeriod: number;
 
         /**
          * Indicates the number of total users supported by the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.8
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.8
          */
         numberOfTotalUsersSupported: number;
 
@@ -748,7 +745,7 @@ export declare namespace DoorLock {
          * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
          * this device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.18
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.18
          */
         credentialRulesSupport: CredentialRules;
 
@@ -763,7 +760,7 @@ export declare namespace DoorLock {
          * be possible to actually assign 10 credentials for a user because maximum number of credentials in the
          * database is 8.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.19
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.19
          */
         numberOfCredentialsSupportedPerUser: number;
 
@@ -772,35 +769,35 @@ export declare namespace DoorLock {
          * ExpiringUser shall remain valid after its first use before expiring. When the credential expires the
          * UserStatus for the corresponding user record shall be set to OccupiedDisabled.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.36
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.36
          */
         expiringUserTimeout: number;
 
         /**
          * Indicates the number of PIN users supported.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.9
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.9
          */
         numberOfPinUsersSupported: number;
 
         /**
          * Indicates the maximum length in bytes of a PIN Code on this device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.14
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.14
          */
         maxPinCodeLength: number;
 
         /**
          * Indicates the minimum length in bytes of a PIN Code on this device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.15
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.15
          */
         minPinCodeLength: number;
 
         /**
          * Indicates the number of RFID users supported.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.10
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.10
          */
         numberOfRfidUsersSupported: number;
 
@@ -809,7 +806,7 @@ export declare namespace DoorLock {
          * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 20
          * (equals 10 Byte ISO 14443A UID) is recommended.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.16
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.16
          */
         maxRfidCodeLength: number;
 
@@ -818,28 +815,28 @@ export declare namespace DoorLock {
          * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 8
          * (equals 4 Byte ISO 14443A UID) is recommended.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.17
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.17
          */
         minRfidCodeLength: number;
 
         /**
          * Indicates the number of configurable week day schedule supported per user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.11
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.11
          */
         numberOfWeekDaySchedulesSupportedPerUser: number;
 
         /**
          * Indicates the number of configurable year day schedule supported per user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.12
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.12
          */
         numberOfYearDaySchedulesSupportedPerUser: number;
 
         /**
          * Indicates the number of holiday schedules supported for the entire door lock device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.13
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.13
          */
         numberOfHolidaySchedulesSupported: number;
 
@@ -855,7 +852,7 @@ export declare namespace DoorLock {
          * logic, environmental events, or other reasons. The lock shall reset the counter if a valid credential is
          * presented.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.32
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.32
          */
         wrongCodeEntryLimit: number;
 
@@ -865,7 +862,7 @@ export declare namespace DoorLock {
          * guess a PIN for the device.) If the attribute accepts writes and an attempt to write the attribute to 0 is
          * made, the device shall respond with CONSTRAINT_ERROR.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.33
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.33
          */
         userCodeTemporaryDisableTime: number;
 
@@ -879,7 +876,7 @@ export declare namespace DoorLock {
          * 0x34 shall be used in the PIN field in any door lock cluster message payload. If the attribute value is
          * False, 0x04 0xFF 0xFF 0xFF 0xFF shall be used.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.34
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.34
          */
         sendPinOverTheAir: boolean;
 
@@ -888,50 +885,49 @@ export declare namespace DoorLock {
          * requires that an optional PINs be included in the payload of remote lock operation events like Lock, Unlock,
          * Unlock with Timeout and Toggle in order to function.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.35
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.35
          */
         requirePinForRemoteOperation: boolean;
 
         /**
-         * Indicates the verification key component of the Reader's key pair as defined in [[Aliro]](#ref_Aliro). The
-         * value, if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         * Indicates the verification key component of the Reader's key pair as defined in Aliro. The value, if not
+         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
          *
          * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
          * Command".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.37
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.37
          */
         aliroReaderVerificationKey: Bytes | null;
 
         /**
-         * Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the reader_group_identifier as defined in Aliro.
          *
          * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26,
          * "SetAliroReaderConfig Command".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.38
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.38
          */
         aliroReaderGroupIdentifier: Bytes | null;
 
         /**
-         * Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the reader_group_sub_identifier as defined in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.39
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.39
          */
         aliroReaderGroupSubIdentifier: Bytes;
 
         /**
-         * Indicates the list of protocol versions supported for expedited transactions as defined in
-         * [[Aliro]](#ref_Aliro).
+         * Indicates the list of protocol versions supported for expedited transactions as defined in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.40
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.40
          */
         aliroExpeditedTransactionSupportedProtocolVersions: Bytes[];
 
         /**
          * Indicates the maximum number of AliroCredentialIssuerKey credentials that can be stored on the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.44
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.44
          */
         numberOfAliroCredentialIssuerKeysSupported: number;
 
@@ -948,32 +944,32 @@ export declare namespace DoorLock {
          *   and also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials
          *   would exist on the server.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.45
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.45
          */
         numberOfAliroEndpointKeysSupported: number;
 
         /**
-         * Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the Group Resolving Key as defined in Aliro.
          *
          * Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
          * Command".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.41
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.41
          */
         aliroGroupResolvingKey: Bytes | null;
 
         /**
          * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
-         * in [[Aliro]](#ref_Aliro).
+         * in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.42
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.42
          */
         aliroSupportedBleuwbProtocolVersions: Bytes[];
 
         /**
-         * Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro).
+         * Indicates the version of the Bluetooth LE advertisement as defined in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.9.43
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.9.43
          */
         aliroBleAdvertisingVersion: number;
     }
@@ -986,7 +982,7 @@ export declare namespace DoorLock {
          * This command causes the lock device to lock the door. This command includes an optional code for the lock.
          * The door lock may require a PIN depending on the value of the RequirePINForRemoteOperation attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.1
          */
         lockDoor(request: LockDoorRequest): MaybePromise;
 
@@ -999,7 +995,7 @@ export declare namespace DoorLock {
          * > NOTE: If the attribute AutoRelockTime is supported the lock will transition to the locked state when the
          *   auto relock time has expired.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.2
          */
         unlockDoor(request: UnlockDoorRequest): MaybePromise;
 
@@ -1010,7 +1006,7 @@ export declare namespace DoorLock {
          * AutoRelockTime attribute. If the door lock device is not capable of or does not want to support temporary
          * Relock Timeout, it SHOULD NOT support this optional command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.3
          */
         unlockWithTimeout(request: UnlockWithTimeoutRequest): MaybePromise;
     }
@@ -1031,12 +1027,12 @@ export declare namespace DoorLock {
          *
          *   - FAILURE, if some unexpected internal error occurred setting User.
          *
-         *   - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
+         *   - Occupied, if OperationType is Add and UserIndex points to an occupied slot.
          *
          *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is Modify
          *     and UserIndex points to an available slot.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16
          */
         setUser(request: SetUserRequest): MaybePromise;
 
@@ -1046,7 +1042,7 @@ export declare namespace DoorLock {
          * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.) as
          * needed otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.17
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.17
          */
         getUser(request: GetUserRequest): MaybePromise<GetUserResponse>;
 
@@ -1059,7 +1055,7 @@ export declare namespace DoorLock {
          *
          * A LockUserChange event with the provided UserIndex shall be generated after successfully clearing users.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.19
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.19
          */
         clearUser(request: ClearUserRequest): MaybePromise;
 
@@ -1069,7 +1065,7 @@ export declare namespace DoorLock {
          *
          * Fields used for different use cases:
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.20
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.20
          */
         setCredential(request: SetCredentialRequest): MaybePromise<SetCredentialResponse>;
 
@@ -1079,7 +1075,7 @@ export declare namespace DoorLock {
          * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.) as
          * needed otherwise the GetCredentialStatusResponse command shall be sent implying a status of SUCCESS.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.22
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.22
          */
         getCredentialStatus(request: GetCredentialStatusRequest): MaybePromise<GetCredentialStatusResponse>;
 
@@ -1095,7 +1091,7 @@ export declare namespace DoorLock {
          *
          * Return status shall be one of the following values:
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.24
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.24
          */
         clearCredential(request: ClearCredentialRequest): MaybePromise;
     }
@@ -1111,14 +1107,14 @@ export declare namespace DoorLock {
          *
          * Return status shall be one of the following values:
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4
          */
         setWeekDaySchedule(request: SetWeekDayScheduleRequest): MaybePromise;
 
         /**
          * Retrieve the specific weekly schedule for the specific user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.5
          */
         getWeekDaySchedule(request: GetWeekDayScheduleRequest): MaybePromise<GetWeekDayScheduleResponse>;
 
@@ -1127,7 +1123,7 @@ export declare namespace DoorLock {
          *
          * Return status shall be one of the following values:
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.7
          */
         clearWeekDaySchedule(request: ClearWeekDayScheduleRequest): MaybePromise;
     }
@@ -1143,14 +1139,14 @@ export declare namespace DoorLock {
          *
          * Return status shall be one of the following values:
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.8
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.8
          */
         setYearDaySchedule(request: SetYearDayScheduleRequest): MaybePromise;
 
         /**
          * Retrieve the specific year day schedule for the specific schedule and user indexes.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.9
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.9
          */
         getYearDaySchedule(request: GetYearDayScheduleRequest): MaybePromise<GetYearDayScheduleResponse>;
 
@@ -1159,7 +1155,7 @@ export declare namespace DoorLock {
          *
          * Return status shall be one of the following values:
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.11
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.11
          */
         clearYearDaySchedule(request: ClearYearDayScheduleRequest): MaybePromise;
     }
@@ -1174,21 +1170,21 @@ export declare namespace DoorLock {
          *
          * Return status shall be one of the following values:
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.12
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.12
          */
         setHolidaySchedule(request: SetHolidayScheduleRequest): MaybePromise;
 
         /**
          * Get the holiday schedule for the specified index.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.13
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.13
          */
         getHolidaySchedule(request: GetHolidayScheduleRequest): MaybePromise<GetHolidayScheduleResponse>;
 
         /**
          * Clears the holiday schedule or all holiday schedules.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.15
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.15
          */
         clearHolidaySchedule(request: ClearHolidayScheduleRequest): MaybePromise;
     }
@@ -1198,10 +1194,9 @@ export declare namespace DoorLock {
      */
     export interface AliroProvisioningCommands {
         /**
-         * This command allows communicating an Aliro Reader configuration, as defined in [[Aliro]](#ref_Aliro), to the
-         * lock.
+         * This command allows communicating an Aliro Reader configuration, as defined in Aliro, to the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.26
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.26
          */
         setAliroReaderConfig(request: SetAliroReaderConfigRequest): MaybePromise;
 
@@ -1216,7 +1211,7 @@ export declare namespace DoorLock {
          *   verification key to interact with the lock. This effect is not restricted to a single fabric or otherwise
          *   scoped in any way.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.27
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.27
          */
         clearAliroReaderConfig(): MaybePromise;
     }
@@ -1235,7 +1230,7 @@ export declare namespace DoorLock {
          * > NOTE: If the attribute AutoRelockTime is supported, the lock will transition to the locked state when the
          *   auto relock time has expired.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.25
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.25
          */
         unboltDoor(request: UnboltDoorRequest): MaybePromise;
     }
@@ -1261,7 +1256,7 @@ export declare namespace DoorLock {
          * The door lock server provides several alarms which can be sent when there is a critical state on the door
          * lock. The alarms available for the door lock server are listed in AlarmCodeEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.1
          */
         doorLockAlarm: DoorLockAlarmEvent;
 
@@ -1281,23 +1276,23 @@ export declare namespace DoorLock {
          *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
          *     LockOperation event with LockOperationType set to Unlock.
          *
-         *   - If it fails before reaching the unlocked state, the door lock server shall generate only a
-         *     LockOperationError event with LockOperationType set to Unlock.
+         *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+         *       LockOperationError event with LockOperationType set to Unlock.
          *
          *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
          *
-         *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+         *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
          *
-         *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+         *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3
          */
         lockOperation: LockOperationEvent;
 
         /**
          * The door lock server sends out a LockOperationError event when a lock operation fails for various reasons.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4
          */
         lockOperationError: LockOperationErrorEvent;
     }
@@ -1309,7 +1304,7 @@ export declare namespace DoorLock {
         /**
          * The door lock server sends out a DoorStateChange event when the door lock door state changes.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.2
          */
         doorStateChange: DoorStateChangeEvent;
     }
@@ -1322,7 +1317,7 @@ export declare namespace DoorLock {
          * The door lock server sends out a LockUserChange event when a lock user, schedule, or credential change has
          * occurred.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5
          */
         lockUserChange: LockUserChangeEvent;
     }
@@ -1338,7 +1333,7 @@ export declare namespace DoorLock {
          * The door lock server provides several alarms which can be sent when there is a critical state on the door
          * lock. The alarms available for the door lock server are listed in AlarmCodeEnum.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.1
          */
         doorLockAlarm: DoorLockAlarmEvent;
 
@@ -1358,30 +1353,30 @@ export declare namespace DoorLock {
          *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
          *     LockOperation event with LockOperationType set to Unlock.
          *
-         *   - If it fails before reaching the unlocked state, the door lock server shall generate only a
-         *     LockOperationError event with LockOperationType set to Unlock.
+         *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+         *       LockOperationError event with LockOperationType set to Unlock.
          *
          *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
          *
-         *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+         *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
          *
-         *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+         *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3
          */
         lockOperation: LockOperationEvent;
 
         /**
          * The door lock server sends out a LockOperationError event when a lock operation fails for various reasons.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4
          */
         lockOperationError: LockOperationErrorEvent;
 
         /**
          * The door lock server sends out a DoorStateChange event when the door lock door state changes.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.2
          */
         doorStateChange: DoorStateChangeEvent;
 
@@ -1389,7 +1384,7 @@ export declare namespace DoorLock {
          * The door lock server sends out a LockUserChange event when a lock user, schedule, or credential change has
          * occurred.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5
          */
         lockUserChange: LockUserChangeEvent;
     }
@@ -1440,7 +1435,7 @@ export declare namespace DoorLock {
     /**
      * These are optional features supported by DoorLockCluster.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.4
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.4
      */
     export enum Feature {
         /**
@@ -1452,7 +1447,7 @@ export declare namespace DoorLock {
          * Schedules are all associated with a User index and not directly with a PIN index. A User index may have
          * several credentials associated with it.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.1
          */
         PinCredential = "PinCredential",
 
@@ -1466,7 +1461,7 @@ export declare namespace DoorLock {
          * Schedules are all associated with a User index and not directly with a RFID index. A User Index may have
          * several credentials associated with it.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.2
          */
         RfidCredential = "RfidCredential",
 
@@ -1482,7 +1477,7 @@ export declare namespace DoorLock {
          * Schedules are all associated with a User index and not directly with a Finger index. A User Index may have
          * several credentials associated with it.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.3
          */
         FingerCredentials = "FingerCredentials",
 
@@ -1498,7 +1493,7 @@ export declare namespace DoorLock {
          *
          * Support for WeekDayAccessSchedules requires that the lock has the capability of keeping track of local time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.4
          */
         WeekDayAccessSchedules = "WeekDayAccessSchedules",
 
@@ -1508,7 +1503,7 @@ export declare namespace DoorLock {
          * If this feature is supported this indicates that the lock has the ability to determine the position of the
          * door which is separate from the state of the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.5
          */
         DoorPositionSensor = "DoorPositionSensor",
 
@@ -1523,7 +1518,7 @@ export declare namespace DoorLock {
          * A lock may support multiple credential types so if the User feature is supported the UserType, UserStatus and
          * Schedules are all associated with a User and not directly with a credential.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.6
          */
         FaceCredentials = "FaceCredentials",
 
@@ -1534,7 +1529,7 @@ export declare namespace DoorLock {
          * lock/unlock command. Currently the cluster only supports providing the PIN credential to the lock/unlock
          * commands. If this feature is supported then the PIN Credential feature shall also be supported.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.7
          */
         CredentialOverTheAirAccess = "CredentialOverTheAirAccess",
 
@@ -1545,7 +1540,7 @@ export declare namespace DoorLock {
          * to associate credentials and schedules to single user record within the lock. This also means the UserType
          * and UserStatus fields are associated with a User and not a credential.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.8
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.8
          */
         User = "User",
 
@@ -1560,7 +1555,7 @@ export declare namespace DoorLock {
          *
          * Support for YearDayAccessSchedules requires that the lock has the capability of keeping track of local time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.9
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.9
          */
         YearDayAccessSchedules = "YearDayAccessSchedules",
 
@@ -1572,7 +1567,7 @@ export declare namespace DoorLock {
          *
          * Support for HolidaySchedules requires that the lock has the capability of keeping track of local time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.10
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.10
          */
         HolidaySchedules = "HolidaySchedules",
 
@@ -1585,33 +1580,32 @@ export declare namespace DoorLock {
          * without unbolting support don't differentiate between unbolting and unlocking and perform the same operation
          * for both commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.11
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.11
          */
         Unbolting = "Unbolting",
 
         /**
          * AliroProvisioning (ALIRO)
          *
-         * Locks that support this feature implement the Aliro specification as defined in [[Aliro]](#ref_Aliro) and
-         * support Matter as a method for provisioning Aliro credentials.
+         * Locks that support this feature implement the Aliro specification as defined in Aliro and support Matter as a
+         * method for provisioning Aliro credentials.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.12
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.12
          */
         AliroProvisioning = "AliroProvisioning",
 
         /**
          * AliroBleuwb (ALBU)
          *
-         * Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in
-         * [[Aliro]](#ref_Aliro).
+         * Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in Aliro.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.4.13
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.4.13
          */
         AliroBleuwb = "AliroBleuwb"
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.19
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.19
      */
     export enum LockState {
         /**
@@ -1636,7 +1630,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.20
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.20
      */
     export enum LockType {
         /**
@@ -1714,20 +1708,20 @@ export declare namespace DoorLock {
      *   commands. The door lock shall NOT disable the radio or otherwise unbind or leave the network. It shall still
      *   respond to all other commands and requests.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.15
      */
     export enum OperatingMode {
         /**
          * The lock operates normally. All interfaces are enabled.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.15.1
          */
         Normal = 0,
 
         /**
          * Only remote interaction is enabled. The keypad shall only be operable by the master user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.15.2
          */
         Vacation = 1,
 
@@ -1736,7 +1730,7 @@ export declare namespace DoorLock {
          * All external interaction with the door lock is disabled. This mode is intended to be used so that users,
          * presumably inside the property, will have control over the entrance.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.15.3
          */
         Privacy = 2,
 
@@ -1744,7 +1738,7 @@ export declare namespace DoorLock {
          * This mode only disables remote interaction with the lock. This does not apply to any remote proprietary means
          * of communication. It specifically applies to the Lock, Unlock, Toggle, and Unlock with Timeout Commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.15.4
          */
         NoRemoteLockUnlock = 3,
 
@@ -1752,7 +1746,7 @@ export declare namespace DoorLock {
          * The lock is open or can be opened or closed at will without the use of a Keypad or other means of user
          * validation (e.g. a lock for a business during work hours).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.15.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.15.5
          */
         Passage = 4
     }
@@ -1769,7 +1763,7 @@ export declare namespace DoorLock {
      *   specification, and it is recommended that clients carefully take this into consideration. See
      *   SupportedOperatingModes.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.3
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.3
      */
     export class OperatingModes {
         constructor(values?: Partial<OperatingModes> | number);
@@ -1806,7 +1800,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.21
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.21
      */
     export enum LedSetting {
         /**
@@ -1826,7 +1820,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.22
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.22
      */
     export enum SoundVolume {
         /**
@@ -1851,7 +1845,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.4
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.4
      */
     export class ConfigurationRegister {
         constructor(values?: Partial<ConfigurationRegister> | number);
@@ -1865,7 +1859,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = Local programming is enabled
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.4.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.4.1
          */
         localProgramming?: boolean;
 
@@ -1878,7 +1872,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = Keypad interface is enabled
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.4.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.4.2
          */
         keypadInterface?: boolean;
 
@@ -1891,7 +1885,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = Remote interface is enabled
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.4.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.4.3
          */
         remoteInterface?: boolean;
 
@@ -1904,7 +1898,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = Sound volume value is equal to something other than 0
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.4.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.4.4
          */
         soundVolume?: boolean;
 
@@ -1917,7 +1911,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = Auto relock time value is equal to something other than 0
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.4.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.4.5
          */
         autoRelockTime?: boolean;
 
@@ -1930,13 +1924,13 @@ export declare namespace DoorLock {
          *
          *   - 1 = LED settings value is equal to something other than 0
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.4.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.4.6
          */
         ledSettings?: boolean;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.5
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.5
      */
     export class LocalProgrammingFeatures {
         constructor(values?: Partial<LocalProgrammingFeatures> | number);
@@ -1950,7 +1944,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = This ability is enabled
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.5.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.5.1
          */
         addUsersCredentialsSchedules?: boolean;
 
@@ -1963,7 +1957,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = This ability is enabled
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.5.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.5.2
          */
         modifyUsersCredentialsSchedules?: boolean;
 
@@ -1976,7 +1970,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = This ability is enabled
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.5.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.5.3
          */
         clearUsersCredentialsSchedules?: boolean;
 
@@ -1989,7 +1983,7 @@ export declare namespace DoorLock {
          *
          *   - 1 = This ability is enabled
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.5.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.5.4
          */
         adjustSettings?: boolean;
     }
@@ -1997,7 +1991,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the current door state.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.11
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.11
      */
     export enum DoorState {
         /**
@@ -2032,7 +2026,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.2
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.2
      */
     export class CredentialRules {
         constructor(values?: Partial<CredentialRules> | number);
@@ -2057,7 +2051,7 @@ export declare namespace DoorLock {
      * This command causes the lock device to lock the door. This command includes an optional code for the lock. The
      * door lock may require a PIN depending on the value of the RequirePINForRemoteOperation attribute.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.1
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.1
      */
     export class LockDoorRequest {
         constructor(values?: Partial<LockDoorRequest>);
@@ -2073,7 +2067,7 @@ export declare namespace DoorLock {
          * UserCodeTemporaryDisableTime will be triggered if the WrongCodeEntryLimit is exceeded. The lock shall ignore
          * any attempts to lock/unlock the door until the UserCodeTemporaryDisableTime expires.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.1.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.1.1
          */
         pinCode?: Bytes;
     }
@@ -2087,7 +2081,7 @@ export declare namespace DoorLock {
      * > NOTE: If the attribute AutoRelockTime is supported the lock will transition to the locked state when the auto
      *   relock time has expired.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.2
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.2
      */
     export class UnlockDoorRequest {
         constructor(values?: Partial<UnlockDoorRequest>);
@@ -2095,7 +2089,7 @@ export declare namespace DoorLock {
         /**
          * See Section 5.2.10.1.1, "PINCode Field".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.2.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.2.1
          */
         pinCode?: Bytes;
     }
@@ -2107,7 +2101,7 @@ export declare namespace DoorLock {
      * attribute. If the door lock device is not capable of or does not want to support temporary Relock Timeout, it
      * SHOULD NOT support this optional command.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.3
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.3
      */
     export class UnlockWithTimeoutRequest {
         constructor(values?: Partial<UnlockWithTimeoutRequest>);
@@ -2116,14 +2110,14 @@ export declare namespace DoorLock {
          * This field shall indicate the timeout in seconds to wait before relocking the door lock. This value is
          * independent of the AutoRelockTime attribute value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.3.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.3.1
          */
         timeout: number;
 
         /**
          * See Section 5.2.10.1.1, "PINCode Field".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.3.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.3.2
          */
         pinCode?: Bytes;
     }
@@ -2140,12 +2134,12 @@ export declare namespace DoorLock {
      *
      *   - FAILURE, if some unexpected internal error occurred setting User.
      *
-     *   - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
+     *   - Occupied, if OperationType is Add and UserIndex points to an occupied slot.
      *
      *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is Modify and
      *     UserIndex points to an available slot.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16
      */
     export class SetUserRequest {
         constructor(values?: Partial<SetUserRequest>);
@@ -2153,14 +2147,14 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the type of operation.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16.1
          */
         operationType: DataOperationType;
 
         /**
          * This field shall indicate the user ID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16.2
          */
         userIndex: number;
 
@@ -2176,7 +2170,7 @@ export declare namespace DoorLock {
          *
          * If UserName is not null, the UserName in the user record shall be set to the provided value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16.3
          */
         userName: string | null;
 
@@ -2194,7 +2188,7 @@ export declare namespace DoorLock {
          *
          * If UserUniqueID is not null, the UserUniqueID in the user record shall be set to the provided value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16.4
          */
         userUniqueId: number | null;
 
@@ -2211,7 +2205,7 @@ export declare namespace DoorLock {
          *
          * If UserStatus is not null, the UserStatus in the user record shall be set to the provided value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16.5
          */
         userStatus: UserStatus | null;
 
@@ -2228,7 +2222,7 @@ export declare namespace DoorLock {
          *
          * If UserType is not null, the UserType in the user record shall be set to the provided value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16.6
          */
         userType: UserType | null;
 
@@ -2248,7 +2242,7 @@ export declare namespace DoorLock {
          *
          * If CredentialRule is not null, the CredentialRule in the user record shall be set to the provided value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.16.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.16.7
          */
         credentialRule: CredentialRule | null;
     }
@@ -2259,7 +2253,7 @@ export declare namespace DoorLock {
      * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.) as needed
      * otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.17
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.17
      */
     export class GetUserRequest {
         constructor(values?: Partial<GetUserRequest>);
@@ -2273,7 +2267,7 @@ export declare namespace DoorLock {
      * UserUniqueID, UserStatus, UserType, CredentialRule, Credentials, CreatorFabricIndex, and LastModifiedFabricIndex
      * shall all be null in the response.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18
      */
     export class GetUserResponse {
         constructor(values?: Partial<GetUserResponse>);
@@ -2281,49 +2275,49 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the user ID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.1
          */
         userIndex: number;
 
         /**
          * This field shall contain a string to use as a human readable identifier for the user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.2
          */
         userName: string | null;
 
         /**
          * See UserUniqueID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.3
          */
         userUniqueId: number | null;
 
         /**
          * This field shall indicate the UserStatus assigned to the user when created or modified.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.4
          */
         userStatus: UserStatus | null;
 
         /**
          * This field shall indicate the UserType assigned to this user when created or modified.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.5
          */
         userType: UserType | null;
 
         /**
          * This field shall indicate the CredentialRule set for this user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.6
          */
         credentialRule: CredentialRule | null;
 
         /**
          * This field shall contain a list of credentials for this user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.7
          */
         credentials: Credential[] | null;
 
@@ -2333,7 +2327,7 @@ export declare namespace DoorLock {
          * the Interaction Model) and shall NOT be null otherwise. This value shall be set to 0 if the original creator
          * fabric was deleted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.8
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.8
          */
         creatorFabricIndex: FabricIndex | null;
 
@@ -2343,7 +2337,7 @@ export declare namespace DoorLock {
          * modified outside the Interaction Model) and shall NOT be null otherwise. This value shall be set to 0 if the
          * last modifier fabric was deleted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.9
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.9
          */
         lastModifiedFabricIndex: FabricIndex | null;
 
@@ -2352,7 +2346,7 @@ export declare namespace DoorLock {
          * occupied user slots in the database. This shall NOT be null if there is at least one occupied entry after the
          * requested UserIndex in the User database and shall be null if there are no more occupied entries.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.18.10
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.18.10
          */
         nextUserIndex: number | null;
     }
@@ -2366,7 +2360,7 @@ export declare namespace DoorLock {
      *
      * A LockUserChange event with the provided UserIndex shall be generated after successfully clearing users.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.19
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.19
      */
     export class ClearUserRequest {
         constructor(values?: Partial<ClearUserRequest>);
@@ -2374,7 +2368,7 @@ export declare namespace DoorLock {
         /**
          * This field shall specify a valid User index or 0xFFFE to indicate all user slots shall be cleared.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.19.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.19.1
          */
         userIndex: number;
     }
@@ -2385,7 +2379,7 @@ export declare namespace DoorLock {
      *
      * Fields used for different use cases:
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.20
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.20
      */
     export class SetCredentialRequest {
         constructor(values?: Partial<SetCredentialRequest>);
@@ -2393,7 +2387,7 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the set credential operation type requested.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.20.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.20.1
          */
         operationType: DataOperationType;
 
@@ -2401,7 +2395,7 @@ export declare namespace DoorLock {
          * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
          * (if applicable or 0 if not) to set.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.20.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.20.2
          */
         credential: Credential;
 
@@ -2410,7 +2404,7 @@ export declare namespace DoorLock {
          * of the credential data shall conform to the limits of the CredentialType specified in the Credential
          * structure otherwise an INVALID_COMMAND status shall be returned in the SetCredentialResponse command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.20.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.20.3
          */
         credentialData: Bytes;
 
@@ -2419,7 +2413,7 @@ export declare namespace DoorLock {
          * modified. This shall be null if OperationType is add and a new credential and user is being added at the same
          * time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.20.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.20.4
          */
         userIndex: number | null;
 
@@ -2427,7 +2421,7 @@ export declare namespace DoorLock {
          * This field shall indicate the user status to use in the new user record if a new user is being created. This
          * shall be null if OperationType is Modify. This may be null when adding a new credential and user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.20.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.20.5
          */
         userStatus: UserStatus | null;
 
@@ -2435,7 +2429,7 @@ export declare namespace DoorLock {
          * This field shall indicate the user type to use in the new user record if a new user is being created. This
          * shall be null if OperationType is Modify. This may be null when adding a new credential and user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.20.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.20.6
          */
         userType: UserType | null;
     }
@@ -2443,7 +2437,7 @@ export declare namespace DoorLock {
     /**
      * Returns the status for setting the specified credential.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.21
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.21
      */
     export class SetCredentialResponse {
         constructor(values?: Partial<SetCredentialResponse>);
@@ -2455,21 +2449,23 @@ export declare namespace DoorLock {
          *
          *   - FAILURE, if some unexpected internal error occurred setting user credential.
          *
-         *   - OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an occupied slot.
+         *   - Occupied, if OperationType is Add and CredentialIndex in Credential structure points to an occupied slot.
          *
-         *   - OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match the
+         *   - Occupied, if OperationType is Modify and CredentialIndex in Credential structure does not match the
          *     CredentialIndex that is already associated with the provided UserIndex.
          *
-         *   - DUPLICATE, if CredentialData provided is a duplicate of another credential with the same CredentialType
+         *   - Duplicate, if CredentialData provided is a duplicate of another credential with the same CredentialType
          *     (e.g. duplicate PIN code).
          *
          *   - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to resource
          *     constraints such as:
          *
-         *   - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials associated.
+         *     - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials
+         *       associated.
          *
-         *   - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it would
-         *     cause the total number of credentials of those two types to exceed NumberOfAliroEndpointKeysSupported.
+         *     - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it
+         *       would cause the total number of credentials of those two types to exceed
+         *       NumberOfAliroEndpointKeysSupported.
          *
          *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid.
          *
@@ -2478,7 +2474,7 @@ export declare namespace DoorLock {
          *
          *   - INVALID_COMMAND, if OperationType is Modify and UserIndex points to an available slot.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.21.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.21.1
          */
         status: Status | StatusCode;
 
@@ -2489,7 +2485,7 @@ export declare namespace DoorLock {
          * created. If the OperationType was Add and an existing User was associated with the new credential then this
          * shall be null.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.21.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.21.2
          */
         userIndex: number | null;
 
@@ -2500,7 +2496,7 @@ export declare namespace DoorLock {
          * null if there are no more available entries. The NextCredentialIndex reported shall NOT exceed the maximum
          * number of credentials for a particular credential type.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.21.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.21.3
          */
         nextCredentialIndex?: number | null;
     }
@@ -2511,7 +2507,7 @@ export declare namespace DoorLock {
      * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.) as needed
      * otherwise the GetCredentialStatusResponse command shall be sent implying a status of SUCCESS.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.22
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.22
      */
     export class GetCredentialStatusRequest {
         constructor(values?: Partial<GetCredentialStatusRequest>);
@@ -2520,7 +2516,7 @@ export declare namespace DoorLock {
          * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
          * (if applicable or 0 if not) to retrieve the status for.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.22.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.22.1
          */
         credential: Credential;
     }
@@ -2528,7 +2524,7 @@ export declare namespace DoorLock {
     /**
      * Returns the status for the specified credential.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.23
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.23
      */
     export class GetCredentialStatusResponse {
         constructor(values?: Partial<GetCredentialStatusResponse>);
@@ -2537,7 +2533,7 @@ export declare namespace DoorLock {
          * This field shall indicate if the requested credential type and index exists and is populated for the
          * requested user index.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.23.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.23.1
          */
         credentialExists: boolean;
 
@@ -2546,7 +2542,7 @@ export declare namespace DoorLock {
          * CredentialType requested was ProgrammingPIN then UserIndex shall be null; otherwise, UserIndex shall be null
          * if CredentialExists is set to False and shall NOT be null if CredentialExists is set to True.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.23.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.23.2
          */
         userIndex: number | null;
 
@@ -2556,7 +2552,7 @@ export declare namespace DoorLock {
          * credential was created outside the Interaction Model) and shall NOT be null otherwise. This value shall be
          * set to 0 if the original creator fabric was deleted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.23.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.23.3
          */
         creatorFabricIndex: FabricIndex | null;
 
@@ -2566,7 +2562,7 @@ export declare namespace DoorLock {
          * credential was modified outside the Interaction Model) and shall NOT be null otherwise. This value shall be
          * set to 0 if the last modifier fabric was deleted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.23.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.23.4
          */
         lastModifiedFabricIndex: FabricIndex | null;
 
@@ -2577,7 +2573,7 @@ export declare namespace DoorLock {
          * null if there are no more occupied entries. The NextCredentialIndex reported shall NOT exceed the maximum
          * number of credentials for a particular credential type.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.23.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.23.5
          */
         nextCredentialIndex?: number | null;
 
@@ -2597,7 +2593,7 @@ export declare namespace DoorLock {
          * > NOTE: Since the Aliro credentials are public keys, there is no security risk in allowing them to be read.
          *   Possession of the credential octet string does not allow operating the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.23.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.23.6
          */
         credentialData?: Bytes | null;
     }
@@ -2614,7 +2610,7 @@ export declare namespace DoorLock {
      *
      * Return status shall be one of the following values:
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.24
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.24
      */
     export class ClearCredentialRequest {
         constructor(values?: Partial<ClearCredentialRequest>);
@@ -2624,7 +2620,7 @@ export declare namespace DoorLock {
          * (0xFFFE for all credentials or 0 if not applicable) to clear. This shall be null if clearing all credential
          * types otherwise it shall NOT be null.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.24.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.24.1
          */
         credential: Credential | null;
     }
@@ -2636,7 +2632,7 @@ export declare namespace DoorLock {
      *
      * Return status shall be one of the following values:
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4
      */
     export class SetWeekDayScheduleRequest {
         constructor(values?: Partial<SetWeekDayScheduleRequest>);
@@ -2644,35 +2640,35 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the index of the Week Day schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4.1
          */
         weekDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4.2
          */
         userIndex: number;
 
         /**
          * This field shall indicate which week days the schedule is active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4.3
          */
         daysMask: DaysMask;
 
         /**
          * This field shall indicate the starting hour for the Week Day schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4.4
          */
         startHour: number;
 
         /**
          * This field shall indicate the starting minute for the Week Day schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4.5
          */
         startMinute: number;
 
@@ -2680,7 +2676,7 @@ export declare namespace DoorLock {
          * This field shall indicate the ending hour for the Week Day schedule. EndHour shall be equal to or greater
          * than StartHour.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4.6
          */
         endHour: number;
 
@@ -2691,7 +2687,7 @@ export declare namespace DoorLock {
          * If the EndHour is equal to 23 and the EndMinute is equal to 59 the Lock shall grant access to the user up
          * until 23:59:59.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.4.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.4.7
          */
         endMinute: number;
     }
@@ -2699,7 +2695,7 @@ export declare namespace DoorLock {
     /**
      * Retrieve the specific weekly schedule for the specific user.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.5
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.5
      */
     export class GetWeekDayScheduleRequest {
         constructor(values?: Partial<GetWeekDayScheduleRequest>);
@@ -2710,7 +2706,7 @@ export declare namespace DoorLock {
     /**
      * Returns the weekly repeating schedule data for the specified schedule index.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.6
      */
     export class GetWeekDayScheduleResponse {
         constructor(values?: Partial<GetWeekDayScheduleResponse>);
@@ -2718,14 +2714,14 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the index of the Week Day schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.6.1
          */
         weekDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.6.2
          */
         userIndex: number;
 
@@ -2743,7 +2739,7 @@ export declare namespace DoorLock {
          * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
          * values, only the fields up to the status field shall be present.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.6.3
          */
         status: Status | StatusCode;
 
@@ -2752,14 +2748,14 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the starting hour for the Week Day schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.6.4
          */
         startHour?: number;
 
         /**
          * This field shall indicate the starting minute for the Week Day schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.6.5
          */
         startMinute?: number;
 
@@ -2767,7 +2763,7 @@ export declare namespace DoorLock {
          * This field shall indicate the ending hour for the Week Day schedule. EndHour shall be equal to or greater
          * than StartHour.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.6.6
          */
         endHour?: number;
 
@@ -2775,7 +2771,7 @@ export declare namespace DoorLock {
          * This field shall indicate the ending minute for the Week Day schedule. If EndHour is equal to StartHour then
          * EndMinute shall be greater than StartMinute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.6.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.6.7
          */
         endMinute?: number;
     }
@@ -2785,7 +2781,7 @@ export declare namespace DoorLock {
      *
      * Return status shall be one of the following values:
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.7
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.7
      */
     export class ClearWeekDayScheduleRequest {
         constructor(values?: Partial<ClearWeekDayScheduleRequest>);
@@ -2794,14 +2790,14 @@ export declare namespace DoorLock {
          * This field shall indicate the Week Day schedule index to clear or 0xFE to clear all Week Day schedules for
          * the specified user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.7.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.7.1
          */
         weekDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.7.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.7.2
          */
         userIndex: number;
     }
@@ -2813,7 +2809,7 @@ export declare namespace DoorLock {
      *
      * Return status shall be one of the following values:
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.8
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.8
      */
     export class SetYearDayScheduleRequest {
         constructor(values?: Partial<SetYearDayScheduleRequest>);
@@ -2821,14 +2817,14 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the index of the Year Day schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.8.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.8.1
          */
         yearDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.8.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.8.2
          */
         userIndex: number;
 
@@ -2836,7 +2832,7 @@ export declare namespace DoorLock {
          * This field shall indicate the starting time for the Year Day schedule in Epoch Time in Seconds with local
          * time offset based on the local timezone and DST offset on the day represented by the value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.8.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.8.3
          */
         localStartTime: number;
 
@@ -2845,7 +2841,7 @@ export declare namespace DoorLock {
          * offset based on the local timezone and DST offset on the day represented by the value. LocalEndTime shall be
          * greater than LocalStartTime.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.8.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.8.4
          */
         localEndTime: number;
     }
@@ -2853,7 +2849,7 @@ export declare namespace DoorLock {
     /**
      * Retrieve the specific year day schedule for the specific schedule and user indexes.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.9
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.9
      */
     export class GetYearDayScheduleRequest {
         constructor(values?: Partial<GetYearDayScheduleRequest>);
@@ -2864,7 +2860,7 @@ export declare namespace DoorLock {
     /**
      * Returns the year day schedule data for the specified schedule and user indexes.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.10
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.10
      */
     export class GetYearDayScheduleResponse {
         constructor(values?: Partial<GetYearDayScheduleResponse>);
@@ -2872,14 +2868,14 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the index of the Year Day schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.10.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.10.1
          */
         yearDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.10.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.10.2
          */
         userIndex: number;
 
@@ -2897,7 +2893,7 @@ export declare namespace DoorLock {
          * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
          * values, only the fields up to the status field shall be present.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.10.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.10.3
          */
         status: Status | StatusCode;
 
@@ -2906,7 +2902,7 @@ export declare namespace DoorLock {
          * time offset based on the local timezone and DST offset on the day represented by the value. This shall be
          * null if the schedule is not set for the YearDayIndex and UserIndex provided.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.10.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.10.4
          */
         localStartTime?: number;
 
@@ -2916,7 +2912,7 @@ export declare namespace DoorLock {
          * greater than LocalStartTime. This shall be null if the schedule is not set for the YearDayIndex and UserIndex
          * provided.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.10.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.10.5
          */
         localEndTime?: number;
     }
@@ -2926,7 +2922,7 @@ export declare namespace DoorLock {
      *
      * Return status shall be one of the following values:
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.11
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.11
      */
     export class ClearYearDayScheduleRequest {
         constructor(values?: Partial<ClearYearDayScheduleRequest>);
@@ -2935,14 +2931,14 @@ export declare namespace DoorLock {
          * This field shall indicate the Year Day schedule index to clear or 0xFE to clear all Year Day schedules for
          * the specified user.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.11.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.11.1
          */
         yearDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.11.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.11.2
          */
         userIndex: number;
     }
@@ -2953,7 +2949,7 @@ export declare namespace DoorLock {
      *
      * Return status shall be one of the following values:
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.12
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.12
      */
     export class SetHolidayScheduleRequest {
         constructor(values?: Partial<SetHolidayScheduleRequest>);
@@ -2961,7 +2957,7 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the index of the Holiday schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.12.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.12.1
          */
         holidayIndex: number;
 
@@ -2969,7 +2965,7 @@ export declare namespace DoorLock {
          * This field shall indicate the starting time for the Holiday Day schedule in Epoch Time in Seconds with local
          * time offset based on the local timezone and DST offset on the day represented by the value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.12.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.12.2
          */
         localStartTime: number;
 
@@ -2978,14 +2974,14 @@ export declare namespace DoorLock {
          * time offset based on the local timezone and DST offset on the day represented by the value. LocalEndTime
          * shall be greater than LocalStartTime.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.12.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.12.3
          */
         localEndTime: number;
 
         /**
          * This field shall indicate the operating mode to use during this Holiday schedule start/end time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.12.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.12.4
          */
         operatingMode: OperatingMode;
     }
@@ -2993,7 +2989,7 @@ export declare namespace DoorLock {
     /**
      * Get the holiday schedule for the specified index.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.13
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.13
      */
     export class GetHolidayScheduleRequest {
         constructor(values?: Partial<GetHolidayScheduleRequest>);
@@ -3003,7 +2999,7 @@ export declare namespace DoorLock {
     /**
      * Returns the Holiday Schedule Entry for the specified Holiday ID.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.14
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.14
      */
     export class GetHolidayScheduleResponse {
         constructor(values?: Partial<GetHolidayScheduleResponse>);
@@ -3011,7 +3007,7 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the index of the Holiday schedule.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.14.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.14.1
          */
         holidayIndex: number;
 
@@ -3030,7 +3026,7 @@ export declare namespace DoorLock {
          * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
          * values, only the fields up to the status field shall be present.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.14.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.14.2
          */
         status: Status | StatusCode;
 
@@ -3039,7 +3035,7 @@ export declare namespace DoorLock {
          * offset based on the local timezone and DST offset on the day represented by the value. This shall be null if
          * the schedule is not set for the HolidayIndex provided.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.14.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.14.3
          */
         localStartTime?: number | null;
 
@@ -3048,7 +3044,7 @@ export declare namespace DoorLock {
          * offset based on the local timezone and DST offset on the day represented by the value. LocalEndTime shall be
          * greater than LocalStartTime. This shall be null if the schedule is not set for the HolidayIndex provided.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.14.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.14.4
          */
         localEndTime?: number | null;
 
@@ -3056,7 +3052,7 @@ export declare namespace DoorLock {
          * This field shall indicate the operating mode to use during this Holiday schedule start/end time. This shall
          * be null if the schedule is not set for the HolidayIndex provided.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.14.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.14.5
          */
         operatingMode?: OperatingMode | null;
     }
@@ -3064,7 +3060,7 @@ export declare namespace DoorLock {
     /**
      * Clears the holiday schedule or all holiday schedules.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.15
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.15
      */
     export class ClearHolidayScheduleRequest {
         constructor(values?: Partial<ClearHolidayScheduleRequest>);
@@ -3072,16 +3068,15 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the Holiday schedule index to clear or 0xFE to clear all Holiday schedules.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.15.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.15.1
          */
         holidayIndex: number;
     }
 
     /**
-     * This command allows communicating an Aliro Reader configuration, as defined in [[Aliro]](#ref_Aliro), to the
-     * lock.
+     * This command allows communicating an Aliro Reader configuration, as defined in Aliro, to the lock.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.26
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.26
      */
     export class SetAliroReaderConfigRequest {
         constructor(values?: Partial<SetAliroReaderConfigRequest>);
@@ -3089,7 +3084,7 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the signing key component of the Reader's key pair.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.26.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.26.1
          */
         signingKey: Bytes;
 
@@ -3097,21 +3092,21 @@ export declare namespace DoorLock {
          * This field shall indicate the verification key component of the Reader's key pair. This shall be an
          * uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.26.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.26.2
          */
         verificationKey: Bytes;
 
         /**
          * This field shall indicate the reader group identifier for the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.26.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.26.3
          */
         groupIdentifier: Bytes;
 
         /**
          * This field shall indicate the group resolving key for the lock.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.26.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.26.4
          */
         groupResolvingKey?: Bytes;
     }
@@ -3126,7 +3121,7 @@ export declare namespace DoorLock {
      * > NOTE: If the attribute AutoRelockTime is supported, the lock will transition to the locked state when the auto
      *   relock time has expired.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.25
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.25
      */
     export class UnboltDoorRequest {
         constructor(values?: Partial<UnboltDoorRequest>);
@@ -3134,7 +3129,7 @@ export declare namespace DoorLock {
         /**
          * See Section 5.2.10.1.1, "PINCode Field".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.10.25.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.10.25.1
          */
         pinCode?: Bytes;
     }
@@ -3143,7 +3138,7 @@ export declare namespace DoorLock {
      * The door lock server provides several alarms which can be sent when there is a critical state on the door lock.
      * The alarms available for the door lock server are listed in AlarmCodeEnum.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.1
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.1
      */
     export class DoorLockAlarmEvent {
         constructor(values?: Partial<DoorLockAlarmEvent>);
@@ -3151,7 +3146,7 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the alarm code of the event that has happened.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.1.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.1.1
          */
         alarmCode: AlarmCode;
     }
@@ -3172,16 +3167,16 @@ export declare namespace DoorLock {
      *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
      *     LockOperation event with LockOperationType set to Unlock.
      *
-     *   - If it fails before reaching the unlocked state, the door lock server shall generate only a LockOperationError
-     *     event with LockOperationType set to Unlock.
+     *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+     *       LockOperationError event with LockOperationType set to Unlock.
      *
      *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
      *
-     *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+     *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
      *
-     *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+     *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3
      */
     export class LockOperationEvent {
         constructor(values?: Partial<LockOperationEvent>);
@@ -3189,14 +3184,14 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the type of the lock operation that was performed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3.1
          */
         lockOperationType: LockOperationType;
 
         /**
          * This field shall indicate the source of the lock operation that was performed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3.2
          */
         operationSource: OperationSource;
 
@@ -3205,7 +3200,7 @@ export declare namespace DoorLock {
          * user index that can be determined for the given operation source. This shall NOT be null if a user index can
          * be determined. In particular, this shall NOT be null if the operation was associated with a valid credential.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3.3
          */
         userIndex: number | null;
 
@@ -3214,7 +3209,7 @@ export declare namespace DoorLock {
          * null if there is no fabric that can be determined for the given operation source. This shall NOT be null if
          * the operation source is "Remote".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3.4
          */
         fabricIndex: FabricIndex | null;
 
@@ -3223,7 +3218,7 @@ export declare namespace DoorLock {
          * there is no Node associated with the given operation source. This shall NOT be null if the operation source
          * is "Remote".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3.5
          */
         sourceNode: NodeId | null;
 
@@ -3231,7 +3226,7 @@ export declare namespace DoorLock {
          * This field shall indicate the list of credentials used in performing the lock operation. This shall be null
          * if no credentials were involved.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.3.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.3.6
          */
         credentials?: Credential[] | null;
     }
@@ -3239,7 +3234,7 @@ export declare namespace DoorLock {
     /**
      * The door lock server sends out a LockOperationError event when a lock operation fails for various reasons.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4
      */
     export class LockOperationErrorEvent {
         constructor(values?: Partial<LockOperationErrorEvent>);
@@ -3247,21 +3242,21 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the type of the lock operation that was performed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4.1
          */
         lockOperationType: LockOperationType;
 
         /**
          * This field shall indicate the source of the lock operation that was performed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4.2
          */
         operationSource: OperationSource;
 
         /**
          * This field shall indicate the lock operation error triggered when the operation was performed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4.3
          */
         operationError: OperationError;
 
@@ -3269,7 +3264,7 @@ export declare namespace DoorLock {
          * This field shall indicate the lock UserIndex who performed the lock operation. This shall be null if there is
          * no user id that can be determined for the given operation source.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4.4
          */
         userIndex: number | null;
 
@@ -3278,7 +3273,7 @@ export declare namespace DoorLock {
          * null if there is no fabric that can be determined for the given operation source. This shall NOT be null if
          * the operation source is "Remote".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4.5
          */
         fabricIndex: FabricIndex | null;
 
@@ -3287,7 +3282,7 @@ export declare namespace DoorLock {
          * there is no Node associated with the given operation source. This shall NOT be null if the operation source
          * is "Remote".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4.6
          */
         sourceNode: NodeId | null;
 
@@ -3295,7 +3290,7 @@ export declare namespace DoorLock {
          * This field shall indicate the list of credentials used in performing the lock operation. This shall be null
          * if no credentials were involved.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.4.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.4.7
          */
         credentials?: Credential[] | null;
     }
@@ -3303,7 +3298,7 @@ export declare namespace DoorLock {
     /**
      * The door lock server sends out a DoorStateChange event when the door lock door state changes.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.2
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.2
      */
     export class DoorStateChangeEvent {
         constructor(values?: Partial<DoorStateChangeEvent>);
@@ -3311,7 +3306,7 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the new door state for this door event.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.2.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.2.1
          */
         doorState: DoorState;
     }
@@ -3320,7 +3315,7 @@ export declare namespace DoorLock {
      * The door lock server sends out a LockUserChange event when a lock user, schedule, or credential change has
      * occurred.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5
      */
     export class LockUserChangeEvent {
         constructor(values?: Partial<LockUserChangeEvent>);
@@ -3328,21 +3323,21 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the lock data type that was changed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5.1
          */
         lockDataType: LockDataType;
 
         /**
          * This field shall indicate the data operation performed on the lock data type changed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5.2
          */
         dataOperationType: DataOperationType;
 
         /**
          * This field shall indicate the source of the user data change.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5.3
          */
         operationSource: OperationSource;
 
@@ -3351,7 +3346,7 @@ export declare namespace DoorLock {
          * is no specific user associated with the data operation. This shall be 0xFFFE if all users are affected (e.g.
          * Clear Users).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5.4
          */
         userIndex: number | null;
 
@@ -3360,7 +3355,7 @@ export declare namespace DoorLock {
          * null if there is no fabric that can be determined to have caused the change. This shall NOT be null if the
          * operation source is "Remote".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5.5
          */
         fabricIndex: FabricIndex | null;
 
@@ -3369,7 +3364,7 @@ export declare namespace DoorLock {
          * performed the change. This shall be null if there was no Node involved in the change. This shall NOT be null
          * if the operation source is "Remote".
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5.6
          */
         sourceNode: NodeId | null;
 
@@ -3379,7 +3374,7 @@ export declare namespace DoorLock {
          * list that can be indexed into (e.g. ProgrammingUser). This shall be 0xFFFE if all indices are affected (e.g.
          * ClearPINCode, ClearRFIDCode, ClearWeekDaySchedule, ClearYearDaySchedule, etc.).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.11.5.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.11.5.7
          */
         dataIndex: number | null;
     }
@@ -3387,7 +3382,7 @@ export declare namespace DoorLock {
     /**
      * This bitmap shall indicate the days of the week the Week Day schedule applies for.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.1
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.1
      */
     export class DaysMask {
         constructor(values?: Partial<DaysMask> | number);
@@ -3429,7 +3424,7 @@ export declare namespace DoorLock {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.6
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.6
      */
     export class AlarmMask {
         constructor(values?: Partial<AlarmMask> | number);
@@ -3468,7 +3463,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the alarm type.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.7
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.7
      */
     export enum AlarmCode {
         /**
@@ -3515,7 +3510,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the credential rule that can be applied to a particular user.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.8
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.8
      */
     export enum CredentialRule {
         /**
@@ -3537,7 +3532,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the credential type.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.9
      */
     export enum CredentialType {
         /**
@@ -3577,7 +3572,7 @@ export declare namespace DoorLock {
          * of SEC 1.
          *
          * Credentials of this type shall NOT be used to allow operating the lock. They shall be used, as defined in
-         * [[Aliro]](#ref_Aliro), to create new credentials of type AliroEvictableEndpointKey via a step-up transaction.
+         * Aliro, to create new credentials of type AliroEvictableEndpointKey via a step-up transaction.
          *
          * When performing the step-up transaction, the lock shall request the data element with identifier "matter1",
          * and shall attempt to create a new credential of type AliroEvictableEndpointKey if and only if the data
@@ -3606,7 +3601,7 @@ export declare namespace DoorLock {
          * created, the credential associated with the changes in the LockOperation events shall be the
          * AliroCredentialIssuerKey credential used for the step-up.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.9.1
          */
         AliroCredentialIssuerKey = 6,
 
@@ -3616,7 +3611,7 @@ export declare namespace DoorLock {
          * Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in section 2.3.3
          * of SEC 1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.9.2
          */
         AliroEvictableEndpointKey = 7,
 
@@ -3627,7 +3622,7 @@ export declare namespace DoorLock {
          * Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in section 2.3.3
          * of SEC 1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.9.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.9.3
          */
         AliroNonEvictableEndpointKey = 8
     }
@@ -3635,7 +3630,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the data operation performed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.10
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.10
      */
     export enum DataOperationType {
         /**
@@ -3657,7 +3652,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the data type that is being or has changed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.12
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.12
      */
     export enum LockDataType {
         /**
@@ -3734,7 +3729,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the type of Lock operation performed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.13
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.13
      */
     export enum LockOperationType {
         /**
@@ -3766,7 +3761,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the error cause of the Lock/Unlock operation performed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.14
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.14
      */
     export enum OperationError {
         /**
@@ -3798,7 +3793,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate the source of the Lock/Unlock or user change operation performed.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.16
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.16
      */
     export enum OperationSource {
         /**
@@ -3861,7 +3856,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate what the status is for a specific user ID.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.17
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.17
      */
     export enum UserStatus {
         /**
@@ -3883,7 +3878,7 @@ export declare namespace DoorLock {
     /**
      * This enumeration shall indicate what the type is for a specific user ID.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18
      */
     export enum UserType {
         /**
@@ -3891,7 +3886,7 @@ export declare namespace DoorLock {
          *
          * This value shall indicate the user has access 24/7 provided proper PIN or RFID is supplied (e.g., owner).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.1
          */
         UnrestrictedUser = 0,
 
@@ -3908,7 +3903,7 @@ export declare namespace DoorLock {
          *     falls within at least one of the YearDaySchedules. If current time is not known, user access shall NOT be
          *     granted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.2
          */
         YearDayScheduleUser = 1,
 
@@ -3926,7 +3921,7 @@ export declare namespace DoorLock {
          *     falls within at least one of the WeekDaySchedules. If current time is not known, user access shall NOT be
          *     granted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.3
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.3
          */
         WeekDayScheduleUser = 2,
 
@@ -3937,7 +3932,7 @@ export declare namespace DoorLock {
          * manage the users and user schedules. In all other respects this user matches the unrestricted (default) user.
          * ProgrammingUser is the only user that can disable the user interface (keypad, remote, etc…).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.4
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.4
          */
         ProgrammingUser = 3,
 
@@ -3947,7 +3942,7 @@ export declare namespace DoorLock {
          * This value shall indicate the user is recognized by the lock but does not have the ability to open the lock.
          * This user will only cause the lock to generate the appropriate event notification to any bound devices.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.5
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.5
          */
         NonAccessUser = 4,
 
@@ -3958,7 +3953,7 @@ export declare namespace DoorLock {
          * ForcedUser silent alarm will be emitted to allow a notified Node to alert emergency services or contacts on
          * the user account when used.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.6
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.6
          */
         ForcedUser = 5,
 
@@ -3968,7 +3963,7 @@ export declare namespace DoorLock {
          * This value shall indicate the user has the ability to open lock once after which the lock shall change the
          * corresponding user record UserStatus value to OccupiedDisabled automatically.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.7
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.7
          */
         DisposableUser = 6,
 
@@ -3980,7 +3975,7 @@ export declare namespace DoorLock {
          * minutes the corresponding user record UserStatus value shall be set to OccupiedDisabled automatically by the
          * lock. The lock shall persist the timeout across reboots such that the ExpiringUserTimeout is honored.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.8
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.8
          */
         ExpiringUser = 7,
 
@@ -4003,7 +3998,7 @@ export declare namespace DoorLock {
          *     granted if and only if the current time falls within at least one of the WeekDaySchedules AND the current
          *     time falls within at least one of the YearDaySchedules.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.9
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.9
          */
         ScheduleRestrictedUser = 8,
 
@@ -4015,13 +4010,13 @@ export declare namespace DoorLock {
          * prevent a PIN code credential created for them from being used at the keypad. The PIN code credential would
          * only be provided over-the-air for the lock/unlock commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.18.10
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.10
          */
         RemoteOnlyUser = 9
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.23
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.23
      */
     export enum EventType {
         /**
@@ -4044,7 +4039,7 @@ export declare namespace DoorLock {
      * This struct shall indicate the credential types and their corresponding indices (if any) for the event or user
      * record.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.24
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.24
      */
     export class Credential {
         constructor(values?: Partial<Credential>);
@@ -4052,7 +4047,7 @@ export declare namespace DoorLock {
         /**
          * This field shall indicate the credential field used to authorize the lock operation.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.24.1
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.24.1
          */
         credentialType: CredentialType;
 
@@ -4061,13 +4056,13 @@ export declare namespace DoorLock {
          * list of credentials identified by CredentialType (e.g. PIN, RFID, etc.). This field shall be set to 0 if
          * CredentialType is ProgrammingPIN or does not correspond to a list that can be indexed into.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 5.2.6.24.2
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.24.2
          */
         credentialIndex: number;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.7.1
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.7.1
      */
     export enum StatusCode {
         /**
@@ -4084,7 +4079,7 @@ export declare namespace DoorLock {
     /**
      * Thrown for cluster status code {@link StatusCode.Duplicate}.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.7.1
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.7.1
      */
     export class DuplicateError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -4093,7 +4088,7 @@ export declare namespace DoorLock {
     /**
      * Thrown for cluster status code {@link StatusCode.Occupied}.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 5.2.7.1
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.7.1
      */
     export class OccupiedError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)

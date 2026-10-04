@@ -118,6 +118,18 @@ export namespace Diagnostic {
         };
     }
 
+    /**
+     * Where a log message came from.
+     *
+     * A process may run several matter.js nodes, and a message emitted from a socket or timer callback carries no
+     * indication of which one wrote it.  An origin is a name and its place in the naming hierarchy, and nothing more:
+     * the log layer holds no reference to whatever produced it.
+     */
+    export interface Origin {
+        readonly name: string;
+        readonly parent?: Origin;
+    }
+
     export interface Message {
         [presentation]?: "message";
         now: Date;
@@ -125,13 +137,19 @@ export namespace Diagnostic {
         facility: string;
         prefix: string;
         values: unknown[];
+
+        /**
+         * Where the message came from, if known.  A destination attributes a message by its origin rather than by the
+         * call stack, which a socket or timer callback does not carry.
+         */
+        origin?: Origin;
     }
 
     /**
      * Create an object representing a log message.
      */
     export function message(value: Partial<Message>): Message {
-        const { now, level, facility, prefix: nestingPrefix, values } = value;
+        const { now, level, facility, prefix: nestingPrefix, values, origin } = value;
 
         return {
             [presentation]: Presentation.Message,
@@ -140,6 +158,7 @@ export namespace Diagnostic {
             facility: facility ?? "Diagnostic",
             prefix: nestingPrefix ?? "",
             values: values ?? [],
+            origin,
         } satisfies Message;
     }
 

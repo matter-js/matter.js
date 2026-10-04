@@ -5,12 +5,14 @@
  */
 
 import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
-import { DescriptorBehavior } from "#behaviors/descriptor";
+import { DescriptorBehavior, DescriptorServer } from "#behaviors/descriptor";
 import { OnOffLightDevice } from "#devices/on-off-light";
+import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import { Environment, MockStorageService } from "@matter/general";
+import { DeviceTypeId } from "@matter/types";
 import { BridgedLightDevice, createBridge } from "./bridge-helpers.js";
 
 function expectBridgedLight(bridge: Endpoint) {
@@ -423,5 +425,161 @@ describe("a bridge", () => {
             expect(store.get(["root", "parts", "part0", "parts", "light3"], "__number__")).deep.equals(light3);
             expect(store.get(["root", "parts", "part0", "parts", "light4"], "__number__")).deep.equals(light3 + 2);
         });
+    });
+});
+
+describe("a bridge that bridges a bridge", () => {
+    /**
+     * The "Multiple aggregators" shape of Matter Device Library § 11.2: an endpoint that is a bridged
+     * node and an aggregator of its own, below the aggregator that bridges it.
+     */
+    const NestedAggregatorDevice = AggregatorEndpoint.with(BridgedDeviceBasicInformationServer);
+
+    async function createNestedBridge() {
+        const bridge = await createBridge({
+            type: AggregatorEndpoint,
+            parts: [
+                { type: BridgedLightDevice, id: "white" },
+                { type: BridgedLightDevice, id: "color" },
+                {
+                    type: NestedAggregatorDevice,
+                    id: "dali",
+                    parts: [
+                        { type: BridgedLightDevice, id: "dali1" },
+                        { type: BridgedLightDevice, id: "dali2" },
+                        { type: BridgedLightDevice, id: "dali3" },
+                    ],
+                },
+            ],
+        });
+
+        await MockTime.yield();
+
+        return bridge;
+    }
+
+    function partsListOf(endpoint: Endpoint) {
+        return endpoint.stateOf(DescriptorBehavior).partsList;
+    }
+
+    it("names it an aggregator and a bridged node", async () => {
+        const bridge = await createNestedBridge();
+
+        const dali = bridge.parts.require("dali");
+        expect(dali.stateOf(DescriptorBehavior).deviceTypeList).deep.equals([
+            {
+                deviceType: AggregatorEndpoint.deviceType,
+                revision: AggregatorEndpoint.deviceRevision,
+            },
+            {
+                deviceType: BridgedNodeEndpoint.deviceType,
+                revision: BridgedNodeEndpoint.deviceRevision,
+            },
+        ]);
+
+        await bridge.owner?.close();
+    });
+
+    it("gives each aggregator a full-family PartsList of its own descendants", async () => {
+        const bridge = await createNestedBridge();
+
+        const dali = bridge.parts.require("dali");
+        const daliLights = ["dali1", "dali2", "dali3"].map(id => dali.parts.require(id).number);
+        const outerLights = ["white", "color"].map(id => bridge.parts.require(id).number);
+
+        const ascending = (numbers: number[]) => [...numbers].sort((a, b) => a - b);
+
+        expect(partsListOf(dali)).deep.equals(ascending(daliLights));
+        expect(partsListOf(bridge)).deep.equals(ascending([...outerLights, dali.number, ...daliLights]));
+
+        const root = bridge.owner!;
+        expect(partsListOf(root)).deep.equals(ascending([bridge.number, ...outerLights, dali.number, ...daliLights]));
+
+        await bridge.owner?.close();
+    });
+
+    // The spec's own example lists the endpoint's types in the other order, and how an endpoint composes
+    // its list is a property of all of them, not of the first
+    it("composes a full family when the aggregator device type is not the first", async () => {
+        const BridgedFirstAggregator = AggregatorEndpoint.with(
+            BridgedDeviceBasicInformationServer,
+            DescriptorServer,
+        ).set({
+            descriptor: {
+                deviceTypeList: [
+                    {
+                        deviceType: DeviceTypeId(BridgedNodeEndpoint.deviceType),
+                        revision: BridgedNodeEndpoint.deviceRevision,
+                    },
+                    {
+                        deviceType: DeviceTypeId(AggregatorEndpoint.deviceType),
+                        revision: AggregatorEndpoint.deviceRevision,
+                    },
+                ],
+            },
+        });
+
+        const bridge = await createBridge({
+            type: AggregatorEndpoint,
+            parts: [
+                {
+                    type: BridgedFirstAggregator,
+                    id: "dali",
+                    parts: [
+                        {
+                            type: BridgedLightDevice,
+                            id: "dali1",
+                            parts: [{ type: TemperatureSensorDevice, id: "sensor" }],
+                        },
+                        { type: BridgedLightDevice, id: "dali2" },
+                    ],
+                },
+            ],
+        });
+
+        await MockTime.yield();
+
+        const dali = bridge.parts.require("dali");
+        expect(dali.stateOf(DescriptorBehavior).deviceTypeList[0].deviceType).equals(BridgedNodeEndpoint.deviceType);
+
+        const light = dali.parts.require("dali1");
+        const descendants = [light.number, light.parts.require("sensor").number, dali.parts.require("dali2").number];
+        expect(partsListOf(dali)).deep.equals([...descendants].sort((a, b) => a - b));
+
+        await bridge.owner?.close();
+    });
+
+    it("keeps the lists as the nested aggregator gains and loses a device", async () => {
+        const bridge = await createNestedBridge();
+
+        const dali = bridge.parts.require("dali");
+        const root = bridge.owner!;
+
+        // Each list is maintained by its own endpoint, so wait for all three rather than for the
+        // number of task turns it currently takes them
+        const listsSettle = () =>
+            Promise.all(
+                [dali, bridge, root].map(endpoint =>
+                    Promise.resolve(endpoint.eventsOf(DescriptorBehavior).partsList$Changed),
+                ),
+            );
+
+        let changed = listsSettle();
+        const added = await dali.add({ type: BridgedLightDevice, id: "dali4" });
+        await MockTime.resolve(changed);
+
+        expect(partsListOf(dali)).contains(added.number);
+        expect(partsListOf(bridge)).contains(added.number);
+        expect(partsListOf(root)).contains(added.number);
+
+        changed = listsSettle();
+        await added.delete();
+        await MockTime.resolve(changed);
+
+        expect(partsListOf(dali)).not.contains(added.number);
+        expect(partsListOf(bridge)).not.contains(added.number);
+        expect(partsListOf(root)).not.contains(added.number);
+
+        await bridge.owner?.close();
     });
 });

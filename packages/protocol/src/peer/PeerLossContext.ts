@@ -32,7 +32,7 @@ export interface PeerLossContext {
     keepSubscriptions?: boolean;
 
     /**
-     * The time at which we considered the peer lost.
+     * The time at which we considered the peer lost, on the clock of `Time.nowUs` like `Session.createdAt`.
      *
      * If absent, considers peer loss as of current time.
      */

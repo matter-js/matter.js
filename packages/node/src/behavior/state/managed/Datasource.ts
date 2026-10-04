@@ -249,6 +249,11 @@ export namespace Datasource {
         version: number;
 
         /**
+         * Forget the version so the next read requests the full data instead of only changes since that version.
+         */
+        invalidateVersion?(): void;
+
+        /**
          * Reclaim values from the datasource so a rebuilt datasource re-seeds from live data rather than defaults.
          */
         reclaimValues?(): void;

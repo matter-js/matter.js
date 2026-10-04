@@ -14,6 +14,7 @@ import {
 import {
     WebRtcTransportProviderServer as BaseWebRtcTransportProviderServer
 } from "../behaviors/web-rtc-transport-provider/WebRtcTransportProviderServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import {
     WebRtcTransportRequestorServer as BaseWebRtcTransportRequestorServer
 } from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorServer.js";
@@ -35,10 +36,10 @@ import { Identity } from "@matter/general";
  * An Audio Doorbell device is composed in all cases with a generic switch to provide a doorbell with Audio only
  * streaming.
  *
- * AudioDoorbellDevice requires Switch and CameraAvStreamManagement clusters but they are not added by default because
- * you must select the features your device supports. You can add manually using AudioDoorbellDevice.with().
+ * AudioDoorbellDevice requires Switch cluster but Switch is not added by default because you must select the features
+ * your device supports. You can add manually using AudioDoorbellDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 16.5
+ * @see {@link MatterSpecification.v161.Device} § 16.5
  */
 export interface AudioDoorbellDevice extends Identity<typeof AudioDoorbellDeviceDefinition> {}
 
@@ -70,6 +71,13 @@ export namespace AudioDoorbellRequirements {
      * We provide this alias to the default implementation {@link WebRtcTransportProviderServer} for convenience.
      */
     export const WebRtcTransportProviderServer = BaseWebRtcTransportProviderServer;
+
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
 
     /**
      * The WebRtcTransportRequestor cluster is optional per the Matter specification.
@@ -114,7 +122,8 @@ export namespace AudioDoorbellRequirements {
             Identify: IdentifyServer,
             Switch: SwitchServer,
             CameraAvStreamManagement: CameraAvStreamManagementServer,
-            WebRtcTransportProvider: WebRtcTransportProviderServer
+            WebRtcTransportProvider: WebRtcTransportProviderServer,
+            Binding: BindingServer
         },
 
         optional: {
@@ -137,9 +146,12 @@ export const AudioDoorbellDeviceDefinition = MutableEndpoint({
     deviceType: 0x141,
     deviceRevision: 2,
     requirements: AudioDoorbellRequirements,
+
     behaviors: SupportedBehaviors(
         AudioDoorbellRequirements.server.mandatory.Identify,
-        AudioDoorbellRequirements.server.mandatory.WebRtcTransportProvider
+        AudioDoorbellRequirements.server.mandatory.CameraAvStreamManagement,
+        AudioDoorbellRequirements.server.mandatory.WebRtcTransportProvider,
+        AudioDoorbellRequirements.server.mandatory.Binding
     )
 });
 

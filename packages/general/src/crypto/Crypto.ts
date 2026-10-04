@@ -14,8 +14,10 @@ import { p256 } from "@noble/curves/nist.js";
 import * as utils from "@noble/curves/utils.js";
 import { Entropy } from "../util/Entropy.js";
 import { cmac } from "./aes/Cmac.js";
+import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import type { PrivateKey, PublicKey } from "./Key.js";
+import { MlDsa } from "./MlDsa.js";
 
 export const ec = {
     p256,
@@ -47,8 +49,7 @@ export const HASH_ALGORITHM_OUTPUT_LENGTHS: Record<HashAlgorithm, number> = {
 /**
  * Identifiers from the IANA Named Information (NI) Hash Algorithm Registry (RFC 6920), used as the OTA
  * image digest type (Matter Core §11.21.2.4.9) and the DCL data digest type. Limited to the registry
- * algorithms the Matter crypto primitives can compute; SHA3-256 availability is backend-dependent (no
- * browser Web Crypto support).
+ * algorithms the Matter crypto primitives can compute.
  */
 export enum HashAlgorithmId {
     "SHA-256" = 1,
@@ -73,6 +74,29 @@ export function hashAlgorithmForId(id: number): IdentifiedHashAlgorithm | undefi
 }
 
 const logger = Logger.get("Crypto");
+
+let nobleMlDsa: Promise<typeof import("@noble/post-quantum/ml-dsa.js")> | undefined;
+
+/** The portable ML-DSA implementation, loaded on first use so that crypto without ML-DSA does not pay for it. */
+async function nobleMlDsaFor(parameterSet: MlDsa.ParameterSet) {
+    const { ml_dsa44, ml_dsa65 } = await (nobleMlDsa ??= import("@noble/post-quantum/ml-dsa.js"));
+    return parameterSet === "ML-DSA-44" ? ml_dsa44 : ml_dsa65;
+}
+
+const portableMlDsa: MlDsa.Implementation = {
+    async publicKeyOf(parameterSet, seed) {
+        return (await nobleMlDsaFor(parameterSet)).keygen(Bytes.of(seed)).publicKey;
+    },
+
+    async sign({ parameterSet, seed }, message, entropy) {
+        const dsa = await nobleMlDsaFor(parameterSet);
+        return dsa.sign(Bytes.of(message), dsa.keygen(Bytes.of(seed)).secretKey, { extraEntropy: Bytes.of(entropy) });
+    },
+
+    async verify(parameterSet, publicKey, message, signature) {
+        return (await nobleMlDsaFor(parameterSet)).verify(Bytes.of(signature), Bytes.of(message), Bytes.of(publicKey));
+    },
+};
 
 /**
  * These are the cryptographic primitives required to implement the Matter protocol.
@@ -125,7 +149,7 @@ export abstract class Crypto extends Entropy {
     /**
      * Create a key from a secret using HKDF. The length parameter defines the length in bytes.
      *
-     * @see {@link MatterSpecification.v16.Core} §3.8
+     * @see {@link MatterSpecification.v161.Core} §3.8
      */
     abstract createHkdfKey(secret: Bytes, salt: Bytes, info: Bytes, length?: number): MaybePromise<Bytes>;
 
@@ -143,6 +167,101 @@ export abstract class Crypto extends Entropy {
      * Authenticate an ECDSA signature.
      */
     abstract verifyEcdsa(publicKey: JsonWebKey, data: Bytes, signature: EcdsaSignature): MaybePromise<void>;
+
+    /**
+     * Create an ML-DSA key pair (FIPS 204 §5.1).
+     *
+     * The seed comes from {@link randomBytes}, so a deterministic entropy source yields deterministic keys.
+     *
+     * @throws CryptoError if this backend cannot create ML-DSA keys
+     * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
+     */
+    async createMlDsaKeyPair(parameterSet: MlDsa.ParameterSet): Promise<MlDsa.PrivateKey> {
+        const seed = Bytes.of(this.randomBytes(MlDsa.SEED_LENGTH));
+        const publicKey = await (await this.mlDsaOperation(parameterSet, "publicKeyOf"))(parameterSet, seed);
+        return { parameterSet, seed, publicKey };
+    }
+
+    /**
+     * Create a hedged ML-DSA signature with an empty context (FIPS 204 §5.2).
+     *
+     * The portable implementation hedges with {@link randomBytes}; a native one uses the runtime's own entropy, so
+     * only the former signs reproducibly under a deterministic entropy source.
+     *
+     * @throws KeyInputError if the private key is malformed or its public key does not belong to its seed
+     * @throws CryptoError if this backend cannot offer ML-DSA
+     * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
+     */
+    async signMlDsa(privateKey: MlDsa.PrivateKey, data: Bytes | Bytes[]): Promise<Bytes> {
+        MlDsa.assertPrivateKey(privateKey);
+        const { parameterSet, publicKey } = privateKey;
+        const sign = await this.mlDsaOperation(parameterSet, "sign");
+        const verify = await this.mlDsaOperation(parameterSet, "verify");
+        const message = Bytes.of(Array.isArray(data) ? Bytes.concat(...data) : data);
+
+        let signature: Bytes;
+        let valid: boolean;
+        try {
+            signature = await sign(privateKey, message, this.randomBytes(32));
+
+            // Native signing ignores the public key, so only this check catches one that does not belong to the seed
+            valid = await verify(parameterSet, publicKey, message, signature);
+        } catch (cause) {
+            throw new KeyInputError(`Cannot sign with this ${parameterSet} private key`, { cause });
+        }
+
+        if (!valid) {
+            throw new KeyInputError(`${parameterSet} public key does not belong to the private key seed`);
+        }
+
+        return signature;
+    }
+
+    /**
+     * Authenticate an ML-DSA signature with an empty context (FIPS 204 §5.3).
+     *
+     * @param publicKey the raw public key, as carried in the SubjectPublicKeyInfo BIT STRING
+     * @throws KeyInputError if the public key has the wrong length
+     * @throws CryptoVerifyError if the signature does not verify; {@link SignatureEncodingError} if its length is wrong
+     * @throws CryptoError if this backend cannot offer ML-DSA
+     * @see {@link https://csrc.nist.gov/pubs/fips/204/final FIPS 204}
+     */
+    async verifyMlDsa(
+        parameterSet: MlDsa.ParameterSet,
+        publicKey: Bytes,
+        data: Bytes,
+        signature: Bytes,
+    ): Promise<void> {
+        MlDsa.assertPublicKey(parameterSet, publicKey);
+        MlDsa.assertSignature(parameterSet, signature);
+
+        const verify = await this.mlDsaOperation(parameterSet, "verify");
+        let valid: boolean;
+        try {
+            valid = await verify(parameterSet, publicKey, data, signature);
+        } catch (cause) {
+            throw new CryptoVerifyError(`${parameterSet} signature verification failed`, { cause });
+        }
+
+        if (!valid) {
+            throw new CryptoVerifyError(`${parameterSet} signature verification failed`);
+        }
+    }
+
+    /**
+     * One operation of the ML-DSA primitive behind {@link createMlDsaKeyPair}, {@link signMlDsa} and
+     * {@link verifyMlDsa}.
+     *
+     * Defaults to the portable `@noble/post-quantum` implementation.  A backend overrides this per operation, because a
+     * runtime may offer native verification without native signing.  Throw (or reject) here, not from the returned
+     * function, to report that the backend cannot offer the operation at all.
+     */
+    protected mlDsaOperation<O extends keyof MlDsa.Implementation>(
+        _parameterSet: MlDsa.ParameterSet,
+        operation: O,
+    ): MaybePromise<MlDsa.Implementation[O]> {
+        return portableMlDsa[operation];
+    }
 
     /**
      * Create a general-purpose EC key.

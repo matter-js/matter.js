@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, Observable } from "@matter/general";
+import { Crypto, ImplementationError, Observable } from "@matter/general";
 
 /**
  * Counter advance applied on every boot. Bounds the crash window: a value can only be reused (reusing its AES-CCM
  * nonce) if more than this many increments are lost unpersisted at crash. Must exceed the most Check-Ins one wake pass
  * can send — at most (fabrics × Permanent clients per fabric) — which stays far below this. The spec example uses 1000.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.6.3
+ * @see {@link MatterSpecification.v161.Core} § 4.6.3
  */
 const BOOT_BUMP = 1000;
 
@@ -26,13 +26,13 @@ const BOOT_BUMP = 1000;
  * uint32 wrap-around is harmless: clients apply mod-2³² offset arithmetic and refresh their keys before the offset
  * reaches 2³¹.
  *
- * @see {@link MatterSpecification.v16.Core} § 9.16.6.5 (ICDCounter attribute)
- * @see {@link MatterSpecification.v16.Core} § 4.6.3 (Check-In Counter — boot-bump persistence strategy)
+ * @see {@link MatterSpecification.v161.Core} § 9.16.6.5 (ICDCounter attribute)
+ * @see {@link MatterSpecification.v161.Core} § 4.6.3 (Check-In Counter — boot-bump persistence strategy)
  */
 export class IcdCounter {
     #value: number;
 
-    /** Emits the new counter value after every {@link increment}. */
+    /** Emits the new counter value after every {@link increment} and {@link advance}. */
     readonly changed = Observable<[value: number]>();
 
     /**
@@ -40,8 +40,8 @@ export class IcdCounter {
      * Randomizing the start widens the counter space traversed before key refresh and avoids cross-device counter
      * correlation, since the counter is bound into the Check-In AES-CCM nonce together with the ICD key.
      *
-     * @see {@link MatterSpecification.v16.Core} § 4.6.1.1 (Message Counter Initialization)
-     * @see {@link MatterSpecification.v16.Core} § 4.6.3 (Check-In Counter — randomize on factory reset)
+     * @see {@link MatterSpecification.v161.Core} § 4.6.1.1 (Message Counter Initialization)
+     * @see {@link MatterSpecification.v161.Core} § 4.6.3 (Check-In Counter — randomize on factory reset)
      */
     static randomInitialValue(crypto: Crypto): number {
         return (crypto.randomUint32 >>> 4) + 1;
@@ -62,7 +62,23 @@ export class IcdCounter {
      * @returns the new counter value.
      */
     increment(): number {
-        this.#value = (this.#value + 1) >>> 0;
+        return this.advance(1);
+    }
+
+    /**
+     * Advances the counter by `by` (uint32 wrap-around) and emits {@link changed}.
+     *
+     * For test event triggers that invalidate counter values only, as CHIP's `InvalidateHalfCheckInCounterValues`
+     * and `InvalidateAllCheckInCounterValues` do: a large advance deliberately lets a counter value recur, which the
+     * boot bump otherwise prevents.
+     *
+     * @returns the new counter value.
+     */
+    advance(by: number): number {
+        if (!Number.isInteger(by) || by < 0 || by > 0xffffffff) {
+            throw new ImplementationError(`An ICD counter advances by an integer from 0 to 0xffffffff, not ${by}`);
+        }
+        this.#value = (this.#value + by) >>> 0;
         this.changed.emit(this.#value);
         return this.#value;
     }

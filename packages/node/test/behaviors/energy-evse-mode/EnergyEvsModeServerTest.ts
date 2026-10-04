@@ -58,7 +58,8 @@ describe("EnergyEvseModeServer", () => {
     });
 
     it("supports inherited commands", async () => {
-        const { endpoint } = await createNode();
+        const { node, endpoint } = await createNode();
+        await using _node = node;
         await endpoint.act(agent => {
             const { energyEvseMode } = agent;
             expect(typeof energyEvseMode.changeToMode === "function");

@@ -33,17 +33,22 @@ import {
     AttributeList,
     ClusterRevision,
     DeviceClassification,
+    EndpointComposition,
     FeatureMap,
     GeneratedCommandList,
     type FeatureBitmap,
 } from "@matter/model";
 import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
-import type { AttributeId, ClusterId, CommandId, EndpointNumber } from "@matter/types";
+import { AttributeId, EndpointNumber } from "@matter/types";
+import type { ClusterId, CommandId } from "@matter/types";
 import { Status } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import type { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructureEvents } from "./ClientStructureEvents.js";
 import { PeerBehavior } from "./PeerBehavior.js";
+
+/** The endpoint the peer's root `PartsList` is read from (Matter Core § 9.2). */
+const ROOT_ENDPOINT_NUMBER = EndpointNumber(0);
 
 const logger = Logger.get("ClientStructure");
 
@@ -75,6 +80,28 @@ function getStoreValue(values: Record<string | number, unknown> | undefined, id:
 }
 
 /**
+ * Whether a key of an id-keyed cluster store addresses an attribute by its numeric ID rather than its property name.
+ */
+function isIdKey(key: string) {
+    return /^\d+$/.test(key);
+}
+
+/**
+ * The attribute list a peer reported, if it describes the attribute set.
+ *
+ * A non-empty AttributeList is authoritative.  An empty list is ignored so it doesn't churn against the
+ * received-attribute fallback some devices need.
+ */
+function authoritativeAttributeList(value: unknown) {
+    if (!Array.isArray(value)) {
+        return;
+    }
+
+    const ids = value.filter((id): id is number => typeof id === "number");
+    return ids.length ? ids : undefined;
+}
+
+/**
  * Manages endpoint and behavior structure for the local representation of a local node.
  *
  * This class supports update via data sourced from the Matter protocol or from matter.js's remote APIs.
@@ -91,6 +118,26 @@ export class ClientStructure {
     #attributeIds = new Map<ClusterId, Map<string, number>>();
     #delayedClusterEvents = new Array<ReadResult.EventValue>();
     #clustersWithDataThisInteraction = new Set<ClusterStructure>();
+
+    /**
+     * Which endpoints have named each part in a `PartsList`, and what each of those lists contained.
+     *
+     * Parenthood cannot be decided from a single list, because a device type composing its list of
+     * every descendant ({@link EndpointComposition.FullFamily}) says nothing about which endpoint owns
+     * a part. A claim stays here until it can be decided; nothing is ever reparented, so an
+     * undecidable claim waits for the read that settles it rather than being guessed at.
+     */
+    #partClaims = new Map<EndpointStructure, Set<EndpointStructure>>();
+    #partsListOf = new Map<EndpointStructure, Set<EndpointNumber>>();
+
+    /**
+     * How each endpoint composes its `PartsList`, for the endpoints that have said.
+     *
+     * Absent means the endpoint has not reported its device types yet, which is not the same as
+     * composing a tree: a list from an endpoint whose composition is unknown says nothing about who
+     * owns what, so claims from it wait rather than being read as a parent's.
+     */
+    #composition = new Map<EndpointStructure, EndpointComposition>();
     #events: ClientStructureEvents;
     #changed = Observable<[void]>();
     #commandFactory?: ClusterBehaviorType.CommandFactory;
@@ -154,9 +201,13 @@ export class ClientStructure {
 
             // Load state for each behavior
             for (const id of knownBehaviors) {
-                this.#synchronizeCluster(endpoint, this.#clusterFor(endpoint, id));
+                const cluster = this.#clusterFor(endpoint, id);
+                this.#checkUnlistedSeedValues(cluster);
+                this.#synchronizeCluster(endpoint, cluster);
             }
         }
+
+        this.#resolvePartClaims();
 
         const changes = this.#pendingChanges;
         this.#pendingChanges = new Map();
@@ -309,22 +360,7 @@ export class ClientStructure {
 
         // We don't apply structural changes until we've processed all attribute data if a.) listeners might otherwise
         // see partially initialized endpoints, or b.) the change requires an async operation
-        for (const [endpoint, change] of this.#pendingChanges.entries()) {
-            this.#pendingChanges.delete(endpoint);
-
-            if (change.erase) {
-                await this.#erase(endpoint);
-                continue;
-            }
-
-            if (change.rebuild) {
-                await this.#rebuild(endpoint);
-            }
-
-            if (change.install) {
-                this.#install(endpoint);
-            }
-        }
+        await this.#applyPendingChanges();
 
         // Likewise, we don't emit events until we've applied all structural changes
         this.#emitPendingStructureEvents();
@@ -358,6 +394,7 @@ export class ClientStructure {
                     this.#clustersWithDataThisInteraction.add(cluster);
                     this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
+                    this.#pruneUnlistedAttributes(cluster, values);
                     this.#invalidateOnDefinitionChange(cluster, values);
 
                     await cluster.store.externalSet(values);
@@ -377,22 +414,7 @@ export class ClientStructure {
         }
 
         // Apply pending structural changes
-        for (const [endpoint, change] of this.#pendingChanges.entries()) {
-            this.#pendingChanges.delete(endpoint);
-
-            if (change.erase) {
-                await this.#erase(endpoint);
-                continue;
-            }
-
-            if (change.rebuild) {
-                await this.#rebuild(endpoint);
-            }
-
-            if (change.install) {
-                this.#install(endpoint);
-            }
-        }
+        await this.#applyPendingChanges();
 
         this.#emitPendingStructureEvents();
     }
@@ -553,6 +575,7 @@ export class ClientStructure {
         this.#clustersWithDataThisInteraction.add(cluster);
         this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
+        this.#pruneUnlistedAttributes(cluster, attrs.values);
         this.#invalidateOnDefinitionChange(cluster, attrs.values);
 
         await cluster.store.externalSet(attrs.values);
@@ -607,21 +630,13 @@ export class ClientStructure {
             return;
         }
 
-        // A non-empty AttributeList is authoritative for the attribute set.  An empty list is ignored so it doesn't
-        // churn against the received-attribute fallback.  Detect the change before discarding the behavior, whose
-        // schema names the attributes to prune.
-        const attributeList = values.get(AttributeList.id);
-        const newAttributes = Array.isArray(attributeList) && attributeList.length ? attributeList : undefined;
+        const newAttributes = authoritativeAttributeList(values.get(AttributeList.id));
         const attributeSetChanged =
             newAttributes !== undefined &&
             !isDeepEqual(
                 cluster.attributes,
                 [...newAttributes].sort((a, b) => a - b),
             );
-
-        if (attributeSetChanged) {
-            this.#pruneDroppedAttributes(cluster, newAttributes, values);
-        }
 
         const acceptedCommands = values.get(AcceptedCommandList.id);
 
@@ -640,35 +655,87 @@ export class ClientStructure {
     }
 
     /**
-     * Mark values for attributes dropped by a new attribute list for deletion.
+     * Mark stored values of attributes a reported attribute list omits for deletion.
      *
-     * The client store keys attribute values by both numeric attribute ID (protocol updates) and property name (seed
-     * data), so we clear both forms.  Entries added to {@link values} are removed by the pending
-     * {@link Datasource.ExternallyMutableStore.externalSet}; a value of `undefined` deletes a key.
+     * A value reported alongside the list shows the peer still has the attribute, so only stored values are pruned.
+     * Entries added to {@link values} are removed by the pending {@link Datasource.ExternallyMutableStore.externalSet};
+     * a value of `undefined` deletes a key.
      */
-    #pruneDroppedAttributes(cluster: ClusterStructure, newAttributeList: readonly unknown[], values: Val.StructMap) {
-        if (!cluster.attributes) {
+    #pruneUnlistedAttributes(cluster: ClusterStructure, values: Val.StructMap) {
+        const attributeList = authoritativeAttributeList(values.get(AttributeList.id));
+        if (attributeList === undefined) {
             return;
         }
 
-        const retained = new Set(newAttributeList);
-        const oldAttributes = cluster.behavior?.cluster?.attributes;
+        // A key that is undefined in memory has no copy under that key in storage
+        const stored = Object.entries(cluster.store.currentValues ?? {})
+            .filter(([key, value]) => value !== undefined && !values.has(Number(key)))
+            .map(([key]) => key);
+        for (const key of this.#unlistedKeys(cluster, attributeList, stored)) {
+            values.set(key, undefined);
+        }
+    }
 
-        for (const id of cluster.attributes) {
-            if (retained.has(id)) {
-                continue;
+    /**
+     * The value keys of {@link keys} that address an attribute absent from {@link attributeList}.
+     *
+     * The client store keys attribute values by both numeric attribute ID (protocol updates) and property name (seed
+     * data), so both forms resolve to an attribute ID.  Keys that resolve to no attribute, such as metadata, are kept,
+     * as are global attributes, which the specification requires in every list and the discovered schema depends on.
+     */
+    #unlistedKeys(cluster: ClusterStructure, attributeList: readonly number[], keys: Iterable<string>) {
+        const unlisted = new Set<string>();
+        if (cluster.primaryKey !== "id") {
+            return unlisted;
+        }
+
+        const listed = new Set(attributeList);
+        const ids = this.#attributeIdsFor(cluster.id);
+
+        for (const key of keys) {
+            const id = isIdKey(key) ? Number(key) : ids.get(key);
+            if (id !== undefined && !listed.has(id) && !AttributeId.isGlobal(id)) {
+                unlisted.add(key);
             }
+        }
 
-            values.set(id, undefined);
+        return unlisted;
+    }
 
-            if (oldAttributes) {
-                for (const [name, def] of Object.entries(oldAttributes)) {
-                    if (def.id === id) {
-                        values.set(name, undefined);
-                        break;
-                    }
-                }
+    /**
+     * Have the peer resend a cluster whose cache holds values for attributes the cached attribute list omits.
+     *
+     * A cache written before the attribute list change was detected holds such values, and a peer whose data version
+     * is unchanged never sends the cluster again.  Forgetting the version makes the next wildcard read fetch the whole
+     * cluster, and {@link #pruneUnlistedAttributes} then deletes what the peer no longer sends and keeps what it still
+     * does.  Until then the values stay, as the last known state.  A peer that reports a value its own list omits
+     * keeps that value, so its cluster is read in full on every load.
+     *
+     * A value under a property name is legacy residue that the datasource never rewrites and would otherwise migrate
+     * to the attribute's ID on each load, so it is hidden here instead and does not make the peer resend.
+     */
+    #checkUnlistedSeedValues(cluster: ClusterStructure) {
+        const values = cluster.store.initialValues;
+        if (values === undefined) {
+            return;
+        }
+
+        const attributeList = authoritativeAttributeList(getStoreValue(values, AttributeList.id, "attributeList"));
+        if (attributeList === undefined) {
+            return;
+        }
+
+        let resend = false;
+        for (const key of this.#unlistedKeys(cluster, attributeList, Object.keys(values))) {
+            if (isIdKey(key)) {
+                resend = true;
+            } else {
+                values[key] = undefined;
             }
+        }
+
+        if (resend) {
+            cluster.store.invalidateVersion?.();
         }
     }
 
@@ -778,6 +845,8 @@ export class ClientStructure {
             | Descriptor.DeviceType[]
             | undefined;
         if (Array.isArray(deviceTypeList)) {
+            this.#noteComposition(structure, deviceTypeList);
+
             const endpointType = endpoint.type;
             for (const dt of deviceTypeList) {
                 if (typeof dt?.deviceType !== "number") {
@@ -796,8 +865,15 @@ export class ClientStructure {
                     break;
                 }
 
-                // Skip this device type if we've already found one and this one is not an application type
-                if (endpointType.deviceType !== undefined && !isApp) {
+                // Skip this device type if we've already found one and this one is not an application
+                // type. An endpoint the peer merely named as a part starts out carrying the unknown
+                // sentinel, which is not one we found — an endpoint whose device types are all utility,
+                // as a bridge's composed device is, would otherwise keep the sentinel forever.
+                if (
+                    endpointType.deviceType !== undefined &&
+                    endpointType.deviceType !== EndpointType.UNKNOWN_DEVICE_TYPE &&
+                    !isApp
+                ) {
                     continue;
                 }
 
@@ -857,31 +933,29 @@ export class ClientStructure {
             return;
         }
 
-        // Ensure an endpoint is present and installed for each part in the partsList
-        for (const partNo of partsList) {
-            if (typeof partNo !== "number") {
+        // Which claimant owns a part is decided by #resolvePartClaims, once every list this
+        // interaction carries is in.
+        const named = new Set<EndpointNumber>();
+        for (const value of partsList) {
+            // The peer's own value, so it is checked rather than trusted; one out of range names no
+            // endpoint this could hold
+            if (typeof value !== "number" || !EndpointNumber.isValid(value)) {
                 continue;
             }
 
-            const part = this.#endpointFor(partNo as EndpointNumber);
+            const partNo = EndpointNumber(value);
+            named.add(partNo);
 
-            let isAlreadyDescendant = false;
-            for (let owner = this.#ownerOf(part); owner; owner = this.#ownerOf(owner)) {
-                if (owner === structure) {
-                    isAlreadyDescendant = true;
-                    break;
-                }
+            const part = this.#endpointFor(partNo);
+            let claimants = this.#partClaims.get(part);
+            if (claimants === undefined) {
+                claimants = new Set();
+                this.#partClaims.set(part, claimants);
             }
-
-            if (isAlreadyDescendant) {
-                continue;
-            }
-
-            part.pendingOwner = structure;
-            // TODO Should we somehow validate that against descriptor serverList because we might load data not in
-            // there
-            this.#scheduleStructureChange(part, "install");
+            claimants.add(structure);
         }
+        this.#retractClaimsOf(structure, named);
+        this.#partsListOf.set(structure, named);
 
         // For the root partsList specifically, if an endpoint is no longer present then it has been removed from the
         // node.  Schedule for erase
@@ -895,9 +969,29 @@ export class ClientStructure {
 
                 if (!numbersUsed.has(descendent.number)) {
                     const endpoint = this.#endpoints.get(descendent.number);
-                    if (endpoint) {
-                        this.#scheduleStructureChange(endpoint, "erase");
+                    if (endpoint === undefined) {
+                        continue;
                     }
+
+                    // Erasing an endpoint closes everything below it, and nothing can move what it
+                    // held elsewhere first. A peer that drops an endpoint while still naming what
+                    // hangs from it contradicts itself, and the endpoints it still names are worth
+                    // more than a tree that matches its list exactly.
+                    const named = new Array<Endpoint>();
+                    descendent.visit(below => {
+                        if (below !== descendent && below.maybeNumber !== undefined && numbersUsed.has(below.number)) {
+                            named.push(below);
+                        }
+                    });
+                    if (named.length) {
+                        logger.warn(
+                            `Keeping ${descendent} although the peer's root no longer names it:`,
+                            `it holds ${named.join(", ")}, which the root does name`,
+                        );
+                        continue;
+                    }
+
+                    this.#scheduleStructureChange(endpoint, "erase");
                 }
             }
         }
@@ -1027,6 +1121,15 @@ export class ClientStructure {
         );
 
         this.#endpoints.delete(endpoint.number);
+        this.#partClaims.delete(structure);
+        this.#partsListOf.delete(structure);
+        this.#composition.delete(structure);
+        for (const [part, claimants] of this.#partClaims) {
+            claimants.delete(structure);
+            if (claimants.size === 0) {
+                this.#partClaims.delete(part);
+            }
+        }
 
         // Skip deletion if the endpoint was already destroyed, e.g. because a parent endpoint was erased first and
         // recursively closed its children
@@ -1141,6 +1244,211 @@ export class ClientStructure {
                 });
             }
         }
+    }
+
+    /**
+     * Decide the owner of every part whose owner is now known, then apply the structural changes that
+     * fall out of it.
+     */
+    async #applyPendingChanges() {
+        this.#resolvePartClaims();
+
+        for (const [endpoint, change] of this.#pendingChanges.entries()) {
+            this.#pendingChanges.delete(endpoint);
+
+            if (change.erase) {
+                await this.#erase(endpoint);
+                continue;
+            }
+
+            if (change.rebuild) {
+                await this.#rebuild(endpoint);
+            }
+
+            if (change.install) {
+                this.#install(endpoint);
+            }
+        }
+    }
+
+    /**
+     * Give every part whose owner is now known an owner, and schedule its installation.
+     *
+     * A part named by an ordinary endpoint's list is that endpoint's child. A part named only by
+     * full-family lists is a child of the innermost of them — but only once every endpoint those lists
+     * name has reported its own parts, because until then a list naming it says no more than that it
+     * is somewhere below. An undecided claim stays for a later interaction to settle.
+     */
+    #resolvePartClaims() {
+        for (const [part, claimants] of [...this.#partClaims]) {
+            // Nothing is reparented: an endpoint the peer has already placed keeps its parent, and
+            // Matter has no operation that would move it (Core § 9.2.3's single-parent requirement)
+            if (this.#ownerOf(part) !== undefined) {
+                this.#partClaims.delete(part);
+                continue;
+            }
+
+            const owner = this.#ownerFor(part, claimants);
+            if (owner === undefined) {
+                continue;
+            }
+
+            this.#partClaims.delete(part);
+
+            // The root names every endpoint the peer has, and its removal scan runs while attribute
+            // data is read — before this. Installing a part the root no longer names would resurrect
+            // an endpoint that scan has already passed over.
+            if (!this.#isOnTheNode(part)) {
+                continue;
+            }
+
+            part.pendingOwner = owner;
+            this.#scheduleStructureChange(part, "install");
+        }
+    }
+
+    /**
+     * Whether the peer's root names `structure`, so far as the root has said.
+     *
+     * A root endpoint composes its `PartsList` of every descendant (Matter Core § 9.2.3), so an
+     * endpoint the root does not name is not a descendant of the node at all — whether it has gone
+     * away or was never part of the tree the peer describes. Until the root has reported a list there
+     * is nothing to judge against and every endpoint is taken as present.
+     */
+    #isOnTheNode(structure: EndpointStructure) {
+        if (structure.endpoint.maybeNumber === 0) {
+            return true;
+        }
+
+        const root = this.#endpoints.get(ROOT_ENDPOINT_NUMBER);
+        const rootParts = root === undefined ? undefined : this.#partsListOf.get(root);
+        return rootParts === undefined || rootParts.has(structure.endpoint.number);
+    }
+
+    /** The claimant that owns `part`, or `undefined` while that cannot be told from what has arrived. */
+    #ownerFor(part: EndpointStructure, claimants: Set<EndpointStructure>) {
+        const ordinary = new Array<EndpointStructure>();
+        const fullFamily = new Array<EndpointStructure>();
+        for (const claimant of claimants) {
+            // An endpoint the root does not name is not on the node, so it owns nothing. It would
+            // otherwise take parts the root does name and hold them below itself, where nothing
+            // installs them.
+            if (!this.#isOnTheNode(claimant)) {
+                continue;
+            }
+
+            // What a list means depends on how its endpoint composes one, so a claimant that has not
+            // said cannot be weighed against the others yet. Deciding without it would place the part
+            // under a parent that a later report cannot correct.
+            if (!this.#composition.has(claimant)) {
+                return undefined;
+            }
+
+            (this.#isFullFamily(claimant) ? fullFamily : ordinary).push(claimant);
+        }
+
+        if (ordinary.length) {
+            if (ordinary.length > 1) {
+                logger.warn(
+                    `Taking ${ordinary[0].endpoint} as the parent of ${part.endpoint}:`,
+                    `the peer also named it a part of ${ordinary
+                        .slice(1)
+                        .map(claimant => claimant.endpoint.toString())
+                        .join(", ")}, and an endpoint has a single parent`,
+                );
+            }
+            return ordinary[0];
+        }
+
+        // The innermost full-family claimant, which is the one the others also name
+        const innermost = fullFamily.find(
+            candidate =>
+                !fullFamily.some(
+                    other => other !== candidate && this.#partsListOf.get(candidate)?.has(other.endpoint.number),
+                ),
+        );
+
+        return innermost !== undefined && this.#partsAccountedFor(innermost) ? innermost : undefined;
+    }
+
+    /**
+     * Whether every endpoint `structure` names has reported a `PartsList` of its own, which is what
+     * makes the parts it names and nobody else's its own children.
+     */
+    #partsAccountedFor(structure: EndpointStructure) {
+        for (const partNo of this.#partsListOf.get(structure) ?? []) {
+            const part = this.#endpoints.get(partNo);
+            if (part === undefined || this.#partsListOf.get(part) === undefined) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Withdraw `structure`'s claim on the parts its previous `PartsList` named and `named` does not.
+     *
+     * A claim that outlives the list it came from would let an endpoint the peer has dropped be
+     * installed later, once the claim became decidable — the peer's current lists are the only
+     * statement of what it has.
+     */
+    #retractClaimsOf(structure: EndpointStructure, named: Set<EndpointNumber>) {
+        for (const partNo of this.#partsListOf.get(structure) ?? []) {
+            if (named.has(partNo)) {
+                continue;
+            }
+
+            const part = this.#endpoints.get(partNo);
+            if (part === undefined) {
+                continue;
+            }
+
+            const claimants = this.#partClaims.get(part);
+            if (claimants === undefined) {
+                continue;
+            }
+
+            claimants.delete(structure);
+            if (claimants.size === 0) {
+                this.#partClaims.delete(part);
+            }
+        }
+    }
+
+    /**
+     * Record how `structure` composes its `PartsList`, from every device type it reports.
+     *
+     * Any one of them composing a full family makes the endpoint's list a full-family one, as
+     * `DescriptorServer` decides for an endpoint of our own — the two have to agree about the same
+     * endpoint. A list carrying nothing usable leaves the composition unknown rather than assuming a
+     * tree, so what depends on it waits.
+     */
+    #noteComposition(structure: EndpointStructure, deviceTypeList: Descriptor.DeviceType[]) {
+        let known = false;
+        let composesFullFamily = false;
+
+        for (const dt of deviceTypeList) {
+            if (typeof dt?.deviceType !== "number") {
+                continue;
+            }
+
+            known = true;
+            if (this.#node.matter.deviceTypes(dt.deviceType)?.effectiveComposition === EndpointComposition.FullFamily) {
+                composesFullFamily = true;
+            }
+        }
+
+        if (known) {
+            this.#composition.set(
+                structure,
+                composesFullFamily ? EndpointComposition.FullFamily : EndpointComposition.Tree,
+            );
+        }
+    }
+
+    /** Whether `structure`'s `PartsList` names every descendant rather than its own children. */
+    #isFullFamily(structure: EndpointStructure) {
+        return this.#composition.get(structure) === EndpointComposition.FullFamily;
     }
 
     /**

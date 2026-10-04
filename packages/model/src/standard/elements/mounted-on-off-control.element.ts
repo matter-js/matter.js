@@ -13,8 +13,12 @@ export const MountedOnOffControlDt = DeviceType(
     { name: "MountedOnOffControl", id: 0x10f, type: "OnOffPlugInUnit", classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 271, revision: 2 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 271, revision: 3 } ], element: "attribute" })
     ),
+    Requirement({
+        name: "GroupcastListenerCond", type: "RootNode.GroupcastListenerCond", conformance: "M",
+        element: "condition", location: "Root"
+    }),
     Requirement(
         { name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" },
         Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
@@ -22,13 +26,13 @@ export const MountedOnOffControlDt = DeviceType(
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+        Requirement({ name: "LT", conformance: "M", element: "feature" })
     ),
 
     Requirement(
         { name: "LevelControl", id: 0x8, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-        Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
+        Requirement({ name: "OO", conformance: "M", element: "feature" }),
+        Requirement({ name: "LT", conformance: "M", element: "feature" }),
         Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
         Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
         Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })

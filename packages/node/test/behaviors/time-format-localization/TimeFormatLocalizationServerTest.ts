@@ -28,21 +28,21 @@ function createEndpoint() {
 
 describe("TimeFormatLocalizationServer", () => {
     it("accepts valid date formats", async () => {
-        const endpoint = await createEndpoint();
+        await using endpoint = await createEndpoint();
         await endpoint.act(agent => {
             agent.timeFormatLocalization.state.activeCalendarType = TimeFormatLocalization.CalendarType.Chinese;
         });
     });
 
     it("rejects invalid date formats", async () => {
-        const endpoint = await createEndpoint();
+        await using endpoint = await createEndpoint();
         expect(() =>
             endpoint.act(agent => {
                 agent.timeFormatLocalization.state.activeCalendarType = TimeFormatLocalization.CalendarType.Gregorian;
             }),
         ).throws(
             ConstraintError,
-            'Validating node0.timeFormatLocalization.state: Constraint "in SupportedCalendarTypes": Value 4 is not one of the values allowed by "in" constraint (135)',
+            'Validating node0.timeFormatLocalization.state: Constraint "in supportedCalendarTypes": Value 4 is not one of the values allowed by "in" constraint (135)',
         );
     });
 });

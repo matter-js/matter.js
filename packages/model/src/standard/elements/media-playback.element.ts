@@ -22,11 +22,11 @@ export const MediaPlayback = Cluster(
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "AS", constraint: "0", title: "AdvancedSeek" }),
-        Field({ name: "VS", constraint: "1", title: "VariableSpeed" }),
-        Field({ name: "TT", constraint: "2", title: "TextTracks" }),
-        Field({ name: "AT", constraint: "3", title: "AudioTracks" }),
-        Field({ name: "AA", constraint: "4", title: "AudioAdvance" })
+        Field({ name: "AS", conformance: "O", constraint: "0", title: "AdvancedSeek" }),
+        Field({ name: "VS", conformance: "O", constraint: "1", title: "VariableSpeed" }),
+        Field({ name: "TT", conformance: "O", constraint: "2", title: "TextTracks" }),
+        Field({ name: "AT", conformance: "O", constraint: "3", title: "AudioTracks" }),
+        Field({ name: "AA", conformance: "O", constraint: "4", title: "AudioAdvance" })
     ),
 
     Attribute({ name: "CurrentState", id: 0x0, type: "PlaybackStateEnum", access: "R V", conformance: "M", constraint: "desc" }),
@@ -131,7 +131,7 @@ export const MediaPlayback = Cluster(
     Command(
         { name: "PlaybackResponse", id: 0xa, conformance: "M", direction: "response" },
         Field({ name: "Status", id: 0x0, type: "StatusEnum", conformance: "M", constraint: "desc" }),
-        Field({ name: "Data", id: 0x1, type: "string", conformance: "O", constraint: "any" })
+        Field({ name: "Data", id: 0x1, type: "string", conformance: "O" })
     ),
     Command(
         { name: "Seek", id: 0xb, access: "O", conformance: "AS", direction: "request", response: "PlaybackResponse" },

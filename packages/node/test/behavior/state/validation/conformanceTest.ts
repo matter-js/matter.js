@@ -561,6 +561,29 @@ const AllTests = Tests({
             ),
         }),
 
+        // A conformance naming a value of an enumerated type resolves it by the value's effective ID, which is its
+        // position among its siblings where the definition states none
+        "enum value whose definition states no ID": Tests(
+            Fields(
+                { name: "Test", type: "uint8", conformance: "Mode == Second" },
+                {
+                    name: "Mode",
+                    type: "enum8",
+                    children: [FieldElement({ name: "First" }), FieldElement({ name: "Second" })],
+                },
+            ),
+            {
+                "requires the field where the enum holds the value named": {
+                    record: { mode: 1 },
+                    error: missing("Mode == Second"),
+                },
+
+                "allows omission where it does not": {
+                    record: { mode: 0 },
+                },
+            },
+        ),
+
         "enum values": Tests(
             Features({ FT: "Feature" }),
             Fields({
@@ -894,6 +917,15 @@ const AllTests = Tests({
             "disallows the field": {
                 record: { test: 1234 },
                 error: disallowed("X"),
+            },
+
+            "allows omission": {},
+        }),
+
+        obsolete: Tests(Fields({ conformance: "Z" }), {
+            "disallows the field": {
+                record: { test: 1234 },
+                error: disallowed("Z"),
             },
 
             "allows omission": {},

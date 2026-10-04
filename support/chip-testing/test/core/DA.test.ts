@@ -9,6 +9,11 @@ describe("DA", () => {
         .exclude(
             // We don't support DAC revocation
             "DA/1.9",
+
+            // Assert the PQCDA feature unconditionally rather than gating on PICS.  matter.js implements Matter 1.6,
+            // where OperationalCredentials has no PQC device attestation
+            "DA/1.10",
+            "DA/1.12",
         )
         .args(
             // We commission separately but at least TC_DA_1_7.py requires passcode and discriminator for recommissioning

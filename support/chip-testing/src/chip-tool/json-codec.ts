@@ -147,6 +147,58 @@ function bitmapMemberValue(member: FieldModel, value: Record<string, unknown>): 
     return memberTitle !== undefined ? value[memberTitle] : undefined;
 }
 
+/** The number chip-tool carries for a bitmap -> the matter.js bitmap object. */
+export function decodeBitmap(
+    value: number,
+    model: ValueModel,
+    clusterModel: ClusterModel,
+): Record<string, boolean | number> {
+    const bitmapValue: Record<string, boolean | number> = {};
+    for (const member of getBitmapMembers(model, clusterModel)) {
+        const memberName = bitmapMemberName(member, model);
+        if (memberName === undefined) continue;
+
+        const constraintValue = FieldValue.countValue(member.constraint.value);
+        if (constraintValue !== undefined) {
+            bitmapValue[memberName] = (value & (1 << constraintValue)) !== 0;
+        } else {
+            const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
+            const maxBit = FieldValue.countValue(member.constraint.max);
+            if (maxBit !== undefined) {
+                bitmapValue[memberName] = (value & bitFieldMask(minBit, maxBit)) >> minBit;
+            } else {
+                bitmapValue[memberName] = (value & (1 << minBit)) !== 0;
+            }
+        }
+    }
+    return bitmapValue;
+}
+
+/** A matter.js bitmap object -> the number chip-tool carries for it. */
+export function encodeBitmap(value: Record<string, unknown>, model: ValueModel, clusterModel: ClusterModel): number {
+    let numberValue = 0;
+    for (const member of getBitmapMembers(model, clusterModel)) {
+        const memberValue = bitmapMemberValue(member, value);
+        if (!memberValue) continue;
+        if (typeof memberValue !== "boolean" && typeof memberValue !== "number") {
+            throw new ImplementationError(
+                `Bitmap member "${member.propertyName}" of "${model.name}" must be boolean or number, got ${typeof memberValue}`,
+            );
+        }
+
+        const constraintValue = FieldValue.countValue(member.constraint.value);
+        if (constraintValue !== undefined) {
+            numberValue |= 1 << constraintValue;
+        } else {
+            const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
+            const maxBit = FieldValue.countValue(member.constraint.max);
+            const raw = typeof memberValue === "boolean" ? 1 : memberValue;
+            numberValue |= maxBit !== undefined ? (raw << minBit) & bitFieldMask(minBit, maxBit) : raw << minBit;
+        }
+    }
+    return numberValue;
+}
+
 function bitFieldMask(minBit: number, maxBit: number): number {
     return ((1 << (maxBit - minBit + 1)) - 1) << minBit;
 }
@@ -204,28 +256,8 @@ export function chipJsonToMatter(value: unknown, model: ValueModel, clusterModel
             return result;
         }
 
-        case ConvKind.Bitmap: {
-            if (typeof value !== "number") return value;
-            const bitmapValue: { [key: string]: boolean | number } = {};
-            for (const member of getBitmapMembers(model, clusterModel)) {
-                const memberName = bitmapMemberName(member, model);
-                if (memberName === undefined) continue;
-
-                const constraintValue = FieldValue.countValue(member.constraint.value);
-                if (constraintValue !== undefined) {
-                    bitmapValue[memberName] = (value & (1 << constraintValue)) !== 0;
-                } else {
-                    const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
-                    const maxBit = FieldValue.countValue(member.constraint.max);
-                    if (maxBit !== undefined) {
-                        bitmapValue[memberName] = (value & bitFieldMask(minBit, maxBit)) >> minBit;
-                    } else {
-                        bitmapValue[memberName] = (value & (1 << minBit)) !== 0;
-                    }
-                }
-            }
-            return bitmapValue;
-        }
+        case ConvKind.Bitmap:
+            return typeof value === "number" ? decodeBitmap(value, model, clusterModel) : value;
 
         case ConvKind.Bytes:
             return typeof value === "string" ? decodeOctetString(value) : value;
@@ -360,31 +392,8 @@ export function matterToChipJson(
             return result;
         }
 
-        case ConvKind.Bitmap: {
-            if (!isObject(value)) return value;
-            let numberValue = 0;
-            for (const member of getBitmapMembers(model, clusterModel)) {
-                const memberValue = bitmapMemberValue(member, value);
-                if (!memberValue) continue;
-                if (typeof memberValue !== "boolean" && typeof memberValue !== "number") {
-                    throw new ImplementationError(
-                        `Bitmap member "${member.propertyName}" of "${model.name}" must be boolean or number, got ${typeof memberValue}`,
-                    );
-                }
-
-                const constraintValue = FieldValue.countValue(member.constraint.value);
-                if (constraintValue !== undefined) {
-                    numberValue |= 1 << constraintValue;
-                } else {
-                    const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
-                    const maxBit = FieldValue.countValue(member.constraint.max);
-                    const raw = typeof memberValue === "boolean" ? 1 : memberValue;
-                    numberValue |=
-                        maxBit !== undefined ? (raw << minBit) & bitFieldMask(minBit, maxBit) : raw << minBit;
-                }
-            }
-            return numberValue;
-        }
+        case ConvKind.Bitmap:
+            return isObject(value) ? encodeBitmap(value, model, clusterModel) : value;
 
         case ConvKind.Bytes:
             return Bytes.isBytes(value)

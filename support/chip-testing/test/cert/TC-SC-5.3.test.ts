@@ -14,6 +14,7 @@ import {
     GROUP,
     GROUPS,
     GROUPS_ENDPOINT,
+    GROUPS_ID,
     groupKeyMapStep,
     groupMulticastAddress,
     ipv6Bytes,
@@ -26,9 +27,13 @@ import {
     CommissionedRefs,
     describeValue,
     expectSequence,
-    literally,
+    GROUP_MESSAGE_PORT,
+    expectGroupCommandArrival,
+    type GroupCommandArrival,
     LOG_TIMEOUT,
+    matterjsGroupInvokeSent,
     recordAll,
+    requireId,
 } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
@@ -36,30 +41,21 @@ const commissioned = new CommissionedRefs();
 /** The group the plan's step 5 adds *through* the group the steps before it established. */
 const SECOND_GROUP = { id: 2, name: "GroupTwo" };
 
+const ADD_GROUP = requireId(GROUPS.commands.require("addGroup").id, "Groups.addGroup");
+
 /**
- * The TH dispatching the AddGroup this groupcast carried, named the way each flavor names it. A group
- * command's own path is endpoint-wildcarded on the wire, so what identifies the dispatch is the
- * endpoint it *reached*: matter.js names the endpoint, cluster, command and fields on one line, and
- * chip prints the resolved path of the command it is about to run.
+ * The TH receiving the AddGroup this groupcast carried for GroupID 1 and dispatching it to the endpoint it reached,
+ * with the group and name the message carried.
  */
-const DISPATCH_LINES = {
-    matterjs: [
-        new RegExp(
-            `ProtocolService Invoke « \\S+\\.ep${GROUPS_ENDPOINT}\\.groups\\.addGroup •group#[0-9a-f]+⇵[0-9a-f]+✉[0-9a-f]+ ` +
-                `groupId: ${SECOND_GROUP.id}(?!\\d) groupName: ${SECOND_GROUP.name}(?=$|\\s\\w+:)`,
-        ),
+const ARRIVAL: GroupCommandArrival = {
+    group: GROUP.id,
+    endpoint: GROUPS_ENDPOINT,
+    cluster: GROUPS_ID,
+    command: ADD_GROUP,
+    fields: [
+        { id: 0, value: SECOND_GROUP.id },
+        { id: 1, value: SECOND_GROUP.name },
     ],
-    // chip says more than matter.js here: it names the group the message carried, read off the packet
-    // rather than off the session it used
-    chip: {
-        ordered: [
-            new RegExp(`Received Groupcast Message with GroupId 0x${GROUP.id.toString(16).padStart(4, "0")} `),
-            new RegExp(
-                `Processing group command for Endpoint=${GROUPS_ENDPOINT} Cluster=0x0000_0004 ` +
-                    `Command=0x0000_0000(?![0-9a-f])`,
-            ),
-        ],
-    },
 };
 
 /**
@@ -94,11 +90,11 @@ async function addGroupOverGroupcast(cx: CertStepContext) {
         .invoke(GROUPS.name, "addGroup", { groupId: SECOND_GROUP.id, groupName: SECOND_GROUP.name });
 
     const sent = await groupcastSentCheck(cx, from);
-    const dispatched = await expectSequence(
+    const dispatched = await expectGroupCommandArrival(
         th.log,
         th.flavor,
         `the TH dispatching AddGroup(${SECOND_GROUP.id}, "${SECOND_GROUP.name}")`,
-        DISPATCH_LINES,
+        ARRIVAL,
         thFrom,
         LOG_TIMEOUT,
     );
@@ -111,7 +107,7 @@ async function addGroupOverGroupcast(cx: CertStepContext) {
     const arrived =
         Number(status) === Status.Success && Number(groupId) === SECOND_GROUP.id && groupName === SECOND_GROUP.name;
 
-    recordAll(cx, [
+    await recordAll(cx, [
         {
             check: () => ({
                 type: "response",
@@ -145,32 +141,20 @@ function statusOf(response: unknown): unknown {
 }
 
 /**
- * The sender's own line for the group it joined, which names the fabric and the address together — so
- * the address the invoke goes to can be tied to *this* group rather than shape-matched.
+ * The sender's line for installing its own operational certificate, which names the fabric the group address is
+ * derived from.
  */
-const MEMBERSHIP_LINE = new RegExp(`Adding membership for group (${GROUP.id}) on fabric (\\d+) .*with address (\\S+)`);
+const FABRIC_LINE = /Installing operational certificate nodeId: \S+ fabricId: (\d+)/;
 
-/** The port group traffic goes to, which the plan's step 5 asks to see (Matter Core § 4.15.3). */
-const MATTER_PORT = 5540;
+/** matter.js's line for this case's group invoke, capturing the address it went to. */
+const GROUP_INVOKE_LINE = matterjsGroupInvokeSent(GROUP.id, GROUPS_ID, ADD_GROUP);
 
 /**
- * matter.js's line for a group invoke: the session tag says the session is a group one, and `dest:`
- * names where the message went, address and port together in the usual IPv6 form.
- */
-function groupInvokeLine(address: string) {
-    return new RegExp(
-        `ClientInteraction Invoke » •group#[0-9a-f]+⇵[0-9a-f]+ dest: ${literally(`[${address}]:${MATTER_PORT}`)} `,
-    );
-}
-
-/**
- * Confirms the message went where a group message must go: to the multicast address this fabric uses
- * for this group, on a session the sender itself renders as a group one.
+ * Confirms the message went where a group message must go: to the multicast address this fabric uses for this
+ * group, on a session the sender itself renders as a group one.
  *
- * The address is not shape-matched. The sender's own membership line names the group, the fabric and
- * the address together, so the address is recomputed from that fabric id and group id and compared
- * byte for byte — which is what the plan's "FF35:0040:FD<Fabric ID>00:<Group ID>" asks for, and what
- * also establishes the destination is GroupID 1 rather than some other group.
+ * The address is recomputed from the sender's fabric id and the group id and compared byte for byte with the
+ * destination the invoke names, which also proves it is GroupID 1 and not another group.
  */
 async function groupcastSentCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
     const dut = cx.controllers.dut;
@@ -198,58 +182,63 @@ async function groupcastSentCheck(cx: CertStepContext, from: number): Promise<Ch
             : sent;
     }
 
-    const membership = await expectSequence(
+    const fabricLine = await expectSequence(
         dut.log,
         "matterjs",
-        MEMBERSHIP_LINE.source,
-        { matterjs: [MEMBERSHIP_LINE] },
+        "the DUT's operational certificate install",
+        { matterjs: [FABRIC_LINE] },
         0,
         LOG_TIMEOUT,
     );
-    if (membership.verdict !== "pass" || membership.matched === undefined) {
-        return membership;
+    if (fabricLine.verdict !== "pass" || fabricLine.matched === undefined) {
+        return fabricLine;
+    }
+    const [, fabric] = FABRIC_LINE.exec(fabricLine.matched) ?? [];
+    if (fabric === undefined) {
+        return { type: "device-log", verdict: "fail", detail: `unreadable certificate line: ${fabricLine.matched}` };
     }
 
-    const [, group, fabric, address] = MEMBERSHIP_LINE.exec(membership.matched) ?? [];
-    if (group === undefined || fabric === undefined || address === undefined) {
-        return { type: "device-log", verdict: "fail", detail: `unreadable membership line: ${membership.matched}` };
+    const invoke = await expectSequence(
+        dut.log,
+        "matterjs",
+        `a group invoke on port ${GROUP_MESSAGE_PORT}`,
+        { matterjs: [GROUP_INVOKE_LINE] },
+        from,
+        LOG_TIMEOUT,
+    );
+    if (invoke.verdict !== "pass" || invoke.matched === undefined) {
+        return invoke;
     }
-    if (Number(group) !== GROUP.id) {
-        return {
-            type: "device-log",
-            verdict: "fail",
-            detail: `the DUT joined group ${group}, not the group ${GROUP.id} this case sends on`,
-        };
-    }
+    const [, address] = GROUP_INVOKE_LINE.exec(invoke.matched) ?? [];
 
     const expected = groupMulticastAddress(BigInt(fabric), GROUP.id);
-    const actual = ipv6Bytes(address);
+    const actual = address === undefined ? undefined : ipv6Bytes(address);
     if (actual === undefined || Bytes.toHex(actual) !== Bytes.toHex(expected)) {
         return {
             type: "device-log",
             verdict: "fail",
             detail:
-                `the address for group ${GROUP.id} on fabric ${fabric} is ${address}, and § 4.15.3 makes it ` +
+                `the DUT sent group ${GROUP.id} on fabric ${fabric} to ${address}, and § 4.15.3 makes it ` +
                 `${Bytes.toHex(expected)}`,
-            matched: membership.matched,
-            logLine: membership.logLine,
+            matched: invoke.matched,
+            logLine: invoke.logLine,
         };
     }
 
-    return expectSequence(
-        dut.log,
-        "matterjs",
-        `a group invoke to [${address}]:${MATTER_PORT}`,
-        { matterjs: [groupInvokeLine(address)] },
-        from,
-        LOG_TIMEOUT,
-    );
+    return invoke;
 }
 
 certTest("TC-SC-5.3", {
     plan: "group_communication.adoc",
     pics: ["MCORE.ROLE.COMMISSIONER", "GRPKEY.C"],
     app: "all-clusters",
+
+    // Binds a group key through GroupKeyMap, which an all-clusters build with Groupcast on refuses once Groups
+    // reaches cluster revision 5.  Only this project's own build offers the variant with Groupcast off; the released
+    // binaries predate the change and run the ordinary app.  A chip-docker image runs its own binary and can offer
+    // neither, so it is left out
+    appVariant: { matterjs: "nogroupcast" },
+    flavors: ["chip-local", "matterjs"],
 })
     .step(
         "1a",

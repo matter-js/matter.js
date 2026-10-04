@@ -59,6 +59,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     #name: string;
     #isFinal?: boolean;
     #resource?: Resource;
+    #errors?: DefinitionError[];
     #children?: InternalChildren<C>;
     #position: ModelTreePosition;
 
@@ -67,9 +68,11 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     set id(value: E["id"]) {
-        const oldId = this.effectiveId;
+        if (value === this.#id) {
+            return;
+        }
         this.#id = value;
-        (this.#position.parent?.children as InternalChildren | undefined)?.updateId(this, oldId);
+        (this.#position.parent?.children as InternalChildren | undefined)?.keysChanged();
     }
 
     get name() {
@@ -77,9 +80,11 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     set name(value: string) {
-        const oldName = this.#name;
+        if (value === this.#name) {
+            return;
+        }
         this.#name = value;
-        (this.#position.parent?.children as InternalChildren | undefined)?.updateName(this, oldName);
+        (this.#position.parent?.children as InternalChildren | undefined)?.keysChanged();
     }
 
     /**
@@ -90,10 +95,12 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     /**
-     * Did validation find errors?
+     * Whether the model carries no {@link errors}.
+     *
+     * @deprecated `ValidateModel` no longer records its errors on the model; use `ValidateModel(model).errors`
      */
     get valid() {
-        return !this.errors;
+        return !this.#errors?.length;
     }
 
     /**
@@ -224,6 +231,14 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
 
     get hasChildren(): boolean {
         return !!this.#children?.length;
+    }
+
+    /**
+     * Changes whenever the children of {@link model} or the ID or name of a child changes.  Unique across all models,
+     * so a value seen once never reappears after the children are replaced.
+     */
+    protected static childrenGenerationOf(model: Model) {
+        return model.#children?.generation ?? 0;
     }
 
     /**
@@ -383,14 +398,20 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     /**
-     * Record a validation error for this model.
+     * The value this model defines under a name a constraint or conformance states, such as a member of an enumerated
+     * type. Undefined for a model that defines no values, which is any model that is not a {@link ValueModel}.
+     */
+    memberNamed(_name: string): Model | undefined {
+        return undefined;
+    }
+
+    /**
+     * Record an error for this model. `ValidateModel` reports it along with the errors it finds.
+     *
+     * @deprecated Errors carried by a model will be removed; `ValidateModel(model).errors` reports what validation finds
      */
     error(code: string, message: string) {
-        if (!this.errors) {
-            this.errors = [];
-        }
-
-        this.errors.push({
+        (this.#errors ??= []).push({
             code,
             source: this.path,
             message,
@@ -602,7 +623,6 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
                 "xref" in definition ||
                 "details" in definition ||
                 "xref" in definition ||
-                "errors" in definition ||
                 "asOf" in definition ||
                 "until" in definition ||
                 "matchTo" in definition
@@ -625,6 +645,11 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
 
         if (!isClone && definition.parent) {
             this.parent = definition.parent;
+        }
+
+        const stated: Resource.Definition = definition;
+        if (stated.errors?.length) {
+            this.#errors = [...stated.errors];
         }
     }
 
@@ -694,12 +719,19 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
         this.localResource.xref = xref;
     }
 
+    /**
+     * The errors the definition stated and {@link error} recorded.
+     *
+     * Kept on the model rather than its resource, which the resource bundle shares between models and freezes.
+     *
+     * @deprecated `ValidateModel` no longer records its errors on the model; use `ValidateModel(model).errors`
+     */
     get errors() {
-        return this.resource?.errors;
+        return this.#errors;
     }
 
     set errors(errors: DefinitionError[] | undefined) {
-        this.localResource.errors = errors;
+        this.#errors = errors;
     }
 
     get asOf() {

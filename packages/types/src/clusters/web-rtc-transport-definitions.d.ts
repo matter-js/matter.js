@@ -16,7 +16,7 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
 /**
  * Definitions for the WebRtcTransportDefinitions cluster.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 11.4
+ * @see {@link MatterSpecification.v161.Cluster} § 11.4
  */
 export declare namespace WebRtcTransportDefinitions {
     /**
@@ -25,7 +25,7 @@ export declare namespace WebRtcTransportDefinitions {
     export const name: "WebRtcTransportDefinitions";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v161.Cluster}.
      */
     export const revision: 1;
 
@@ -37,7 +37,7 @@ export declare namespace WebRtcTransportDefinitions {
     export const schema: ClusterModel;
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.2
+     * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.2
      */
     export enum WebRtcEndReason {
         /**
@@ -108,23 +108,23 @@ export declare namespace WebRtcTransportDefinitions {
     }
 
     /**
-     * This type shall specify the RFC 8825 compliant ICE servers used to facilitate the negotiation of peer-to-peer
-     * connections through NATs (Network Address Translators) and firewalls. It mimics the model used in the W3C WebRTC
-     * API RTCIceServer dictionary with the addition of a Matter specific field for specifying the Root Certificate of
-     * any ICE servers that require TLS.
+     * This type shall specify the RFC8825 compliant ICE servers RFC8839 used to facilitate the negotiation of
+     * peer-to-peer connections through NATs (Network Address Translators) and firewalls. It mimics the model used in
+     * the W3C WebRTC API RTCIceServer dictionary with the addition of a Matter specific field for specifying the Root
+     * Certificate of any ICE servers that require TLS.
      *
      * There are two types of ICE Servers which help to discover the public IP address of a device and relay media
      * traffic when direct peer-to-peer communication is not possible:
      *
-     *   - STUN Servers, which help to discover the public IP address and NAT/Firewall type if any, of a device. When a
-     *     WebRTC session starts, it contacts the STUN server, which returns the device's public IP and port number.
-     *     This information is used to generate ICE candidates for the peer-to-peer connection setup.
+     *   - STUN RFC8489 Servers, which help to discover the public IP address and NAT/Firewall type if any, of a device.
+     *     When a WebRTC session starts, it contacts the STUN server, which returns the device's public IP and port
+     *     number. This information is used to generate ICE candidates for the peer-to-peer connection setup.
      *
-     *   - TURN Servers, which are used when STUN is not sufficient to establish a peer-to-peer connection—typically
-     *     such as when devices are behind symmetric NATs, which STUN cannot traverse. TURN servers act as a relay
-     *     between the peers, routing the media traffic between them.
+     *   - TURN RFC8656 Servers, which are used when STUN is not sufficient to establish a peer-to-peer
+     *     connection—typically such as when devices are behind symmetric NATs, which STUN cannot traverse. TURN servers
+     *     act as a relay between the peers, routing the media traffic between them.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.3
+     * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.3
      */
     export class IceServer {
         constructor(values?: Partial<IceServer>);
@@ -134,53 +134,52 @@ export declare namespace WebRtcTransportDefinitions {
          * distinguishes whether it is a STUN or TURN server (stun:, stuns:, turn:, or turns: respectively). This field
          * maps to the RTCIceServer urls field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.3.1
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.3.1
          */
-        urLs: string[];
+        urls: string[];
 
         /**
-         * (Optional for STUN, usually required for TURN) The RFC 8489 compliant UTF-8 encoded username required for
+         * (Optional for STUN, usually required for TURN) The RFC8489 compliant UTF-8 encoded username required for
          * authentication with the STUN or TURN servers found in the URLs field. This field maps to the RTCIceServer
          * username field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.3.2
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.3.2
          */
         username?: string;
 
         /**
-         * (Optional for STUN, usually required for TURN) The RFC 8489 compliant UTF-8 encoded short-term credential
+         * (Optional for STUN, usually required for TURN) The RFC8489 compliant UTF-8 encoded short-term credential
          * (password) used for authentication with the STUN or TURN servers found in the URLs field. This field maps to
          * the RTCIceServer credential field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.3.3
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.3.3
          */
         credential?: string;
 
         /**
          * This field represents the TLSRCAC via its assigned TLSCAID (see Chapter 14, Certificate Authority ID (CAID)
-         * Mapping and TLS Certificate Management Commands sections in [[MatterCore]](#ref_MatterCore)) that will
-         * validate the certificate chain presented by the entries in the urls field. It shall be set to a valid value
-         * if a turns: or stuns: url is present in the urls field and shall be used to validate those servers' presented
-         * TLS root certificates.
+         * Mapping and TLS Certificate Management Commands sections in MatterCore) that will validate the certificate
+         * chain presented by the entries in the urls field. It shall be set to a valid value if a turns: or stuns: url
+         * is present in the urls field and shall be used to validate those servers' presented TLS root certificates.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.3.4
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.3.4
          */
         caid?: number;
     }
 
     /**
-     * This type shall specify the RFC 8825 compliant ICE Candidate used to facilitate the negotiation of peer-to-peer
-     * connections through NATs (Network Address Translators) and firewalls. It mimics the model used in the W3C WebRTC
-     * API RTCIceCandidate dictionary.
+     * This type shall specify the RFC8825 compliant ICE Candidate RFC8839 used to facilitate the negotiation of
+     * peer-to-peer connections through NATs (Network Address Translators) and firewalls. It mimics the model used in
+     * the W3C WebRTC API RTCIceCandidate dictionary.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4
+     * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.4
      */
     export class IceCandidate {
         constructor(values?: Partial<IceCandidate>);
 
         /**
-         * This field shall specify the RFC 8825 compliant RFC 8839 candidate-attribute field in string form. This is
-         * the same value as the W3C WebRTC API RTCIceCandidate candidate value. The RFCs define no min or max length on
+         * This field shall specify the RFC8825 compliant RFC8839 candidate-attribute field in string form. This is the
+         * same value as the W3C WebRTC API RTCIceCandidate candidate value. The RFCs define no min or max length on
          * this value.
          *
          * Note: This string is not the same string as doing a candidate.toString() on a RTCIceCandidate ECMAScript
@@ -188,7 +187,7 @@ export declare namespace WebRtcTransportDefinitions {
          * sdpMLineIndex into the resulting string, but this is not defined in the W3 specification. This specification
          * requires those fields to be passed directly using the named struct fields SDPMid and SDPMLineIndex.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4.1
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.4.1
          */
         candidate: string;
 
@@ -198,16 +197,16 @@ export declare namespace WebRtcTransportDefinitions {
          * This is the same value as the W3C WebRTC API RTCIceCandidate sdpMid value. The RFCs define no max length on
          * this value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4.2
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.4.2
          */
         sdpMid: string | null;
 
         /**
-         * This field shall specify the zero-based index number of the media description (as defined in RFC 8866) in the
+         * This field shall specify the zero-based index number of the media description (as defined in RFC8866) in the
          * SDP with which the Candidate is associated or null if no such association exists. This is the same value as
          * the W3C WebRTC API RTCIceCandidate sdpMLineIndex value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.4.3
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.4.3
          */
         sdpmLineIndex: number | null;
     }
@@ -219,7 +218,7 @@ export declare namespace WebRtcTransportDefinitions {
      * target, for WebRTC session related commands. The implicit field FabricIndex exists since this structure is
      * defined as Fabric Scoped.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5
+     * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5
      */
     export class WebRtcSession {
         constructor(values?: Partial<WebRtcSession>);
@@ -227,28 +226,28 @@ export declare namespace WebRtcTransportDefinitions {
         /**
          * This field contains the WebRTC Session ID for this session.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.1
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.1
          */
         id: number;
 
         /**
          * This field contains the NodeId for the peer entity involved in this session.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.2
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.2
          */
         peerNodeId: NodeId;
 
         /**
          * This field contains the EndpointId for the peer entity involved in this session.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.3
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.3
          */
         peerEndpointId: EndpointNumber;
 
         /**
          * This field contains the StreamUsageEnum of this session.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.4
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.4
          */
         streamUsage: StreamUsage;
 
@@ -259,7 +258,7 @@ export declare namespace WebRtcTransportDefinitions {
          * VideoStreams field shall be populated here, or null if no video stream is currently associated with this
          * session.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.5
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.5
          */
         videoStreamId?: number | null;
 
@@ -270,14 +269,14 @@ export declare namespace WebRtcTransportDefinitions {
          * AudioStreams field shall be populated here, or null if no audio stream is currently associated with this
          * session.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.6
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.6
          */
         audioStreamId?: number | null;
 
         /**
          * This field indicates if metadata is active in this session.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.7
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.7
          */
         metadataEnabled: boolean;
 
@@ -289,7 +288,7 @@ export declare namespace WebRtcTransportDefinitions {
          *
          *   - If not present, this session has no video.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.8
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.8
          */
         videoStreams?: number[];
 
@@ -301,7 +300,7 @@ export declare namespace WebRtcTransportDefinitions {
          *
          *   - If not present, this session has no audio.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 11.4.5.5.9
+         * @see {@link MatterSpecification.v161.Cluster} § 11.4.5.5.9
          */
         audioStreams?: number[];
 

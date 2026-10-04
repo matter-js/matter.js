@@ -15,7 +15,7 @@ export const ElectricalUtilityMeterDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1297, revision: 1 } ], element: "attribute" })
     ),
-    Requirement({ name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "M", element: "condition" }),
+    Requirement({ name: "TimeSyncCond", type: "RootNode.TimeSyncCond", conformance: "M", element: "condition", location: "Root" }),
     Requirement({ name: "MeterIdentification", id: 0xb06, conformance: "M", element: "serverCluster" })
 );
 

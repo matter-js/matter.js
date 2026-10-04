@@ -7,6 +7,7 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { DuplicateMessageError } from "#protocol/MessageReceptionState.js";
 import { NodeSession } from "#session/NodeSession.js";
@@ -14,13 +15,22 @@ import { SessionManager } from "#session/SessionManager.js";
 import {
     b$,
     Bytes,
+    Environment,
+    Hours,
     ImplementationError,
     Key,
+    Lifetime,
+    Logger,
+    LogLevel,
     MemoryStorageDriver,
     Millis,
+    NetworkError,
     PrivateKey,
+    Seconds,
     StandardCrypto,
     StorageContext,
+    StorageManager,
+    Time,
     Timestamp,
 } from "@matter/general";
 import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
@@ -140,6 +150,74 @@ describe("SessionManager", () => {
             }
             expect(await sessionManager.getNextAvailableSessionId()).to.equal(first);
             expect(firstClosed).to.be.true;
+        });
+
+        describe("with a fixed random seed", () => {
+            class FixedSeedCrypto extends StandardCrypto {
+                constructor(readonly seed: number) {
+                    super();
+                }
+
+                override get randomUint16() {
+                    return this.seed;
+                }
+
+                override get randomUint32() {
+                    return this.seed;
+                }
+            }
+
+            async function managerWithSeed(seed: number) {
+                const manager = new SessionManager({
+                    parameters: {} as SessionParameters,
+                    fabrics: new FabricManager(new FixedSeedCrypto(seed)),
+                    storage: storageContext,
+                });
+                await manager.construction.ready;
+                return manager;
+            }
+
+            async function occupy(manager: SessionManager, id: number) {
+                await manager.createSecureSession({
+                    id,
+                    fabric: undefined,
+                    peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+                    peerSessionId: 0x8d4b,
+                    sharedSecret: DUMMY_BYTEARRAY,
+                    salt: DUMMY_BYTEARRAY,
+                    isInitiator: false,
+                    isResumption: false,
+                });
+            }
+
+            it("never allocates 0 when the random seed is 0", async () => {
+                const manager = await managerWithSeed(0);
+
+                expect(await manager.getNextAvailableSessionId()).to.equal(1);
+                expect(await manager.getNextAvailableSessionId()).to.equal(2);
+            });
+
+            it("stays within the ID range after reusing the session with the highest ID", async () => {
+                const manager = await managerWithSeed(0);
+                manager.compressIdRange(3);
+
+                const [first, second, third] = [
+                    await manager.getNextAvailableSessionId(),
+                    await manager.getNextAvailableSessionId(),
+                    await manager.getNextAvailableSessionId(),
+                ];
+                expect([first, second, third]).to.deep.equal([1, 2, 3]);
+                await occupy(manager, third);
+                await MockTime.advance(1000);
+                await occupy(manager, first);
+                await occupy(manager, second);
+
+                const reused = await manager.getNextAvailableSessionId();
+                expect(reused).to.equal(3);
+                await occupy(manager, reused);
+
+                expect(await manager.getNextAvailableSessionId()).to.be.within(1, 3);
+            });
         });
     });
 
@@ -330,6 +408,65 @@ describe("SessionManager", () => {
         });
     });
 
+    describe("log attribution", () => {
+        // Session eviction runs from a timer or transport callback, so nothing on the call stack says which node
+        // it belongs to.  A process running several nodes reads these lines only if the message names its owner.
+        it("names the originating environment on the lines an eviction produces", async () => {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const storageManager = new StorageManager(storage);
+            await storageManager.initialize();
+
+            const environment = new Environment("test", Environment.default);
+            environment.set(StorageManager, storageManager);
+            environment.set(FabricManager, new FabricManager(new StandardCrypto()));
+
+            // Through the environment rather than by construction, so the logger the environment installs is the
+            // one under test
+            const sessionManager = environment.get(SessionManager);
+            await sessionManager.construction.ready;
+
+            const dest = Logger.destinations.default;
+            const original = { ...dest };
+            const origins = new Array<unknown>();
+            // The level is process-global and other suites move it; the line under test is INFO
+            dest.level = LogLevel.INFO;
+            dest.add = message => {
+                if (String(message.values[1]).startsWith("Closing least recently used session")) {
+                    origins.push(message.origin);
+                }
+            };
+
+            try {
+                const PEER_NODE_ID = NodeId(0x4321n);
+                for (let i = 0; i < 6; i++) {
+                    const session = await sessionManager.createSecureSession({
+                        id: 0x0200 + i,
+                        fabric: undefined,
+                        peerNodeId: PEER_NODE_ID,
+                        peerSessionId: 0x0001 + i,
+                        sharedSecret: DUMMY_BYTEARRAY,
+                        salt: DUMMY_BYTEARRAY,
+                        isInitiator: false,
+                        isResumption: false,
+                    });
+                    session.timestamp = Timestamp(1000 + i);
+                }
+
+                await MockTime.yield3();
+            } finally {
+                Object.assign(Logger.destinations.default, original);
+                await sessionManager.close();
+            }
+
+            // Identity, not deep equality: an origin is a plain name-and-parent record, so deep equality holds
+            // between any two environments named alike and would accept attribution to the wrong node
+            expect(origins.length).equals(1);
+            expect(origins[0]).equals(environment.logOrigin);
+        });
+    });
+
     describe("group data message counter", () => {
         function groupFabric(crypto: StandardCrypto, fabricStorage: StorageContext) {
             const fabric = new Fabric(crypto, {
@@ -365,6 +502,30 @@ describe("SessionManager", () => {
             const first = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
             const second = await sessionManager.groupDataMessageCounter.getIncrementedCounter();
             expect(second).equal(first + 1);
+        });
+
+        it("closes the counter it replaces when cleared", async () => {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            const sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["sessions"]),
+            });
+            await sessionManager.construction.ready;
+
+            const counterLifetimes = () => {
+                using probe = Lifetime.process.join("probe");
+                return [...(probe.owner?.spans ?? [])].filter(({ name }) => name === "persisted message counter")
+                    .length;
+            };
+            const before = counterLifetimes();
+
+            await sessionManager.clear();
+
+            expect(counterLifetimes()).equal(before);
+            await sessionManager.close();
+            expect(counterLifetimes()).equal(before - 1);
         });
 
         it("seeds the global counter above legacy per-key counters and clears them (Q-02 migration)", async () => {
@@ -564,6 +725,49 @@ describe("SessionManager", () => {
         });
     });
 
+    describe("max paths per invoke validation", () => {
+        function newManager(parameters: Partial<SessionParameters>) {
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            return new SessionManager({
+                parameters: parameters as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+        }
+
+        it("rejects a local max paths per invoke of zero on construction", () => {
+            expect(() => newManager({ maxPathsPerInvoke: 0 })).throws(ImplementationError, "Max Paths Per Invoke");
+        });
+
+        it("rejects a local max paths per invoke of zero via the setter", async () => {
+            const sessionManager = newManager({});
+            await sessionManager.construction.ready;
+
+            expect(() => (sessionManager.sessionParameters = { maxPathsPerInvoke: 0 })).throws(
+                ImplementationError,
+                "Max Paths Per Invoke",
+            );
+        });
+
+        it("rejects a local max paths per invoke that is not a whole count", async () => {
+            const sessionManager = newManager({});
+            await sessionManager.construction.ready;
+
+            expect(() => (sessionManager.sessionParameters = { maxPathsPerInvoke: 2.5 })).throws(
+                ImplementationError,
+                "Max Paths Per Invoke",
+            );
+        });
+
+        it("accepts a local max paths per invoke of one", async () => {
+            const sessionManager = newManager({ maxPathsPerInvoke: 1 });
+            await sessionManager.construction.ready;
+
+            expect(sessionManager.sessionParameters.maxPathsPerInvoke).equals(1);
+        });
+    });
+
     describe("session parameter setter", () => {
         function newManager(parameters: Partial<SessionParameters>) {
             const storage = new MemoryStorageDriver();
@@ -583,6 +787,137 @@ describe("SessionManager", () => {
 
             expect(sessionManager.sessionParameters.idleInterval).equal(Millis(1000));
             expect(sessionManager.sessionParameters.activeInterval).equal(Millis(600));
+        });
+    });
+
+    describe("wall-clock steps", () => {
+        const PEER_NODE_ID = NodeId(0x1234n);
+        const PEER_ADDRESS = PeerAddress({ fabricIndex: FabricIndex(0), nodeId: PEER_NODE_ID });
+
+        let sessionManager: SessionManager;
+
+        beforeEach(async () => {
+            MockTime.reset();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+            sessionManager = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: new FabricManager(new StandardCrypto()),
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessionManager.construction.ready;
+        });
+
+        function aSession(id = 0x0100) {
+            return sessionManager.createSecureSession({
+                id,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: id,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: false,
+                isResumption: false,
+            });
+        }
+
+        it("keeps a peer heard from just now active across a forward step", async () => {
+            const session = await aSession();
+            expect(session.isPeerActive).true;
+
+            MockTime.stepWallClock(Hours(1));
+
+            expect(session.isPeerActive).true;
+        });
+
+        it("keeps a peer silent beyond the active threshold idle across a backward step", async () => {
+            const session = await aSession();
+            await MockTime.advance(session.parameters.activeThreshold + Seconds(1));
+            expect(session.isPeerActive).false;
+
+            MockTime.stepWallClock(-3_600_000);
+
+            expect(session.isPeerActive).false;
+        });
+
+        it("prefers the session heard from last when the clock stepped back between them", async () => {
+            const first = await aSession(0x0100);
+            const second = await aSession(0x0200);
+            first.notifyActivity(true);
+
+            MockTime.stepWallClock(-3_600_000);
+            await MockTime.advance(Seconds(1));
+            second.notifyActivity(true);
+
+            expect(sessionManager.maybeSessionFor(PEER_ADDRESS)).equals(second);
+        });
+
+        it("evicts the least recently used session when the clock stepped back since its last traffic", async () => {
+            const sessions = new Array<NodeSession>();
+            for (let i = 0; i < 5; i++) {
+                sessions.push(await aSession(0x0100 + i));
+            }
+
+            MockTime.stepWallClock(-3_600_000);
+            await MockTime.advance(Seconds(1));
+            sessions[0].notifyActivity(false);
+            await aSession(0x0200);
+            await MockTime.yield3();
+
+            expect(sessions[0].isClosing).false;
+            expect(sessions[1].isClosing).true;
+        });
+
+        it("closes a session on peer loss after the clock stepped back", async () => {
+            const session = await aSession();
+
+            MockTime.stepWallClock(-3_600_000);
+            await MockTime.advance(Seconds(1));
+            await sessionManager.handlePeerLoss(PEER_ADDRESS, { cause: new NetworkError("unresponsive") });
+
+            expect(session.isPeerLost).true;
+        });
+
+        it("closes a session on peer loss when the clock stepped forward before it was created", async () => {
+            MockTime.stepWallClock(Hours(1));
+            const session = await aSession();
+
+            await MockTime.advance(Seconds(1));
+            await sessionManager.handlePeerLoss(PEER_ADDRESS, { cause: new NetworkError("unresponsive") });
+
+            expect(session.isPeerLost).true;
+        });
+
+        it("closes a session on peer shutdown after the clock stepped back", async () => {
+            const session = await aSession();
+
+            MockTime.stepWallClock(-3_600_000);
+            await MockTime.advance(Seconds(1));
+            await sessionManager.handlePeerShutdown(PEER_ADDRESS);
+
+            expect(session.isPeerLost).true;
+        });
+
+        it("reports session activity on the wall clock as it reads now", async () => {
+            await MockTime.advance(0.4);
+            await aSession();
+            await MockTime.advance(Seconds(5));
+
+            MockTime.stepWallClock(Hours(1));
+
+            const [info] = sessionManager.getActiveSessionInformation();
+            const expected = Math.round(Time.nowMs - Seconds(5));
+            expect(info.lastInteractionTimestamp).equals(expected);
+            expect(info.lastActiveTimestamp).equals(expected);
+        });
+
+        it("reports a peer never heard from with a last active time of 0", async () => {
+            const session = await aSession();
+            session.activeTimestamp = 0;
+            MockTime.stepWallClock(Hours(1));
+
+            const [info] = sessionManager.getActiveSessionInformation();
+            expect(info.lastActiveTimestamp).equals(0);
         });
     });
 });

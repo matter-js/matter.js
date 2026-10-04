@@ -131,14 +131,53 @@ export class ServerNodeStore extends NodeStore implements Destructable {
     }
 
     /**
-     * Discard the endpoint and peer data persisted for the node.  Both are erased even if one fails, so a single
-     * failure cannot leave the other behind.
+     * Discard the endpoint, peer and BDX data persisted for the node.  Each is erased even if another fails, so a
+     * single failure cannot leave the others behind.
      */
     async erase() {
         await MatterAggregateError.allSettled(
-            [this.#clientStores?.erase(), this.#endpointStores.erase()],
+            [this.#clientStores?.erase(), this.#endpointStores.erase(), this.#eraseBdxStore()],
             "Error while erasing node storage",
         );
+    }
+
+    /**
+     * BDX blobs live in a namespace of their own, which the node's other storage does not reach.  The namespace opens
+     * on first use, so a reset with no transfer behind it opens one to erase what an earlier session left, then
+     * releases it again rather than holding storage the node has not asked for.
+     */
+    async #eraseBdxStore() {
+        const opened = this.#bdxHandle !== undefined;
+
+        if (!opened && !(await this.#hasBdxStore())) {
+            return;
+        }
+
+        const driver = await this.bdxStore();
+        try {
+            await driver.clearAll([]);
+        } finally {
+            if (!opened) {
+                const handle = this.#bdxHandle;
+                this.#bdxHandle = undefined;
+                await handle?.close();
+            }
+        }
+    }
+
+    async #hasBdxStore() {
+        if (!this.#env.get(StorageService).isBlobConfigured) {
+            return false;
+        }
+
+        // A filesystem namespace is visible without opening it, so an absent one is left alone rather than created.
+        // Any other driver may be persistent and offers no such test, so its namespace is opened to find out
+        const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
+        if (root === undefined) {
+            return true;
+        }
+
+        return root.directory.directory(`${this.#nodeId}-bdx`).exists();
     }
 
     async load() {

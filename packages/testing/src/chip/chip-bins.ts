@@ -9,6 +9,7 @@ import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { env } from "node:process";
 import { Docker } from "../docker/docker.js";
+import type { DeviceFlavor } from "./cert/cert-context.js";
 
 /**
  * Which build of CHIP example-app/chip-tool binaries a test run uses.
@@ -50,7 +51,7 @@ export function chipBinsPlatformSupported(platform: string): boolean {
 
 /**
  * File written into an extraction target directory recording the tag last extracted there. Doubles
- * as the marker `cert-dsl.ts`'s `chipLocalMarkerRevision()` already reads for `RunRecord.chipRef` —
+ * as the marker `cert-dsl.ts`'s `chipLocalMarkerRevision()` already reads for each device's `chipRef` —
  * a cert-bins extraction populates that evidence field for free, with no separate wiring.
  */
 const STAMP_FILE = "CHIP_REF";
@@ -75,6 +76,27 @@ export function resolveChipBinsSource(): ChipBinsSource {
     }
 
     throw new Error(`Unknown MATTER_CHIP_BINS_SOURCE "${value}" (expected "matterjs" or "cert-bins")`);
+}
+
+/**
+ * The chip binary source a device flavor actually runs, or undefined where the flavor runs no chip binary.
+ *
+ * `MATTER_CHIP_BINS_SOURCE` selects binaries for `chip-local` alone.  `chip-docker` launches this project's own
+ * per-app images, which are built from CHIP's development branch, so it runs what `matterjs` names whatever the
+ * variable says; reading the variable for it would let a test declaring released binaries run against a
+ * development build.
+ */
+export function chipBinsSourceFor(flavor: DeviceFlavor): ChipBinsSource | undefined {
+    switch (flavor) {
+        case "chip-local":
+            return resolveChipBinsSource();
+
+        case "chip-docker":
+            return "matterjs";
+
+        case "matterjs":
+            return undefined;
+    }
 }
 
 /** The tag requested via `MATTER_CHIP_BINS_TAG`, before resolving a possible `"latest"`. */
@@ -115,10 +137,10 @@ function assertValidTag(tag: string): void {
  * other's `rm -rf`/`cp -a`/stamp-write, even sharing one `MATTER_CHIP_BINS_DIR` — each tag gets its own
  * subtree, created fresh on first use.
  *
- * This does not make same-tag concurrency safe: two runs racing to extract the *same* tag into the
- * same base directory at once can still interleave their `rm -rf`/`cp -a`/stamp-write (no cross-process
- * lock exists). Point concurrent runs at different `MATTER_CHIP_BINS_DIR` values if they might extract
- * the same tag at the same time — see the README's "Choosing a CHIP binary source" section.
+ * Runs on one Docker daemon extract under the harness lock, one at a time. Runs on different daemons that
+ * share one base directory are not serialized, and two of them extracting the *same* tag at once can
+ * interleave their `rm -rf`/`cp -a`/stamp-write; point those at different `MATTER_CHIP_BINS_DIR` values —
+ * see the README's "Choosing a CHIP binary source" section.
  */
 export function chipBinsExtractionDir(tag: string, baseDir: string = chipBinsDir()): string {
     assertValidTag(tag);

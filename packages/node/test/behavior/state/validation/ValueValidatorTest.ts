@@ -11,6 +11,7 @@ import {
     AttributeModel,
     ClusterModel,
     DataModelPath,
+    DatatypeModel,
     FeatureMap,
     FieldElement as Field,
     FieldModel,
@@ -304,6 +305,76 @@ describe("ValueValidator", () => {
                 DatatypeError,
                 "in range of bit field",
             );
+        });
+    });
+
+    describe("list constraint of the type a list derives from", () => {
+        const cluster = new ClusterModel({
+            name: "Test",
+            children: [
+                new DatatypeModel(
+                    { name: "Readings", type: "list", constraint: "max 2" },
+                    Field({ name: "entry", type: "uint8" }),
+                ),
+                new AttributeModel({ id: 1, name: "History", type: "Readings" }),
+            ],
+        });
+        const attr = cluster.get(AttributeModel, "History")!;
+        const validate = RootSupervisor.for(cluster).get(attr).validate!;
+        const path = { path: new DataModelPath(attr.path) };
+        const session = {} as ValueSupervisor.Session;
+
+        it("accepts a list within the bound", () => {
+            expect(() => validate([1, 2], session, path)).not.throws();
+        });
+
+        it("rejects a list beyond the bound and names the bound", () => {
+            expect(attr.constraint.max).undefined;
+            expect(() => validate([1, 2, 3], session, path)).throws(ConstraintError, 'Constraint "max 2"');
+        });
+    });
+
+    describe("obsolete elements", () => {
+        function obsoleteCluster() {
+            const cluster = new ClusterModel({
+                name: "Test",
+                children: [
+                    new AttributeModel({ id: 0, name: "Legacy", type: "uint8", conformance: "Z" }),
+                    new AttributeModel(
+                        { id: 1, name: "Mode", type: "enum8" },
+                        Field({ id: 0, name: "on", conformance: "Z" }),
+                        Field({ id: 1, name: "off" }),
+                    ),
+                    new AttributeModel({ id: 2, name: "Untyped", conformance: "Z" }),
+                ],
+            });
+            return {
+                validate: RootSupervisor.for(cluster).get(cluster).validate!,
+                path: { path: new DataModelPath(cluster.path) },
+            };
+        }
+
+        const server = {} as ValueSupervisor.Session;
+        const peer = { clientPeerContext: {} } as ValueSupervisor.Session;
+
+        it("rejects an obsolete attribute on a server write", () => {
+            const { validate, path } = obsoleteCluster();
+            expect(() => validate({ legacy: 1 }, server, path)).throws(ConformanceError);
+        });
+
+        it("forwards an obsolete attribute on a client peer write", () => {
+            const { validate, path } = obsoleteCluster();
+            expect(() => validate({ legacy: 1 }, peer, path)).not.throws();
+        });
+
+        it("rejects an obsolete enum value on a server write", () => {
+            const { validate, path } = obsoleteCluster();
+            expect(() => validate({ mode: 0 }, server, path)).throws(EnumValueConformanceError);
+        });
+
+        it("forwards an obsolete enum value on a client peer write", () => {
+            const { validate, path } = obsoleteCluster();
+            expect(() => validate({ mode: 0 }, peer, path)).not.throws();
         });
     });
 

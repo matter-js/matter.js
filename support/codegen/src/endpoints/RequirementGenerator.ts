@@ -4,19 +4,116 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { decamelize, Logger } from "#general";
-import { ClusterModel, ClusterVariance, MatterModel, RequirementModel } from "#model";
+import { decamelize, InternalError } from "#general";
+import {
+    ClusterModel,
+    ClusterVariance,
+    Conformance,
+    DeviceTypeConformance,
+    DeviceTypeFacts,
+    DeviceTypeModel,
+    DeviceTypeValidationPass,
+    FeatureSelectionViolations,
+    MatterModel,
+    RequirementModel,
+    RequirementResolver,
+} from "#model";
 import { Block } from "../util/TsFile.js";
 import { ClusterRequirements } from "./ClusterRequirements.js";
 import { EndpointFile } from "./EndpointFile.js";
-
-const logger = Logger.get("EndpointClusterGenerator");
+import { DESCRIPTOR_CLUSTER_ID, reportRequirementLost } from "./requirement-coverage.js";
 
 const MANDATORY_PART_ENDPOINTS = ["RootEndpoint", "AggregatorEndpoint", "BridgedNodeEndpoint"];
+
+/**
+ * Does the feature selection a device type mandates satisfy every combination the cluster forbids?
+ *
+ * A cluster that requires a choice is only satisfied by a member of that choice. Counting the mandated features
+ * instead would accept a device type that mandates an unrelated feature and ship an endpoint whose feature
+ * combination the cluster itself rejects.
+ *
+ * A cluster we cannot assess keeps the requirement that the application select features itself.
+ */
+function selectionIsLegal(cluster: ClusterModel, mandated: string[]) {
+    if (!mandated.length) {
+        return false;
+    }
+
+    return FeatureSelectionViolations(cluster, new Set(mandated))?.length === 0;
+}
+
+/**
+ * Say what the specification actually states about a requirement.
+ *
+ * A provisional cluster reads as optional here, which is intended and lets an application exercise it and still
+ * certify.  Reporting that outcome as though it were the specification's own statement tells the reader the cluster is
+ * optional when the specification says it becomes mandatory once the provisional status lifts.
+ */
+function describeConformance(conformance: Conformance, kind: "mandatory" | "optional") {
+    if (kind === "mandatory") {
+        return "required by the Matter specification.";
+    }
+
+    if (conformance.isProvisional) {
+        return `provisional per the Matter specification (conformance ${conformance}), so it is treated as optional.`;
+    }
+
+    return "optional per the Matter specification.";
+}
+
+/**
+ * The server cluster requirements of Base that an endpoint of {@link deviceType} built from its generated type would
+ * violate, as a server node judges the endpoint before adding the Base servers it lacks: with the clusters the device
+ * type mandates, and the Descriptor server every endpoint receives.
+ *
+ * @see {@link MatterSpecification.v161.Device} § 1.1.7
+ */
+function missingBaseServersOf(deviceType: DeviceTypeModel, model: MatterModel) {
+    const mandatedClusters = (element: "serverCluster" | "clientCluster") => {
+        const clusters = new Array<ClusterModel>();
+        for (const requirement of deviceType.requirements) {
+            if (requirement.element !== element || !requirement.isMandatory) {
+                continue;
+            }
+            const cluster = RequirementResolver.clusterOf(requirement);
+            if (cluster !== undefined) {
+                clusters.push(cluster);
+            }
+        }
+        return clusters;
+    };
+    const servers = mandatedClusters("serverCluster");
+    const clients = mandatedClusters("clientCluster");
+
+    const facts: DeviceTypeFacts<DeviceTypeModel> = {
+        parentOf: () => undefined,
+        partsOf: () => [],
+        isPresent: () => true,
+        deviceTypeIdsOf: ({ id }) => [id],
+        serverClustersOf: () => servers,
+        clientClustersOf: () => clients,
+        elementsOf: (_endpoint, cluster) => {
+            throw new InternalError(`Judging Base servers read the elements of ${cluster.name}`);
+        },
+        statedConditionsOf: () => [],
+        nodeConditionsOf: () => [],
+        describe: ({ name }) => name,
+    };
+
+    return DeviceTypeConformance.missingBaseServersOf(deviceType, new DeviceTypeValidationPass(facts, model)).filter(
+        ({ id }) => id !== DESCRIPTOR_CLUSTER_ID,
+    );
+}
 
 type ClusterDetail = {
     requirement: RequirementModel;
     definition: ClusterModel;
+
+    /**
+     * Resolved before variance is decided, because a device type that mandates the features a cluster needs has
+     * already answered the question variance asks.
+     */
+    requirements: ClusterRequirements;
 };
 
 /**
@@ -37,11 +134,25 @@ export class RequirementGenerator {
         private file: EndpointFile,
         private type: "client" | "server",
     ) {
-        const matter = file.model.owner(MatterModel);
-        if (!matter) {
-            throw new Error("Unable to locate root MatterModel");
+        const model = file.model.owner(MatterModel);
+        if (!model) {
+            throw new InternalError(`Device type ${file.model.name} belongs to no MatterModel`);
         }
         const clusterReqs = this.file.model.requirements.filter(r => r.element === `${type}Cluster`);
+
+        // A requirement the device type states for a cluster Base mandates keeps its nested requirements
+        const baseMandated = new Set<number>();
+        if (type === "server" && file.model.id !== undefined) {
+            for (const baseServer of missingBaseServersOf(file.model, model)) {
+                if (baseServer.id === undefined) {
+                    continue;
+                }
+                baseMandated.add(baseServer.id);
+                if (!clusterReqs.some(({ id }) => id === baseServer.id)) {
+                    clusterReqs.push(baseServer);
+                }
+            }
+        }
 
         if (type === "server" && MANDATORY_PART_ENDPOINTS.includes(file.definitionName)) {
             this.#mandatoryParts = true;
@@ -50,24 +161,34 @@ export class RequirementGenerator {
         }
 
         for (const requirement of clusterReqs) {
-            const definition = matter.get(ClusterModel, requirement.name);
+            const definition = RequirementResolver.clusterOf(requirement);
             if (!definition) {
-                logger.error(`Skipping ${file.model.name} ${type} requirement for unknown cluster ${requirement.name}`);
+                reportRequirementLost(
+                    `Skipping ${file.model.name} ${type} requirement for unknown cluster ${requirement.name}`,
+                );
                 continue;
             }
 
-            if (definition.id === undefined || definition.id === 0x1d) {
-                // Skip base clusters & descriptor
+            if (definition.id === undefined || requirement.isDisallowed || requirement.isObsolete) {
                 continue;
             }
 
-            if (requirement.isDisallowed) {
+            const requirements = new ClusterRequirements(this.file, definition, requirement);
+
+            // Every server endpoint receives a DescriptorServer, so a device type needs a generated one only for what
+            // it states beyond the base implementation
+            const isDescriptor = type === "server" && definition.id === DESCRIPTOR_CLUSTER_ID;
+            if (isDescriptor && !requirements.isSpecialized) {
                 continue;
             }
 
-            if (requirement.isMandatory || requirement.name === "Descriptor") {
+            const detail = { requirement, definition, requirements };
+
+            // The translator states a Descriptor requirement without conformance, but Base mandates Descriptor
+            if (requirement.isMandatory || isDescriptor || baseMandated.has(definition.id)) {
                 const variance = ClusterVariance(definition);
-                if (variance.requiresFeatures) {
+
+                if (variance.requiresFeatures && !selectionIsLegal(definition, requirements.mandatoryFeatureNames)) {
                     if (!this.mandatoryWithExtension) {
                         this.mandatoryWithExtension = [];
                     }
@@ -76,14 +197,16 @@ export class RequirementGenerator {
                     this.default.push(definition.name);
                 }
 
-                this.#mandatory.push({ requirement, definition });
+                this.#mandatory.push(detail);
             } else {
-                this.#optional.push({ requirement, definition });
+                this.#optional.push(detail);
             }
         }
     }
 
     generate() {
+        // Nothing below may touch the optional block before the mandatory one, or an empty mandatory block
+        // materialises after it
         if (this.#mandatoryParts) {
             this.file.addImport("!node/behavior/system/parts/PartsBehavior.js", "PartsBehavior");
             this.file.addImport("!node/behavior/system/index/IndexBehavior.js", "IndexBehavior");
@@ -92,11 +215,11 @@ export class RequirementGenerator {
         }
 
         for (const detail of this.#mandatory) {
-            this.#generateOne(detail, this.mandatoryBlock);
+            this.#generateOne(detail, this.mandatoryBlock, "mandatory");
         }
 
         for (const detail of this.#optional) {
-            this.#generateOne(detail, this.optionalBlock);
+            this.#generateOne(detail, this.optionalBlock, "optional");
         }
 
         return this.#requirementsBlock;
@@ -127,7 +250,7 @@ export class RequirementGenerator {
         return this.#requirementsBlock;
     }
 
-    #generateOne(detail: ClusterDetail, target: Block) {
+    #generateOne(detail: ClusterDetail, target: Block, kind: "mandatory" | "optional") {
         let name;
         const prefix = `!behaviors/${decamelize(detail.definition.name)}/${detail.definition.name}`;
         if (this.type === "server") {
@@ -140,12 +263,9 @@ export class RequirementGenerator {
 
         const definition = this.file.definitions.builder(`export const ${name} = Base${name}`);
 
-        const requirements = new ClusterRequirements(this.file, detail.definition, detail.requirement);
-
-        let specialized = false;
+        const { requirements } = detail;
 
         if (requirements.mandatoryFeatures.length) {
-            specialized = true;
             const extended = definition.expressions("with(", ")");
             for (const feature of requirements.mandatoryFeatures) {
                 extended.value(feature);
@@ -153,22 +273,18 @@ export class RequirementGenerator {
         }
 
         if (requirements.defaults) {
-            specialized = true;
             const defaults = definition.expressions("set(", ")");
             defaults.value(requirements.defaults);
         }
 
         if (requirements.alterations) {
-            specialized = true;
             const altered = definition.expressions("alter(", ")");
             altered.value(requirements.alterations);
         }
 
-        const requiredOrMandatory = target === this.mandatoryBlock ? "required by" : "optional per";
+        let documentation = `The ${detail.definition.name} cluster is ${describeConformance(detail.requirement.conformance, kind)}`;
 
-        let documentation = `The ${detail.definition.name} cluster is ${requiredOrMandatory} the Matter specification.`;
-
-        if (specialized) {
+        if (requirements.isSpecialized) {
             documentation += `\nThis version of {@link ${name}} is specialized per the specification.`;
         } else {
             documentation += `\nWe provide this alias to the default implementation {@link ${name}} for convenience.`;

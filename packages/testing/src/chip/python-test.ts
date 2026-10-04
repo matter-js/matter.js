@@ -16,12 +16,46 @@ import { Constants, ContainerPaths } from "./config.js";
 import { PicsSource } from "./pics/source.js";
 import { RestartFlagMonitor } from "./restart-flag-monitor.js";
 
+/**
+ * The seconds a python test script allows its own test body, from the `default_timeout` property mobly
+ * reads. `undefined` where the script declares none, or declares it as anything but a product of whole
+ * numbers, in which case {@link MATTER_TEST_DEFAULT_TIMEOUT} applies.
+ */
+function pythonTestTimeout(source: string): number | undefined {
+    const declared = source.match(
+        /def\s+default_timeout\s*\([^)]*\)[^\n:]*:\s*(?:\n\s*"""[^]*?"""\s*)?\n\s*return\s+([\d\s*]+)/,
+    );
+    if (declared === null) {
+        return undefined;
+    }
+
+    const seconds = declared[1].split("*").reduce((product, factor) => product * Number.parseInt(factor.trim(), 10), 1);
+
+    return Number.isSafeInteger(seconds) && seconds > 0 ? seconds : undefined;
+}
+
+/** What `MatterBaseTest.default_timeout` returns for a script that states no timeout of its own. */
+const MATTER_TEST_DEFAULT_TIMEOUT = 90;
+
 export class PythonTest extends BaseTest {
     #restartFlagHostDir?: string;
 
     constructor(descriptor: TestFileDescriptor, container: Container, restartFlagHostDir?: string) {
         super(descriptor, container);
         this.#restartFlagHostDir = restartFlagHostDir;
+    }
+
+    /**
+     * The seconds the script this test runs allows its whole test body, including setup and every
+     * prompt it makes. Mobly ends the script when they are up, so a harness that drives the script
+     * through its prompts has until then to reach a verdict of its own.
+     */
+    async declaredTimeout(): Promise<number> {
+        const source = await this.container.read(this.descriptor.path);
+        if (typeof source !== "string") {
+            return MATTER_TEST_DEFAULT_TIMEOUT;
+        }
+        return pythonTestTimeout(source) ?? MATTER_TEST_DEFAULT_TIMEOUT;
     }
 
     /**

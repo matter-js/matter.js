@@ -6,6 +6,7 @@
 
 export * from "./AttestationCertificates.js";
 export * from "./Certificate.js";
+export * from "./CertificateSignature.js";
 export * from "./CertificationDeclaration.js";
 export * from "./Icac.js";
 export * from "./Noc.js";

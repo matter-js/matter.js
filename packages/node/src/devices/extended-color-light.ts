@@ -28,7 +28,7 @@ import { Identity } from "@matter/general";
  * coordinates, and color temperature. In addition, the extended color light is also capable of being switched by means
  * of a bound occupancy sensor.
  *
- * @see {@link MatterSpecification.v16.Device} § 4.4
+ * @see {@link MatterSpecification.v161.Device} § 4.4
  */
 export interface ExtendedColorLightDevice extends Identity<typeof ExtendedColorLightDeviceDefinition> {}
 
@@ -64,8 +64,8 @@ export namespace ExtendedColorLightRequirements {
         .alter({
             attributes: {
                 currentLevel: { min: 1, max: 254 },
-                minLevel: { default: 1, min: 1, max: 2 },
-                maxLevel: { default: 254, min: 254, max: 255 }
+                minLevel: { min: 1, max: 1, default: 1 },
+                maxLevel: { min: 254, max: 254, default: 254 }
             }
         });
 
@@ -110,13 +110,13 @@ export namespace ExtendedColorLightRequirements {
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
-    export const client = { optional: { OccupancySensing: OccupancySensingClient }, mandatory: {} };
+    export const client = { optional: { OccupancySensing: OccupancySensingClient } };
 }
 
 export const ExtendedColorLightDeviceDefinition = MutableEndpoint({
     name: "ExtendedColorLight",
     deviceType: 0x10d,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: ExtendedColorLightRequirements,
 
     behaviors: SupportedBehaviors(

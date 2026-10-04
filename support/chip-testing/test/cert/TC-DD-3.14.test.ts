@@ -152,7 +152,7 @@ certTest("TC-DD-3.14", {
             "55555555, 66666666, 77777777, 88888888, 99999999, 12345678, 87654321",
         async cx => {
             const source = await thQrPayload(cx.devices.th);
-            recordAll(
+            await recordAll(
                 cx,
                 INVALID_PASSCODES.map(passcode => ({
                     check: () =>

@@ -14,7 +14,7 @@ import {
     MatterError,
     UnexpectedDataError,
 } from "@matter/main";
-import { OperationalCredentials } from "@matter/main/clusters";
+import { OperationalCredentials, OtaSoftwareUpdateRequestor } from "@matter/main/clusters";
 import { getOperationalDeviceQname } from "@matter/main/protocol";
 import { FabricId, GlobalFabricId, NodeId, statedIdentifier, Status, StatusResponseError } from "@matter/main/types";
 import { ClusterModel, CommandModel, ValueModel } from "@matter/model";
@@ -28,12 +28,15 @@ import type {
     CertGroupApi,
     CertNodeApi,
     CertNodeRef,
+    ClientAttributePath,
+    ClientEndpointEntry,
     CommissioningTarget,
     ControllerAdapter,
     EventPathSpec,
-    GroupKeySetSpec,
     EventReadEntry,
+    GroupKeySetSpec,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
     ReadAttributeOptions,
     ReadEventOptions,
@@ -62,6 +65,23 @@ const CONTROLLER = "chip-tool";
  * `controllerPicsOverridesFor`). Only what differs from the CHIP PICS file, which describes a device.
  */
 export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
+    // chip-tool speaks no BDX at all: it is a commissioner, hosts no OTA provider and has no image to
+    // send. The CHIP PICS file answers these for a device, so without this a BDX case would be gated
+    // on what the TH supports rather than on what this controller can do.
+    "MCORE.BDX.Sender": 0,
+    "MCORE.BDX.Responder": 0,
+    "MCORE.BDX.SynchronousSender": 0,
+    "MCORE.BDX.AsynchronousSender": 0,
+    "MCORE.BDX.BlockQueryWithSkip": 0,
+
+    // The same for the OTA roles built on BDX. Without these the device file's own answers stand, the
+    // SU cases are admitted, and their first step fails on a controller that cannot serve an image at
+    // all — a whole case a controller cannot drive has to skip before it commissions anything.
+    "MCORE.OTA.Provider": 0,
+    "OTAR.C.M.AnnounceOTAProvider": 0,
+    "OTAP.S.M.DelayedActionTime": 0,
+    "OTAP.S.M.UserConsentNeeded": 0,
+
     // command-by-id sends one command path per invoke and no CommandRef.
     "MCORE.IDM.C.InvokeRequest.BatchCommands": 0,
 
@@ -111,6 +131,18 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
 
+    // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
+    // only the server side, because it describes a device; here the client is the controller.
+    "TBRM.C": 1,
+    "TBRM.C.C00.Tx": 1,
+    "TBRM.C.C01.Tx": 1,
+    "TBRM.C.C03.Tx": 1,
+    "TBRM.C.C04.Tx": 1,
+
+    // chip-tool has an ICD client of its own, but this adapter does not expose it.
+    "ICDB.C": 0,
+    "ICDM.C": 0,
+
     // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
     // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
     "G.C.C01.Tx": 1,
@@ -127,6 +159,20 @@ export const CHIP_TOOL_CONTROLLER_PICS: PicsValues = {
     // switch this controller observes is an action switch, so that is what it declares.
     "SWTCH.C.F02": 0,
     "SWTCH.C.F05": 1,
+
+    // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
+    // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
+    // their battery level. CHIP's PICS file answers these for a *device*, so the answers there say
+    // nothing about the client, and this overlay is the DUT-as-client declaration TC-BR-4 rests on.
+    //
+    // chip-tool answers each command straight from the device and keeps nothing between them, so it
+    // maintains no device list of any kind — the device file's own 1 for the `DEVLIST` flags would
+    // otherwise let a step ask it what it holds.
+    "MCORE.BRIDGECLIENT": 0,
+    "MCORE.DEVLIST.UseDevices": 0,
+    "MCORE.DEVLIST.UseDeviceName": 0,
+    "MCORE.DEVLIST.UseDeviceState": 0,
+    "MCORE.DEVLIST.UseBatInfo": 0,
 };
 
 const WILDCARD_CLUSTER = 0xffffffff;
@@ -212,6 +258,82 @@ function groupDestination(groupId: number): string {
 function timedArg(options?: TimedInteractionOptions) {
     const timeout = timedInteractionTimeoutOf(options);
     return timeout === undefined ? "" : ` --timedInteractionTimeoutMs ${timeout}`;
+}
+
+/**
+ * List attributes written through chip-tool's typed cluster command rather than `any write-by-id`.
+ *
+ * `write-by-id` sends a list as one REPLACE `AttributeDataIB`. Matter Core (Encoding Specification, list encoding)
+ * allows that only for AccessControl's ACL and Extension: any other list is an empty REPLACE followed by one ADD
+ * per entry, and a server may apply those entries one by one. The typed command encodes through
+ * `WriteClient::EncodeAttribute`, which follows that rule, but it takes chip-tool's own command and field names, so
+ * each attribute that needs it is listed here with them.
+ */
+const TYPED_LIST_WRITES: readonly TypedListWrite[] = [
+    {
+        cluster: OtaSoftwareUpdateRequestor.id,
+        attribute: OtaSoftwareUpdateRequestor.attributes.defaultOtaProviders.id,
+        command: "otasoftwareupdaterequestor write default-otaproviders",
+        fields: { providerNodeId: "providerNodeID", endpoint: "endpoint", fabricIndex: "fabricIndex" },
+    },
+];
+
+interface TypedListWrite {
+    cluster: number;
+    attribute: number;
+    command: string;
+
+    /** Each entry field as matter.js names it, mapped to the name chip-tool's `ComplexArgumentParser` requires. */
+    fields: Record<string, string>;
+}
+
+function typedListWriteFor(path: AttributePathSpec) {
+    return TYPED_LIST_WRITES.find(({ cluster, attribute }) => cluster === path.cluster && attribute === path.attribute);
+}
+
+/**
+ * The value of a {@link TypedListWrite} as its typed command parses it. Integers go as decimal strings: chip-tool's
+ * `ComplexArgumentParser` reads a string at the field's full width for an unsigned field, which keeps a 64-bit node
+ * id exact where a JSON number above 2^53 would not. It accepts a string for no signed field, so every field of a
+ * {@link TypedListWrite} must be unsigned.
+ */
+function encodeTypedList(write: TypedListWrite, value: unknown) {
+    if (!Array.isArray(value)) {
+        throw new ImplementationError(`${write.command} needs a list, got ${describeValue(value)}`);
+    }
+    return JSON.stringify(
+        value.map(entry => {
+            if (!isObject(entry)) {
+                throw new ImplementationError(`${write.command} needs struct entries, got ${describeValue(entry)}`);
+            }
+            const encoded: Record<string, string> = {};
+            for (const [field, fieldValue] of Object.entries(entry)) {
+                const chipName = write.fields[field];
+                if (chipName === undefined) {
+                    throw new ImplementationError(
+                        `${write.command} has no field ${field}; it takes ${Object.keys(write.fields).join(", ")}`,
+                    );
+                }
+                if (fieldValue === undefined) {
+                    continue;
+                }
+                if (
+                    !(typeof fieldValue === "bigint" && fieldValue >= 0n) &&
+                    !(typeof fieldValue === "number" && Number.isSafeInteger(fieldValue) && fieldValue >= 0)
+                ) {
+                    throw new ImplementationError(
+                        `${write.command} needs an unsigned integer for ${field}, got ${describeValue(fieldValue)}`,
+                    );
+                }
+                encoded[chipName] = fieldValue.toString();
+            }
+            return encoded;
+        }),
+    );
+}
+
+function describeValue(value: unknown) {
+    return JSON.stringify(value, (_key, item: unknown) => (typeof item === "bigint" ? `${item}n` : item));
 }
 
 function clusterArg(path: AttributePathSpec) {
@@ -887,6 +1009,42 @@ class ChipToolCertNodeApi implements CertNodeApi {
             : chipJsonToMatter(response.value, responseModel, clusterModel);
     }
 
+    icdClient(): never {
+        throw new UnsupportedByControllerError(
+            "icdClient",
+            CONTROLLER,
+            "this adapter drives chip-tool's commands for single interactions and does not expose its ICD client " +
+                "(registration, key refresh and Check-In handling)",
+        );
+    }
+
+    async serveOtaUpdate(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "serveOtaUpdate",
+            CONTROLLER,
+            "chip-tool is a commissioner, not an OTA provider: it hosts no OtaSoftwareUpdateProvider cluster and " +
+                "keeps no image catalog to serve one from",
+        );
+    }
+
+    async announceOtaProvider(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "announceOtaProvider",
+            CONTROLLER,
+            "chip-tool is a commissioner, not an OTA provider: it hosts no OtaSoftwareUpdateProvider cluster to " +
+                "announce, so a node it announced would query an endpoint that does not exist",
+        );
+    }
+
+    async scriptOtaProvider(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "scriptOtaProvider",
+            CONTROLLER,
+            "chip-tool hosts no OtaSoftwareUpdateProvider cluster, so there is no provider of its own whose " +
+                "answers could be scripted",
+        );
+    }
+
     async invokeBatch(commands: BatchCommandSpec[]): Promise<BatchCommandResult[]> {
         throw new UnsupportedByControllerError(
             "invokeBatch",
@@ -1096,6 +1254,16 @@ class ChipToolCertNodeApi implements CertNodeApi {
         return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
     }
 
+    async observeEvents(_paths: EventPathSpec[], _opts: ObserveEventOptions): Promise<EventReadEntry[]> {
+        // chip-tool holds no subscription of its own between commands, so there is none to observe
+        // through; a case needing this runs against a controller that keeps one.
+        throw new UnsupportedByControllerError(
+            "observeEvents",
+            CONTROLLER,
+            "chip-tool sustains no subscription a case could observe a node's events through",
+        );
+    }
+
     /**
      * Subscribes through `any subscribe-event-by-id`; the events chip-tool recorded into the
      * establishing command's own reply are the priming report and this call's return value, and every
@@ -1119,6 +1287,42 @@ class ChipToolCertNodeApi implements CertNodeApi {
 
         const reply = await this.#adapter.subscribeEvents(this.#node, paths, opts);
         return toEventEntries(reply.events.filter(entry => paths.some(path => eventPathCovers(path, entry))));
+    }
+
+    async clientEndpoints(): Promise<ClientEndpointEntry[]> {
+        throw new UnsupportedByControllerError(
+            "the endpoints the controller holds for a node",
+            "chip-tool",
+            "chip-tool answers each command from the device and keeps no device list between them, so " +
+                "there is nothing of its own to report",
+        );
+    }
+
+    async clientAttribute(_path: ClientAttributePath): Promise<unknown> {
+        throw new UnsupportedByControllerError(
+            "the value the controller holds for an attribute",
+            "chip-tool",
+            "chip-tool answers each command from the device and keeps no state between them, so there " +
+                "is nothing of its own to report",
+        );
+    }
+
+    async sessions(): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "the sessions the controller holds with a node",
+            "chip-tool",
+            "chip-tool exposes no session state of its own — a session lives inside the process it " +
+                "spawns per command, and nothing it prints names the transport beneath one",
+        );
+    }
+
+    async severTransportConnection(_sessionId: number): Promise<never> {
+        throw new UnsupportedByControllerError(
+            "severing the connection beneath a session",
+            "chip-tool",
+            "chip-tool owns no session a test can reach into, and it establishes a TCP-backed one for " +
+                "no interaction, so there is no connection to sever",
+        );
     }
 
     async openCommissioningWindow(opts: {
@@ -1162,6 +1366,16 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 
     #read(paths: AttributePathSpec[], options?: ReadAttributeOptions) {
+        if (options?.largeMessage) {
+            throw new UnsupportedByControllerError(
+                "a read that requires a session permitting large payloads",
+                "chip-tool",
+                "chip-tool decides a session's transport when it establishes one and reuses the session " +
+                    "pairing already made, so it cannot be made to answer a single read over a " +
+                    "TCP-backed session",
+            );
+        }
+
         // chip-tool zips the three id lists into paths when their lengths match
         // (`InteractionModelConfig::GetAttributePaths`), so equal-length lists express any path set.
         let command =
@@ -1174,6 +1388,22 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 
     #write(entries: AttributeWriteEntry[], operation: string, options?: TimedInteractionOptions) {
+        for (const entry of entries) {
+            const typed = typedListWriteFor(entry.path);
+            if (typed === undefined) {
+                continue;
+            }
+            if (entries.length !== 1) {
+                throw new UnsupportedByControllerError(
+                    operation,
+                    CONTROLLER,
+                    `${typed.command} writes one attribute per request, so it cannot carry ` +
+                        `${entries.length - 1} other entries alongside it`,
+                );
+            }
+            return this.#writeTypedList(typed, entry, options);
+        }
+
         const values = entries.map(({ path: { cluster, endpoint, attribute }, value }) => {
             if (cluster === undefined || attribute === undefined) {
                 throw new ImplementationError(`${operation} requires a concrete cluster and attribute`);
@@ -1203,6 +1433,19 @@ class ChipToolCertNodeApi implements CertNodeApi {
         command += largePayloadArg(this.#adapter.transport);
 
         return this.#adapter.execute(command, { attributes: entries.map(({ path }) => path) });
+    }
+
+    #writeTypedList(
+        typed: TypedListWrite,
+        { path, value, dataVersion }: AttributeWriteEntry,
+        options?: TimedInteractionOptions,
+    ) {
+        const command =
+            `${typed.command} ${quoteArg(encodeTypedList(typed, value))} ${this.#node} ${endpointArg(path)}` +
+            (dataVersion === undefined ? "" : ` --data-version ${dataVersion}`) +
+            timedArg(options) +
+            largePayloadArg(this.#adapter.transport);
+        return this.#adapter.execute(command, { attributes: [path] });
     }
 }
 
@@ -1241,7 +1484,10 @@ function matchLog(logs: string[], pattern: RegExp) {
  *
  * Operations chip-tool cannot express throw {@link UnsupportedByControllerError}, which the step
  * runner records as a skip. That covers a wildcard-endpoint `writeAttributes` (chip-tool reports no
- * status for a written path) and path counts above chip-tool's own limit.
+ * status for a written path) and path counts above chip-tool's own limit. A capability asked of the
+ * whole adapter rather than of a step — `webRtcRequestor` — throws the same error from the
+ * constructor, where no step is running to record anything, so a case asking for one selects its
+ * controller itself.
  *
  * While a subscription is live the adapter runs a report pump: chip-tool records nothing while its
  * result slot is disarmed, so the client keeps an async-report frame parked whenever no command needs
@@ -1265,6 +1511,23 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
     #closed = false;
 
     constructor(id: string, options?: ControllerAdapterOptions) {
+        if (options?.attestation) {
+            throw new UnsupportedByControllerError(
+                "judging device attestation against installed revocation information",
+                id,
+                "chip-tool reads revocation from a file its own process is started with, which a running adapter " +
+                    "cannot change",
+            );
+        }
+
+        if (options?.webRtcRequestor) {
+            throw new UnsupportedByControllerError(
+                "hosting a WebRTC transport requestor cluster",
+                id,
+                "chip-tool is a commissioner process, not a node, so a provider has nowhere to invoke signaling",
+            );
+        }
+
         const commissionerName = COMMISSIONER_NAMES.find(name => !claimedCommissioners.has(name));
         if (commissionerName === undefined) {
             throw new InternalError(
@@ -1722,8 +1985,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
 
     /**
      * A discriminator for an enhanced commissioning window, within § 5.1.1.1's 12-bit range. Successive
-     * windows of one adapter differ, and different adapters start in different ranges; both wrap after
-     * 256 windows, which no cert test comes close to.
+     * windows of one adapter differ, and different adapters start in different ranges. After 256 windows,
+     * alpha and beta enter the next adapter's starting range while gamma enters an unassigned range; the
+     * value wraps at 4096, and no cert test comes close to either.
      */
     mintDiscriminator() {
         return (this.#nextDiscriminator++ + DISCRIMINATOR_RANGES[this.#commissionerName] * 0x100) & 0xfff;

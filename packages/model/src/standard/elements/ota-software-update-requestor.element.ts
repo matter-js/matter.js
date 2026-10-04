@@ -62,7 +62,7 @@ export const OtaSoftwareUpdateRequestor = Cluster(
 
     Command(
         {
-            name: "AnnounceOtaProvider", id: 0x0, access: "A", conformance: "O", direction: "request",
+            name: "AnnounceOtaProvider", id: 0x0, access: "F A", conformance: "O", direction: "request",
             response: "status"
         },
         Field({ name: "ProviderNodeId", id: 0x0, type: "node-id", access: "F", conformance: "M" }),

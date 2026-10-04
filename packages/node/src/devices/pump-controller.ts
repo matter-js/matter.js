@@ -7,6 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
 import {
     PumpConfigurationAndControlClient as BasePumpConfigurationAndControlClient
@@ -31,7 +32,7 @@ import { Identity } from "@matter/general";
 /**
  * A Pump Controller device is capable of configuring and controlling a Pump device.
  *
- * @see {@link MatterSpecification.v16.Device} § 6.5
+ * @see {@link MatterSpecification.v161.Device} § 6.5
  */
 export interface PumpControllerDevice extends Identity<typeof PumpControllerDeviceDefinition> {}
 
@@ -42,6 +43,13 @@ export namespace PumpControllerRequirements {
      * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
      */
     export const IdentifyServer = BaseIdentifyServer;
+
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
 
     /**
      * The OnOff cluster is required by the Matter specification.
@@ -109,7 +117,7 @@ export namespace PumpControllerRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { Identify: IdentifyServer } };
+    export const server = { mandatory: { Identify: IdentifyServer, Binding: BindingServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -132,9 +140,12 @@ export namespace PumpControllerRequirements {
 export const PumpControllerDeviceDefinition = MutableEndpoint({
     name: "PumpController",
     deviceType: 0x304,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: PumpControllerRequirements,
-    behaviors: SupportedBehaviors(PumpControllerRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(
+        PumpControllerRequirements.server.mandatory.Identify,
+        PumpControllerRequirements.server.mandatory.Binding
+    )
 });
 
 Object.freeze(PumpControllerDeviceDefinition);

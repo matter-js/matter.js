@@ -5,6 +5,7 @@
 | Test                                   | Reason                                                                                        |
 |----------------------------------------|-----------------------------------------------------------------------------------------------|
 | TestAccessControlCluster.yaml          | see https://github.com/project-chip/connectedhomeip/issues/33578                              |
+| TestOperationalCredentialsCluster.yaml | SDK expects ClusterRevision 3 (PQC), we have 1.6 rev 2. TODO: drop patch once a released revision has rev 3 |
 
 # CI-PICS
 

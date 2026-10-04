@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Base64 } from "#codec/Base64Codec.js";
 import { Environment } from "#environment/Environment.js";
+import { Logger } from "#log/Logger.js";
 import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Entropy } from "#util/Entropy.js";
@@ -21,12 +23,68 @@ import {
     ec,
     HashAlgorithm,
 } from "./Crypto.js";
-import { CryptoDecryptError, CryptoInputError, CryptoVerifyError } from "./CryptoError.js";
+import { CRYPTO_AEAD_NONCE_LENGTH_BYTES } from "./CryptoConstants.js";
+import { CryptoDecryptError, CryptoError, CryptoInputError, CryptoVerifyError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { PrivateKey, PublicKey } from "./Key.js";
+import { MlDsa } from "./MlDsa.js";
+
+const logger = Logger.get("NodeJsStyleCrypto");
 
 // Ensure we don't reference global crypto accidentally
 declare const crypto: never;
+
+/**
+ * Node's crypto API names digests the way OpenSSL does, while {@link HashAlgorithm} uses the Web Crypto spelling.
+ * Node accepts the Web Crypto spelling as an alias but stricter emulations of its API do not.
+ */
+const NODE_HASH_ALGORITHMS: Record<HashAlgorithm, string> = {
+    "SHA-1": "sha1",
+    "SHA-256": "sha256",
+    "SHA-384": "sha384",
+    "SHA-512": "sha512",
+    "SHA-512/224": "sha512-224",
+    "SHA-512/256": "sha512-256",
+    "SHA3-256": "sha3-256",
+};
+
+// Only the names above may resolve, which an object literal cannot promise: it answers for Object.prototype too
+const nodeHashAlgorithms = new Map(Object.entries(NODE_HASH_ALGORITHMS));
+
+/**
+ * Report the first primitive a Node.js-style crypto API cannot offer Matter, or undefined if it offers both of the
+ * primitives probed here: the SHA-256 digest, and the "aes-128-ccm" cipher and decipher Matter encrypts and
+ * decrypts every message with.
+ *
+ * This is not a conformance test.  It covers the two gaps that stop a runtime dead — Bun and Deno offer no
+ * "aes-128-ccm" — and leaves any other divergence to surface where it occurs.  Probing beats identifying individual
+ * runtimes because an emulation that gains a primitive then needs no change here.
+ */
+export function nodeCryptoDefect(api: NodeJsCryptoApiLike): string | undefined {
+    try {
+        api.createHash(CRYPTO_HASH_ALGORITHM).digest();
+    } catch (error) {
+        return `no ${CRYPTO_HASH_ALGORITHM} digest: ${asError(error).message}`;
+    }
+
+    const key = new Uint8Array(CRYPTO_SYMMETRIC_KEY_LENGTH);
+    const nonce = new Uint8Array(CRYPTO_AEAD_NONCE_LENGTH_BYTES);
+    const options = { authTagLength: CRYPTO_AUTH_TAG_LENGTH };
+
+    try {
+        api.createCipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
+    } catch (error) {
+        return `no ${CRYPTO_ENCRYPT_ALGORITHM} cipher: ${asError(error).message}`;
+    }
+
+    try {
+        api.createDecipheriv(CRYPTO_ENCRYPT_ALGORITHM, key, nonce, options);
+    } catch (error) {
+        return `no ${CRYPTO_ENCRYPT_ALGORITHM} decipher: ${asError(error).message}`;
+    }
+
+    return undefined;
+}
 
 /** Matches the tag length range NIST SP 800-38C permits, enforced identically in aes/Ccm.ts. */
 function assertValidTagLength(tagLength: number) {
@@ -84,6 +142,23 @@ export interface NodeJsCryptoApiLike {
     createSign(algo: string): NodeJsCryptoApiLike.Sign;
 
     createVerify(algo: string): NodeJsCryptoApiLike.Verify;
+
+    /** Node.js reports a restricted cryptographic provider here; absent from most emulations. */
+    getFips?(): number | boolean;
+
+    /** One-shot signatures; optional because only runtimes with native ML-DSA need to offer them. */
+    sign?(
+        algorithm: null,
+        data: NodeJsCryptoApiLike.BinaryLike,
+        key: NodeJsCryptoApiLike.JwkKeyInput,
+    ): NodeJsCryptoApiLike.BinaryLike;
+
+    verify?(
+        algorithm: null,
+        data: NodeJsCryptoApiLike.BinaryLike,
+        key: NodeJsCryptoApiLike.SpkiKeyInput,
+        signature: NodeJsCryptoApiLike.BinaryLike,
+    ): boolean;
 }
 
 export namespace NodeJsCryptoApiLike {
@@ -134,6 +209,18 @@ export namespace NodeJsCryptoApiLike {
         update(data: BinaryLike): this;
         verify(key: CipherKey, signature: BinaryLike): boolean;
     }
+
+    export interface SpkiKeyInput {
+        key: BinaryLike;
+        format: "der";
+        type: "spki";
+    }
+
+    /** An "AKP" JWK (draft-ietf-cose-dilithium) carrying the ML-DSA seed as `priv`. */
+    export interface JwkKeyInput {
+        key: { kty: "AKP"; alg: string; priv: string; pub: string };
+        format: "jwk";
+    }
 }
 
 /**
@@ -153,7 +240,16 @@ export class NodeJsStyleCrypto extends Crypto {
      */
     static detectedCrypto?: NodeJsCryptoApiLike;
 
+    /**
+     * Whether this implementation serves as {@link Environment.default}'s {@link Crypto}.
+     *
+     * {@link detectedCrypto} says only that a Node.js-style API is present, which an incomplete emulation also
+     * satisfies, so anything choosing an implementation for itself consults this instead.
+     */
+    static providesDefault = false;
+
     #crypto: NodeJsCryptoApiLike;
+    #nativeMlDsa = new Map<MlDsa.ParameterSet, Promise<Partial<MlDsa.Implementation>>>();
 
     constructor(crypto?: NodeJsCryptoApiLike) {
         super();
@@ -231,7 +327,11 @@ export class NodeJsStyleCrypto extends Crypto {
         data: Bytes | Bytes[] | ReadableStreamDefaultReader<Bytes> | AsyncIterator<Bytes>,
         algorithm: HashAlgorithm = "SHA-256",
     ): MaybePromise<Bytes> {
-        const hasher = this.#crypto.createHash(algorithm);
+        const nodeAlgorithm = nodeHashAlgorithms.get(algorithm);
+        if (nodeAlgorithm === undefined) {
+            throw new CryptoInputError(`Unsupported hash algorithm ${algorithm}`);
+        }
+        const hasher = this.#crypto.createHash(nodeAlgorithm);
 
         // Handle different data types with full streaming support
         if (Array.isArray(data)) {
@@ -330,6 +430,35 @@ export class NodeJsStyleCrypto extends Crypto {
         if (!success) throw new CryptoVerifyError("Signature verification failed");
     }
 
+    protected override async mlDsaOperation<O extends keyof MlDsa.Implementation>(
+        parameterSet: MlDsa.ParameterSet,
+        operation: O,
+    ): Promise<MlDsa.Implementation[O]> {
+        let native = this.#nativeMlDsa.get(parameterSet);
+        if (native === undefined) {
+            native = (async () =>
+                nativeMlDsa(this.#crypto, parameterSet, await super.mlDsaOperation(parameterSet, "publicKeyOf")))();
+            this.#nativeMlDsa.set(parameterSet, native);
+        }
+
+        const nativeOperation = (await native)[operation];
+        if (nativeOperation !== undefined) {
+            return nativeOperation;
+        }
+
+        // Substituting our own implementation would evade the operator's deliberate restriction
+        if (this.#providerIsRestricted) {
+            throw new CryptoError(
+                `${parameterSet} ${OPERATION_NAMES[operation]} is unavailable from the restricted cryptographic provider`,
+            );
+        }
+        return super.mlDsaOperation(parameterSet, operation);
+    }
+
+    get #providerIsRestricted() {
+        return Boolean(this.#crypto.getFips?.());
+    }
+
     createKeyPair() {
         // Note that we this key may be used for DH or DSA but we use an ECDH to generate
         const ecdh = this.#crypto.createECDH(CRYPTO_EC_CURVE);
@@ -400,11 +529,116 @@ export class NodeJsStyleCrypto extends Crypto {
     }
 }
 
+function spkiKeyInput(parameterSet: MlDsa.ParameterSet, publicKey: Bytes): NodeJsCryptoApiLike.SpkiKeyInput {
+    return { key: Bytes.of(MlDsa.encodeSubjectPublicKeyInfo(parameterSet, publicKey)), format: "der", type: "spki" };
+}
+
+const OPERATION_NAMES: Record<keyof MlDsa.Implementation, string> = {
+    publicKeyOf: "key generation",
+    sign: "signing",
+    verify: "verification",
+};
+
+/**
+ * The ML-DSA operations the runtime offers natively for the parameter set.  Node.js 24.7 with OpenSSL 3.5 offers both;
+ * Node.js 22 with OpenSSL 3.5 verifies with an SPKI key but cannot import an ML-DSA private key; older releases and
+ * most emulations offer neither.  Key generation stays portable so it follows {@link Crypto.randomBytes}.
+ */
+async function nativeMlDsa(
+    api: NodeJsCryptoApiLike,
+    parameterSet: MlDsa.ParameterSet,
+    publicKeyOf: MlDsa.Implementation["publicKeyOf"],
+): Promise<Partial<MlDsa.Implementation>> {
+    const { sign, verify } = api;
+    const { publicKeyLength, signatureLength } = MlDsa.PARAMETERS[parameterSet];
+    const native: Partial<MlDsa.Implementation> = {};
+
+    if (typeof verify === "function") {
+        try {
+            // Every byte string of the right length is a well-formed ML-DSA public key, so zeros suffice
+            const valid = verify.call(
+                api,
+                null,
+                new Uint8Array(),
+                spkiKeyInput(parameterSet, new Uint8Array(publicKeyLength)),
+                new Uint8Array(signatureLength),
+            );
+            if (valid !== false) {
+                throw new CryptoError("Native verify accepted a zero signature for a zero key");
+            }
+            native.verify = (parameterSet, publicKey, message, signature) =>
+                verify.call(api, null, Bytes.of(message), spkiKeyInput(parameterSet, publicKey), Bytes.of(signature));
+        } catch (error) {
+            logger.debug(`Native crypto cannot verify ${parameterSet}: ${asError(error).message}`);
+        }
+    }
+
+    // The probe expands a key with the portable implementation, which a restricted provider must not run
+    if (typeof sign === "function" && !api.getFips?.()) {
+        const seed = new Uint8Array(MlDsa.SEED_LENGTH);
+        try {
+            sign.call(
+                api,
+                null,
+                new Uint8Array(),
+                jwkKeyInput({ parameterSet, seed, publicKey: await publicKeyOf(parameterSet, seed) }),
+            );
+            native.sign = (privateKey, message) =>
+                Bytes.of(sign.call(api, null, Bytes.of(message), jwkKeyInput(privateKey)));
+        } catch (error) {
+            logger.debug(`Native crypto cannot sign with ${parameterSet}: ${asError(error).message}`);
+        }
+    }
+
+    return native;
+}
+
+function jwkKeyInput({ parameterSet, seed, publicKey }: MlDsa.PrivateKey): NodeJsCryptoApiLike.JwkKeyInput {
+    return {
+        key: {
+            kty: "AKP",
+            alg: parameterSet,
+            priv: Base64.encode(Bytes.of(seed), true),
+            pub: Base64.encode(Bytes.of(publicKey), true),
+        },
+        format: "jwk",
+    };
+}
+
 // Auto-detect Node.js crypto and self-install
 const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.("crypto");
 if (nodeCrypto?.createECDH) {
     NodeJsStyleCrypto.detectedCrypto = nodeCrypto;
-    const nodeJsStyleCrypto = new NodeJsStyleCrypto();
-    Environment.default.set(Entropy, nodeJsStyleCrypto);
-    Environment.default.set(Crypto, nodeJsStyleCrypto);
+
+    const defect = nodeCryptoDefect(nodeCrypto);
+    const noWebCrypto = globalThis.crypto?.subtle === undefined;
+
+    // A restricted provider is an operator's deliberate choice, so substituting our own implementation would evade it
+    const providerIsRestricted = Boolean(nodeCrypto.getFips?.());
+
+    // Claim the default only where this API serves Matter, so StandardCrypto installs itself instead where it does
+    // not.  Where nothing better exists, or substitution is not ours to make, claim it regardless
+    const claimDefault = defect === undefined || noWebCrypto || providerIsRestricted;
+
+    if (claimDefault && defect !== undefined) {
+        const reason = providerIsRestricted
+            ? "this process restricts its cryptographic provider"
+            : "no standard crypto implementation is available";
+        logger.error(
+            `Node.js crypto offers ${defect} and remains the default because ${reason}.` +
+                " Matter will fail wherever it needs the missing primitive.",
+        );
+    }
+
+    NodeJsStyleCrypto.providesDefault = claimDefault;
+
+    if (!claimDefault) {
+        logger.notice(`Leaving crypto to a standard implementation because Node.js-style crypto offers ${defect}`);
+    }
+
+    if (claimDefault) {
+        const nodeJsStyleCrypto = new NodeJsStyleCrypto();
+        Environment.default.set(Entropy, nodeJsStyleCrypto);
+        Environment.default.set(Crypto, nodeJsStyleCrypto);
+    }
 }

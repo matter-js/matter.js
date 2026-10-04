@@ -10,6 +10,7 @@ import {
     type DeepPartial,
     EventEmitter,
     GeneratedClass,
+    ImplementationError,
     Lifetime,
     MaybePromise,
     NotImplementedError,
@@ -18,6 +19,7 @@ import {
 } from "@matter/general";
 import { ClassSemantics, Schema, Semantics } from "@matter/model";
 import type { BehaviorBacking } from "./internal/BehaviorBacking.js";
+import { declaredSchemaOf, setDeclaredSchema } from "./internal/DeclaredSchema.js";
 import { Reactor } from "./Reactor.js";
 import { DerivedState, EmptyState } from "./state/StateType.js";
 import { RootSupervisor } from "./supervision/RootSupervisor.js";
@@ -66,7 +68,9 @@ export abstract class Behavior {
      * A behavior's schema controls access to data, commands and events.
      *
      * Schema is inferred from the methods and properties of the behavior but you can specify explicitly for additional
-     * control.
+     * control.  Override it with a static value, not an accessor.  The override applies to this class and its
+     * subclasses only.  Once a class's schema resolves, this returns the class's effective schema, including what a
+     * subclass adds to an inherited override.  Use {@link Schema} to resolve it explicitly.
      */
     static get schema() {
         return Schema(this) ?? Schema.empty;
@@ -351,32 +355,69 @@ Object.defineProperties(Behavior.prototype, {
 });
 
 /**
+ * Code compiled without `useDefineForClassFields` assigns a static schema override instead of defining it.  The setter
+ * turns that assignment into the declaration a class field makes, also once the hook has removed a parent's own value.
+ */
+Object.defineProperty(Behavior, "schema", {
+    ...Object.getOwnPropertyDescriptor(Behavior, "schema"),
+    set(this: Behavior.Type, schema: Schema) {
+        if (ClassSemantics.hasOwnSemantics(this) && Semantics.classOf(this).isFinal) {
+            throw new ImplementationError(`Cannot set schema of behavior ${this.name} because its schema is resolved`);
+        }
+        Object.defineProperty(this, "schema", { value: schema, writable: true, enumerable: true, configurable: true });
+    },
+});
+
+/**
  * Install {@link ClassSemantics} extension logic to integrate schema metadata.
  */
 Object.defineProperties(Behavior, {
     [ClassSemantics.extend]: {
         value(this: Behavior.Type, decoration: ClassSemantics) {
+            // Behavior's own accessor derives schema from these semantics, so Behavior declares no model
+            if (decoration.new === Behavior) {
+                return;
+            }
             const type = decoration.new as Behavior.Type;
+            const own = Object.getOwnPropertyDescriptor(type, "schema");
+            if (own !== undefined) {
+                if (!("value" in own)) {
+                    throw new ImplementationError(
+                        `Behavior ${type.name} declares schema as an accessor; declare it as a static value instead`,
+                    );
+                }
+                if (own.value !== undefined) {
+                    setDeclaredSchema(type, own.value);
+                }
 
-            // Support static override of schema
-            if (Object.hasOwn(type, "schema") && type.schema !== undefined) {
-                decoration.mutableModel = type.schema;
+                // A static value shadows Behavior's getter for every subclass, so schema would not reflect what a
+                // subclass adds
+                Reflect.deleteProperty(type, "schema");
             }
 
-            // Obtain state and base schema
+            // The parent resolves first, whatever this class declares, because the prototype walk skips ancestors
+            // nothing resolved yet and resolving this class's State may otherwise freeze the parent's.  This class's
+            // model is its declared schema or else its parent's, extended below by what the class itself declares
+            const parent: unknown = Object.getPrototypeOf(type);
+            const parentType = isBehaviorType(parent) ? parent : undefined;
+            const base = parentType === undefined ? undefined : Schema(parentType);
+            const declared = declaredSchemaOf(type) ?? base;
+            if (declared !== undefined) {
+                decoration.mutableModel = declared;
+            }
+
             const { State, Events, defaults } = type;
             if (!State || !defaults) {
                 return;
             }
 
-            // Merge state properties into my schema
-            if (ClassSemantics.hasOwnSemantics(State)) {
+            // A State or Events class the parent already uses belongs to the parent's model
+            if (State !== parentType?.State && ClassSemantics.hasOwnSemantics(State)) {
                 const stateSemantics = Semantics.classOf(State);
                 stateSemantics.mutableModel = decoration.mutableModel;
             }
 
-            // Merge events into my schema
-            if (ClassSemantics.hasOwnSemantics(Events)) {
+            if (Events !== parentType?.Events && ClassSemantics.hasOwnSemantics(Events)) {
                 const eventSemantics = Semantics.classOf(Events);
                 eventSemantics.mutableModel = decoration.mutableModel;
             }
@@ -386,6 +427,10 @@ Object.defineProperties(Behavior, {
         },
     },
 });
+
+function isBehaviorType(value: unknown): value is Behavior.Type {
+    return typeof value === "function" && (value === Behavior || value.prototype instanceof Behavior);
+}
 
 export namespace Behavior {
     /**

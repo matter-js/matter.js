@@ -10,8 +10,18 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "deviceType", name: "ElectricalSensor", xref: "device§2.6",
+
     details: "An Electrical Sensor device measures the electrical power and/or energy being imported and/or " +
-        "exported.",
+        "exported." +
+        "\n" +
+        "### Cluster Requirements" +
+        "\n" +
+        "> [!NOTE]" +
+        "\n" +
+        "> NOTE: Electrical measurements made by either the Electrical Power Measurement cluster, the " +
+        "Electrical Energy Measurement cluster, or both shall apply to the endpoints indicated by the Power " +
+        "Topology cluster.",
+
     children: [
         { tag: "requirement", name: "ElectricalPowerMeasurement", xref: "device§2.6.3" },
         { tag: "requirement", name: "ElectricalEnergyMeasurement", xref: "device§2.6.3" },

@@ -37,7 +37,7 @@ class EthernetCommissioningServer extends NetworkCommissioningServer.with("Ether
 
 describe("NodePhysicalProperties", () => {
     it("chooses correct default intervals", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         expectParams(node, {
             minIntervalFloor: Instant,
             maxIntervalCeiling: Minutes(1),
@@ -49,13 +49,13 @@ describe("NodePhysicalProperties", () => {
             minIntervalFloor: Seconds(2),
             maxIntervalCeiling: Minutes(2),
         };
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         expectParams(node, request, request);
     });
 
     it("overrides ICD floor", async () => {
         const IcdServer = IcdManagementServer.set({ idleModeDuration: 60, maximumCheckInBackoff: 60 });
-        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(IcdServer));
+        await using node = await MockServerNode.create(ServerNode.RootEndpoint.with(IcdServer));
         const props = NodePhysicalProperties(node);
         expect(props.isIntermittentlyConnected).true;
         expect(props.idleModeDuration).to.equal(Seconds(60));
@@ -90,7 +90,7 @@ describe("NodePhysicalProperties", () => {
         });
         const BatteryEndpoint = PowerSourceEndpoint.with(BatteryServer);
 
-        const node = await MockServerNode.create({
+        await using node = await MockServerNode.create({
             parts: [MainsEndpoint, BatteryEndpoint],
         });
         expectParams(node, {
@@ -128,7 +128,7 @@ describe("NodePhysicalProperties", () => {
 
     it("infers wifi from root endpoint diagnostics when Network Commissioning is absent", async () => {
         const WifiServer = WiFiNetworkDiagnosticsServer.set({ bssid: Bytes.fromHex("847848cc0bde") });
-        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(WifiServer));
+        await using node = await MockServerNode.create(ServerNode.RootEndpoint.with(WifiServer));
         const props = NodePhysicalProperties(node);
 
         expect(props.supportsWifi).true;
@@ -137,7 +137,7 @@ describe("NodePhysicalProperties", () => {
     });
 
     it("does not infer wifi from an unassociated interface", async () => {
-        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(WiFiNetworkDiagnosticsServer));
+        await using node = await MockServerNode.create(ServerNode.RootEndpoint.with(WiFiNetworkDiagnosticsServer));
         const props = NodePhysicalProperties(node);
 
         expect(props.supportsWifi).false;
@@ -145,7 +145,7 @@ describe("NodePhysicalProperties", () => {
 
     it("infers thread from root endpoint diagnostics when Network Commissioning is absent", async () => {
         const ThreadServer = ThreadNetworkDiagnosticsServer.set({ channel: 15, panId: 0x1234 });
-        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(ThreadServer));
+        await using node = await MockServerNode.create(ServerNode.RootEndpoint.with(ThreadServer));
         const props = NodePhysicalProperties(node);
 
         expect(props.supportsThread).true;
@@ -155,7 +155,7 @@ describe("NodePhysicalProperties", () => {
     });
 
     it("does not infer thread from an unjoined interface", async () => {
-        const node = await MockServerNode.create(ServerNode.RootEndpoint.with(ThreadNetworkDiagnosticsServer));
+        await using node = await MockServerNode.create(ServerNode.RootEndpoint.with(ThreadNetworkDiagnosticsServer));
         const props = NodePhysicalProperties(node);
 
         expect(props.supportsThread).false;
@@ -164,7 +164,7 @@ describe("NodePhysicalProperties", () => {
 
     it("does not infer a medium from diagnostics on a non-root endpoint", async () => {
         const WifiServer = WiFiNetworkDiagnosticsServer.set({ bssid: Bytes.fromHex("847848cc0bde") });
-        const node = await MockServerNode.create({
+        await using node = await MockServerNode.create({
             parts: [new Endpoint(SecondaryNetworkInterfaceEndpoint.with(WifiServer))],
         });
         const props = NodePhysicalProperties(node);
@@ -175,7 +175,7 @@ describe("NodePhysicalProperties", () => {
     it("does not infer a medium when Network Commissioning reports one", async () => {
         const WifiServer = WiFiNetworkDiagnosticsServer.set({ bssid: Bytes.fromHex("847848cc0bde") });
         const ThreadServer = ThreadNetworkDiagnosticsServer.set({ channel: 15, panId: 0x1234 });
-        const node = await MockServerNode.create(
+        await using node = await MockServerNode.create(
             ServerNode.RootEndpoint.with(EthernetCommissioningServer, WifiServer, ThreadServer),
         );
         const props = NodePhysicalProperties(node);
@@ -186,7 +186,7 @@ describe("NodePhysicalProperties", () => {
     });
 
     it("reports the specification version and no Generic Switch by default", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const props = NodePhysicalProperties(node);
 
         // A mock node reports the current (>= 1.3) specification version, which is why Thread devices above still
@@ -196,7 +196,7 @@ describe("NodePhysicalProperties", () => {
     });
 
     it("collects the device types present on endpoints", async () => {
-        const node = await MockServerNode.create({
+        await using node = await MockServerNode.create({
             parts: [new Endpoint(GenericSwitchDevice.with(SwitchServer.with(Switch.Feature.MomentarySwitch)))],
         });
         const props = NodePhysicalProperties(node);
@@ -205,7 +205,7 @@ describe("NodePhysicalProperties", () => {
     });
 
     it("collects device types behind an aggregator", async () => {
-        const node = await MockServerNode.create({
+        await using node = await MockServerNode.create({
             parts: [
                 new Endpoint(AggregatorEndpoint, {
                     parts: [new Endpoint(GenericSwitchDevice.with(SwitchServer.with(Switch.Feature.MomentarySwitch)))],
@@ -224,26 +224,26 @@ async function expectParamsWithCluster(
     expected: Partial<Subscribe>,
 ) {
     // Cluster on root endpoint should affect default
-    let node: ServerNode<ServerNode.RootEndpoint> = await MockServerNode.create(
+    await using rootNode = await MockServerNode.create(
         ServerNode.RootEndpoint.with(cluster) as unknown as typeof ServerNode.RootEndpoint,
     );
-    expectParams(node, expected);
+    expectParams(rootNode, expected);
 
     // Cluster from utility endpoint should affect default
-    node = await MockServerNode.create({
+    await using utilityNode = await MockServerNode.create({
         parts: [new Endpoint(utility)],
     });
-    expectParams(node, expected);
+    expectParams(utilityNode, expected);
 
     // Cluster from application endpoint should not affect default
-    node = await MockServerNode.create({
+    await using applicationNode = await MockServerNode.create({
         parts: [
             new Endpoint(AggregatorEndpoint, {
                 parts: [new Endpoint(utility)],
             }),
         ],
     });
-    expectParams(node, {
+    expectParams(applicationNode, {
         minIntervalFloor: Instant,
         maxIntervalCeiling: Minutes(1),
     });

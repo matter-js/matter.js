@@ -15,7 +15,7 @@ import {
 } from "../../elements/index.js";
 
 export const WebRtcTransportRequestor = Cluster(
-    { name: "WebRtcTransportRequestor", id: 0x554, classification: "application" },
+    { name: "WebRtcTransportRequestor", id: 0x554, bindable: false, classification: "application" },
     Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "CurrentSessions", id: 0x0, type: "list", access: "R S A", conformance: "M" },

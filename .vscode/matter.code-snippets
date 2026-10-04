@@ -17,7 +17,7 @@
 		"scope": "javascript,typescript",
 		"prefix": "@core",
 		"body": [
-			"@see {@link MatterSpecification.v141.Core} § "
+			"@see {@link MatterSpecification.v161.Core} § "
 		]
 	},
 
@@ -25,7 +25,7 @@
         "scope": "javascript,typescript",
         "prefix": "@cluster",
         "body": [
-            "@see {@link MatterSpecification.v141.Cluster} § "
+            "@see {@link MatterSpecification.v161.Cluster} § "
         ]
     }
 }

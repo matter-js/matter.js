@@ -17,9 +17,11 @@ import {
     MockStorageService,
     Network,
     NetworkSimulator,
+    RuntimeService,
     Seconds,
     StorageDriver,
 } from "@matter/general";
+import { MatterModel } from "@matter/model";
 import { FabricId } from "@matter/types";
 import { MockServerNode } from "./mock-server-node.js";
 
@@ -29,6 +31,7 @@ import { MockServerNode } from "./mock-server-node.js";
 export class MockSite {
     #simulator = new NetworkSimulator();
     #nodes = new Set<ServerNode>();
+    #environments = new Set<Environment>();
     #nextNetworkIndex = 1;
     #storage = {} as Record<string, Record<string, any>>;
     #createStorageDriver: (store: Record<string, any>) => StorageDriver;
@@ -57,7 +60,11 @@ export class MockSite {
 
         const index = (config.index ??= this.#nextNetworkIndex++);
         const id = (config.id ??= `device${index}`);
-        const env = (config.environment ??= new Environment(id));
+        if (config.environment === undefined) {
+            config.environment = new Environment(id);
+            this.#environments.add(config.environment);
+        }
+        const env = config.environment;
         if (!env.has(Crypto)) {
             const crypto = MockCrypto(index);
             env.set(Entropy, crypto);
@@ -70,7 +77,8 @@ export class MockSite {
         new MockStorageService(env, () => this.#createStorageDriver(this.storageFor(id)));
 
         // Note that we don't use MockServerNode as we don't actually want anything mocked
-        const node = new ServerNode(config);
+        const node =
+            config.matter === undefined ? new ServerNode(config) : new ModelledServerNode(config, config.matter);
         this.#nodes.add(node);
 
         if (config.device) {
@@ -158,6 +166,20 @@ export class MockSite {
             // Not sure why macrotasks are necessary; something hangs with microtasks but haven't tracked down
             { macrotasks: true },
         );
+
+        const environments = [...this.#environments];
+        this.#environments.clear();
+        await MockTime.resolve(
+            MatterAggregateError.allSettled(
+                environments.map(async env => {
+                    if (env.owns(RuntimeService)) {
+                        await env.get(RuntimeService).close();
+                    }
+                    env[Symbol.dispose]();
+                }),
+            ),
+            { macrotasks: true },
+        );
     }
 
     storageFor(id: string | { id: string }) {
@@ -183,5 +205,21 @@ export namespace MockSite {
     export interface PairOptions {
         controller?: MockServerNode.Configuration<any>;
         device?: MockServerNode.Configuration<any>;
+    }
+}
+
+/**
+ * A server node that validates its device types in a model other than the standard one.
+ */
+class ModelledServerNode extends ServerNode {
+    #matter: MatterModel;
+
+    constructor(config: Partial<Node.Configuration<ServerNode.RootEndpoint>>, matter: MatterModel) {
+        super(config);
+        this.#matter = matter;
+    }
+
+    override get matter() {
+        return this.#matter;
     }
 }

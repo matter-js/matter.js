@@ -13,9 +13,7 @@ Resource.add(
         tag: "cluster", name: "DoorLock", pics: "DRLK", xref: "cluster§5.2",
         details: "The door lock cluster provides an interface to a generic way to secure a door. The physical object " +
             "that provides the locking functionality is abstracted from the cluster. The cluster has a small list " +
-            "of mandatory attributes and functions and a list of optional features." +
-            "\n" +
-            "!image2",
+            "of mandatory attributes and functions and a list of optional features.",
 
         children: [
             {
@@ -138,13 +136,13 @@ Resource.add(
 
                     {
                         tag: "field", name: "ALIRO", xref: "cluster§5.2.4.12",
-                        details: "Locks that support this feature implement the Aliro specification as defined in " +
-                            "[[Aliro]](#ref_Aliro) and support Matter as a method for provisioning Aliro credentials."
+                        details: "Locks that support this feature implement the Aliro specification as defined in Aliro and support " +
+                            "Matter as a method for provisioning Aliro credentials."
                     },
                     {
                         tag: "field", name: "ALBU", xref: "cluster§5.2.4.13",
                         details: "Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in " +
-                            "[[Aliro]](#ref_Aliro)."
+                            "Aliro."
                     }
                 ]
             },
@@ -416,10 +414,8 @@ Resource.add(
 
             {
                 tag: "attribute", name: "AliroReaderVerificationKey", xref: "cluster§5.2.9.37",
-
-                details: "Indicates the verification key component of the Reader's key pair as defined in " +
-                    "[[Aliro]](#ref_Aliro). The value, if not null, shall be an uncompressed elliptic curve public key as " +
-                    "defined in section 2.3.3 of SEC 1." +
+                details: "Indicates the verification key component of the Reader's key pair as defined in Aliro. The value, if " +
+                    "not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1." +
                     "\n" +
                     "Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, " +
                     "\"SetAliroReaderConfig Command\"."
@@ -427,7 +423,7 @@ Resource.add(
 
             {
                 tag: "attribute", name: "AliroReaderGroupIdentifier", xref: "cluster§5.2.9.38",
-                details: "Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro)." +
+                details: "Indicates the reader_group_identifier as defined in Aliro." +
                     "\n" +
                     "Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26, " +
                     "\"SetAliroReaderConfig Command\"."
@@ -435,19 +431,17 @@ Resource.add(
 
             {
                 tag: "attribute", name: "AliroReaderGroupSubIdentifier", xref: "cluster§5.2.9.39",
-                details: "Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro)."
+                details: "Indicates the reader_group_sub_identifier as defined in Aliro."
             },
-
             {
                 tag: "attribute", name: "AliroExpeditedTransactionSupportedProtocolVersions",
                 xref: "cluster§5.2.9.40",
-                details: "Indicates the list of protocol versions supported for expedited transactions as defined in " +
-                    "[[Aliro]](#ref_Aliro)."
+                details: "Indicates the list of protocol versions supported for expedited transactions as defined in Aliro."
             },
 
             {
                 tag: "attribute", name: "AliroGroupResolvingKey", xref: "cluster§5.2.9.41",
-                details: "Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro)." +
+                details: "Indicates the Group Resolving Key as defined in Aliro." +
                     "\n" +
                     "Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, " +
                     "\"SetAliroReaderConfig Command\"."
@@ -456,11 +450,11 @@ Resource.add(
             {
                 tag: "attribute", name: "AliroSupportedBleuwbProtocolVersions", xref: "cluster§5.2.9.42",
                 details: "Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as " +
-                    "defined in [[Aliro]](#ref_Aliro)."
+                    "defined in Aliro."
             },
             {
                 tag: "attribute", name: "AliroBleAdvertisingVersion", xref: "cluster§5.2.9.43",
-                details: "Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro)."
+                details: "Indicates the version of the Bluetooth LE advertisement as defined in Aliro."
             },
             {
                 tag: "attribute", name: "NumberOfAliroCredentialIssuerKeysSupported", xref: "cluster§5.2.9.44",
@@ -521,15 +515,15 @@ Resource.add(
                     "the door lock server shall generate a LockOperationError event with LockOperationType set to " +
                     "Unlatch and a LockOperation event with LockOperationType set to Unlock." +
                     "\n" +
-                    "  - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
+                    "    - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
                     "LockOperationError event with LockOperationType set to Unlock." +
                     "\n" +
                     "  - Upon manual actuation, a door lock server that supports the Unbolting feature:" +
                     "\n" +
-                    "  - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "outside." +
                     "\n" +
-                    "  - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "    - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "inside.",
 
                 children: [
@@ -1077,7 +1071,7 @@ Resource.add(
                     "\n" +
                     "  - FAILURE, if some unexpected internal error occurred setting User." +
                     "\n" +
-                    "  - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot." +
+                    "  - Occupied, if OperationType is Add and UserIndex points to an occupied slot." +
                     "\n" +
                     "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is " +
                     "Modify and UserIndex points to an available slot.",
@@ -1329,23 +1323,23 @@ Resource.add(
                             "\n" +
                             "  - FAILURE, if some unexpected internal error occurred setting user credential." +
                             "\n" +
-                            "  - OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an " +
+                            "  - Occupied, if OperationType is Add and CredentialIndex in Credential structure points to an " +
                             "occupied slot." +
                             "\n" +
-                            "  - OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match " +
+                            "  - Occupied, if OperationType is Modify and CredentialIndex in Credential structure does not match " +
                             "the CredentialIndex that is already associated with the provided UserIndex." +
                             "\n" +
-                            "  - DUPLICATE, if CredentialData provided is a duplicate of another credential with the same " +
+                            "  - Duplicate, if CredentialData provided is a duplicate of another credential with the same " +
                             "CredentialType (e.g. duplicate PIN code)." +
                             "\n" +
                             "  - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to " +
                             "resource constraints such as:" +
                             "\n" +
-                            "  - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
+                            "    - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
                             "associated." +
                             "\n" +
-                            "  - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding " +
-                            "it would cause the total number of credentials of those two types to exceed " +
+                            "    - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and " +
+                            "adding it would cause the total number of credentials of those two types to exceed " +
                             "NumberOfAliroEndpointKeysSupported." +
                             "\n" +
                             "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid." +
@@ -1501,8 +1495,7 @@ Resource.add(
 
             {
                 tag: "command", name: "SetAliroReaderConfig", xref: "cluster§5.2.10.26",
-                details: "This command allows communicating an Aliro Reader configuration, as defined in " +
-                    "[[Aliro]](#ref_Aliro), to the lock.",
+                details: "This command allows communicating an Aliro Reader configuration, as defined in Aliro, to the lock.",
 
                 children: [
                     {
@@ -1571,9 +1564,9 @@ Resource.add(
                 details: "> [!NOTE]" +
                     "\n" +
                     "> WARNING: For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT " +
-                    "  supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
+                    "supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
                     "bitmaps in this specification, and it is recommended that clients carefully take this into " +
-                    "  consideration. See SupportedOperatingModes.",
+                    "consideration. See SupportedOperatingModes.",
 
                 children: [
                     { tag: "field", name: "Normal", description: "Normal operation mode is NOT supported" },
@@ -1770,8 +1763,8 @@ Resource.add(
                             "section 2.3.3 of SEC 1." +
                             "\n" +
                             "Credentials of this type shall NOT be used to allow operating the lock. They shall be used, as " +
-                            "defined in [[Aliro]](#ref_Aliro), to create new credentials of type AliroEvictableEndpointKey via a " +
-                            "step-up transaction." +
+                            "defined in Aliro, to create new credentials of type AliroEvictableEndpointKey via a step-up " +
+                            "transaction." +
                             "\n" +
                             "When performing the step-up transaction, the lock shall request the data element with identifier " +
                             "\"matter1\", and shall attempt to create a new credential of type AliroEvictableEndpointKey if and " +

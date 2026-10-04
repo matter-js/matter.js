@@ -36,8 +36,7 @@ export namespace BaseRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
-        optional: { Binding: BindingServer, FixedLabel: FixedLabelServer, UserLabel: UserLabelServer },
-        mandatory: {}
+        optional: { Binding: BindingServer, FixedLabel: FixedLabelServer, UserLabel: UserLabelServer }
     };
 }
 

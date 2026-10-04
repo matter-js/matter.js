@@ -6,6 +6,8 @@
 
 import { HepaFilterMonitoringServer } from "#behaviors/hepa-filter-monitoring";
 import { AirPurifierDevice } from "#devices/air-purifier";
+import { MatterAggregateError } from "@matter/general";
+import { ConstraintError } from "@matter/protocol";
 import { FanControl } from "@matter/types/clusters/fan-control";
 import { ResourceMonitoring } from "@matter/types/clusters/resource-monitoring";
 import { MockServerNode } from "../../node/mock-server-node.js";
@@ -27,7 +29,7 @@ describe("HepaFilterMonitoringServer", () => {
     });
 
     it("instantiates with feature", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const Filter = HepaFilterMonitoringServer.with("Condition");
         const PurifierDevice = AirPurifierDevice.with(Filter);
         const purifier = await node.add(PurifierDevice, {
@@ -43,7 +45,7 @@ describe("HepaFilterMonitoringServer", () => {
     });
 
     it("properly types state", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const Filter = HepaFilterMonitoringServer.with("Condition");
         const PurifierDevice = AirPurifierDevice.with(Filter);
         const purifier = await node.add(PurifierDevice, {
@@ -58,5 +60,35 @@ describe("HepaFilterMonitoringServer", () => {
             agent.hepaFilterMonitoring.state.condition = 50;
         });
         expect(purifier.stateOf(Filter).condition).equals(50);
+    });
+});
+
+describe("HepaFilterMonitoringServer condition", () => {
+    async function purifierWithCondition(condition: number) {
+        const node = await MockServerNode.create();
+        try {
+            await node.add(AirPurifierDevice.with(HepaFilterMonitoringServer.with("Condition")), {
+                fanControl: { fanModeSequence: FanControl.FanModeSequence.OffHigh, percentCurrent: 50 },
+                hepaFilterMonitoring: {
+                    condition,
+                    changeIndication: ResourceMonitoring.ChangeIndication.Ok,
+                    degradationDirection: ResourceMonitoring.DegradationDirection.Down,
+                },
+            });
+        } finally {
+            await node.close();
+        }
+    }
+
+    // Condition is a percent and restates no range of its own
+    it("rejects a condition above 100 percent", async () => {
+        const error = await purifierWithCondition(101).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(error).instanceof(MatterAggregateError);
+        const cause = error instanceof MatterAggregateError ? error.errors[0]?.cause : undefined;
+        expect(cause).instanceof(ConstraintError);
     });
 });

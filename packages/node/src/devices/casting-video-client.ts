@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import {
     ContentAppObserverServer as BaseContentAppObserverServer
 } from "../behaviors/content-app-observer/ContentAppObserverServer.js";
@@ -39,11 +40,22 @@ import { Identity } from "@matter/general";
  * A Casting Video Client is a client that can launch content on a Casting Video Player, for example, a Smart Speaker or
  * a Content Provider phone app.
  *
- * @see {@link MatterSpecification.v16.Device} § 10.6
+ * ### Cluster Requirements
+ *
+ * See Section 1.1.7, "Cluster Requirements" for additional clusters including the Binding cluster.
+ *
+ * @see {@link MatterSpecification.v161.Device} § 10.6
  */
 export interface CastingVideoClientDevice extends Identity<typeof CastingVideoClientDeviceDefinition> {}
 
 export namespace CastingVideoClientRequirements {
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
+
     /**
      * The ContentAppObserver cluster is optional per the Matter specification.
      *
@@ -157,7 +169,8 @@ export namespace CastingVideoClientRequirements {
     export const AccountLoginClient = BaseAccountLoginClient;
 
     /**
-     * The ContentControl cluster is optional per the Matter specification.
+     * The ContentControl cluster is provisional per the Matter specification (conformance P, O), so it is treated as
+     * optional.
      *
      * We provide this alias to the default implementation {@link ContentControlClient} for convenience.
      */
@@ -166,7 +179,10 @@ export namespace CastingVideoClientRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { optional: { ContentAppObserver: ContentAppObserverServer }, mandatory: {} };
+    export const server = {
+        mandatory: { Binding: BindingServer },
+        optional: { ContentAppObserver: ContentAppObserverServer }
+    };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -201,7 +217,7 @@ export const CastingVideoClientDeviceDefinition = MutableEndpoint({
     deviceType: 0x29,
     deviceRevision: 2,
     requirements: CastingVideoClientRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(CastingVideoClientRequirements.server.mandatory.Binding)
 });
 
 Object.freeze(CastingVideoClientDeviceDefinition);

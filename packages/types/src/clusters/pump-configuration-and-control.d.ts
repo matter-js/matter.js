@@ -17,9 +17,7 @@ import type { ClusterModel } from "@matter/model";
  * automatic reporting of pump status information. Note that control of pump speed is not included – speed is controlled
  * by the On/Off and Level Control clusters.
  *
- * !pump devices
- *
- * @see {@link MatterSpecification.v16.Cluster} § 4.2
+ * @see {@link MatterSpecification.v161.Cluster} § 4.2
  */
 export declare namespace PumpConfigurationAndControl {
     /**
@@ -33,7 +31,7 @@ export declare namespace PumpConfigurationAndControl {
     export const name: "PumpConfigurationAndControl";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v161.Cluster}.
      */
     export const revision: 5;
 
@@ -54,7 +52,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is -3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.1
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.1
          */
         maxPressure: number | null;
 
@@ -64,7 +62,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.2
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.2
          */
         maxSpeed: number | null;
 
@@ -74,7 +72,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.3
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.3
          */
         maxFlow: number | null;
 
@@ -91,7 +89,7 @@ export declare namespace PumpConfigurationAndControl {
          * See OperationMode Attribute and ControlMode Attribute for a detailed description of the operation and control
          * of the pump.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.15
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.15
          */
         effectiveOperationMode: OperationMode;
 
@@ -114,7 +112,7 @@ export declare namespace PumpConfigurationAndControl {
          * See OperationMode Attribute and ControlMode Attribute for detailed a description of the operation and control
          * of the pump.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.16
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.16
          */
         effectiveControlMode: ControlMode;
 
@@ -128,7 +126,7 @@ export declare namespace PumpConfigurationAndControl {
          * Valid range is 0 % to 163.835% (0.005 % granularity). Although this attribute is a signed value, values of
          * capacity less than zero have no physical meaning.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.17
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.17
          */
         capacity: number | null;
 
@@ -138,8 +136,6 @@ export declare namespace PumpConfigurationAndControl {
          * The actual operating mode of the pump is a result of the setting of the attributes OperationMode, ControlMode
          * and the optional connection of a remote sensor. The operation and control is prioritized as shown in the
          * scheme below:
-         *
-         * !Priority Scheme of Pump Operation and Control.jpg
          *
          * If this attribute is Maximum, Minimum or Local, the OperationMode attribute decides how the pump is operated.
          *
@@ -158,7 +154,7 @@ export declare namespace PumpConfigurationAndControl {
          * an unsupported operation mode value shall be ignored and a response containing the status of CONSTRAINT_ERROR
          * shall be returned.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.22
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.22
          */
         operationMode: OperationMode;
 
@@ -167,7 +163,7 @@ export declare namespace PumpConfigurationAndControl {
          * pump controller function is active, the corresponding bit shall be set to 1. Where a pump controller function
          * is not active, the corresponding bit shall be set to 0.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.14
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.14
          */
         pumpStatus?: PumpStatus;
 
@@ -180,7 +176,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.18
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.18
          */
         speed?: number | null;
 
@@ -194,7 +190,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 16,777,214 hrs.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.19
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.19
          */
         lifetimeRunningHours?: number | null;
 
@@ -207,7 +203,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 16,777,214 Watts.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.20
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.20
          */
         power?: number | null;
 
@@ -221,7 +217,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 kWh to 4,294,967,294 kWh. Null if the value is unknown.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.21
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.21
          */
         lifetimeEnergyConsumed?: number | null;
 
@@ -237,12 +233,12 @@ export declare namespace PumpConfigurationAndControl {
          * an unsupported control mode value shall be ignored and a response containing the status of CONSTRAINT_ERROR
          * shall be returned.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.23
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.23
          */
         controlMode?: ControlMode;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7
          * @deprecated
          */
         alarmMask?: number;
@@ -258,7 +254,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.4
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.4
          */
         minConstPressure: number | null;
 
@@ -268,7 +264,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.5
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.5
          */
         maxConstPressure: number | null;
     }
@@ -283,7 +279,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.4
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.4
          */
         minConstPressure?: number | null;
 
@@ -293,7 +289,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.5
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.5
          */
         maxConstPressure?: number | null;
 
@@ -303,7 +299,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.6
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.6
          */
         minCompPressure?: number | null;
 
@@ -313,7 +309,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.7
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.7
          */
         maxCompPressure?: number | null;
 
@@ -323,7 +319,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.8
          */
         minConstSpeed?: number | null;
 
@@ -333,7 +329,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.9
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.9
          */
         maxConstSpeed?: number | null;
 
@@ -343,7 +339,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.10
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.10
          */
         minConstFlow?: number | null;
 
@@ -353,7 +349,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.11
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.11
          */
         maxConstFlow?: number | null;
 
@@ -363,7 +359,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –273.15 °C to 327.67 °C (steps of 0.01 °C). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.12
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.12
          */
         minConstTemp?: number | null;
 
@@ -374,7 +370,7 @@ export declare namespace PumpConfigurationAndControl {
          * MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C (steps of
          * 0.01 °C). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.13
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.13
          */
         maxConstTemp?: number | null;
     }
@@ -389,7 +385,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.6
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.6
          */
         minCompPressure: number | null;
 
@@ -399,7 +395,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.7
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.7
          */
         maxCompPressure: number | null;
     }
@@ -414,7 +410,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.8
          */
         minConstSpeed: number | null;
 
@@ -424,7 +420,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.9
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.9
          */
         maxConstSpeed: number | null;
     }
@@ -439,7 +435,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.10
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.10
          */
         minConstFlow: number | null;
 
@@ -449,7 +445,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.11
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.11
          */
         maxConstFlow: number | null;
     }
@@ -464,7 +460,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –273.15 °C to 327.67 °C (steps of 0.01 °C). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.12
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.12
          */
         minConstTemp: number | null;
 
@@ -475,7 +471,7 @@ export declare namespace PumpConfigurationAndControl {
          * MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C (steps of
          * 0.01 °C). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.13
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.13
          */
         maxConstTemp: number | null;
     }
@@ -493,7 +489,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is -3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.1
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.1
          */
         maxPressure: number | null;
 
@@ -503,7 +499,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.2
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.2
          */
         maxSpeed: number | null;
 
@@ -513,7 +509,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.3
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.3
          */
         maxFlow: number | null;
 
@@ -530,7 +526,7 @@ export declare namespace PumpConfigurationAndControl {
          * See OperationMode Attribute and ControlMode Attribute for a detailed description of the operation and control
          * of the pump.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.15
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.15
          */
         effectiveOperationMode: OperationMode;
 
@@ -553,7 +549,7 @@ export declare namespace PumpConfigurationAndControl {
          * See OperationMode Attribute and ControlMode Attribute for detailed a description of the operation and control
          * of the pump.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.16
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.16
          */
         effectiveControlMode: ControlMode;
 
@@ -567,7 +563,7 @@ export declare namespace PumpConfigurationAndControl {
          * Valid range is 0 % to 163.835% (0.005 % granularity). Although this attribute is a signed value, values of
          * capacity less than zero have no physical meaning.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.17
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.17
          */
         capacity: number | null;
 
@@ -577,8 +573,6 @@ export declare namespace PumpConfigurationAndControl {
          * The actual operating mode of the pump is a result of the setting of the attributes OperationMode, ControlMode
          * and the optional connection of a remote sensor. The operation and control is prioritized as shown in the
          * scheme below:
-         *
-         * !Priority Scheme of Pump Operation and Control.jpg
          *
          * If this attribute is Maximum, Minimum or Local, the OperationMode attribute decides how the pump is operated.
          *
@@ -597,7 +591,7 @@ export declare namespace PumpConfigurationAndControl {
          * an unsupported operation mode value shall be ignored and a response containing the status of CONSTRAINT_ERROR
          * shall be returned.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.22
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.22
          */
         operationMode: OperationMode;
 
@@ -606,7 +600,7 @@ export declare namespace PumpConfigurationAndControl {
          * pump controller function is active, the corresponding bit shall be set to 1. Where a pump controller function
          * is not active, the corresponding bit shall be set to 0.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.14
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.14
          */
         pumpStatus: PumpStatus;
 
@@ -619,7 +613,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.18
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.18
          */
         speed: number | null;
 
@@ -633,7 +627,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 16,777,214 hrs.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.19
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.19
          */
         lifetimeRunningHours: number | null;
 
@@ -646,7 +640,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 16,777,214 Watts.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.20
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.20
          */
         power: number | null;
 
@@ -660,7 +654,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 kWh to 4,294,967,294 kWh. Null if the value is unknown.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.21
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.21
          */
         lifetimeEnergyConsumed: number | null;
 
@@ -676,12 +670,12 @@ export declare namespace PumpConfigurationAndControl {
          * an unsupported control mode value shall be ignored and a response containing the status of CONSTRAINT_ERROR
          * shall be returned.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.23
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.23
          */
         controlMode: ControlMode;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7
          * @deprecated
          */
         alarmMask: number;
@@ -692,7 +686,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.4
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.4
          */
         minConstPressure: number | null;
 
@@ -702,7 +696,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.5
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.5
          */
         maxConstPressure: number | null;
 
@@ -712,7 +706,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.6
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.6
          */
         minCompPressure: number | null;
 
@@ -722,7 +716,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –3,276.7 kPa to 3,276.7 kPa (steps of 0.1 kPa). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.7
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.7
          */
         maxCompPressure: number | null;
 
@@ -732,7 +726,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.8
          */
         minConstSpeed: number | null;
 
@@ -742,7 +736,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 to 65,534 RPM (steps of 1 RPM). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.9
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.9
          */
         maxConstSpeed: number | null;
 
@@ -752,7 +746,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.10
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.10
          */
         minConstFlow: number | null;
 
@@ -762,7 +756,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is 0 m^3/h to 6,553.4 m^3/h (steps of 0.1 m^3/h). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.11
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.11
          */
         maxConstFlow: number | null;
 
@@ -772,7 +766,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * Valid range is –273.15 °C to 327.67 °C (steps of 0.01 °C). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.12
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.12
          */
         minConstTemp: number | null;
 
@@ -783,7 +777,7 @@ export declare namespace PumpConfigurationAndControl {
          * MaxConstTemp shall be greater than or equal to MinConstTemp Valid range is –273.15 °C to 327.67 °C (steps of
          * 0.01 °C). Null if the value is invalid.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.7.13
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.7.13
          */
         maxConstTemp: number | null;
     }
@@ -793,87 +787,87 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface BaseEvents {
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         supplyVoltageLow?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         supplyVoltageHigh?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         powerMissingPhase?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         systemPressureLow?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         systemPressureHigh?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         dryRunning?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         motorTemperatureHigh?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         pumpMotorFatalFailure?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         electronicTemperatureHigh?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         pumpBlocked?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         sensorFailure?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         electronicNonFatalFailure?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         electronicFatalFailure?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         generalFault?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         leakage?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         airDetection?: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         turbineOperation?: void;
     }
@@ -886,87 +880,87 @@ export declare namespace PumpConfigurationAndControl {
      */
     export interface Events {
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         supplyVoltageLow: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         supplyVoltageHigh: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         powerMissingPhase: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         systemPressureLow: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         systemPressureHigh: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         dryRunning: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         motorTemperatureHigh: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         pumpMotorFatalFailure: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         electronicTemperatureHigh: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         pumpBlocked: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         sensorFailure: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         electronicNonFatalFailure: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         electronicFatalFailure: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         generalFault: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         leakage: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         airDetection: void;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.8
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.8
          */
         turbineOperation: void;
     }
@@ -986,7 +980,7 @@ export declare namespace PumpConfigurationAndControl {
     /**
      * These are optional features supported by PumpConfigurationAndControlCluster.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 4.2.4
+     * @see {@link MatterSpecification.v161.Cluster} § 4.2.4
      */
     export enum Feature {
         /**
@@ -1040,7 +1034,7 @@ export declare namespace PumpConfigurationAndControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.2
+     * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.2
      */
     export enum OperationMode {
         /**
@@ -1050,7 +1044,7 @@ export declare namespace PumpConfigurationAndControl {
          * If the pump is running in this operation mode the setpoint is an internal variable which may be controlled
          * between 0% and 100%, e.g., by means of the Level Control cluster
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.2.1
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.2.1
          */
         Normal = 0,
 
@@ -1071,7 +1065,7 @@ export declare namespace PumpConfigurationAndControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.3
+     * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.3
      */
     export enum ControlMode {
         /**
@@ -1080,7 +1074,7 @@ export declare namespace PumpConfigurationAndControl {
          * The setpoint is interpreted as a percentage of the range derived from the [MinConstSpeed – MaxConstSpeed]
          * attributes.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.3.1
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.3.1
          */
         ConstantSpeed = 0,
 
@@ -1092,7 +1086,7 @@ export declare namespace PumpConfigurationAndControl {
          * attributes. In case of a remote pressure sensor, this will be the range derived from the [MinMeasuredValue –
          * MaxMeasuredValue] attributes of the remote pressure sensor.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.3.2
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.3.2
          */
         ConstantPressure = 1,
 
@@ -1103,7 +1097,7 @@ export declare namespace PumpConfigurationAndControl {
          * attributes. The internal setpoint will be lowered (compensated) dependent on the flow in the pump (lower flow
          * => lower internal setpoint).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.3.3
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.3.3
          */
         ProportionalPressure = 2,
 
@@ -1115,7 +1109,7 @@ export declare namespace PumpConfigurationAndControl {
          * In case of a remote flow sensor, this will be the range derived from the [MinMeasuredValue –
          * MaxMeasuredValue] attributes of the remote flow sensor.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.3.4
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.3.4
          */
         ConstantFlow = 3,
 
@@ -1127,7 +1121,7 @@ export declare namespace PumpConfigurationAndControl {
          * attributes. In case of a remote temperature sensor, this will be the range derived from the [MinMeasuredValue
          * – MaxMeasuredValue] attributes of the remote temperature sensor.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.3.5
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.3.5
          */
         ConstantTemperature = 5,
 
@@ -1139,13 +1133,13 @@ export declare namespace PumpConfigurationAndControl {
          * cluster to 0, or by using the On/Off cluster. If the pump is started (at any setpoint), the speed of the pump
          * is entirely determined by the pump.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.3.6
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.3.6
          */
         Automatic = 7
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.1
+     * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.1
      */
     export class PumpStatus {
         constructor(values?: Partial<PumpStatus> | number);
@@ -1155,7 +1149,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * If this bit is set, it may correspond to an event in the range 2-16, see Events.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.1.1
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.1.1
          */
         deviceFault?: boolean;
 
@@ -1164,7 +1158,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * If this bit is set, it may correspond to an event in the range 0-1 or 13, see Events.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.1.2
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.1.2
          */
         supplyFault?: boolean;
 
@@ -1185,7 +1179,7 @@ export declare namespace PumpConfigurationAndControl {
          * shall generate a FAILURE error status until LocalOverride is cleared on the physical device. When
          * LocalOverride is cleared, the device shall return to the operation mode set in OperationMode.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.1.3
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.1.3
          */
         localOverride?: boolean;
 
@@ -1200,7 +1194,7 @@ export declare namespace PumpConfigurationAndControl {
          * If this bit is set, EffectiveControlMode is ConstantPressure and the setpoint for the pump is interpreted as
          * a percentage of the range of the remote sensor ([MinMeasuredValue – MaxMeasuredValue]).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.1.4
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.1.4
          */
         remotePressure?: boolean;
 
@@ -1210,7 +1204,7 @@ export declare namespace PumpConfigurationAndControl {
          * If this bit is set, EffectiveControlMode is ConstantFlow, and the setpoint for the pump is interpreted as a
          * percentage of the range of the remote sensor ([MinMeasuredValue – MaxMeasuredValue]).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.1.5
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.1.5
          */
         remoteFlow?: boolean;
 
@@ -1220,7 +1214,7 @@ export declare namespace PumpConfigurationAndControl {
          * If this bit is set, EffectiveControlMode is ConstantTemperature, and the setpoint for the pump is interpreted
          * as a percentage of the range of the remote sensor ([MinMeasuredValue – MaxMeasuredValue])
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 4.2.6.1.6
+         * @see {@link MatterSpecification.v161.Cluster} § 4.2.6.1.6
          */
         remoteTemperature?: boolean;
     }

@@ -6,38 +6,82 @@
 
 import {
     Boot,
+    Bytes,
     ClientNode,
     ControllerBehavior,
+    createPromise,
+    Crypto,
     Diagnostic,
     Duration,
+    ChangeNotificationService,
+    Endpoint,
     Environment,
+    Filesystem,
+    IcdClient,
     ImplementationError,
     InternalError,
-    LogDestination,
-    LogFormat,
     Logger,
+    ChannelType,
     MatterError,
+    MaybePromise,
     Millis,
+    MockFilesystem,
     MockStorageService,
+    Observable,
     ObserverGroup,
     Seconds,
     ServerNode,
     Time,
+    TimeoutError,
+    Timer,
     UnexpectedDataError,
 } from "@matter/main";
+import { BasicInformationClient } from "@matter/main/behaviors/basic-information";
+import { DescriptorClient } from "@matter/main/behaviors/descriptor";
 import { OperationalCredentialsClient } from "@matter/main/behaviors/operational-credentials";
-import { GeneralCommissioning, OperationalCredentials } from "@matter/main/clusters";
 import {
+    OtaSoftwareUpdateProviderClient,
+    OtaSoftwareUpdateProviderServer,
+} from "@matter/main/behaviors/ota-software-update-provider";
+import { OtaSoftwareUpdateRequestorClient } from "@matter/main/behaviors/ota-software-update-requestor";
+import { WebRtcTransportRequestorServer } from "@matter/main/behaviors/web-rtc-transport-requestor";
+import {
+    GeneralCommissioning,
+    OperationalCredentials,
+    OtaSoftwareUpdateProvider,
+    OtaSoftwareUpdateRequestor,
+} from "@matter/main/clusters";
+import { CameraControllerDevice } from "@matter/main/devices";
+import { OtaProviderEndpoint } from "@matter/main/endpoints/ota-provider";
+import type { BdxInit, StorageScope } from "@matter/main/protocol";
+import { FileDesignator, PeerAddress } from "@matter/main/protocol";
+import {
+    assertRemoteActor,
+    type AttestationFinding,
+    BdxProtocol,
+    BdxSession,
+    DclCertificateService,
     ClientRead,
+    Flow,
     CommissionableDeviceIdentifiers,
     Fabric,
     FabricAuthority,
+    BDX_VERSION,
     getOperationalDeviceQname,
     Invoke,
+    OtaImageWriter,
+    NodeSession,
+    type PaaRootEntry,
+    type SeedSource,
+    TestCert_PAA_FFF1_Cert,
+    TestCert_PAA_FFF1_SKID,
+    TestCert_PAA_NoVID_Cert,
+    TestCert_PAA_NoVID_SKID,
     Peer as ProtocolPeer,
     PeerSet,
     Read,
     ReadResult,
+    SessionClosedError,
     Subscribe,
     Write,
     WriteResult,
@@ -57,16 +101,28 @@ import {
     VendorId,
 } from "@matter/main/types";
 import { AttributeModel } from "@matter/model";
+import { DclBehavior } from "@matter/node/behaviors/system/dcl";
+import { SoftwareUpdateManager } from "@matter/node/behaviors/system/software-update";
 import type {
+    AnnounceOtaProviderOptions,
+    AttestationApi,
     AttributePathSpec,
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    BdxTransferAccept,
+    BdxTransferProposal,
     CertGroupApi,
+    CertIcdClientApi,
+    CertIcdEvent,
+    CertIcdRegistration,
     CertNodeApi,
     CertNodeRef,
+    CertSessionInfo,
+    ClientAttributePath,
+    ClientEndpointEntry,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
@@ -75,17 +131,34 @@ import type {
     EventReadEntry,
     GroupKeySetSpec,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
+    OtaAnnouncement,
+    OtaAnnouncementRecord,
+    OtaApplyUpdateExchange,
+    OtaBdxTransfer,
+    OtaNotifyUpdateAppliedRecord,
+    OtaProviderExchanges,
+    OtaProviderScript,
+    OtaQueryImageExchange,
+    OtaScriptedQueryAnswer,
+    PicsValues,
     ReadAttributeOptions,
     ReadEventOptions,
+    ServeOtaUpdateOptions,
     SubscribeEventOptions,
-    PicsValues,
     SubscribeOptions,
     TimedInteractionOptions,
+    WebRtcRequestorApi,
+    WebRtcSessionRecord,
+    WebRtcSessionSpec,
+    WebRtcSignalRecord,
 } from "@matter/testing";
 import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { OTA_TEST_PAYLOAD_SIZE, otaTestPayload, otaTestSoftwareVersionString } from "../OtaTestIdentity.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import { OriginDestination, registerLogOrigin } from "./log-origins.js";
 import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
 
@@ -133,6 +206,11 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "G.C.C04.Tx": 1,
     "G.C.C05.Tx": 1,
 
+    // The IcdManagement client commands `CertIcdClientApi` sends. The CHIP PICS file does not answer these.
+    "ICDM.C.C00.Tx": 1,
+    "ICDM.C.C02.Tx": 1,
+    "ICDM.C.C03.Tx": 1,
+
     // Every ScenesManagement client command TC-S-3.1 sends. The CHIP PICS file answers 0 for the
     // cluster and each command because it describes a device, which is not a scenes client.
     "S.C": 1,
@@ -144,6 +222,18 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     "S.C.C05.Tx": 1,
     "S.C.C06.Tx": 1,
     "S.C.C40.Tx": 1,
+
+    // Every ThreadBorderRouterManagement client command TC-TBRM-3.1 sends. The CHIP PICS file answers
+    // only the server side, because it describes a device; here the client is the controller.
+    "TBRM.C": 1,
+    "TBRM.C.C00.Tx": 1,
+    "TBRM.C.C01.Tx": 1,
+    "TBRM.C.C03.Tx": 1,
+    "TBRM.C.C04.Tx": 1,
+
+    // The controller registers as an ICD Check-In client and refreshes its key (TC-ICDB-1.3). The CHIP
+    // PICS file answers only the server side.
+    "ICDB.C": 1,
 
     // GroupKeyManagement and Groups client commands TC-SC-6.1 sends beyond what the device file already
     // answers 1 for. The file describes a device, which is neither a group-key nor a groups client.
@@ -161,6 +251,56 @@ export const MATTERJS_CONTROLLER_PICS: PicsValues = {
     // switch this controller observes is an action switch, so that is what it declares.
     "SWTCH.C.F02": 0,
     "SWTCH.C.F05": 1,
+
+    // BDX roles the controller takes when it serves an OTA image (TC-BDX-1.4, TC-BDX-2.1). The CHIP
+    // PICS file answers these for a *device*; here the BDX sender and responder is the controller,
+    // which answers a requestor's ReceiveInit and then sends the image.
+    "MCORE.BDX.Sender": 1,
+    "MCORE.BDX.Responder": 1,
+    "MCORE.BDX.SynchronousSender": 1,
+
+    // Asynchronous transfer is refused outright, whichever side proposes it (`bdxSessionInitiator`).
+    "MCORE.BDX.AsynchronousSender": 0,
+
+    // matter.js honors an inbound BlockQueryWithSkip but never sends one, and this key asks about
+    // sending it.
+    "MCORE.BDX.BlockQueryWithSkip": 0,
+
+    // The OTA provider role the controller takes when it serves an image (the TC-SU-3.x block). The
+    // CHIP PICS file answers for a *device*; the provider here is the controller, which stages an
+    // image, answers QueryImage and serves the file over BDX.
+    "MCORE.OTA.Provider": 1,
+
+    // Only BDX. `SoftwareUpdateManager` stages an image into the controller's own catalog and serves
+    // it over BDX; it answers no https URI, so a case gated on this key must skip rather than run
+    // against a provider that would answer DownloadProtocolNotSupported.
+    "MCORE.OTA.HTTPS": 0,
+
+    // The administrator role TC-SU-1.1 rests on: the controller holds Administer privilege on the
+    // nodes it commissioned, and it is the OTA requestor *client* that sends AnnounceOTAProvider.
+    // CHIP's PICS file answers both for a device, which is neither.
+    "MCORE.ACL.Administrator": 1,
+    "OTAR.C.M.AnnounceOTAProvider": 1,
+
+    // The controller is not an OTA requestor, so it never tells a provider that an update was applied.
+    "OTAR.C.M.NotifyUpdateApplied": 0,
+
+    // The provider's own optional response fields. Its own answers carry a DelayedActionTime on the
+    // Busy paths and a UserConsentNeeded for an update staged as needing consent; a cert case reaches
+    // both through `CertNodeApi.scriptOtaProvider`, which has the provider state them without putting
+    // it in a state the harness cannot arrange.
+    "OTAP.S.M.DelayedActionTime": 1,
+    "OTAP.S.M.UserConsentNeeded": 1,
+
+    // Bridge-client flags. `MCORE.BRIDGECLIENT` asks whether the DUT supports a bridge, and the
+    // `MCORE.DEVLIST.*` flags whether it maintains the devices behind one — their names, their state,
+    // their battery level. CHIP's PICS file answers these for a *device*, so the answers there say
+    // nothing about the client, and this overlay is the DUT-as-client declaration TC-BR-4 rests on.
+    "MCORE.BRIDGECLIENT": 1,
+    "MCORE.DEVLIST.UseDevices": 1,
+    "MCORE.DEVLIST.UseDeviceName": 1,
+    "MCORE.DEVLIST.UseDeviceState": 1,
+    "MCORE.DEVLIST.UseBatInfo": 1,
 };
 
 const adapterStreams = new Map<string, LineQueue>();
@@ -169,18 +309,20 @@ const adapterStreams = new Map<string, LineQueue>();
 // Logger.ts's own Boot.init), so a one-time install at module load would stop forwarding adapter log
 // lines from the second cert-test file onward. Boot.init re-runs this on every reboot instead.
 Boot.init(() => {
-    Logger.destinations["cert-controller-adapter"] = LogDestination({
-        name: "cert-controller-adapter",
-        format: LogFormat.formats.plain,
-        write(text: string) {
-            const id = activeAdapterId.getStore();
-            if (id === undefined) {
-                return;
-            }
-            adapterStreams.get(id)?.push(text);
-        },
+    Logger.destinations["cert-controller-adapter"] = OriginDestination("cert-controller-adapter", "adapter", text => {
+        const id = activeAdapterId.getStore();
+        if (id === undefined) {
+            return;
+        }
+        adapterStreams.get(id)?.push(text);
     });
 });
+
+/** Whether the line being logged belongs to a controller adapter's own stream. */
+export function controllerAdapterClaimsLogs() {
+    const id = activeAdapterId.getStore();
+    return id !== undefined && adapterStreams.has(id);
+}
 
 const logger = Logger.get("CertControllerAdapter");
 
@@ -253,6 +395,493 @@ function groupCommandRequestFor(cluster: string | number, command: string, args?
 
 function isConcretePath(path: AttributePathSpec) {
     return path.endpoint !== undefined && path.cluster !== undefined && path.attribute !== undefined;
+}
+
+/**
+ * Endpoint the controller puts an OTA provider on the first time a case asks it to serve an image.
+ *
+ * Distinct from {@link WEBRTC_REQUESTOR_ENDPOINT}, which a case enabling the WebRTC requestor
+ * installs on the same controller: one number cannot carry both.
+ */
+const OTA_PROVIDER_ENDPOINT = 2;
+
+/** Endpoint id for {@link OTA_PROVIDER_ENDPOINT}, which is also how a later call finds it again. */
+const OTA_PROVIDER_ENDPOINT_ID = "ota-provider";
+
+/**
+ * Budget for the whole OTA exchange {@link InProcessCertNodeApi.serveOtaUpdate} drives: the
+ * announcement, the node's own `QueryImage`, and the BDX transfer that follows.
+ *
+ * It has to outlast the peer's own BDX-layer response timeout rather than fit inside it — a peer that
+ * gives up is what this should report, and reporting it needs the give-up to have happened.
+ */
+const OTA_TRANSFER_TIMEOUT = Seconds(90);
+
+/**
+ * How long {@link InProcessCertNodeApi.serveOtaUpdate} waits for the peer to ask to apply what it
+ * downloaded, once the transfer itself is complete.
+ *
+ * Short, because the request follows the last block immediately: this is here so a case's teardown
+ * does not land between the two, not to wait out a peer that decided against applying.
+ */
+const OTA_APPLY_TIMEOUT = Seconds(10);
+
+/**
+ * How long {@link InProcessCertNodeApi.announceOtaProvider} waits for the node's own `QueryImage`.
+ *
+ * An announcement naming `UpdateAvailable` asks the node to query at once, so this covers the node's
+ * own connection back to the provider rather than any query interval of its own.
+ */
+const OTA_QUERY_TIMEOUT = Seconds(30);
+
+/** An OTA image the controller offered a node was not transferred. */
+export class OtaTransferError extends MatterError {}
+
+/**
+ * The controller's own OTA provider, which keeps the commands it answered.
+ *
+ * A provider's answer is not observable from outside it. The requestor's log states what it received,
+ * and its own rendering carries neither the update token's length nor the image URI's exact text —
+ * both of which the SU cases whose DUT is the provider assert on. So the provider records what it
+ * answered, and the requestor's log is what corroborates that the answer reached it.
+ *
+ * Unless a case scripted it (`CertNodeApi.scriptOtaProvider`), every answer is `super`'s, so a case reads
+ * the provider matter.js ships rather than one this harness shaped for it. An answer is recorded once it
+ * was produced, so a command this provider rejected leaves nothing in the record.
+ *
+ * {@link OtaExchangeRecording} owns the record's lifetime; nothing else clears it or reads it live.
+ */
+class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
+    declare readonly internal: RecordingOtaProviderServer.Internal;
+
+    static override Internal = class extends OtaSoftwareUpdateProviderServer.Internal {
+        /**
+         * What this provider answered, and what it is to answer next, per peer.
+         *
+         * One provider endpoint serves every node the controller holds, while the API that reads and
+         * writes this is a single node's. Keying on the peer is what keeps one node's periodic query
+         * from consuming another's scripted answer, or from appearing in its evidence.
+         */
+        exchanges = new Map<string, OtaProviderExchanges>();
+        script = new Map<string, Required<OtaProviderScript>>();
+
+        /** Emits the peer whose answer this provider just recorded, so a caller can wait for its own. */
+        recorded = Observable<[peer: string]>();
+    };
+
+    /** The peer a command arrived from, which decides whose record and whose script it belongs to. */
+    get #commandPeerAddress(): PeerAddress {
+        assertRemoteActor(this.context);
+        const session = this.context.session;
+        NodeSession.assert(session);
+        return session.peerAddress;
+    }
+
+    get #commandPeer(): string {
+        return this.#commandPeerAddress.toString();
+    }
+
+    #scriptFor(peer: string): Required<OtaProviderScript> {
+        let script = this.internal.script.get(peer);
+        if (script === undefined) {
+            script = { queryImage: [], applyUpdate: [] };
+            this.internal.script.set(peer, script);
+        }
+        return script;
+    }
+
+    #exchangesFor(peer: string): OtaProviderExchanges {
+        let exchanges = this.internal.exchanges.get(peer);
+        if (exchanges === undefined) {
+            exchanges = emptyOtaExchanges();
+            this.internal.exchanges.set(peer, exchanges);
+        }
+        return exchanges;
+    }
+
+    override async queryImage(request: OtaSoftwareUpdateProvider.QueryImageRequest) {
+        const receivedAtMs = Time.nowUs;
+        const peer = this.#commandPeer;
+        const scripted = this.#scriptFor(peer).queryImage.shift();
+
+        // A scripted status is answered without asking `super` at all. Its answer is a side effect as
+        // much as a value — it stages an in-progress entry and registers the peer for BDX — and a
+        // status written over the top afterwards would leave the provider expecting a transfer the
+        // requestor was just told not to start.
+        const response: OtaSoftwareUpdateProvider.QueryImageResponse =
+            scripted?.status === undefined
+                ? withUserConsent(await super.queryImage(request), scripted?.userConsentNeeded)
+                : scripted.status === OtaSoftwareUpdateProvider.Status.UpdateAvailable
+                  ? this.#unheldUpdate(request, scripted)
+                  : {
+                        status: scripted.status,
+                        delayedActionTime: scripted.delayedActionTime,
+                        userConsentNeeded: scripted.userConsentNeeded,
+                    };
+
+        this.#exchangesFor(peer).queryImage.push({
+            request: {
+                vendorId: request.vendorId,
+                productId: request.productId,
+                softwareVersion: request.softwareVersion,
+                protocolsSupported: [...request.protocolsSupported],
+                hardwareVersion: request.hardwareVersion,
+                location: request.location,
+                requestorCanConsent: request.requestorCanConsent,
+                metadataForProvider: hexOrUndefined(request.metadataForProvider),
+            },
+            response: {
+                status: response.status,
+                delayedActionTime: response.delayedActionTime,
+                imageUri: response.imageUri,
+                softwareVersion: response.softwareVersion,
+                softwareVersionString: response.softwareVersionString,
+                updateToken: hexOrUndefined(response.updateToken),
+                userConsentNeeded: response.userConsentNeeded,
+                metadataForRequestor: hexOrUndefined(response.metadataForRequestor),
+            },
+            receivedAtMs,
+        });
+        this.internal.recorded.emit(peer);
+        return response;
+    }
+
+    /**
+     * An `UpdateAvailable` for an image this provider does not hold, with the fields a script left open
+     * filled as the provider's own answer fills them.
+     */
+    #unheldUpdate(
+        request: OtaSoftwareUpdateProvider.QueryImageRequest,
+        scripted: OtaScriptedQueryAnswer,
+    ): OtaSoftwareUpdateProvider.QueryImageResponse {
+        assertRemoteActor(this.context);
+        const session = this.context.session;
+        NodeSession.assert(session);
+        const softwareVersion = scripted.softwareVersion ?? request.softwareVersion + 1;
+        return {
+            status: OtaSoftwareUpdateProvider.Status.UpdateAvailable,
+            imageUri:
+                scripted.imageUri ??
+                new FileDesignator(`ota/unheld-${softwareVersion}`).asBdxUri(session.associatedFabric.rootNodeId),
+            softwareVersion,
+            softwareVersionString: `${softwareVersion}.0.0`,
+            updateToken: this.env.get(Crypto).randomBytes(UNHELD_UPDATE_TOKEN_LENGTH),
+            userConsentNeeded: scripted.userConsentNeeded,
+        };
+    }
+
+    override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
+        const receivedAtMs = Time.nowUs;
+        const peer = this.#commandPeer;
+        const scripted = this.#scriptFor(peer).applyUpdate.shift();
+
+        // A deferral is the one answer the provider has no path of its own to, so it is the only one
+        // this states directly — and the only one whose side effects must not happen, because the
+        // requestor's next attempt needs the BDX registration and the image it already downloaded.
+        //
+        // A refusal it does have a path to: it answers Discontinue for an update it holds no consent
+        // for. Withdrawing the consent and letting it answer is what keeps the state it is left in
+        // agreeing with the answer the requestor received; overlaying Discontinue on a successful
+        // apply would record the update as applying and report it to this controller as allowed.
+        const scriptedAction = scripted?.action;
+        let response: OtaSoftwareUpdateProvider.ApplyUpdateResponse;
+        if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.AwaitNextAction) {
+            response = { action: scriptedAction, delayedActionTime: scripted?.delayedActionTime ?? 0 };
+        } else {
+            if (scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Discontinue) {
+                const peerAddress = this.#commandPeerAddress;
+                await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
+            }
+            // Only for the answer the script named: the base provider sends its delay only where it allows the apply,
+            // so a Discontinue never names a time for something that is not going to happen
+            const scriptedDelay =
+                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
+                    ? scripted?.delayedActionTime
+                    : undefined;
+            const configuredDelay = this.state.applyDelay;
+            if (scriptedDelay !== undefined) {
+                this.state.applyDelay = Seconds(scriptedDelay);
+            }
+            try {
+                response = await super.applyUpdateRequest(request);
+            } finally {
+                if (scriptedDelay !== undefined) {
+                    this.state.applyDelay = configuredDelay;
+                }
+            }
+        }
+
+        this.#exchangesFor(peer).applyUpdate.push({
+            request: { updateToken: Bytes.toHex(request.updateToken), newVersion: request.newVersion },
+            response: { action: response.action, delayedActionTime: response.delayedActionTime },
+            receivedAtMs,
+        });
+        this.internal.recorded.emit(peer);
+        return response;
+    }
+
+    override notifyUpdateApplied(request: OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest) {
+        const receivedAtMs = Time.nowUs;
+        const peer = this.#commandPeer;
+        return MaybePromise.then(super.notifyUpdateApplied(request), result => {
+            this.#exchangesFor(peer).notifyUpdateApplied.push({
+                updateToken: Bytes.toHex(request.updateToken),
+                softwareVersion: request.softwareVersion,
+                receivedAtMs,
+            });
+            this.internal.recorded.emit(peer);
+            return result;
+        });
+    }
+}
+
+namespace RecordingOtaProviderServer {
+    export type Internal = InstanceType<(typeof RecordingOtaProviderServer)["Internal"]>;
+}
+
+/**
+ * One window of a provider's answers: opened before the stimulus, read once it is over.
+ *
+ * The record lives on the behavior and keeps growing, so a caller that held it directly would hand a
+ * case an array the requestor is still appending to — a `NotifyUpdateApplied` or a periodic
+ * `QueryImage` arriving after the call would turn a step's "the provider answered one QueryImage"
+ * into an intermittent failure. This owns the whole lifetime instead: opening clears the record and
+ * attaches the observer in one `act`, so no answer can fall between the two, and reading it copies.
+ */
+class OtaExchangeRecording {
+    #provider: Endpoint;
+    #peer: string;
+    #observers = new ObserverGroup();
+    #queried = createPromise<void>();
+    #notified = createPromise<void>();
+
+    private constructor(provider: Endpoint, peer: string) {
+        this.#provider = provider;
+        this.#peer = peer;
+    }
+
+    static async open(provider: Endpoint, peer: PeerAddress): Promise<OtaExchangeRecording> {
+        const key = peer.toString();
+        const recording = new OtaExchangeRecording(provider, key);
+
+        await provider.act(agent => {
+            const behavior = agent.get(RecordingOtaProviderServer);
+            behavior.internal.exchanges.set(key, emptyOtaExchanges());
+
+            // Only this peer's answers: one provider endpoint serves every node the controller holds,
+            // so another requestor's periodic query would otherwise settle this wait.
+            recording.#observers.on(behavior.internal.recorded, recorded => {
+                const exchanges = recorded === key ? behavior.internal.exchanges.get(key) : undefined;
+                if (exchanges === undefined) {
+                    return;
+                }
+                if (exchanges.queryImage.length > 0) {
+                    recording.#queried.resolver();
+                }
+                if (exchanges.notifyUpdateApplied.length > 0) {
+                    recording.#notified.resolver();
+                }
+            });
+        });
+
+        return recording;
+    }
+
+    /** Resolves once the provider has recorded a `NotifyUpdateApplied`, or once `timeout` has passed. */
+    async awaitNotifyApplied(timeout: Duration) {
+        const expiry = Time.sleep("cert OTA notify applied", timeout);
+        try {
+            await Promise.race([this.#notified.promise, expiry]);
+        } finally {
+            expiry.cancel();
+        }
+    }
+
+    /** Resolves once the provider has answered a `QueryImage`, rejecting where it never does. */
+    async awaitQueryImage(nodeId: NodeId, timeout: Duration) {
+        const expiry = Time.sleep("cert OTA query", timeout);
+        try {
+            await Promise.race([
+                this.#queried.promise,
+                expiry.then(() => {
+                    throw new OtaTransferError(
+                        `Node id ${nodeId} did not query the announced OTA provider within ${timeout}`,
+                    );
+                }),
+            ]);
+        } finally {
+            expiry.cancel();
+        }
+    }
+
+    /** What the provider has answered so far, copied so later answers cannot reach the caller. */
+    async read(): Promise<OtaProviderExchanges> {
+        const live = await this.#provider.act(agent =>
+            agent.get(RecordingOtaProviderServer).internal.exchanges.get(this.#peer),
+        );
+        if (live === undefined) {
+            return emptyOtaExchanges();
+        }
+        return {
+            queryImage: [...live.queryImage],
+            applyUpdate: [...live.applyUpdate],
+            notifyUpdateApplied: [...live.notifyUpdateApplied],
+        };
+    }
+
+    close() {
+        this.#observers.close();
+    }
+}
+
+/** Token length the provider's own answers use, the top of the 8 to 32 bytes `UpdateToken` allows. */
+const UNHELD_UPDATE_TOKEN_LENGTH = 32;
+
+/** `response` with `UserConsentNeeded` set, where a script asked for it. */
+function withUserConsent(
+    response: OtaSoftwareUpdateProvider.QueryImageResponse,
+    userConsentNeeded: boolean | undefined,
+): OtaSoftwareUpdateProvider.QueryImageResponse {
+    return userConsentNeeded === undefined ? response : { ...response, userConsentNeeded };
+}
+
+function emptyOtaExchanges(): OtaProviderExchanges {
+    return {
+        queryImage: new Array<OtaQueryImageExchange>(),
+        applyUpdate: new Array<OtaApplyUpdateExchange>(),
+        notifyUpdateApplied: new Array<OtaNotifyUpdateAppliedRecord>(),
+    };
+}
+
+/** A `Bytes` field as hex, keeping an absent field absent rather than rendering it as an empty string. */
+function hexOrUndefined(value: Bytes | undefined) {
+    return value === undefined ? undefined : Bytes.toHex(value);
+}
+
+/** What the controller holds about a node, which is what its OTA provider matches an image against. */
+interface PeerOtaIdentity {
+    vendorId: VendorId;
+    productId: number;
+    softwareVersion: number;
+}
+
+/** The `*Init` a BDX responder answered, as a plain record a step can assert against. */
+function bdxProposalOf(init: BdxInit): BdxTransferProposal {
+    const { transferProtocol, maxBlockSize, startOffset, maxLength, fileDesignator } = init;
+    const definiteLength = maxLength === undefined ? undefined : Number(maxLength);
+    return {
+        version: transferProtocol.version ?? 0,
+        senderDrive: !!transferProtocol.senderDrive,
+        receiverDrive: !!transferProtocol.receiverDrive,
+        asynchronousTransfer: !!transferProtocol.asynchronousTransfer,
+        maxBlockSize,
+        startOffset: startOffset === undefined ? undefined : Number(startOffset),
+
+        // A zero length means indefinite on the wire as an absent field does (§ 11.22.5.1)
+        definiteLength: definiteLength === 0 ? undefined : definiteLength,
+
+        // FileDesignator.text, not a bare UTF-8 decode: a designator that is not a printable name
+        // renders as hex rather than as replacement characters a reader would take for the real value
+        fileDesignator: new FileDesignator(fileDesignator).text,
+        fileDesignatorLength: Bytes.of(fileDesignator).byteLength,
+    };
+}
+
+/**
+ * The `*Accept` a BDX responder granted, read back from the parameters its own flow settled on.
+ *
+ * matter.js answers the version it supports rather than echoing the proposal, and the accept schema
+ * refuses any other, so {@link BDX_VERSION} is what went on the wire.
+ */
+function bdxAcceptOf(parameters: Flow.NegotiatedParameters): BdxTransferAccept {
+    const { transferMode, asynchronousTransfer, blockSize, dataLength } = parameters;
+    return {
+        version: BDX_VERSION,
+        mode: transferMode === Flow.DriverMode.SenderDrive ? "senderDrive" : "receiverDrive",
+        asynchronousTransfer,
+        maxBlockSize: blockSize,
+        definiteLength: dataLength,
+    };
+}
+
+/**
+ * Stages an OTA image for `identity` in the controller's own image catalog, one software version newer
+ * than the node reports, and returns what was staged.
+ *
+ * The payload is the harness's own test payload, which `OtaRequestorTestInstance` recomputes and compares
+ * byte for byte once the transfer lands — so a transfer that completes having delivered the wrong bytes
+ * fails at the receiver rather than passing here.
+ */
+async function stageOtaImage(controller: ServerNode, identity: PeerOtaIdentity) {
+    const { vendorId, productId, softwareVersion: currentSoftwareVersion } = identity;
+    const softwareVersion = currentSoftwareVersion + 1;
+    const softwareVersionString = otaTestSoftwareVersionString(controller.id.slice(-20));
+
+    const { image } = await OtaImageWriter.create(controller.env.get(Crypto), {
+        vendorId,
+        productId,
+        softwareVersion,
+        softwareVersionString,
+        minApplicableSoftwareVersion: 0,
+        maxApplicableSoftwareVersion: currentSoftwareVersion,
+        payload: otaTestPayload(OTA_TEST_PAYLOAD_SIZE),
+    });
+
+    // DclOtaUpdateService has no Environmental.create factory of its own; loading DclBehavior on the
+    // root endpoint is the door SoftwareUpdateManager itself uses to reach it.
+    const { otaUpdateService } = await controller.act(agent => agent.load(DclBehavior));
+    await otaUpdateService.construction;
+
+    await otaUpdateService.store(
+        new ReadableStream<Uint8Array>({
+            start(streamController) {
+                streamController.enqueue(Bytes.of(image));
+                streamController.close();
+            },
+        }),
+        {
+            vid: vendorId,
+            pid: productId,
+            softwareVersion,
+            softwareVersionString,
+            minApplicableSoftwareVersion: 0,
+            maxApplicableSoftwareVersion: currentSoftwareVersion,
+            cdVersionNumber: 1,
+            softwareVersionValid: true,
+            schemaVersion: 0,
+            source: "dcl-test",
+        },
+        "test",
+    );
+
+    return { softwareVersion, fileSize: image.byteLength };
+}
+
+const DESCRIPTOR_ID = DescriptorClient.cluster.id;
+const DEVICE_TYPE_LIST_ID = DescriptorClient.cluster.attributes.deviceTypeList.id;
+const PARTS_LIST_ID = DescriptorClient.cluster.attributes.partsList.id;
+
+/**
+ * The value the controller holds for one attribute, or `undefined` where it holds none.
+ *
+ * Read through the behavior the endpoint actually has rather than through a concrete type or the
+ * certification model: a discovered peer carries generated behaviors whose members are synthesized
+ * from what the peer reports, so an attribute the model does not carry still has a value here, and a
+ * cluster the peer serves may not inherit the type this repository would use for it.
+ */
+function heldValue(endpoint: Endpoint, cluster: ClusterId, attribute: number): unknown {
+    const behavior = endpoint.behaviors.forCluster(cluster);
+    if (behavior === undefined) {
+        return undefined;
+    }
+
+    const name = behavior.schema?.attributes.find(member => member.id === attribute)?.propertyName;
+    if (name === undefined) {
+        return undefined;
+    }
+
+    const state: Record<string, unknown> | undefined = endpoint.maybeStateOf(behavior);
+    return state?.[name];
 }
 
 function toEventIds(path: EventPathSpec) {
@@ -437,17 +1066,223 @@ function resolveCommissioningTarget(target: CommissioningTarget): ResolvedCommis
  */
 export class NoCommissionedPeerError extends MatterError {}
 
+/**
+ * Thrown when a session operation names a session the controller does not hold, or one whose
+ * transport has nothing to sever.
+ *
+ * A state error rather than a refusal: a step that reached it has already established something
+ * untrue about the session it captured, so it must fail rather than be recorded as skipped.
+ */
+export class SessionStateError extends MatterError {}
+
+/**
+ * A session's {@link MessageChannel}, or undefined for one that can no longer describe itself.
+ *
+ * `Session.channel` throws once the channel is detached, and `Peer.sessions` holds such a session
+ * until it is removed, so every reader has to tolerate it — reporting a session half-known would be
+ * worse than omitting it.
+ */
+function channelOf(session: NodeSession) {
+    try {
+        return session.channel;
+    } catch (error) {
+        SessionClosedError.accept(error);
+        return undefined;
+    }
+}
+
+/** {@link ChannelType} as {@link CertSessionInfo} names it; a new transport fails to compile here. */
+function transportNameOf(type: ChannelType): CertSessionInfo["transport"] {
+    switch (type) {
+        case ChannelType.TCP:
+            return "tcp";
+        case ChannelType.UDP:
+            return "udp";
+        case ChannelType.BLE:
+            return "ble";
+    }
+}
+
+/**
+ * The controller's {@link IcdClient} for one peer, recording the Check-Ins and key refreshes it accepts.
+ *
+ * One per peer {@link ClientNode}: a case registers in one step and waits for Check-Ins in later ones, and each step
+ * obtains a fresh {@link InProcessCertNodeApi}.
+ */
+class InProcessIcdClient implements CertIcdClientApi {
+    readonly peer: ClientNode;
+    readonly #adapterId: string;
+    readonly #ownNodeId: NodeId;
+    readonly #events = new Array<CertIcdEvent>();
+    readonly #waiters = new Set<() => void>();
+
+    constructor(adapterId: string, peer: ClientNode, ownNodeId: NodeId) {
+        this.#adapterId = adapterId;
+        this.#ownNodeId = ownNodeId;
+        this.peer = peer;
+
+        const events = peer.eventsOf(IcdClient);
+        events.checkedIn.on(({ counter }) => this.#push({ kind: "checkIn", counter }));
+
+        // A refresh replaces one starting counter with another; registration sets the first and clearing removes it.
+        // Committed by the time this fires, so state holds the new key
+        events.counterStart$Changed.on((counterStart, previous) => {
+            if (counterStart === undefined || previous === undefined) {
+                return;
+            }
+            const { key } = peer.stateOf(IcdClient);
+            if (key === undefined) {
+                logger.error(`IcdClient for ${peer} committed a new starting counter without a key`);
+                return;
+            }
+            this.#push({ kind: "keyRefresh", key: Bytes.of(key), counterStart });
+        });
+    }
+
+    register(options?: { allowMultiAdmin?: boolean }): Promise<CertIcdRegistration> {
+        return runTagged(this.#adapterId, async () => {
+            await this.peer.act("cert-icd-register", agent =>
+                agent.get(IcdClient).register({ allowMultiAdmin: options?.allowMultiAdmin }),
+            );
+            const { key, counterStart } = this.peer.stateOf(IcdClient);
+            if (key === undefined || counterStart === undefined) {
+                throw new InternalError(
+                    "IcdClient registered without recording what it sent and what the peer answered",
+                );
+            }
+            return { key: Bytes.of(key), nodeId: BigInt(this.#ownNodeId), icdCounter: counterStart };
+        });
+    }
+
+    unregister(): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            // IcdClient.unregister() is a silent no-op without a registration
+            if (!this.peer.stateOf(IcdClient).registered) {
+                throw new ImplementationError(`No ICD registration with ${this.peer} to unregister`);
+            }
+            await this.peer.act("cert-icd-unregister", agent => agent.get(IcdClient).unregister());
+        });
+    }
+
+    stayActive(durationMs: number): Promise<number> {
+        return runTagged(this.#adapterId, async () => {
+            const promised = await this.peer.act("cert-icd-stay-active", agent =>
+                agent.get(IcdClient).stayActive(Millis(durationMs)),
+            );
+            return Millis.of(promised);
+        });
+    }
+
+    stopSubscription(): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            await this.peer.set({ network: { autoSubscribe: false } });
+        });
+    }
+
+    events(): CertIcdEvent[] {
+        return [...this.#events];
+    }
+
+    waitFor<K extends CertIcdEvent["kind"]>(
+        kind: K,
+        from: number,
+        timeoutMs: number,
+    ): Promise<{ event: Extract<CertIcdEvent, { kind: K }>; index: number }> {
+        const isKind = (event: CertIcdEvent): event is Extract<CertIcdEvent, { kind: K }> => event.kind === kind;
+        const find = () => {
+            for (let index = from; index < this.#events.length; index++) {
+                const event = this.#events[index];
+                if (isKind(event)) {
+                    return { event, index };
+                }
+            }
+            return undefined;
+        };
+
+        const already = find();
+        if (already !== undefined) {
+            return Promise.resolve(already);
+        }
+
+        return new Promise((resolve, reject) => {
+            const waiter = () => {
+                const found = find();
+                if (found !== undefined) {
+                    timer.stop();
+                    this.#waiters.delete(waiter);
+                    resolve(found);
+                }
+            };
+            const timer = Time.getTimer("icd event wait", Millis(timeoutMs), () => {
+                this.#waiters.delete(waiter);
+                reject(
+                    new TimeoutError(
+                        `No ICD ${kind} recorded within ${Duration.format(Millis(timeoutMs))} (recorded: ${this.#events.length})`,
+                    ),
+                );
+            });
+            this.#waiters.add(waiter);
+            timer.start();
+        });
+    }
+
+    #push(event: CertIcdEvent) {
+        this.#events.push(event);
+        for (const waiter of [...this.#waiters]) {
+            waiter();
+        }
+    }
+}
+
+/**
+ * Whether `endpoint` sits under `owner`.
+ *
+ * The controller's peers are endpoints of the controller's own tree, so the root of an endpoint's owner
+ * chain is that controller rather than the node the endpoint belongs to.
+ */
+function ownedBy(endpoint: Endpoint, owner: Endpoint) {
+    for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
+        if (current === owner) {
+            return true;
+        }
+    }
+    return false;
+}
+
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
     readonly #fabric: Fabric;
     readonly #nodeId: NodeId;
+    readonly #icdClients: Map<NodeId, InProcessIcdClient>;
 
-    constructor(adapterId: string, controller: ServerNode, fabric: Fabric, ref: CertNodeRef) {
+    /** The adapter's own collection, because that is where an observation's lifetime ends. */
+    readonly #eventObservers: ObserverGroup[];
+
+    constructor(
+        adapterId: string,
+        controller: ServerNode,
+        fabric: Fabric,
+        ref: CertNodeRef,
+        icdClients: Map<NodeId, InProcessIcdClient>,
+        eventObservers: ObserverGroup[],
+    ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
         this.#fabric = fabric;
         this.#nodeId = NodeId(ref);
+        this.#icdClients = icdClients;
+        this.#eventObservers = eventObservers;
+    }
+
+    icdClient(): CertIcdClientApi {
+        const peer = this.#peer;
+        let client = this.#icdClients.get(this.#nodeId);
+        if (client?.peer !== peer) {
+            client = new InProcessIcdClient(this.#adapterId, peer, this.#fabric.nodeId);
+            this.#icdClients.set(this.#nodeId, client);
+        }
+        return client;
     }
 
     get #peer(): ClientNode {
@@ -458,6 +1293,11 @@ class InProcessCertNodeApi implements CertNodeApi {
             );
         }
         return peer;
+    }
+
+    /** This node's address on the controller's fabric, which keys everything the provider holds for it. */
+    get #peerAddress(): PeerAddress {
+        return this.#fabric.addressOf(this.#nodeId);
     }
 
     /** The protocol-level peer behind {@link #peer}, which carries the negotiated session parameters. */
@@ -561,6 +1401,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                     fabricFilter: options?.fabricFiltered,
                 }),
                 includeKnownVersions: true,
+                largeMessage: options?.largeMessage,
             };
             for await (const chunk of this.#peer.interaction.read(request)) {
                 for await (const report of chunk) {
@@ -573,7 +1414,11 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
             if (isConcretePath(path)) {
                 if (statuses.length) {
-                    throw new StatusResponseError(`readAttribute ${JSON.stringify(path)} failed`, statuses[0].status);
+                    throw new StatusResponseError(
+                        `readAttribute ${JSON.stringify(path)} failed`,
+                        statuses[0].status,
+                        statuses[0].clusterStatus,
+                    );
                 }
                 if (values.length === 0) {
                     throw new InternalError(`readAttribute ${JSON.stringify(path)} returned no data`);
@@ -597,6 +1442,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             const request: ClientRead = {
                 ...Read({ attributes: paths.map(toIds), fabricFilter: options?.fabricFiltered }),
                 includeKnownVersions: true,
+                largeMessage: options?.largeMessage,
             };
             for await (const chunk of this.#peer.interaction.read(request)) {
                 for await (const report of chunk) {
@@ -696,6 +1542,535 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    clientEndpoints(): Promise<ClientEndpointEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            const entries = new Array<ClientEndpointEntry>();
+            this.#peer.visit(endpoint => {
+                if (endpoint.number === undefined) {
+                    return;
+                }
+                const deviceTypeList = heldValue(endpoint, DESCRIPTOR_ID, DEVICE_TYPE_LIST_ID);
+                const partsList = heldValue(endpoint, DESCRIPTOR_ID, PARTS_LIST_ID);
+                entries.push({
+                    endpoint: endpoint.number,
+                    deviceTypes: (Array.isArray(deviceTypeList) ? deviceTypeList : []).map(entry =>
+                        Number(entry === null || typeof entry !== "object" ? NaN : Reflect.get(entry, "deviceType")),
+                    ),
+                    parts: (Array.isArray(partsList) ? partsList : []).map(Number),
+                });
+            });
+            return entries.sort((a, b) => a.endpoint - b.endpoint);
+        });
+    }
+
+    clientAttribute(path: ClientAttributePath): Promise<unknown> {
+        return runTagged(this.#adapterId, async () => {
+            let endpoint: Endpoint | undefined;
+            this.#peer.visit(candidate => {
+                if (candidate.number === path.endpoint) {
+                    endpoint = candidate;
+                }
+            });
+            if (endpoint === undefined) {
+                return undefined;
+            }
+
+            return heldValue(endpoint, ClusterId(path.cluster), path.attribute);
+        });
+    }
+
+    sessions(): Promise<CertSessionInfo[]> {
+        return runTagged(this.#adapterId, async () => {
+            const entries = new Array<CertSessionInfo>();
+            for (const session of this.#usableSessions) {
+                const channel = channelOf(session);
+                if (channel === undefined) {
+                    continue;
+                }
+                entries.push({
+                    id: session.id,
+                    transport: transportNameOf(channel.type),
+                    largePayload: session.supportsLargeMessages,
+                    maxPayloadSize: channel.maxPayloadSize,
+                });
+            }
+            return entries;
+        });
+    }
+
+    /**
+     * The peer's sessions the controller would actually use, which is a narrower set than the peer
+     * holds.
+     *
+     * `Peer.sessions` keeps a session until its `closing` fires, so it still contains one the
+     * controller has already written off — `handlePeerClose` sets `isPeerLost` and then awaits an
+     * emit before closing. Every other consumer in the protocol layer applies this same predicate
+     * (`Peer.newestSession`, `Peer.hasSession`, `SessionManager`), and a cert step reads these as
+     * sessions the controller *holds*, so reporting one it will not use would answer a different
+     * question than the step asks.
+     */
+    get #usableSessions() {
+        const peer = this.#protocolPeer;
+        if (peer === undefined) {
+            throw new NoCommissionedPeerError(
+                `Controller "${this.#adapterId}" has no peer with node id ${this.#nodeId}, so it holds no sessions`,
+            );
+        }
+        return [...peer.sessions].filter(session => !session.isClosing && !session.isPeerLost);
+    }
+
+    severTransportConnection(sessionId: number): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            const session = this.#usableSessions.find(candidate => candidate.id === sessionId);
+            if (session === undefined) {
+                throw new SessionStateError(
+                    `Controller "${this.#adapterId}" holds no session ${sessionId} with node id ${this.#nodeId}`,
+                );
+            }
+
+            const channel = channelOf(session);
+            if (channel === undefined) {
+                throw new SessionStateError(
+                    `Session ${sessionId} with node id ${this.#nodeId} has no channel to sever`,
+                );
+            }
+
+            const { transportChannel } = channel;
+            if (transportChannel.type !== ChannelType.TCP) {
+                throw new SessionStateError(
+                    `Session ${sessionId} with node id ${this.#nodeId} runs over ` +
+                        `${transportNameOf(transportChannel.type)}, which holds no connection to sever`,
+                );
+            }
+
+            // The stimulus must not tell the peer anything: the peer forgetting the session is the
+            // outcome a case asserts, so it cannot also be what this does
+            await transportChannel.close();
+        });
+    }
+
+    scriptOtaProvider(script: OtaProviderScript): Promise<void> {
+        return runTagged(this.#adapterId, async () => {
+            const provider = await this.#otaProvider();
+            const peer = this.#peerAddress.toString();
+            await provider.act(agent => {
+                agent.get(RecordingOtaProviderServer).internal.script.set(peer, {
+                    queryImage: [...(script.queryImage ?? [])],
+                    applyUpdate: [...(script.applyUpdate ?? [])],
+                });
+            });
+        });
+    }
+
+    announceOtaProvider(options?: AnnounceOtaProviderOptions): Promise<OtaAnnouncement> {
+        return runTagged(this.#adapterId, async () => {
+            const announced = options?.provider;
+
+            const announcement: OtaAnnouncementRecord =
+                announced === undefined
+                    ? {
+                          providerNodeId: this.#fabric.rootNodeId.toString(),
+                          vendorId: this.#controllerVendorId,
+                          announcementReason: this.#announcementReason(options),
+                          endpoint: OTA_PROVIDER_ENDPOINT,
+                      }
+                    : {
+                          providerNodeId: announced,
+                          vendorId: this.#controllerVendorId,
+                          announcementReason: this.#announcementReason(options),
+                          endpoint: this.#otaProviderEndpointOn(NodeId(BigInt(announced))),
+                      };
+
+            // Only where the controller is the provider: a node told about another node queries that
+            // node, and nothing of that exchange passes through here.
+            const recording =
+                announced === undefined
+                    ? await OtaExchangeRecording.open(await this.#otaProvider(), this.#peerAddress)
+                    : undefined;
+
+            try {
+                await this.invoke(
+                    OtaSoftwareUpdateRequestor.Cluster.id,
+                    "announceOtaProvider",
+                    {
+                        providerNodeId: NodeId(BigInt(announcement.providerNodeId)),
+                        vendorId: VendorId(announcement.vendorId),
+                        announcementReason: announcement.announcementReason,
+                        endpoint: EndpointNumber(announcement.endpoint),
+                    },
+                    this.#otaRequestorEndpointOnPeer,
+                );
+
+                if (recording !== undefined && options?.expectQuery !== false) {
+                    await recording.awaitQueryImage(
+                        this.#nodeId,
+                        options?.timeoutMs === undefined ? OTA_QUERY_TIMEOUT : Millis(options.timeoutMs),
+                    );
+                }
+
+                let observedMs = 0;
+                if (recording !== undefined && options?.observeMs !== undefined) {
+                    const observingSince = Time.nowUs;
+
+                    // A timer may fire a fraction of a millisecond before the monotonic clock says it is
+                    // due, and the window a caller checks has to have been covered in full
+                    while (observedMs < options.observeMs) {
+                        await Time.sleep("cert OTA observation", Millis(Math.ceil(options.observeMs - observedMs)));
+                        observedMs = Time.nowUs - observingSince;
+                    }
+                }
+
+                return {
+                    announcement,
+                    exchanges: (await recording?.read()) ?? emptyOtaExchanges(),
+                    observedMs,
+                };
+            } finally {
+                recording?.close();
+            }
+        });
+    }
+
+    /** The reason an announcement carries, defaulting to the one that asks the node to query now. */
+    #announcementReason(options?: AnnounceOtaProviderOptions) {
+        return options?.announcementReason ?? OtaSoftwareUpdateRequestor.AnnouncementReason.UpdateAvailable;
+    }
+
+    /**
+     * The endpoint another commissioned node carries its OTA provider cluster on.
+     *
+     * Read from what the controller holds for that node rather than assumed, as
+     * {@link #otaRequestorEndpointOnPeer} is: an announcement naming the wrong endpoint sends the
+     * requestor to a cluster that is not there.
+     */
+    #otaProviderEndpointOn(nodeId: NodeId): number {
+        const peer = this.#controller.peers.get(this.#fabric.addressOf(nodeId));
+        if (peer === undefined) {
+            throw new OtaTransferError(`Controller "${this.#adapterId}" holds no node id ${nodeId} to announce`);
+        }
+        for (const endpoint of peer.endpoints) {
+            if (endpoint.number !== undefined && endpoint.behaviors.has(OtaSoftwareUpdateProviderClient)) {
+                return endpoint.number;
+            }
+        }
+        throw new OtaTransferError(
+            `Node id ${nodeId} exposes no OTA provider cluster, so it cannot be announced as a provider`,
+        );
+    }
+
+    /**
+     * The peer's own endpoint carrying the OTA requestor cluster.
+     *
+     * Read from the endpoints the controller holds rather than assumed: matter.js's requestor subject
+     * puts the cluster on endpoint 1 and chip's `ota-requestor-app` on the root, and an announcement
+     * to the wrong endpoint is answered `UnsupportedEndpoint` rather than ignored.
+     */
+    get #otaRequestorEndpointOnPeer(): number {
+        for (const endpoint of this.#peer.endpoints) {
+            if (endpoint.number !== undefined && endpoint.behaviors.has(OtaSoftwareUpdateRequestorClient)) {
+                return endpoint.number;
+            }
+        }
+        throw new OtaTransferError(
+            `Node id ${this.#nodeId} exposes no OTA requestor cluster, so it cannot be announced to`,
+        );
+    }
+
+    /** Vendor id the controller announces as, which is its own `BasicInformation` value. */
+    get #controllerVendorId(): VendorId {
+        return this.#controller.state.basicInformation.vendorId;
+    }
+
+    serveOtaUpdate(options?: ServeOtaUpdateOptions): Promise<OtaBdxTransfer> {
+        return runTagged(this.#adapterId, async () => {
+            const peerAddress = this.#fabric.addressOf(this.#nodeId);
+            const identity = this.#otaIdentity;
+            const provider = await this.#otaProvider();
+            const { softwareVersion, fileSize } = await stageOtaImage(this.#controller, identity);
+
+            // Opened before the announcement rather than filtered afterwards: a case serving two
+            // updates has to be able to say which exchanges belong to the second.
+            const recording = await OtaExchangeRecording.open(provider, peerAddress);
+
+            // Armed before the transfer starts, not after it ends: the peer asks to apply as soon as the
+            // last block lands, and an observer attached afterwards can miss its own event.
+            const applied =
+                options?.expectApply === false
+                    ? undefined
+                    : await this.#applyAllowed(
+                          provider,
+                          peerAddress,
+                          options?.applyTimeoutMs === undefined ? OTA_APPLY_TIMEOUT : Millis(options.applyTimeoutMs),
+                      );
+
+            try {
+                return await this.#serveStagedImage(
+                    provider,
+                    peerAddress,
+                    identity,
+                    softwareVersion,
+                    fileSize,
+                    applied,
+                    recording,
+                    options,
+                );
+            } finally {
+                // The transfer rejecting is the path that leaves these attached: a node that never opened
+                // one never reaches the settled() that would otherwise close them.
+                applied?.close();
+                recording.close();
+            }
+        });
+    }
+
+    async #serveStagedImage(
+        provider: Endpoint,
+        peerAddress: PeerAddress,
+        identity: PeerOtaIdentity,
+        softwareVersion: number,
+        fileSize: number,
+        applied: { settled: () => Promise<boolean>; close: () => void } | undefined,
+        recording: OtaExchangeRecording,
+        options?: ServeOtaUpdateOptions,
+    ): Promise<OtaBdxTransfer> {
+        const session = await this.#runOtaTransfer(
+            peerAddress,
+            await provider.act(agent => agent.get(RecordingOtaProviderServer).updateStorage.scope),
+            async () =>
+                provider.act(agent =>
+                    agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, {
+                        vendorId: identity.vendorId,
+                        productId: identity.productId,
+                        targetSoftwareVersion: softwareVersion,
+                    }),
+                ),
+            async () =>
+                provider.act(agent => agent.get(SoftwareUpdateManager).removeConsent(peerAddress, softwareVersion)),
+            options?.timeoutMs === undefined ? OTA_TRANSFER_TIMEOUT : Millis(options.timeoutMs),
+        );
+
+        // A BDX transfer is not the end of the exchange: the peer answers a completed download with
+        // ApplyUpdateRequest, and a provider that goes away before answering leaves the peer waiting
+        // out its own unreachable-peer budget. The caller tears this controller down when the case
+        // ends, so the exchange has to be over before this resolves.
+        const applyAcknowledged = applied === undefined ? false : await applied.settled();
+
+        if (applyAcknowledged && options?.notifyAppliedTimeoutMs !== undefined) {
+            await recording.awaitNotifyApplied(Millis(options.notifyAppliedTimeoutMs));
+        }
+
+        // Both waits above end on what this provider decided, which a node it refused has not had time
+        // to react to; a case whose claim is a negative asks for a window here and checks observedMs.
+        let observedMs = 0;
+        if (options?.observeAfterMs !== undefined) {
+            const observingSince = Time.nowUs;
+
+            // A timer may fire a fraction of a millisecond before the monotonic clock says it is due,
+            // and the window a caller checks has to have been covered in full
+            while (observedMs < options.observeAfterMs) {
+                await Time.sleep(
+                    "cert OTA post-apply observation",
+                    Millis(Math.ceil(options.observeAfterMs - observedMs)),
+                );
+                observedMs = Time.nowUs - observingSince;
+            }
+        }
+
+        // After the apply and observation waits, so a provider that answered a command while either was
+        // running reports that answer rather than the state before it.
+        const exchanges = await recording.read();
+
+        const initMessage = session.initMessage;
+        const parameters = session.transferParameters;
+        if (initMessage === undefined || parameters === undefined) {
+            throw new InternalError(
+                `BDX session with node id ${this.#nodeId} completed without recording what it negotiated`,
+            );
+        }
+
+        return {
+            providerEndpoint: OTA_PROVIDER_ENDPOINT,
+            providerNodeId: this.#fabric.rootNodeId.toString(),
+            softwareVersion,
+            fileSize,
+            proposal: bdxProposalOf(initMessage),
+            accept: bdxAcceptOf(parameters),
+            transferredBytes: session.transferredBytes,
+            applyAcknowledged,
+            observedMs,
+            exchanges,
+        };
+    }
+
+    /**
+     * Vendor, product and software version the controller holds for this node.
+     *
+     * Read from the controller's own client state rather than from the wire, because this is the same
+     * state the provider's own applicability check reads (`SoftwareUpdateManager` validates a
+     * `QueryImage`'s claimed identity against it) — an image staged from a fresh read could be
+     * applicable to what the node says and inapplicable to what the controller believes, which
+     * answers `NotAvailable` with nothing to point at.
+     */
+    get #otaIdentity(): PeerOtaIdentity {
+        const peer = this.#peer;
+        const basicInformation = peer.maybeStateOf(BasicInformationClient);
+        const vendorId = basicInformation?.vendorId;
+        const productId = basicInformation?.productId;
+        const softwareVersion = basicInformation?.softwareVersion;
+        if (vendorId === undefined || productId === undefined || softwareVersion === undefined) {
+            throw new OtaTransferError(
+                `Controller "${this.#adapterId}" holds no vendor/product/software version for node id ` +
+                    `${this.#nodeId}, so it cannot stage an image that node's provider check would accept`,
+            );
+        }
+        return { vendorId, productId, softwareVersion };
+    }
+
+    /**
+     * The controller's own OTA provider endpoint, added on first use.
+     *
+     * Every other cert test's controller is a plain commissioner, and an OTA provider that is always
+     * present would put a cluster, an ACL entry and a `SoftwareUpdateManager` into every run's
+     * evidence for the sake of two cases.
+     */
+    async #otaProvider(): Promise<Endpoint> {
+        const existing = this.#controller.parts.get(OTA_PROVIDER_ENDPOINT_ID);
+        if (existing !== undefined) {
+            return existing;
+        }
+
+        const provider = new Endpoint(OtaProviderEndpoint.with(RecordingOtaProviderServer), {
+            id: OTA_PROVIDER_ENDPOINT_ID,
+            number: OTA_PROVIDER_ENDPOINT,
+        });
+        await this.#controller.add(provider);
+
+        // A staged image is a test image: it carries no DCL signature, which is what a provider
+        // otherwise requires before it will offer one.
+        await provider.act(agent => {
+            agent.get(SoftwareUpdateManager).state.allowTestOtaImages = true;
+        });
+
+        return provider;
+    }
+
+    /**
+     * Watches for this provider allowing `peerAddress` to apply what it downloaded, which is the last
+     * thing the peer needs from it.
+     *
+     * Resolves rather than rejecting when the peer never asks: the image was still served, which is
+     * what the BDX cases are about, and `applyAcknowledged` reports what happened instead.
+     */
+    async #applyAllowed(provider: Endpoint, peerAddress: PeerAddress, timeout: Duration) {
+        const observers = new ObserverGroup();
+        const { promise, resolver } = createPromise<boolean>();
+
+        await provider.act(agent => {
+            const events = agent.get(SoftwareUpdateManager).events;
+            observers.on(events.updateApplying, peer => {
+                if (PeerAddress.is(peer, peerAddress)) {
+                    resolver(true);
+                }
+            });
+            observers.on(events.updateFailed, peer => {
+                if (PeerAddress.is(peer, peerAddress)) {
+                    resolver(false);
+                }
+            });
+        });
+
+        // Arming and awaiting are two calls: the observers attach before the transfer and settle after
+        // it, and a single awaited promise would collapse both into one wait on the wrong side of it.
+        return {
+            settled: async () => {
+                const expiry = Time.sleep("cert OTA apply", timeout);
+                try {
+                    return await Promise.race([promise, expiry.then(() => false)]);
+                } finally {
+                    expiry.cancel();
+                }
+            },
+
+            close: () => observers.close(),
+        };
+    }
+
+    /**
+     * Runs `trigger` and resolves with the BDX session the node opened back to this controller for it.
+     *
+     * The session is what carries the evidence, so nothing here settles on the trigger alone: a node
+     * that never queried, one the provider answered `NotAvailable`, and one whose transfer stalled all
+     * reach the budget and reject.
+     */
+    async #runOtaTransfer(
+        peerAddress: PeerAddress,
+        scope: StorageScope,
+        trigger: () => Promise<unknown>,
+        abandon: () => Promise<unknown>,
+        timeout: Duration,
+    ): Promise<BdxSession> {
+        const observers = new ObserverGroup();
+        const { promise, resolver, rejecter } = createPromise<BdxSession>();
+
+        // The race below stops awaiting `promise` when the budget expires first, and a session closing
+        // after that would then reject it with nobody listening
+        promise.catch(() => {});
+
+        let transfer: BdxSession | undefined;
+        observers.on(this.#controller.env.get(BdxProtocol).sessionStarted, (session, sessionScope) => {
+            const { fabricIndex, nodeId } = session.peerAddress;
+
+            // Scope as well as peer: this controller may hold another BDX transfer with the same node —
+            // a diagnostic-log retrieval is one — and reporting its bytes as the OTA transfer's would
+            // be evidence for a different exchange entirely.
+            if (
+                transfer !== undefined ||
+                sessionScope !== scope ||
+                fabricIndex !== peerAddress.fabricIndex ||
+                nodeId !== peerAddress.nodeId
+            ) {
+                return;
+            }
+            transfer = session;
+            observers.on(session.progressFinished, () => resolver(session));
+            observers.on(session.closed, () =>
+                rejecter(
+                    new OtaTransferError(
+                        `BDX transfer to node id ${this.#nodeId} ended after ${session.transferredBytes} of ` +
+                            `${session.dataLength ?? "an indefinite number of"} bytes without completing`,
+                    ),
+                ),
+            );
+        });
+
+        const expiry = Time.sleep("cert OTA transfer", timeout);
+
+        // Anything but a completed transfer leaves the update queued, and a later forceUpdate() for this
+        // node then finds an active session and declines to start a replacement. Tracked here rather than
+        // per failure branch: a throw from the announce, a session that closed, and the budget expiring all
+        // have to undo it, and attaching that to one branch is what let two of them escape before.
+        let served = false;
+        try {
+            // The announce is inside the race, not before it: it waits on the peer, so a provider the node
+            // never answers would otherwise hold this call open past the budget it documents.
+            const completed = await Promise.race([trigger().then(() => promise), expiry.then(() => undefined)]);
+            if (completed === undefined) {
+                throw new OtaTransferError(
+                    `Node id ${this.#nodeId} did not take the offered OTA image within ${Duration.format(timeout)}` +
+                        (transfer === undefined ? " — it opened no BDX transfer at all" : ""),
+                );
+            }
+            served = true;
+            return completed;
+        } finally {
+            expiry.cancel();
+            observers.close();
+            if (!served) {
+                await abandon();
+            }
+        }
+    }
+
     readEvents(paths: EventPathSpec[], options?: ReadEventOptions): Promise<EventReadEntry[]> {
         return runTagged(this.#adapterId, async () => {
             if (paths.length === 0) {
@@ -776,6 +2151,108 @@ class InProcessCertNodeApi implements CertNodeApi {
         });
     }
 
+    /**
+     * Reports the node's events through the subscription the controller already sustains.
+     *
+     * A subscription of its own is a second session, and a controller drops every session to a peer the
+     * moment that peer reports `ShutDown` — so the peer's remaining reports, which it is still flushing,
+     * reach a session their own controller has forgotten and are discarded. A case that wants to observe
+     * what a node reported, rather than to exercise the subscription interaction itself, watches the
+     * sustained subscription and keeps reporting while a device is on its way down.
+     *
+     * {@link CertNodeApi.subscribeEvents} remains for a case whose subject *is* the subscribe request.
+     */
+    observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (paths.length === 0) {
+                throw new ImplementationError("observeEvents requires at least one path");
+            }
+
+            const peer = this.#peer;
+            const wanted = paths.map(toEventIds);
+
+            // Held until the seed is known, then released: the observer is attached before the read so
+            // nothing falls into the gap between them, but an event the read also answers with must not
+            // reach `onUpdate` as well, and which those are is not known until the read returns.
+            let pending: EventReadEntry[] | undefined = [];
+
+            // A read re-broadcasts the events it answers with, so a later read over any of these paths
+            // would otherwise replay history as though it were live. A peer keeps numbering its events
+            // across a restart, so within one observation an event number identifies an event.
+            const delivered = new Set<bigint>();
+
+            const report = (entry: EventReadEntry) => {
+                if (delivered.has(entry.eventNumber)) {
+                    return;
+                }
+                delivered.add(entry.eventNumber);
+                if (pending === undefined) {
+                    // This observable carries matter.js's own consumers too, and it stops dispatching at
+                    // the first observer that throws
+                    try {
+                        opts.onUpdate?.(entry);
+                    } catch (error) {
+                        logger.error("Observer of a cert event observation threw", error);
+                    }
+                } else {
+                    pending.push(entry);
+                }
+            };
+
+            // Its own group, so a seed read that rejects takes the observer with it rather than leaving
+            // it buffering reports for a call that never returned
+            const observers = new ObserverGroup();
+            observers.on(peer.env.get(ChangeNotificationService).change, change => {
+                if (change.kind !== "event" || !ownedBy(change.endpoint, peer)) {
+                    return;
+                }
+                const cluster = change.event.parent?.id;
+                const endpoint = change.endpoint.number;
+                const matches = wanted.some(
+                    path =>
+                        (path.endpointId === undefined || path.endpointId === endpoint) &&
+                        (path.clusterId === undefined || path.clusterId === cluster) &&
+                        (path.eventId === undefined || path.eventId === change.event.id),
+                );
+                if (!matches || cluster === undefined) {
+                    return;
+                }
+                report({
+                    endpoint,
+                    cluster,
+                    event: change.event.id,
+                    eventNumber: BigInt(change.number),
+                    value: change.payload,
+                });
+            });
+
+            let seed: EventReadEntry[];
+            try {
+                seed = await this.readEvents(paths);
+            } catch (e) {
+                observers.close();
+                throw e;
+            }
+            this.#eventObservers.push(observers);
+
+            for (const { eventNumber } of seed) {
+                delivered.add(eventNumber);
+            }
+            const held = pending;
+            pending = undefined;
+            for (const entry of held) {
+                if (!seed.some(({ eventNumber }) => eventNumber === entry.eventNumber)) {
+                    try {
+                        opts.onUpdate?.(entry);
+                    } catch (error) {
+                        logger.error("Observer of a cert event observation threw", error);
+                    }
+                }
+            }
+            return seed;
+        });
+    }
+
     openCommissioningWindow(opts: {
         timeout: number;
         enhanced: boolean;
@@ -824,7 +2301,15 @@ class InProcessCertNodeApi implements CertNodeApi {
  */
 const CERT_PEER_CONNECTION_TIMEOUT = Seconds(15);
 
-const CERT_PEER_SETTLE_TIMEOUT = Seconds(30);
+/**
+ * How long to wait for a peer to hold a subscription before continuing without one.
+ *
+ * Longer than the interaction's own wait for the peer, so a peer that stops answering reports why
+ * before this decides it never will. A read waits `calculateMaximumPeerResponseTime`, which is ~35s
+ * at the session parameters chip's apps negotiate; below that, the run records "held no subscription"
+ * and the reason arrives seconds later, reading as an unrelated failure of the step already running.
+ */
+const CERT_PEER_SETTLE_TIMEOUT = Seconds(45);
 
 /**
  * Budget that expresses {@link CommissioningTarget.singleHandshakeAttempt}. Below every retry interval commissioning's
@@ -878,6 +2363,200 @@ async function settlePeer(peer: ClientNode) {
 }
 
 /**
+ * Endpoint the controller's requestor cluster lives on. Fixed: a provider addresses its `Offer` at
+ * whatever endpoint the solicitation named, and a case states that endpoint when it solicits.
+ */
+const WEBRTC_REQUESTOR_ENDPOINT = EndpointNumber(1);
+
+/**
+ * Exposes the controller's {@link WebRtcTransportRequestorServer} to a cert test: which sessions it
+ * tracks, and which signaling it accepted or refused.
+ */
+class InProcessWebRtcRequestorApi implements WebRtcRequestorApi {
+    readonly endpoint = Number(WEBRTC_REQUESTOR_ENDPOINT);
+
+    readonly #adapterId: string;
+    readonly #node: Endpoint<typeof CameraControllerDevice>;
+    readonly #controller: ServerNode;
+    readonly #fabric: Fabric;
+    readonly #signals = new Array<WebRtcSignalRecord>();
+    readonly #waiters = new Set<(signal: WebRtcSignalRecord | undefined) => void>();
+    readonly #observers = new ObserverGroup();
+    readonly #dispatch = new Array<WebRtcSignalRecord>();
+    #dispatching?: Timer;
+    #closed = false;
+
+    constructor(
+        adapterId: string,
+        endpoint: Endpoint<typeof CameraControllerDevice>,
+        controller: ServerNode,
+        fabric: Fabric,
+    ) {
+        this.#adapterId = adapterId;
+        this.#node = endpoint;
+        this.#controller = controller;
+        this.#fabric = fabric;
+
+        const events = endpoint.eventsOf(WebRtcTransportRequestorServer);
+        this.#observers.on(events.offer, (session, request) =>
+            this.#record("offer", session.id, "accepted", { sdp: request.sdp }),
+        );
+        this.#observers.on(events.answer, (session, sdp) => this.#record("answer", session.id, "accepted", { sdp }));
+        this.#observers.on(events.iceCandidates, (session, candidates) =>
+            this.#record("iceCandidates", session.id, "accepted", {
+                candidates: candidates.map(({ candidate, sdpMid, sdpmLineIndex }) => ({
+                    candidate,
+                    sdpMid,
+                    sdpmLineIndex,
+                })),
+            }),
+        );
+        this.#observers.on(events.end, session => this.#record("end", session.id, "accepted"));
+        this.#observers.on(events.refused, (signal, sessionId) => this.#record(signal, sessionId, "refused"));
+    }
+
+    async upsertSession(session: WebRtcSessionSpec): Promise<void> {
+        const peerNodeId = this.#peerNodeIdOf(session.peer);
+        const videoStreams =
+            session.videoStreamId === undefined || session.videoStreamId === null ? undefined : [session.videoStreamId];
+        const audioStreams =
+            session.audioStreamId === undefined || session.audioStreamId === null ? undefined : [session.audioStreamId];
+
+        await runTagged(this.#adapterId, async () =>
+            this.#node.act(agent =>
+                agent.get(WebRtcTransportRequestorServer).upsertSession({
+                    id: session.id,
+                    peerNodeId,
+                    peerEndpointId: EndpointNumber(session.peerEndpointId),
+                    streamUsage: session.streamUsage,
+                    metadataEnabled: session.metadataEnabled ?? false,
+                    videoStreams,
+                    audioStreams,
+                    fabricIndex: this.#fabric.fabricIndex,
+                }),
+            ),
+        );
+    }
+
+    async removeSession(id: number): Promise<void> {
+        await runTagged(this.#adapterId, async () =>
+            this.#node.act(agent => agent.get(WebRtcTransportRequestorServer).removeSession(id)),
+        );
+    }
+
+    async sessions(): Promise<readonly WebRtcSessionRecord[]> {
+        return runTagged(this.#adapterId, async () =>
+            this.#node
+                .stateOf(WebRtcTransportRequestorServer)
+                .currentSessions.map(({ id, videoStreamId, audioStreamId }) => ({
+                    id,
+                    videoStreamId: videoStreamId ?? null,
+                    audioStreamId: audioStreamId ?? null,
+                })),
+        );
+    }
+
+    signals(): readonly WebRtcSignalRecord[] {
+        return [...this.#signals];
+    }
+
+    async nextSignal(
+        predicate: (signal: WebRtcSignalRecord) => boolean,
+        timeoutMs: number,
+    ): Promise<WebRtcSignalRecord | undefined> {
+        const already = this.#signals.find(predicate);
+        if (already !== undefined) {
+            return already;
+        }
+        if (this.#closed) {
+            return undefined;
+        }
+
+        return new Promise<WebRtcSignalRecord | undefined>(resolve => {
+            let waiter: (signal: WebRtcSignalRecord | undefined) => void;
+
+            const timer = Time.getTimer("webrtc signal wait", Millis(timeoutMs), () => {
+                this.#waiters.delete(waiter);
+                resolve(undefined);
+            });
+
+            waiter = signal => {
+                if (signal !== undefined && !predicate(signal)) {
+                    return;
+                }
+                timer.stop();
+                this.#waiters.delete(waiter);
+                resolve(signal);
+            };
+
+            this.#waiters.add(waiter);
+            timer.start();
+        });
+    }
+
+    /** Settles every wait: a controller that has closed will never see the signal one is waiting for. */
+    close() {
+        this.#closed = true;
+        this.#observers.close();
+        this.#dispatching?.stop();
+        this.#dispatching = undefined;
+        this.#dispatch.length = 0;
+        for (const waiter of [...this.#waiters]) {
+            waiter(undefined);
+        }
+        this.#waiters.clear();
+    }
+
+    /**
+     * A session names the peer it belongs to, and the requestor cluster judges the peer's signaling
+     * against it, so a session registered for a node this controller never commissioned can only
+     * refuse everything the real peer sends.
+     */
+    #peerNodeIdOf(ref: CertNodeRef): NodeId {
+        let nodeId: NodeId;
+        try {
+            nodeId = NodeId(BigInt(ref));
+        } catch (cause) {
+            throw new ImplementationError(`Node reference "${ref}" is not one this adapter minted`, { cause });
+        }
+
+        if (this.#controller.peers.get(this.#fabric.addressOf(nodeId)) === undefined) {
+            throw new NoCommissionedPeerError(
+                `Controller "${this.#adapterId}" has no commissioned peer with node id ${nodeId} to hold a WebRTC ` +
+                    "session with",
+            );
+        }
+
+        return nodeId;
+    }
+
+    #record(
+        kind: WebRtcSignalRecord["kind"],
+        sessionId: number,
+        outcome: WebRtcSignalRecord["outcome"],
+        payload?: Pick<WebRtcSignalRecord, "sdp" | "candidates">,
+    ) {
+        const signal: WebRtcSignalRecord = { kind, sessionId, outcome, ...payload, at: Time.nowUs };
+        this.#signals.push(signal);
+
+        // These events fire inside the transaction handling the peer's command, which holds the
+        // cluster's state lock; a waiter resumed here writes to that state and fails to lock it
+        this.#dispatch.push(signal);
+        if (this.#dispatching === undefined) {
+            this.#dispatching = Time.getTimer("webrtc signal dispatch", Millis(0), () => {
+                this.#dispatching = undefined;
+                const pending = this.#dispatch.splice(0);
+                for (const each of pending) {
+                    for (const waiter of [...this.#waiters]) {
+                        waiter(each);
+                    }
+                }
+            }).start();
+        }
+    }
+}
+
+/**
  * Wraps a controller {@link ServerNode} as a {@link ControllerAdapter} for cert tests.
  *
  * Each instance gets its own {@link Environment} (child of {@link Environment.default}) with in-memory
@@ -888,10 +2567,26 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     readonly id: string;
     readonly log: LogFollower;
     readonly #env: Environment;
+    readonly #releaseLogOrigin: () => void;
     readonly #logStream = new LineQueue();
     #controller?: ServerNode;
     #fabric?: Fabric;
     readonly #transport?: ControllerTransport;
+    readonly #hostsWebRtcRequestor: boolean;
+    #webRtcRequestor?: InProcessWebRtcRequestorApi;
+    readonly #judgesAttestation: boolean;
+    #attestation?: InProcessAttestationApi;
+    readonly #icdClients = new Map<NodeId, InProcessIcdClient>();
+
+    /**
+     * Observers an `observeEvents` call attached, owned here because that is where their lifetime ends.
+     *
+     * `ChangeNotificationService` belongs to the controller, not to a peer, and `node()` builds a fresh
+     * handle each call that nothing retains — so a group held on the handle is unreachable the moment
+     * the caller drops it, and its listeners would go on receiving every peer's events for the rest of
+     * the run.
+     */
+    readonly #eventObservers = new Array<ObserverGroup>();
 
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
@@ -904,8 +2599,17 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
         this.id = id;
         this.#transport = options?.transport;
+        this.#hostsWebRtcRequestor = options?.webRtcRequestor === true;
+        this.#judgesAttestation = options?.attestation === true;
         this.#env = new Environment(`cert-${id}`, Environment.default);
+        this.#releaseLogOrigin = registerLogOrigin(this.#env.logOrigin, "adapter", this.#logStream);
         new MockStorageService(this.#env);
+
+        // Blob storage is not covered by the mock KV store: opening it detects a driver from a
+        // `driver.json` under the Filesystem service, which without this resolves to the developer's
+        // own `~/.matter` — where an OTA image a case stages would then be written, and where an
+        // existing "dir" driver makes the open fail outright against the in-memory blob driver.
+        this.#env.set(Filesystem, new MockFilesystem());
         this.log = new LogFollower(this.#logStream.follow(), id);
 
         adapterStreams.set(id, this.#logStream);
@@ -927,6 +2631,13 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
     start(): Promise<void> {
         return runTagged(this.id, async () => {
+            // Before the node: a commissioning attempt resolves the service out of the environment the
+            // node is a child of, and nothing states that it does so lazily
+            if (this.#judgesAttestation) {
+                this.#attestation = new InProcessAttestationApi(this.#env);
+                await this.#attestation.construction;
+            }
+
             const controller = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
                 environment: this.#env,
                 id: this.id,
@@ -950,6 +2661,19 @@ export class InProcessControllerAdapter implements ControllerAdapter {
 
             await controller.start();
 
+            if (this.#hostsWebRtcRequestor) {
+                const endpoint = await controller.add(CameraControllerDevice, {
+                    id: "webrtc-requestor",
+                    number: WEBRTC_REQUESTOR_ENDPOINT,
+                });
+                this.#webRtcRequestor = new InProcessWebRtcRequestorApi(
+                    this.id,
+                    endpoint,
+                    controller,
+                    this.#adminFabric,
+                );
+            }
+
             controller.env.get(PeerSet).timing = {
                 defaultConnectionTimeout: CERT_PEER_CONNECTION_TIMEOUT,
             };
@@ -959,9 +2683,16 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     async close(): Promise<void> {
         try {
             await runTagged(this.id, async () => {
+                for (const observers of this.#eventObservers) {
+                    observers.close();
+                }
+                this.#eventObservers.length = 0;
+                this.#webRtcRequestor?.close();
                 await this.#controller?.close();
+                await this.#attestation?.close();
             });
         } finally {
+            this.#releaseLogOrigin();
             adapterStreams.delete(this.id);
             this.#logStream.close();
         }
@@ -1000,14 +2731,16 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
                 onAttestationFailure: findings => {
+                    const judgement = this.judgeAttestation(findings);
+
                     // Accepting is what lets a test device commission at all; the evidence still has
                     // to say what was accepted, or a step asserting a clean attestation proves nothing
                     logger.notice(
-                        `Accepting device attestation findings: ${findings
+                        `${judgement === true ? "Accepting" : "Refusing"} device attestation findings: ${findings
                             .map(({ level, type, message }) => `${level} ${type}: ${message}`)
                             .join("; ")}`,
                     );
-                    return true;
+                    return judgement;
                 },
             });
             const address = peer.peerAddress;
@@ -1019,13 +2752,128 @@ export class InProcessControllerAdapter implements ControllerAdapter {
         });
     }
 
+    get webRtcRequestor(): WebRtcRequestorApi | undefined {
+        return this.#webRtcRequestor;
+    }
+
+    get attestation(): AttestationApi | undefined {
+        return this.#attestation;
+    }
+
+    /**
+     * What this controller does with what attestation found, which is what decides whether a
+     * commissioning attempt continues.
+     *
+     * A controller that was not built to judge attestation accepts everything: a cert device presents
+     * test certificates, and refusing those would stop every other case from running.
+     */
+    judgeAttestation(findings: AttestationFinding[]): true | string {
+        return this.#attestation?.judge(findings) ?? true;
+    }
+
     node(ref: CertNodeRef): CertNodeApi {
-        return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref);
+        return new InProcessCertNodeApi(
+            this.id,
+            this.#startedController,
+            this.#adminFabric,
+            ref,
+            this.#icdClients,
+            this.#eventObservers,
+        );
     }
 
     group(groupId: number): CertGroupApi {
         return new InProcessCertGroupApi(this.id, this.#startedController, this.#adminFabric, groupId);
     }
+}
+
+/**
+ * Device attestation as a cert controller judges it.
+ *
+ * A commissioner reads its trust anchors and revocation information from the DCL. A certification run
+ * has neither: its devices present the chip test PKI, which the DCL does not publish, and the
+ * revocation information a case needs is a file the test states. So this holds a certificate service
+ * seeded with the chip test roots, reaching no network, and a case installs revocation information
+ * into it before commissioning the device the information is about.
+ *
+ * The service registers itself in the root of the environment it is given, so it gets a root of its
+ * own rather than the shared default, and the adapter's environment is told about it directly. Two
+ * controllers in one run then judge attestation independently, and a run without this capability is
+ * unaffected by one that has it.
+ */
+class InProcessAttestationApi implements AttestationApi {
+    readonly #environment: Environment;
+    readonly #service: DclCertificateService;
+
+    constructor(adapterEnvironment: Environment) {
+        this.#environment = new Environment("cert-attestation");
+        this.#environment.set(Crypto, adapterEnvironment.get(Crypto));
+        new MockStorageService(this.#environment);
+
+        this.#service = new DclCertificateService(this.#environment, {
+            seed: { paaRoots: chipTestRoots() },
+
+            // Both are about test certificates counting at all, not about going and getting them: the
+            // seed consumer drops a test root unless the first is set, and the validator refuses one
+            // as a trust anchor unless the second is. Nothing is fetched — the service is offline.
+            fetchTestCertificates: true,
+            acceptTestCertificates: true,
+
+            updateInterval: null,
+            offline: true,
+        });
+
+        adapterEnvironment.set(DclCertificateService, this.#service);
+    }
+
+    get construction() {
+        return this.#service.construction;
+    }
+
+    async installRevocations(revocationSet: string) {
+        this.#service.installRevocations(DclCertificateService.parseRevocationSet(revocationSet));
+    }
+
+    /**
+     * What the controller does with what attestation found.
+     *
+     * An error-level finding is what a refusal is made of, and refusing names the findings so a case
+     * can require the refusal it asked about rather than any refusal at all. Anything softer is
+     * accepted, because a cert device presents test certificates and a case that refused those would
+     * be testing the harness.
+     */
+    judge(findings: AttestationFinding[]): true | string {
+        const errors = findings.filter(({ level }) => level === "error");
+        if (errors.length === 0) {
+            return true;
+        }
+        return `Device attestation refused: ${errors.map(({ type, message }) => `${type}: ${message}`).join("; ")}`;
+    }
+
+    async close() {
+        await this.#service.close();
+    }
+}
+
+/** The product attestation authorities a chip test device's certificates chain to. */
+function chipTestRoots(): SeedSource<PaaRootEntry> {
+    const roots = [
+        { der: TestCert_PAA_FFF1_Cert, skid: TestCert_PAA_FFF1_SKID },
+        { der: TestCert_PAA_NoVID_Cert, skid: TestCert_PAA_NoVID_SKID },
+    ].map(({ der, skid }) => ({
+        role: "paa" as const,
+        subjectKeyId: Bytes.toHex(skid),
+        derHex: Bytes.toHex(der),
+        kind: "test" as const,
+    }));
+
+    return {
+        builtAt: new Date(0).toISOString(),
+        expectedCount: roots.length,
+        entries: (async function* () {
+            yield* roots;
+        })(),
+    };
 }
 
 /**

@@ -27,9 +27,9 @@ Resource.add({
                 "> [!NOTE]" +
                 "\n" +
                 "> NOTE: The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not " +
-                "  specified. Implementations must be careful to support transferring these byte strings without " +
+                "specified. Implementations must be careful to support transferring these byte strings without " +
                 "requiring a particular encoding. The most common encoding is UTF-8, however this is just a " +
-                "  convention. Some configurations may use Latin-1 or other character sets."
+                "convention. Some configurations may use Latin-1 or other character sets."
         },
 
         {
@@ -83,7 +83,7 @@ Resource.add({
                     "  - 64 bytes: WPA/WPA2/WPA3 raw hex PSK. Each byte shall be a ASCII hexadecimal digit." +
                     "\n" +
                     "This matches the formats defined for WPA networks by the Credentials field in the Network " +
-                    "Commissioning cluster (see [[MatterCore]](#ref_MatterCore))." +
+                    "Commissioning cluster (see MatterCore)." +
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +

@@ -75,11 +75,12 @@ export abstract class ExchangeProvider {
     abstract initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange>;
     abstract readonly channelType: ChannelType;
     abstract readonly peerAddress?: PeerAddress;
+    /** The peer's invoke path limit, or undefined where there is no peer to report one. Never below one. */
     abstract readonly maxPathsPerInvoke?: number;
 
     /**
      * Peer-advertised CapabilityMinima path floors.  Base values are the spec minimums.
-     * @see {@link MatterSpecification.v16.Core} § 11.1
+     * @see {@link MatterSpecification.v161.Core} § 11.1.4.4
      */
     get readPathsSupported(): number {
         return 9;

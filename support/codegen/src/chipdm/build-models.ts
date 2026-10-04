@@ -40,7 +40,6 @@ function build(revision: string, inputs: TraverseMap, what: string) {
     const merged = MergedModel(revision as Specification.Revision, inputs);
     const model = new MatterModel(merged as MatterElement);
 
-    // Codegen applies the same fixups before writing the model, so validation must see them too
     const validation = Logger.nest(() => finalizeModel(model));
     if (validation.errors.length) {
         logger.warn(`${what} has ${validation.errors.length} validation errors of its own:`);
