@@ -1111,7 +1111,7 @@ describe("ServerNode", () => {
             });
 
             it("from behavior on child after node create", async () => {
-                const node = await MockServerNode.create(MockServerNode.RootEndpoint);
+                await using node = await MockServerNode.create(MockServerNode.RootEndpoint);
                 await expect(node.add(new Endpoint(CrashingDevice))).rejectedWith(EndpointBehaviorsError);
             });
         });
@@ -1137,7 +1137,7 @@ describe("ServerNode", () => {
             });
 
             it("from behavior error on child added after startup", async () => {
-                const node = await MockServerNode.createOnline({
+                await using node = await MockServerNode.createOnline({
                     type: MockServerNode.RootEndpoint,
                     device: undefined,
                 });
