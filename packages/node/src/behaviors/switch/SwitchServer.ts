@@ -128,6 +128,11 @@ export class SwitchBaseServer extends SwitchServerBase {
     #handleRawPosition(newPosition: number) {
         this.internal.debounceTimer?.stop();
 
+        // Nothing is left to debounce for the decided position, such as after resetState() resynchronized rawPosition
+        if (newPosition === this.internal.previouslyReportedPosition) {
+            return;
+        }
+
         // When a debounce delay is set then we debounce the raw position, else we use it immediately
         if (this.state.debounceDelay) {
             const { debounceExpired } = this.internal;
@@ -247,10 +252,12 @@ export class SwitchBaseServer extends SwitchServerBase {
 
         // Momentary Switch
         if (isPressed && isNewPress) {
-            this.internal.currentPressReported = !this.internal.multiPressReportingAborted;
-            if (this.internal.currentPressReported) {
+            if (!this.internal.multiPressReportingAborted) {
                 // This event SHALL be generated, when the momentary switch starts to be pressed.
                 this.#queueEvent(events => events.initialPress, { newPosition });
+                this.internal.currentPressReported = true;
+            } else if (!isMove) {
+                this.internal.currentPressReported = false;
             }
         }
 

@@ -3227,6 +3227,20 @@ describe("SwitchServer", () => {
             await device.close();
         });
 
+        it("Test a press that exceeds the maximum keeps its ShortRelease across a move", async () => {
+            const events = createEventCatcher(device);
+            await device.set({ switch: { numberOfPositions: 3, multiPressMax: 2 } });
+
+            for (const position of [1, 0, 1, 0, 1, 2, 0]) {
+                await device.set({ switch: { currentPosition: position } });
+                await MockTime.advance(50);
+            }
+            await MockTime.advance(160);
+            await MockTime.macrotask;
+
+            expect(events.filter(({ name }) => name === "shortRelease").length).equals(3);
+        });
+
         it("Test a press after an aborted sequence reports no ShortRelease", async () => {
             const events = createEventCatcher(device);
             await device.set({ switch: { multiPressMax: 2 } });
@@ -3298,6 +3312,17 @@ describe("SwitchServer", () => {
             await MockTime.advance(50);
             await device.set({ switch: { currentPosition: 0 } });
         }
+
+        it("starts no debounce for the raw position it resynchronizes", async () => {
+            await device.set({ switch: { debounceDelay: Millis(50) } });
+            await device.set({ switch: { currentPosition: 1 } });
+            await device.act(agent => agent.get(SwitchServer).resetState());
+            await device.set({ switch: { currentPosition: 0 } });
+            await MockTime.advance(100);
+            await MockTime.macrotask;
+
+            expect(device.state.switch.currentPosition).equals(0);
+        });
 
         it("drops a multi-press cycle in progress, so the next press counts from one", async () => {
             // Two presses, so the reset has a press count above one to drop
