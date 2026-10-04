@@ -158,6 +158,8 @@ import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { OTA_TEST_PAYLOAD_SIZE, otaTestPayload, otaTestSoftwareVersionString } from "../OtaTestIdentity.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import type { GatedObservation } from "./event-read-gate.js";
+import { EventReadGate } from "./event-read-gate.js";
 import { OriginDestination, registerLogOrigin } from "./log-origins.js";
 import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
@@ -1249,81 +1251,6 @@ function ownedBy(endpoint: Endpoint, owner: Endpoint) {
     return false;
 }
 
-/** An event observation as {@link EventReadGate} sees it. */
-interface GatedObservation {
-    readonly peer: ClientNode;
-    /** What arrived while a read of {@link peer}'s events was running. */
-    readonly held: EventReadEntry[];
-    /** Hands on what the gate has attributed to the subscription. */
-    release(entries: EventReadEntry[]): void;
-}
-
-/**
- * Keeps the events a read brings in away from event observations, which are about what the subscription
- * delivered.
- *
- * `ClientStructure` broadcasts every event a read returns through `ChangeNotificationService` exactly as it
- * does a subscription's, and does not deduplicate, so an event both deliver is broadcast twice and the two
- * broadcasts look alike. `readEvents` goes through this gate, and a completed read has broadcast its events
- * before it returns. So an observation holds what it receives while a read of its peer runs, and the read
- * removes one held entry per event it returned; what remains came from a subscription.
- *
- * Not covered: a `subscribeEvents` subscription's reports, which are subscription deliveries too, and an
- * event `ClientStructure` delayed to the end of an interaction that a concurrent interaction then flushes
- * after the read returned (its delayed events are one list shared by all interactions).
- */
-class EventReadGate {
-    readonly #running = new Map<ClientNode, number>();
-    readonly #observations = new Set<GatedObservation>();
-
-    attach(observation: GatedObservation) {
-        this.#observations.add(observation);
-        return () => this.#observations.delete(observation);
-    }
-
-    admit(observation: GatedObservation, entry: EventReadEntry) {
-        if (this.#running.has(observation.peer)) {
-            observation.held.push(entry);
-        } else {
-            observation.release([entry]);
-        }
-    }
-
-    /** Runs `read`, which collects the events it reads into `returned`. */
-    async reading(peer: ClientNode, returned: ReadResult.EventValue[], read: () => Promise<void>) {
-        this.#running.set(peer, (this.#running.get(peer) ?? 0) + 1);
-        try {
-            await read();
-        } finally {
-            const remaining = (this.#running.get(peer) ?? 1) - 1;
-            if (remaining > 0) {
-                this.#running.set(peer, remaining);
-            } else {
-                this.#running.delete(peer);
-            }
-            for (const observation of this.#observations) {
-                if (observation.peer !== peer) {
-                    continue;
-                }
-                for (const { number } of returned) {
-                    const index = observation.held.findIndex(({ eventNumber }) => eventNumber === number);
-                    if (index !== -1) {
-                        observation.held.splice(index, 1);
-                    }
-                }
-                if (remaining === 0) {
-                    observation.release(observation.held.splice(0));
-                }
-            }
-        }
-    }
-
-    close() {
-        this.#observations.clear();
-        this.#running.clear();
-    }
-}
-
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
@@ -1333,7 +1260,7 @@ class InProcessCertNodeApi implements CertNodeApi {
 
     /** The adapter's own collection, because that is where an observation's lifetime ends. */
     readonly #eventObservers: ObserverGroup[];
-    readonly #eventReads: EventReadGate;
+    readonly #eventReads: EventReadGate<ClientNode>;
 
     constructor(
         adapterId: string,
@@ -1342,7 +1269,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         ref: CertNodeRef,
         icdClients: Map<NodeId, InProcessIcdClient>,
         eventObservers: ObserverGroup[],
-        eventReads: EventReadGate,
+        eventReads: EventReadGate<ClientNode>,
     ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
@@ -2279,7 +2206,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 }
             };
 
-            const gated: GatedObservation = {
+            const gated: GatedObservation<ClientNode> = {
                 peer,
                 held: new Array<EventReadEntry>(),
                 release: entries => entries.forEach(report),
@@ -2677,7 +2604,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     readonly #eventObservers = new Array<ObserverGroup>();
 
     /** Shared by every `node()` handle for the same reason as {@link #eventObservers}. */
-    readonly #eventReads = new EventReadGate();
+    readonly #eventReads = new EventReadGate<ClientNode>();
 
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
