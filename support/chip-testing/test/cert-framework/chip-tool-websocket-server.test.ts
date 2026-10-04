@@ -5,7 +5,8 @@
  */
 
 import { Logger, NodeId, Observable } from "@matter/main";
-import { Status, StatusResponseError } from "@matter/main/types";
+import { Status, StatusResponseError, TlvOfModel, TlvUInt32 } from "@matter/main/types";
+import { Matter } from "@matter/model";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { expect } from "chai";
 import { createServer, type Server } from "node:net";
@@ -60,6 +61,9 @@ class FakeCommandHandler extends CommandHandler {
 
     /** Where true, a read waits for its own signal instead of answering. */
     readWaitsForAbort = false;
+
+    /** Answer for the next attribute read. */
+    readValues = new Array<AttributeResponseData>();
 
     /** Discoveries this handler was asked to cancel, by the identifier they named. */
     discoveryCancellations = new Array<DiscoveryRequest["findBy"]>();
@@ -136,7 +140,7 @@ class FakeCommandHandler extends CommandHandler {
             });
         }
 
-        return { values: new Array<AttributeResponseData>() };
+        return { values: this.readValues };
     }
 
     async handleSubscribeAttribute(_data: SubscribeAttributeRequest): Promise<SubscribeAttributeResponse> {
@@ -189,7 +193,7 @@ class FakeCommandHandler extends CommandHandler {
 }
 
 interface ChipReply {
-    results: { error?: string; clusterError?: number }[];
+    results: { error?: string; clusterError?: number; value?: unknown }[];
     logs: unknown[];
 }
 
@@ -484,6 +488,32 @@ describe("ChipToolWebSocketHandler over the wire", () => {
         expect(reply.results[0].error).match(/^Test harness failure — ImplementationError: No model for cluster/);
         expect(reply.results[0].error).match(/notacluster/);
         expect(reply.results[1]).deep.equal({ error: "FAILURE" });
+    });
+
+    it("answers a FeatureMap read with every feature bit the device reported", async () => {
+        handler.readValues = [
+            {
+                endpointId: 0,
+                clusterId: 0x3f,
+                attributeId: 0xfffc,
+                dataVersion: 1,
+                value: TlvOfModel(
+                    Matter.clusters.require("GroupKeyManagement").attributes.require("featureMap"),
+                ).decode(TlvUInt32.encode(2)),
+            },
+        ];
+
+        const reply = await send(
+            port,
+            jsonFrame({
+                cluster: "groupkeymanagement",
+                command: "read",
+                command_specifier: "feature-map",
+                arguments: { "destination-id": "0x12344321", "endpoint-ids": "0" },
+            }),
+        );
+
+        expect(reply.results[0].value).equal(2);
     });
 
     it("names the attribute a step asked for that its cluster does not have", async () => {

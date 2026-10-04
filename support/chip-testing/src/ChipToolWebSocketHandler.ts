@@ -50,7 +50,6 @@ import {
     CommandModel,
     EventModel,
     FeatureMap,
-    FieldValue,
     GeneratedCommandList,
     MatterModel,
     ValueModel,
@@ -62,6 +61,7 @@ import {
 } from "@matter/protocol";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
+import { decodeBitmap, encodeBitmap } from "./chip-tool/json-codec.js";
 import { log } from "./GenericTestApp.js";
 import {
     AttributeResponseData,
@@ -338,11 +338,7 @@ export function ownFailureResponse(error: unknown): ChipWebSocketCommandResponse
  * Uses the matter.js Model to convert the response data for read, subscribe and invoke into a tag based response
  * including conversion of data types.
  */
-export function convertMatterToWebSocketTagBased(
-    value: unknown,
-    model: ValueModel,
-    clusterModel: ClusterModel,
-): unknown {
+function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clusterModel: ClusterModel): unknown {
     if (value === null) {
         return null;
     }
@@ -361,31 +357,7 @@ export function convertMatterToWebSocketTagBased(
         return result;
     }
     if (isObject(value) && model.metabase?.metatype === "bitmap") {
-        const flags = value;
-        let numberValue = 0;
-
-        for (const member of clusterModel.scope.membersOf(model)) {
-            // Feature flags are keyed as ClusterType.features() keys them, other bitmap members by their name
-            const keys = [member.propertyName, camelize(member.title ?? member.name)];
-            const memberValue = keys.map(key => flags[key]).find(memberValue => memberValue);
-
-            if (!memberValue) {
-                continue;
-            }
-            if (typeof memberValue !== "boolean" && typeof memberValue !== "number") {
-                throw new ImplementationError(`Invalid bitmap value ${JSON.stringify(memberValue)}`);
-            }
-
-            const constraintValue = FieldValue.countValue(member.constraint.value);
-            if (constraintValue !== undefined) {
-                numberValue |= 1 << constraintValue;
-            } else {
-                const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
-                numberValue |= (typeof memberValue === "boolean" ? 1 : memberValue) << minBit;
-            }
-        }
-
-        return numberValue;
+        return encodeBitmap(value, model, clusterModel);
     }
 
     if (Bytes.isBytes(value) && model.metabase?.metatype === "bytes") {
@@ -469,6 +441,15 @@ export function convertWebsocketDataToMatter(value: any, model: ValueModel, clus
         }
     }
 
+    if (model.metabase?.metatype === "bitmap" && (typeof value === "number" || typeof value === "string")) {
+        const numberValue =
+            typeof value === "number" ? value : /^(0x[\da-fA-F]+|\d+)$/.test(value) ? Number(value) : NaN;
+        if (!Number.isSafeInteger(numberValue) || numberValue < 0) {
+            throw new ImplementationError(`Invalid bitmap value ${value}`);
+        }
+        return decodeBitmap(numberValue, model, clusterModel);
+    }
+
     if (
         (typeof value === "number" || typeof value === "bigint") &&
         (model.metabase?.metatype === "integer" || model.metabase?.metatype === "enum")
@@ -480,33 +461,6 @@ export function convertWebsocketDataToMatter(value: any, model: ValueModel, clus
             value = BigInt(value) + MATTER_EPOCH_OFFSET_US;
         }
         return value;
-    }
-
-    if ((typeof value === "number" || typeof value === "string") && model.metabase?.metatype === "bitmap") {
-        const numberValue = typeof value === "number" ? value : parseInt(value);
-        if (isNaN(numberValue)) {
-            throw new ImplementationError(`Invalid bitmap value ${value}`);
-        }
-        const bitmapValue: { [key: string]: boolean | number } = {};
-        for (const member of clusterModel.scope.membersOf(model)) {
-            const bit = FieldValue.countValue(member.constraint.value);
-            if (bit !== undefined) {
-                if (numberValue & (1 << bit)) {
-                    bitmapValue[member.propertyName] = true;
-                }
-                continue;
-            }
-            const minBit = FieldValue.countValue(member.constraint.min);
-            const maxBit = FieldValue.countValue(member.constraint.max);
-            if (minBit === undefined || maxBit === undefined) {
-                continue;
-            }
-            const memberValue = (numberValue >> minBit) & ((1 << (maxBit - minBit + 1)) - 1);
-            if (memberValue) {
-                bitmapValue[member.propertyName] = memberValue;
-            }
-        }
-        return bitmapValue;
     }
 
     if (typeof value === "string") {

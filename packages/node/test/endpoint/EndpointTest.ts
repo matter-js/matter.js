@@ -46,15 +46,16 @@ describe("Endpoint", () => {
     describe("constructor", () => {
         it("accepts bare endpoint type", async () => {
             const endpoint = new Endpoint(WindowCoveringLiftDevice);
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             node.parts.add(endpoint);
             await endpoint.construction;
             expect(endpoint.state.windowCovering.endProductType).equals(0);
         });
 
         it("accepts endpoint type with options", async () => {
+            await using node = new MockServerNode();
             const endpoint = new Endpoint(WindowCoveringLiftDevice, {
-                owner: new MockServerNode(),
+                owner: node,
                 windowCovering: { currentPositionLiftPercent100ths: 100 },
             });
             await endpoint.construction;
@@ -62,9 +63,10 @@ describe("Endpoint", () => {
         });
 
         it("accepts configuration", async () => {
+            await using node = new MockServerNode();
             const endpoint = new Endpoint({
                 type: WindowCoveringLiftDevice,
-                owner: new MockServerNode(),
+                owner: node,
                 windowCovering: { currentPositionLiftPercent100ths: 200 },
             });
             await endpoint.construction;
@@ -91,7 +93,7 @@ describe("Endpoint", () => {
 
     describe("set", () => {
         it("sets", async () => {
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             const sensor = await node.add(TemperatureSensorDevice);
 
             await sensor.set({
@@ -104,7 +106,7 @@ describe("Endpoint", () => {
         });
 
         it("deep sets object", async () => {
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             await node.construction;
 
             await node.set({
@@ -136,7 +138,7 @@ describe("Endpoint", () => {
         });
 
         it("deep sets array", async () => {
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             await node.construction;
 
             await node.set({
@@ -194,7 +196,7 @@ describe("Endpoint", () => {
         });
 
         it("replaces array when shorter", async () => {
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             await node.construction;
 
             await node.set({
@@ -245,7 +247,7 @@ describe("Endpoint", () => {
         });
 
         it("replaces array to empty", async () => {
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             await node.construction;
 
             await node.set({
@@ -274,7 +276,7 @@ describe("Endpoint", () => {
         it("before endpoint installation", async () => {
             const endpoint = new Endpoint(WindowCoveringLiftDevice);
             endpoint.behaviors.require(OnOffServer);
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             await node.add(endpoint);
             await node.construction;
             expect(endpoint.stateOf(OnOffBehavior).onOff).false;
@@ -282,7 +284,7 @@ describe("Endpoint", () => {
 
         it("after endpoint installation", async () => {
             const endpoint = new Endpoint(WindowCoveringLiftDevice);
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             await node.add(endpoint);
             endpoint.behaviors.require(OnOffServer);
             node.parts.add(endpoint);
@@ -292,7 +294,7 @@ describe("Endpoint", () => {
 
         it("after node initialization", async () => {
             const endpoint = new Endpoint(WindowCoveringLiftDevice);
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             await node.add(endpoint);
             node.parts.add(endpoint);
             await node.construction;
@@ -312,7 +314,7 @@ describe("Endpoint", () => {
         });
 
         it("with powersource on a bridged node", async () => {
-            const node = new MockServerNode();
+            await using node = new MockServerNode();
             const bridge = new Endpoint(AggregatorEndpoint);
             await node.add(bridge);
             const bridgedNode = new Endpoint(OnOffLightDevice);

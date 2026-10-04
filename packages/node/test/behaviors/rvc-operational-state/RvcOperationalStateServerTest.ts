@@ -52,7 +52,8 @@ async function createNode(options?: Endpoint.Options<typeof DeviceType>) {
 
 describe("RvcOperationalState", () => {
     it("supports base commands", async () => {
-        const { endpoint } = await createNode();
+        const { node, endpoint } = await createNode();
+        await using _node = node;
         await endpoint.act(agent => {
             expect(typeof agent.rvcOperationalState.pause).equals("function");
             expect(() => agent.rvcOperationalState.pause()).throws(NotImplementedError);

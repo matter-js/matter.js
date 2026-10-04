@@ -59,10 +59,10 @@ describe("bitmap reserved-bit write validation", () => {
 });
 
 async function writeMode(value: number, device: EndpointType = TestWindowCoveringDevice) {
-    const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+    await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
     await node.add(device);
 
-    return writeAttrRawAsAdmin(node, {
+    return await writeAttrRawAsAdmin(node, {
         writeRequests: [{ path: MODE_PATH, data: TlvUInt8.encodeTlv(value) }],
     });
 }

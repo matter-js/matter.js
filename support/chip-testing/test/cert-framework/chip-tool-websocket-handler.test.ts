@@ -16,7 +16,6 @@ import { Status, StatusResponseError } from "@matter/main/types";
 import { Matter } from "@matter/model";
 import { expect } from "chai";
 import {
-    convertMatterToWebSocketTagBased,
     convertWebsocketDataToMatter,
     discoveryIdentifierFor,
     discoveryResponseFor,
@@ -65,50 +64,55 @@ describe("ChipToolWebSocketHandler convertWebsocketDataToMatter octet strings", 
     });
 });
 
-describe("ChipToolWebSocketHandler convertMatterToWebSocketTagBased bitmaps", () => {
-    const onOff = Matter.clusters.require("OnOff");
+const WINDOW_COVERING = Matter.clusters.require("WindowCovering");
+const OPERATIONAL_STATUS_ATTRIBUTE = WINDOW_COVERING.attributes.require("operationalStatus");
 
-    it("sets the bit of each supported feature in a FeatureMap", () => {
-        const featureMap = onOff.attributes.require("FeatureMap");
-        expect(convertMatterToWebSocketTagBased({ offOnly: true }, featureMap, onOff)).equal(4);
-        expect(convertMatterToWebSocketTagBased({ lighting: true, deadFrontBehavior: true }, featureMap, onOff)).equal(
-            3,
-        );
-    });
-
-    it("sets the bit of a bitmap member keyed by its name", () => {
-        const onOffControl = onOff.commands.require("OnWithTimedOff").fields.require("OnOffControl");
-        expect(convertMatterToWebSocketTagBased({ acceptOnlyWhenOn: true }, onOffControl, onOff)).equal(1);
-    });
-});
+const BOOLEAN_STATE_CONFIGURATION = Matter.clusters.require("BooleanStateConfiguration");
+const ALARMS_ACTIVE_ATTRIBUTE = BOOLEAN_STATE_CONFIGURATION.attributes.require("alarmsActive");
 
 describe("ChipToolWebSocketHandler convertWebsocketDataToMatter bitmaps", () => {
-    const thermostat = Matter.clusters.require("Thermostat");
-    const hvacSystemType = thermostat.attributes.require("HvacSystemTypeConfiguration");
-    const onOff = Matter.clusters.require("OnOff");
-    const onOffControl = onOff.commands.require("OnWithTimedOff").fields.require("OnOffControl");
-
-    it("reads a multi-bit member as its value", () => {
-        // CoolingStage 2 (bits 0-1), HeatingStage 1 (bits 2-3), HeatingUsesFuel (bit 5)
-        expect(convertWebsocketDataToMatter("38", hvacSystemType, thermostat)).deep.equal({
-            coolingStage: 2,
-            heatingStage: 1,
-            heatingUsesFuel: true,
+    it("decodes a multi-bit field to its value rather than a flag", () => {
+        expect(convertWebsocketDataToMatter("12", OPERATIONAL_STATUS_ATTRIBUTE, WINDOW_COVERING)).deep.equal({
+            global: 0,
+            lift: 3,
+            tilt: 0,
         });
     });
 
-    it("reads a bitmap whose datatype the cluster defines", () => {
+    it("decodes a bitmap given as a number, as a step's JSON payload carries it", () => {
+        expect(convertWebsocketDataToMatter(1, ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION)).deep.equal({
+            visual: true,
+            audible: false,
+        });
+    });
+
+    it("decodes a bitmap whose datatype the cluster inherits", () => {
         const dishwasherAlarm = Matter.clusters.require("DishwasherAlarm");
         const mask = dishwasherAlarm.commands.require("ModifyEnabledAlarms").fields.require("Mask");
         expect(convertWebsocketDataToMatter("5", mask, dishwasherAlarm)).deep.equal({
             inflowError: true,
+            drainError: false,
             doorError: true,
+            tempTooLow: false,
+            tempTooHigh: false,
+            waterLevelError: false,
         });
     });
 
-    it("reads a bitmap given as a number", () => {
-        expect(convertWebsocketDataToMatter(1, onOffControl, onOff)).deep.equal({ acceptOnlyWhenOn: true });
+    it("decodes a bitmap given as a hex string", () => {
+        expect(convertWebsocketDataToMatter("0x2", ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION)).deep.equal({
+            visual: false,
+            audible: true,
+        });
     });
+
+    for (const value of ["visual", "", "12abc", "1.5", 1.5, -1]) {
+        it(`refuses ${JSON.stringify(value)} as a bitmap value rather than sending a different one`, () => {
+            expect(() =>
+                convertWebsocketDataToMatter(value, ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION),
+            ).throw(ImplementationError, /Invalid bitmap value/);
+        });
+    }
 });
 
 describe("discoveryIdentifierFor", () => {
