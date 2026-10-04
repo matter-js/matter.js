@@ -855,10 +855,9 @@ class Factory extends ClientNodeFactory {
     #groupIdCounter = 0;
 
     /**
-     * Descriptor of each node created from one, for {@link find} while its first construction runs and its state is
-     * not readable.
+     * Creation descriptors for {@link find}, which cannot read a node's state before its first construction completes.
      */
-    #descriptors = new WeakMap<ClientNode, RemoteDescriptor>();
+    #descriptorsUnderConstruction = new WeakMap<ClientNode, RemoteDescriptor>();
 
     constructor(owner: Peers) {
         super();
@@ -883,10 +882,10 @@ class Factory extends ClientNodeFactory {
 
         const descriptor = options.commissioning?.descriptor;
         if (descriptor !== undefined) {
-            this.#descriptors.set(node, descriptor);
+            this.#descriptorsUnderConstruction.set(node, descriptor);
             const forget = (status: Lifecycle.Status) => {
                 if (status !== Lifecycle.Status.Initializing) {
-                    this.#descriptors.delete(node);
+                    this.#descriptorsUnderConstruction.delete(node);
                     node.construction.change.off(forget);
                 }
             };
@@ -913,7 +912,8 @@ class Factory extends ClientNodeFactory {
             ) {
                 continue;
             }
-            if (RemoteDescriptor.is(this.#descriptors.get(node) ?? node.state.commissioning, descriptor)) {
+            const known = this.#descriptorsUnderConstruction.get(node) ?? node.state.commissioning;
+            if (RemoteDescriptor.is(known, descriptor)) {
                 return node;
             }
         }
