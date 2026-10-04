@@ -5,6 +5,7 @@
  */
 
 import { type DnsRecord, DnsMessageType, DnsRecordType } from "#codec/DnsCodec.js";
+import { Logger } from "#log/Logger.js";
 import { ImplementationError } from "#MatterError.js";
 import { Duration } from "#time/Duration.js";
 import { Time, Timer } from "#time/Time.js";
@@ -14,6 +15,9 @@ import { Entropy } from "#util/Entropy.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { Observable, ObserverGroup } from "#util/Observable.js";
 import { Scheduler } from "#util/Scheduler.js";
+
+// TEMPORARY address trace for CI diagnosis, not for merge
+const traceLogger = Logger.get("AddrTrace");
 import { DEFAULT_TTL_GRACE_FACTOR, DnssdName } from "./DnssdName.js";
 import { QueryMulticaster } from "./DnssdSolicitor.js";
 import { MdnsSocket } from "./MdnsSocket.js";
@@ -196,6 +200,11 @@ export class DnssdNames {
                 }
                 if (!isResponse) {
                     record = { ...record, flushCache: false };
+                }
+                if (record.recordType === DnsRecordType.AAAA && String(record.value).startsWith("fe80")) {
+                    traceLogger.info(
+                        `[addr-trace] AAAA ${record.name} ${record.value} intf=${sourceIntf} from=${message.sourceIp} ${isResponse ? "response" : "query"}`,
+                    );
                 }
                 const wasDiscovered = name.isDiscovered;
                 if (name.installRecord(record, { sourceIntf, installedAt: packetAt })) {
