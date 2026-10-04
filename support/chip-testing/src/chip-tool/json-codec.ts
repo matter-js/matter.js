@@ -140,19 +140,23 @@ function bitmapMemberName(member: FieldModel, model: ValueModel): string | undef
  * anywhere, not just this codec's own decode.
  */
 function bitmapMemberValue(member: FieldModel, value: Record<string, unknown>): unknown {
-    if (member.name !== undefined && value[member.propertyName]) {
+    if (member.name !== undefined && Object.hasOwn(value, member.propertyName)) {
         return value[member.propertyName];
     }
     const memberTitle = member.title !== undefined ? camelize(member.title) : undefined;
     return memberTitle !== undefined ? value[memberTitle] : undefined;
 }
 
-/** The number chip-tool carries for a bitmap -> the matter.js bitmap object. */
+/**
+ * The number chip-tool carries for a bitmap -> the matter.js bitmap object. Bit arithmetic runs on bigint: a bitmap64
+ * reaches bit 63, and JS shifts work on 32-bit signed integers.
+ */
 export function decodeBitmap(
-    value: number,
+    value: number | bigint,
     model: ValueModel,
     clusterModel: ClusterModel,
 ): Record<string, boolean | number> {
+    const bits = BigInt(value);
     const bitmapValue: Record<string, boolean | number> = {};
     for (const member of getBitmapMembers(model, clusterModel)) {
         const memberName = bitmapMemberName(member, model);
@@ -160,47 +164,56 @@ export function decodeBitmap(
 
         const constraintValue = FieldValue.countValue(member.constraint.value);
         if (constraintValue !== undefined) {
-            bitmapValue[memberName] = (value & (1 << constraintValue)) !== 0;
+            bitmapValue[memberName] = ((bits >> BigInt(constraintValue)) & 1n) === 1n;
         } else {
             const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
             const maxBit = FieldValue.countValue(member.constraint.max);
             if (maxBit !== undefined) {
-                bitmapValue[memberName] = (value & bitFieldMask(minBit, maxBit)) >> minBit;
+                bitmapValue[memberName] = Number((bits & bitFieldMask(minBit, maxBit)) >> BigInt(minBit));
             } else {
-                bitmapValue[memberName] = (value & (1 << minBit)) !== 0;
+                bitmapValue[memberName] = ((bits >> BigInt(minBit)) & 1n) === 1n;
             }
         }
     }
     return bitmapValue;
 }
 
-/** A matter.js bitmap object -> the number chip-tool carries for it. */
-export function encodeBitmap(value: Record<string, unknown>, model: ValueModel, clusterModel: ClusterModel): number {
-    let numberValue = 0;
+/** A matter.js bitmap object -> the number chip-tool carries for it, a bigint where it exceeds the safe range. */
+export function encodeBitmap(
+    value: Record<string, unknown>,
+    model: ValueModel,
+    clusterModel: ClusterModel,
+): number | bigint {
+    let bits = 0n;
     for (const member of getBitmapMembers(model, clusterModel)) {
         const memberValue = bitmapMemberValue(member, value);
-        if (!memberValue) continue;
+        if (memberValue === undefined || memberValue === null || memberValue === false || memberValue === 0) continue;
         if (typeof memberValue !== "boolean" && typeof memberValue !== "number") {
             throw new ImplementationError(
                 `Bitmap member "${member.propertyName}" of "${model.name}" must be boolean or number, got ${typeof memberValue}`,
             );
         }
+        if (typeof memberValue === "number" && (!Number.isSafeInteger(memberValue) || memberValue < 0)) {
+            throw new ImplementationError(
+                `Bitmap member "${member.propertyName}" of "${model.name}" must be a non-negative integer, got ${memberValue}`,
+            );
+        }
 
         const constraintValue = FieldValue.countValue(member.constraint.value);
         if (constraintValue !== undefined) {
-            numberValue |= 1 << constraintValue;
+            bits |= 1n << BigInt(constraintValue);
         } else {
             const minBit = FieldValue.countValue(member.constraint.min) ?? 0;
             const maxBit = FieldValue.countValue(member.constraint.max);
-            const raw = typeof memberValue === "boolean" ? 1 : memberValue;
-            numberValue |= maxBit !== undefined ? (raw << minBit) & bitFieldMask(minBit, maxBit) : raw << minBit;
+            const raw = BigInt(typeof memberValue === "boolean" ? 1 : memberValue) << BigInt(minBit);
+            bits |= maxBit !== undefined ? raw & bitFieldMask(minBit, maxBit) : raw;
         }
     }
-    return numberValue;
+    return bits <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(bits) : bits;
 }
 
-function bitFieldMask(minBit: number, maxBit: number): number {
-    return ((1 << (maxBit - minBit + 1)) - 1) << minBit;
+function bitFieldMask(minBit: number, maxBit: number): bigint {
+    return ((1n << BigInt(maxBit - minBit + 1)) - 1n) << BigInt(minBit);
 }
 
 function listElementModel(model: ValueModel): ValueModel {
@@ -257,7 +270,9 @@ export function chipJsonToMatter(value: unknown, model: ValueModel, clusterModel
         }
 
         case ConvKind.Bitmap:
-            return typeof value === "number" ? decodeBitmap(value, model, clusterModel) : value;
+            return typeof value === "number" || typeof value === "bigint"
+                ? decodeBitmap(value, model, clusterModel)
+                : value;
 
         case ConvKind.Bytes:
             return typeof value === "string" ? decodeOctetString(value) : value;
@@ -393,7 +408,9 @@ export function matterToChipJson(
         }
 
         case ConvKind.Bitmap:
-            return isObject(value) ? encodeBitmap(value, model, clusterModel) : value;
+            return isObject(value)
+                ? chipTypedNumber(encodeBitmap(value, model, clusterModel), ConvKind.Unsigned, model)
+                : value;
 
         case ConvKind.Bytes:
             return Bytes.isBytes(value)
