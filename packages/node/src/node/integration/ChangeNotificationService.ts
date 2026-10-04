@@ -11,7 +11,7 @@ import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import type { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { InternalError, Observable, ObserverGroup, Timestamp } from "@matter/general";
+import { Lifecycle, Observable, ObserverGroup, Timestamp } from "@matter/general";
 import { EventModel } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { EventNumber, Priority } from "@matter/types";
@@ -24,7 +24,8 @@ import { EventNumber, Priority } from "@matter/types";
  */
 export class ChangeNotificationService {
     #change = new Observable<[changes: ChangeNotificationService.Change]>();
-    #observers = new Map<Node, ObserverGroup>();
+    #nodeObservers = new Map<Node, NodeObserver>();
+    #peerObservers = new ObserverGroup();
 
     constructor(node: ServerNode) {
         this.#beginNodeObservation(node);
@@ -76,42 +77,110 @@ export class ChangeNotificationService {
     }
 
     close() {
-        for (const observers of this.#observers.values()) {
-            observers.close();
+        for (const observer of this.#nodeObservers.values()) {
+            observer.close();
         }
-        this.#observers.clear();
+        this.#nodeObservers.clear();
+        this.#peerObservers.close();
     }
 
     #beginNodeObservation(node: Node) {
-        const observers = new ObserverGroup();
-        this.#observers.set(node, observers);
+        if (this.#nodeObservers.has(node)) {
+            return;
+        }
 
-        observers.on(node.lifecycle.changed, (type, endpoint) => {
-            switch (type) {
-                case EndpointLifecycle.Change.Destroyed:
-                    if (endpoint.maybeNumber !== undefined) {
-                        this.#change.emit({
-                            kind: "delete",
-                            endpoint,
-                        });
-                    }
-                    if (endpoint === node) {
-                        observers.close();
-                        this.#observers.delete(node);
+        this.#nodeObservers.set(
+            node,
+            new NodeObserver(
+                node,
+                change => this.#change.emit(change),
+                () => this.#nodeObservers.delete(node),
+            ),
+        );
+    }
+
+    #beginPeerObservation(node: ServerNode) {
+        // Peers restored from storage are added while the peer collection is created, before anyone can observe it
+        const { peers } = node;
+        for (const peer of peers) {
+            this.#beginNodeObservation(peer);
+        }
+        this.#peerObservers.on(peers.added, this.#beginNodeObservation.bind(this));
+    }
+}
+
+/**
+ * Reports deletions and readability of one node's endpoints.
+ */
+class NodeObserver {
+    #node: Node;
+    #emit: (change: ChangeNotificationService.Change) => void;
+    #onClosed: () => void;
+    #observers = new ObserverGroup();
+    #constructions = new Map<Endpoint, ObserverGroup>();
+
+    constructor(node: Node, emit: (change: ChangeNotificationService.Change) => void, onClosed: () => void) {
+        this.#node = node;
+        this.#emit = emit;
+        this.#onClosed = onClosed;
+
+        this.#observers.on(node.lifecycle.changed, this.#lifecycleChanged.bind(this));
+
+        // A node constructing when observation begins has reported its installation already
+        if (node.construction.status === Lifecycle.Status.Initializing) {
+            this.#observeConstruction(node);
+        }
+    }
+
+    close() {
+        this.#observers.close();
+        for (const group of this.#constructions.values()) {
+            group.close();
+        }
+        this.#constructions.clear();
+    }
+
+    #lifecycleChanged(type: EndpointLifecycle.Change, endpoint: Endpoint) {
+        switch (type) {
+            case EndpointLifecycle.Change.Installed:
+                this.#observeConstruction(endpoint);
+                break;
+
+            case EndpointLifecycle.Change.Destroyed:
+                if (endpoint.maybeNumber !== undefined) {
+                    this.#emit({ kind: "delete", endpoint });
+                }
+                if (endpoint === this.#node) {
+                    this.close();
+                    this.#onClosed();
+                }
+                break;
+        }
+    }
+
+    /**
+     * Report readability once the construction {@link endpoint} started completes.  Construction status does not
+     * bubble, so the endpoint is observed directly until that construction ends.
+     */
+    #observeConstruction(endpoint: Endpoint) {
+        if (this.#constructions.has(endpoint)) {
+            return;
+        }
+        const group = new ObserverGroup();
+        this.#constructions.set(endpoint, group);
+        group.on(endpoint.construction.change, status => {
+            switch (status) {
+                case Lifecycle.Status.Active:
+                case Lifecycle.Status.Crashed:
+                case Lifecycle.Status.Destroyed:
+                    group.close();
+                    this.#constructions.delete(endpoint);
+                    if (status === Lifecycle.Status.Active) {
+                        this.#emit({ kind: "readable", endpoint });
                     }
                     break;
             }
         });
-    }
-
-    #beginPeerObservation(node: ServerNode) {
-        const observers = this.#observers.get(node);
-
-        if (observers === undefined) {
-            throw new InternalError("Change notification initialization order is broken");
-        }
-
-        observers.on(node.peers.added, this.#beginNodeObservation.bind(this));
     }
 }
 
@@ -168,5 +237,16 @@ export namespace ChangeNotificationService {
         endpoint: Endpoint;
     }
 
-    export type Change = PropertyUpdate | EventOccurrence | EndpointDelete;
+    /**
+     * Emits when an endpoint's state becomes readable, which is once its construction completes and again after each
+     * restart.
+     *
+     * State changes made while an endpoint was unreadable may not have reached a recipient that skipped them.
+     */
+    export interface EndpointReadable {
+        kind: "readable";
+        endpoint: Endpoint;
+    }
+
+    export type Change = PropertyUpdate | EventOccurrence | EndpointDelete | EndpointReadable;
 }

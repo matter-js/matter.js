@@ -65,15 +65,10 @@ export function StateStream(
         try {
             changeService.change.on(changeListener);
 
-            // Enqueue all applicable behaviors
-            for (const n of [node, ...node.peers]) {
-                for (const endpoint of n.endpoints) {
-                    for (const behavior of Object.values(endpoint.behaviors.supported)) {
-                        if (filter && !filter(endpoint.id, behavior.id)) {
-                            continue;
-                        }
-                        enqueue({ node: n, endpoint, behavior });
-                    }
+            // A node that is not readable yet is sent once its root reports readable
+            for (const target of [node, ...node.peers]) {
+                if (target.lifecycle.isReadable) {
+                    enqueueNode(target);
                 }
             }
 
@@ -102,6 +97,13 @@ export function StateStream(
                     // Property update
                     const state = stateOfBehavior(node.id, endpoint.number, behavior.id);
                     state.queueEntry = undefined;
+
+                    // Dropped state is sent in full when the endpoint reports readable again
+                    if (!endpoint.lifecycle.isReadable) {
+                        continue;
+                    }
+
+                    stateOfEndpoint(node.id, endpoint.number).announced = true;
 
                     let changes: Record<string, unknown>;
                     if (state.dirty) {
@@ -132,6 +134,45 @@ export function StateStream(
     }
 
     /**
+     * Enqueue all state of a node.
+     */
+    function enqueueNode(target: Node) {
+        for (const endpoint of target.endpoints) {
+            enqueueEndpoint(target, endpoint);
+        }
+    }
+
+    /**
+     * Enqueue all state of an endpoint.
+     */
+    function enqueueEndpoint(node: Node, endpoint: Endpoint) {
+        for (const behavior of Object.values(endpoint.behaviors.supported)) {
+            if (filter && !filter(node.id, behavior.id)) {
+                continue;
+            }
+            const behaviorState = stateFor(node, endpoint, behavior);
+            behaviorState.dirty = undefined;
+            if (!behaviorState.queueEntry) {
+                enqueue((behaviorState.queueEntry = { node, endpoint, behavior }));
+            }
+        }
+    }
+
+    /**
+     * Process a notification that an endpoint's state became readable.
+     *
+     * A node root becomes readable after its parts, so a stream that began in between has not seen the parts either.
+     */
+    function enqueueReadable({ endpoint }: ChangeNotificationService.EndpointReadable) {
+        const node = endpoint.env.get(Node);
+        if (endpoint === node) {
+            enqueueNode(node);
+        } else {
+            enqueueEndpoint(node, endpoint);
+        }
+    }
+
+    /**
      * Listener for {@link ChangeNotificationService}.
      */
     function changeListener(change: ChangeNotificationService.Change) {
@@ -142,6 +183,10 @@ export function StateStream(
 
             case "delete":
                 enqueueDelete(change);
+                break;
+
+            case "readable":
+                enqueueReadable(change);
                 break;
         }
     }
@@ -157,7 +202,7 @@ export function StateStream(
 
         let endpointState = nodeState.get(endpoint);
         if (endpointState === undefined) {
-            nodeState.set(endpoint, (endpointState = { behaviors: new Map() }));
+            nodeState.set(endpoint, (endpointState = { behaviors: new Map(), endpoint: undefined, announced: false }));
         }
 
         return endpointState;
@@ -171,7 +216,14 @@ export function StateStream(
 
         let behaviorState = endpointState.behaviors.get(behavior);
         if (behaviorState === undefined) {
-            endpointState.behaviors.set(behavior, (behaviorState = {}));
+            endpointState.behaviors.set(
+                behavior,
+                (behaviorState = {
+                    queueEntry: undefined,
+                    version: undefined,
+                    dirty: undefined,
+                }),
+            );
         }
 
         return behaviorState;
@@ -186,6 +238,7 @@ export function StateStream(
         }
 
         for (const { node, endpoint, cluster, version } of versions) {
+            stateOfEndpoint(node, endpoint).announced = true;
             stateOfBehavior(node, endpoint, cluster).version = version;
         }
     }
@@ -226,7 +279,7 @@ export function StateStream(
             return;
         }
 
-        const behaviorState = stateOfBehavior(node.id, endpoint.number, behavior.id);
+        const behaviorState = stateFor(node, endpoint, behavior);
 
         // Skip if version is already known
         if (behaviorState.version === change.version) {
@@ -247,7 +300,6 @@ export function StateStream(
                 // All properties are now enqueued
                 behaviorState.dirty = undefined;
             }
-            behaviorState.version = change.version;
             return;
         }
 
@@ -268,24 +320,65 @@ export function StateStream(
             return;
         }
 
-        const endpointState = stateOfEndpoint(node.id, endpoint.number);
+        if (endpoint === node) {
+            const nodeState = nodes.get(node.id);
+            nodes.delete(node.id);
+            let announced = false;
+            for (const endpointState of nodeState?.values() ?? []) {
+                dequeueAll(endpointState);
+                announced ||= endpointState.announced;
+            }
+            if (announced) {
+                enqueue({ endpoint, node });
+            }
+            return;
+        }
 
-        // Dequeue all entries associated with the endpoint
+        // Only retract what this stream knows of this endpoint; another endpoint may hold the number
+        const nodeState = nodes.get(node.id);
+        const endpointState = nodeState?.get(endpoint.number);
+        // An endpoint known only from the consumer's versions has no holder recorded yet
+        if (
+            nodeState === undefined ||
+            endpointState === undefined ||
+            (endpointState.endpoint !== undefined && endpointState.endpoint !== endpoint)
+        ) {
+            return;
+        }
+
+        dequeueAll(endpointState);
+        nodeState.delete(endpoint.number);
+
+        if (endpointState.announced) {
+            enqueue({ endpoint, node });
+        }
+    }
+
+    /**
+     * Dequeue all entries associated with an endpoint.
+     */
+    function dequeueAll(endpointState: EndpointState) {
         for (const { queueEntry } of endpointState.behaviors.values()) {
             if (queueEntry) {
                 dequeue(queueEntry);
             }
         }
+    }
 
-        // Delete state associated with the endpoint
-        if (endpoint === node) {
-            nodes.delete(node.id);
-        } else {
-            nodes.get(node.id)?.delete(endpoint.number);
+    /**
+     * Access the {@link BehaviorState} of a live endpoint, recording that endpoint as the holder of its number.
+     */
+    function stateFor(node: Node, endpoint: Endpoint, behavior: Behavior.Type) {
+        const endpointState = stateOfEndpoint(node.id, endpoint.number);
+        if (endpointState.endpoint !== endpoint) {
+            // What was tracked under the number belongs to the endpoint that held it before
+            if (endpointState.endpoint !== undefined) {
+                dequeueAll(endpointState);
+                endpointState.behaviors.clear();
+            }
+            endpointState.endpoint = endpoint;
         }
-
-        // Enqueue for deletion
-        enqueue({ endpoint, node });
+        return stateOfBehavior(node.id, endpoint.number, behavior.id);
     }
 
     /**
@@ -337,23 +430,33 @@ interface EndpointState {
      * State for individual behaviors.
      */
     behaviors: Map<string, BehaviorState>;
+
+    /**
+     * The endpoint whose changes this state tracks.
+     */
+    endpoint: Endpoint | undefined;
+
+    /**
+     * Indicates the consumer knows of the endpoint, so its deletion must be reported.
+     */
+    announced: boolean;
 }
 
 interface BehaviorState {
     /**
      * Indicates the entry is queued for update.
      */
-    queueEntry?: QueueEntry;
+    queueEntry: QueueEntry | undefined;
 
     /**
      * Current synced version.
      */
-    version?: number;
+    version: number | undefined;
 
     /**
      * Dirty properties.  If queued, these properties are dirty, or if undefined full update is required.
      */
-    dirty?: Set<string>;
+    dirty: Set<string> | undefined;
 }
 
 export namespace StateStream {
