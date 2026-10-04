@@ -115,7 +115,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
 
         this.internal.expireUser = this.callback(this.#expireUser, { lock: true });
-        for (const user of state.users) {
+        for (const user of this.auth.users) {
             if (
                 user.userType === UserType.ExpiringUser &&
                 user.userStatus !== UserStatus.OccupiedDisabled &&

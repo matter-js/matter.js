@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DoorLockBaseServer, DoorLockClient, DoorLockServer, LockSchedule } from "#behaviors/door-lock";
+import { DoorLockBaseServer, DoorLockClient, DoorLockServer, LockAuth, LockSchedule } from "#behaviors/door-lock";
 import { DoorLockDevice } from "#devices/door-lock";
 import { Endpoint } from "#endpoint/index.js";
 import { ServerNode } from "#node/ServerNode.js";
@@ -1083,6 +1083,31 @@ describe("DoorLockServer", () => {
                 }
             } finally {
                 await lock.site.close();
+            }
+        });
+
+        it("restores deadlines at startup from an overridden auth store", async () => {
+            const external = {
+                users: [scheduledUser(UserType.ExpiringUser, Timestamp(Time.nowMs - Minutes(1)))],
+                credentials: new Array<LockAuth.Credential>(),
+            };
+            class ExternalAuthServer extends DoorLockServer.with("User", "PinCredential") {
+                override get auth() {
+                    return new LockAuth.Store(external, this.cipher);
+                }
+            }
+
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            try {
+                await node.add(DoorLockDevice.with(ExternalAuthServer), {
+                    doorLock: { ...lockState, users: [], expiringUserTimeout: 1 },
+                });
+                await MockTime.advance(0);
+                await settled(node);
+
+                expect(external.users[0].userStatus).equals(UserStatus.OccupiedDisabled);
+            } finally {
+                await node.close();
             }
         });
 
