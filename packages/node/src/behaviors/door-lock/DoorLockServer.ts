@@ -12,9 +12,11 @@ import {
     Crypto,
     ImplementationError,
     MaybePromise,
+    Minutes,
     Seconds,
     Time,
     Timer,
+    Timestamp,
 } from "@matter/general";
 import { field, listOf, nonvolatile, octstr } from "@matter/model";
 import { FabricIndex, NodeId, Status, StatusResponseError } from "@matter/types";
@@ -104,10 +106,13 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
             }
         }
 
-        // Re-arm ExpiringUser auto-disable timers loaded from nonvolatile storage; if a deadline already elapsed
-        // while offline, disable the user immediately.
+        this.internal.expireUser = this.callback(this.#expireUser, { lock: true });
         for (const user of state.users) {
-            if (user.userType === UserType.ExpiringUser && user.expiringUserExpiresAt != null) {
+            if (
+                user.userType === UserType.ExpiringUser &&
+                user.userStatus !== UserStatus.OccupiedDisabled &&
+                user.expiringUserExpiresAt != null
+            ) {
                 this.#armExpiryTimer(user.userIndex, user.expiringUserExpiresAt);
             }
         }
@@ -224,18 +229,24 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 );
             }
 
-            // An administrative edit restarts the ExpiringUser cycle: the timeout arms again on next first use.
-            this.#stopExpiryTimer(userIndex);
+            const userStatus = request.userStatus ?? existing.userStatus;
+            const userType = request.userType ?? existing.userType;
+
+            // A status or type change starts a new ExpiringUser cycle; the timeout arms again on the next first use
+            const restartsExpiry = userStatus !== existing.userStatus || userType !== existing.userType;
+            if (restartsExpiry) {
+                this.#stopExpiryTimer(userIndex);
+            }
 
             auth.replaceUser(userIndex, {
                 ...existing,
                 userName: request.userName ?? existing.userName,
                 userUniqueId: request.userUniqueId ?? existing.userUniqueId,
-                userStatus: request.userStatus ?? existing.userStatus,
-                userType: request.userType ?? existing.userType,
+                userStatus,
+                userType,
                 credentialRule: request.credentialRule ?? existing.credentialRule,
                 lastModifiedFabricIndex: fabricIndex,
-                expiringUserExpiresAt: null,
+                expiringUserExpiresAt: restartsExpiry ? null : (existing.expiringUserExpiresAt ?? null),
             });
 
             this.#emitLockUserChange(LockDataType.UserIndex, DataOperationType.Modify, userIndex, fabricIndex, null);
@@ -896,7 +907,7 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
                 if (userIndex !== null) {
                     const user = auth.findUser(userIndex);
                     if (user) {
-                        if (user.userStatus === UserStatus.OccupiedDisabled) {
+                        if (user.userStatus === UserStatus.OccupiedDisabled || hasExpired(user)) {
                             this.#emitLockOperationError(operationType, OperationError.DisabledUserDenied);
                             throw new StatusResponseError("User is disabled", Status.Failure);
                         }
@@ -950,8 +961,8 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
 
     // ── ExpiringUser Timeout (spec § 5.2.6.18.8) ─────────────────────────────────
     //
-    // ExpiringUserTimeout arms on the user's first successful use, not on creation. The deadline is persisted on
-    // the user record (rather than kept only as a runtime timer) so it survives a reboot as the spec requires.
+    // The persisted deadline is the source of truth; the timer only triggers a re-check against it. The deadline
+    // is wall-clock time because it has to survive a reboot.
 
     #armExpiringUserOnFirstUse(auth: LockAuth.Store, userIndex: number, user: LockAuth.User) {
         if (user.userType !== UserType.ExpiringUser || user.expiringUserExpiresAt != null) {
@@ -959,33 +970,27 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         }
 
         const timeoutMinutes = this.state.expiringUserTimeout;
-        if (typeof timeoutMinutes !== "number" || timeoutMinutes <= 0) {
+        if (timeoutMinutes === undefined) {
             return;
         }
 
-        const expiresAt = Math.floor(Time.nowMs / 1000) + timeoutMinutes * 60;
+        const expiresAt = Timestamp(Time.nowMs + Minutes(timeoutMinutes));
         auth.replaceUser(userIndex, { ...user, expiringUserExpiresAt: expiresAt });
         this.#armExpiryTimer(userIndex, expiresAt);
     }
 
-    #armExpiryTimer(userIndex: number, expiresAtEpochS: number) {
+    #armExpiryTimer(userIndex: number, expiresAt: Timestamp) {
         this.#stopExpiryTimer(userIndex);
 
-        const remainingS = expiresAtEpochS - Math.floor(Time.nowMs / 1000);
-        if (remainingS <= 0) {
-            this.#disableExpiredUser(userIndex);
+        const remaining = Timestamp.delta(Time.nowMs, expiresAt);
+        if (remaining <= 0) {
+            this.#expireUser(userIndex);
             return;
         }
 
-        // `callback()` requires a real method reference (not an arrow) so the framework can rebind `this` to a
-        // fresh action context when the reactor actually fires -- the userIndex travels as the call argument.
-        const fireExpiry = this.callback(this.#onExpiryTimerFired, { lock: true });
-        const timer = Time.getTimer("expiring-user-timeout", Seconds(remainingS), () => fireExpiry(userIndex)).start();
-        this.internal.expiryTimers.set(userIndex, timer);
-    }
-
-    #onExpiryTimerFired(userIndex: number) {
-        this.#disableExpiredUser(userIndex);
+        const { internal } = this;
+        const timer = Time.getTimer("expiring-user-timeout", remaining, () => internal.expireUser?.(userIndex)).start();
+        internal.expiryTimers.set(userIndex, timer);
     }
 
     #stopExpiryTimer(userIndex: number) {
@@ -993,16 +998,41 @@ export class DoorLockBaseServer extends DoorLockBaseServerClass {
         this.internal.expiryTimers.delete(userIndex);
     }
 
-    #disableExpiredUser(userIndex: number) {
-        this.internal.expiryTimers.delete(userIndex);
+    #expireUser(userIndex: number) {
+        const { expiryTimers } = this.internal;
+        if (expiryTimers.get(userIndex)?.isRunning === false) {
+            expiryTimers.delete(userIndex);
+        }
 
         const auth = this.auth;
         const user = auth.findUser(userIndex);
-        if (!user || user.userStatus === UserStatus.OccupiedDisabled) {
+        if (
+            user?.userType !== UserType.ExpiringUser ||
+            user.userStatus === UserStatus.OccupiedDisabled ||
+            user.expiringUserExpiresAt == null
+        ) {
+            return;
+        }
+
+        if (!hasExpired(user)) {
+            this.#armExpiryTimer(userIndex, user.expiringUserExpiresAt);
             return;
         }
 
         auth.replaceUser(userIndex, { ...user, userStatus: UserStatus.OccupiedDisabled });
+
+        this.events.lockUserChange.emit(
+            {
+                lockDataType: LockDataType.UserIndex,
+                dataOperationType: DataOperationType.Modify,
+                operationSource: OperationSource.Unspecified,
+                userIndex,
+                fabricIndex: null,
+                sourceNode: null,
+                dataIndex: null,
+            },
+            this.context,
+        );
     }
 
     // ── Event Emission ─────────────────────────────────────────────────────────
@@ -1296,6 +1326,7 @@ export namespace DoorLockBaseServer {
         wrongCodeCount = 0;
         autoRelockTimer?: Timer;
         expiryTimers = new Map<number, Timer>();
+        expireUser?: (userIndex: number) => void;
     }
 }
 
@@ -1303,3 +1334,7 @@ export namespace DoorLockBaseServer {
  * Default DoorLock server with no features enabled. Use `.with()` to enable features.
  */
 export class DoorLockServer extends DoorLockBaseServer.with() {}
+
+function hasExpired({ userType, expiringUserExpiresAt }: LockAuth.User) {
+    return userType === UserType.ExpiringUser && expiringUserExpiresAt != null && expiringUserExpiresAt <= Time.nowMs;
+}

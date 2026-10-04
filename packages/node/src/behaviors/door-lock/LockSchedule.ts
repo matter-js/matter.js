@@ -81,6 +81,8 @@ export namespace LockSchedule {
         "saturday",
     ];
 
+    const LAST_MINUTE_OF_DAY = 23 * 60 + 59;
+
     /**
      * The current instant expressed the way WeekDay/YearDay schedules expect: YearDay's LocalStartTime/LocalEndTime
      * are Epoch Time in Seconds "with local time offset" (i.e. the local wall-clock reading, encoded as if it were
@@ -115,7 +117,9 @@ export namespace LockSchedule {
         }
         const start = schedule.startHour * 60 + schedule.startMinute;
         const end = schedule.endHour * 60 + schedule.endMinute;
-        return now.minuteOfDay >= start && now.minuteOfDay <= end;
+
+        // The spec extends only an end of 23:59 to the end of that minute
+        return now.minuteOfDay >= start && (now.minuteOfDay < end || end === LAST_MINUTE_OF_DAY);
     }
 
     function matchesYearDay(schedule: YearDay, now: LocalInstant): boolean {
@@ -123,9 +127,10 @@ export namespace LockSchedule {
     }
 
     /**
-     * Evaluate per-user schedule access per Matter spec § 5.2.6.18.2 (YearDayScheduleUser), § 5.2.6.18.3
-     * (WeekDayScheduleUser) and § 5.2.6.18.9 (ScheduleRestrictedUser). User types that are not schedule-restricted
-     * are always granted here.
+     * Whether the schedules of a user grant access now. User types that are not schedule-restricted are always
+     * granted here.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.2, § 5.2.6.18.3, § 5.2.6.18.9, § 5.2.10.4.7
      */
     export function isAccessGranted(
         userType: DoorLock.UserType,

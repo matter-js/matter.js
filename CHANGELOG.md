@@ -344,8 +344,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `ConformanceError` names the conformance the decision was made on rather than the element's own
     - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
-    - Fix: `DoorLockServer` denies access for a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` when the relevant schedule isn't configured or the current time falls outside it, instead of granting access unconditionally
-    - Fix: `DoorLockServer` now honors `ExpiringUserTimeout`: an `ExpiringUser`'s access is auto-disabled `ExpiringUserTimeout` minutes after their first successful use; the deadline is persisted so it survives a restart
+    - Fix: (@lboue) `DoorLockServer` denies a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` outside its schedules, and when it has none
+    - Fix: (@lboue) `DoorLockServer` disables a user of type `ExpiringUser` once `ExpiringUserTimeout` minutes have passed since its first use, also across a restart, and emits `LockUserChange`
 
 - @matter/types
     - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there
