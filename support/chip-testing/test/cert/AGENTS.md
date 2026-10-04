@@ -172,10 +172,10 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
 The root `npm test` does **not** cover this package: `support/chip-testing/package.json` sets
 `nacho.test: false`, because the app legs need Docker and chip binaries, and the opt-out is per
 package rather than per spec. The hermetic tests under `test/cert-framework/**` are dropped with
-them. A cert change therefore needs its own command:
+them. A cert change therefore needs its own command, run before the change is declared done:
 
 ```bash
-# what CI runs (esm and cjs legs)
+# what CI runs (the package builds esm only)
 npm --prefix support/chip-testing run test-cert-framework -- --no-pull
 
 # one leg, for iteration
@@ -189,7 +189,10 @@ flag.
 
 Docker is required either way, and no flag avoids it: the specs themselves use fakes, but
 `test/test.config.ts` awaits `chip.initialize()` at module scope, so every leg starts the harness
-containers before any spec runs.
+containers before any spec runs. Moving that start into a before-run hook does not work: `chip("X/*")` resolves its
+descriptor globs and PICS while the spec files load, `RvcTestInstance` loads its PICS at import, `matter-test
+inspect` reads the default PICS without running hooks, and specs such as `TC-SC-3.5` read `chip.container`
+without defining a harness test.
 
 The second form sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS` by hand because it bypasses the npm script
 that would have set it — without it a run can end in exit 101 during normal cleanup (see
