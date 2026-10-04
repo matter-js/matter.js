@@ -69,9 +69,12 @@ afterEach(async function () {
     try {
         await MockTime.resolve(
             MatterAggregateError.allSettled(
-                open.map(node =>
-                    node.construction.status === Lifecycle.Status.Destroying ? node.construction.closed : node.close(),
-                ),
+                open.map(async node => {
+                    // close() returns at once while another close is still running, so wait for the destruction itself
+                    const closed = node.construction.closed;
+                    await node.close();
+                    await closed;
+                }),
             ),
             { macrotasks: true },
         );
