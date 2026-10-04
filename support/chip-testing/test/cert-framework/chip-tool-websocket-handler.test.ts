@@ -86,6 +86,19 @@ describe("ChipToolWebSocketHandler convertWebsocketDataToMatter bitmaps", () => 
         });
     });
 
+    it("decodes a bitmap whose datatype the cluster inherits", () => {
+        const dishwasherAlarm = Matter.clusters.require("DishwasherAlarm");
+        const mask = dishwasherAlarm.commands.require("ModifyEnabledAlarms").fields.require("Mask");
+        expect(convertWebsocketDataToMatter("5", mask, dishwasherAlarm)).deep.equal({
+            inflowError: true,
+            drainError: false,
+            doorError: true,
+            tempTooLow: false,
+            tempTooHigh: false,
+            waterLevelError: false,
+        });
+    });
+
     it("decodes a bitmap given as a hex string", () => {
         expect(convertWebsocketDataToMatter("0x2", ALARMS_ACTIVE_ATTRIBUTE, BOOLEAN_STATE_CONFIGURATION)).deep.equal({
             visual: false,
