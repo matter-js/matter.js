@@ -6,7 +6,7 @@
 
 import { ImplementationError, UnexpectedDataError } from "@matter/general";
 import { Bytes } from "@matter/main";
-import { Matter } from "@matter/model";
+import { AttributeModel, ClusterModel, FieldModel, Matter } from "@matter/model";
 import { expect } from "chai";
 import {
     chipJsonToMatter,
@@ -39,6 +39,26 @@ const ACCESS_CONTROL_FEATURE_MAP_ATTRIBUTE = ACCESS_CONTROL.attributes.require("
 
 const WINDOW_COVERING = Matter.clusters.require("WindowCovering");
 const OPERATIONAL_STATUS_ATTRIBUTE = WINDOW_COVERING.attributes.require("operationalStatus");
+
+// No standard cluster has a bitmap member at bit 31 or higher to test against
+const WIDE_BITMAP_CLUSTER = new ClusterModel({
+    name: "WideBitmap",
+    id: 0xfff1fc10,
+    children: [
+        new AttributeModel({
+            name: "Wide",
+            id: 0,
+            type: "map64",
+            children: [
+                new FieldModel({ name: "Low", constraint: "0" }),
+                new FieldModel({ name: "Sign", constraint: "31" }),
+                new FieldModel({ name: "Span", constraint: "33 to 35" }),
+                new FieldModel({ name: "High", constraint: "63" }),
+            ],
+        }),
+    ],
+});
+const WIDE_BITMAP = WIDE_BITMAP_CLUSTER.attributes.require("wide");
 
 const THERMOSTAT = Matter.clusters.require("Thermostat");
 const SETPOINT_CHANGE_SOURCE_TIMESTAMP_ATTRIBUTE = THERMOSTAT.attributes.require("setpointChangeSourceTimestamp");
@@ -240,6 +260,15 @@ describe("chip-tool json codec", () => {
             "hex",
         );
         expect(wire).to.equal(0b001100);
+    });
+
+    it("decodes and encodes bitmap members at bit 31 and above, in full width", () => {
+        const wire = (1n << 63n) | (0b101n << 33n) | (1n << 31n) | 1n;
+        const decoded = chipJsonToMatter(wire, WIDE_BITMAP, WIDE_BITMAP_CLUSTER);
+        expect(decoded).to.deep.equal({ low: true, sign: true, span: 0b101, high: true });
+
+        expect(matterToChipJson(decoded, WIDE_BITMAP, WIDE_BITMAP_CLUSTER, "hex")).to.equal(`u:${wire}`);
+        expect(matterToChipJson({ sign: true }, WIDE_BITMAP, WIDE_BITMAP_CLUSTER, "hex")).to.equal(0x8000_0000);
     });
 
     it("resolves a FeatureMap bit by its short property name as well as its title, on encode", () => {

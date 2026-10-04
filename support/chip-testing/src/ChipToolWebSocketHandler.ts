@@ -442,12 +442,18 @@ export function convertWebsocketDataToMatter(value: any, model: ValueModel, clus
     }
 
     if (model.metabase?.metatype === "bitmap" && (typeof value === "number" || typeof value === "string")) {
-        const numberValue =
-            typeof value === "number" ? value : /^(0x[\da-fA-F]+|\d+)$/.test(value) ? Number(value) : NaN;
-        if (!Number.isSafeInteger(numberValue) || numberValue < 0) {
+        const bits =
+            typeof value === "string"
+                ? /^(0x[\da-fA-F]+|\d+)$/.test(value)
+                    ? BigInt(value)
+                    : undefined
+                : Number.isSafeInteger(value)
+                  ? BigInt(value)
+                  : undefined;
+        if (bits === undefined || bits < 0n) {
             throw new ImplementationError(`Invalid bitmap value ${value}`);
         }
-        return decodeBitmap(numberValue, model, clusterModel);
+        return decodeBitmap(bits, model, clusterModel);
     }
 
     if (
