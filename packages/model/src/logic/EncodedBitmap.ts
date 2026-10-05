@@ -4,66 +4,41 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ElementTag } from "#common/ElementTag.js";
-import type { FieldModel } from "#models/FieldModel.js";
-import { ValueModel } from "#models/ValueModel.js";
-import { FeatureMap } from "#standard/elements/feature-map.element.js";
-import { camelize } from "@matter/general";
-import { DecodedBitmap } from "./DecodedBitmap.js";
+import type { ValueModel } from "#models/ValueModel.js";
+import { BitmapMembers } from "./BitmapMembers.js";
+import type { DecodedBitmap } from "./DecodedBitmap.js";
+import type { Scope } from "./Scope.js";
 
-export function EncodedBitmap(model: ValueModel, value: number | bigint | DecodedBitmap): number | bigint {
+/**
+ * Encode a bitmap object into its value, as a bigint where a number cannot hold it exactly.
+ *
+ * Pass the {@link scope} of the cluster the bitmap belongs to where its datatype may come from a base cluster.
+ */
+export function EncodedBitmap(
+    model: ValueModel,
+    value: number | bigint | DecodedBitmap,
+    scope?: Scope,
+    options?: Scope.MemberOptions,
+): number | bigint {
     if (typeof value !== "object") {
         return value;
     }
 
-    let nameGenerator;
-    if (model.tag === ElementTag.Attribute && model.id === FeatureMap.id) {
-        // Special case for feature map; use the long name as the key rather than the name
-        nameGenerator = (model: ValueModel) =>
-            (model as FieldModel).title === undefined ? model.propertyName : camelize((model as FieldModel).title!);
-    } else {
-        nameGenerator = (model: ValueModel) => model.propertyName;
-    }
-
     let bitmap = 0n;
 
-    for (const field of model.children) {
-        // Support both single-value constraints (bit flag, e.g. constraint: "0") and range constraints
-        // (multi-bit field, e.g. constraint: "2 to 3").  DecodedBitmap mirrors this split.
-        const constraintValue = field.constraint.value;
-        let min: number;
-        let max: number;
-        if (typeof constraintValue === "number") {
-            min = constraintValue;
-            max = constraintValue;
-        } else {
-            const cm = field.constraint.min;
-            const cx = field.constraint.max;
-            if (typeof cm !== "number" || typeof cx !== "number") {
-                continue;
-            }
-            min = cm;
-            max = cx;
-        }
-
-        const name = nameGenerator(field);
-        const bitval = value[name];
-        if (!bitval) {
+    for (const member of BitmapMembers.of(model, scope, options)) {
+        const memberValue = value[BitmapMembers.keyOf(model, member)];
+        if (!memberValue) {
             continue;
         }
 
-        if (bitval === true) {
-            bitmap |= 1n << BigInt(min);
-        } else if (typeof bitval === "number") {
-            bitmap |= BigInt(bitval & (2 ** (max - min) - 1)) << BigInt(min);
-        } else {
-            bitmap |= bitval & ((2n ** BigInt(max - min) - 1n) << BigInt(min));
+        const range = BitmapMembers.rangeOf(member, typeof memberValue === "boolean" ? undefined : memberValue);
+        if (range === undefined) {
+            continue;
         }
+
+        bitmap |= BitmapMembers.place(range, memberValue);
     }
 
-    if (bitmap < Number.MAX_SAFE_INTEGER) {
-        return Number(bitmap);
-    }
-
-    return bitmap;
+    return BitmapMembers.toNumeric(bitmap);
 }

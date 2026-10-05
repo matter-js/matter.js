@@ -4,17 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GeneratedClass } from "@matter/general";
-import { DefaultValue, Metatype, Schema, Scope, ValueModel } from "@matter/model";
+import { GeneratedClass, ImplementationError } from "@matter/general";
+import { DecodedBitmap, DefaultValue, EncodedBitmap, Metatype, Schema, Scope, ValueModel } from "@matter/model";
 
-type ValueClass = new (values?: Record<string, unknown>) => Record<string, unknown>;
+type ValueClass = new (values?: Record<string, unknown> | number | bigint) => Record<string, unknown>;
 
 const cache = new WeakMap<ValueModel, ValueClass>();
+
+const completeBitmap: DecodedBitmap.Options = { conformance: "conformant", complete: true };
 
 /**
  * Create a runtime class for a struct or bitmap value model.
  *
  * The returned class is constructible with `new Klass(values?)` where `values` is a partial object of named fields.
+ * A bitmap class also accepts the bitmap's numeric value.  A bitmap instance built from its default or a numeric value
+ * names every conformant member, `false` or 0 where clear.
  * Schema is associated via {@link Schema.set} so it can be resolved by `@field` decorators.
  *
  * Results are cached per model instance.
@@ -28,48 +32,34 @@ export function ClassForValueModel(model: ValueModel): ValueClass {
     const metatype = model.effectiveMetatype;
 
     if (metatype !== Metatype.object && metatype !== Metatype.bitmap) {
-        throw new Error(`ClassForValueModel only supports struct and bitmap metatypes, got ${metatype}`);
+        throw new ImplementationError(
+            `ClassForValueModel only supports struct and bitmap metatypes, but ${model.path} is ${metatype}`,
+        );
     }
 
     const scope = Scope(model);
-    const defaults = DefaultValue(scope, model) as Record<string, unknown> | undefined;
+    let defaults = DefaultValue(scope, model);
+    if (metatype === Metatype.bitmap && defaults !== undefined && defaults !== null) {
+        // A bitmap's default is a whole value, so every member takes its part of it
+        defaults = DecodedBitmap(model, EncodedBitmap(model, defaults, scope, completeBitmap), scope, completeBitmap);
+    }
 
     klass = GeneratedClass({
         name: model.name,
 
-        initialize(values?: Record<string, unknown> | number) {
-            // Apply defaults
+        initialize(values?: Record<string, unknown> | number | bigint) {
+            const instance = this as Record<string, unknown>;
+
             if (defaults) {
-                for (const key in defaults) {
-                    (this as Record<string, unknown>)[key] = defaults[key];
-                }
+                Object.assign(instance, defaults);
             }
 
-            // Overlay caller-provided values
-            if (values !== undefined) {
-                if (typeof values === "number" && metatype === Metatype.bitmap) {
-                    // Numeric bitmap constructor — decompose into named bit fields
-                    const members = scope.membersOf(model, { conformance: "conformant" });
-                    for (const member of members) {
-                        const constraint = member.effectiveConstraint;
-                        if (typeof constraint.value === "number") {
-                            // Single bit flag
-                            (this as Record<string, unknown>)[member.propertyName] = !!(
-                                values &
-                                (1 << constraint.value)
-                            );
-                        } else if (typeof constraint.min === "number" && typeof constraint.max === "number") {
-                            // Bit range
-                            const width = constraint.max - constraint.min;
-                            const mask = (1 << width) - 1;
-                            (this as Record<string, unknown>)[member.propertyName] = (values >> constraint.min) & mask;
-                        }
-                    }
-                } else if (typeof values === "object") {
-                    for (const key in values) {
-                        (this as Record<string, unknown>)[key] = values[key];
-                    }
+            if (typeof values === "number" || typeof values === "bigint") {
+                if (metatype === Metatype.bitmap) {
+                    Object.assign(instance, DecodedBitmap(model, values, scope, completeBitmap));
                 }
+            } else if (typeof values === "object") {
+                Object.assign(instance, values);
             }
         },
     }) as ValueClass;
