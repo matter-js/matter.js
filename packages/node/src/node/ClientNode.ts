@@ -12,7 +12,6 @@ import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import { Agent } from "#endpoint/Agent.js";
 import { ClientNodeEndpoints } from "#endpoint/properties/ClientNodeEndpoints.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
@@ -31,7 +30,7 @@ import {
     MaybePromise,
 } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
-import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
+import { CommissioningError, Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { ClientNodeLifecycle } from "./ClientNodeLifecycle.js";
@@ -148,25 +147,33 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * Add this node to a fabric.
      */
     async commission(options: CommissioningClient.CommissioningOptions) {
-        await this.act("commission", agent => agent.commissioning.commission(options));
+        if (this.lifecycle.isGone) {
+            throw new CommissioningError(`Cannot commission ${this} because it is being deleted or has crashed`);
+        }
+        await this.owner.peers.runCommissioning(this, () =>
+            this.act("commission", agent => agent.commissioning.commission(options)),
+        );
     }
 
     /**
      * Remove this node from the fabric (if commissioned) and locally.
      * This method tries to communicate with the device to decommission it properly and will fail if the device is
-     * unreachable.
+     * unreachable.  If the device does not confirm the removal, the node is kept and stays usable.
      * If you cannot reach the device, use {@link delete} instead.
      */
     async decommission() {
-        this.lifecycle.change(EndpointLifecycle.Change.Destroying);
-
-        if (this.lifecycle.isCommissioned) {
-            this.statusUpdate("decommissioning");
-
-            await this.act("decommission", agent => agent.commissioning.decommission());
+        if (this.lifecycle.isGone) {
+            throw new ImplementationError(`Cannot decommission ${this} because it is being deleted or has crashed`);
         }
+        await this.owner.peers.runDecommissioning(this, async () => {
+            if (this.lifecycle.isCommissioned) {
+                this.statusUpdate("decommissioning");
 
-        await this.delete();
+                await this.act("decommission", agent => agent.commissioning.decommission());
+            }
+
+            await this.delete();
+        });
     }
 
     /**

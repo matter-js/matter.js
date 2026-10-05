@@ -175,7 +175,7 @@ class NodeObserver {
                 case Lifecycle.Status.Destroyed:
                     group.close();
                     this.#constructions.delete(endpoint);
-                    if (status === Lifecycle.Status.Active) {
+                    if (status === Lifecycle.Status.Active && endpoint.lifecycle.isReadable) {
                         this.#emit({ kind: "readable", endpoint });
                     }
                     break;

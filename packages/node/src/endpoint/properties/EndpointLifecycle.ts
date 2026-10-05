@@ -19,6 +19,7 @@ export class EndpointLifecycle {
     #isInstalled = false;
     #isReady = false;
     #isPartsReady = false;
+    #isDestroying = false;
     #hasId = false;
     #hasNumber = false;
     #installed = Observable<[]>(error => this.emitError("installed", error));
@@ -125,14 +126,18 @@ export class EndpointLifecycle {
      * nothing to answer with yet, and a resetting, crashed or closing one has nothing left.
      */
     get isReadable() {
-        return this.#isReady && this.#endpoint.construction.status === Lifecycle.Status.Active;
+        return this.#isReady && !this.#isDestroying && this.#endpoint.construction.status === Lifecycle.Status.Active;
     }
 
     /**
-     * Has the {@link Endpoint}'s construction crashed or begun closing, so it will not become readable unless restarted?
-     * Unlike "not {@link isReadable}", this is false while the endpoint initializes.
+     * Has the {@link Endpoint}'s destruction begun or its construction crashed, so it will not become readable?  A crashed
+     * endpoint may still be restarted.  Unlike "not {@link isReadable}", this is false while the endpoint initializes
+     * or resets outside of a deletion.
      */
     get isGone() {
+        if (this.#isDestroying) {
+            return true;
+        }
         const status = this.#endpoint.construction.status;
         return (
             status === Lifecycle.Status.Destroying ||
@@ -205,6 +210,7 @@ export class EndpointLifecycle {
 
             case EndpointLifecycle.Change.Destroying:
                 this.#isReady = false;
+                this.#isDestroying = true;
                 break;
 
             case EndpointLifecycle.Change.Ready:
