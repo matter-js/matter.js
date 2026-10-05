@@ -105,6 +105,33 @@ export function schedulesEndpoint(numberOfSchedules?: number, schedules?: Thermo
     });
 }
 
+const HeatingOnlySchedulesThermostat = ThermostatDevice.with(
+    ThermostatServer.with("Heating", "Presets", "MatterScheduleConfiguration"),
+);
+
+/** A thermostat without the Cooling and AutoMode features, whose only schedule type is Heat. */
+export function heatingOnlySchedulesEndpoint() {
+    const { occupiedCoolingSetpoint, minSetpointDeadBand, ...config } = thermostatConfig();
+    void occupiedCoolingSetpoint;
+    void minSetpointDeadBand;
+    return new Endpoint(HeatingOnlySchedulesThermostat, {
+        id: "thermostat",
+        number: 1,
+        thermostat: {
+            ...config,
+            controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.HeatingOnly,
+            systemMode: Thermostat.SystemMode.Heat,
+            scheduleTypes: [
+                {
+                    systemMode: Thermostat.SystemMode.Heat,
+                    numberOfSchedules: 5,
+                    scheduleTypeFeatures: { supportsSetpoints: true },
+                },
+            ],
+        },
+    });
+}
+
 /**
  * An endpoint that selects the MatterScheduleConfiguration feature but leaves the attribute's value to the cluster,
  * which is the configuration the attribute must work in without the application knowing anything about schedules.

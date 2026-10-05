@@ -6,17 +6,29 @@
 
 import { ThermostatClient } from "#behaviors/thermostat";
 import { Endpoint } from "#endpoint/index.js";
+import { ClientNode } from "#node/ClientNode.js";
 import { Write } from "@matter/protocol";
 import { EndpointNumber, Status } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
 import { subscribedPeer } from "../../node/node-helpers.js";
-import { newSchedule, recordThermostatChanges, SCHEDULES_ATTRIBUTE, schedulesEndpoint } from "./schedule-helpers.js";
+import {
+    newSchedule,
+    newScheduleTransition,
+    recordThermostatChanges,
+    SCHEDULES_ATTRIBUTE,
+    schedulesEndpoint,
+    SchedulesThermostat,
+    thermostatConfig,
+} from "./schedule-helpers.js";
 
-async function commissionedThermostat() {
+function commissionedThermostat() {
+    return commissioned(schedulesEndpoint());
+}
+
+async function commissioned<E extends Endpoint>(deviceEp: E) {
     const site = new MockSite();
-    const deviceEp = schedulesEndpoint();
     const { controller, device } = await site.addCommissionedPair({
         device: { type: MockServerNode.RootEndpoint, device: deviceEp },
     });
@@ -25,7 +37,7 @@ async function commissionedThermostat() {
     const ep1 = peer1.parts.get("ep1")!;
     expect(ep1).not.undefined;
 
-    return { device, deviceEp, ep1, [Symbol.asyncDispose]: () => site[Symbol.asyncDispose]() };
+    return { device, deviceEp, peer1, ep1, [Symbol.asyncDispose]: () => site[Symbol.asyncDispose]() };
 }
 
 function beginWrite(ep1: Endpoint) {
@@ -45,6 +57,26 @@ function commitWrite(ep1: Endpoint) {
             attributeRequests: [SCHEDULES_ATTRIBUTE],
         }),
     );
+}
+
+/**
+ * Writes the schedules as raw Matter write requests, so the device sees values the client's own schema validation
+ * would refuse to send. Returns the status of each write request.
+ */
+async function writeSchedulesUnchecked(peer: ClientNode, schedules: Thermostat.Schedule[]) {
+    const result = await MockTime.resolve(
+        peer.interaction.write(
+            Write(
+                Write.Attribute({
+                    endpoint: EndpointNumber(1),
+                    cluster: Thermostat,
+                    attributes: "schedules",
+                    value: schedules,
+                }),
+            ),
+        ),
+    );
+    return result.map(({ status }) => status);
 }
 
 function cachedSchedules(ep1: Endpoint) {
@@ -151,6 +183,90 @@ describe("Schedules atomic write", () => {
         await expect(writeSchedules(ep1, [newSchedule({ systemMode: Thermostat.SystemMode.Cool })])).rejectedWith(
             "Constraint error",
         );
+    });
+
+    it("declines a schedule with more transitions than NumberOfScheduleTransitions", async () => {
+        await using ctx = await commissionedThermostat();
+        const { deviceEp, peer1, ep1 } = ctx;
+
+        await beginWrite(ep1);
+
+        const transitions = Array.from({ length: 11 }, (_, i) => newScheduleTransition({ transitionTime: i * 10 }));
+        expect(await writeSchedulesUnchecked(peer1, [newSchedule({ transitions })])).deep.equals([
+            Status.Success,
+            Status.ResourceExhausted,
+        ]);
+
+        expect(deviceEp.state.thermostat.persistedSchedules).deep.equals([]);
+    });
+
+    it("declines a transition systemMode equal to the schedule's systemMode", async () => {
+        await using ctx = await commissionedThermostat();
+        const { peer1, ep1 } = ctx;
+
+        await beginWrite(ep1);
+
+        expect(
+            await writeSchedulesUnchecked(peer1, [
+                newSchedule({ transitions: [newScheduleTransition({ systemMode: Thermostat.SystemMode.Auto })] }),
+            ]),
+        ).deep.equals([Status.Success, Status.ConstraintError]);
+    });
+
+    it("declines a schedule name longer than 64 characters through the schema constraint", async () => {
+        await using ctx = await commissioned(
+            new Endpoint(SchedulesThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: {
+                    ...thermostatConfig(),
+                    scheduleTypes: [
+                        {
+                            systemMode: Thermostat.SystemMode.Auto,
+                            numberOfSchedules: 5,
+                            scheduleTypeFeatures: {
+                                supportsPresets: true,
+                                supportsSetpoints: true,
+                                supportsNames: true,
+                            },
+                        },
+                    ],
+                },
+            }),
+        );
+        const { peer1, ep1 } = ctx;
+
+        await beginWrite(ep1);
+
+        expect(await writeSchedulesUnchecked(peer1, [newSchedule({ name: "x".repeat(65) })])).deep.equals([
+            Status.Success,
+            Status.ConstraintError,
+        ]);
+    });
+
+    it("declines a schedule without transitions through the schema constraint", async () => {
+        await using ctx = await commissionedThermostat();
+        const { peer1, ep1 } = ctx;
+
+        await beginWrite(ep1);
+
+        expect(await writeSchedulesUnchecked(peer1, [newSchedule({ transitions: [] })])).deep.equals([
+            Status.Success,
+            Status.ConstraintError,
+        ]);
+    });
+
+    it("declines a transitionTime past the end of the day through the schema constraint", async () => {
+        await using ctx = await commissionedThermostat();
+        const { peer1, ep1 } = ctx;
+
+        await beginWrite(ep1);
+
+        expect(
+            await writeSchedulesUnchecked(peer1, [
+                newSchedule({ transitions: [newScheduleTransition({ transitionTime: 1440 })] }),
+            ]),
+        ).deep.equals([Status.Success, Status.ConstraintError]);
     });
 
     it("refuses a commit whose settled schedules an observer stripped the handle from", async () => {

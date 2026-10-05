@@ -6,11 +6,13 @@
 
 import { Endpoint } from "#endpoint/index.js";
 import { Entropy, Environment, MemoryStorageDriver, StorageManager, StorageService } from "@matter/general";
+import { ConformanceError } from "@matter/protocol";
 import { StatusResponse } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { newPreset } from "./preset-helpers.js";
 import {
+    heatingOnlySchedulesEndpoint,
     newSchedule,
     newScheduleTransition,
     recordThermostatChanges,
@@ -33,6 +35,34 @@ function writeSchedules(deviceEp: Endpoint<typeof SchedulesThermostat>, schedule
 
 function storedSchedules(deviceEp: Endpoint<typeof SchedulesThermostat>) {
     return deviceEp.state.thermostat.persistedSchedules!;
+}
+
+async function heatingOnlyThermostat() {
+    const deviceEp = heatingOnlySchedulesEndpoint();
+    const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+    const write = (schedules: Thermostat.Schedule[]) =>
+        MockTime.resolve(deviceEp.set({ thermostat: { schedules } }), { macrotasks: true });
+    return { write, [Symbol.asyncDispose]: () => node.close() };
+}
+
+/** A schedule type that allows transitions to Off, which {@link thermostatConfig} leaves out. */
+async function offCapableThermostat() {
+    const deviceEp = new Endpoint(SchedulesThermostat, {
+        id: "thermostat",
+        number: 1,
+        thermostat: {
+            ...thermostatConfig(),
+            scheduleTypes: [
+                {
+                    systemMode: Thermostat.SystemMode.Auto,
+                    numberOfSchedules: 5,
+                    scheduleTypeFeatures: { supportsPresets: true, supportsSetpoints: true, supportsOff: true },
+                },
+            ],
+        },
+    });
+    const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+    return { deviceEp, [Symbol.asyncDispose]: () => node.close() };
 }
 
 describe("Schedules local write", () => {
@@ -477,6 +507,235 @@ describe("Schedules local write", () => {
                 newSchedule({ transitions: [newScheduleTransition({ dayOfWeek: { away: true } })] }),
             ]),
         ).rejectedWith(StatusResponse.ConstraintErrorError, "Away/Vacation bit must not be set");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("accepts a transition without setpoints that overrides systemMode when the schedule carries a presetHandle", async () => {
+        const preset = newPreset({ presetHandle: new Uint8Array(16).fill(12) });
+        const deviceEp = new Endpoint(SchedulesThermostat, {
+            id: "thermostat",
+            number: 1,
+            thermostat: { ...thermostatConfig(), presets: [preset] },
+        });
+        await using _node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: deviceEp });
+
+        await writeSchedules(deviceEp, [
+            newSchedule({
+                presetHandle: preset.presetHandle!,
+                transitions: [
+                    newScheduleTransition({
+                        systemMode: Thermostat.SystemMode.Heat,
+                        heatingSetpoint: undefined,
+                        coolingSetpoint: undefined,
+                    }),
+                ],
+            }),
+        ]);
+
+        expect(storedSchedules(deviceEp)[0].transitions[0].heatingSetpoint).equals(undefined);
+    });
+
+    it("rejects a transition without setpoints or presetHandle when the schedule carries no presetHandle", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        await expect(
+            writeSchedules(deviceEp, [
+                newSchedule({
+                    transitions: [newScheduleTransition({ heatingSetpoint: undefined, coolingSetpoint: undefined })],
+                }),
+            ]),
+        ).rejectedWith(StatusResponse.ConstraintErrorError, "must specify a heatingSetpoint or presetHandle");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("rejects a schedule with more transitions than NumberOfScheduleTransitions", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        const transitions = Array.from({ length: 11 }, (_, i) => newScheduleTransition({ transitionTime: i * 10 }));
+
+        await expect(writeSchedules(deviceEp, [newSchedule({ transitions })])).rejectedWith(
+            StatusResponse.ResourceExhaustedError,
+            "exceeds NumberOfScheduleTransitions",
+        );
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("rejects a transition systemMode equal to the schedule's systemMode", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        await expect(
+            writeSchedules(deviceEp, [
+                newSchedule({ transitions: [newScheduleTransition({ systemMode: Thermostat.SystemMode.Auto })] }),
+            ]),
+        ).rejectedWith(StatusResponse.ConstraintErrorError, "must be omitted when it equals the schedule's systemMode");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("rejects a transition systemMode other than Auto, Heat, Cool or Off", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        await expect(
+            writeSchedules(deviceEp, [
+                newSchedule({
+                    transitions: [
+                        newScheduleTransition({
+                            systemMode: Thermostat.SystemMode.EmergencyHeat,
+                            heatingSetpoint: undefined,
+                            coolingSetpoint: undefined,
+                        }),
+                    ],
+                }),
+            ]),
+        ).rejectedWith(StatusResponse.ConstraintErrorError, "EmergencyHeat is not allowed");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("rejects a transition systemMode Cool without the Cooling feature through SystemModeEnum conformance", async () => {
+        await using ctx = await heatingOnlyThermostat();
+
+        await expect(
+            ctx.write([
+                newSchedule({
+                    systemMode: Thermostat.SystemMode.Heat,
+                    transitions: [
+                        newScheduleTransition({ systemMode: Thermostat.SystemMode.Cool, heatingSetpoint: undefined }),
+                    ],
+                }),
+            ]),
+        ).rejectedWith(ConformanceError, "Matter does not allow enum value Cool");
+    });
+
+    it("rejects a transition systemMode Auto without the AutoMode feature through SystemModeEnum conformance", async () => {
+        await using ctx = await heatingOnlyThermostat();
+
+        await expect(
+            ctx.write([
+                newSchedule({
+                    systemMode: Thermostat.SystemMode.Heat,
+                    transitions: [newScheduleTransition({ systemMode: Thermostat.SystemMode.Auto })],
+                }),
+            ]),
+        ).rejectedWith(ConformanceError, "Matter does not allow enum value Auto");
+    });
+
+    it("accepts a transition systemMode Heat on a thermostat that supports heating", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        await writeSchedules(deviceEp, [
+            newSchedule({
+                transitions: [
+                    newScheduleTransition({ systemMode: Thermostat.SystemMode.Heat, coolingSetpoint: undefined }),
+                ],
+            }),
+        ]);
+
+        expect(storedSchedules(deviceEp)[0].transitions[0].systemMode).equals(Thermostat.SystemMode.Heat);
+    });
+
+    it("rejects a heatingSetpoint on a transition whose effective systemMode is Cool", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        await expect(
+            writeSchedules(deviceEp, [
+                newSchedule({ transitions: [newScheduleTransition({ systemMode: Thermostat.SystemMode.Cool })] }),
+            ]),
+        ).rejectedWith(StatusResponse.ConstraintErrorError, "heatingSetpoint is not allowed with systemMode Cool");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("rejects a coolingSetpoint on a transition whose effective systemMode is Heat", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        await expect(
+            writeSchedules(deviceEp, [
+                newSchedule({ transitions: [newScheduleTransition({ systemMode: Thermostat.SystemMode.Heat })] }),
+            ]),
+        ).rejectedWith(StatusResponse.ConstraintErrorError, "coolingSetpoint is not allowed with systemMode Heat");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("rejects a setpoint on a transition to Off", async () => {
+        await using ctx = await offCapableThermostat();
+        const { deviceEp } = ctx;
+
+        await expect(
+            writeSchedules(deviceEp, [
+                newSchedule({
+                    transitions: [
+                        newScheduleTransition({ systemMode: Thermostat.SystemMode.Off, coolingSetpoint: undefined }),
+                    ],
+                }),
+            ]),
+        ).rejectedWith(StatusResponse.ConstraintErrorError, "heatingSetpoint is not allowed with systemMode Off");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("accepts a transition to Off without setpoints when the schedule type supports Off", async () => {
+        await using ctx = await offCapableThermostat();
+        const { deviceEp } = ctx;
+
+        await writeSchedules(deviceEp, [
+            newSchedule({
+                transitions: [
+                    newScheduleTransition({
+                        systemMode: Thermostat.SystemMode.Off,
+                        heatingSetpoint: undefined,
+                        coolingSetpoint: undefined,
+                    }),
+                ],
+            }),
+        ]);
+
+        expect(storedSchedules(deviceEp)[0].transitions[0].systemMode).equals(Thermostat.SystemMode.Off);
+    });
+
+    it("rejects Auto transition setpoints closer than MinSetpointDeadBand", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        // MinSetpointDeadBand is 2.5 °C in thermostatConfig, so a 2 °C gap is too narrow
+        await expect(
+            writeSchedules(deviceEp, [
+                newSchedule({ transitions: [newScheduleTransition({ heatingSetpoint: 2400, coolingSetpoint: 2600 })] }),
+            ]),
+        ).rejectedWith(StatusResponse.ConstraintErrorError, "closer than the deadband (250)");
+
+        expect(storedSchedules(deviceEp)).deep.equals([]);
+    });
+
+    it("accepts Auto transition setpoints exactly MinSetpointDeadBand apart", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        await writeSchedules(deviceEp, [
+            newSchedule({ transitions: [newScheduleTransition({ heatingSetpoint: 2350, coolingSetpoint: 2600 })] }),
+        ]);
+
+        expect(storedSchedules(deviceEp).length).equals(1);
+    });
+
+    it("rejects a transition whose dayOfWeek sets no day", async () => {
+        await using ctx = await thermostat();
+        const { deviceEp } = ctx;
+
+        await expect(
+            writeSchedules(deviceEp, [newSchedule({ transitions: [newScheduleTransition({ dayOfWeek: {} })] })]),
+        ).rejectedWith(StatusResponse.ConstraintErrorError, "must set at least one day");
 
         expect(storedSchedules(deviceEp)).deep.equals([]);
     });

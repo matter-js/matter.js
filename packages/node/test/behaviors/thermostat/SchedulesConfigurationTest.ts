@@ -15,6 +15,8 @@ import { MockSite } from "../../node/mock-site.js";
 import { subscribedPeer } from "../../node/node-helpers.js";
 import {
     newSchedule,
+    newScheduleTransition,
+    schedulesEndpoint,
     SchedulesThermostat,
     SchedulesThermostatServer,
     thermostatConfig,
@@ -27,6 +29,21 @@ function writeSchedules(deviceEp: Endpoint<typeof SchedulesThermostat>, schedule
 
 describe("Schedules configuration", () => {
     before(() => MockTime.init());
+
+    it("refuses to start with a configured schedule the write rules refuse", async () => {
+        const invalid = newSchedule({
+            transitions: [newScheduleTransition({ systemMode: Thermostat.SystemMode.Auto })],
+        });
+
+        await expect(MockServerNode.createOnline(undefined, { device: schedulesEndpoint(5, [invalid]) })).rejectedWith(
+            "Behaviors have errors",
+        );
+    });
+
+    it("starts with configured schedules the write rules accept", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: schedulesEndpoint(5, [newSchedule()]) });
+        await node.close();
+    });
 
     it("declines a remote write outside an atomic write when the application configured no schedules", async () => {
         await using site = new MockSite();

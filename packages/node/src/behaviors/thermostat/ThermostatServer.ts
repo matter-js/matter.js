@@ -13,6 +13,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import {
+    asError,
     Bytes,
     cropValueRange,
     deepCopy,
@@ -183,6 +184,14 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
 
         if (this.features.matterScheduleConfiguration) {
+            // Every later write resends the whole list, so a configured schedule the rules refuse would block them all
+            const schedules = this.state.persistedSchedules ?? [];
+            try {
+                this.#validateScheduleWriteRequest(schedules, schedules, new Set());
+            } catch (error) {
+                throw new ImplementationError(`Configured schedules are invalid: ${asError(error).message}`);
+            }
+
             const { activeScheduleHandle } = this.state;
             if (
                 activeScheduleHandle !== null &&
@@ -368,9 +377,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * This fulfills the basic requirements of the SetActiveScheduleRequest matter command. Use this method if you need
      * to override setActiveScheduleRequest to ensure compliance.
      *
-     * Unlike handleSetActivePresetRequest, this does not adjust setpoints: a schedule is a set of time-based
-     * transitions, so applying "the" setpoint on activation would require evaluating those transitions against the
-     * current day/time, which this default implementation does not do (see the class documentation).
+     * Setpoints stay unchanged, because the setpoint a schedule asks for depends on the current day and time, which
+     * this default implementation does not evaluate (see the class documentation).
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 4.3.12.2
      */
     protected handleSetActiveScheduleRequest({ scheduleHandle }: Thermostat.SetActiveScheduleRequest) {
         const schedule = this.state.persistedSchedules?.find(
@@ -389,6 +399,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
      * If you want to also adjust setpoints based on the schedule's transitions (which requires evaluating them
      * against the current day/time), override this method but should call handleSetActiveScheduleRequest to ensure
      * compliance with the specification.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 4.3.12.2
      */
     override setActiveScheduleRequest(request: Thermostat.SetActiveScheduleRequest) {
         this.handleSetActiveScheduleRequest(request);
@@ -1798,6 +1810,12 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             }
             const { scheduleTypeFeatures } = scheduleType;
 
+            if (schedule.transitions.length > this.state.numberOfScheduleTransitions) {
+                throw new StatusResponse.ResourceExhaustedError(
+                    `Number of transitions (${schedule.transitions.length}) exceeds NumberOfScheduleTransitions (${this.state.numberOfScheduleTransitions})`,
+                );
+            }
+
             const count = scheduleModeCounts.get(schedule.systemMode) ?? 0;
             if (count === scheduleType.numberOfSchedules) {
                 throw new StatusResponse.ResourceExhaustedError(
@@ -1846,8 +1864,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     ] as const;
 
     /**
-     * Validates the transitions of a single schedule being written, mirroring the per-transition rules of
-     * Section 4.3.10.26.5 of the specification.
+     * Validates the transitions of a single schedule being written against Sections 4.3.10.26.5, 4.3.10.27 and
+     * 4.3.11.51 of the specification. Where the specification is ambiguous or silent, this matches the CHIP reference
+     * implementation.
      */
     #validateScheduleTransitions(
         schedule: Thermostat.Schedule,
@@ -1863,6 +1882,11 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             if (transition.dayOfWeek.away) {
                 throw new StatusResponse.ConstraintErrorError(
                     "Away/Vacation bit must not be set on a schedule transition's dayOfWeek",
+                );
+            }
+            if (!ThermostatBaseServer.#daysOfWeek.some(day => transition.dayOfWeek[day])) {
+                throw new StatusResponse.ConstraintErrorError(
+                    "A schedule transition's dayOfWeek must set at least one day",
                 );
             }
 
@@ -1912,46 +1936,70 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 }
             }
 
-            const effectiveSystemMode = transition.systemMode ?? schedule.systemMode;
-            const usesPreset = transition.presetHandle !== undefined;
             if (
-                !usesPreset &&
-                (effectiveSystemMode === Thermostat.SystemMode.Heat ||
-                    effectiveSystemMode === Thermostat.SystemMode.Auto) &&
-                transition.heatingSetpoint === undefined
+                (transition.systemMode !== undefined ||
+                    transition.coolingSetpoint !== undefined ||
+                    transition.heatingSetpoint !== undefined) &&
+                !scheduleTypeFeatures.supportsSetpoints
             ) {
+                throw new StatusResponse.ConstraintErrorError(
+                    "Setpoints are not supported for this schedule's systemMode",
+                );
+            }
+
+            if (transition.systemMode !== undefined) {
+                if (transition.systemMode === schedule.systemMode) {
+                    throw new StatusResponse.ConstraintErrorError(
+                        `Transition systemMode ${Thermostat.SystemMode[transition.systemMode]} must be omitted when it equals the schedule's systemMode`,
+                    );
+                }
+                switch (transition.systemMode) {
+                    case Thermostat.SystemMode.Off:
+                        if (!scheduleTypeFeatures.supportsOff) {
+                            throw new StatusResponse.ConstraintErrorError(
+                                "SystemMode Off is not supported for this schedule's systemMode",
+                            );
+                        }
+                        break;
+
+                    // The feature each of these needs is enforced by the value conformance of SystemModeEnum
+                    case Thermostat.SystemMode.Heat:
+                    case Thermostat.SystemMode.Cool:
+                    case Thermostat.SystemMode.Auto:
+                        break;
+
+                    default:
+                        throw new StatusResponse.ConstraintErrorError(
+                            `Transition systemMode ${Thermostat.SystemMode[transition.systemMode]} is not allowed, only Auto, Heat, Cool and Off are`,
+                        );
+                }
+            }
+
+            const effectiveSystemMode = transition.systemMode ?? schedule.systemMode;
+            const heats =
+                effectiveSystemMode === Thermostat.SystemMode.Heat ||
+                effectiveSystemMode === Thermostat.SystemMode.Auto;
+            const cools =
+                effectiveSystemMode === Thermostat.SystemMode.Cool ||
+                effectiveSystemMode === Thermostat.SystemMode.Auto;
+
+            // The schedule's presetHandle is the fallback for every transition, including one that overrides systemMode
+            const hasPreset = transition.presetHandle !== undefined || schedule.presetHandle !== undefined;
+            if (!hasPreset && heats && transition.heatingSetpoint === undefined) {
                 throw new StatusResponse.ConstraintErrorError(
                     "A Heat or Auto schedule transition must specify a heatingSetpoint or presetHandle",
                 );
             }
-            if (
-                !usesPreset &&
-                (effectiveSystemMode === Thermostat.SystemMode.Cool ||
-                    effectiveSystemMode === Thermostat.SystemMode.Auto) &&
-                transition.coolingSetpoint === undefined
-            ) {
+            if (!hasPreset && cools && transition.coolingSetpoint === undefined) {
                 throw new StatusResponse.ConstraintErrorError(
                     "A Cool or Auto schedule transition must specify a coolingSetpoint or presetHandle",
                 );
             }
 
-            if (transition.systemMode !== undefined) {
-                if (!scheduleTypeFeatures.supportsSetpoints) {
-                    throw new StatusResponse.ConstraintErrorError(
-                        "Setpoints are not supported for this schedule's systemMode",
-                    );
-                }
-                if (transition.systemMode === Thermostat.SystemMode.Off && !scheduleTypeFeatures.supportsOff) {
-                    throw new StatusResponse.ConstraintErrorError(
-                        "SystemMode Off is not supported for this schedule's systemMode",
-                    );
-                }
-            }
-
             if (transition.coolingSetpoint !== undefined) {
-                if (!scheduleTypeFeatures.supportsSetpoints) {
+                if (!cools) {
                     throw new StatusResponse.ConstraintErrorError(
-                        "Setpoints are not supported for this schedule's systemMode",
+                        `Transition coolingSetpoint is not allowed with systemMode ${Thermostat.SystemMode[effectiveSystemMode]}`,
                     );
                 }
                 if (
@@ -1964,9 +2012,9 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                 }
             }
             if (transition.heatingSetpoint !== undefined) {
-                if (!scheduleTypeFeatures.supportsSetpoints) {
+                if (!heats) {
                     throw new StatusResponse.ConstraintErrorError(
-                        "Setpoints are not supported for this schedule's systemMode",
+                        `Transition heatingSetpoint is not allowed with systemMode ${Thermostat.SystemMode[effectiveSystemMode]}`,
                     );
                 }
                 if (
@@ -1977,6 +2025,15 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                         `Transition heatingSetpoint (${transition.heatingSetpoint}) is out of bounds [${this.heatSetpointMinimum}, ${this.heatSetpointMaximum}]`,
                     );
                 }
+            }
+            if (
+                transition.heatingSetpoint !== undefined &&
+                transition.coolingSetpoint !== undefined &&
+                transition.coolingSetpoint - transition.heatingSetpoint < this.setpointDeadBand
+            ) {
+                throw new StatusResponse.ConstraintErrorError(
+                    `Transition coolingSetpoint (${transition.coolingSetpoint}) and heatingSetpoint (${transition.heatingSetpoint}) are closer than the deadband (${this.setpointDeadBand})`,
+                );
             }
         }
 
