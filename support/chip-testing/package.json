@@ -44,10 +44,10 @@
     },
     "devDependencies": {
         "@matter/testing": "*",
-        "@types/ws": "^8.18.1",
+        "@types/ws": "^8.18.2",
         "chai": "^6.3.0",
         "node-datachannel": "^0.33.4",
-        "ws": "^8.21.2"
+        "ws": "^8.22.0"
     },
     "nacho": {
         "test": false

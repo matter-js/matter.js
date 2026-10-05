@@ -41,7 +41,7 @@
         "@matter/nodejs-ble": "*",
         "@matter/protocol": "*",
         "@matter/types": "*",
-        "ws": "^8.21.2",
+        "ws": "^8.22.0",
         "yargs": "^18.2.0"
     },
     "engines": {
