@@ -1050,6 +1050,7 @@ export class ChipToolWebSocketHandler {
                 "attribute-values": value,
                 "cluster-ids": clusterId,
                 "attribute-ids": attributeId,
+                timedInteractionTimeoutMs,
             },
         } = data;
         const handler = await this.#commandHandlerFor(commissionerName);
@@ -1071,6 +1072,8 @@ export class ChipToolWebSocketHandler {
                 clusterId: ClusterId(parseInt(clusterId)),
                 attributeId: AttributeId(parseInt(attributeId)),
                 value: parsedValue,
+                timedInteractionTimeout:
+                    timedInteractionTimeoutMs !== undefined ? Millis(parseInt(timedInteractionTimeoutMs)) : undefined,
             });
             return { results: [] };
         } catch (error) {
@@ -1375,6 +1378,7 @@ export class ChipToolWebSocketHandler {
                 "commissioner-name": commissionerName,
                 "endpoint-id-ignored-for-group-commands": endpointId,
                 "attribute-values": value,
+                timedInteractionTimeoutMs,
             },
             command_specifier: commandSpecifier,
         } = data;
@@ -1406,6 +1410,8 @@ export class ChipToolWebSocketHandler {
                 clusterId: clusterData.clusterId,
                 attributeName: attributeModel.propertyName,
                 value: matterValue,
+                timedInteractionTimeout:
+                    timedInteractionTimeoutMs !== undefined ? Millis(parseInt(timedInteractionTimeoutMs)) : undefined,
             });
             return { results: [] };
         } catch (error) {
