@@ -7,12 +7,15 @@
 import { ThermostatServer } from "#behaviors/thermostat";
 import { ThermostatDevice } from "#devices/thermostat";
 import { Endpoint } from "#endpoint/index.js";
+import { Bytes } from "@matter/general";
 import { AccessLevel, AttributeElement, AttributeModel } from "@matter/model";
 import { AttributeWriteResponse, CommandInvokeResponse, Fabric, Invoke, InvokeResult, Write } from "@matter/protocol";
-import { FabricIndex, NodeId, Status, TlvOfModel } from "@matter/types";
+import { AttributeId, FabricIndex, NodeId, Status, TlvOfModel } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { Thermostat } from "@matter/types/clusters/thermostat";
+import { AtomicWriteHandler } from "../../../src/behaviors/thermostat/AtomicWriteHandler.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
+import { newPreset } from "./preset-helpers.js";
 
 const PresetsServer = ThermostatServer.with("Heating", "Cooling", "AutoMode", "Presets");
 const PresetsThermostat = ThermostatDevice.with(PresetsServer);
@@ -24,7 +27,17 @@ class InheritedPresetsServer extends PresetsServer {
     });
 }
 
+const PresetsAndSchedulesServer = ThermostatServer.with(
+    "Heating",
+    "Cooling",
+    "AutoMode",
+    "Presets",
+    "MatterScheduleConfiguration",
+);
+const PresetsAndSchedulesThermostat = ThermostatDevice.with(PresetsAndSchedulesServer);
+
 const PRESETS_ATTRIBUTE = Thermostat.attributes.presets.id;
+const SCHEDULES_ATTRIBUTE = Thermostat.attributes.schedules.id;
 const NON_ATOMIC_ATTRIBUTE = Thermostat.attributes.occupiedHeatingSetpoint.id;
 // Non-atomic and write-protected at Manage level, so an Operate-only peer is denied write access to it
 const NON_ATOMIC_MANAGE_ATTRIBUTE = Thermostat.attributes.systemMode.id;
@@ -48,6 +61,36 @@ function beginWrite(endpoint: Endpoint, attributeRequests: number[]) {
             },
         }),
     );
+}
+
+function commitWrite(endpoint: Endpoint, attributeRequests: number[]) {
+    return Invoke(
+        Invoke.ConcreteCommandRequest({
+            endpoint,
+            cluster: Thermostat,
+            command: "atomicRequest",
+            fields: { requestType: Thermostat.RequestType.CommitWrite, attributeRequests },
+        }),
+    );
+}
+
+/** Stages a value the way a peer's write inside the atomic write does; no peer write stages Schedules yet */
+async function stageAs(node: MockServerNode, fabric: Fabric, endpoint: Endpoint, attribute: number, value: unknown) {
+    const exchange = await node.createExchange({ fabric, peerNodeId: NodeId(1) });
+    await node.online({ exchange, accessLevel: AccessLevel.Manage }, ({ context }) => {
+        node.env
+            .get(AtomicWriteHandler)
+            .writeAttribute(context, endpoint, PresetsAndSchedulesServer, AttributeId(attribute), value);
+    });
+}
+
+function schedule(transitionTime: number): Thermostat.Schedule {
+    return {
+        scheduleHandle: null,
+        systemMode: Thermostat.SystemMode.Heat,
+        transitions: [{ dayOfWeek: { monday: true }, transitionTime, heatingSetpoint: 2000 }],
+        builtIn: null,
+    };
 }
 
 async function invokeAs(
@@ -94,30 +137,65 @@ async function writePresetsAs(node: MockServerNode, fabric: Fabric, peerNodeId: 
     });
 }
 
+const thermostatConfig = {
+    controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.CoolingAndHeating,
+    systemMode: Thermostat.SystemMode.Auto,
+    occupiedHeatingSetpoint: 2000,
+    occupiedCoolingSetpoint: 2600,
+    minSetpointDeadBand: 25,
+    numberOfPresets: 5,
+    presetTypes: [
+        {
+            presetScenario: Thermostat.PresetScenario.Occupied,
+            numberOfPresets: 5,
+            presetTypeFeatures: {},
+        },
+    ],
+    activePresetHandle: null,
+    presets: [],
+};
+
 async function createNode(
     privilege = AccessControl.AccessControlEntryPrivilege.Administer,
     type: typeof PresetsThermostat = PresetsThermostat,
 ) {
-    const device = new Endpoint(type, {
-        number: 1,
-        thermostat: {
-            controlSequenceOfOperation: Thermostat.ControlSequenceOfOperation.CoolingAndHeating,
-            systemMode: Thermostat.SystemMode.Auto,
-            occupiedHeatingSetpoint: 2000,
-            occupiedCoolingSetpoint: 2600,
-            minSetpointDeadBand: 25,
-            numberOfPresets: 5,
-            presetTypes: [
-                {
-                    presetScenario: Thermostat.PresetScenario.Occupied,
-                    numberOfPresets: 5,
-                    presetTypeFeatures: {},
-                },
-            ],
-            activePresetHandle: null,
-            presets: [],
-        },
-    });
+    return createNodeFor(new Endpoint(type, { number: 1, thermostat: thermostatConfig }), privilege);
+}
+
+/** A thermostat whose Presets and Schedules can be staged in one atomic write; its one preset is built in */
+function createPresetsAndSchedulesNode() {
+    return createNodeFor(
+        new Endpoint(PresetsAndSchedulesThermostat, {
+            number: 1,
+            thermostat: {
+                ...thermostatConfig,
+                presetTypes: [
+                    ...thermostatConfig.presetTypes,
+                    {
+                        presetScenario: Thermostat.PresetScenario.Unoccupied,
+                        numberOfPresets: 1,
+                        presetTypeFeatures: {},
+                    },
+                ],
+                presets: [newPreset({ presetHandle: Bytes.fromHex("01"), builtIn: true })],
+                scheduleTypes: [
+                    {
+                        systemMode: Thermostat.SystemMode.Heat,
+                        numberOfSchedules: 2,
+                        scheduleTypeFeatures: { supportsSetpoints: true },
+                    },
+                ],
+                numberOfSchedules: 2,
+                numberOfScheduleTransitions: 2,
+                numberOfScheduleTransitionPerDay: null,
+                activeScheduleHandle: null,
+                schedules: [],
+            },
+        }),
+    );
+}
+
+async function createNodeFor(device: Endpoint, privilege = AccessControl.AccessControlEntryPrivilege.Administer) {
     const node = await MockServerNode.createOnline(undefined, { device });
     const fabric = await node.addFabric();
     await node.set({
@@ -233,5 +311,133 @@ describe("AtomicWriteHandler", () => {
         ]);
 
         await node.close();
+    });
+
+    describe("CommitWrite of more than one attribute (§7.15.6.4.2)", () => {
+        it("applies every pending write when all of them succeed", async () => {
+            const { node, fabric, device } = await createPresetsAndSchedulesNode();
+            const attributes = [PRESETS_ATTRIBUTE, SCHEDULES_ATTRIBUTE];
+
+            await invokeAs(node, fabric, beginWrite(device, attributes));
+            await stageAs(node, fabric, device, PRESETS_ATTRIBUTE, [
+                ...device.stateOf(PresetsAndSchedulesServer).presets,
+                newPreset({ presetScenario: Thermostat.PresetScenario.Unoccupied }),
+            ]);
+            await stageAs(node, fabric, device, SCHEDULES_ATTRIBUTE, [schedule(360)]);
+
+            expect(decodeAtomicResponse(await invokeAs(node, fabric, commitWrite(device, attributes)))).deep.equals({
+                statusCode: Status.Success,
+                attributeStatus: [
+                    { attributeId: PRESETS_ATTRIBUTE, statusCode: Status.Success },
+                    { attributeId: SCHEDULES_ATTRIBUTE, statusCode: Status.Success },
+                ],
+            });
+
+            const state = device.stateOf(PresetsAndSchedulesServer);
+            expect(state.persistedPresets?.length).equals(2);
+            const added = state.persistedPresets?.[1];
+            expect(added?.presetHandle?.byteLength).equals(16);
+            expect(added?.builtIn).equals(false);
+            expect(state.schedules.map(({ transitions }) => transitions[0].transitionTime)).deep.equals([360]);
+
+            await node.close();
+        });
+
+        it("reports an attribute the peer did not write as SUCCESS, in the CommitWrite request's order", async () => {
+            const { node, fabric, device } = await createPresetsAndSchedulesNode();
+            const attributes = [SCHEDULES_ATTRIBUTE, PRESETS_ATTRIBUTE];
+
+            await invokeAs(node, fabric, beginWrite(device, [PRESETS_ATTRIBUTE, SCHEDULES_ATTRIBUTE]));
+            await stageAs(node, fabric, device, SCHEDULES_ATTRIBUTE, [schedule(360)]);
+
+            expect(decodeAtomicResponse(await invokeAs(node, fabric, commitWrite(device, attributes)))).deep.equals({
+                statusCode: Status.Success,
+                attributeStatus: [
+                    { attributeId: SCHEDULES_ATTRIBUTE, statusCode: Status.Success },
+                    { attributeId: PRESETS_ATTRIBUTE, statusCode: Status.Success },
+                ],
+            });
+
+            const state = device.stateOf(PresetsAndSchedulesServer);
+            expect(state.persistedPresets?.length).equals(1);
+            expect(state.schedules.length).equals(1);
+
+            await node.close();
+        });
+
+        it("validates an attribute once the other pending attributes are staged", async () => {
+            const { node, fabric, device } = await createPresetsAndSchedulesNode();
+            const attributes = [PRESETS_ATTRIBUTE, SCHEDULES_ATTRIBUTE];
+
+            const schedulesSeen = new Array<number>();
+            device.eventsOf(PresetsAndSchedulesServer).presets$AtomicChanged.on((_value, _oldValue, context) => {
+                schedulesSeen.push(device.agentFor(context).get(PresetsAndSchedulesServer).state.schedules.length);
+            });
+
+            await invokeAs(node, fabric, beginWrite(device, attributes));
+            await stageAs(node, fabric, device, PRESETS_ATTRIBUTE, [
+                ...device.stateOf(PresetsAndSchedulesServer).presets,
+                newPreset({ presetScenario: Thermostat.PresetScenario.Unoccupied }),
+            ]);
+            await stageAs(node, fabric, device, SCHEDULES_ATTRIBUTE, [schedule(360)]);
+            await invokeAs(node, fabric, commitWrite(device, attributes));
+
+            expect(schedulesSeen).deep.equals([1]);
+
+            await node.close();
+        });
+
+        it("discards a valid Schedules write when the Presets write fails", async () => {
+            const { node, fabric, device } = await createPresetsAndSchedulesNode();
+            const attributes = [PRESETS_ATTRIBUTE, SCHEDULES_ATTRIBUTE];
+
+            await invokeAs(node, fabric, beginWrite(device, attributes));
+
+            // Removing the built-in preset is refused on CommitWrite, not when staged
+            await stageAs(node, fabric, device, PRESETS_ATTRIBUTE, []);
+            await stageAs(node, fabric, device, SCHEDULES_ATTRIBUTE, [schedule(360)]);
+
+            expect(decodeAtomicResponse(await invokeAs(node, fabric, commitWrite(device, attributes)))).deep.equals({
+                statusCode: Status.Failure,
+                attributeStatus: [
+                    { attributeId: PRESETS_ATTRIBUTE, statusCode: Status.ConstraintError },
+                    { attributeId: SCHEDULES_ATTRIBUTE, statusCode: Status.Success },
+                ],
+            });
+
+            const state = device.stateOf(PresetsAndSchedulesServer);
+            expect(state.persistedPresets?.length).equals(1);
+            expect(state.schedules).deep.equals([]);
+
+            await node.close();
+        });
+
+        it("discards a valid Presets write when the Schedules write fails", async () => {
+            const { node, fabric, device } = await createPresetsAndSchedulesNode();
+            const attributes = [PRESETS_ATTRIBUTE, SCHEDULES_ATTRIBUTE];
+
+            await invokeAs(node, fabric, beginWrite(device, attributes));
+            await stageAs(node, fabric, device, PRESETS_ATTRIBUTE, [
+                ...device.stateOf(PresetsAndSchedulesServer).presets,
+                newPreset({ presetScenario: Thermostat.PresetScenario.Unoccupied }),
+            ]);
+
+            // TransitionTime is limited to 1439, the last minute of the day
+            await stageAs(node, fabric, device, SCHEDULES_ATTRIBUTE, [schedule(1440)]);
+
+            expect(decodeAtomicResponse(await invokeAs(node, fabric, commitWrite(device, attributes)))).deep.equals({
+                statusCode: Status.Failure,
+                attributeStatus: [
+                    { attributeId: PRESETS_ATTRIBUTE, statusCode: Status.Success },
+                    { attributeId: SCHEDULES_ATTRIBUTE, statusCode: Status.ConstraintError },
+                ],
+            });
+
+            const state = device.stateOf(PresetsAndSchedulesServer);
+            expect(state.persistedPresets?.length).equals(1);
+            expect(state.schedules).deep.equals([]);
+
+            await node.close();
+        });
     });
 });
