@@ -27,7 +27,6 @@ class InheritedPresetsServer extends PresetsServer {
     });
 }
 
-/** No peer write stages Schedules yet, so these tests stage it through the handler directly */
 const PresetsAndSchedulesServer = ThermostatServer.with(
     "Heating",
     "Cooling",
@@ -75,7 +74,7 @@ function commitWrite(endpoint: Endpoint, attributeRequests: number[]) {
     );
 }
 
-/** Stages a value the way a peer's write inside the atomic write does */
+/** Stages a value the way a peer's write inside the atomic write does; no peer write stages Schedules yet */
 async function stageAs(node: MockServerNode, fabric: Fabric, endpoint: Endpoint, attribute: number, value: unknown) {
     const exchange = await node.createExchange({ fabric, peerNodeId: NodeId(1) });
     await node.online({ exchange, accessLevel: AccessLevel.Manage }, ({ context }) => {

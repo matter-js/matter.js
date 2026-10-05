@@ -334,16 +334,16 @@ export class AtomicWriteHandler {
     }
 
     /**
-     * The status an attribute reports for an error raised while committing it.  An error that carries no Matter status
-     * is a defect rather than a refused value, so it is logged with its stack.
+     * The status an attribute reports for an error raised while committing it.  A refused value is routine for the
+     * peer; an error that carries no Matter status is a defect, which fails only this atomic write.
      */
     #statusOf(error: unknown, step: string) {
         const statusCode = StatusResponseError.of(error)?.code;
         if (statusCode !== undefined) {
-            logger.info(`Atomic write commit failed ${step}:`, Diagnostic.errorMessage(asError(error)));
+            logger.debug(`Atomic write commit failed ${step}:`, Diagnostic.errorMessage(asError(error)));
             return statusCode;
         }
-        logger.error(`Atomic write commit failed unexpectedly ${step}:`, error);
+        logger.warn(`Atomic write commit failed unexpectedly ${step}:`, error);
         return Status.Failure;
     }
 
