@@ -45,6 +45,7 @@ import {
     RecordedCheck,
     removeFabricSucceeded,
     settleWithin,
+    theTh,
     withChecks,
 } from "./tc-support.js";
 
@@ -66,24 +67,6 @@ export type TransitionMark = number;
 /** Takes a {@link TransitionMark} on `th`, after letting its log pump settle. */
 export async function markTransition(cx: CertStepContext, th = theTh(cx)): Promise<TransitionMark> {
     return th.log.markSettled();
-}
-
-/**
- * The device these helpers act on where a plan names only one.
- *
- * A plan may now declare several devices under names of its own (`devices: { th1, th2 }`), and then
- * there is no `th` role at all. Reaching for one is a defect in the calling step rather than anything
- * the run can recover from, so it says so instead of failing later on a property of `undefined`.
- */
-function theTh(cx: CertStepContext): CertDevice {
-    const th = cx.devices.th;
-    if (th === undefined) {
-        throw new ImplementationError(
-            `This step's plan declares no "th" device (it has ${Object.keys(cx.devices).join(", ") || "none"}); ` +
-                "a helper acting on one device takes it as a parameter when the plan names more than one",
-        );
-    }
-    return th;
 }
 
 /** Bounds a wait for a line a device prints as it comes up, with a whole commissioning flow ahead of it. */
