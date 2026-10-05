@@ -1971,11 +1971,8 @@ export class ControllerCommissioningFlow {
                 { expectedProcessingTime: Seconds(scanMaxTimeSeconds) },
             );
         } catch (error) {
-            const statusError = StatusResponseError.of(error);
-            if (statusError === undefined) {
-                throw error;
-            }
-            return statusError.message;
+            StatusResponseError.accept(error);
+            return error.message;
         }
         return response ?? "no ScanNetworksResponse received";
     }
