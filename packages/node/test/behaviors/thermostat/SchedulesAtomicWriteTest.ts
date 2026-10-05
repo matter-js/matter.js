@@ -7,12 +7,14 @@
 import { ThermostatClient } from "#behaviors/thermostat";
 import { Endpoint } from "#endpoint/index.js";
 import { ClientNode } from "#node/ClientNode.js";
+import { Bytes } from "@matter/general";
 import { Write } from "@matter/protocol";
 import { EndpointNumber, Status } from "@matter/types";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { MockSite } from "../../node/mock-site.js";
 import { subscribedPeer } from "../../node/node-helpers.js";
+import { newPreset, PRESETS_ATTRIBUTE } from "./preset-helpers.js";
 import {
     newSchedule,
     newScheduleTransition,
@@ -316,5 +318,132 @@ describe("Schedules atomic write", () => {
         });
 
         expect(deviceEp.state.thermostat.persistedSchedules).deep.equals([]);
+    });
+
+    describe("with Presets in the same atomic write", () => {
+        const PRESET_HANDLE = Bytes.fromHex("aa");
+        const SCHEDULE_HANDLE = Bytes.fromHex("01");
+        const attributes = [PRESETS_ATTRIBUTE, SCHEDULES_ATTRIBUTE];
+
+        /** A thermostat whose one schedule switches to its one preset */
+        function presetSchedulingEndpoint() {
+            return new Endpoint(SchedulesThermostat, {
+                id: "thermostat",
+                number: 1,
+                thermostat: {
+                    ...thermostatConfig(5, [usingPreset()]),
+                    presets: [newPreset({ presetHandle: PRESET_HANDLE })],
+                },
+            });
+        }
+
+        function usingPreset() {
+            return newSchedule({
+                scheduleHandle: SCHEDULE_HANDLE,
+                transitions: [newScheduleTransition({ presetHandle: PRESET_HANDLE })],
+            });
+        }
+
+        function usingSetpoints() {
+            return newSchedule({ scheduleHandle: SCHEDULE_HANDLE, transitions: [newScheduleTransition()] });
+        }
+
+        function atomicRequest(ep1: Endpoint, requestType: Thermostat.RequestType) {
+            return MockTime.resolve(
+                ep1.commandsOf(ThermostatClient).atomicRequest({
+                    requestType,
+                    attributeRequests: attributes,
+                    timeout: requestType === Thermostat.RequestType.BeginWrite ? 5000 : undefined,
+                }),
+            );
+        }
+
+        async function writePresetsUnchecked(peer: ClientNode, presets: Thermostat.Preset[]) {
+            const result = await MockTime.resolve(
+                peer.interaction.write(
+                    Write(
+                        Write.Attribute({
+                            endpoint: EndpointNumber(1),
+                            cluster: Thermostat,
+                            attributes: "presets",
+                            value: presets,
+                        }),
+                    ),
+                ),
+            );
+            return result.map(({ status }) => status);
+        }
+
+        it("removes a preset together with the schedule transition that referenced it", async () => {
+            await using ctx = await commissioned(presetSchedulingEndpoint());
+            const { deviceEp, peer1, ep1 } = ctx;
+
+            await atomicRequest(ep1, Thermostat.RequestType.BeginWrite);
+            await writePresetsUnchecked(peer1, []);
+            await writeSchedulesUnchecked(peer1, [usingSetpoints()]);
+
+            expect(await atomicRequest(ep1, Thermostat.RequestType.CommitWrite)).deep.equals({
+                statusCode: Status.Success,
+                attributeStatus: [
+                    { attributeId: PRESETS_ATTRIBUTE, statusCode: Status.Success },
+                    { attributeId: SCHEDULES_ATTRIBUTE, statusCode: Status.Success },
+                ],
+            });
+            expect(deviceEp.state.thermostat.persistedPresets).deep.equals([]);
+            expect(deviceEp.state.thermostat.persistedSchedules?.[0].transitions[0].presetHandle).undefined;
+        });
+
+        it("refuses the whole atomic write when Presets staged after Schedules removes a referenced preset", async () => {
+            await using ctx = await commissioned(presetSchedulingEndpoint());
+            const { deviceEp, peer1, ep1 } = ctx;
+
+            await atomicRequest(ep1, Thermostat.RequestType.BeginWrite);
+            expect(await writeSchedulesUnchecked(peer1, [usingPreset()])).deep.equals([Status.Success, Status.Success]);
+            expect(await writePresetsUnchecked(peer1, [])).deep.equals([Status.Success]);
+
+            const { statusCode } = await atomicRequest(ep1, Thermostat.RequestType.CommitWrite);
+            expect(statusCode).equals(Status.Failure);
+            expect(deviceEp.state.thermostat.persistedPresets?.length).equals(1);
+            expect(deviceEp.state.thermostat.persistedSchedules?.[0].transitions[0].presetHandle).deep.equals(
+                PRESET_HANDLE,
+            );
+        });
+
+        it("declines a schedule that references a preset the same atomic write removes", async () => {
+            await using ctx = await commissioned(presetSchedulingEndpoint());
+            const { deviceEp, peer1, ep1 } = ctx;
+
+            await atomicRequest(ep1, Thermostat.RequestType.BeginWrite);
+            await writePresetsUnchecked(peer1, []);
+
+            // The schedule is unchanged, but its preset no longer exists once the pending Presets apply
+            expect(await writeSchedulesUnchecked(peer1, [usingPreset()])).deep.equals([
+                Status.Success,
+                Status.ConstraintError,
+            ]);
+
+            await atomicRequest(ep1, Thermostat.RequestType.RollbackWrite);
+            expect(deviceEp.state.thermostat.persistedPresets?.length).equals(1);
+        });
+
+        it("declines a schedule whose own presetHandle names a preset the same atomic write removes", async () => {
+            await using ctx = await commissioned(presetSchedulingEndpoint());
+            const { peer1, ep1 } = ctx;
+
+            await atomicRequest(ep1, Thermostat.RequestType.BeginWrite);
+            await writePresetsUnchecked(peer1, []);
+
+            expect(
+                await writeSchedulesUnchecked(peer1, [
+                    newSchedule({
+                        scheduleHandle: SCHEDULE_HANDLE,
+                        presetHandle: PRESET_HANDLE,
+                        transitions: [newScheduleTransition()],
+                    }),
+                ]),
+            ).deep.equals([Status.Success, Status.ConstraintError]);
+
+            await atomicRequest(ep1, Thermostat.RequestType.RollbackWrite);
+        });
     });
 });

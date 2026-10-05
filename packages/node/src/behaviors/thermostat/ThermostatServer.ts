@@ -1670,7 +1670,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     }
 
     /**
-     * A staged atomic write is validated against the stored schedules, which it has not replaced yet.
+     * A staged atomic write is validated against the stored schedules, which it has not replaced yet. Its preset
+     * references resolve against the presets pending in the same atomic write.
      */
     #handleSchedulesAtomicChanging(
         newSchedules: Thermostat.Schedule[],
@@ -1837,7 +1838,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                     );
                 }
                 if (
-                    !this.state.persistedPresets?.some(
+                    !this.state.presets?.some(
                         preset =>
                             preset.presetHandle !== null && Bytes.areEqual(preset.presetHandle, schedule.presetHandle!),
                     )
@@ -1924,7 +1925,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
                     );
                 }
                 if (
-                    !this.state.persistedPresets?.some(
+                    !this.state.presets?.some(
                         preset =>
                             preset.presetHandle !== null &&
                             Bytes.areEqual(preset.presetHandle, transition.presetHandle!),
