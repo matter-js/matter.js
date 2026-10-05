@@ -1909,6 +1909,22 @@ payloads is also not enough — two could differ only in passcode and leave disc
 with the same vendor id, so the attribute value alone cannot tell them apart and swapping the two refs
 would satisfy either step.
 
+## Compressed fabric id comes from the TH, not the DUT (`TC-SC-4.8`)
+
+The plan says "extract the Compressed Fabric ID assigned from DUT to TH" and gives no method.
+`CertNodeApi.operationalMdnsInstanceName()` is not one: the in-process adapter computes it from the
+DUT's own fabric, so it is the same for every node by construction, and the chip-tool adapter derives
+it from the TH's own `Fabrics` attribute. The TC uses it only for the node id the DUT assigned.
+
+The TH states the value in its own log each time it advertises a fabric:
+`Advertise operational node <CFID>-<NODE>` (chip, `app/server/Dnssd.cpp`, both ids fixed-width
+uppercase hex) and `MdnsAdvertisement Publishing kind: operational service: mdns:<CFID>-<NODE>…`
+(matter.js; note the `mdns:` prefix). Each TH's own log is searched from a mark taken before the
+commissioning, for the node id the DUT just assigned.
+
+The compressed fabric id is never taken from the network: a probe cannot witness a transition (see
+"Freshness").
+
 ## What a commissioning step owes its own evidence
 
 A step that commissions from an onboarding code used to record two things: that the commissioning
