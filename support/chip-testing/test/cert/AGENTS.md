@@ -1229,8 +1229,9 @@ What the plan asks to verify, and how each part is evidenced:
   CI load, so the TC asks for 2s.
 - **The message was unicast** — chip's own receive line categorises the session: `(S)` secure unicast,
   `(U)` unencrypted unicast, `(G)` secure groupcast (`src/messaging/README.md`). `expectUnicastReceipt`
-  scans *backward* from the decode dump for the nearest `Msg RX from` line, which is this message's own
-  since chip logs one message at a time.
+  scans *backward* from the decode dump for the nearest Interaction Model `Msg RX from` line, and
+  `chipHeaderBefore` accepts it only when exactly one decode dump (this message's) lies between: a
+  message that logged no receive line otherwise borrows the previous message's.
 - **The follow-up is the one this request opened** — matched by the session *and* exchange chip names
   on both messages' receive lines (`[E:<exchange> S:<session> …]`), not by "the next message after the
   timed request". A retry of this interaction, or a second administrator's own timed interaction with
@@ -1688,10 +1689,11 @@ its own) but because recording a PAF-leg scan while the PAF leg is out of scope 
 `pics` takes a full expression (`&`, `|`, `!`, parentheses), and `certTest` parses it at declaration
 time so a typo cannot surface as the step failing.
 
-**A scan step must judge the field that defines its leg.** `recordParse` settles its verdict on the
-discriminator and passcode alone, so every leg's scan step otherwise passes on identical evidence and
-one handed another leg's payload still passes. `recordPayloadOffering` puts the capability and the
-commissioning flow into the verdict, read back through the DUT's own parse.
+**A scan step must judge the field that defines its leg.** `recordParse` alone settles its verdict on
+the discriminator and passcode, so every leg's scan step otherwise passes on identical evidence and one
+handed another leg's payload still passes. Its `offering` option adds a second check on the same parse
+that puts the capability and the commissioning flow into the verdict; both checks are recorded even
+when the first fails.
 
 **The TH's own QR code already satisfies the plan's precondition**, so this TC verifies rather than
 fabricates: both chip builds publish `flowType` 0 — `MT:-24J042C00KA0648G00` from the cert-bins app,
@@ -1986,7 +1988,7 @@ something the harness can produce. `qrPayloadWith` gained a `flowType` field for
 scan step reads it back through the DUT's own parser — which is what makes the step evidence about the
 flow rather than about the TH.
 
-**`recordPayloadOffering` takes the expected flow as a parameter.** A helper whose verdict names a
+**`recordParse`'s `offering` takes the expected flow from the caller.** A helper whose verdict names a
 property must take that property from the caller; one holding the value itself records a `pass` whose
 text names a flow nobody checked, and the second test case to use it silently asserts the first one's
 value.
@@ -2010,7 +2012,7 @@ ungated `.c` would record a parse pass beside `.b`'s skip — the contradiction 
 rule above exists to prevent. Where a step genuinely re-does the gated operation the fix is the gate,
 not dropping the claim.
 
-**`.c` records the parse and stops there, and the plan's second sentence is why this is worth stating.**
+**`.c` records the parse and the leg's payload offering, as `.b` does, and stops there; the plan's second sentence is why this is worth stating.**
 The plan asks to verify the DUT parsed the code *and* that the TH has not been commissioned. The
 second half looks like the valuable claim and is not testable here: the only thing `.c` asks of the
 DUT is `parseQrPayload`, which is a local decode on both controllers — `singleQrPayload` in-process,
@@ -3233,10 +3235,12 @@ and the subject restarts into it. What makes the steps after a restart see anyth
   `MATTER_CERT_OTA_FAST_RETRY` would shorten it. Step 6 starts as the subject returns from step 4's
   restart; if it applied and restarted again before the resubscription, it would discard DelayedOnApply
   undelivered.
-- **A second observation of the same paths would see what the first one's reads return.** A read
-  re-broadcasts the events it answers with to every observer, and only the observation that made the
-  read skips them. With one observation per case that read is step 1's seed, which comes before any
-  stimulus.
+- **An observation reports only what the subscription delivered.** A read broadcasts the events it
+  returns to every observer just as a subscription report does; the in-process adapter holds what an
+  observation receives while a read of that peer runs and drops the read's own events
+  (`EventReadGate`), so a seed or `readEvents` call cannot stand in for a delivery the subscription
+  missed. A `subscribeEvents` subscription on the same node is not filtered: its reports reach the
+  observation too, so a case should not combine the two.
 
 ## DefaultOTAProviders on two fabrics (`TC-SU-4.1`)
 

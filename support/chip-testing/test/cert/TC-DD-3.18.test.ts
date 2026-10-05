@@ -148,7 +148,7 @@ certTest("TC-DD-3.18", {
         "Scan TH1's QR code using the DUT Commissioner.",
         async cx => {
             const { th1 } = await distinctSubjects(cx);
-            await recordParse(cx, await thQrPayload(th1), th1);
+            await recordParse(cx, await thQrPayload(th1), { th: th1 });
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )
@@ -179,7 +179,7 @@ certTest("TC-DD-3.18", {
         "Scan TH2's QR code using the DUT Commissioner.",
         async cx => {
             const { th2 } = await distinctSubjects(cx);
-            await recordParse(cx, await thQrPayload(th2), th2);
+            await recordParse(cx, await thQrPayload(th2), { th: th2 });
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )

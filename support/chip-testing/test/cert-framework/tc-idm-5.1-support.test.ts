@@ -290,7 +290,7 @@ describe("expectUnicastReceipt", () => {
         });
 
         expect(check.verdict).equal("fail");
-        expect(check.detail).contains("No receive line");
+        expect(check.detail).contains("has no receive line of its own");
     });
 
     it("reports unverified for a flavor whose log names no timed request", () => {
@@ -332,6 +332,30 @@ describe("expectTimedFollowUp", () => {
         const check = await followUp([...timedRequestLines(T0), ...invokeLines(T0 + 20, { session: "3" })]);
 
         expect(check.verdict).equal("fail");
+    });
+
+    it("does not attribute a follow-up that logged no receive line of its own", async () => {
+        // The nearest receive line is then the timed request's own, which agrees on session and exchange
+        const [, ...withoutReceipt] = invokeLines(T0 + 20);
+        const check = await followUp([...timedRequestLines(T0), ...withoutReceipt]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("has no receive line of its own");
+        // The follow-up's own InvokeRequestMessage line, right after the five timed-request lines
+        expect(check.logLine).equal(5);
+    });
+
+    it("does not take a standalone ack's receive line for the follow-up's own", async () => {
+        // An ack logs a receive line on the timed exchange and no decode dump
+        const [, ...withoutReceipt] = invokeLines(T0 + 20);
+        const check = await followUp([
+            ...timedRequestLines(T0),
+            receipt(T0 + 10, "S", "10 (SecureChannel:StandaloneAck)").replace("Type 0001:", "Type 0000:"),
+            ...withoutReceipt,
+        ]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("has no receive line of its own");
     });
 
     it("does not attribute a follow-up when neither receive line names a session", async () => {

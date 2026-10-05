@@ -18,12 +18,15 @@ import {
     MdnsSocket,
     MockNetwork,
     Network,
+    NetworkError,
+    NetworkInterfaceDetails,
     NetworkSimulator,
     PtrRecord,
     Seconds,
     SrvRecord,
     TxtRecord,
     UdpMulticastServer,
+    UdpSocketOptions,
 } from "@matter/general";
 
 const CLIENT_IPv4 = "192.168.200.2";
@@ -1612,6 +1615,173 @@ describe("MdnsServer", () => {
                     uniCastTarget: undefined,
                 },
             ]);
+        });
+    });
+
+    describe("Host name", () => {
+        let interfaces: Record<string, NetworkInterfaceDetails | "throws">;
+        let failListingOnce: boolean;
+        let multiNetwork: Network;
+        let server: MdnsServer;
+        let sent: Array<{ netInterface?: string; message?: DnsMessage }>;
+
+        class MultiInterfaceNetwork extends MockNetwork {
+            override getNetInterfaces() {
+                if (failListingOnce) {
+                    failListingOnce = false;
+                    throw new NetworkError("Interfaces cannot be listed");
+                }
+                return Object.keys(interfaces).map(name => ({ name }));
+            }
+
+            override getIpMac(name: string) {
+                const details = interfaces[name];
+                if (details === "throws") {
+                    throw new NetworkError(`Interface ${name} is gone`);
+                }
+                return details;
+            }
+        }
+
+        class AsyncNetwork extends Network {
+            constructor(private readonly inner: MultiInterfaceNetwork) {
+                super();
+            }
+
+            getNetInterfaces() {
+                return this.inner.getNetInterfaces();
+            }
+
+            async getIpMac(name: string) {
+                await Promise.resolve();
+                return this.inner.getIpMac(name);
+            }
+
+            createUdpSocket(options: UdpSocketOptions) {
+                return this.inner.createUdpSocket(options);
+            }
+
+            override close() {
+                return this.inner.close();
+            }
+        }
+
+        function createServer(network: Network) {
+            multiNetwork = network;
+            const udp = {
+                onMessage(_listener: (message: Bytes, remoteIp: string, netInterface: string) => void) {},
+                async send(message: Bytes, netInterface?: string, _unicastTarget?: string) {
+                    sent.push({ netInterface, message: DnsCodec.decode(message) });
+                },
+                async close() {},
+                get network() {
+                    return multiNetwork;
+                },
+            } as UdpMulticastServer;
+            server = new MdnsServer(new MdnsSocket(udp));
+        }
+
+        const generator: MdnsServer.RecordGenerator = (_intf, addrs, hostname) => [
+            SrvRecord(DUMMY_QNAME, { priority: 0, weight: 0, port: 1234, target: hostname }),
+            ...addrs.ipV4.map(ip => ARecord(hostname, ip)),
+        ];
+
+        async function announcedTargets() {
+            sent.length = 0;
+            await server.setRecordsGenerator("foo", generator);
+            await server.broadcast("foo");
+            return sent.flatMap(({ netInterface, message }) =>
+                (message?.answers ?? [])
+                    .filter(record => record.recordType === DnsRecordType.SRV)
+                    .map(record => ({ netInterface, target: record.value.target })),
+            );
+        }
+
+        beforeEach(() => {
+            interfaces = {
+                lo: { mac: "00:00:00:00:00:00", ipV4: ["127.0.0.1"], ipV6: [] },
+                eth0: { mac: "aa:bb:cc:dd:ee:01", ipV4: ["10.0.0.2"], ipV6: [] },
+                docker0: { mac: "aa:bb:cc:dd:ee:02", ipV4: ["172.17.0.1"], ipV6: [] },
+            };
+            sent = [];
+            failListingOnce = false;
+            createServer(new MultiInterfaceNetwork(new NetworkSimulator(), CLIENT_MAC, clientIps));
+        });
+
+        afterEach(async () => {
+            await server.close();
+            await multiNetwork.close();
+        });
+
+        it("names one host on every interface", async () => {
+            interfaces = { anpi0: { mac: "aa:bb:cc:dd:ee:00", ipV4: [], ipV6: [] }, ...interfaces };
+
+            expect(await announcedTargets()).deep.equal([
+                { netInterface: "anpi0", target: "AABBCCDDEE010000.local" },
+                { netInterface: "lo", target: "AABBCCDDEE010000.local" },
+                { netInterface: "eth0", target: "AABBCCDDEE010000.local" },
+                { netInterface: "docker0", target: "AABBCCDDEE010000.local" },
+            ]);
+        });
+
+        it("keeps the name while its MAC is present, even when another interface lists first", async () => {
+            await announcedTargets();
+            interfaces = { docker0: interfaces.docker0, eth0: interfaces.eth0 };
+
+            expect(await announcedTargets()).deep.equal([
+                { netInterface: "docker0", target: "AABBCCDDEE010000.local" },
+                { netInterface: "eth0", target: "AABBCCDDEE010000.local" },
+            ]);
+        });
+
+        it("follows a rotated MAC", async () => {
+            await announcedTargets();
+            interfaces.eth0 = { mac: "aa:bb:cc:dd:ee:03", ipV4: ["10.0.0.2"], ipV6: [] };
+
+            expect(await announcedTargets()).deep.equal([
+                { netInterface: "lo", target: "AABBCCDDEE030000.local" },
+                { netInterface: "eth0", target: "AABBCCDDEE030000.local" },
+                { netInterface: "docker0", target: "AABBCCDDEE030000.local" },
+            ]);
+        });
+
+        it("skips an interface whose details cannot be read", async () => {
+            interfaces = { gone: "throws", ...interfaces };
+
+            expect(await announcedTargets()).deep.equal([
+                { netInterface: "lo", target: "AABBCCDDEE010000.local" },
+                { netInterface: "eth0", target: "AABBCCDDEE010000.local" },
+                { netInterface: "docker0", target: "AABBCCDDEE010000.local" },
+            ]);
+        });
+
+        it("chooses the name on a network that reports interface details asynchronously", async () => {
+            await server.close();
+            await multiNetwork.close();
+            interfaces = { gone: "throws", ...interfaces };
+            createServer(new AsyncNetwork(new MultiInterfaceNetwork(new NetworkSimulator(), CLIENT_MAC, clientIps)));
+
+            expect(await announcedTargets()).deep.equal([
+                { netInterface: "lo", target: "AABBCCDDEE010000.local" },
+                { netInterface: "eth0", target: "AABBCCDDEE010000.local" },
+                { netInterface: "docker0", target: "AABBCCDDEE010000.local" },
+            ]);
+        });
+
+        it("names each interface by its own MAC when the interfaces cannot be listed", async () => {
+            failListingOnce = true;
+
+            expect(await announcedTargets()).deep.equal([
+                { netInterface: "lo", target: "0000000000000000.local" },
+                { netInterface: "eth0", target: "AABBCCDDEE010000.local" },
+                { netInterface: "docker0", target: "AABBCCDDEE020000.local" },
+            ]);
+        });
+
+        it("names each interface by its own MAC when none has a usable one", async () => {
+            interfaces = { lo: interfaces.lo };
+
+            expect(await announcedTargets()).deep.equal([{ netInterface: "lo", target: "0000000000000000.local" }]);
         });
     });
 });

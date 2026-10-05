@@ -854,6 +854,11 @@ class Factory extends ClientNodeFactory {
     #owner: Peers;
     #groupIdCounter = 0;
 
+    /**
+     * Creation descriptors for {@link find}, which cannot read a node's state before its first construction completes.
+     */
+    #descriptorsUnderConstruction = new WeakMap<ClientNode, RemoteDescriptor>();
+
     constructor(owner: Peers) {
         super();
         this.#owner = owner;
@@ -875,6 +880,18 @@ class Factory extends ClientNodeFactory {
             });
         }
 
+        const descriptor = options.commissioning?.descriptor;
+        if (descriptor !== undefined) {
+            this.#descriptorsUnderConstruction.set(node, descriptor);
+            const forget = (status: Lifecycle.Status) => {
+                if (status !== Lifecycle.Status.Initializing) {
+                    this.#descriptorsUnderConstruction.delete(node);
+                    node.construction.change.off(forget);
+                }
+            };
+            node.construction.change.on(forget);
+        }
+
         node.construction.start();
         return node;
     }
@@ -883,17 +900,20 @@ class Factory extends ClientNodeFactory {
         for (const node of this.#owner) {
             // Skip nodes whose construction will not deliver a working backing.  Destroying/Destroyed close (or have
             // closed) the BehaviorBacking, which surfaces as "Datasource not yet initialized" the next time a caller
-            // touches state.  Crashed never finished initializeDataSource.  Inactive/Initializing/Active are all
-            // legitimate reuse targets — node.act will wait on construction.ready as needed.
+            // touches state.  Crashed never finished initializeDataSource.  Inactive follows a reset, mostly of a node
+            // being deleted, and its state is not readable.  Initializing/Active are legitimate reuse targets —
+            // node.act will wait on construction.ready as needed.
             const status = node.construction.status;
             if (
                 status === Lifecycle.Status.Destroying ||
                 status === Lifecycle.Status.Destroyed ||
-                status === Lifecycle.Status.Crashed
+                status === Lifecycle.Status.Crashed ||
+                status === Lifecycle.Status.Inactive
             ) {
                 continue;
             }
-            if (RemoteDescriptor.is(node.state.commissioning, descriptor)) {
+            const known = this.#descriptorsUnderConstruction.get(node) ?? node.state.commissioning;
+            if (RemoteDescriptor.is(known, descriptor)) {
                 return node;
             }
         }

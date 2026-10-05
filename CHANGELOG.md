@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
 
 - @matter/general
+    - Fix: DNS-SD discovery no longer takes records from the known-answer list of mDNS queries, its own looped-back queries included. A link-local address learned on one interface was stored under every interface such a query arrived on, so a controller could dial a node through the wrong interface and spend its connection attempt waiting for a timeout
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
     - Feature: `Crypto` creates, signs and verifies ML-DSA-44 and ML-DSA-65 (FIPS 204), the algorithms PQC Phase 1 allows for PAA and PAI certificates. Node.js signs and verifies natively where its crypto supports ML-DSA; key generation and all other runtimes use `@noble/post-quantum`, which loads only when an ML-DSA operation first needs it. `MlDsa` encodes and decodes the RFC 9881 public keys and algorithm identifiers, and `NodeJsCryptoApiLike` gains optional `sign` and `verify` members for the native path
     - Fix: `MockFetch` serves a binary `Uint8Array` response that is a view into a larger buffer as just that view, not the whole buffer
@@ -32,6 +33,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `UdpMulticastServer.create()` closes the sockets it already opened when it fails, such as the IPv4 socket when the IPv6 socket cannot be created
 
 - @matter/model
+    - Enhancement: `DecodedBitmap()` takes options to select members by conformance and, with `complete`, to name clear members as `false` or 0
+    - Fix: `EncodedBitmap()`, `DecodedBitmap()` and a bitmap default built from member defaults place every member at its full width, the last bit of a multi-bit member and bits 31 to 63 included, and a member with no upper bound from its lowest bit. `DecodedBitmap` values may be a `bigint` where a number cannot hold a member exactly, and both functions take an optional `Scope` to resolve a bitmap datatype a cluster inherits
     - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
     - Fix: Child lookups (`Model.get()`, `Model.all()`, `children.select()`) follow changes made by `splice()`, so they no longer return a removed child or miss an added one; duplicate IDs resolve in list order and names such as `constructor` match nothing. A child that `splice()` removes and adds back keeps its parent
     - Fix: `MatterModel.permanentDatatypes` lists seed datatypes only and keeps a seed datatype replaced by one of the same name
@@ -63,6 +66,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
 
 - @matter/types
+    - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
     - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
     - Feature: `TlvInvokeRequest` carries the optional `delayReportData` field (`TlvDelayReportData`); matter.js acts on it only behind the `delay-report-data` forward feature. Decoding is not behind the flag: an InvokeRequest whose field 3 is not a structure is now rejected, where it was skipped before, and a missing `delayMinMs` or `delayJitterWindowMs` subfield of a present `delayReportData` decodes as 0
     - Fix: The TLV schema of a field whose constraint states a computed bound, such as the `-2^62 to 2^62` of Electrical Power and Energy Measurement values and the measurement accuracy structs, carries both bounds; it dropped one or both. The runtime validator already enforced them. As for any other bound, a controller drops a reported attribute whose value lies beyond it, and logs a warning. `ModelBounds` derives its bounds from `EncodedConstraint`
@@ -72,6 +76,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: A node advertises one DNS-SD host name on all its interfaces, so a controller that hears it on several interfaces reports its host name
     - Fix: An `MdnsService` that cannot open its socket removes itself from the environment and the runtime, so a node started afterwards creates a new one instead of failing again, and the runtime can stop
     - Fix: A closed `MdnsService` no longer stays registered as a runtime worker, so the runtime can go inactive after its nodes close
     - Feature: `PersistedMessageCounter` and `DeviceCertification` have `close()`
@@ -112,6 +117,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
     - Fix: A peer's state drops the value of an attribute its `AttributeList` omits, such as one a firmware update removed, also when the value was cached before the list changed; such a cluster is read again in full after the controller starts. `Datasource.ExternallyMutableStore` has an optional `invalidateVersion()`
     - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
     - Fix: A closed subscription releases its diagnostic lifetime, so a long-running device no longer keeps one per subscription it ever served
@@ -183,6 +189,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A factory reset closes the `FabricAuthority` the node owns, such as the one the OTA provider or WebRTC requestor created, instead of only removing it from the environment
     - Fix: An ICD times its active window on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or extended the window, and after a backward step the device answered a StayActiveRequest with an active time as long as the step
     - Fix: `SwitchServer` decides position changes and debounce, long press and multi-press timer expiries when they occur, not when their reactions run. A move between two pressed positions does not count as a further press and, after a reported LongPress, generates no InitialPress. MultiPressOngoing stops at `MultiPressMax` with MultiPressComplete(0) at the end of the aborted sequence, whose further presses report no InitialPress and no ShortRelease. `resetState()` returns a promise while it waits for the switch state lock, then drops pending debounced positions, timers and events. The server no longer leaks a reactor per press
+    - Fix: Discovery and `Peers.forDescriptor()` return the `ClientNode` still under construction for a device instead of creating a second node for it, so concurrent discoveries no longer create duplicate peers
+    - Fix: A Thermostat atomic write's CommitWrite reports a status for every attribute the request names, in the request's order, and stores the attributes of one atomic write together or not at all
 
 - @matter/testing
     - Breaking: `forFlavor()` and `LogExpectOptions.flavor` take a `LogFlavor` (a `DeviceFlavor`, or `"chip"`/`"matterjs"`) instead of a string; `flavorFamily()` answers which family a flavor belongs to, and a flavor of neither family, such as `python-wrapped`, selects no variant
@@ -229,6 +237,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A failure to attach a certification run's device logs fails the run instead of only warning
     - Feature: `MockTime.stepWallClock()` steps the wall clock (`now`, `nowMs`) without moving the monotonic clock (`nowUs`), on which mock timers run, as an NTP step does
     - Fix: The chip-tool YAML test shim of the matter.js controller reports the FeatureMap bits a device sets; it reported every FeatureMap as 0. Writes and commands encode a bitmap a step gives as a number, and the value of a multi-bit field, instead of sending 0 or 1
+    - Fix: The YAML test controllers no longer space their exchanges with a peer 100 ms apart, matching chip-tool
+    - Fix: The chip-tool YAML test shim of the matter.js controller sends a write as a timed write when its step declares `timedInteractionTimeoutMs`
 
 - @matter/examples
     - Fix: The composed OnOff device example creates as many endpoints as `--num` asks for (default 2) instead of one fewer; a node stored by an earlier run gains the missing endpoint on its next start
@@ -366,6 +376,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @project-chip/matter.js
     - Enhancement: `InteractionClient`'s read, write, invoke and subscribe options take an `abort` signal, forwarded to the interaction
+    - Fix: `InteractionClient.setAttribute()` and `setMultipleAttributes()` send a timed write only when the caller asks for one or an attribute requires it; every write was sent as a timed write, so every group write failed
 
 - @matter/general
     - Fix: A worker cancelled while it was still starting is no longer closed once the runtime has taken on work again
