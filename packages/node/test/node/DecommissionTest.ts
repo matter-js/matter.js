@@ -9,6 +9,7 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientEventEmitter } from "#node/client/ClientEventEmitter.js";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
+import type { ClientNode } from "#node/ClientNode.js";
 import { ImplementationError, Lifecycle, Minutes, Seconds } from "@matter/general";
 import {
     CommissioningError,
@@ -320,38 +321,62 @@ describe("Decommission", () => {
         expect(controller.peers.size).equals(0);
     });
 
-    it("does not hand out a node whose decommission is running", async () => {
-        await using site = new MockSite();
-        const { controller } = await site.addCommissionedPair();
+    for (const { removed, failure } of [
+        { removed: true, failure: () => new PeerMessageMissingError(Seconds(11)) },
+        { removed: false, failure: () => new PeerUnresponsiveError(Seconds(11)) },
+    ]) {
+        it(`waits for a running decommission before handing out a node (${removed ? "removed" : "kept"})`, async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
 
-        const peer1 = controller.peers.get("peer1")!;
-        const { deviceIdentifier } = peer1.state.commissioning;
-        expect(deviceIdentifier).not.undefined;
+            const peer1 = controller.peers.get("peer1")!;
+            const { deviceIdentifier } = peer1.state.commissioning;
+            expect(deviceIdentifier).not.undefined;
 
-        let release!: () => void;
-        const released = new Promise<void>(resolve => (release = resolve));
-        let removing!: () => void;
-        const removalSent = new Promise<void>(resolve => (removing = resolve));
-        const restore = await patchRemoveFabric(peer1, async function () {
-            removing();
-            await released;
-            throw new PeerMessageMissingError(Seconds(11));
-        });
+            let release!: () => void;
+            const released = new Promise<void>(resolve => (release = resolve));
+            let removing!: () => void;
+            const removalSent = new Promise<void>(resolve => (removing = resolve));
+            let answered = false;
+            const restore = await patchRemoveFabric(peer1, async function () {
+                removing();
+                await released;
+                answered = true;
+                throw failure();
+            });
 
-        const decommissioning = peer1.decommission();
-        try {
-            await MockTime.resolve(removalSent);
-            const found = await MockTime.resolve(controller.peers.forDescriptor({ deviceIdentifier }));
-            expect(found).not.equals(peer1);
-        } finally {
-            release();
+            const decommissioning = peer1.decommission().catch(() => {});
+            let found: ClientNode | undefined;
+            let foundAfterAnswer: boolean | undefined;
+            let lookupError: unknown;
+            let finding: Promise<void> | undefined;
             try {
+                await MockTime.resolve(removalSent);
+                finding = controller.peers.forDescriptor({ deviceIdentifier }).then(
+                    node => {
+                        found = node;
+                        foundAfterAnswer = answered;
+                    },
+                    error => void (lookupError = error),
+                );
+                release();
                 await MockTime.resolve(decommissioning);
+                await MockTime.resolve(finding);
             } finally {
+                release();
                 restore();
             }
-        }
-    });
+
+            expect(lookupError).undefined;
+            expect(foundAfterAnswer).is.true;
+            expect(controller.peers.size).equals(1);
+            if (removed) {
+                expect(found).not.equals(peer1);
+            } else {
+                expect(found).equals(peer1);
+            }
+        });
+    }
 
     it("rejects a decommission while a commission is in progress", async () => {
         await using site = new MockSite();

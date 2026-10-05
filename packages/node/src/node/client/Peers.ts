@@ -29,6 +29,7 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
     CancelablePromise,
+    createPromise,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -82,7 +83,7 @@ export class Peers extends EndpointContainer<ClientNode> {
     #installedSubscriptionHandler?: ClientSubscriptionHandler;
     #mutex = new Mutex(this);
     #closed = false;
-    #fabricOperations = new Map<ClientNode, FabricOperation>();
+    #fabricOperations = new Map<ClientNode, { operation: FabricOperation; settled: Promise<void> }>();
     #instrumented = new WeakSet<ClientNode>();
     #bridgedInstrumented = new WeakSet<Endpoint>();
 
@@ -90,10 +91,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         super(owner);
 
         if (!owner.env.has(ClientNodeFactory)) {
-            owner.env.set(
-                ClientNodeFactory,
-                new Factory(this, node => this.#fabricOperations.get(node) === "decommission"),
-            );
+            owner.env.set(ClientNodeFactory, new Factory(this));
         }
 
         owner.env.applyTo(InteractionServer, this.#configureInteractionServer.bind(this));
@@ -339,13 +337,23 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Find or create a {@link ClientNode} for a device described by {@link descriptor}.
      *
      * If a matching node already exists in the peer collection, returns it after refreshing its addresses and
-     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.
+     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.  A matching node
+     * that is being decommissioned is awaited first: if the decommission removes it, a new node is created, otherwise
+     * the kept node is returned.
      *
      * After calling {@link forDescriptor}, commission the returned node via {@link ClientNode.commission}.
      */
     async forDescriptor(descriptor: RemoteDescriptor): Promise<ClientNode> {
         const factory = this.owner.env.get(ClientNodeFactory);
         let node = factory.find(descriptor);
+        while (node !== undefined) {
+            const running = this.#fabricOperations.get(node);
+            if (running?.operation !== "decommission") {
+                break;
+            }
+            await running.settled;
+            node = factory.find(descriptor);
+        }
         if (node !== undefined) {
             // Refresh addresses and discovery data from the new descriptor
             await node.act(agent => {
@@ -550,7 +558,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     /**
      * Run a decommission attempt on {@link node}.  While it runs, the expired-node cull and leave events do not delete
-     * the node, and discovery does not hand it out.
+     * the node, and {@link forDescriptor} waits for it to end before handing out a node for the device.
      *
      * Rejects with {@link ImplementationError} if the node is closed, being deleted or crashed, or if a commission or
      * decommission attempt on it is already in progress.
@@ -569,6 +577,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         errorType: new (message: string) => MatterError,
         fn: () => MaybePromise<T>,
     ): Promise<T> {
+        const { promise: settled, resolver: settle } = createPromise<void>();
         await this.#mutex.produce(async () => {
             if (node.lifecycle.isGone) {
                 throw new errorType(
@@ -578,15 +587,16 @@ export class Peers extends EndpointContainer<ClientNode> {
             const running = this.#fabricOperations.get(node);
             if (running !== undefined) {
                 throw new errorType(
-                    `Cannot ${operation} ${node.toString()} because a ${running} attempt is already in progress`,
+                    `Cannot ${operation} ${node.toString()} because a ${running.operation} attempt is already in progress`,
                 );
             }
-            this.#fabricOperations.set(node, operation);
+            this.#fabricOperations.set(node, { operation, settled });
         });
         try {
             return await fn();
         } finally {
             this.#fabricOperations.delete(node);
+            settle();
         }
     }
 
@@ -769,7 +779,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
 
         this.#mutex.run(async () => {
-            if (!node.lifecycle.isReady || this.#fabricOperations.get(node) === "decommission") {
+            if (!node.lifecycle.isReady || this.#fabricOperations.get(node)?.operation === "decommission") {
                 return;
             }
 
@@ -876,7 +886,6 @@ export class Peers extends EndpointContainer<ClientNode> {
 
 class Factory extends ClientNodeFactory {
     #owner: Peers;
-    #isDecommissioning: (node: ClientNode) => boolean;
     #groupIdCounter = 0;
 
     /**
@@ -884,10 +893,9 @@ class Factory extends ClientNodeFactory {
      */
     #descriptorsUnderConstruction = new WeakMap<ClientNode, RemoteDescriptor>();
 
-    constructor(owner: Peers, isDecommissioning: (node: ClientNode) => boolean) {
+    constructor(owner: Peers) {
         super();
         this.#owner = owner;
-        this.#isDecommissioning = isDecommissioning;
     }
 
     create(options: ClientNode.Options, peerAddress?: PeerAddress) {
@@ -925,9 +933,6 @@ class Factory extends ClientNodeFactory {
     find(descriptor: RemoteDescriptor) {
         for (const node of this.#owner) {
             if (!node.lifecycle.isReadable && node.construction.status !== Lifecycle.Status.Initializing) {
-                continue;
-            }
-            if (this.#isDecommissioning(node)) {
                 continue;
             }
             const known = this.#descriptorsUnderConstruction.get(node) ?? node.state.commissioning;
