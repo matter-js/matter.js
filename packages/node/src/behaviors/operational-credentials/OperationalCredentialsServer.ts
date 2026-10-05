@@ -538,6 +538,12 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         await this.context.transaction.commit();
     }
 
+    override async [Symbol.asyncDispose]() {
+        await this.internal.certification?.close();
+        this.internal.certification = undefined;
+        await super[Symbol.asyncDispose]?.();
+    }
+
     async getCertification() {
         const certification =
             this.internal.certification ??

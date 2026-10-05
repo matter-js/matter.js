@@ -59,6 +59,7 @@ import {
     TimeSynchronizationServer as BaseTimeSynchronizationServer
 } from "../behaviors/time-synchronization/TimeSynchronizationServer.js";
 import { IcdManagementServer as BaseIcdManagementServer } from "../behaviors/icd-management/IcdManagementServer.js";
+import { GroupcastServer as BaseGroupcastServer } from "../behaviors/groupcast/GroupcastServer.js";
 import {
     TlsCertificateManagementServer as BaseTlsCertificateManagementServer
 } from "../behaviors/tls-certificate-management/TlsCertificateManagementServer.js";
@@ -103,7 +104,7 @@ import { Identity } from "@matter/general";
  * A Root Node endpoint's Descriptor cluster PartsList attribute shall contain a list of all other endpoints on the
  * node, i.e. the full-family pattern defined in the System Model specification.
  *
- * @see {@link MatterSpecification.v16.Device} § 2.1
+ * @see {@link MatterSpecification.v161.Device} § 2.1
  */
 export interface RootEndpoint extends Identity<typeof RootEndpointDefinition> {}
 
@@ -242,6 +243,13 @@ export namespace RootRequirements {
     export const IcdManagementServer = BaseIcdManagementServer;
 
     /**
+     * The Groupcast cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link GroupcastServer} for convenience.
+     */
+    export const GroupcastServer = BaseGroupcastServer;
+
+    /**
      * The TlsCertificateManagement cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link TlsCertificateManagementServer} for convenience.
@@ -291,6 +299,7 @@ export namespace RootRequirements {
             EthernetNetworkDiagnostics: EthernetNetworkDiagnosticsServer,
             TimeSynchronization: TimeSynchronizationServer,
             IcdManagement: IcdManagementServer,
+            Groupcast: GroupcastServer,
             TlsCertificateManagement: TlsCertificateManagementServer,
             TlsClientManagement: TlsClientManagementServer
         }
@@ -305,7 +314,7 @@ export namespace RootRequirements {
 export const RootEndpointDefinition = MutableEndpoint({
     name: "RootNode",
     deviceType: 0x16,
-    deviceRevision: 4,
+    deviceRevision: 5,
     deviceClass: DeviceClassification.Node,
     requirements: RootRequirements,
 

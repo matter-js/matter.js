@@ -30,26 +30,27 @@ Resource.add({
         "directly applied, in order to let the thermostat evaluate the change in state with any other " +
         "suggestion provided by other clients." +
         "\n" +
-        "  - If the resulting action from the context provided by the Ambient Context Sensing client can not " +
-        "be translated into a supported Thermostat Suggestion, the Thermostat may apply the change " +
-        "directly, but should be aware that it might impact the evaluation of any current suggestions and " +
-        "the behavior related to conflict resolution between the current suggestions and the input from " +
-        "the Ambient Context Sensing client is manufacturer specific." +
+        "    - If the resulting action from the context provided by the Ambient Context Sensing client can " +
+        "not be translated into a supported Thermostat Suggestion, the Thermostat may apply the change " +
+        "directly, but should be aware that it might impact the evaluation of any current suggestions " +
+        "and the behavior related to conflict resolution between the current suggestions and the input " +
+        "from the Ambient Context Sensing client is manufacturer specific." +
         "\n" +
         "  - The thermostat may prioritize the data provided by the Ambient Context Sensing server, in case " +
         "there are multiple suggestions present, and use this as input when deciding which suggestion to " +
         "apply.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§9.1.4" },
-        { tag: "requirement", name: "Groups", xref: "device§9.1.4" },
-        { tag: "requirement", name: "EnergyPreference", xref: "device§9.1.4" },
-        { tag: "requirement", name: "Thermostat", xref: "device§9.1.4" },
-        { tag: "requirement", name: "FanControl", xref: "device§9.1.4" },
-        { tag: "requirement", name: "ThermostatUserInterfaceConfiguration", xref: "device§9.1.4" },
-        { tag: "requirement", name: "TemperatureMeasurement", xref: "device§9.1.4" },
-        { tag: "requirement", name: "RelativeHumidityMeasurement", xref: "device§9.1.4" },
-        { tag: "requirement", name: "OccupancySensing", xref: "device§9.1.4" },
-        { tag: "requirement", name: "AmbientContextSensing", xref: "device§9.1.4" }
+        { tag: "requirement", name: "GroupcastListenerCond", xref: "device§9.1.4" },
+        { tag: "requirement", name: "Identify", xref: "device§9.1.5" },
+        { tag: "requirement", name: "Groups", xref: "device§9.1.5" },
+        { tag: "requirement", name: "EnergyPreference", xref: "device§9.1.5" },
+        { tag: "requirement", name: "Thermostat", xref: "device§9.1.5" },
+        { tag: "requirement", name: "FanControl", xref: "device§9.1.5" },
+        { tag: "requirement", name: "ThermostatUserInterfaceConfiguration", xref: "device§9.1.5" },
+        { tag: "requirement", name: "TemperatureMeasurement", xref: "device§9.1.5" },
+        { tag: "requirement", name: "RelativeHumidityMeasurement", xref: "device§9.1.5" },
+        { tag: "requirement", name: "OccupancySensing", xref: "device§9.1.5" },
+        { tag: "requirement", name: "AmbientContextSensing", xref: "device§9.1.5" }
     ]
 });

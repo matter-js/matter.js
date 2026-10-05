@@ -244,6 +244,10 @@ The SoftwareUpdateManager can be configured via its state variables. The default
 * `announceAsDefaultProvider`: By default, we announce this node as the default OTA provider on startup and on new commissionings to all commissioned devices. Set to false to disable this behavior.
 * `announcementInterval`: Interval in milliseconds for verifying the OTA provider on the devices (default 24 hours should be sufficient for most cases). In reality, a random portion is added to the interval as defined by the Matter specification.
 
+The `OtaSoftwareUpdateProviderServer` state has one setting of its own:
+
+* `applyDelay`: How long a device allowed to apply an update waits before it applies (`DelayedActionTime`, sent in whole seconds, at most a day). Default is no delay. The controller expects the device's restart only after this delay.
+
 ## Enhanced: Extending the OtaSoftwareUpdateProviderServer
 
 The `OtaSoftwareUpdateProviderServer` is the default implementation of the OTA Provider endpoint. It provides two extension methods you can override for custom behavior:

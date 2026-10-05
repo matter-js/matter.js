@@ -10,6 +10,7 @@
 export namespace Mark {
     export const INBOUND = "«";
     export const OUTBOUND = "»";
+    export const SUPPRESSED = "⊘";
     export const SESSION = "•"; // Makes more sense but renders poorly: "⚭" (marriage).  Infinity OK too: "∞"
     export const LOCAL_SESSION = "◦";
     export const EXCHANGE = "⇵";

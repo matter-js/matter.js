@@ -13,7 +13,7 @@
  * particular ordering among the values. Specific uses of the data type may assign semantics to the values that imply an
  * ordering relationship.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.19.2.20
+ * @see {@link MatterSpecification.v161.Core} § 7.19.2.20
  */
 export enum Priority {
     /**
@@ -29,7 +29,7 @@ export enum Priority {
 
     /**
      * Information or notification that impacts safety, a critical function, or ongoing reliable operation of the node
-     * or application supported on an endpoint.
+     * or application supported on an endpoint
      */
     Critical = 2
 }

@@ -65,15 +65,15 @@ Resource.add(
                 tag: "attribute", name: "SetupUrl", xref: "core§9.14.5.3",
 
                 details: "The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as " +
-                    "specified in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location " +
+                    "specified in RFC1738, max. 512 ASCII characters and shall use the https scheme. The location " +
                     "referenced by this URL shall provide additional information for the actions provided:" +
                     "\n" +
                     "  - When used without suffix, it shall provide information about the various actions which the " +
                     "cluster provides." +
                     "\n" +
-                    "  - Example: SetupURL could take the value of example://Actions or " +
-                    "https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to " +
-                    "use actions provided by this cluster)." +
+                    "    - Example: SetupURL could take the value of example://Actions or " +
+                    "https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how " +
+                    "to use actions provided by this cluster)." +
                     "\n" +
                     "  - When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
                     "may provide information about that particular action. This could be a deeplink to " +
@@ -81,9 +81,9 @@ Resource.add(
                     "information/edit-screen for this action so that the user can view and update details of the " +
                     "action, e.g. edit the scene, or change the wake-up experience time period." +
                     "\n" +
-                    "  - Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
-                    "https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of " +
-                    "the action with ActionID 0x3039."
+                    "    - Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
+                    "https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing " +
+                    "of the action with ActionID 0x3039."
             },
 
             {

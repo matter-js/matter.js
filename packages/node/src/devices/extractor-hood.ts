@@ -47,7 +47,7 @@ import { Identity } from "@matter/general";
  * Light as a superset when composed in this device type. Additional device types not listed in this table may also be
  * included in device compositions.
  *
- * @see {@link MatterSpecification.v16.Device} § 13.10
+ * @see {@link MatterSpecification.v161.Device} § 13.10
  */
 export interface ExtractorHoodDevice extends Identity<typeof ExtractorHoodDeviceDefinition> {}
 

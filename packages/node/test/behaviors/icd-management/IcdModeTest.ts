@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Seconds } from "@matter/general";
+import { Hours, Seconds, Time, Timestamp } from "@matter/general";
 import { IcdMode, IcdModeState } from "../../../src/behaviors/icd-management/IcdMode.js";
 
 function makeState() {
@@ -103,5 +103,78 @@ describe("IcdModeState", () => {
         state.enterIdle();
         state.enterIdle();
         expect(events).deep.equals(["active", "idle"]);
+    });
+
+    describe("wall-clock steps", () => {
+        it("keeps the active deadline and promise across a forward step", async () => {
+            const { state, events } = makeState();
+            state.start();
+
+            MockTime.stepWallClock(Hours(1));
+            expect(state.requestActive(Seconds(1))).equals(Seconds(2));
+            state.noteActivity();
+
+            await MockTime.advance(1500);
+            expect(events).deep.equals(["active"]);
+            await MockTime.advance(500);
+            expect(events).deep.equals(["active", "may-idle"]);
+        });
+
+        it("keeps the active deadline and promise across a backward step", async () => {
+            const { state, events } = makeState();
+            state.start();
+
+            MockTime.stepWallClock(-3_600_000);
+            expect(state.requestActive(Seconds(1))).equals(Seconds(2));
+            await MockTime.advance(1500);
+            state.noteActivity();
+
+            await MockTime.advance(900);
+            expect(events).deep.equals(["active"]);
+            await MockTime.advance(100);
+            expect(events).deep.equals(["active", "may-idle"]);
+        });
+    });
+
+    describe("with a clock that advances on every read", () => {
+        // performance.now() moves between two reads in one request, so a promise from a second read falls short
+        function ticking<T>(actor: () => T): T {
+            const descriptor = Object.getOwnPropertyDescriptor(Time, "nowUs");
+            let now = Time.nowUs;
+            Object.defineProperty(Time, "nowUs", {
+                configurable: true,
+                get: () => Timestamp((now += 0.001)),
+            });
+            try {
+                return actor();
+            } finally {
+                if (descriptor !== undefined) {
+                    Object.defineProperty(Time, "nowUs", descriptor);
+                }
+            }
+        }
+
+        it("promises the full request when it wakes the device", () => {
+            const { state } = makeState();
+            state.start();
+            state.enterIdle();
+
+            expect(ticking(() => state.requestActive(Seconds(5)))).equals(Seconds(5));
+        });
+
+        it("promises the full request when it extends the active window", () => {
+            const { state } = makeState();
+            state.start();
+
+            expect(ticking(() => state.requestActive(Seconds(8)))).equals(Seconds(8));
+        });
+    });
+
+    it("promises whole milliseconds", async () => {
+        const { state } = makeState();
+        state.start();
+        await MockTime.advance(0.25);
+
+        expect(state.requestActive(Seconds(1))).equals(1999);
     });
 });

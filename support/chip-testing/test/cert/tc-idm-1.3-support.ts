@@ -5,8 +5,8 @@
  */
 
 import { Duration, ImplementationError } from "@matter/main";
-import type { CheckRecord, LogFollower } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError } from "@matter/testing";
+import type { CheckRecord, LogFlavor, LogFollower } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, flavorFamily } from "@matter/testing";
 import { ChipFault } from "./fault-injection.js";
 import {
     commandPathIBSequence,
@@ -70,7 +70,7 @@ export function injectedFaultSequence(fault: number): RegExp[] {
  */
 export function expectInjectedFault(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     fault: number,
     from: number,
     timeout: Duration,
@@ -94,8 +94,8 @@ export function expectInjectedFault(
  * answering the invoke is invisible for a turn or two afterwards, and counting without settling
  * records "no fault fired" against a window the fault line has not reached yet.
  */
-export async function expectNoInjectedFault(log: LogFollower, flavor: string, from: number): Promise<CheckRecord> {
-    if (!flavor.startsWith("chip")) {
+export async function expectNoInjectedFault(log: LogFollower, flavor: LogFlavor, from: number): Promise<CheckRecord> {
+    if (flavorFamily(flavor) !== "chip") {
         return { type: "device-log", verdict: "unverified" };
     }
 
@@ -121,11 +121,11 @@ export async function expectNoInjectedFault(log: LogFollower, flavor: string, fr
  */
 export async function expectInvokeCount(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     from: number,
     expected: number,
 ): Promise<CheckRecord> {
-    if (!flavor.startsWith("chip")) {
+    if (flavorFamily(flavor) !== "chip") {
         return { type: "device-log", verdict: "unverified" };
     }
 
@@ -159,7 +159,7 @@ const COMMAND_DATA_IB = /CommandDataIB =\s*$/;
  */
 export async function expectBatchRequestPaths(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     paths: BatchPath[],
     from: number,
     timeout: Duration,

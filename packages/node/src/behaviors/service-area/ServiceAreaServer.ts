@@ -36,8 +36,10 @@ export class ServiceAreaBaseServer extends ServiceAreaBase {
     override initialize(): MaybePromise {
         this.#assertSupportedAreas(this.state.supportedAreas);
         this.reactTo(this.events.supportedAreas$Changing, this.#assertSupportedAreas);
-        this.#assertSupportedMaps(this.state.supportedMaps);
-        this.reactTo(this.events.supportedMaps$Changing, this.#assertSupportedMaps);
+        if (this.features.maps) {
+            this.#assertSupportedMaps(this.state.supportedMaps);
+            this.reactTo(this.events.supportedMaps$Changing, this.#assertSupportedMaps);
+        }
         this.#assertSelectedAreas(this.state.selectedAreas);
         this.reactTo(this.events.selectedAreas$Changing, this.#assertSelectedAreas);
         if (this.state.currentArea !== undefined) {

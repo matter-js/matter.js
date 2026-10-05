@@ -48,4 +48,10 @@ export abstract class EndpointInitializer {
      * Invoked after behaviors are initialized but before the initialization transaction commits.
      */
     behaviorsInitialized(_agent: Agent): MaybePromise {}
+
+    /**
+     * Invoked after the parts of an endpoint are initialized but before the endpoint's construction completes, so an
+     * error fails the construction.
+     */
+    partsInitialized(_endpoint: Endpoint): MaybePromise {}
 }

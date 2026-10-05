@@ -316,9 +316,6 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 cluster.children = [];
             }
             const element = camelize(record.element) as RequirementElement.ElementType;
-            if (element === RequirementElement.ElementType.Feature) {
-                record.name = record.name.toUpperCase();
-            }
             cluster.children.push(
                 RequirementElement({
                     element,
@@ -511,12 +508,10 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
             cluster.children = [];
         }
         const elementType = camelize(record.element) as RequirementElement.ElementType;
-        const name = elementType === RequirementElement.ElementType.Feature ? record.name.toUpperCase() : record.name;
-
         cluster.children.push(
             RequirementElement({
                 element: elementType,
-                name,
+                name: record.name,
                 constraint: record.constraint,
                 access: record.access,
                 conformance: record.conformance,

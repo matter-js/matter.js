@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { Agent } from "#endpoint/Agent.js";
 import { camelize } from "@matter/general";
 import { ApiResource } from "../ApiResource.js";
@@ -19,6 +20,10 @@ import { EndpointContainerResource } from "./EndpointContainerResource.js";
 export class EndpointResource extends ApiResource {
     readonly agent: Agent;
     readonly supervisor: undefined;
+
+    override get session(): ValueSupervisor.Session {
+        return this.agent.context;
+    }
 
     constructor(agent: Agent, parent: undefined | ApiResource) {
         super(parent);

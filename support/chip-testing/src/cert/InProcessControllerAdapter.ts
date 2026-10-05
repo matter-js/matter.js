@@ -13,6 +13,7 @@ import {
     Crypto,
     Diagnostic,
     Duration,
+    ChangeNotificationService,
     Endpoint,
     Environment,
     Filesystem,
@@ -103,20 +104,25 @@ import { AttributeModel } from "@matter/model";
 import { DclBehavior } from "@matter/node/behaviors/system/dcl";
 import { SoftwareUpdateManager } from "@matter/node/behaviors/system/software-update";
 import type {
+    AnnounceOtaProviderOptions,
+    AttestationApi,
     AttributePathSpec,
     AttributeReadEntry,
     AttributeWriteEntry,
     AttributeWriteStatus,
     BatchCommandResult,
     BatchCommandSpec,
+    BdxTransferAccept,
+    BdxTransferProposal,
     CertGroupApi,
     CertIcdClientApi,
     CertIcdEvent,
     CertIcdRegistration,
     CertNodeApi,
+    CertNodeRef,
+    CertSessionInfo,
     ClientAttributePath,
     ClientEndpointEntry,
-    CertNodeRef,
     CommissioningTarget,
     ControllerAdapter,
     ControllerAdapterOptions,
@@ -124,26 +130,23 @@ import type {
     EventPathSpec,
     EventReadEntry,
     GroupKeySetSpec,
-    AttestationApi,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
-    BdxTransferAccept,
-    BdxTransferProposal,
+    OtaAnnouncement,
+    OtaAnnouncementRecord,
     OtaApplyUpdateExchange,
     OtaBdxTransfer,
     OtaNotifyUpdateAppliedRecord,
-    AnnounceOtaProviderOptions,
-    OtaAnnouncement,
-    OtaAnnouncementRecord,
     OtaProviderExchanges,
     OtaProviderScript,
     OtaQueryImageExchange,
+    OtaScriptedQueryAnswer,
+    PicsValues,
     ReadAttributeOptions,
     ReadEventOptions,
     ServeOtaUpdateOptions,
-    CertSessionInfo,
     SubscribeEventOptions,
-    PicsValues,
     SubscribeOptions,
     TimedInteractionOptions,
     WebRtcRequestorApi,
@@ -442,9 +445,9 @@ export class OtaTransferError extends MatterError {}
  * both of which the SU cases whose DUT is the provider assert on. So the provider records what it
  * answered, and the requestor's log is what corroborates that the answer reached it.
  *
- * Recording only: every answer is `super`'s, so a case reads the provider matter.js ships rather than
- * one this harness shaped for it. An answer is recorded once `super` has produced it, so a command
- * this provider rejected leaves nothing in the record.
+ * Unless a case scripted it (`CertNodeApi.scriptOtaProvider`), every answer is `super`'s, so a case reads
+ * the provider matter.js ships rather than one this harness shaped for it. An answer is recorded once it
+ * was produced, so a command this provider rejected leaves nothing in the record.
  *
  * {@link OtaExchangeRecording} owns the record's lifetime; nothing else clears it or reads it live.
  */
@@ -508,11 +511,13 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         const response: OtaSoftwareUpdateProvider.QueryImageResponse =
             scripted?.status === undefined
                 ? withUserConsent(await super.queryImage(request), scripted?.userConsentNeeded)
-                : {
-                      status: scripted.status,
-                      delayedActionTime: scripted.delayedActionTime,
-                      userConsentNeeded: scripted.userConsentNeeded,
-                  };
+                : scripted.status === OtaSoftwareUpdateProvider.Status.UpdateAvailable
+                  ? this.#unheldUpdate(request, scripted)
+                  : {
+                        status: scripted.status,
+                        delayedActionTime: scripted.delayedActionTime,
+                        userConsentNeeded: scripted.userConsentNeeded,
+                    };
 
         this.#exchangesFor(peer).queryImage.push({
             request: {
@@ -541,7 +546,32 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
         return response;
     }
 
+    /**
+     * An `UpdateAvailable` for an image this provider does not hold, with the fields a script left open
+     * filled as the provider's own answer fills them.
+     */
+    #unheldUpdate(
+        request: OtaSoftwareUpdateProvider.QueryImageRequest,
+        scripted: OtaScriptedQueryAnswer,
+    ): OtaSoftwareUpdateProvider.QueryImageResponse {
+        assertRemoteActor(this.context);
+        const session = this.context.session;
+        NodeSession.assert(session);
+        const softwareVersion = scripted.softwareVersion ?? request.softwareVersion + 1;
+        return {
+            status: OtaSoftwareUpdateProvider.Status.UpdateAvailable,
+            imageUri:
+                scripted.imageUri ??
+                new FileDesignator(`ota/unheld-${softwareVersion}`).asBdxUri(session.associatedFabric.rootNodeId),
+            softwareVersion,
+            softwareVersionString: `${softwareVersion}.0.0`,
+            updateToken: this.env.get(Crypto).randomBytes(UNHELD_UPDATE_TOKEN_LENGTH),
+            userConsentNeeded: scripted.userConsentNeeded,
+        };
+    }
+
     override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
+        const receivedAtMs = Time.nowUs;
         const peer = this.#commandPeer;
         const scripted = this.#scriptFor(peer).applyUpdate.shift();
 
@@ -562,23 +592,42 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 const peerAddress = this.#commandPeerAddress;
                 await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
             }
-            response = await super.applyUpdateRequest(request);
+            // Only for the answer the script named: the base provider sends its delay only where it allows the apply,
+            // so a Discontinue never names a time for something that is not going to happen
+            const scriptedDelay =
+                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
+                    ? scripted?.delayedActionTime
+                    : undefined;
+            const configuredDelay = this.state.applyDelay;
+            if (scriptedDelay !== undefined) {
+                this.state.applyDelay = Seconds(scriptedDelay);
+            }
+            try {
+                response = await super.applyUpdateRequest(request);
+            } finally {
+                if (scriptedDelay !== undefined) {
+                    this.state.applyDelay = configuredDelay;
+                }
+            }
         }
 
         this.#exchangesFor(peer).applyUpdate.push({
             request: { updateToken: Bytes.toHex(request.updateToken), newVersion: request.newVersion },
             response: { action: response.action, delayedActionTime: response.delayedActionTime },
+            receivedAtMs,
         });
         this.internal.recorded.emit(peer);
         return response;
     }
 
     override notifyUpdateApplied(request: OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest) {
+        const receivedAtMs = Time.nowUs;
         const peer = this.#commandPeer;
         return MaybePromise.then(super.notifyUpdateApplied(request), result => {
             this.#exchangesFor(peer).notifyUpdateApplied.push({
                 updateToken: Bytes.toHex(request.updateToken),
                 softwareVersion: request.softwareVersion,
+                receivedAtMs,
             });
             this.internal.recorded.emit(peer);
             return result;
@@ -603,23 +652,17 @@ class OtaExchangeRecording {
     #provider: Endpoint;
     #peer: string;
     #observers = new ObserverGroup();
-    #queried: Promise<void>;
-    #queryResolver: () => void;
+    #queried = createPromise<void>();
+    #notified = createPromise<void>();
 
-    private constructor(provider: Endpoint, peer: string, queried: Promise<void>, queryResolver: () => void) {
+    private constructor(provider: Endpoint, peer: string) {
         this.#provider = provider;
         this.#peer = peer;
-        this.#queried = queried;
-        this.#queryResolver = queryResolver;
-
-        // The race in `awaitQueryImage` stops awaiting when the budget expires first
-        queried.catch(() => {});
     }
 
     static async open(provider: Endpoint, peer: PeerAddress): Promise<OtaExchangeRecording> {
-        const { promise, resolver } = createPromise<void>();
         const key = peer.toString();
-        const recording = new OtaExchangeRecording(provider, key, promise, resolver);
+        const recording = new OtaExchangeRecording(provider, key);
 
         await provider.act(agent => {
             const behavior = agent.get(RecordingOtaProviderServer);
@@ -628,8 +671,15 @@ class OtaExchangeRecording {
             // Only this peer's answers: one provider endpoint serves every node the controller holds,
             // so another requestor's periodic query would otherwise settle this wait.
             recording.#observers.on(behavior.internal.recorded, recorded => {
-                if (recorded === key && (behavior.internal.exchanges.get(key)?.queryImage.length ?? 0) > 0) {
-                    recording.#queryResolver();
+                const exchanges = recorded === key ? behavior.internal.exchanges.get(key) : undefined;
+                if (exchanges === undefined) {
+                    return;
+                }
+                if (exchanges.queryImage.length > 0) {
+                    recording.#queried.resolver();
+                }
+                if (exchanges.notifyUpdateApplied.length > 0) {
+                    recording.#notified.resolver();
                 }
             });
         });
@@ -637,12 +687,22 @@ class OtaExchangeRecording {
         return recording;
     }
 
+    /** Resolves once the provider has recorded a `NotifyUpdateApplied`, or once `timeout` has passed. */
+    async awaitNotifyApplied(timeout: Duration) {
+        const expiry = Time.sleep("cert OTA notify applied", timeout);
+        try {
+            await Promise.race([this.#notified.promise, expiry]);
+        } finally {
+            expiry.cancel();
+        }
+    }
+
     /** Resolves once the provider has answered a `QueryImage`, rejecting where it never does. */
     async awaitQueryImage(nodeId: NodeId, timeout: Duration) {
         const expiry = Time.sleep("cert OTA query", timeout);
         try {
             await Promise.race([
-                this.#queried,
+                this.#queried.promise,
                 expiry.then(() => {
                     throw new OtaTransferError(
                         `Node id ${nodeId} did not query the announced OTA provider within ${timeout}`,
@@ -673,6 +733,9 @@ class OtaExchangeRecording {
         this.#observers.close();
     }
 }
+
+/** Token length the provider's own answers use, the top of the 8 to 32 bytes `UpdateToken` allows. */
+const UNHELD_UPDATE_TOKEN_LENGTH = 32;
 
 /** `response` with `UserConsentNeeded` set, where a script asked for it. */
 function withUserConsent(
@@ -1171,6 +1234,21 @@ class InProcessIcdClient implements CertIcdClientApi {
     }
 }
 
+/**
+ * Whether `endpoint` sits under `owner`.
+ *
+ * The controller's peers are endpoints of the controller's own tree, so the root of an endpoint's owner
+ * chain is that controller rather than the node the endpoint belongs to.
+ */
+function ownedBy(endpoint: Endpoint, owner: Endpoint) {
+    for (let current: Endpoint | undefined = endpoint; current !== undefined; current = current.owner) {
+        if (current === owner) {
+            return true;
+        }
+    }
+    return false;
+}
+
 class InProcessCertNodeApi implements CertNodeApi {
     readonly #adapterId: string;
     readonly #controller: ServerNode;
@@ -1178,18 +1256,23 @@ class InProcessCertNodeApi implements CertNodeApi {
     readonly #nodeId: NodeId;
     readonly #icdClients: Map<NodeId, InProcessIcdClient>;
 
+    /** The adapter's own collection, because that is where an observation's lifetime ends. */
+    readonly #eventObservers: ObserverGroup[];
+
     constructor(
         adapterId: string,
         controller: ServerNode,
         fabric: Fabric,
         ref: CertNodeRef,
         icdClients: Map<NodeId, InProcessIcdClient>,
+        eventObservers: ObserverGroup[],
     ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
         this.#fabric = fabric;
         this.#nodeId = NodeId(ref);
         this.#icdClients = icdClients;
+        this.#eventObservers = eventObservers;
     }
 
     icdClient(): CertIcdClientApi {
@@ -1331,7 +1414,11 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
             if (isConcretePath(path)) {
                 if (statuses.length) {
-                    throw new StatusResponseError(`readAttribute ${JSON.stringify(path)} failed`, statuses[0].status);
+                    throw new StatusResponseError(
+                        `readAttribute ${JSON.stringify(path)} failed`,
+                        statuses[0].status,
+                        statuses[0].clusterStatus,
+                    );
                 }
                 if (values.length === 0) {
                     throw new InternalError(`readAttribute ${JSON.stringify(path)} returned no data`);
@@ -1768,8 +1855,29 @@ class InProcessCertNodeApi implements CertNodeApi {
         // ends, so the exchange has to be over before this resolves.
         const applyAcknowledged = applied === undefined ? false : await applied.settled();
 
-        // After the apply wait, so a provider that answered an ApplyUpdateRequest while this was
-        // waiting reports that answer rather than the state before it.
+        if (applyAcknowledged && options?.notifyAppliedTimeoutMs !== undefined) {
+            await recording.awaitNotifyApplied(Millis(options.notifyAppliedTimeoutMs));
+        }
+
+        // Both waits above end on what this provider decided, which a node it refused has not had time
+        // to react to; a case whose claim is a negative asks for a window here and checks observedMs.
+        let observedMs = 0;
+        if (options?.observeAfterMs !== undefined) {
+            const observingSince = Time.nowUs;
+
+            // A timer may fire a fraction of a millisecond before the monotonic clock says it is due,
+            // and the window a caller checks has to have been covered in full
+            while (observedMs < options.observeAfterMs) {
+                await Time.sleep(
+                    "cert OTA post-apply observation",
+                    Millis(Math.ceil(options.observeAfterMs - observedMs)),
+                );
+                observedMs = Time.nowUs - observingSince;
+            }
+        }
+
+        // After the apply and observation waits, so a provider that answered a command while either was
+        // running reports that answer rather than the state before it.
         const exchanges = await recording.read();
 
         const initMessage = session.initMessage;
@@ -1789,6 +1897,7 @@ class InProcessCertNodeApi implements CertNodeApi {
             accept: bdxAcceptOf(parameters),
             transferredBytes: session.transferredBytes,
             applyAcknowledged,
+            observedMs,
             exchanges,
         };
     }
@@ -2039,6 +2148,108 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
             phase = "live";
             return toWireEvents(seed);
+        });
+    }
+
+    /**
+     * Reports the node's events through the subscription the controller already sustains.
+     *
+     * A subscription of its own is a second session, and a controller drops every session to a peer the
+     * moment that peer reports `ShutDown` — so the peer's remaining reports, which it is still flushing,
+     * reach a session their own controller has forgotten and are discarded. A case that wants to observe
+     * what a node reported, rather than to exercise the subscription interaction itself, watches the
+     * sustained subscription and keeps reporting while a device is on its way down.
+     *
+     * {@link CertNodeApi.subscribeEvents} remains for a case whose subject *is* the subscribe request.
+     */
+    observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]> {
+        return runTagged(this.#adapterId, async () => {
+            if (paths.length === 0) {
+                throw new ImplementationError("observeEvents requires at least one path");
+            }
+
+            const peer = this.#peer;
+            const wanted = paths.map(toEventIds);
+
+            // Held until the seed is known, then released: the observer is attached before the read so
+            // nothing falls into the gap between them, but an event the read also answers with must not
+            // reach `onUpdate` as well, and which those are is not known until the read returns.
+            let pending: EventReadEntry[] | undefined = [];
+
+            // A read re-broadcasts the events it answers with, so a later read over any of these paths
+            // would otherwise replay history as though it were live. A peer keeps numbering its events
+            // across a restart, so within one observation an event number identifies an event.
+            const delivered = new Set<bigint>();
+
+            const report = (entry: EventReadEntry) => {
+                if (delivered.has(entry.eventNumber)) {
+                    return;
+                }
+                delivered.add(entry.eventNumber);
+                if (pending === undefined) {
+                    // This observable carries matter.js's own consumers too, and it stops dispatching at
+                    // the first observer that throws
+                    try {
+                        opts.onUpdate?.(entry);
+                    } catch (error) {
+                        logger.error("Observer of a cert event observation threw", error);
+                    }
+                } else {
+                    pending.push(entry);
+                }
+            };
+
+            // Its own group, so a seed read that rejects takes the observer with it rather than leaving
+            // it buffering reports for a call that never returned
+            const observers = new ObserverGroup();
+            observers.on(peer.env.get(ChangeNotificationService).change, change => {
+                if (change.kind !== "event" || !ownedBy(change.endpoint, peer)) {
+                    return;
+                }
+                const cluster = change.event.parent?.id;
+                const endpoint = change.endpoint.number;
+                const matches = wanted.some(
+                    path =>
+                        (path.endpointId === undefined || path.endpointId === endpoint) &&
+                        (path.clusterId === undefined || path.clusterId === cluster) &&
+                        (path.eventId === undefined || path.eventId === change.event.id),
+                );
+                if (!matches || cluster === undefined) {
+                    return;
+                }
+                report({
+                    endpoint,
+                    cluster,
+                    event: change.event.id,
+                    eventNumber: BigInt(change.number),
+                    value: change.payload,
+                });
+            });
+
+            let seed: EventReadEntry[];
+            try {
+                seed = await this.readEvents(paths);
+            } catch (e) {
+                observers.close();
+                throw e;
+            }
+            this.#eventObservers.push(observers);
+
+            for (const { eventNumber } of seed) {
+                delivered.add(eventNumber);
+            }
+            const held = pending;
+            pending = undefined;
+            for (const entry of held) {
+                if (!seed.some(({ eventNumber }) => eventNumber === entry.eventNumber)) {
+                    try {
+                        opts.onUpdate?.(entry);
+                    } catch (error) {
+                        logger.error("Observer of a cert event observation threw", error);
+                    }
+                }
+            }
+            return seed;
         });
     }
 
@@ -2367,6 +2578,16 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     #attestation?: InProcessAttestationApi;
     readonly #icdClients = new Map<NodeId, InProcessIcdClient>();
 
+    /**
+     * Observers an `observeEvents` call attached, owned here because that is where their lifetime ends.
+     *
+     * `ChangeNotificationService` belongs to the controller, not to a peer, and `node()` builds a fresh
+     * handle each call that nothing retains — so a group held on the handle is unreachable the moment
+     * the caller drops it, and its listeners would go on receiving every peer's events for the rest of
+     * the run.
+     */
+    readonly #eventObservers = new Array<ObserverGroup>();
+
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
             throw new InternalError(
@@ -2435,10 +2656,10 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             });
             this.#controller = controller;
 
-            await controller.start();
-
             const fabricAuthority = await controller.env.load(FabricAuthority);
             this.#fabric = await fabricAuthority.defaultFabric({ adminFabricLabel: this.id });
+
+            await controller.start();
 
             if (this.#hostsWebRtcRequestor) {
                 const endpoint = await controller.add(CameraControllerDevice, {
@@ -2462,6 +2683,10 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     async close(): Promise<void> {
         try {
             await runTagged(this.id, async () => {
+                for (const observers of this.#eventObservers) {
+                    observers.close();
+                }
+                this.#eventObservers.length = 0;
                 this.#webRtcRequestor?.close();
                 await this.#controller?.close();
                 await this.#attestation?.close();
@@ -2547,7 +2772,14 @@ export class InProcessControllerAdapter implements ControllerAdapter {
     }
 
     node(ref: CertNodeRef): CertNodeApi {
-        return new InProcessCertNodeApi(this.id, this.#startedController, this.#adminFabric, ref, this.#icdClients);
+        return new InProcessCertNodeApi(
+            this.id,
+            this.#startedController,
+            this.#adminFabric,
+            ref,
+            this.#icdClients,
+            this.#eventObservers,
+        );
     }
 
     group(groupId: number): CertGroupApi {

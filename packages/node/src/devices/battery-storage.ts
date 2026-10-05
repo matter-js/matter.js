@@ -80,7 +80,7 @@ import { Identity } from "@matter/general";
  * Any Temperature Sensors included shall include Tag(s), and for non-standard Namespaces, Label(s) in the Descriptor
  * clusters of their endpoints to identify the temperature being measured.
  *
- * @see {@link MatterSpecification.v16.Device} § 14.4
+ * @see {@link MatterSpecification.v161.Device} § 14.4
  */
 export interface BatteryStorageDevice extends Identity<typeof BatteryStorageDeviceDefinition> {}
 

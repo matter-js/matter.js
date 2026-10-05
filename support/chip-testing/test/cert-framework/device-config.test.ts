@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { resolveControllerImplementation, resolveDeviceFlavor } from "@matter/testing";
+import { CertConfigError, resolveControllerImplementation, resolveDeviceFlavor } from "@matter/testing";
 import { env } from "node:process";
 
 describe("resolveDeviceFlavor", () => {
@@ -39,12 +39,12 @@ describe("resolveDeviceFlavor", () => {
     // a wrapped python script spawns for itself
     it("rejects python-wrapped, which no run can select", () => {
         env.MATTER_CERT_DEVICE = "python-wrapped";
-        expect(() => resolveDeviceFlavor()).throws('Unknown MATTER_CERT_DEVICE "python-wrapped"');
+        expect(() => resolveDeviceFlavor()).throws(CertConfigError, 'Unknown MATTER_CERT_DEVICE "python-wrapped"');
     });
 
     it("throws a clear error for an unknown flavor", () => {
         env.MATTER_CERT_DEVICE = "bogus";
-        expect(() => resolveDeviceFlavor()).throws('Unknown MATTER_CERT_DEVICE "bogus"');
+        expect(() => resolveDeviceFlavor()).throws(CertConfigError, 'Unknown MATTER_CERT_DEVICE "bogus"');
     });
 });
 
@@ -78,6 +78,9 @@ describe("resolveControllerImplementation", () => {
 
     it("throws a clear error naming the accepted values for an unknown implementation", () => {
         env.MATTER_CERT_CONTROLLER = "bogus";
-        expect(() => resolveControllerImplementation()).throws('Unknown MATTER_CERT_CONTROLLER "bogus"');
+        expect(() => resolveControllerImplementation()).throws(
+            CertConfigError,
+            'Unknown MATTER_CERT_CONTROLLER "bogus"',
+        );
     });
 });

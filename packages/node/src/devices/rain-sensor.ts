@@ -35,7 +35,7 @@ import { Identity } from "@matter/general";
  * This is used to configure the sensor/detector and is for this device type linked to the configuration of the Boolean
  * State cluster.
  *
- * @see {@link MatterSpecification.v16.Device} § 7.13
+ * @see {@link MatterSpecification.v161.Device} § 7.13
  */
 export interface RainSensorDevice extends Identity<typeof RainSensorDeviceDefinition> {}
 

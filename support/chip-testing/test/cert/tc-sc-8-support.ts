@@ -14,7 +14,7 @@ import type {
     CheckRecord,
     SelectableDeviceFlavor,
 } from "@matter/testing";
-import { resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
+import { flavorFamily, resolveControllerImplementation, UnsupportedByControllerError } from "@matter/testing";
 import {
     CertCheckFailedError,
     CommissionedRefs,
@@ -299,7 +299,7 @@ export async function recordTcpInvoke(
  * MRP's own payload budget is smaller still (~1232 bytes once the headers are counted), so a payload
  * larger than this is conservative evidence of a large-payload session either way.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.4.4
+ * @see {@link MatterSpecification.v161.Core} § 4.4.4
  */
 const LARGE_PAYLOAD_FLOOR = 1280;
 
@@ -449,7 +449,7 @@ export async function regularSizedRequestCheck(
  */
 export async function noFurtherSessionCheck(cx: CertStepContext, from: number, until: number): Promise<CheckRecord> {
     const dut = cx.devices.dut;
-    if (dut.flavor !== "matterjs") {
+    if (flavorFamily(dut.flavor) !== "matterjs") {
         return { type: "device-log", verdict: "unverified" };
     }
 
@@ -831,7 +831,7 @@ export async function recordReestablishedSession(
  */
 export async function furtherSessionCheck(cx: CertStepContext, from: number): Promise<CheckRecord> {
     const dut = cx.devices.dut;
-    if (dut.flavor !== "matterjs") {
+    if (flavorFamily(dut.flavor) !== "matterjs") {
         return { type: "device-log", verdict: "unverified", accepted: `no pattern for a ${dut.flavor} device` };
     }
 

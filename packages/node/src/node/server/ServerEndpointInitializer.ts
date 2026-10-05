@@ -16,6 +16,7 @@ import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import { Environment, InternalError, Logger, MaybePromise } from "@matter/general";
 import { FabricManager } from "@matter/protocol";
 import { DescriptorServer } from "../../behaviors/descriptor/DescriptorServer.js";
+import { DeviceTypeConformanceService } from "./DeviceTypeConformanceService.js";
 
 const logger = Logger.get("BehaviorInit");
 
@@ -35,10 +36,12 @@ export class ServerEndpointInitializer extends EndpointInitializer {
 
         this.#store.endpointStores.assignNumber(endpoint);
 
-        // DescriptorServer is mandatory but we don't include it in generated device types
+        // Generated device types include DescriptorServer only where they specialize it
         if (!(DescriptorServer.id in endpoint.behaviors.supported)) {
             endpoint.behaviors.inject(DescriptorServer, undefined, false);
         }
+
+        endpoint.env.get(DeviceTypeConformanceService).constructing(endpoint);
     }
 
     async eraseDescendant(endpoint: Endpoint) {
@@ -50,7 +53,12 @@ export class ServerEndpointInitializer extends EndpointInitializer {
     }
 
     async deactivateDescendant(endpoint: Endpoint) {
-        if (!endpoint.lifecycle.hasId || endpoint.number === 0) {
+        if (!endpoint.lifecycle.hasId) {
+            return;
+        }
+
+        const number = endpoint.maybeNumber;
+        if (number === undefined || number === 0) {
             return;
         }
 
@@ -109,6 +117,10 @@ export class ServerEndpointInitializer extends EndpointInitializer {
         logger.warn(`Using fallback ID of ${id} for child of ${endpoint.owner}; assign ID to remove this warning`);
 
         return id;
+    }
+
+    override partsInitialized(endpoint: Endpoint) {
+        endpoint.env.get(DeviceTypeConformanceService).constructed(endpoint);
     }
 
     override behaviorsInitialized(agent: Agent): MaybePromise {

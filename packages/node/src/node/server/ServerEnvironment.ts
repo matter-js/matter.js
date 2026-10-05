@@ -7,6 +7,7 @@
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
@@ -22,6 +23,7 @@ import {
     StorageService,
 } from "@matter/general";
 import {
+    ClientSubscriptions,
     CertificateAuthority,
     FabricAuthority,
     FabricManager,
@@ -70,7 +72,11 @@ export namespace ServerEnvironment {
     export async function eraseCredentials(node: ServerNode) {
         const { env } = node;
 
-        env.delete(FabricAuthority);
+        if (env.owns(FabricAuthority)) {
+            await env.close(FabricAuthority);
+        } else {
+            env.delete(FabricAuthority);
+        }
 
         if (env.owns(CertificateAuthority)) {
             try {
@@ -95,6 +101,9 @@ export namespace ServerEnvironment {
 
         await env.close(FabricManager);
         await env.close(PeerSet);
+        if (env.owns(ClientSubscriptions)) {
+            await env.close(ClientSubscriptions);
+        }
         await env.close(ChangeNotificationService);
         await env.close(SessionManager);
         await env.close(OccurrenceManager);
@@ -166,6 +175,9 @@ class NodeServices {
 
             env.set(EndpointInitializer, new ServerEndpointInitializer(env));
             env.set(IdentityService, new IdentityService(node));
+            const conformance = new DeviceTypeConformanceService(node);
+            env.set(DeviceTypeConformanceService, conformance);
+            release.push({ on: "close", run: () => conformance.close() });
 
             const notifications = new ChangeNotificationService(node);
             env.set(ChangeNotificationService, notifications);

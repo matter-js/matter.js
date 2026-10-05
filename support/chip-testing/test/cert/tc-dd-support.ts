@@ -17,13 +17,20 @@ import {
     Verhoeff,
 } from "@matter/main";
 import { Base38, DiscoveryCapabilitiesBitmap, DiscoveryCapabilitiesSchema } from "@matter/main/types";
-import type { CertNodeRef, CertStepContext, CheckRecord, CommissioningTarget } from "@matter/testing";
+import type {
+    CertNodeRef,
+    CertStepContext,
+    CheckRecord,
+    CommissioningTarget,
+    OnboardingPayloadFields,
+} from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
-import { forFlavor, resolveControllerImplementation } from "@matter/testing";
+import { flavorFamily, forFlavor, resolveControllerImplementation } from "@matter/testing";
 import { ChipToolCommandError } from "../../src/cert/ChipToolControllerAdapter.js";
 import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import {
+    attempt,
     CertCleanupError,
     CommissionedRefs,
     expectDeviceLog,
@@ -35,8 +42,10 @@ import {
     readOwnFabricIndex,
     record,
     recordAll,
+    RecordedCheck,
     removeFabricSucceeded,
     settleWithin,
+    withChecks,
 } from "./tc-support.js";
 
 /**
@@ -206,14 +215,31 @@ export async function thQrPayload(th: CertDevice, from = 0): Promise<string> {
     return payload;
 }
 
+/** What a per-transport leg's payload must offer: the capability that defines the leg, over a flow. */
+export interface PayloadOffering {
+    capability: keyof typeof DiscoveryCapabilitiesBitmap;
+    /** Defaults to the standard flow. */
+    flowType?: number;
+}
+
 /**
  * Records what the DUT read out of `payload` and whether the setup code it read is the TH's own. The
  * parse is the DUT's, not the step's: a step that decoded the payload itself would pass against a
  * controller that cannot read one at all.
+ *
+ * `offering` adds a second check on the same parse, for a scan step of a plan with per-transport legs:
+ * the capability is what tells one leg from another, and the flow is what such a plan is named for.
+ * Left to the prose, every leg's scan step passes on the same evidence — that the DUT read some
+ * payload's discriminator and passcode — and a step handed the wrong leg's payload still passes.
  */
-export async function recordParse(cx: CertStepContext, payload: string, th?: CertDevice): Promise<void> {
-    th ??= theTh(cx);
-    let parsed;
+export async function recordParse(
+    cx: CertStepContext,
+    payload: string,
+    options: { th?: CertDevice; offering?: PayloadOffering } = {},
+): Promise<void> {
+    const th = options.th ?? theTh(cx);
+    const { offering } = options;
+    let parsed: OnboardingPayloadFields;
     try {
         parsed = await cx.controllers.dut.parseQrPayload(payload);
     } catch (e) {
@@ -221,23 +247,32 @@ export async function recordParse(cx: CertStepContext, payload: string, th?: Cer
         throw e;
     }
 
+    const checks: RecordedCheck[] = [
+        { check: () => setupCodeCheck(payload, parsed, th), what: "Onboarding payload parse" },
+    ];
+    if (offering !== undefined) {
+        const { capability, flowType = STANDARD_FLOW } = offering;
+        checks.push({
+            check: () => offeringCheck(payload, parsed, capability, flowType),
+            what: `Payload offers ${capability} over ${flowName(flowType)}`,
+        });
+    }
+    await recordAll(cx, checks);
+}
+
+function setupCodeCheck(payload: string, parsed: OnboardingPayloadFields, th: CertDevice): CheckRecord {
     const matches =
         parsed.discriminator === th.commissioning.discriminator && parsed.passcode === th.commissioning.passcode;
-
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: matches ? "pass" : "fail",
-            detail:
-                `DUT read the ${payload.length}-character payload as version=${parsed.version} ` +
-                `vendorId=${parsed.vendorId} productId=${parsed.productId} flowType=${parsed.flowType} ` +
-                `discoveryCapabilities=0b${parsed.discoveryCapabilities.toString(2).padStart(8, "0")} ` +
-                `discriminator=${parsed.discriminator} passcode=${parsed.passcode}; the TH's own setup code is ` +
-                `discriminator=${th.commissioning.discriminator} passcode=${th.commissioning.passcode}`,
-        },
-        "Onboarding payload parse",
-    );
+    return {
+        type: "response",
+        verdict: matches ? "pass" : "fail",
+        detail:
+            `DUT read the ${payload.length}-character payload as version=${parsed.version} ` +
+            `vendorId=${parsed.vendorId} productId=${parsed.productId} flowType=${parsed.flowType} ` +
+            `discoveryCapabilities=0b${parsed.discoveryCapabilities.toString(2).padStart(8, "0")} ` +
+            `discriminator=${parsed.discriminator} passcode=${parsed.passcode}; the TH's own setup code is ` +
+            `discriminator=${th.commissioning.discriminator} passcode=${th.commissioning.passcode}`,
+    };
 }
 
 const QR_PREFIX = "MT:";
@@ -298,22 +333,13 @@ export function flowName(flowType: number): string {
     return title === undefined ? `flow ${flowType}` : `the ${title.toLowerCase()} flow`;
 }
 
-/**
- * Records that the DUT reads `payload` as offering `capability` over the commissioning flow `flowType`
- * denotes, which defaults to the standard one.
- *
- * The capability is what tells one leg of a per-transport plan from another, and the flow is what such
- * a plan is named for, so both belong in the verdict. Left to the prose, every leg's scan step passes
- * on the same evidence — that the DUT read some payload's discriminator and passcode — and a step
- * handed the wrong leg's payload still passes.
- */
-export async function recordPayloadOffering(
-    cx: CertStepContext,
+/** Whether the DUT read `payload` as offering `capability` over the commissioning flow `flowType`. */
+function offeringCheck(
     payload: string,
+    parsed: OnboardingPayloadFields,
     capability: keyof typeof DiscoveryCapabilitiesBitmap,
-    flowType = STANDARD_FLOW,
-): Promise<void> {
-    const parsed = await cx.controllers.dut.parseQrPayload(payload);
+    flowType: number,
+): CheckRecord {
     const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
     const names = Object.entries(offered)
         .filter(([, set]) => set)
@@ -327,20 +353,16 @@ export async function recordPayloadOffering(
         wrong.push(`carries flowType ${parsed.flowType} rather than ${flowName(flowType)}`);
     }
 
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: wrong.length ? "fail" : "pass",
-            detail:
-                `DUT read ${payload} as flowType=${parsed.flowType} offering discovery over ` +
-                `${names.join(", ") || "nothing"} (bitmask 0b${parsed.discoveryCapabilities
-                    .toString(2)
-                    .padStart(8, "0")})` +
-                (wrong.length ? `; the payload ${wrong.join(" and ")}` : ""),
-        },
-        `Payload offers ${capability} over ${flowName(flowType)}`,
-    );
+    return {
+        type: "response",
+        verdict: wrong.length ? "fail" : "pass",
+        detail:
+            `DUT read ${payload} as flowType=${parsed.flowType} offering discovery over ` +
+            `${names.join(", ") || "nothing"} (bitmask 0b${parsed.discoveryCapabilities
+                .toString(2)
+                .padStart(8, "0")})` +
+            (wrong.length ? `; the payload ${wrong.join(" and ")}` : ""),
+    };
 }
 
 /**
@@ -365,26 +387,37 @@ export async function recordDiscoveryCapabilityAbsent(
     // what keeps the capabilities out of the comparison without asserting the payload's own value
     // against itself.
     const { discoveryCapabilities: _capabilities, ...unchanged } = qrPayloadFields(unchangedFrom);
-    record(cx, checkGeneratedPayload(payload, unchanged), `${what}: derived from step 1's payload`);
 
-    const parsed = await cx.controllers.dut.parseQrPayload(payload);
-    const offered = DiscoveryCapabilitiesSchema.decode(parsed.discoveryCapabilities);
-    const names = Object.entries(offered)
-        .filter(([, set]) => set)
-        .map(([name]) => name);
-
-    record(
-        cx,
+    await recordAll(cx, [
         {
-            type: "response",
-            verdict: offered[capability] ? "fail" : "pass",
-            detail:
-                `DUT read ${payload} as offering discovery over ${names.join(", ") || "nothing"} ` +
-                `(bitmask 0b${parsed.discoveryCapabilities.toString(2).padStart(8, "0")}), so ${capability} is ` +
-                `${offered[capability] ? "offered" : "not offered"}`,
+            check: () => checkGeneratedPayload(payload, unchanged),
+            what: `${what}: derived from step 1's payload`,
         },
-        what,
-    );
+        {
+            check: async () => {
+                const parsed = await attempt(
+                    () => cx.controllers.dut.parseQrPayload(payload),
+                    () => "",
+                );
+                if (!parsed.ok) {
+                    return parsed.check;
+                }
+                const offered = DiscoveryCapabilitiesSchema.decode(parsed.value.discoveryCapabilities);
+                const names = Object.entries(offered)
+                    .filter(([, set]) => set)
+                    .map(([name]) => name);
+                return {
+                    type: "response",
+                    verdict: offered[capability] ? "fail" : "pass",
+                    detail:
+                        `DUT read ${payload} as offering discovery over ${names.join(", ") || "nothing"} ` +
+                        `(bitmask 0b${parsed.value.discoveryCapabilities.toString(2).padStart(8, "0")}), so ${capability} is ` +
+                        `${offered[capability] ? "offered" : "not offered"}`,
+                };
+            },
+            what,
+        },
+    ]);
 }
 
 /** Bit offset and length of § 5.1.3.1 Table 59's fields inside the payload's fixed structure. */
@@ -1148,12 +1181,13 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
         detail: `DUT removed its fabric (index ${fabricIndex}) from the TH, giving up node ${ref}`,
     });
 
-    const removed = await expectDeviceLog(th.log, th.flavor, removeFabricSucceeded(fabricIndex), from, LOG_TIMEOUT);
-    const expired = await expectDeviceLog(th.log, th.flavor, fabricSessionsEnded(fabricIndex), from, LOG_TIMEOUT);
-    await recordAll(cx, [
-        { check: () => removed.check, what: "TH reported a successful fabric removal" },
-        { check: () => expired.check, what: "TH ended the DUT's fabric's sessions" },
-    ]);
+    await withChecks(cx, async checks => {
+        const removed = await expectDeviceLog(th.log, th.flavor, removeFabricSucceeded(fabricIndex), from, LOG_TIMEOUT);
+        checks.push({ check: () => removed.check, what: "TH reported a successful fabric removal" });
+
+        const expired = await expectDeviceLog(th.log, th.flavor, fabricSessionsEnded(fabricIndex), from, LOG_TIMEOUT);
+        checks.push({ check: () => expired.check, what: "TH ended the DUT's fabric's sessions" });
+    });
 
     return since;
 }
@@ -1165,7 +1199,8 @@ export async function recordUnpair(cx: CertStepContext, commissioned: Commission
  *
  * A chip TH needs a factory reset: removing its last fabric leaves it re-advertising with
  * `commissioning mode 0` (`kDisabled`), which publishes no commissionable service. A matter.js
- * device returns on its own, and erasing it would restart a TH that needs nothing.
+ * device returns on its own, and erasing it would restart a TH that needs nothing. A TH of neither
+ * family has no known means, so this throws before resetting or probing it.
  *
  * **The device's line is what witnesses the transition; the mDNS probe corroborates it.** A probe on
  * its own is answered by any live record for the TH's discriminator, including one cached before it
@@ -1194,6 +1229,10 @@ export async function recordBackInCommissioningMode(
     } = {},
 ): Promise<void> {
     const th = options.th ?? theTh(cx);
+    const family = flavorFamily(th.flavor);
+    if (family === undefined) {
+        throw new ImplementationError(`No means is known to return a ${th.flavor} TH to commissioning mode`);
+    }
     const {
         what = "TH advertising as commissionable again",
         // Bound to this device rather than to the plan's single-device role, which a multi-device
@@ -1203,7 +1242,7 @@ export async function recordBackInCommissioningMode(
     } = options;
     const from = since;
 
-    if (th.flavor !== "matterjs") {
+    if (family === "chip") {
         await th.backchannel({ name: "factoryReset" });
 
         // A chip app's start() returns when the process is up, not when the app is, so without this
@@ -1303,7 +1342,7 @@ async function commissionByTarget(
     // A commissioner that ignored the code and onboarded whatever it could find writes the same
     // completion line as one that read it, so the code has to be evidence in its own right
     if (target.qrPairingCode !== undefined) {
-        await recordParse(cx, target.qrPairingCode, th);
+        await recordParse(cx, target.qrPairingCode, { th });
     }
 
     // Settled, because the line this waits for names no fabric on either flavor: a completion still

@@ -53,7 +53,7 @@ import { Identity } from "@matter/general";
  * request or a read request. Note that some of these attributes may be missing for the clusters not implemented on the
  * endpoint due to optionality.
  *
- * @see {@link MatterSpecification.v16.Device} § 13.6
+ * @see {@link MatterSpecification.v161.Device} § 13.6
  */
 export interface LaundryDryerDevice extends Identity<typeof LaundryDryerDeviceDefinition> {}
 

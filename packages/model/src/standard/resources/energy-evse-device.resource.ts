@@ -61,8 +61,8 @@ Resource.add({
             children: [{
                 tag: "requirement", name: "DeviceEnergyManagement",
                 children: [
-                    { tag: "requirement", name: "POWERFORECASTREPORTING", xref: "device§14.1.6.2" },
-                    { tag: "requirement", name: "POWERADJUSTMENT", xref: "device§14.1.6.2" }
+                    { tag: "requirement", name: "PFR", xref: "device§14.1.6.2" },
+                    { tag: "requirement", name: "PA", xref: "device§14.1.6.2" }
                 ]
             }]
         },

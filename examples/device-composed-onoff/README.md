@@ -11,16 +11,16 @@ A composed device is one device with multiple different device types combined. T
 
 For general documentation about the CLI parameters or environment variables that can be used for matter.js please refer to the [Examples README](../../../examples/README.md#cli-usage).
 
-The parameters are like with the bridge but with an added "-type light/socket" parameter to define the type of the composed device itself.
+The parameters are the same as for the bridge example: `--num=N` sets the number of devices (default 2), and `--typeX=socket` exposes device number X as a socket instead of a light.
 
 ```bash
-matter-composeddevice --type=socket --num=2 --on1="echo 255 > /sys/class/leds/led1/brightness" --off1="echo 0 > /sys/class/leds/led1/brightness" --type2=socket --on2="echo 255 > /sys/class/leds/led2/brightness" --off2="echo 0 > /sys/class/leds/led2/brightness"
+matter-composeddevice --type1=socket --num=2 --on1="echo 255 > /sys/class/leds/led1/brightness" --off1="echo 0 > /sys/class/leds/led1/brightness" --on2="echo 255 > /sys/class/leds/led2/brightness" --off2="echo 0 > /sys/class/leds/led2/brightness"
 ```
 
 or when starting from TS files:
 
 ```bash
-npm run matter-composeddevice -- --type=socket --num=2 --on1="echo 255 > /sys/class/leds/led1/brightness" --off1="echo 0 > /sys/class/leds/led1/brightness" --type2=socket --on2="echo 255 > /sys/class/leds/led2/brightness" --off2="echo 0 > /sys/class/leds/led2/brightness"
+npm run matter-composeddevice -- --type1=socket --num=2 --on1="echo 255 > /sys/class/leds/led1/brightness" --off1="echo 0 > /sys/class/leds/led1/brightness" --on2="echo 255 > /sys/class/leds/led2/brightness" --off2="echo 0 > /sys/class/leds/led2/brightness"
 ```
 (Please note the "--" to separate commandline parameters between the npm run and the executed script.
 

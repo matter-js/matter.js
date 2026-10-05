@@ -508,7 +508,7 @@ export class ComponentGenerator {
         struct.atom(`constructor(values?: Partial<${name}>)`);
 
         model.members.forEach(field => {
-            if (field.isDisallowed || (field.isDeprecated && !field.type)) {
+            if (field.isDisallowed || ((field.isDeprecated || field.isObsolete) && !field.type)) {
                 return;
             }
 
@@ -517,7 +517,7 @@ export class ComponentGenerator {
                 fieldType += " | null";
             }
             const optional = !field.mandatory ? "?" : "";
-            struct.atom(`${field.propertyName}${optional}: ${fieldType}`).document(documentationOf(field));
+            struct.atom(`${asObjectKey(field.propertyName)}${optional}: ${fieldType}`).document(documentationOf(field));
         });
     }
 
@@ -562,7 +562,7 @@ export class ComponentGenerator {
             }
 
             const fieldName = child.propertyName;
-            intf.atom(`${fieldName}?: ${fieldType}`).document(child);
+            intf.atom(`${asObjectKey(fieldName)}?: ${fieldType}`).document(child);
         }
     }
 
