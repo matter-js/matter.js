@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Logger } from "@matter/general";
+import { Instant, InternalError, Logger } from "@matter/general";
 import { Environment, MockStorageService, NodeId } from "@matter/main";
+import { NetworkProfiles } from "@matter/protocol";
 import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
 import { mkdirSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -122,11 +123,20 @@ export class ControllerTestInstance extends TestInstance {
                 return new StorageBackendAsyncJsonFile(storageName);
             });
 
+        // Peers stay disabled, so their medium is never learned; chip-tool, which the YAML steps are timed against,
+        // does not space its exchanges apart.
+        const removeUnknownPeerPacing = (env: Environment) => {
+            const profiles = new NetworkProfiles();
+            profiles.defaults = { unknown: { delay: Instant } };
+            env.set(NetworkProfiles, profiles);
+        };
+
         // Each developer gets his own derived environment because should have it's own storage
         // TODO Enhance Controller to allow multiple Fabrics and then each identity is "just" an own Fabric
         //      But Let's do that later with ServerNode. For now it works like this.
         const envAlpha = new Environment(`${this.id}-alpha`, this.#env);
         initStorageService(envAlpha);
+        removeUnknownPeerPacing(envAlpha);
 
         const tcpEnabled = process.env.TEST_PREFER_TCP === "1";
 
@@ -150,6 +160,7 @@ export class ControllerTestInstance extends TestInstance {
 
         const envBeta = new Environment(`${this.id}-beta`, this.#env);
         initStorageService(envBeta);
+        removeUnknownPeerPacing(envBeta);
         this.#controllerInstances.set("beta", {
             env: envBeta,
             handler: new LegacyControllerCommandHandler(
@@ -170,6 +181,7 @@ export class ControllerTestInstance extends TestInstance {
 
         const envGamma = new Environment(`${this.id}-gamma`, this.#env);
         initStorageService(envGamma);
+        removeUnknownPeerPacing(envGamma);
         this.#controllerInstances.set("gamma", {
             env: envGamma,
             handler: new LegacyControllerCommandHandler(
