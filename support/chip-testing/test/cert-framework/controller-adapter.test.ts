@@ -70,6 +70,9 @@ const FABRICS_ATTRIBUTE = OPERATIONAL_CREDENTIALS.attributes.require("fabrics");
 const IDENTIFY_TIME_ATTRIBUTE = IDENTIFY.attributes.require("identifyTime");
 const START_UP_EVENT = BASIC_INFORMATION.events.require("startUp");
 const STATE_CHANGE_EVENT = BOOLEAN_STATE.events.require("stateChange");
+const ACCESS_CONTROL = Matter.clusters.require("AccessControl");
+const ACL_ATTRIBUTE = ACCESS_CONTROL.attributes.require("acl");
+const ACL_CHANGED_EVENT = ACCESS_CONTROL.events.require("accessControlEntryChanged");
 
 async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
     try {
@@ -1281,6 +1284,37 @@ describe("InProcessControllerAdapter ICD client", () => {
         expect(adapter.node(ref).icdClient()).equal(icd);
 
         await adapter.node(ref).decommission();
+    });
+
+    // The ICD device is used because its client can stop the controller's subscription, leaving a read as the
+    // only way an event reaches the controller.
+    it("does not report an event to an observer that only a read brought in", async function () {
+        this.timeout(60_000);
+
+        const ref = await adapter.commission({ passcode: 20202021, discriminator: 3840 });
+        const node = adapter.node(ref);
+        const path = { endpoint: 0, cluster: ACCESS_CONTROL.id, event: ACL_CHANGED_EVENT.id };
+        const aclPath = { endpoint: 0, cluster: ACCESS_CONTROL.id, attribute: ACL_ATTRIBUTE.id };
+
+        const updates = new Array<EventReadEntry>();
+        const seed = await node.observeEvents([path], { onUpdate: event => updates.push(event) });
+        const seen = new Set(seed.map(({ eventNumber }) => eventNumber));
+
+        await node.icdClient().stopSubscription();
+        await new Promise(resolve => setTimeout(resolve, 1_000));
+
+        const acl = await node.readAttribute(aclPath);
+        if (!Array.isArray(acl)) {
+            throw new InternalError(`ACL read back as ${typeof acl}`);
+        }
+        const viewer = { privilege: 1, authMode: 2, subjects: [0x1234n], targets: null };
+        await node.writeAttribute(aclPath, [...acl, viewer]);
+
+        const fresh = (await node.readEvents([path])).filter(({ eventNumber }) => !seen.has(eventNumber));
+        expect(fresh).not.empty;
+        expect(updates).to.be.empty;
+
+        await node.decommission();
     });
 
     it("unregisters, refuses without a registration, and requests stay-active", async function () {
