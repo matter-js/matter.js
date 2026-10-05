@@ -19,7 +19,7 @@ export class EndpointLifecycle {
     #isInstalled = false;
     #isReady = false;
     #isPartsReady = false;
-    #isDestroying = false;
+    #destructionBegun = false;
     #hasId = false;
     #hasNumber = false;
     #installed = Observable<[]>(error => this.emitError("installed", error));
@@ -126,16 +126,16 @@ export class EndpointLifecycle {
      * nothing to answer with yet, and a resetting, crashed or closing one has nothing left.
      */
     get isReadable() {
-        return this.#isReady && !this.#isDestroying && this.#endpoint.construction.status === Lifecycle.Status.Active;
+        return this.#isReady && this.#endpoint.construction.status === Lifecycle.Status.Active;
     }
 
     /**
-     * Has the {@link Endpoint}'s destruction begun or its construction crashed, so it will not become readable?  A crashed
-     * endpoint may still be restarted.  Unlike "not {@link isReadable}", this is false while the endpoint initializes
-     * or resets outside of a deletion.
+     * Has the {@link Endpoint} begun closing or deleting, or has its construction crashed?  A closing or deleted endpoint
+     * does not become readable again; a crashed one may be restarted.  Unlike "not {@link isReadable}", this is false
+     * while the endpoint initializes or while a reset runs outside of a deletion.
      */
     get isGone() {
-        if (this.#isDestroying) {
+        if (this.#destructionBegun) {
             return true;
         }
         const status = this.#endpoint.construction.status;
@@ -210,7 +210,7 @@ export class EndpointLifecycle {
 
             case EndpointLifecycle.Change.Destroying:
                 this.#isReady = false;
-                this.#isDestroying = true;
+                this.#destructionBegun = true;
                 break;
 
             case EndpointLifecycle.Change.Ready:

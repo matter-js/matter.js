@@ -90,7 +90,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         super(owner);
 
         if (!owner.env.has(ClientNodeFactory)) {
-            owner.env.set(ClientNodeFactory, new Factory(this));
+            owner.env.set(
+                ClientNodeFactory,
+                new Factory(this, node => this.#fabricOperations.get(node) === "decommission"),
+            );
         }
 
         owner.env.applyTo(InteractionServer, this.#configureInteractionServer.bind(this));
@@ -537,20 +540,19 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
      *
-     * Rejects with {@link CommissioningError} if the node is being deleted or has crashed, or if a commission or
-     * decommission attempt on it is already in progress (parallel attempts on the same {@link ClientNode} would race
-     * on device-side state).  Either way the attempt fails fast instead of crashing later when the closed backing is
-     * accessed.
+     * Rejects with {@link CommissioningError} if the node is closed, being deleted or crashed, so the attempt fails fast
+     * instead of crashing later when the closed backing is accessed, or if a commission or decommission attempt on it
+     * is already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
      */
     async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
         return this.#runFabricOperation(node, "commission", CommissioningError, fn);
     }
 
     /**
-     * Run a decommission attempt on {@link node} while protecting the node from the expired-node cull and from the
-     * deletion a leave event triggers, so only the decommission or a factory reset deletes the node.
+     * Run a decommission attempt on {@link node}.  While it runs, the expired-node cull and leave events do not delete
+     * the node, and discovery does not hand it out.
      *
-     * Rejects with {@link ImplementationError} if the node is being deleted or has crashed, or if a commission or
+     * Rejects with {@link ImplementationError} if the node is closed, being deleted or crashed, or if a commission or
      * decommission attempt on it is already in progress.
      */
     async runDecommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
@@ -570,7 +572,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         await this.#mutex.produce(async () => {
             if (node.lifecycle.isGone) {
                 throw new errorType(
-                    `Cannot ${operation} ${node.toString()} because it is being deleted or has crashed`,
+                    `Cannot ${operation} ${node.toString()} because it is closed, being deleted or crashed`,
                 );
             }
             const running = this.#fabricOperations.get(node);
@@ -874,6 +876,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
 class Factory extends ClientNodeFactory {
     #owner: Peers;
+    #isDecommissioning: (node: ClientNode) => boolean;
     #groupIdCounter = 0;
 
     /**
@@ -881,9 +884,10 @@ class Factory extends ClientNodeFactory {
      */
     #descriptorsUnderConstruction = new WeakMap<ClientNode, RemoteDescriptor>();
 
-    constructor(owner: Peers) {
+    constructor(owner: Peers, isDecommissioning: (node: ClientNode) => boolean) {
         super();
         this.#owner = owner;
+        this.#isDecommissioning = isDecommissioning;
     }
 
     create(options: ClientNode.Options, peerAddress?: PeerAddress) {
@@ -921,6 +925,9 @@ class Factory extends ClientNodeFactory {
     find(descriptor: RemoteDescriptor) {
         for (const node of this.#owner) {
             if (!node.lifecycle.isReadable && node.construction.status !== Lifecycle.Status.Initializing) {
+                continue;
+            }
+            if (this.#isDecommissioning(node)) {
                 continue;
             }
             const known = this.#descriptorsUnderConstruction.get(node) ?? node.state.commissioning;

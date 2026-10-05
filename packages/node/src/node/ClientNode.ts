@@ -145,10 +145,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
     /**
      * Add this node to a fabric.
+     *
+     * Rejects with {@link CommissioningError} if the node is closed, being deleted or crashed, or if a commission or
+     * decommission of it is already in progress.
      */
     async commission(options: CommissioningClient.CommissioningOptions) {
         if (this.lifecycle.isGone) {
-            throw new CommissioningError(`Cannot commission ${this} because it is being deleted or has crashed`);
+            throw new CommissioningError(`Cannot commission ${this} because it is closed, being deleted or crashed`);
         }
         await this.owner.peers.runCommissioning(this, () =>
             this.act("commission", agent => agent.commissioning.commission(options)),
@@ -158,12 +161,14 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Remove this node from the fabric (if commissioned) and locally.
      * This method tries to communicate with the device to decommission it properly and will fail if the device is
-     * unreachable.  If the device does not confirm the removal, the node is kept and stays usable.
+     * unreachable.  If the device does not confirm the removal, the node is kept and stays usable.  Rejects with
+     * {@link ImplementationError} if the node is closed, being deleted or crashed, or if a commission or decommission of
+     * it is already in progress.
      * If you cannot reach the device, use {@link delete} instead.
      */
     async decommission() {
         if (this.lifecycle.isGone) {
-            throw new ImplementationError(`Cannot decommission ${this} because it is being deleted or has crashed`);
+            throw new ImplementationError(`Cannot decommission ${this} because it is closed, being deleted or crashed`);
         }
         await this.owner.peers.runDecommissioning(this, async () => {
             if (this.lifecycle.isCommissioned) {
@@ -306,6 +311,10 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         actor?: (agent: Agent.Instance<ClientNode.RootEndpoint>) => MaybePromise<R>,
     ): MaybePromise<R> {
         if (this.construction.status === Lifecycle.Status.Inactive) {
+            // Between the reset and the close of a deletion; restarting would revive a node that is going away
+            if (this.lifecycle.isGone) {
+                throw new ImplementationError(`Cannot act on ${this} because it is closing or being deleted`);
+            }
             this.construction.start();
         }
 

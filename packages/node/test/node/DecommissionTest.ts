@@ -7,10 +7,8 @@
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
-import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
-import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
-import { ImplementationError, Lifecycle, MaybePromise, Minutes, Seconds } from "@matter/general";
+import { ImplementationError, Lifecycle, Minutes, Seconds } from "@matter/general";
 import { CommissioningError, PeerMessageMissingError, PeerSet, PeerUnresponsiveError } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
@@ -90,6 +88,25 @@ describe("Decommission", () => {
         expect(peer1.lifecycle.isReady).is.true;
         expect(peer1.lifecycle.isReadable).is.true;
         expect(peer1.lifecycle.isGone).is.false;
+    });
+
+    it("accepts another decommission after a failed one", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const restore = await patchRemoveFabric(peer1, async function () {
+            throw new PeerUnresponsiveError(Seconds(11));
+        });
+
+        try {
+            await expect(MockTime.resolve(peer1.decommission())).rejectedWith(PeerUnresponsiveError);
+            await expect(MockTime.resolve(peer1.decommission())).rejectedWith(PeerUnresponsiveError);
+        } finally {
+            restore();
+        }
+
+        expect(controller.peers.size).equals(1);
     });
 
     it("removes the node when a matching leave event arrives even if removeFabric rejects", async () => {
@@ -230,7 +247,7 @@ describe("Decommission", () => {
 
         await expect(MockTime.resolve(peer1.decommission())).rejectedWith(
             ImplementationError,
-            /because it is being deleted or has crashed/,
+            /because it is closed, being deleted or crashed/,
         );
         await MockTime.resolve(deleting);
     });
@@ -245,7 +262,7 @@ describe("Decommission", () => {
         peer1.eventsOf(BasicInformationClient).leave.emit({ fabricIndex }, LocalActorContext.ReadOnly);
         await expect(MockTime.resolve(peer1.decommission())).rejectedWith(
             ImplementationError,
-            /because it is being deleted or has crashed/,
+            /because it is closed, being deleted or crashed/,
         );
 
         expect(controller.peers.size).equals(0);
@@ -260,7 +277,7 @@ describe("Decommission", () => {
 
         await expect(MockTime.resolve(peer1.decommission())).rejectedWith(
             ImplementationError,
-            /because it is being deleted or has crashed/,
+            /because it is closed, being deleted or crashed/,
         );
     });
 
@@ -285,11 +302,47 @@ describe("Decommission", () => {
             );
         } finally {
             release();
-            await MockTime.resolve(decommissioning);
-            restore();
+            try {
+                await MockTime.resolve(decommissioning);
+            } finally {
+                restore();
+            }
         }
 
         expect(controller.peers.size).equals(0);
+    });
+
+    it("does not hand out a node whose decommission is running", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const { deviceIdentifier } = peer1.state.commissioning;
+        expect(deviceIdentifier).not.undefined;
+
+        let release!: () => void;
+        const released = new Promise<void>(resolve => (release = resolve));
+        let removing!: () => void;
+        const removalSent = new Promise<void>(resolve => (removing = resolve));
+        const restore = await patchRemoveFabric(peer1, async function () {
+            removing();
+            await released;
+            throw new PeerMessageMissingError(Seconds(11));
+        });
+
+        const decommissioning = peer1.decommission();
+        try {
+            await MockTime.resolve(removalSent);
+            const found = await MockTime.resolve(controller.peers.forDescriptor({ deviceIdentifier }));
+            expect(found).not.equals(peer1);
+        } finally {
+            release();
+            try {
+                await MockTime.resolve(decommissioning);
+            } finally {
+                restore();
+            }
+        }
     });
 
     it("rejects a decommission while a commission is in progress", async () => {
@@ -324,7 +377,7 @@ describe("Decommission", () => {
         const { passcode } = device.state.commissioning;
         await expect(MockTime.resolve(peer1.commission({ passcode }))).rejectedWith(
             CommissioningError,
-            /because it is being deleted or has crashed/,
+            /because it is closed, being deleted or crashed/,
         );
     });
 
@@ -373,33 +426,31 @@ describe("Decommission", () => {
         await MockTime.resolve(deleting);
     });
 
-    it("does not report a node readable that restarts while it is deleted", async () => {
+    it("rejects acting on a node whose deletion has begun instead of restarting it", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();
 
         const peer1 = controller.peers.get("peer1")!;
-        let acting: MaybePromise | undefined;
-        const readableWhileActive = new Array<boolean>();
-        const reportedReadable = new Array<Endpoint>();
-        controller.env.get(ChangeNotificationService).change.on(change => {
-            if (change.kind === "readable") {
-                reportedReadable.push(change.endpoint);
-            }
-        });
+        let actError: unknown;
+        let acted = false;
+        const statuses = new Array<Lifecycle.Status>();
         peer1.construction.change.on(status => {
-            if (status === Lifecycle.Status.Inactive && acting === undefined) {
-                // An interaction between delete()'s reset and its close restarts the node
-                acting = peer1.act(() => {});
-            }
-            if (status === Lifecycle.Status.Active) {
-                readableWhileActive.push(peer1.lifecycle.isReadable);
+            statuses.push(status);
+            if (status === Lifecycle.Status.Inactive && !acted) {
+                acted = true;
+                try {
+                    peer1.act(() => {});
+                } catch (error) {
+                    actError = error;
+                }
             }
         });
 
         await MockTime.resolve(peer1.delete());
-        await MockTime.resolve(Promise.resolve(acting));
 
-        expect(readableWhileActive).deep.equals([false]);
-        expect(reportedReadable).not.include(peer1);
+        expect(acted).is.true;
+        expect(actError).instanceOf(ImplementationError);
+        expect(statuses).not.include(Lifecycle.Status.Initializing);
+        expect(controller.peers.size).equals(0);
     });
 });
