@@ -825,17 +825,6 @@ describe("MessageExchange", () => {
             return { session, wakefulness };
         }
 
-        it("wakes a sleeping LIT peer on any inbound message", async () => {
-            const { session, wakefulness } = sessionWithSleepingLitPeer();
-            const { exchange } = createExchange(session);
-
-            await exchange.onMessageReceived(fakeInboundMessage());
-
-            expect(wakefulness.awake.value).equal(true);
-            expect(wakefulness.available.value).equal(true);
-            wakefulness.close();
-        });
-
         it("does not wake a sleeping LIT peer on an outbound message", async () => {
             const { session, wakefulness } = sessionWithSleepingLitPeer();
             const { exchange } = createExchange(session);

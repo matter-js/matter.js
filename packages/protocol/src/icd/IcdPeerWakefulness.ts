@@ -25,11 +25,12 @@ import {
  *   - {@link awake} — send-now. Window length is `activeModeThreshold`. Any inbound signal re-arms it; a StayActive
  *     promise extends it; expiry clears it.
  *   - {@link available} — not-offline. Longer window whose length depends on how the peer currently signals:
- *     unsubscribed it is `idleModeDuration + CHECK_IN_MARGIN` — Check-Ins are unreliable (sessionless, unacknowledged,
- *     no MRP backoff), so only device scheduling jitter needs slack. Subscribed the peer suppresses Check-Ins and
- *     re-arms this window via reports, which are reliable (MRP) and can arrive as late as the subscription's own
- *     liveness timeout, so the window becomes `reportInterval + reportMargin` (injected via {@link setTimings} to
- *     mirror that timeout). Expiry means an expected Check-In (or report) was missed, i.e. the peer is offline.
+ *     unsubscribed it is `idleModeDuration + activeModeThreshold + CHECK_IN_MARGIN` — the peer stays active for
+ *     `activeModeThreshold` after its last exchange before its idle period starts, and Check-Ins are unreliable
+ *     (sessionless, unacknowledged, no MRP backoff), so beyond that only device scheduling jitter needs slack. Subscribed the peer suppresses Check-Ins and re-arms this window via reports, which are reliable (MRP)
+ *     and can arrive as late as the subscription's own liveness timeout, so the window becomes
+ *     `reportInterval + reportMargin` (injected via {@link setTimings} to mirror that timeout). Expiry means an
+ *     expected Check-In (or report) was missed, i.e. the peer is offline.
  *
  * Invariant: `awake` implies `available` — a signal refreshes both. A non-LIT peer (`requiresAwait === false`) is
  * always awake and available with no timers.
@@ -53,7 +54,7 @@ export class IcdPeerWakefulness {
     #activeModeThreshold = IcdPeerWakefulness.DEFAULT_SAT;
     #idleModeDuration = IcdPeerWakefulness.DEFAULT_IDLE;
     #reportMargin?: Duration;
-    #activeReportInterval?: Duration;
+    readonly #reportIntervals = new Map<object, Duration>();
 
     #awakeUntil = Timestamp(0);
     #availableUntil = Timestamp(0);
@@ -124,22 +125,40 @@ export class IcdPeerWakefulness {
     }
 
     /**
-     * Inform the availability window of the active subscription's negotiated report cadence (its `maxInterval`), or
-     * pass `undefined` when no subscription is held so the window reverts to the Check-In cadence. While subscribed the
-     * peer suppresses Check-Ins and re-arms availability via reports instead; those are reliable (MRP), so the window
-     * is sized to mirror the subscription's own liveness timeout (see {@link setTimings} `reportMargin`). A running
-     * window is extended (never truncated) so a report arriving as late as the mirrored timeout does not lapse it;
-     * clearing leaves the running window to expire on its own so a genuine missed report still fires
-     * {@link checkInMissed}.
+     * Inform the availability window of a subscription's negotiated report cadence (its `maxInterval`), or pass
+     * `undefined` when that subscription is no longer held. While subscribed the peer suppresses Check-Ins and re-arms
+     * availability via reports instead; those are reliable (MRP), so the window is sized to mirror the subscription's
+     * own liveness timeout (see {@link setTimings} `reportMargin`). With several subscriptions the longest cadence
+     * applies; with none the window reverts to the Check-In cadence. A running window is extended (never truncated)
+     * so a report arriving as late as the mirrored timeout does not lapse it; a shorter cadence leaves the running
+     * window to expire on its own so a genuine missed report still fires {@link checkInMissed}.
+     *
+     * @param subscription identifies the subscription; each one reports its own cadence
      */
-    setActiveReportInterval(interval: Duration | undefined) {
-        if (interval === this.#activeReportInterval) {
+    setActiveReportInterval(subscription: object, interval: Duration | undefined) {
+        const before = this.#activeReportInterval;
+        if (interval === undefined) {
+            this.#reportIntervals.delete(subscription);
+        } else {
+            this.#reportIntervals.set(subscription, interval);
+        }
+        const after = this.#activeReportInterval;
+        if (after === before) {
             return;
         }
-        this.#activeReportInterval = interval;
-        if (this.#requiresAwait && interval !== undefined && this.#availableTimer !== undefined) {
+        if (this.#requiresAwait && after !== undefined && this.#availableTimer !== undefined) {
             this.#armAvailable(this.#availabilityWindow());
         }
+    }
+
+    get #activeReportInterval(): Duration | undefined {
+        let longest: Duration | undefined;
+        for (const interval of this.#reportIntervals.values()) {
+            if (longest === undefined || interval > longest) {
+                longest = interval;
+            }
+        }
+        return longest;
     }
 
     /** Record an inbound signal: re-arm both windows and mark awake + available. */
@@ -167,6 +186,7 @@ export class IcdPeerWakefulness {
 
     close() {
         this.#cancelTimers();
+        this.#reportIntervals.clear();
         // Release any consumer parked on the awake/available edge (a sustained subscription or an interaction hold)
         // when the peer entry is torn down, so it re-evaluates the live wakefulness instead of stranding on signals
         // that will never re-fire.
@@ -196,10 +216,11 @@ export class IcdPeerWakefulness {
 
     #availabilityWindow(): Duration {
         // Subscribed: size to the subscription's own liveness timeout so availability never lapses before it would.
-        if (this.#activeReportInterval !== undefined) {
-            return Millis(this.#activeReportInterval + (this.#reportMargin ?? IcdPeerWakefulness.CHECK_IN_MARGIN));
+        const reportInterval = this.#activeReportInterval;
+        if (reportInterval !== undefined) {
+            return Millis(reportInterval + (this.#reportMargin ?? IcdPeerWakefulness.CHECK_IN_MARGIN));
         }
-        return Millis(this.#idleModeDuration + IcdPeerWakefulness.CHECK_IN_MARGIN);
+        return Millis(this.#idleModeDuration + this.#activeModeThreshold + IcdPeerWakefulness.CHECK_IN_MARGIN);
     }
 
     #armAvailable(duration: Duration) {

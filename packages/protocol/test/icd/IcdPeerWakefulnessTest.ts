@@ -7,6 +7,11 @@
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
 import { Millis, Seconds } from "@matter/general";
 
+const SUBSCRIPTION = {};
+
+/** Idle mode duration + active mode threshold + check-in margin of {@link lit}. */
+const UNSUBSCRIBED_WINDOW = Millis(Seconds(30) + Millis(4000) + IcdPeerWakefulness.CHECK_IN_MARGIN);
+
 describe("IcdPeerWakefulness", () => {
     before(MockTime.enable);
 
@@ -42,7 +47,7 @@ describe("IcdPeerWakefulness", () => {
     it("available expires after idleModeDuration + margin", async () => {
         const w = lit();
         w.noteSignal();
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
+        await MockTime.advance(Millis(UNSUBSCRIBED_WINDOW + 1));
         expect(w.available.value).equals(false);
     });
 
@@ -97,7 +102,7 @@ describe("IcdPeerWakefulness", () => {
             fired++;
         });
         w.noteSignal();
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
+        await MockTime.advance(Millis(UNSUBSCRIBED_WINDOW + 1));
         expect(w.available.value).equals(false);
         expect(fired).equals(1);
     });
@@ -109,10 +114,10 @@ describe("IcdPeerWakefulness", () => {
         w.checkInMissed.on(() => {
             fired++;
         });
-        w.noteSignal(); // idle-based window (30s + 10s check-in margin)
-        w.setActiveReportInterval(Seconds(60)); // subscribed: window becomes 60s + 20s report margin = 80s
+        w.noteSignal(); // idle-based window (30s + 4s threshold + 10s check-in margin)
+        w.setActiveReportInterval(SUBSCRIPTION, Seconds(60)); // subscribed: 60s + 20s report margin = 80s
 
-        // Past idle + check-in margin (40s) but before report interval + report margin (80s): no spurious lapse.
+        // Past the idle-based window (44s) but before report interval + report margin (80s): no spurious lapse.
         await MockTime.advance(Millis(Seconds(70)));
         expect(w.available.value).equals(true);
         expect(fired).equals(0);
@@ -130,7 +135,7 @@ describe("IcdPeerWakefulness", () => {
             fired++;
         });
         w.noteSignal();
-        w.setActiveReportInterval(Seconds(60)); // 60s + CHECK_IN_MARGIN (10s) = 70s
+        w.setActiveReportInterval(SUBSCRIPTION, Seconds(60)); // 60s + CHECK_IN_MARGIN (10s) = 70s
 
         await MockTime.advance(Millis(Seconds(65)));
         expect(w.available.value).equals(true);
@@ -147,12 +152,67 @@ describe("IcdPeerWakefulness", () => {
         w.checkInMissed.on(() => {
             fired++;
         });
-        w.setActiveReportInterval(Seconds(60));
-        w.setActiveReportInterval(undefined); // subscription lost
+        w.setActiveReportInterval(SUBSCRIPTION, Seconds(60));
+        w.setActiveReportInterval(SUBSCRIPTION, undefined); // subscription lost
         w.noteSignal(); // fresh Check-In -> idle-based window
 
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
+        await MockTime.advance(Millis(UNSUBSCRIBED_WINDOW + 1));
         expect(w.available.value).equals(false);
+        expect(fired).equals(1);
+    });
+
+    it("sizes the subscribed window from the longest report interval of several subscriptions", async () => {
+        const w = lit();
+        const short = {};
+        const long = {};
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.setActiveReportInterval(long, Seconds(120));
+        w.setActiveReportInterval(short, Seconds(60));
+        w.noteSignal(); // 120s + CHECK_IN_MARGIN (10s) = 130s, not 60s + 10s
+
+        await MockTime.advance(Millis(Seconds(125)));
+        expect(fired).equals(0);
+
+        await MockTime.advance(Millis(Seconds(6)));
+        expect(fired).equals(1);
+    });
+
+    it("keeps the remaining subscription's report interval when another subscription closes", async () => {
+        const w = lit();
+        const remaining = {};
+        const closing = {};
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.setActiveReportInterval(remaining, Seconds(120));
+        w.setActiveReportInterval(closing, Seconds(60));
+        w.setActiveReportInterval(closing, undefined);
+        w.noteSignal(); // 120s + CHECK_IN_MARGIN (10s), not the idle-based 44s
+
+        await MockTime.advance(Millis(Seconds(125)));
+        expect(fired).equals(0);
+
+        await MockTime.advance(Millis(Seconds(6)));
+        expect(fired).equals(1);
+    });
+
+    it("extends the unsubscribed window by the active mode threshold", async () => {
+        const w = lit();
+        w.setTimings({ activeModeThreshold: Seconds(20) });
+        let fired = 0;
+        w.checkInMissed.on(() => {
+            fired++;
+        });
+        w.noteSignal(); // 30s idle + 20s threshold + 10s margin = 60s
+
+        await MockTime.advance(Millis(Seconds(55)));
+        expect(fired).equals(0);
+
+        await MockTime.advance(Millis(Seconds(6)));
         expect(fired).equals(1);
     });
 

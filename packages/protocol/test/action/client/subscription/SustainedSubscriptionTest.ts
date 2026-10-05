@@ -382,7 +382,8 @@ describe("SustainedSubscription", () => {
             wakefulness.noteSignal(); // check-in arms the idle-based window; subscribe fails -> parks with no report cadence
             await flush();
 
-            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
+            // idleModeDuration (30s) + activeModeThreshold (5s) + CHECK_IN_MARGIN (10s)
+            await MockTime.advance(Millis(Seconds(30) + Seconds(5) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
             await flush();
             expect(wakefulness.available.value).equal(false);
             expect(missed).equal(1);
@@ -924,7 +925,7 @@ describe("SustainedSubscription", () => {
                 await peer.refeed(refed);
 
                 expect(peer.subscribeCount).equal(1);
-                // maxInterval 60s + CHECK_IN_MARGIN, not idleModeDuration 30s + CHECK_IN_MARGIN.
+                // maxInterval 60s + CHECK_IN_MARGIN, not idleModeDuration 30s + activeModeThreshold 5s + CHECK_IN_MARGIN.
                 expect(refed.availableUntil).equal(Timestamp(Time.nowMs + Seconds(70)));
 
                 peer.subscription.close();

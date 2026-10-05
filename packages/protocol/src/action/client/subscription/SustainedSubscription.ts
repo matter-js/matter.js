@@ -127,7 +127,7 @@ export class SustainedSubscription extends ClientSubscription {
                     request.closed = () => {
                         this.#subscription = undefined;
                         this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
-                        this.#wakefulness?.()?.setActiveReportInterval(undefined);
+                        this.#wakefulness?.()?.setActiveReportInterval(this, undefined);
                         sessionTrusted = false;
                         resolve();
                     };
@@ -206,7 +206,7 @@ export class SustainedSubscription extends ClientSubscription {
                         // Size the peer's availability window from the negotiated report cadence: while subscribed the
                         // peer suppresses Check-Ins and re-arms availability via reports that arrive as late as
                         // maxInterval (idle + jitter), which exceeds the idle-based window.
-                        this.#wakefulness?.()?.setActiveReportInterval(Seconds(this.#subscription.maxInterval));
+                        this.#wakefulness?.()?.setActiveReportInterval(this, Seconds(this.#subscription.maxInterval));
                         sessionTrusted = true;
                         break;
                     } catch (e) {
@@ -282,7 +282,7 @@ export class SustainedSubscription extends ClientSubscription {
                     const subscription = this.#subscription;
                     this.#subscription = undefined;
                     this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
-                    this.#wakefulness?.()?.setActiveReportInterval(undefined);
+                    this.#wakefulness?.()?.setActiveReportInterval(this, undefined);
                     // We tear this down deliberately; the CASE session is untouched, so keep it trusted and
                     // re-subscribe without a probe. Detach the closed callback so its async fire cannot route this
                     // deliberate close back through the loss handler and flip sessionTrusted.
@@ -303,7 +303,7 @@ export class SustainedSubscription extends ClientSubscription {
             this.#subscription = undefined;
             if (subscription !== undefined) {
                 this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
-                this.#wakefulness?.()?.setActiveReportInterval(undefined);
+                this.#wakefulness?.()?.setActiveReportInterval(this, undefined);
                 await subscription.close();
             }
         }
@@ -337,7 +337,7 @@ export class SustainedSubscription extends ClientSubscription {
                 return true;
             }
             if (this.#subscription !== undefined) {
-                fed.setActiveReportInterval(Seconds(this.#subscription.maxInterval));
+                fed.setActiveReportInterval(this, Seconds(this.#subscription.maxInterval));
             }
             watched = fed;
         }
