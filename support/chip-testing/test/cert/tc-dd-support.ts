@@ -31,6 +31,7 @@ import { expectMdns } from "../../src/cert/mdns-check.js";
 import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload.js";
 import {
     attempt,
+    CertCheckFailedError,
     CertCleanupError,
     CommissionedRefs,
     expectDeviceLog,
@@ -101,6 +102,12 @@ export const TEST_VENDOR_IDS: readonly number[] = [0xfff1, 0xfff2, 0xfff3, 0xfff
 
 /** Both device flavors print the payload they publish on this line; chip prints one per commissioning flow. */
 const SETUP_QR_CODE = /SetupQRCode: \[(MT:[^\]]+)\]/;
+
+/** The 11-digit manual pairing code each device flavor prints for its own setup code. */
+const PRINTED_MANUAL_CODE = {
+    chip: /Manual pairing code: \[(\d{11})\]/,
+    matterjs: /manual pairing code: (\d{11})(?!\d)/,
+};
 
 /** chip-all-clusters-app announces a completed commissioning. */
 const COMMISSIONING_COMPLETE = /Commissioning completed successfully/;
@@ -696,16 +703,48 @@ export class CommissioningRefusals {
     }
 
     /**
-     * Records that the DUT does not commission from `target`, without claiming why. The plans use
-     * this where the code is well-formed but names a device that is not there: any failure satisfies
-     * "the DUT terminated commissioning", where a success does not.
+     * Records that the DUT refuses every code in `attempts`, recording all of them before the step
+     * fails, so one code the DUT accepts does not leave the rest untried and out of the evidence.
      */
-    async requireNoCommissioning(
+    async requireEachRefused(
+        cx: CertStepContext,
+        attempts: readonly { target: CommissioningTarget; what: string }[],
+    ): Promise<void> {
+        const failures = new Array<string>();
+        for (const { target, what } of attempts) {
+            try {
+                await this.requireRefusal(cx, target, what);
+            } catch (e) {
+                if (!(e instanceof CertCheckFailedError)) {
+                    throw e;
+                }
+                failures.push(e.message);
+            }
+        }
+        if (failures.length) {
+            throw new CertCheckFailedError(`${failures.length} of ${attempts.length} codes: ${failures.join("; ")}`);
+        }
+    }
+
+    /**
+     * Records that the DUT gives up on `target`, a well-formed code naming a device that is not there.
+     *
+     * The TH is observed advertising first, or the DUT gives up because there was nothing to find at all.
+     * And only a give-up counts ({@link isCommissioningGiveUp}), so a controller that failed for an
+     * unrelated reason does not pass. A payload refusal is not a give-up: it means the code never reached
+     * discovery.
+     */
+    async requireGiveUp(
         cx: CertStepContext,
         target: CommissioningTarget,
         what: string,
         timeout: Duration,
+        /** Overridden by the unit tests, which have no mDNS to answer. */
+        probeCommissionable: (cx: CertStepContext) => Promise<void> = cx =>
+            recordCommissionable(cx, "TH advertising before the DUT is offered the code"),
     ): Promise<void> {
+        await probeCommissionable(cx);
+
         const attempt = cx.controllers.dut.commission(target);
         this.track(attempt);
 
@@ -715,9 +754,7 @@ export class CommissioningRefusals {
                 `commissioning from ${describeTarget(target)}`,
                 attempt,
                 timeout,
-                // A payload refusal would mean the code never reached discovery, so the step proved
-                // nothing about a commissionee that is not there
-                error => !isPayloadRefusal(error),
+                isCommissioningGiveUp,
             ),
             what,
         );
@@ -770,9 +807,10 @@ export class CommissioningRefusals {
 }
 
 /**
- * What the DUT is asked to spend looking for a device that is not there. Only matter.js reaches this,
- * and it honors the bound — {@link recordDiscriminatorHonored} states the gap and makes no attempt on
- * chip-tool, which cannot be bounded at all.
+ * What the DUT is asked to spend looking for a device that is not there. matter.js honors the bound.
+ * chip-tool cannot be bounded and gives up on its own after about 30 seconds (observed in the
+ * manual-code plans' wrong-discriminator steps, which run on chip-tool; {@link recordDiscriminatorHonored}
+ * does not).
  */
 export const ABSENT_DEVICE_GIVE_UP = Seconds(20);
 
@@ -783,8 +821,7 @@ export const ABSENT_DEVICE_GIVE_UP = Seconds(20);
  * which is why the two must not be the same value. Erring long only delays reporting a DUT that hangs;
  * erring short fails a working one.
  *
- * Should the chip-tool path ever run the attempt, this has to outlast chip-tool's own give-up instead
- * — TC-DD-3.17's step 4 documents that as roughly 45 seconds and sets this same pair for it.
+ * It also outlasts chip-tool's own give-up of about 30 seconds.
  */
 export const ABSENT_DEVICE_WAIT = Seconds(90);
 
@@ -825,11 +862,9 @@ function absentDiscriminator(cx: CertStepContext, payload: string): number {
  * - The TH has to be observed advertising first, or the DUT gives up because there was nothing to
  *   find and the check passes on the TH's absence rather than on the DUT's use of the field. This is
  *   the guard {@link recordVendorOutcome} states for the same reason.
- * - Only a give-up counts ({@link isCommissioningGiveUp}), where
- *   {@link CommissioningRefusals.requireNoCommissioning} takes every failure but a payload refusal —
- *   it serves a plan with no commissionee at all, so anything that is not the code being rejected
- *   satisfies it. Here the TH is present and the code is well-formed, so a controller that would not
- *   start would satisfy that looser test while proving nothing.
+ * - Only a give-up counts ({@link isCommissioningGiveUp}): the TH is present and the code is
+ *   well-formed, so a controller that would not start must not pass. {@link CommissioningRefusals.requireGiveUp}
+ *   makes the same two checks for a manual code.
  *
  * The claim is about the commissioner rather than about any one step, so a test case establishes it
  * once, in a precondition step of its own that no PICS gate can skip.
@@ -915,6 +950,34 @@ export async function thManualPairingCode(
     return manualPairingCode({ ...(await thCodeParts(cx)), ...overrides });
 }
 
+/** The 11-digit manual pairing code the TH prints for its own setup code; `from` as for {@link thQrPayload}. */
+export async function thPrintedManualCode(th: CertDevice, from = 0): Promise<string> {
+    const result = await th.log.expect(PRINTED_MANUAL_CODE, {
+        flavor: th.flavor,
+        from,
+        timeoutMs: COMMISSIONING_LOG_TIMEOUT,
+    });
+    if (result.verdict === "unverified") {
+        throw new InternalError(`${th.flavor} devices print no manual pairing code`);
+    }
+
+    const code = forFlavor(PRINTED_MANUAL_CODE, th.flavor)?.exec(result.matched.text)?.[1];
+    if (code === undefined) {
+        throw new InternalError(`Matched a manual pairing code line carrying no code: ${result.matched.text}`);
+    }
+    return code;
+}
+
+/** What the TH's own setup code puts into an 11-digit manual code, which carries no vendor or product id. */
+export function thElevenDigitCodeParts(cx: CertStepContext): ManualPairingCodeParts {
+    const th = theTh(cx);
+    return {
+        vidPidPresent: false,
+        discriminator: th.commissioning.discriminator,
+        passcode: th.commissioning.passcode,
+    };
+}
+
 /**
  * What the TH's own setup code puts into a 21-digit manual code. Read once by a step that builds
  * several, so a dozen substitutions do not become a dozen concurrent requests to the DUT.
@@ -947,13 +1010,12 @@ export async function thCodeParts(
 }
 
 /**
- * Records what the DUT read out of `code` and whether it names the TH. As {@link recordParse}, the
+ * Records what the DUT read out of `code`: the TH's discriminator and passcode, and the vendor and
+ * product id the code itself carries. As {@link recordParse}, the
  * parse is the DUT's: a step that decoded the code itself would pass against a controller that
  * cannot read one.
  */
-export async function recordManualParse(cx: CertStepContext, code: string): Promise<void> {
-    const th = theTh(cx);
-
+export async function recordManualParse(cx: CertStepContext, code: string, th = theTh(cx)): Promise<void> {
     let parsed;
     try {
         parsed = await cx.controllers.dut.parseManualPairingCode(code);
@@ -962,8 +1024,13 @@ export async function recordManualParse(cx: CertStepContext, code: string): Prom
         throw e;
     }
 
+    const { vendorId, productId } = manualPairingCodeDigits(code);
     const shortDiscriminator = th.commissioning.discriminator >> SHORT_DISCRIMINATOR_SHIFT;
-    const matches = parsed.shortDiscriminator === shortDiscriminator && parsed.passcode === th.commissioning.passcode;
+    const matches =
+        parsed.shortDiscriminator === shortDiscriminator &&
+        parsed.passcode === th.commissioning.passcode &&
+        parsed.vendorId === vendorId &&
+        parsed.productId === productId;
 
     record(
         cx,
@@ -973,7 +1040,8 @@ export async function recordManualParse(cx: CertStepContext, code: string): Prom
             detail:
                 `DUT read the ${code.length}-digit code as shortDiscriminator=${parsed.shortDiscriminator} ` +
                 `passcode=${parsed.passcode} vendorId=${parsed.vendorId} productId=${parsed.productId}; the TH's own ` +
-                `setup code is shortDiscriminator=${shortDiscriminator} passcode=${th.commissioning.passcode}`,
+                `setup code is shortDiscriminator=${shortDiscriminator} passcode=${th.commissioning.passcode}, ` +
+                `and the code carries vendorId=${vendorId} productId=${productId}`,
         },
         "Manual pairing code parse",
     );
@@ -981,6 +1049,17 @@ export async function recordManualParse(cx: CertStepContext, code: string): Prom
 
 /** § 5.1.4.1 Table 62 carries only the discriminator's 4 most significant bits. */
 export const SHORT_DISCRIMINATOR_SHIFT = 8;
+
+/**
+ * Flips a bit the manual-code plans require to change: § 5.1.4.1 Table 62 carries only the
+ * discriminator's 4 most significant bits, so a substitution the code can express has to land in them.
+ */
+export const DISCRIMINATOR_MSB = 0x100;
+
+/** TC-DD-3.16 and TC-DD-3.17 repeat this in the expected outcome of every step that generates a code. */
+export const MANUAL_CODE_GUIDELINES =
+    "The generated Manual Pairing Code follows all guidelines laid out in the Preconditions #2, above, with " +
+    "special attention to the CHECK_DIGIT using the Verhoeff algorithm.";
 
 /**
  * Records that the TH is discoverable as a commissionable device, which every commissioning-flow plan
@@ -1029,8 +1108,7 @@ export function isCommissioningGiveUp(error: unknown): boolean {
  * The two controllers genuinely differ. chip-tool matches a code's vendor and product id against the
  * device it discovered (`SetUpCodePairer::NodeMatchesCurrentFilter`) and finds nothing; matter.js
  * filters its own discovery on the ids the code carries and finds nothing either. A fabric that
- * results is handed to `commissioned`, whose next {@link commissionByManualCode} takes it off the TH
- * again.
+ * results is handed to `commissioned`, and the next attempt's restore takes it off the TH again.
  *
  * Two things the evidence has to carry, because the verdict is `pass` either way:
  *
@@ -1330,6 +1408,8 @@ async function commissionByTarget(
     // completion line as one that read it, so the code has to be evidence in its own right
     if (target.qrPairingCode !== undefined) {
         await recordParse(cx, target.qrPairingCode, { th });
+    } else if (target.manualPairingCode !== undefined) {
+        await recordManualParse(cx, target.manualPairingCode, th);
     }
 
     // Settled, because the line this waits for names no fabric on either flavor: a completion still

@@ -32,6 +32,7 @@ import type { ManualPairingCodeParts, TransitionMark } from "../cert/tc-dd-suppo
 import {
     checkGeneratedManualCode,
     checkGeneratedPayload,
+    commissionByManualCode,
     commissionByQr,
     CUSTOM_FLOW,
     flowName,
@@ -48,12 +49,15 @@ import {
     recordDiscriminatorHonored,
     recordBackInCommissioningMode,
     recordGeneratedManualCode,
+    recordManualParse,
     recordParse,
     recordGeneratedPayload,
     recordNotCommissioned,
     recordUnpair,
     recordVendorOutcome,
     STANDARD_FLOW,
+    thElevenDigitCodeParts,
+    thPrintedManualCode,
     USER_INTENT_FLOW,
 } from "../cert/tc-dd-support.js";
 import { CertCheckFailedError, CertCleanupError, CommissionedRefs } from "../cert/tc-support.js";
@@ -276,23 +280,64 @@ describe("CommissioningRefusals", () => {
         await refusals.settle(cx);
     });
 
+    const advertising = async () => {};
+
+    function giveUp(cx: CertStepContext, refusals: CommissioningRefusals, probe = advertising) {
+        return refusals.requireGiveUp(cx, { manualPairingCode: "749" }, "DUT gave up", Millis(100), probe);
+    }
+
     it("does not accept a payload refusal as proof that no device was there", async () => {
         // Otherwise a malformed generated code passes the step at ~1ms, having never reached discovery
         const cx = contextWith(() => Promise.reject(new OnboardingPayloadRefusedError("bad code")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(
-            refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", Millis(100)),
-        ).rejectedWith(CertCheckFailedError, /unrelated reason/);
+        await expect(giveUp(cx, refusals)).rejectedWith(CertCheckFailedError, /unrelated reason/);
     });
 
-    it("accepts any other failure when the claim is only that nothing was commissioned", async () => {
-        // The wrong-discriminator step: the code is well formed, so the DUT fails for lack of a device
-        const cx = contextWith(() => Promise.reject(new ChipToolCommandError("chip-tool commissioning failed")));
+    it("accepts a give-up on a well-formed code naming a device that is not there", async () => {
+        const cx = contextWith(() => Promise.reject(new DiscoveryError("No commissionable device was discovered")));
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", Millis(100));
+        await giveUp(cx, refusals);
         await refusals.settle(cx);
+    });
+
+    it("does not accept a failure that is not a give-up", async () => {
+        const cx = contextWith(() => Promise.reject(new InternalError("controller would not start")));
+        const refusals = new CommissioningRefusals(BUDGETS);
+
+        await expect(giveUp(cx, refusals)).rejectedWith(CertCheckFailedError, /unrelated reason/);
+    });
+
+    it("makes no attempt when the TH is not observed advertising", async () => {
+        let attempts = 0;
+        const cx = contextWith(() => {
+            attempts++;
+            return Promise.reject(new DiscoveryError("No commissionable device was discovered"));
+        });
+        const refusals = new CommissioningRefusals(BUDGETS);
+        const notAdvertising = async () => {
+            throw new CertCheckFailedError("TH is not advertising as commissionable");
+        };
+
+        await expect(giveUp(cx, refusals, notAdvertising)).rejectedWith(CertCheckFailedError, /not advertising/);
+        expect(attempts).equal(0);
+    });
+
+    it("tries every code before failing on the one the DUT did not refuse", async () => {
+        const offered = new Array<string>();
+        const cx = contextWith(() => {
+            offered.push(String(offered.length));
+            return offered.length === 2
+                ? Promise.reject(new ChipToolCommandError("chip-tool commissioning failed"))
+                : Promise.reject(new OnboardingPayloadRefusedError("bad code"));
+        });
+        const refusals = new CommissioningRefusals(BUDGETS);
+        const attempts = ["1", "2", "3"].map(code => ({ target: { manualPairingCode: code }, what: `code ${code}` }));
+
+        await expect(refusals.requireEachRefused(cx, attempts)).rejectedWith(CertCheckFailedError, /1 of 3 codes/);
+        expect(offered).length(3);
+        expect(checksOf(cx).map(check => check.verdict)).deep.equal(["pass", "fail", "pass"]);
     });
 
     it("fails when something was commissioned after all", async () => {
@@ -305,9 +350,7 @@ describe("CommissioningRefusals", () => {
         );
         const refusals = new CommissioningRefusals(BUDGETS);
 
-        await expect(
-            refusals.requireNoCommissioning(cx, { manualPairingCode: "749" }, "nothing commissioned", Millis(100)),
-        ).rejectedWith(CertCheckFailedError);
+        await expect(giveUp(cx, refusals)).rejectedWith(CertCheckFailedError);
 
         await refusals.settle(cx);
         expect(removed).deep.equal(["unexpected-ref"]);
@@ -773,6 +816,47 @@ describe("manualPairingCode", () => {
         expect(manualPairingCode({ vidPidPresent: false, discriminator: 0xf00, passcode: 20202021 })).length(11);
     });
 
+    describe("11-digit form", () => {
+        /** devicediscovery.adoc TC-DD-3.16's own example device. */
+        const PLAN_SHORT_DEVICE = { vidPidPresent: false, discriminator: 0xf00, passcode: 20202021 };
+
+        function shortCode(overrides: Partial<ManualPairingCodeParts> = {}) {
+            return manualPairingCode({ ...PLAN_SHORT_DEVICE, ...overrides });
+        }
+
+        it("writes the plan's own example code", () => {
+            expect(shortCode()).equal("34970112332");
+        });
+
+        it("writes the plan's own substituted codes", () => {
+            expect(shortCode({ futureFormat: true }), "version").equal("84970112331");
+            expect(shortCode({ vidPidPresent: true }), "VID_PID_PRESENT").equal("74970112334");
+            expect(shortCode({ discriminator: 0xe00 }), "short discriminator").equal("33331712336");
+            expect(shortCode({ checkDigit: 1 }), "check digit").equal("34970112331");
+        });
+
+        it("writes the plan's own code for each forbidden passcode", () => {
+            const expected: [passcode: number, code: string][] = [
+                [0, "34915200008"],
+                [11111111, "35191106788"],
+                [22222222, "35467013565"],
+                [33333333, "35742920344"],
+                [44444444, "36018827124"],
+                [55555555, "36294733900"],
+                [66666666, "34932240691"],
+                [77777777, "35208147474"],
+                [88888888, "35484054250"],
+                [99999999, "35759961037"],
+                [12345678, "35767807533"],
+                [87654321, "36545753496"],
+            ];
+
+            for (const [passcode, code] of expected) {
+                expect(shortCode({ passcode }), `passcode ${passcode}`).equal(code);
+            }
+        });
+    });
+
     it("refuses a part that does not fit its field", () => {
         expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: 0x10000 }), "productId").throw(InternalError);
         expect(() => manualPairingCode({ ...PLAN_DEVICE, productId: 1, discriminator: 0x1000 }), "disc").throw(
@@ -1108,6 +1192,7 @@ class UnpairFixture {
             qrPairingCode?: string;
             /** The role the plan names the device under. */
             role?: string;
+            parseManualPairingCode?: ControllerAdapter["parseManualPairingCode"];
         } = {},
     ) {
         const { fabricIndex = 1, backchannel = () => {}, onDecommission = () => {}, role = "th" } = options;
@@ -1162,7 +1247,7 @@ class UnpairFixture {
             commission: options.commission ?? unused,
             // The commissioning helpers record what the DUT reads from the code before they use it
             parseQrPayload: async payload => qrPayloadFields(payload),
-            parseManualPairingCode: unused,
+            parseManualPairingCode: options.parseManualPairingCode ?? (async code => manualPairingCodeDigits(code)),
             group: (): never => {
                 throw new InternalError("not used by these tests");
             },
@@ -1455,6 +1540,100 @@ describe("commissionByQr's payload evidence", () => {
                 new CommissionedRefs(),
             ),
         ).rejectedWith(CertCheckFailedError, /Onboarding payload parse/);
+    });
+});
+
+describe("commissionByManualCode's code evidence", () => {
+    const completion =
+        "2026-08-27 19:31:27.056 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: bb (#1) node: 1";
+
+    function fixtureThatCommissions() {
+        const fixture: UnpairFixture = new UnpairFixture("matterjs", {
+            commission: async () => {
+                fixture.push(completion);
+                return "peer1";
+            },
+        });
+        return fixture;
+    }
+
+    it("records what the DUT read from the code it commissions with", async () => {
+        const fixture = fixtureThatCommissions();
+
+        await commissionByManualCode(fixture.cx, "34970112332", new CommissionedRefs());
+
+        expect(fixture.checks[0]?.detail).contains("shortDiscriminator=15 passcode=20202021");
+    });
+
+    it("fails when the code names a setup other than the TH's own", async () => {
+        const fixture = fixtureThatCommissions();
+        const code = manualPairingCode({ vidPidPresent: false, discriminator: 0xf00, passcode: 12345678 });
+
+        await expect(commissionByManualCode(fixture.cx, code, new CommissionedRefs())).rejectedWith(
+            CertCheckFailedError,
+            /Manual pairing code parse/,
+        );
+    });
+});
+
+describe("recordManualParse", () => {
+    const CODE = manualPairingCode({
+        vidPidPresent: true,
+        discriminator: 0xf00,
+        passcode: 20202021,
+        vendorId: 0xfff1,
+        productId: 0x8001,
+    });
+
+    it("passes when the DUT reads every field a 21-digit code carries", async () => {
+        const fixture = new UnpairFixture("matterjs");
+
+        await recordManualParse(fixture.cx, CODE);
+
+        expect(fixture.checks.map(check => check.verdict)).deep.equal(["pass"]);
+    });
+
+    it("fails when the DUT misreads the product id a 21-digit code carries", async () => {
+        const fixture = new UnpairFixture("matterjs", {
+            parseManualPairingCode: async code => ({ ...manualPairingCodeDigits(code), productId: 0x8002 }),
+        });
+
+        await expect(recordManualParse(fixture.cx, CODE)).rejectedWith(CertCheckFailedError);
+    });
+
+    it("fails when the DUT misreads the vendor id a 21-digit code carries", async () => {
+        const fixture = new UnpairFixture("matterjs", {
+            parseManualPairingCode: async code => ({ ...manualPairingCodeDigits(code), vendorId: 0xfff2 }),
+        });
+
+        await expect(recordManualParse(fixture.cx, CODE)).rejectedWith(CertCheckFailedError);
+    });
+});
+
+describe("thElevenDigitCodeParts", () => {
+    it("renders the TH's own 11-digit code", () => {
+        const fixture = new UnpairFixture("matterjs");
+
+        expect(manualPairingCode(thElevenDigitCodeParts(fixture.cx))).equal("34970112332");
+    });
+});
+
+describe("thPrintedManualCode", () => {
+    it("reads the code a chip TH prints", async () => {
+        const fixture = new UnpairFixture("chip-local");
+        fixture.push("[1791217578.827] [30176:63686140:main] [SVR] Manual pairing code: [34970112332]");
+
+        expect(await thPrintedManualCode(fixture.device)).equal("34970112332");
+    });
+
+    it("reads the code a matter.js TH prints", async () => {
+        const fixture = new UnpairFixture("matterjs");
+        fixture.push(
+            "2026-10-05 18:26:34.811 NOTICE Commissioning cert is uncommissioned passcode: 20202021 " +
+                "discriminator: 3840 manual pairing code: 34970112332",
+        );
+
+        expect(await thPrintedManualCode(fixture.device)).equal("34970112332");
     });
 });
 
