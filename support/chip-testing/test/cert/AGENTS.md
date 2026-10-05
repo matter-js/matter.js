@@ -3235,10 +3235,12 @@ and the subject restarts into it. What makes the steps after a restart see anyth
   `MATTER_CERT_OTA_FAST_RETRY` would shorten it. Step 6 starts as the subject returns from step 4's
   restart; if it applied and restarted again before the resubscription, it would discard DelayedOnApply
   undelivered.
-- **A second observation of the same paths would see what the first one's reads return.** A read
-  re-broadcasts the events it answers with to every observer, and only the observation that made the
-  read skips them. With one observation per case that read is step 1's seed, which comes before any
-  stimulus.
+- **An observation reports only what the subscription delivered.** A read broadcasts the events it
+  returns to every observer just as a subscription report does; the in-process adapter holds what an
+  observation receives while a read of that peer runs and drops the read's own events
+  (`EventReadGate`), so a seed or `readEvents` call cannot stand in for a delivery the subscription
+  missed. A `subscribeEvents` subscription on the same node is not filtered: its reports reach the
+  observation too, so a case should not combine the two.
 
 ## DefaultOTAProviders on two fabrics (`TC-SU-4.1`)
 
