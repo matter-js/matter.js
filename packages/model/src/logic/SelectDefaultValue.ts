@@ -100,7 +100,7 @@ export function MandatoryDefaultValue(scope: Scope, member: ValueModel, visiting
     if (stated !== undefined && FieldValue.referenced(stated) === undefined) {
         const explicit = DefaultValue(scope, member);
         if (explicit !== undefined) {
-            return metatype === Metatype.bitmap ? DecodedBitmap(member, explicit) : explicit;
+            return metatype === Metatype.bitmap ? DecodedBitmap(member, explicit, scope) : explicit;
         }
     }
 
@@ -139,7 +139,7 @@ function defaultValueForMetatype(scope: Scope, member: ValueModel): unknown {
     const effectiveDefault = DefaultValue(scope, member);
     if (effectiveDefault !== undefined) {
         if (member.effectiveMetatype === Metatype.bitmap) {
-            return DecodedBitmap(member, effectiveDefault);
+            return DecodedBitmap(member, effectiveDefault, scope);
         }
         return effectiveDefault;
     }
