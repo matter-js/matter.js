@@ -87,6 +87,7 @@ export type WriteAttributeRequest = AbandonableRequest & {
     clusterId: ClusterId;
     attributeName: string;
     value: unknown;
+    timedInteractionTimeout?: Duration;
 };
 
 export type WriteAttributeByIdRequest = AbandonableRequest & {
@@ -95,6 +96,7 @@ export type WriteAttributeByIdRequest = AbandonableRequest & {
     clusterId: ClusterId;
     attributeId: AttributeId;
     value: unknown;
+    timedInteractionTimeout?: Duration;
 };
 
 export type ReadEventRequest = AbandonableRequest & {
