@@ -106,6 +106,7 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  * The Matter specification requires the Thermostat cluster to support features we do not enable by default. You should
  * use {@link ThermostatServer.with} to specialize the class for the features your implementation supports.
  * We implement all features beside the following:
+ * * MatterScheduleConfiguration: This feature is not implemented yet.
  * * ScheduleConfiguration: This feature is deprecated and not allowed to be enabled.
  * * Setback: This feature is considered deprecated.
  * * The use of the "setpointHoldExpiryTimestamp" attribute is currently not supported.

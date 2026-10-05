@@ -16,7 +16,7 @@ import type {
     OtaQueryImageExchange,
     OtaQueryImageResponseRecord,
 } from "@matter/testing";
-import { resolveDeviceFlavor } from "@matter/testing";
+import { flavorFamily, resolveDeviceFlavor } from "@matter/testing";
 import { otaFastRetryEnabled } from "../../src/OtaRequestorTestInstance.js";
 import { CertCheckFailedError, record, requireId } from "./tc-support.js";
 
@@ -71,6 +71,22 @@ function nameOf(values: Record<string, number>, value: number) {
  */
 export function singleQueryImage(exchanges: OtaProviderExchanges): OtaQueryImageExchange {
     return only(exchanges.queryImage, "QueryImage");
+}
+
+/**
+ * A recorded check that a served update produced exactly one `QueryImage`, for a case that then reads
+ * that one exchange by index.
+ *
+ * {@link singleQueryImage} states the same invariant by throwing, which loses the checks a step had
+ * already built, so a step that goes on to record more states it here and names the count.
+ */
+export function singleQueryImageCheck(exchanges: OtaProviderExchanges): CheckRecord {
+    const { length } = exchanges.queryImage;
+    return {
+        type: "response",
+        verdict: length === 1 ? "pass" : "fail",
+        detail: `the DUT sent ${length} QueryImage command(s) during this update, where the plan describes one`,
+    };
 }
 
 /** The one `ApplyUpdateRequest` exchange a served update produced, as {@link singleQueryImage}. */
@@ -254,6 +270,18 @@ export function announcementLines(announcement: OtaAnnouncementRecord) {
 /** Smallest Max Block Size the plan requires a provider to grant over a non-TCP transport. */
 export const MIN_NON_TCP_BLOCK_SIZE = 1024;
 
+/**
+ * Largest Max Block Size the plan lets a receiver ask for over a non-TCP transport.
+ *
+ * The same number as {@link MIN_NON_TCP_BLOCK_SIZE} and a different requirement: that one is the floor
+ * a provider must be able to grant, this one the ceiling a requestor may propose. A case reading the
+ * wrong one of the two would state a claim about the other side of the transfer.
+ */
+export const MAX_NON_TCP_BLOCK_SIZE = 1024;
+
+/** Largest Max Block Size the plan lets a receiver ask for over a TCP transport. */
+export const MAX_TCP_BLOCK_SIZE = 8192;
+
 /** Above this, the plan requires the granted size to be a power of two (Matter Core § 11.20.3.5). */
 export const EXACT_BLOCK_SIZE_CEILING = 128;
 
@@ -317,7 +345,7 @@ export function unsupportedByDut(capability: string) {
  * real time. chip's requestor floors the wait at compile time, so there it costs what the plan costs.
  */
 export function otaDelaysShortened() {
-    return otaFastRetryEnabled() && resolveDeviceFlavor() === "matterjs";
+    return otaFastRetryEnabled() && flavorFamily(resolveDeviceFlavor()) === "matterjs";
 }
 
 /** The plan's own `DelayedActionTime`, in seconds, or the short stand-in a shortened run uses. */
@@ -389,27 +417,116 @@ const OTA_REQUESTOR = Matter.clusters.require("OtaSoftwareUpdateRequestor");
 const OTA_REQUESTOR_ID = requireId(OTA_REQUESTOR.id, "OtaSoftwareUpdateRequestor cluster");
 const UPDATE_STATE_ID = requireId(OTA_REQUESTOR.attributes.require("updateState").id, "UpdateState attribute");
 
-/** `UpdateState` Idle (Matter Core § 11.20.7.5.3), the state the plans' Test Setup requires. */
-const UPDATE_STATE_IDLE = 1;
+/**
+ * `UpdateState` as the cluster enumerates it (Matter Core § 11.20.7.4.2), for the cases that name a
+ * state the requestor passes through.
+ */
+export const OtaUpdateState = {
+    Unknown: 0,
+    Idle: 1,
+    Querying: 2,
+    DelayedOnQuery: 3,
+    Downloading: 4,
+    Applying: 5,
+    DelayedOnApply: 6,
+    RollingBack: 7,
+    DelayedOnUserConsent: 8,
+} as const;
+
+/** The name a state has in the cluster, for a check's own detail text. */
+export function updateStateName(state: unknown) {
+    return typeof state === "number" ? nameOf(OtaUpdateState, state) : `unreadable (${state})`;
+}
+
+/** `UpdateState` Idle, the state the plans' Test Setup requires. */
+const UPDATE_STATE_IDLE = OtaUpdateState.Idle;
+
+/** `UpdateState` Downloading, which a requestor enters once it starts transferring an image. */
+export const UPDATE_STATE_DOWNLOADING = OtaUpdateState.Downloading;
 
 /**
- * Records the Test Setup every requestor plan shares: "reading the UpdateState Attribute of the OTA
- * Requestor should return the value as Idle".
+ * `UpdateState` DelayedOnUserConsent (Matter Core § 11.20.7.4.2), which a requestor enters while it
+ * obtains the consent a provider asked it for.
+ */
+export const UPDATE_STATE_DELAYED_ON_USER_CONSENT = OtaUpdateState.DelayedOnUserConsent;
+
+const STATE_TRANSITION_ID = requireId(OTA_REQUESTOR.events.require("stateTransition").id, "StateTransition event");
+
+/** Paths of the requestor events a case about its own reporting subscribes to or reads. */
+export const OTA_REQUESTOR_EVENTS = {
+    cluster: OTA_REQUESTOR_ID,
+    stateTransition: STATE_TRANSITION_ID,
+    versionApplied: requireId(OTA_REQUESTOR.events.require("versionApplied").id, "VersionApplied event"),
+    downloadError: requireId(OTA_REQUESTOR.events.require("downloadError").id, "DownloadError event"),
+} as const;
+
+/** One `StateTransition` event of the DUT's requestor: its event number, and the state it entered. */
+export interface RequestorStateChange {
+    eventNumber: bigint;
+    newState: unknown;
+}
+
+/**
+ * The `StateTransition` events the DUT's requestor holds, on every endpoint, with an event number above
+ * `after` where given.
+ */
+export async function requestorStateChanges(node: CertNodeApi, after?: bigint): Promise<RequestorStateChange[]> {
+    const events = await node.readEvents(
+        [{ cluster: OTA_REQUESTOR_ID, event: STATE_TRANSITION_ID }],
+        after === undefined ? undefined : { minEventNumber: after + 1n },
+    );
+    return events.map(({ eventNumber, value }) => ({
+        eventNumber,
+        newState: typeof value === "object" && value !== null && "newState" in value ? value.newState : undefined,
+    }));
+}
+
+/**
+ * The highest event number among the DUT's `StateTransition` events, or `undefined` where it holds none.
+ *
+ * A step watching for a transition takes this before it acts and passes it to
+ * {@link requestorStateChanges}, so what it then reads is what the DUT did in the step rather than
+ * what an earlier one left behind.
+ */
+export async function latestRequestorStateChange(node: CertNodeApi): Promise<bigint | undefined> {
+    const changes = await requestorStateChanges(node);
+    return changes.reduce<bigint | undefined>(
+        (latest, { eventNumber }) => (latest === undefined || eventNumber > latest ? eventNumber : latest),
+        undefined,
+    );
+}
+
+/**
+ * The Test Setup every requestor plan shares, as a check: "reading the UpdateState Attribute of the
+ * OTA Requestor should return the value as Idle".
  *
  * Read on every endpoint, because the two requestors this suite runs carry the cluster on different
  * ones, and a requestor carrying it twice would leave "the" UpdateState undefined.
+ *
+ * A step that records other checks besides this one passes this to {@link recordAll} rather than
+ * calling {@link recordRequestorIdle} after it: that call is never reached once an earlier check has
+ * failed, which drops one of the artifacts the step claims exactly on the run that needed it.
  */
-export async function recordRequestorIdle(cx: CertStepContext, node: CertNodeApi) {
+export async function requestorIdleCheck(node: CertNodeApi): Promise<CheckRecord> {
     const entries = await node.readAttributes([{ cluster: OTA_REQUESTOR_ID, attribute: UPDATE_STATE_ID }]);
     const states = entries.map(({ endpoint, value }) => `${value} on endpoint ${endpoint}`);
 
-    record(
-        cx,
-        {
-            type: "response",
-            verdict: entries.length === 1 && entries[0].value === UPDATE_STATE_IDLE ? "pass" : "fail",
-            detail: `the DUT reported UpdateState ${states.join(", ") || "on no endpoint"}, where Idle is ${UPDATE_STATE_IDLE}`,
-        },
-        "the DUT's OTA requestor is Idle",
-    );
+    return {
+        type: "response",
+        verdict: entries.length === 1 && entries[0].value === UPDATE_STATE_IDLE ? "pass" : "fail",
+        detail: `the DUT reported UpdateState ${states.join(", ") || "on no endpoint"}, where Idle is ${UPDATE_STATE_IDLE}`,
+    };
+}
+
+/** {@link requestorIdleCheck} recorded on its own, for a step whose only claim it is. */
+export async function recordRequestorIdle(cx: CertStepContext, node: CertNodeApi) {
+    record(cx, await requestorIdleCheck(node), "the DUT's OTA requestor is Idle");
+}
+
+/** {@link requestorIdleCheck} as an entry for a {@link recordAll} list. */
+export function requestorIdleEntry(node: CertNodeApi) {
+    return {
+        what: "the DUT's OTA requestor is Idle",
+        check: () => requestorIdleCheck(node),
+    };
 }

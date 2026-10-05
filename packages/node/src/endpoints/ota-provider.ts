@@ -24,7 +24,7 @@ import { Identity } from "@matter/general";
  *
  * A node shall only ever have, at most, one instance of the OTA Provider's required clusters.
  *
- * @see {@link MatterSpecification.v16.Device} § 2.4
+ * @see {@link MatterSpecification.v161.Device} § 2.4
  */
 export interface OtaProviderEndpoint extends Identity<typeof OtaProviderEndpointDefinition> {}
 

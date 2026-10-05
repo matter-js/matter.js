@@ -23,9 +23,15 @@ const TEST_DEFINITIONS = [
     "P",
     "D",
     "X",
+    "Z",
     "WBL",
     "AX | WBL",
     "AX, WBL",
+
+    // Pipe "otherwise" list with a conjunction term (spec 1.6.1 feature conformance, e.g. AmbientContextSensing)
+    "HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD",
     "[WIRED]",
     "!AB",
     "!(LT | DF)",
@@ -71,6 +77,9 @@ const TEST_DEFINITIONS = [
 
 const TEST_DEFINITIONS2 = {
     "(AX | WBL)": "AX | WBL",
+    // & binds tighter than |, so redundant parens drop
+    "HA | OI | AUD | (OC & OI)": "HA | OI | AUD | OC & OI",
+    "P, HA | OI | AUD | (OC & OI)": "P, HA | OI | AUD | OC & OI",
     "[!(LT)]": "[!LT]",
     "!((LT | DF))": "!(LT | DF)",
     "RequiresEncodedPixels == True": "RequiresEncodedPixels == true",
@@ -142,6 +151,72 @@ describe("Conformance", () => {
             const conformance = new Conformance("[AA] & BB, CC");
             expect(conformance.errors?.map(e => e.code)).contains("INVALID_OPTIONALITY");
             expect(`${conformance}`).contains("CC");
+        });
+    });
+
+    describe("obsolete conformance", () => {
+        it("stands alone without error", () => {
+            const conformance = new Conformance("Z");
+            expect(conformance.errors).undefined;
+            expect(conformance.type).equal(Conformance.Z);
+        });
+
+        it("is obsolete but not disallowed", () => {
+            const conformance = new Conformance("Z");
+            expect(conformance.isObsolete).true;
+            expect(conformance.isDisallowed).false;
+        });
+
+        it("leaves a disallowed element not obsolete", () => {
+            expect(new Conformance("X").isObsolete).false;
+        });
+
+        for (const definition of ["Z | AA", "AA & Z", "!Z", "Z, O", "O, Z", "[Z]", "Z.a", "Z.Foo"]) {
+            it(`rejects "${definition}"`, () => {
+                expect(new Conformance(definition).errors?.map(e => e.code)).deep.equal(["INVALID_OBSOLETE"]);
+            });
+        }
+
+        it('parses "Z.Foo" as a qualified name', () => {
+            expect(new Conformance("Z.Foo").type).equal(Conformance.Operator.DOT);
+        });
+
+        it("rejects an obsolete entry in a list definition", () => {
+            expect(new Conformance(["Z", "O"]).errors?.map(e => e.code)).deep.equal(["INVALID_OBSOLETE"]);
+        });
+
+        it("does not require a type for an obsolete element", () => {
+            const matter = new MatterModel({
+                name: "Matter",
+                children: [
+                    ClusterElement({
+                        id: 0xfff1_fc02,
+                        name: "UntypedTest",
+                        children: [
+                            { tag: "attribute", id: 1, name: "Legacy", conformance: "Z" },
+                            { tag: "attribute", id: 2, name: "Current", conformance: "M" },
+                        ],
+                    }),
+                ],
+            });
+            const errors = ValidateModel(matter).errors.filter(e => e.code === "NO_TYPE");
+            expect(errors.map(e => e.source)).deep.equal(["UntypedTest.state.current"]);
+        });
+
+        it("reports the misuse through model validation", () => {
+            const matter = new MatterModel({
+                name: "Matter",
+                children: [
+                    ClusterElement({
+                        id: 0xfff1_fc01,
+                        name: "ObsoleteTest",
+                        children: [{ tag: "attribute", id: 1, name: "Legacy", type: "uint8", conformance: "Z, O" }],
+                    }),
+                ],
+            });
+            const errors = ValidateModel(matter).errors.filter(e => e.code === "INVALID_OBSOLETE");
+            expect(errors.length).equal(1);
+            expect(errors[0].source).equal("ObsoleteTest.state.legacy");
         });
     });
 
@@ -637,6 +712,7 @@ describe("Conformance", () => {
             expect(applicability("M")).equal(Mandatory);
             expect(applicability("O")).equal(Optional);
             expect(applicability("X")).equal(None);
+            expect(applicability("Z")).equal(None);
             expect(applicability("D")).equal(None);
         });
 
@@ -690,6 +766,40 @@ describe("Conformance", () => {
             // A negated comparison has no decidable inverse either, and once had none of the three values the
             // inversion accepts
             expect(applicability("!(SomeField == SomeValue)")).equal(Conditional);
+        });
+
+        describe("with deprecated elements optional", () => {
+            function peerApplicability(definition: string, ...supportedFeatures: string[]) {
+                return new Conformance(definition).applicabilityFor(
+                    { definedFeatures: new Set(["AA", "BB"]), supportedFeatures: new Set(supportedFeatures) },
+                    { deprecatedIsOptional: true },
+                );
+            }
+
+            it("makes a deprecated element optional", () => {
+                expect(peerApplicability("D")).equal(Optional);
+            });
+
+            it("makes an obsolete element optional", () => {
+                expect(peerApplicability("Z")).equal(Optional);
+            });
+
+            it("decides a list ending in deprecated by the terms before it", () => {
+                expect(peerApplicability("[AA], D")).equal(None);
+                expect(peerApplicability("[AA], D", "AA")).equal(Optional);
+                expect(peerApplicability("AA, D")).equal(None);
+                expect(peerApplicability("AA, D", "AA")).equal(Mandatory);
+                expect(peerApplicability("SomeField, D")).equal(Conditional);
+            });
+
+            it("makes a deprecated term that does not end the list optional", () => {
+                expect(peerApplicability("D, AA")).equal(Optional);
+            });
+
+            it("leaves a disallowed element excluded", () => {
+                expect(peerApplicability("X")).equal(None);
+                expect(peerApplicability("AA, X")).equal(None);
+            });
         });
     });
 });

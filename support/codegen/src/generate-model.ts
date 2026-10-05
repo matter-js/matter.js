@@ -27,11 +27,11 @@ import { hideBin } from "yargs/helpers";
 import { AcknowledgedRemovals } from "./acknowledged-removals.js";
 import { generateElement } from "./mom/common/generate-element.js";
 import { DEFAULT_MATTER_VERSION } from "./mom/spec/md/load-markdown-files.js";
-import { canonicalizeConditionReferences } from "./util/canonicalize-condition-references.js";
 import { checkNumberTlvMapping } from "./util/check-number-tlv-mapping.js";
 import { clean, OutputSession } from "./util/file.js";
 import { finalizeModel } from "./util/finalize-model.js";
 import { digestOf, findLosses, ModelDigest } from "./util/model-digest.js";
+import { normalizeRevision } from "./util/revision.js";
 import { camelize } from "./util/string.js";
 import "./util/setup.js";
 import { TsFile } from "./util/TsFile.js";
@@ -60,14 +60,7 @@ const args = await yargs(hideBin(process.argv))
     })
     .strict().argv;
 
-const revisionComponents = args.revision.split(".");
-if (revisionComponents.length > 3) {
-    revisionComponents.length = 3;
-}
-if (revisionComponents.length > 2 && revisionComponents[2] === "0") {
-    revisionComponents.length = 2;
-}
-args.revision = revisionComponents.join(".");
+args.revision = normalizeRevision(args.revision);
 
 function elementDiscriminatedName(element: Model) {
     const { name } = element;
@@ -184,8 +177,6 @@ inputs.local = LocalMatter;
 const merged = MergedModel(args.revision as Specification.Revision, inputs);
 
 const matter = new MatterModel(merged as MatterElement);
-
-canonicalizeConditionReferences(matter);
 
 const validationResult = finalizeModel(matter);
 

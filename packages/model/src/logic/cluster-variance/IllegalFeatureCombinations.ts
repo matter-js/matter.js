@@ -18,13 +18,19 @@ type States = FeatureBitmap[];
 /**
  * Feature combinations a cluster disallows.  A selection matching every flag of any one set violates conformance.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3
+ * @see {@link MatterSpecification.v161.Core} § 7.3
  */
 export type IllegalFeatureCombinations = States;
 
 type Choices = {
     [name: string]: {
         exclusive: boolean;
+
+        /**
+         * False when the set only bounds the selection from above, so selecting no member conforms.
+         */
+        required: boolean;
+
         members: ChoiceMember[];
     };
 };
@@ -33,10 +39,10 @@ type ChoiceMember = {
     feature: string;
 
     /**
-     * The flags that remove the member from the choice set.  A member gated on a conformance expression only
+     * The flags under which the member belongs to the choice set.  A member gated on a conformance expression only
      * participates while that expression holds.
      */
-    gate: FeatureBitmap;
+    membership: FeatureBitmap;
 
     /**
      * True when the specification has yet to settle the member's conformance, so the set cannot require it.
@@ -93,7 +99,7 @@ const STANDALONE: EntryContext = {
  * Throws {@link NotImplementedError} if conformance does not adhere to supported rules.  This indicates the ruleset
  * needs augmentation.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3
+ * @see {@link MatterSpecification.v161.Core} § 7.3
  */
 export function IllegalFeatureCombinations(cluster: ClusterModel) {
     const illegal = new Array<FeatureBitmap>();
@@ -124,6 +130,11 @@ export function IllegalFeatureCombinations(cluster: ClusterModel) {
             }
         }
 
+        // A set bounded only from above requires nothing
+        if (!choice.required) {
+            continue;
+        }
+
         // Requiring a selection here would force adoption of conformance the specification has yet to settle
         if (choice.members.every(member => member.provisional)) {
             continue;
@@ -135,15 +146,15 @@ export function IllegalFeatureCombinations(cluster: ClusterModel) {
             flags[feature] = false;
         }
 
-        const gate = sharedGate(choice.members.map(member => member.gate));
-        if (gate === undefined) {
-            notImplemented(subject, "members leave the set under differing conditions");
+        const membership = sharedMembership(choice.members.map(member => member.membership));
+        if (membership === undefined) {
+            notImplemented(subject, "members join the set under differing conditions");
         }
-        for (const [gated, value] of Object.entries(gate)) {
+        for (const [gated, value] of Object.entries(membership)) {
             if (gated in flags) {
                 notImplemented(subject, `the set is gated on its own member ${gated}`);
             }
-            flags[gated] = !value;
+            flags[gated] = value;
         }
 
         add(flags);
@@ -183,21 +194,21 @@ function conjoin(lhs: States, rhs: States) {
 }
 
 /**
- * Reduce per-feature choice set gates to the flags that remove every member at once, the only states in which the set
- * has nothing to select.  Members closed by differing conditions coincide in a way a single flag set cannot express.
+ * Reduce per-feature choice set memberships to the flags under which the set has members to select.  Members that
+ * join under differing conditions populate the set in a way a single flag set cannot express.
  */
-function sharedGate(gates: FeatureBitmap[]) {
-    const [first, ...rest] = gates;
+function sharedMembership(memberships: FeatureBitmap[]) {
+    const [first, ...rest] = memberships;
 
     if (!Object.keys(first).length) {
         return FeatureBitmap();
     }
 
-    for (const gate of rest) {
-        if (!Object.keys(gate).length) {
+    for (const membership of rest) {
+        if (!Object.keys(membership).length) {
             return FeatureBitmap();
         }
-        if (!isDeepEqual(gate, first)) {
+        if (!isDeepEqual(membership, first)) {
             return undefined;
         }
     }
@@ -274,6 +285,7 @@ function inapplicable(feature: FieldModel, node: Conformance.Ast): States {
         case Conformance.Flag.Optional:
         case Conformance.Flag.Deprecated:
         case Conformance.Flag.Disallowed:
+        case Conformance.Flag.Obsolete:
         case Conformance.Special.Desc:
             return [];
 
@@ -297,14 +309,14 @@ function inapplicable(feature: FieldModel, node: Conformance.Ast): States {
 }
 
 /**
- * Determine the flags that exclude a feature from a choice set.
+ * Determine the flags under which a feature belongs to a choice set.
  *
  * The specification allows a choice set member only optional conformance.  Anything else states that the member is
  * required, which a set of alternatives cannot mean, so it is refused rather than read with its sense reversed.
  *
- * @see {@link MatterSpecification.v16.Core} § 7.3.14
+ * @see {@link MatterSpecification.v161.Core} § 7.3.14
  */
-function choiceGate(feature: FieldModel, node: Conformance.Ast) {
+function choiceMembership(feature: FieldModel, node: Conformance.Ast) {
     switch (node.type) {
         case Conformance.Flag.Optional:
             return FeatureBitmap();
@@ -314,15 +326,13 @@ function choiceGate(feature: FieldModel, node: Conformance.Ast) {
                 return FeatureBitmap();
             }
 
-            const gate = whenFalse(feature, node.param);
-
-            // The set requires a member wherever a gate fails, and negating a gate of several flags yields alternatives
-            // that one flag set cannot hold
-            if (gate.length !== 1 || Object.keys(gate[0]).length > 1) {
-                unsupportedConformance(feature, "the choice set member leaves the set under a compound condition");
+            // Membership under alternatives would need one flag set per alternative
+            const membership = whenTrue(feature, node.param);
+            if (membership.length !== 1) {
+                unsupportedConformance(feature, "the choice set member joins the set under alternative conditions");
             }
 
-            return gate[0];
+            return membership[0];
         }
 
         default:
@@ -344,32 +354,34 @@ function addChoiceMember(
         unsupportedConformance(feature, `a choice set requiring ${choice.num} members`);
     }
 
-    // The AST reduces a range to its lower bound with "orLess", so an upper bound cannot be modeled faithfully
-    if (choice.orLess) {
-        unsupportedConformance(feature, "a choice set bounded from above");
-    }
-
-    const gate = choiceGate(feature, choice.expr);
+    const membership = choiceMembership(feature, choice.expr);
     const reachedAlways = entry.reachedWhen.length === 1 && !Object.keys(entry.reachedWhen[0]).length;
 
     // Membership would otherwise depend on the enclosing conformance too, which a single flag set per member cannot
     // express.  An entry the earlier ones already made mandatory adds nothing where they govern, so its membership does
     // hold throughout
-    if (!reachedAlways && (Object.keys(gate).length || !entry.mandatedBefore)) {
+    if (!reachedAlways && (Object.keys(membership).length || !entry.mandatedBefore)) {
         unsupportedConformance(feature, "an earlier alternative conditions the choice set membership");
     }
 
-    if (Object.keys(gate).length && !entry.hasFallback) {
-        add({ [feature.name]: true, ...gate });
+    // Outside its membership the member has no conformance to draw on
+    if (!entry.hasFallback) {
+        for (const [gated, value] of Object.entries(membership)) {
+            add({ [feature.name]: true, [gated]: !value });
+        }
     }
 
-    const member: ChoiceMember = { feature: feature.name, gate, provisional: entry.provisionalBefore };
+    const member: ChoiceMember = { feature: feature.name, membership, provisional: entry.provisionalBefore };
+    const exclusive = !choice.orMore;
+    const required = !choice.orLess;
 
     const existing = choices[choice.name];
-    if (existing) {
-        existing.members.push(member);
+    if (!existing) {
+        choices[choice.name] = { exclusive, required, members: [member] };
+    } else if (existing.exclusive !== exclusive || existing.required !== required) {
+        unsupportedConformance(feature, `choice set "${choice.name}" members state differing bounds`);
     } else {
-        choices[choice.name] = { exclusive: !choice.orMore, members: [member] };
+        existing.members.push(member);
     }
 }
 
@@ -437,6 +449,7 @@ function addFeatureNode(
 
         case Conformance.Flag.Deprecated:
         case Conformance.Flag.Disallowed:
+        case Conformance.Flag.Obsolete:
             add({ [feature.name]: true });
             break;
 

@@ -69,6 +69,23 @@ describe("ColorControlServer", () => {
     });
 });
 
+describe("ColorControl primaries", () => {
+    // The specification leaves the primaries optional where NumberOfPrimaries does not require them
+    it("accepts a primary a light supplies without stating the number of primaries", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        try {
+            const endpoint = await node.add(ColorLightDeviceWithoutColorLoop, {
+                ...colorLightState(true),
+                colorControl: { ...colorLightState(true).colorControl, numberOfPrimaries: null, primary1X: 100 },
+            });
+
+            expect(endpoint.stateOf(ColorControlServer).primary1X).equals(100);
+        } finally {
+            await node.close();
+        }
+    });
+});
+
 async function setupWithoutColorLoop() {
     MockTime.reset();
 

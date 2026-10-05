@@ -13,8 +13,9 @@ import { ModelTraversal } from "./ModelTraversal.js";
 const logger = Logger.get("ValidateModel");
 
 /**
- * Ensures that a model's definition is correct.  Places errors into the error
- * array of invalid models.
+ * Ensures that a model's definition is correct, and reports each error in the {@link ValidateModel.Result} it
+ * returns, together with any errors recorded on the model beforehand. Validating a model again reports its errors
+ * again; nothing of a run is kept on the model.
  *
  * Modifies the model as a side effect: a default value is cast to the type that carries it, and a type whose case does
  * not match its definition is corrected.
@@ -32,31 +33,24 @@ export function ValidateModel(model: Model) {
     function validate(model: Model) {
         const Validator = ModelValidator.validators[model.tag];
         if (!Validator) {
-            model.error("UNKNOWN_MODEL_TYPE", `No validator for ${model.tag}`);
+            result.elementCount++;
+            record([
+                ...(model.errors ?? []),
+                ModelValidator.errorOf(model, "UNKNOWN_MODEL_TYPE", `No validator for ${model.tag}`),
+            ]);
             return;
         }
 
+        const validator = new Validator(model);
         try {
-            new Validator(model).validate();
+            validator.validate();
         } catch (e) {
             console.error(`Error validating ${model.path}`);
             throw e;
         }
 
         result.elementCount++;
-        if (!model.valid) {
-            result.invalidElementCount++;
-            if (model.errors) {
-                for (const error of model.errors) {
-                    if (result.errorCounts[error.code]) {
-                        result.errorCounts[error.code]++;
-                    } else {
-                        result.errorCounts[error.code] = 1;
-                    }
-                    result.errors.push(error);
-                }
-            }
-        }
+        record([...(model.errors ?? []), ...validator.errors]);
 
         // Need another logging level before enabling this
         // logger.debug(
@@ -72,6 +66,17 @@ export function ValidateModel(model: Model) {
         Logger.nest(() => {
             model.children.forEach(validate);
         });
+    }
+
+    function record(errors: DefinitionError[]) {
+        if (!errors.length) {
+            return;
+        }
+        result.invalidElementCount++;
+        for (const error of errors) {
+            result.errorCounts[error.code] = (result.errorCounts[error.code] ?? 0) + 1;
+            result.errors.push(error);
+        }
     }
 
     logger.info("Validating matter model");

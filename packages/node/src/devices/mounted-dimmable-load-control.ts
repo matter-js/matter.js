@@ -36,7 +36,7 @@ import { Identity } from "@matter/general";
  *   for backward compatibility with existing clients. See Dimmable Plug-In Unit client guidance for additional
  *   information, regarding the inclusion of these two device types.
  *
- * @see {@link MatterSpecification.v16.Device} § 5.4
+ * @see {@link MatterSpecification.v161.Device} § 5.4
  */
 export interface MountedDimmableLoadControlDevice extends Identity<typeof MountedDimmableLoadControlDeviceDefinition> {}
 
@@ -114,7 +114,7 @@ export namespace MountedDimmableLoadControlRequirements {
 export const MountedDimmableLoadControlDeviceDefinition = MutableEndpoint({
     name: "MountedDimmableLoadControl",
     deviceType: 0x110,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: MountedDimmableLoadControlRequirements,
 
     behaviors: SupportedBehaviors(

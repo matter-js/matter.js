@@ -5,7 +5,6 @@
  */
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
-import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { BasicInformationServer } from "#behaviors/basic-information";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Diagnostic, hex, Logger, MatterFlowError, MaybePromise, Seconds } from "@matter/general";
@@ -81,11 +80,9 @@ export class GeneralCommissioningServer extends GeneralCommissioningBehavior {
             // the relatively short commissioning window.
             if (
                 !commissioner.isFailsafeArmed &&
-                this.agent.get(AdministratorCommissioningServer).state.windowStatus !==
-                    AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen &&
+                commissioner.windowStatus !== AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen &&
                 !session.isPase
             ) {
-                // TODO - should this set status to Status.BusyWithOtherAdmin?
                 throw new MatterFlowError("Cannot arm failsafe using CASE while commissioning window is opened");
             }
 

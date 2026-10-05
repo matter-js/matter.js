@@ -21,7 +21,8 @@ LocalMatter.children.push({
             ],
         },
 
-        // Spec defines as an enum8. We have the datatype "namespace" for exactly this enum, so let's use it.
+        // Spec defines as an enum16 of standard namespace IDs.  The "namespace" datatype enumerates exactly these IDs,
+        // at the width of the semantic tag's NamespaceID (enum8), which every standard namespace ID fits
         {
             tag: "attribute",
             name: "StandardNamespace",

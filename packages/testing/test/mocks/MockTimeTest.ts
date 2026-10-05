@@ -33,6 +33,55 @@ describe("MockTime", () => {
         });
     });
 
+    describe("stepWallClock", () => {
+        it("moves the wall clock without moving the monotonic clock or timers", async () => {
+            let firedAt: number | undefined;
+            MockTime.getTimer("Test", 30, () => (firedAt = MockTime.nowUs)).start();
+
+            MockTime.stepWallClock(-10_000);
+            expect(MockTime.nowMs).equal(FAKE_TIME - 10_000);
+            expect(MockTime.now.getTime()).equal(FAKE_TIME - 10_000);
+            expect(MockTime.nowUs).equal(FAKE_TIME);
+
+            await MockTime.advance(30);
+            expect(firedAt).equal(FAKE_TIME + 30);
+            expect(MockTime.nowMs).equal(FAKE_TIME - 10_000 + 30);
+        });
+
+        it("schedules a timer started after a step on the monotonic clock", async () => {
+            let firedAt: number | undefined;
+            MockTime.stepWallClock(10_000);
+            MockTime.getTimer("Test", 30, () => (firedAt = MockTime.nowUs)).start();
+
+            await MockTime.advance(30);
+            expect(firedAt).equal(FAKE_TIME + 30);
+        });
+
+        it("rearms a periodic timer after a step on the monotonic clock", async () => {
+            const firedAt = new Array<number>();
+            const timer = MockTime.getPeriodicTimer("Test", 30, () => firedAt.push(MockTime.nowUs)).start();
+            MockTime.stepWallClock(10_000);
+
+            await MockTime.advance(60);
+            timer.stop();
+            expect(firedAt).deep.equal([FAKE_TIME + 30, FAKE_TIME + 60]);
+        });
+
+        it("leaves atTime reading the requested wall-clock time", () => {
+            MockTime.stepWallClock(5000);
+
+            expect(MockTime.atTime(1000, () => MockTime.nowMs)).equal(1000);
+            expect(MockTime.nowMs).equal(FAKE_TIME + 5000);
+        });
+
+        it("is cleared by reset", () => {
+            MockTime.stepWallClock(5000);
+            MockTime.reset(FAKE_TIME);
+
+            expect(MockTime.nowMs).equal(FAKE_TIME);
+        });
+    });
+
     describe("getPeriodicTimer", () => {
         it("returns a periodic timer that will call a callback periodically", async () => {
             let firedTime;
@@ -208,5 +257,20 @@ describe("MockTime", () => {
             expect(firedTime).equal(undefined);
             expect(result.isRunning).equal(false);
         });
+    });
+});
+
+// The two tests depend on running in order: the second observes the per-test state reset after the first
+describe("MockTime wall clock step across tests", () => {
+    before(() => MockTime.reset(FAKE_TIME));
+
+    it("steps the wall clock", () => {
+        MockTime.stepWallClock(5000);
+
+        expect(MockTime.nowMs - MockTime.nowUs).equal(5000);
+    });
+
+    it("is cleared by the per-test state reset", () => {
+        expect(MockTime.nowMs).equal(MockTime.nowUs);
     });
 });

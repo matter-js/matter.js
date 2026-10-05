@@ -370,7 +370,7 @@ export namespace Discovery {
          * IP network discovery participates regardless of the `onIpNetwork` bit; BLE only where the payload names it.
          * Omitting this discovers on every installed transport, BLE included.
          *
-         * @see {@link MatterSpecification.v16.Core} § 5.1.3.1 Table 60
+         * @see {@link MatterSpecification.v161.Core} § 5.1.3.1 Table 60
          */
         discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>;
     };

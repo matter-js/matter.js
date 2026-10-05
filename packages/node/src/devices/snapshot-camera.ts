@@ -40,7 +40,7 @@ import { Identity } from "@matter/general";
  * sensor. If this sensor is exposed, it shall be placed on a child endpoint of the primary camera endpoint, with the
  * corresponding device type Occupancy Sensor, as indicated in the following table:
  *
- * @see {@link MatterSpecification.v16.Device} § 16.6
+ * @see {@link MatterSpecification.v161.Device} § 16.6
  */
 export interface SnapshotCameraDevice extends Identity<typeof SnapshotCameraDeviceDefinition> {}
 

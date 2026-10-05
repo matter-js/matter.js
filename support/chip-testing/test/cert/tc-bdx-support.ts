@@ -5,13 +5,14 @@
  */
 
 import { Seconds } from "@matter/main";
-import { UnsupportedByControllerError } from "@matter/testing";
+import { flavorFamily, UnsupportedByControllerError } from "@matter/testing";
 import type {
     BdxTransferAccept,
     BdxTransferProposal,
     CertNodeRef,
     CertStepContext,
     CheckRecord,
+    LogFlavor,
     LogFollower,
     OtaBdxTransfer,
 } from "@matter/testing";
@@ -85,6 +86,15 @@ export interface OtaTransferRoles {
     /** How long to wait for the receiver's `ApplyUpdateRequest`, for a case whose provider defers it. */
     applyTimeoutMs?: number;
 
+    /** How long to wait for the receiver's `NotifyUpdateApplied`, for a case about it. */
+    notifyAppliedTimeoutMs?: number;
+
+    /**
+     * How long to keep recording once the exchange settles, for a case whose claim is that the
+     * receiver sent nothing more. {@link OtaBdxTransfer.observedMs} reports what was covered.
+     */
+    observeAfterMs?: number;
+
     /**
      * How long the whole exchange may take, for a case whose provider defers the query.
      *
@@ -107,7 +117,15 @@ export interface OtaTransferRoles {
 export async function serveOtaTransfer(
     cx: CertStepContext,
     ref: CertNodeRef,
-    { sender, receiver, expectApply: expectApplyOverride, applyTimeoutMs, timeoutMs }: OtaTransferRoles,
+    {
+        sender,
+        receiver,
+        expectApply: expectApplyOverride,
+        applyTimeoutMs,
+        notifyAppliedTimeoutMs,
+        observeAfterMs,
+        timeoutMs,
+    }: OtaTransferRoles,
 ): Promise<BdxTransferEvidence> {
     const device = cx.devices[receiver];
     const from = await device.log.markSettled();
@@ -118,16 +136,21 @@ export async function serveOtaTransfer(
     // --autoApplyImage, and chip's own certification material starts it without that flag for the
     // download cases (Test_TC_SU_3_3; Test_TC_SU_3_4, which is about applying, passes it). So a chip
     // receiver is expected to ask only where the case started it with that flag and said so.
-    const expectApply = expectApplyOverride ?? device.flavor === "matterjs";
+    const expectApply = expectApplyOverride ?? flavorFamily(device.flavor) === "matterjs";
 
     let transfer: OtaBdxTransfer;
     try {
-        transfer = await cx.controllers[sender]
-            .node(ref)
-            .serveOtaUpdate({ timeoutMs: timeoutMs ?? OTA_TRANSFER_TIMEOUT, expectApply, applyTimeoutMs });
+        transfer = await cx.controllers[sender].node(ref).serveOtaUpdate({
+            timeoutMs: timeoutMs ?? OTA_TRANSFER_TIMEOUT,
+            expectApply,
+            applyTimeoutMs,
+            notifyAppliedTimeoutMs,
+            observeAfterMs,
+        });
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
-        // recorded nothing, so recording first would fail the run on a controller that cannot serve at all.
+        // recorded no check and made no call that may change the device, so recording first would fail the run on a
+        // controller that cannot serve at all.
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
@@ -270,6 +293,9 @@ const CHIP_DATA_LENGTH = /\[ATM\]\s+Data Length: (\d+)\s*$/;
 
 /** Fields of one message in chip's own dump: the counter it carries, and the payload it arrived in. */
 const CHIP_DMG_BLOCK_COUNTER = /\[DMG\]\s+BlockCounter = (\d+)\s*$/;
+
+/** The message counter and session a chip DMG header names, which identify one message across MRP retransmissions. */
+const CHIP_DMG_MESSAGE_ID = /\| (\d+) \| \[.*\/ Session = (\d+)/;
 const CHIP_DMG_PAYLOAD_SIZE = /\[DMG\] Decrypted Payload \((\d+) bytes\)/;
 
 /** Bytes of a BDX payload the block counter itself occupies, ahead of any data (§ 11.22.5.6). */
@@ -319,13 +345,14 @@ function chipSequence(lines: ChipMessageLines | undefined) {
  */
 function messagesIn(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     kind: BdxMessageKind,
     from: number,
 ): BdxMessageRecord[] | undefined {
     const lines = log.lines.filter(line => !line.synthetic && line.index >= Math.max(0, from));
 
-    if (flavor === "matterjs") {
+    const family = flavorFamily(flavor);
+    if (family === "matterjs") {
         if (kind.matterjs === undefined) {
             return undefined;
         }
@@ -348,7 +375,7 @@ function messagesIn(
     // LogMessage names only some of them — `TransferSession::HandleBlock` records a received Block and
     // returns, and `PrepareBlockQuery` likewise, so a receiver's whole account lives here.
     const dmg = kind.chipDmg;
-    if (!flavor.startsWith("chip") || dmg === undefined) {
+    if (family !== "chip" || dmg === undefined) {
         return undefined;
     }
 
@@ -358,9 +385,17 @@ function messagesIn(
             .padStart(2, "0")}\\)`,
     );
 
+    // chip dumps every datagram it receives, an MRP retransmission of a message it already has included, and
+    // then drops the copy as a duplicate; counting the dump would count the message twice
+    const seen = new Set<string>();
     const records = new Array<BdxMessageRecord>();
     for (let i = 0; i < lines.length; i++) {
         if (!header.test(lines[i].text)) {
+            continue;
+        }
+        const id = CHIP_DMG_MESSAGE_ID.exec(lines[i].text);
+        const key = id === null ? undefined : `${id[2]}/${id[1]}`;
+        if (key !== undefined && seen.has(key)) {
             continue;
         }
 
@@ -378,6 +413,10 @@ function messagesIn(
             continue;
         }
 
+        // Only a dump that yielded a record stands for the message; a retransmission of one that did not is read
+        if (key !== undefined) {
+            seen.add(key);
+        }
         records.push({
             counter,
             length: dmg.carriesData && payloadSize !== undefined ? payloadSize - CHIP_BDX_COUNTER_BYTES : undefined,
@@ -419,17 +458,17 @@ export function overMessages(
 }
 
 /** {@link messagesIn} for the `Block` messages the TH took in. */
-export function blocksReceived(log: LogFollower, flavor: string, from: number) {
+export function blocksReceived(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_RECEIVED, from);
 }
 
 /** {@link messagesIn} for the `BlockEOF` the TH took in. */
-export function blockEofReceived(log: LogFollower, flavor: string, from: number) {
+export function blockEofReceived(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_EOF_RECEIVED, from);
 }
 
 /** {@link messagesIn} for the `BlockQuery` messages the TH sent. */
-export function blockQueriesSent(log: LogFollower, flavor: string, from: number) {
+export function blockQueriesSent(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_QUERY_SENT, from);
 }
 
@@ -449,7 +488,7 @@ function endOfTransferLines() {
 }
 
 /** {@link messagesIn} for the `BlockAckEOF` the TH sent. */
-export function blockAckEofSent(log: LogFollower, flavor: string, from: number) {
+export function blockAckEofSent(log: LogFollower, flavor: LogFlavor, from: number) {
     return messagesIn(log, flavor, BLOCK_ACK_EOF_SENT, from);
 }
 

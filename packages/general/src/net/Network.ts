@@ -47,7 +47,7 @@ export class TcpDisconnectError extends NetworkError {}
  * sessions bound to it are being torn down, establishes none of that: the peer may still be
  * reachable, and the sessions to invalidate are the ones bound to that connection.
  *
- * @see {@link MatterSpecification.v16.Core} § 4.15.1
+ * @see {@link MatterSpecification.v161.Core} § 4.15.1
  */
 export class TransportClosedError extends MatterError {}
 
@@ -83,7 +83,7 @@ export function tcpErrorFrom(error: Error): NetworkError {
 export const STANDARD_MATTER_PORT = 5540;
 
 /**
- * @see {@link MatterSpecification.v16.Core} § 11.12.5.4
+ * @see {@link MatterSpecification.v161.Core} § 11.12.5.4
  * Duplicated from the GeneralDiagnostics cluster to avoid circular dependencies.
  */
 export enum InterfaceType {

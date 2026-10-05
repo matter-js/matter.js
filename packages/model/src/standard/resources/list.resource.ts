@@ -30,7 +30,7 @@ Resource.add({
         "> [!NOTE]" +
         "\n" +
         "> For example: Derived data types defined here: | Name | Type | Constraint | Quality | ... | | --- | " +
-        "  --- | --- | --- | --- | | MonthNameString | string | 3 | F | ... | | MonthNumber | uint8 | 1 to 12 " +
+        "--- | --- | --- | --- | | MonthNameString | string | 3 | F | ... | | MonthNumber | uint8 | 1 to 12 " +
         "| | ... | SummerStruct defined here: | ID | Name | Type | Constraint | Quality | ... | | --- | --- " +
         "| --- | --- | --- | --- | | 0 | Year | int16 | -1000 to 3000 | | ... | | 1 | SummerMonths | " +
         "list[MonthNumber] | max 12 | N | ... | Used Here: | ID | Name | Type | Constraint | Quality | ... " +
@@ -40,9 +40,9 @@ Resource.add({
         "\n" +
         "> [!NOTE]" +
         "\n" +
-        "> For example: <table> <tbody> <tr> <td>ID</td> <td>Name</td> <td>Type</td> <td>Constraint</td> " +
-        "<td>Quality</td> <td>...</td> </tr> <tr> <td>0</td> <td>MonthNames</td> <td>list[string]</td> " +
-        "<td>12[3]</td> <td>N</td> <td>... .</td> </tr> </tbody> </table>" +
+        "> For example: <table> <thead> <tr> <th>ID</th> <th>Name</th> <th>Type</th> <th>Constraint</th> " +
+        "<th>Quality</th> <th>...</th> </tr> </thead> <tbody> <tr> <td>0</td> <td>MonthNames</td> " +
+        "<td>list[string]</td> <td>12[3]</td> <td>N</td> <td>... .</td> </tr> </tbody> </table>" +
         "\n" +
         "It is recommended to put a maximum constraint on the list and list entry data types." +
         "\n" +

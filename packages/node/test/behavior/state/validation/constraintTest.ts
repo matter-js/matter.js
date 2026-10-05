@@ -48,7 +48,7 @@ const AllTests = Tests({
                 error: {
                     type: ConstraintError,
                     message:
-                        'Validating Test.test.0: Constraint "all": Value 10001 is not within bounds defined by constraint',
+                        'Validating Test.test.0: Constraint "0% to 100%": Value 10001 is not within bounds defined by constraint',
                 },
             },
         },
@@ -194,7 +194,7 @@ const AllTests = Tests({
     }),
 
     // <ConstrainingElementName>.<Field>, the form the specification defines for naming a bound held by another
-    // element.  @see {@link MatterSpecification.v16.Core} § 7.18.3.4
+    // element.  @see {@link MatterSpecification.v161.Core} § 7.18.3.4
     "range with dot-qualified reference": Tests(
         Fields(
             { type: "uint16", constraint: "Limits.HoldTimeMin to Limits.HoldTimeMax" },
@@ -258,8 +258,8 @@ const AllTests = Tests({
         },
     ),
 
-    // An enumerated type states a bound as the names of its own values.  @see {@link MatterSpecification.v16.Core}
-    // § 7.18.3
+    // An enumerated type states a bound as the names of its own values.  @see {@link MatterSpecification.v161.Core}
+    // § 7.18.3.8
     "named values of an enumeration": Tests(
         Fields({
             type: "enum8",
@@ -304,7 +304,7 @@ const AllTests = Tests({
                 error: {
                     type: ConstraintError,
                     message:
-                        'Validating Test.test.0: Constraint "all": Value 0 is not within bounds defined by constraint',
+                        'Validating Test.test.0: Constraint "min 1": Value 0 is not within bounds defined by constraint',
                 },
             },
         },
@@ -338,7 +338,7 @@ const AllTests = Tests({
                 error: {
                     type: ConstraintError,
                     message:
-                        'Validating Test.test.2: Constraint "all": Value 9 is not within bounds defined by constraint',
+                        'Validating Test.test.2: Constraint "max 2": Value 9 is not within bounds defined by constraint',
                 },
             },
         },
@@ -518,7 +518,7 @@ const AllTests = Tests({
                 error: {
                     type: ConstraintError,
                     message:
-                        'Validating Test.test.0: Constraint "all": Value 30000 is not within bounds defined by constraint',
+                        'Validating Test.test.0: Constraint "max 2000": Value 30000 is not within bounds defined by constraint',
                 },
             },
         },

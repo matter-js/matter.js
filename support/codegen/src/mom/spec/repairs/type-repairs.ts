@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Specification } from "#model";
-
 const TYPE_ERRORS: { [badType: string]: string } = {
     "attribute-id": "attrib-id",
     bitmap8: "map8",
@@ -27,19 +25,22 @@ const TYPE_ERRORS: { [badType: string]: string } = {
     ipv6addr: "ipv6adr",
     "endpoint-id": "endpoint-no",
     "ModeBitmap.": "ModeBitmap",
-    CurrencyStruct: "currency",
     StatusCode: "status",
+    boolean: "bool",
+    Boolean: "bool",
 
     // Asciidoctor renders these as "FooType" in table cells but headings strip " Type" suffix
     VideoStreamIDType: "VideoStreamID",
     AudioStreamIDType: "AudioStreamID",
     SnapshotStreamIDType: "SnapshotStreamID",
+    AnalysisStreamIDType: "AnalysisStreamID",
+
+    // Humidistat tables name its enums by their link text rather than their headings
+    HumidistatMode: "ModeEnum",
+    HumidistatSystemStateEnum: "SystemStateEnum",
 
     // Cross-cluster type references (types defined in other clusters referenced by name)
     ChimeSound: "ChimeSoundStruct",
-
-    // Can't use this one because ModeSelect defines a different SemanticTagStruct
-    //SemanticTagStruct: "semtag",
 };
 
 export function repairTypeIdentifier<T extends string | undefined>(type: T): T {
@@ -71,7 +72,7 @@ export function repairTypeIdentifier<T extends string | undefined>(type: T): T {
     return type;
 }
 
-export function repairType(record: { xref?: Specification.CrossReference; type?: string; constraint?: string }) {
+export function repairType(record: { type?: string; constraint?: string }) {
     let type = record.type;
     if (type === undefined) {
         return type;
@@ -83,12 +84,6 @@ export function repairType(record: { xref?: Specification.CrossReference; type?:
     if (type === "max254") {
         type = "uint8";
         record.constraint = "max 254";
-    }
-
-    // Descriptor in 1.3 core spec references "SemanticTagStruct" for semtag.  We can't patch everywhere because Mode
-    // Select has an actual type called "SemanticTagStruct".
-    if (type === "list[SemanticTagStruct]" && record.xref?.document === "core") {
-        type = "list[semtag]";
     }
 
     record.type = type;

@@ -23,8 +23,8 @@ export const MicrowaveOvenDt = DeviceType(
     ),
     Requirement(
         { name: "FanControl", id: 0x202, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "WIND", conformance: "X", element: "feature" }),
-        Requirement({ name: "AIRFLOWDIRECTION", conformance: "X", element: "feature" })
+        Requirement({ name: "WND", conformance: "X", element: "feature" }),
+        Requirement({ name: "DIR", conformance: "X", element: "feature" })
     ),
     Requirement({ name: "MicrowaveOvenMode", id: 0x5e, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "MicrowaveOvenControl", id: 0x5f, conformance: "M", element: "serverCluster" }),

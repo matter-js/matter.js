@@ -165,14 +165,16 @@ export class DnssdNames {
     }
 
     #processMessage(message: MdnsSocket.Message): DnssdName[] {
+        // A query's known answers are what the querier cached, possibly on another link; caching them here would tag
+        // a link-local address with the interface the query arrived on (RFC 6762 §7.1 uses them for suppression only)
+        if (!DnsMessageType.isResponse(message.messageType)) {
+            return [];
+        }
+
         const records = [...message.answers, ...message.additionalRecords];
         const filtered = new Set(records);
         const sourceIntf = message.sourceIntf;
         const packetAt = Time.nowMs;
-
-        // The top rrclass bit is the cache-flush bit only in a response; in a query's known-answer list it is
-        // reserved and must be ignored (RFC 6762 §18.12)
-        const isResponse = DnsMessageType.isResponse(message.messageType);
 
         // Collect newly discovered names so we can emit after all records in the message are processed.  This ensures
         // that observers see the complete record set (e.g. both SRV and TXT) rather than partial state mid-message.
@@ -193,9 +195,6 @@ export class DnssdNames {
             if (record.ttl) {
                 if (record.ttl < this.#minTtl) {
                     record = { ...record, ttl: this.#minTtl };
-                }
-                if (!isResponse) {
-                    record = { ...record, flushCache: false };
                 }
                 const wasDiscovered = name.isDiscovered;
                 if (name.installRecord(record, { sourceIntf, installedAt: packetAt })) {
@@ -288,9 +287,6 @@ export class DnssdNames {
 
                 if (record.ttl < this.#minTtl) {
                     record = { ...record, ttl: this.#minTtl };
-                }
-                if (!isResponse && record.flushCache) {
-                    record = { ...record, flushCache: false };
                 }
                 let staged = this.#stagedIpRecords.get(key) ?? [];
                 if (record.flushCache) {

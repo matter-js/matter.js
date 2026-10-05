@@ -7,6 +7,10 @@
 import { DclConfig } from "#dcl/DclConfig.js";
 import {
     DclApiErrorResponse,
+    DclComplianceInfoRaw,
+    DclComplianceInfoResponse,
+    DclDeviceModelRaw,
+    DclDeviceSoftwareVersionModelRaw,
     DclModelModelsWithVidPidResponse,
     DclModelVersionsWithVidPidResponse,
     DclModelVersionWithVidPidSoftwareVersionResponse,
@@ -16,10 +20,19 @@ import {
     DclPkiRevocationPointsByIssuerResponse,
     DclPkiRootCertificatesResponse,
     DclPkiRootCertificateSubjectReference,
-    DclVendorInfo,
+    DclProductAttestationRaw,
+    DclVendorRaw,
 } from "#dcl/DclRestApiTypes.js";
 import { Duration, Logger, MatterError, Seconds } from "@matter/general";
-import { DeviceAttestationPkiRevocationDclSchema, ProductAttestationDclSchema, VendorId } from "@matter/types";
+import {
+    DeviceAttestationPkiRevocationDclSchema,
+    DeviceModelDclSchema,
+    DeviceSoftwareComplianceDclSchema,
+    DeviceSoftwareVersionModelDclSchema,
+    ProductAttestationDclSchema,
+    VendorDclSchema,
+    VendorId,
+} from "@matter/types";
 
 const logger = new Logger("DclClient");
 
@@ -130,12 +143,10 @@ export class DclClient {
         const skidWithColons = normalized.match(/.{1,2}/g)?.join(":") ?? normalized;
         const path = `/dcl/pki/all-certificates?subjectKeyId=${encodeURIComponent(skidWithColons)}`;
         const response = await this.#fetchJson<DclPkiAllCertificatesBySkidResponse>(path, options);
-        const groups = response?.certificates ?? [];
-        const results: ProductAttestationDclSchema[] = [];
+        const groups = supportedRecords(response?.certificates ?? [], "certificate group");
+        const results = new Array<ProductAttestationDclSchema>();
         for (const group of groups) {
-            for (const cert of group.certs ?? []) {
-                results.push(cert);
-            }
+            results.push(...supportedRecords(group.certs ?? [], "certificate").map(mapRawCertificate));
         }
         return results;
     }
@@ -154,7 +165,7 @@ export class DclClient {
                 `Root certificate not found for subject: ${subject.subject}, subjectKeyId: ${subject.subjectKeyId}`,
             );
         }
-        return response.approvedCertificates.certs;
+        return supportedRecords(response.approvedCertificates.certs, "certificate").map(mapRawCertificate);
     }
 
     async fetchModelByVidPid(vid: number, pid: number, options?: DclClient.Options) {
@@ -169,7 +180,7 @@ export class DclClient {
         ) {
             throw new MatterDclError(`Model not found for VID: ${vid}, PID: ${pid}`);
         }
-        return response.model;
+        return mapRawDeviceModel(response.model);
     }
 
     async fetchModelVersionsByVidPid(vid: number, pid: number, options?: DclClient.Options) {
@@ -207,14 +218,50 @@ export class DclClient {
                 `Model version not found for VID: ${vid}, PID: ${pid}, Software Version: ${softwareVersion}`,
             );
         }
-        return response.modelVersion;
+        return mapRawModelVersion(response.modelVersion);
+    }
+
+    /**
+     * Fetch the compliance record of a software version for a certification program.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 11.23.10
+     */
+    async fetchComplianceInfo(
+        vid: number,
+        pid: number,
+        softwareVersion: number,
+        certificationType: string,
+        options?: DclClient.Options,
+    ) {
+        const path = `/dcl/compliance/compliance-info/${encodeURIComponent(vid)}/${encodeURIComponent(pid)}/${encodeURIComponent(softwareVersion)}/${encodeURIComponent(certificationType)}`;
+        const response = await this.#fetchJson<DclComplianceInfoResponse>(path, options);
+        const info = response?.complianceInfo;
+        if (
+            !info ||
+            info.vid !== vid ||
+            info.pid !== pid ||
+            info.softwareVersion !== softwareVersion ||
+            info.certificationType !== certificationType
+        ) {
+            throw new MatterDclError(
+                `Compliance info not found for VID: ${vid}, PID: ${pid}, Software Version: ${softwareVersion}, Certification Type: ${certificationType}`,
+            );
+        }
+        // SchemaVersion 0 and 1 are the ones §11.23.10.15 defines; a later version may change field meanings.
+        if (![0, 1].includes(info.schemaVersion)) {
+            throw new MatterDclError(
+                `Unsupported DCL compliance info schema version ${info.schemaVersion} for VID: ${vid}, PID: ${pid}, Software Version: ${softwareVersion}`,
+            );
+        }
+        return mapRawComplianceInfo(info);
     }
 
     /**
      * Fetch all vendor information from DCL
      */
     async fetchAllVendors(options?: DclClient.Options) {
-        return this.#fetchPaginatedJson<DclVendorInfo>("/dcl/vendorinfo/vendors", "vendorInfo", options);
+        const vendors = await this.#fetchPaginatedJson<DclVendorRaw>("/dcl/vendorinfo/vendors", "vendorInfo", options);
+        return supportedRecords(vendors, "vendor").map(mapRawVendor);
     }
 
     /**
@@ -229,7 +276,7 @@ export class DclClient {
             "PkiRevocationDistributionPoint",
             options,
         );
-        return rawItems.map(mapRawRevocationPoint);
+        return supportedRecords(rawItems, "revocation point").map(mapRawRevocationPoint);
     }
 
     /**
@@ -241,9 +288,114 @@ export class DclClient {
     ): Promise<DeviceAttestationPkiRevocationDclSchema[]> {
         const path = `/dcl/pki/revocation-points/${encodeURIComponent(issuerSubjectKeyId)}`;
         const response = await this.#fetchJson<DclPkiRevocationPointsByIssuerResponse>(path, options);
-        const rawPoints = response?.pkiRevocationDistributionPointsByIssuerSubjectKeyID?.points ?? [];
-        return rawPoints.map(mapRawRevocationPoint);
+        const byIssuer = response?.pkiRevocationDistributionPointsByIssuerSubjectKeyID;
+        if (byIssuer !== undefined && byIssuer.schemaVersion !== 0) {
+            throw new MatterDclError(
+                `Unsupported DCL revocation points schema version ${byIssuer.schemaVersion} for issuer ${issuerSubjectKeyId}`,
+            );
+        }
+        return supportedRecords(byIssuer?.points ?? [], "revocation point").map(mapRawRevocationPoint);
     }
+}
+
+/**
+ * Returns the records with a schema version this client can interpret. A later schema version may change what a field
+ * means, so such records are dropped instead of being read with the known layout.
+ */
+function supportedRecords<T extends { schemaVersion: number }>(records: T[], kind: string) {
+    const supported = records.filter(({ schemaVersion }) => schemaVersion === 0);
+    if (supported.length < records.length) {
+        logger.warn(
+            `Ignoring ${records.length - supported.length} DCL ${kind} record(s) with unsupported schema version`,
+        );
+    }
+    return supported;
+}
+
+function mapRawVendor(raw: DclVendorRaw): VendorDclSchema {
+    return {
+        ...raw,
+        companyPreferredName: raw.companyPreferredName || undefined,
+        vendorLandingPageURL: raw.vendorLandingPageURL || undefined,
+    };
+}
+
+function mapRawCertificate(raw: DclProductAttestationRaw): ProductAttestationDclSchema {
+    return {
+        ...raw,
+        issuer: raw.issuer || undefined,
+        authorityKeyId: raw.authorityKeyId || undefined,
+        rootSubject: raw.rootSubject || undefined,
+        rootSubjectKeyId: raw.rootSubjectKeyId || undefined,
+    };
+}
+
+/**
+ * The LSF revision and the Terms and Conditions revision, digest and size only have a meaning when their URL is set
+ * (Core §11.23.7.20, §11.23.7.24-26).
+ */
+function mapRawDeviceModel(raw: DclDeviceModelRaw): DeviceModelDclSchema {
+    const hasTc = raw.enhancedSetupFlowTCUrl !== "";
+    return {
+        ...raw,
+        commissioningCustomFlowUrl: raw.commissioningCustomFlowUrl || undefined,
+        commissioningModeInitialStepsInstruction: raw.commissioningModeInitialStepsInstruction || undefined,
+        commissioningModeSecondaryStepsInstruction: raw.commissioningModeSecondaryStepsInstruction || undefined,
+        commissioningFallbackUrl: raw.commissioningFallbackUrl || undefined,
+        userManualUrl: raw.userManualUrl || undefined,
+        supportUrl: raw.supportUrl || undefined,
+        productUrl: raw.productUrl || undefined,
+        lsfUrl: raw.lsfUrl || undefined,
+        lsfRevision: raw.lsfUrl ? raw.lsfRevision : undefined,
+        enhancedSetupFlowTCUrl: raw.enhancedSetupFlowTCUrl || undefined,
+        enhancedSetupFlowTCRevision: hasTc ? raw.enhancedSetupFlowTCRevision : undefined,
+        enhancedSetupFlowTCDigest: hasTc ? raw.enhancedSetupFlowTCDigest || undefined : undefined,
+        enhancedSetupFlowTCFileSize: hasTc ? raw.enhancedSetupFlowTCFileSize || undefined : undefined,
+        maintenanceUrl: raw.maintenanceUrl || undefined,
+        icdUserActiveModeTriggerInstruction: raw.icdUserActiveModeTriggerInstruction || undefined,
+        factoryResetStepsInstruction: raw.factoryResetStepsInstruction || undefined,
+    };
+}
+
+function mapRawComplianceInfo(raw: DclComplianceInfoRaw): DeviceSoftwareComplianceDclSchema {
+    const {
+        compliantPlatformUsed: _compliantPlatformUsed,
+        compliantPlatformVersion: _compliantPlatformVersion,
+        certificationIdOfSoftwareComponent: _certificationIdOfSoftwareComponent,
+        OSVersion: _osVersion,
+        ...fields
+    } = raw;
+    return {
+        ...fields,
+        specificationVersion: raw.specificationVersion || undefined,
+        history: raw.history.map(item => ({ ...item, reason: item.reason || undefined })),
+        certificationRoute: raw.certificationRoute || undefined,
+        reason: raw.reason || undefined,
+        transport: raw.transport || undefined,
+        familyId: raw.familyId || undefined,
+        supportedClusters: raw.supportedClusters || undefined,
+        programType: raw.programType || undefined,
+        programTypeVersion: raw.programTypeVersion || undefined,
+        parentChild: raw.parentChild || undefined,
+    };
+}
+
+/**
+ * Maps a raw DCL device software version entry to {@link DeviceSoftwareVersionModelDclSchema}. The DCL sends unset
+ * optional fields as `""` or `0`; they become `undefined`.
+ */
+function mapRawModelVersion(raw: DclDeviceSoftwareVersionModelRaw): DeviceSoftwareVersionModelDclSchema {
+    const otaFileSize = /^\d+$/.test(raw.otaFileSize) ? BigInt(raw.otaFileSize) : 0n;
+    return {
+        ...raw,
+        firmwareInformation: raw.firmwareInformation || undefined,
+        otaUrl: raw.otaUrl || undefined,
+        otaFileSize: otaFileSize > 0n ? otaFileSize : undefined,
+        otaChecksum: raw.otaChecksum || undefined,
+        otaChecksumType: raw.otaChecksumType || undefined,
+        releaseNotesUrl: raw.releaseNotesUrl || undefined,
+        specificationVersion: raw.specificationVersion || undefined,
+    };
 }
 
 /**

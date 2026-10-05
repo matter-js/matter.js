@@ -69,7 +69,7 @@ import { Identity } from "@matter/general";
  * allow an installer to add identifying information for the rooms or spaces where the Thermostat measurement point is
  * located.
  *
- * @see {@link MatterSpecification.v16.Device} § 14.5
+ * @see {@link MatterSpecification.v161.Device} § 14.5
  */
 export interface HeatPumpDevice extends Identity<typeof HeatPumpDeviceDefinition> {}
 

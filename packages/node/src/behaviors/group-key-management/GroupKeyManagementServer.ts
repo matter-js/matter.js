@@ -15,13 +15,23 @@ import {
     hasRemoteActor,
     IPK_DEFAULT_EPOCH_START_TIME,
 } from "@matter/protocol";
-import { EndpointNumber, FabricIndex, GroupId, Status, StatusResponseError } from "@matter/types";
+import {
+    EndpointNumber,
+    FabricIndex,
+    GroupId,
+    MATTER_EPOCH_OFFSET_US,
+    Status,
+    StatusResponseError,
+} from "@matter/types";
 import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { GroupKeyManagementBehavior } from "./GroupKeyManagementBehavior.js";
 
 const logger = Logger.get("GroupKeyManagementServer");
 
 const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
+
+/** Per core§11.27.7.1.4 a Groupcast-created GroupKeySet has EpochStartTime0=1 (internal times are unix-epoch based). */
+const GROUPCAST_KEY_EPOCH_START_TIME = MATTER_EPOCH_OFFSET_US + BigInt(1);
 
 const GroupKeyManagementBase = GroupKeyManagementBehavior;
 
@@ -33,6 +43,9 @@ const groupKeySetStructFS = groupKeySetStruct.extend(
     },
     FieldElement({ name: "FabricIndex", id: 0xfe, type: "FabricIndex", conformance: "M" }),
 );
+// GroupKeyMulticastPolicy has no effect here; it is reported as the PerGroupID default until the field is obsolete
+const reportsMulticastPolicy = !groupKeySetStruct.fields.require("GroupKeyMulticastPolicy").isObsolete;
+
 const schema = GroupKeyManagementBase.schema.extend(
     {},
     groupKeySetStructFS,
@@ -47,6 +60,13 @@ const schema = GroupKeyManagementBase.schema.extend(
         FieldElement({ name: "entry", type: "GroupKeySetStructFS" }),
     ),
 );
+
+function withoutMulticastPolicy<T extends GroupKeyManagement.GroupKeySet>({
+    groupKeyMulticastPolicy: _policy,
+    ...keySet
+}: T): Omit<T, "groupKeyMulticastPolicy"> {
+    return keySet;
+}
 
 /**
  * This is the default server implementation of {@link GroupKeyManagementBehavior}.
@@ -63,8 +83,13 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         // TODO: remove this guard once the Groupcast feature leaves provisional state in the Matter specification
         if (this.features.groupcast) {
             throw new ImplementationError(
-                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6. Do not enable it.",
+                "The Groupcast feature of GroupKeyManagement is provisional in Matter 1.6.1. Do not enable it.",
             );
+        }
+
+        // Key sets stored by earlier versions still carry the multicast policy
+        if (this.state.groupKeySets.some(({ groupKeyMulticastPolicy }) => groupKeyMulticastPolicy !== undefined)) {
+            this.state.groupKeySets = this.state.groupKeySets.map(withoutMulticastPolicy);
         }
 
         // Validate the state
@@ -139,7 +164,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             this.#updateGroupKeyMap(this.state.groupKeyMap);
         }
         if (this.state.groupTable.length) {
-            // Restore the runtime endpoint map, which group command dispatch expands over
+            // Restore the runtime endpoint map, which group command dispatch and the UDP multicast memberships use
             for (const { fabricIndex, groupId, endpoints } of this.state.groupTable) {
                 if (fabrics.has(fabricIndex)) {
                     fabrics.for(fabricIndex).groups.endpoints.set(groupId, [...endpoints]);
@@ -168,11 +193,17 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             );
         }
         if (this.state.groupTable.length) {
-            // Initialize the group table for the fabric
+            // Diff instead of clear+refill: endpoint map events drive the UDP multicast memberships, a blind rebuild
+            // would leave and rejoin every group address
             const groupTable = this.state.groupTable.filter(
                 ({ fabricIndex: entryIndex }) => entryIndex === fabricIndex,
             );
-            fabric.groups.endpoints.clear();
+            const targetGroupIds = new Set(groupTable.map(({ groupId }) => groupId));
+            for (const groupId of fabric.groups.endpoints.keys()) {
+                if (!targetGroupIds.has(groupId)) {
+                    fabric.groups.endpoints.delete(groupId);
+                }
+            }
             for (const entry of groupTable) {
                 fabric.groups.endpoints.set(entry.groupId, entry.endpoints);
             }
@@ -317,7 +348,6 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             epochStartTime1,
             epochStartTime2,
             groupKeySecurityPolicy,
-            groupKeyMulticastPolicy = GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId,
         } = groupKeySet;
 
         // Unclear if that should be checked here, but it basically only makes sense here
@@ -374,13 +404,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             throw new StatusResponseError("GroupKeySecurityPolicy must be TrustFirst", Status.InvalidCommand);
         }
 
-        // GroupKeyMulticastPolicy is provisional and PerGroupId is the default, so do not allow other values for now
-        if (groupKeyMulticastPolicy !== GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId) {
-            throw new StatusResponseError("GroupKeyMulticastPolicy must be PerGroupId", Status.InvalidCommand);
-        }
-
         const fabric = this.context.session.associatedFabric;
         const fabricIndex = fabric.fabricIndex;
+        const keySet = withoutMulticastPolicy(groupKeySet);
 
         // Replace or add the group key set to the internal persisted state
         const existingIndex = this.state.groupKeySets.findIndex(
@@ -389,7 +415,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
         );
         if (existingIndex !== -1) {
             // Update existing group key set
-            this.state.groupKeySets[existingIndex] = { ...groupKeySet, fabricIndex };
+            this.state.groupKeySets[existingIndex] = { ...keySet, fabricIndex };
         } else {
             // Add a new group key set
             const keySetsOfFabric =
@@ -400,11 +426,11 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
                     Status.ResourceExhausted,
                 );
             }
-            this.state.groupKeySets.push({ ...groupKeySet, fabricIndex });
+            this.state.groupKeySets.push({ ...keySet, fabricIndex });
         }
 
         // Update the Fabric group manager to kick off the internal processes
-        await fabric.groups.setFromGroupKeySet(groupKeySet);
+        await fabric.groups.setFromGroupKeySet(keySet);
     }
 
     override keySetRead({
@@ -426,6 +452,9 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
                 epochKey0: null,
                 epochKey1: null,
                 epochKey2: null,
+                ...(reportsMulticastPolicy
+                    ? { groupKeyMulticastPolicy: GroupKeyManagement.GroupKeyMulticastPolicy.PerGroupId }
+                    : {}),
             },
         };
     }
@@ -568,7 +597,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
     /**
      * Creates a new GroupKeySet for a Groupcast group key, bypassing normal KeySetWrite validation.
      * Used by GroupcastServer when JoinGroup or UpdateGroupKey is called with a `key` parameter.
-     * The key set uses TrustFirst policy and epochStartTime0=IPK_DEFAULT_EPOCH_START_TIME (Matter epoch zero = Jan 1, 2000).
+     * The key set uses TrustFirst policy and EpochStartTime0=1 as required by core§11.27.7.1.4.
      *
      * @returns true on success, throws if the key set already exists or resources are exhausted
      */
@@ -585,7 +614,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBase {
             groupKeySetId: keySetId,
             groupKeySecurityPolicy: GroupKeyManagement.GroupKeySecurityPolicy.TrustFirst,
             epochKey0,
-            epochStartTime0: IPK_DEFAULT_EPOCH_START_TIME, // Matter epoch zero
+            epochStartTime0: GROUPCAST_KEY_EPOCH_START_TIME,
             epochKey1: null,
             epochStartTime1: null,
             epochKey2: null,
@@ -624,8 +653,8 @@ export namespace GroupKeyManagementServer {
         override maxGroupsPerFabric = 22; // The Minimum would be 4. Aligned with Groupcast quota=floor(44/2).
 
         /**
-         * Per-fabric Groupcast adoption state (provisional Matter 1.6 GCAST feature).  Only present when the Groupcast
-         * feature is enabled; the default server rejects it while provisional.
+         * Per-fabric Groupcast adoption state.  Only present when the Groupcast feature is enabled and the optional
+         * GroupcastAdoption attribute is defined; the default server never populates it.
          */
         declare groupcastAdoption?: GroupKeyManagement.GroupcastAdoption[];
     }

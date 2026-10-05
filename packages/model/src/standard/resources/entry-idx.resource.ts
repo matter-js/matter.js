@@ -8,4 +8,7 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "entry-idx", description: "Entry Index", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "entry-idx", description: "Entry Index", xref: "core§7.19.2.37",
+    details: "This is an index for a list data type."
+});

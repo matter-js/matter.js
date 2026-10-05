@@ -12,18 +12,20 @@ import { WiFiNetworkDiagnosticsServer } from "#behaviors/wi-fi-network-diagnosti
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import { MatterFlowError, Observable } from "@matter/general";
+import { Diagnostic, LogDestination, LogFormat, Logger, MatterFlowError, Observable } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     BaseDataReport,
     DataReportPayload,
     DataReportPayloadIterator,
+    GroupMessageEventInfo,
     InteractionServerMessenger,
     InvokeRequest,
     InvokeResponse,
     InvokeResponseForSend,
     MessageType,
     ReadRequest,
+    SessionManager,
     SubscribeRequest,
     WriteRequest,
     WriteResponse,
@@ -305,6 +307,7 @@ const READ_RESPONSE: DataReportPayload = {
                     ClusterId(60),
                     ClusterId(62),
                     ClusterId(63),
+                    ClusterId(101),
                     ClusterId(29),
                 ],
                 dataVersion: 0x80808081,
@@ -412,6 +415,7 @@ const READ_RESPONSE_WITH_FILTER: DataReportPayload = {
                     ClusterId(60),
                     ClusterId(62),
                     ClusterId(63),
+                    ClusterId(101),
                     ClusterId(29),
                 ],
                 dataVersion: 0x80808081,
@@ -1144,6 +1148,7 @@ namespace EventedOnOffServer {
 describe("InteractionProtocol", () => {
     let interactionProtocol: InteractionServer;
     let node: MockServerNode;
+    const createdNodes = new Array<MockServerNode>();
 
     async function createNode(maxPathsPerInvoke = 100) {
         node = await MockServerNode.createOnline({
@@ -1172,11 +1177,18 @@ describe("InteractionProtocol", () => {
             device: undefined,
         });
 
+        createdNodes.push(node);
         interactionProtocol = node.env.get(InteractionServer);
     }
 
     beforeEach(async () => {
         await createNode();
+    });
+
+    afterEach(async () => {
+        for (const created of createdNodes.splice(0)) {
+            await created.close();
+        }
     });
 
     describe("handleReadRequest", () => {
@@ -2119,6 +2131,124 @@ describe("InteractionProtocol", () => {
 
             expect(timedInteractionCleared).equals(true);
             expect(onOffState).equals(false);
+        });
+
+        it("invoke command as group message completes dispatch without touching the exchange channel", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+
+            // Inbound group sessions have no channel; group dispatch must not read exchange.channel (which throws).
+            // The dummy exchange has no channel either, so any such access fails this test.
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                messenger,
+                interaction.BarelyMockedGroupMessage,
+            );
+
+            expect(onOffState).equals(true);
+        });
+
+        it("names the group a received group invoke was sent to on its log line", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+            const lines = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    lines.push(LogFormat.formats.plain(message));
+                },
+            });
+
+            try {
+                await interactionProtocol.handleInvokeRequest(
+                    exchange,
+                    INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                    messenger,
+                    {
+                        ...interaction.BarelyMockedGroupMessage,
+                        packetHeader: { ...interaction.BarelyMockedGroupMessage.packetHeader, destGroupId: 7 },
+                    },
+                );
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            expect(lines.some(line => /InteractionServer Invoke « .* group: 7 invokes: /.test(line))).true;
+        });
+
+        it("does not name a group on the log line of a received unicast invoke", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+            const lines = new Array<string>();
+            Logger.destinations.capture = LogDestination({
+                add(message: Diagnostic.Message) {
+                    lines.push(LogFormat.formats.plain(message));
+                },
+            });
+
+            try {
+                await interactionProtocol.handleInvokeRequest(
+                    exchange,
+                    INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                    messenger,
+                    interaction.BarelyMockedMessage,
+                );
+            } finally {
+                delete Logger.destinations.capture;
+            }
+
+            const invokeLines = lines.filter(line => line.includes("InteractionServer Invoke «"));
+            expect(invokeLines).length(1);
+            expect(invokeLines[0]).not.match(/ group: /);
+        });
+
+        it("group invoke reports accessAllowed:true when the dispatched command returns a non-Success status", async () => {
+            // A command that passes access control but then fails (here Busy) must still report accessAllowed=true:
+            // per Groupcast spec §11.27.7.6.3 AccessAllowed reflects the access-control outcome, not command success.
+            node.eventsOf(EventedOnOffServer).onOff$Changing.on(() => {
+                throw new StatusResponseError("Sorry so swamped", Status.Busy);
+            });
+
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+
+            const emitted = new Array<GroupMessageEventInfo>();
+            node.env.get(SessionManager).onGroupMessage.on(info => {
+                emitted.push(info);
+            });
+
+            await interactionProtocol.handleInvokeRequest(
+                exchange,
+                INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS,
+                messenger,
+                interaction.BarelyMockedGroupMessage,
+            );
+
+            expect(emitted.length).equals(1);
+            expect(emitted[0].accessAllowed).equals(true);
+        });
+
+        it("group invoke reports the source address of its own message", async () => {
+            const fabric = await node.addFabric();
+            const exchange = await createDummyMessageExchange(node, { fabric });
+            const { messenger } = createMockInvokeMessenger();
+
+            const emitted = new Array<GroupMessageEventInfo>();
+            node.env.get(SessionManager).onGroupMessage.on(info => {
+                emitted.push(info);
+            });
+
+            await interactionProtocol.handleInvokeRequest(exchange, INVOKE_COMMAND_REQUEST_WITH_EMPTY_ARGS, messenger, {
+                ...interaction.BarelyMockedGroupMessage,
+                receivedFrom: "fd00::7",
+            });
+
+            expect(emitted.length).equals(1);
+            expect(emitted[0].sourceIp).equals("fd00::7");
         });
 
         it("invoke command with with timed interaction success", async () => {

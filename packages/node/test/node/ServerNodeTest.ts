@@ -7,6 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
 import { DescriptorBehavior } from "#behaviors/descriptor";
+import { OnOffServer } from "#behaviors/on-off";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
@@ -25,6 +26,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     Bytes,
+    CrashedDependencyError,
     Crypto,
     DnsCodec,
     DnsMessage,
@@ -36,19 +38,26 @@ import {
     isObject,
     MemoryBlobStorageDriver,
     MemoryStorageDriver,
+    MdnsSocket,
     MockCrypto,
+    MockNetwork,
     MockUdpSocket,
+    Network,
+    NetworkError,
     NetworkSimulator,
     Seconds,
     STANDARD_MATTER_PORT,
     StorageManager,
     StorageService,
+    UdpSocketOptions,
 } from "@matter/general";
 import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
 import {
     AttestationCertificateManager,
     CertificateAuthority,
+    FabricAuthority,
     CertificationDeclaration,
+    ClientSubscriptions,
     FabricManager,
     MdnsService,
     NodeSession,
@@ -545,6 +554,48 @@ describe("ServerNode", () => {
         expect(closes).equals(1);
     });
 
+    it("starts a node after an earlier node could not open the mDNS socket", async () => {
+        class MdnsBlockingNetwork extends MockNetwork {
+            blocked = true;
+
+            override createUdpSocket(options: UdpSocketOptions) {
+                if (this.blocked && options.listeningPort === MdnsSocket.BROADCAST_PORT) {
+                    return Promise.reject(new NetworkError("mDNS port unavailable"));
+                }
+                return super.createUdpSocket(options);
+            }
+        }
+
+        const environment = new Environment("mdns-retry");
+        const network = new MdnsBlockingNetwork(new NetworkSimulator(), "00:11:22:33:44:f0", [
+            "abcd::f0",
+            "10.10.10.240",
+        ]);
+        environment.set(Network, network);
+
+        // Not disposed: a node whose construction fails before its endpoint initializer is installed cannot be closed
+        const site = new MockSite();
+        const options = { environment, device: undefined, commissioning: { enabled: false } };
+
+        const error = await site.addNode(undefined, { ...options, id: "blocked" }).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+        expect(error).instanceOf(CrashedDependencyError);
+        expect(error).has.nested.property("cause.message", "mDNS port unavailable");
+
+        expect(environment.has(MdnsService)).equals(false);
+        await MockTime.resolve(environment.runtime.inactive);
+
+        network.blocked = false;
+        const node = await site.addNode(undefined, { ...options, id: "recovered" });
+
+        expect(node.lifecycle.isOnline).equals(true);
+        expect(environment.get(MdnsService).construction.status).equals(Lifecycle.Status.Active);
+
+        await MockTime.resolve(node.close(), { macrotasks: true });
+    });
+
     it("frees the endpoint numbers a factory reset erases", async () => {
         await using site = new MockSite();
         const id = "renumbering";
@@ -564,6 +615,71 @@ describe("ServerNode", () => {
         await rebooted.add(added);
 
         expect(added.number).equals(2);
+    });
+
+    it("erases the persisted store of a part that crashes before number assignment", async () => {
+        await using site = new MockSite();
+        const id = "crash-before-number";
+
+        class FailingOnOffServer extends OnOffServer {
+            override initialize() {
+                throw new ImplementationError("Initialization refused for test");
+            }
+        }
+
+        {
+            const node = await site.addNode(undefined, { id, device: undefined, commissioning: { enabled: false } });
+            const child = new Endpoint(OnOffLightDevice, { id: "child" });
+            const parent = new Endpoint(OnOffLightDevice, {
+                id: "parent",
+                isEssential: false,
+                parts: [child],
+            });
+            await node.add(parent);
+            await child.set({ onOff: { onOff: true } });
+            await node.close();
+        }
+
+        // The part's storage from the prior session loads at startup independent of the crashed part ever reaching
+        // number assignment
+        {
+            const rebooted = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const crashedChild = new Endpoint(OnOffLightDevice, { id: "child" });
+            const crashedParent = new Endpoint(OnOffLightDevice.with(FailingOnOffServer), {
+                id: "parent",
+                isEssential: false,
+                parts: [crashedChild],
+            });
+            await expect(rebooted.add(crashedParent)).rejectedWith(EndpointBehaviorsError);
+            expect(crashedChild.maybeId).equals("child");
+            expect(crashedChild.lifecycle.hasNumber).equals(false);
+
+            await crashedChild.erase();
+            await rebooted.close();
+        }
+
+        {
+            const healthy = await site.addNode(undefined, {
+                id,
+                device: undefined,
+                commissioning: { enabled: false },
+            });
+            const child = new Endpoint(OnOffLightDevice, { id: "child" });
+            const parent = new Endpoint(OnOffLightDevice, {
+                id: "parent",
+                isEssential: false,
+                parts: [child],
+            });
+            await healthy.add(parent);
+
+            expect(child.state.onOff.onOff).equals(false);
+
+            await healthy.close();
+        }
     });
 
     it("factory reset erases blobs an earlier session left behind", async () => {
@@ -587,6 +703,20 @@ describe("ServerNode", () => {
         expect(await persisted.keys([])).deep.equals([]);
 
         await store.close();
+        await node.close();
+    });
+
+    it("gives a restarted node new, unblocked client subscriptions", async () => {
+        const node = await MockServerNode.createOnline();
+        const before = node.env.get(ClientSubscriptions);
+
+        await MockTime.resolve(node.stop());
+        await MockTime.resolve(node.start());
+
+        const after = node.env.get(ClientSubscriptions);
+        expect(after).not.equal(before);
+        expect(after.isBlocked).false;
+
         await node.close();
     });
 
@@ -624,6 +754,20 @@ describe("ServerNode", () => {
         expect(() => ca.rootCert).throws();
         const { publicKey } = await controller.env.get(Crypto).createKeyPair();
         await expect(ca.generateNoc(publicKey, FabricId(1), NodeId(1))).rejected;
+    });
+
+    it("factory reset closes the fabric authority the node owns", async () => {
+        const node = await MockServerNode.createOnline();
+
+        // As the OTA and WebRTC behaviors obtain it
+        const authority = await node.env.load(FabricAuthority);
+        expect(node.env.owns(FabricAuthority)).equals(true);
+
+        await MockTime.resolve(node.erase(), { macrotasks: true });
+
+        expect(authority.construction.status).equals(Lifecycle.Status.Destroyed);
+
+        await node.close();
     });
 
     it("completes factory reset when a peer cannot be torn down", async () => {
@@ -728,6 +872,36 @@ describe("ServerNode", () => {
         // Areas sequenced after the failure must still be erased or key material outlives the reset
         expect(storageKeysUnder(storage, "certificates")).deep.equals([]);
         expect(storageKeysUnder(storage, "nodes")).deep.equals([]);
+    });
+
+    it("keeps serving events from the one event manager across factory reset", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        const before = controller.env.get(OccurrenceManager);
+        expect(controller.protocol.eventHandler).equals(before);
+
+        await MockTime.resolve(controller.erase(), { macrotasks: true });
+
+        expect(controller.env.get(OccurrenceManager)).equals(before);
+        expect(controller.protocol.eventHandler).equals(before);
+    });
+
+    it("leaves its own event manager open when it creates a peer", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+        await controller.start();
+        const events = controller.env.get(OccurrenceManager);
+        let closed = false;
+        const close = events.close.bind(events);
+        events.close = async () => {
+            closed = true;
+            await close();
+        };
+
+        await commissionOnto(controller, device);
+
+        expect(controller.peers.commissioned.length).equals(1);
+        expect(closed).equals(false);
     });
 
     it("commissions again on the same controller instance after factory reset", async () => {
@@ -937,7 +1111,7 @@ describe("ServerNode", () => {
             });
 
             it("from behavior on child after node create", async () => {
-                const node = await MockServerNode.create(MockServerNode.RootEndpoint);
+                await using node = await MockServerNode.create(MockServerNode.RootEndpoint);
                 await expect(node.add(new Endpoint(CrashingDevice))).rejectedWith(EndpointBehaviorsError);
             });
         });
@@ -963,7 +1137,7 @@ describe("ServerNode", () => {
             });
 
             it("from behavior error on child added after startup", async () => {
-                const node = await MockServerNode.createOnline({
+                await using node = await MockServerNode.createOnline({
                     type: MockServerNode.RootEndpoint,
                     device: undefined,
                 });

@@ -22,11 +22,11 @@ export const DeviceEnergyManagementDt = DeviceType(
 
     Requirement(
         { name: "DeviceEnergyManagement", id: 0x98, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "POWERADJUSTMENT", conformance: "[ControllableEsa].a+", element: "feature" }),
-        Requirement({ name: "STARTTIMEADJUSTMENT", conformance: "[ControllableEsa].a+", element: "feature" }),
-        Requirement({ name: "PAUSABLE", conformance: "[ControllableEsa].a+", element: "feature" }),
-        Requirement({ name: "FORECASTADJUSTMENT", conformance: "[ControllableEsa].a+", element: "feature" }),
-        Requirement({ name: "CONSTRAINTBASEDADJUSTMENT", conformance: "[ControllableEsa].a+", element: "feature" })
+        Requirement({ name: "PA", conformance: "[ControllableEsa].a+", element: "feature" }),
+        Requirement({ name: "STA", conformance: "[ControllableEsa].a+", element: "feature" }),
+        Requirement({ name: "PAU", conformance: "[ControllableEsa].a+", element: "feature" }),
+        Requirement({ name: "FA", conformance: "[ControllableEsa].a+", element: "feature" }),
+        Requirement({ name: "CON", conformance: "[ControllableEsa].a+", element: "feature" })
     ),
 
     Requirement(

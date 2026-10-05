@@ -18,6 +18,10 @@ import {
     Environment,
     hex,
     Identity,
+    ImplementationError,
+    Lifecycle,
+    Logger,
+    MatterAggregateError,
     MaybePromise,
     MockCrypto,
     MockStorageService,
@@ -25,14 +29,74 @@ import {
     NetworkSimulator,
     StorageService,
 } from "@matter/general";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, MatterModel } from "@matter/model";
 import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "./mock-exchange.js";
 
+const logger = Logger.get("MockServerNode");
+
+/**
+ * The nodes created while a test runs.  Undefined outside a test, so a fixture a `before` hook creates is not tracked.
+ */
+let nodesOfCurrentTest: Set<MockServerNode> | undefined;
+
+/**
+ * Tests that left a node open.  Reported once all tests ran, because a failing `afterEach` hook would skip the rest.
+ */
+const leaks = new Array<string>();
+
+beforeEach(() => {
+    nodesOfCurrentTest = new Set();
+});
+
+// A node a test leaves open keeps its timers running into later tests
+afterEach(async function () {
+    const open = [...(nodesOfCurrentTest ?? [])].filter(
+        ({ construction: { status } }) => status !== Lifecycle.Status.Destroyed,
+    );
+    nodesOfCurrentTest = undefined;
+    if (!open.length) {
+        return;
+    }
+
+    // A node whose construction failed cannot be handed to the test, but still holds its environment until closed.  A
+    // failed test may not have reached its own close; its failure is reported already
+    const title = this.currentTest?.fullTitle();
+    const leaked = open.filter(({ construction: { status } }) => status !== Lifecycle.Status.Crashed);
+    if (leaked.length && !this.currentTest?.isFailed()) {
+        leaks.push(`${title}: ${leaked.map(String).join(", ")}`);
+    }
+
+    try {
+        await MockTime.resolve(
+            MatterAggregateError.allSettled(
+                open.map(async node => {
+                    // close() returns at once while another close is still running, so wait for the destruction itself
+                    const closed = node.construction.closed;
+                    await node.close();
+                    await closed;
+                }),
+            ),
+            { macrotasks: true },
+        );
+    } catch (error) {
+        leaks.push(`${title}: closing left-over nodes failed: ${error}`);
+    }
+});
+
+after(() => {
+    if (leaks.length) {
+        throw new ImplementationError(
+            `Tests left nodes open; close every node a test creates, for example with "await using":\n${leaks.join("\n")}`,
+        );
+    }
+});
+
 export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint> extends ServerNode<T> {
     #newExchanges = new DataReadQueue<MockExchange>();
     #simulator: NetworkSimulator;
+    #matter?: MatterModel;
 
     constructor(type?: T, options?: MockServerNode.Options<T>);
     constructor(config: Partial<MockServerNode.Configuration<T>>);
@@ -74,6 +138,13 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         super(config);
 
         this.#simulator = simulator;
+        this.#matter = config.matter;
+
+        nodesOfCurrentTest?.add(this);
+    }
+
+    override get matter() {
+        return this.#matter ?? super.matter;
     }
 
     get simulator() {
@@ -124,16 +195,25 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
             device = OnOffLightDevice;
         }
 
-        if (device) {
-            await node.add(device);
-        }
+        try {
+            if (device) {
+                await node.add(device);
+            }
 
-        if (options?.online === false) {
-            await node.construction;
-            return node;
-        }
+            if (options?.online === false) {
+                await node.construction;
+                return node;
+            }
 
-        await node.start();
+            await node.start();
+        } catch (error) {
+            try {
+                await node.close();
+            } catch (closeError) {
+                logger.error(`Closing ${node} after it failed to come online failed:`, closeError);
+            }
+            throw error;
+        }
 
         node.env.get(ExchangeManager).initiateExchange = address => {
             const exchange = new MockExchange(address, {
@@ -196,6 +276,11 @@ export namespace MockServerNode {
         device?: Endpoint.Definition;
         index?: number;
         simulator?: NetworkSimulator;
+
+        /**
+         * The model the node validates its device types in, instead of the standard model.
+         */
+        matter?: MatterModel;
     }
     export type Options<T extends RootEndpoint = RootEndpoint> = Endpoint.Options<T, MockOptions>;
 

@@ -47,9 +47,10 @@ export class MdnsServer {
             if (addrs === undefined) {
                 return { byService, ownedNames };
             }
+            const hostname = this.#hostname ?? hostnameForMac(addrs.mac);
 
             for (const [service, generator] of this.#recordsGenerator) {
-                const records = generator(multicastInterface, addrs);
+                const records = generator(multicastInterface, addrs, hostname);
                 byService.set(service, records);
                 for (const record of records) {
                     ownedNames.add(record.name.toLowerCase());
@@ -65,6 +66,7 @@ export class MdnsServer {
     // Union of advertised names across interfaces, fed to the socket so it keeps queries for our records (notably
     // bare-hostname A/AAAA queries, which carry no service-type label) before decoding.  Reset when records change.
     readonly #responderNames = new Set<string>();
+    #hostname?: string;
     readonly #recordLastSentAsMulticastAnswer = new Map<string, number>();
     readonly #truncatedQueryCache = new Map<string, { message: MdnsSocket.Message; timer: Timer }>();
     /** RFC 6762 §7.3 - Tracks recently answered queries for duplicate suppression */
@@ -264,6 +266,7 @@ export class MdnsServer {
     }
 
     async #resetServices() {
+        await this.#chooseHostname();
         await this.#records.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
         this.#recentlyAnsweredQueries.clear();
@@ -299,6 +302,38 @@ export class MdnsServer {
         this.#truncatedQueryCache.clear();
         this.#recordLastSentAsMulticastAnswer.clear();
         this.#recentlyAnsweredQueries.clear();
+    }
+
+    /**
+     * Chooses the target host name of every interface: the current one while an interface still carries its MAC,
+     * otherwise the first interface with addresses and a non-zero MAC.
+     *
+     * A querier that hears us on several interfaces must see one host per instance, so the name may not follow the
+     * interface; the Matter specification permits one host name across interfaces (Core, "Host Name Construction").
+     */
+    async #chooseHostname() {
+        try {
+            const candidates = new Array<string>();
+            for (const { name } of await this.#getMulticastInterfacesForAnnounce()) {
+                let details;
+                try {
+                    details = await this.network.getIpMac(name);
+                } catch (error) {
+                    logger.debug(`Interface ${name} skipped for the mDNS host name`, error);
+                    continue;
+                }
+                if (details?.ipV4.length || details?.ipV6.length) {
+                    if (/[1-9a-f]/i.test(details.mac)) {
+                        candidates.push(hostnameForMac(details.mac));
+                    }
+                }
+            }
+            if (this.#hostname === undefined || !candidates.includes(this.#hostname)) {
+                this.#hostname = candidates[0];
+            }
+        } catch (error) {
+            logger.warn("Cannot list network interfaces to choose the mDNS host name", error);
+        }
     }
 
     #getMulticastInterfacesForAnnounce() {
@@ -456,7 +491,7 @@ export class MdnsServer {
 
 export namespace MdnsServer {
     export interface RecordGenerator {
-        (intf: string, addrs: NetworkInterfaceDetails): DnsRecord[];
+        (intf: string, addrs: NetworkInterfaceDetails, hostname: string): DnsRecord[];
     }
 
     export interface InterfaceRecords {
@@ -465,6 +500,10 @@ export namespace MdnsServer {
         /** Lower-cased names of records we own on this interface - used to fast-reject unrelated LAN queries. */
         ownedNames: Set<string>;
     }
+}
+
+function hostnameForMac(mac: string) {
+    return `${mac.replace(/:/g, "").toUpperCase()}0000.local`;
 }
 
 /**
