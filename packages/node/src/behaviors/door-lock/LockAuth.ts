@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, type Cipher } from "@matter/general";
+import { Bytes, type Cipher, Timestamp } from "@matter/general";
 import {
     DoorLock as DoorLockModel,
     fabricIdx,
@@ -12,6 +12,7 @@ import {
     listOf,
     nullable,
     octstr,
+    posixMs,
     string,
     uint16,
     uint32,
@@ -68,6 +69,16 @@ export namespace LockAuth {
 
         @field(fabricIdx)
         lastModifiedFabricIndex!: FabricIndex;
+
+        /**
+         * Wall-clock time at which an ExpiringUser is disabled, set on the first successful use of its PIN; null
+         * until then. Persisted so the timeout survives a reboot.
+         *
+         * @see {@link MatterSpecification.v161.Cluster} § 5.2.6.18.8
+         */
+        @nullable
+        @field(posixMs)
+        expiringUserExpiresAt: Timestamp | null = null;
     }
 
     /**

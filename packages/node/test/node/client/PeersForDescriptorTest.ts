@@ -80,4 +80,20 @@ describe("Peers.forDescriptor", () => {
         expect(peers.length).equals(1);
         expect(peers[0]).equals(found);
     });
+
+    it("creates a new node for a device whose node has begun deletion", async () => {
+        const peer = await MockTime.resolve(node.peers.forDescriptor(DEVICE));
+
+        let lookup: Promise<ClientNode> | undefined;
+        peer.lifecycle.destroying.once(() => {
+            lookup = node.peers.forDescriptor(DEVICE);
+        });
+        await MockTime.resolve(peer.delete());
+        if (lookup === undefined) {
+            expect.fail("Deletion never began");
+        }
+        const found = await MockTime.resolve(lookup);
+
+        expect(found).not.equals(peer);
+    });
 });
