@@ -102,8 +102,9 @@ situation, not how alarming the error looks:
 - `warn` — an anomaly contained to one operation that hints at a problem worth a look, such as an
   unexpected error that fails only that operation.
 - `info` / `debug` — routine protocol mechanics are `debug`: status responses, BUSY, retransmits,
-  a peer's value refused with a status. Anything a peer can trigger repeatedly stays at
-  `debug` or `info`, so a peer cannot flood the log.
+  a peer's value refused with a status. Each occurrence of something a peer can trigger
+  repeatedly logs at `debug` or `info`, so a peer cannot flood the log. When one occurrence
+  explains a symptom users see, add a single de-duplicated `notice` for it.
 - Log where you handle or swallow an error, not where you throw or rethrow, and log one event
   once. Attach the error object when its stack or cause helps.
 
