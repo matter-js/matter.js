@@ -119,6 +119,29 @@ export class EndpointLifecycle {
     }
 
     /**
+     * Can the {@link Endpoint}'s state be read right now?
+     *
+     * Only between completed construction and the start of a reset or of destruction.  An initializing endpoint has
+     * nothing to answer with yet, and a resetting, crashed or closing one has nothing left.
+     */
+    get isReadable() {
+        return this.#isReady && this.#endpoint.construction.status === Lifecycle.Status.Active;
+    }
+
+    /**
+     * Has the {@link Endpoint}'s construction crashed or begun closing, so it will not become readable unless restarted?
+     * Unlike "not {@link isReadable}", this is false while the endpoint initializes.
+     */
+    get isGone() {
+        const status = this.#endpoint.construction.status;
+        return (
+            status === Lifecycle.Status.Destroying ||
+            status === Lifecycle.Status.Destroyed ||
+            status === Lifecycle.Status.Crashed
+        );
+    }
+
+    /**
      * @deprecated use {@link isPartsReady}
      */
     get isTreeReady() {
