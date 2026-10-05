@@ -129,10 +129,8 @@ export class EndpointLifecycle {
     }
 
     /**
-     * Is the {@link Endpoint} closing, closed or crashed, so it will not become readable unless it is restarted?
-     *
-     * Not the negation of {@link isReadable}: an observer waiting for an endpoint to become readable must not give up
-     * while it is merely initializing.
+     * Has the {@link Endpoint}'s construction crashed or begun closing, so it will not become readable unless restarted?
+     * Unlike "not {@link isReadable}", this is false while the endpoint initializes.
      */
     get isGone() {
         const status = this.#endpoint.construction.status;

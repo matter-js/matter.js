@@ -203,19 +203,18 @@ describe("StateStream", () => {
 
     it("yields a behavior the scan queued once although it changes before the stream reaches it", async () => {
         await using node = await MockServerNode.createOnline(undefined, { device: undefined });
-        const light = await node.add(OnOffLightDevice, { id: "light" });
+        const first = await node.add(OnOffLightDevice, { id: "first" });
+        const second = await node.add(OnOffLightDevice, { id: "second" });
         const abort = new Abort();
-        const stream = StateStream(node, { abort, clusters: ["onOff", "identify"] });
+        const stream = StateStream(node, { abort, clusters: ["onOff"] });
 
-        // The first pull scans and yields one entry; the light's OnOff stays queued behind it
-        await stream.next();
-        await light.set({ onOff: { onOff: true } });
+        // The first pull scans and yields the first light; the second light's OnOff stays queued behind it
+        const { value } = await stream.next();
+        expect(value?.endpoint).equals(first);
+        await second.set({ onOff: { onOff: true } });
 
         const changes = await drain(stream, abort);
-        const onOffUpdates = changes.filter(
-            change => change.kind === "update" && change.endpoint === light && change.behavior.id === "onOff",
-        );
-        expect(onOffUpdates.length).equals(1);
+        expect(changes.filter(change => change.kind === "update" && change.endpoint === second).length).equals(1);
     });
 
     it("tells a state stream nothing of a peer deleted before the stream yielded it", async () => {

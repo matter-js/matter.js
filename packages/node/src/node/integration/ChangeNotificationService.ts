@@ -238,8 +238,8 @@ export namespace ChangeNotificationService {
     }
 
     /**
-     * Emits when an endpoint's state becomes readable, which is once its construction completes and again after each
-     * restart.
+     * Emits when an endpoint's state becomes readable because a construction completed: every construction an endpoint
+     * starts while its node is observed, and that of a node still constructing when its observation begins.
      *
      * State changes made while an endpoint was unreadable may not have reached a recipient that skipped them.
      */

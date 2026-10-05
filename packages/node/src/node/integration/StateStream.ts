@@ -164,7 +164,7 @@ export function StateStream(
      * A node root becomes readable after its parts, so a stream that began in between has not seen the parts either.
      */
     function enqueueReadable({ endpoint }: ChangeNotificationService.EndpointReadable) {
-        const node = endpoint.env.get(Node);
+        const node = Node.forEndpoint(endpoint);
         if (endpoint === node) {
             enqueueNode(node);
         } else {
@@ -274,7 +274,7 @@ export function StateStream(
     function enqueueUpdate(change: ChangeNotificationService.PropertyUpdate) {
         const { endpoint, behavior } = change;
 
-        const node = endpoint.env.get(Node);
+        const node = Node.forEndpoint(endpoint);
         if (filter && !filter(node.id, behavior.id)) {
             return;
         }
@@ -315,7 +315,7 @@ export function StateStream(
     function enqueueDelete(change: ChangeNotificationService.EndpointDelete) {
         const { endpoint } = change;
 
-        const node = endpoint.env.get(Node);
+        const node = Node.forEndpoint(endpoint);
         if (filter && !filter(node.id)) {
             return;
         }

@@ -78,6 +78,7 @@ describe("ChangeNotificationService", () => {
         expect(recorded.endpointsOf("readable")).deep.equals([light, light]);
     });
 
+    // Characterization: peers added after the service started were observed before the restored-peer fix as well
     it("reports the deletion of a peer created after a restart", async () => {
         await using site = new MockSite();
         const { rebooted, recorded } = await controllerWithRestoredPeer(site);

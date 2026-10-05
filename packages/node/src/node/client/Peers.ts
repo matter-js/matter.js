@@ -895,8 +895,6 @@ class Factory extends ClientNodeFactory {
 
     find(descriptor: RemoteDescriptor) {
         for (const node of this.#owner) {
-            // Reuse only a node that is constructing or readable; node.act waits for a constructing one.  Any other node
-            // is crashed, or being reset or deleted, and handing it out lets act() restart a node that is going away
             if (!node.lifecycle.isReadable && node.construction.status !== Lifecycle.Status.Initializing) {
                 continue;
             }
