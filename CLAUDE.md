@@ -92,6 +92,21 @@ Error messages carry context, not just a symptom.
 - Handle cancellation with `AbortSignal` where the operation can be abandoned.
 - Use `using` for resource management where applicable.
 
+## Logging
+
+Choose levels by [docs/LOGGING.md](docs/LOGGING.md). The level reflects how the code handles the
+situation, not how alarming the error looks:
+
+- `error` — a whole feature or subsystem stays broken until someone acts. A failure contained to
+  one operation is never `error`.
+- `warn` — an anomaly contained to one operation that hints at a problem worth a look, such as an
+  unexpected error that fails only that operation.
+- `info` / `debug` — routine protocol mechanics are `debug`: status responses, BUSY, retransmits,
+  a peer's value refused with a status. Anything a peer can trigger repeatedly stays at
+  `debug` or `info`, so a peer cannot flood the log.
+- Log where you handle or swallow an error, not where you throw or rethrow, and log one event
+  once. Attach the error object when its stack or cause helps.
+
 ## Values and formatting
 
 - Format durations with `Duration.format()`. Never hand-roll `/ 1000` arithmetic for display.
