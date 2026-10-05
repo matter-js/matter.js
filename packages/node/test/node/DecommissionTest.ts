@@ -9,15 +9,10 @@ import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientEventEmitter } from "#node/client/ClientEventEmitter.js";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
+import { FabricOperationInProgressError } from "#node/client/Peers.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { ImplementationError, Lifecycle, Minutes, Seconds } from "@matter/general";
-import {
-    CommissioningError,
-    PeerMessageMissingError,
-    PeerSet,
-    PeerUnresponsiveError,
-    ReadResult,
-} from "@matter/protocol";
+import { CrashedDependencyError, DestroyedDependencyError, Lifecycle, Minutes, Seconds } from "@matter/general";
+import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError, ReadResult } from "@matter/protocol";
 import { EndpointNumber, EventId, EventNumber, FabricIndex, Priority, TlvAny } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
@@ -236,7 +231,7 @@ describe("Decommission", () => {
         try {
             const first = peer1.decommission();
             await expect(MockTime.resolve(peer1.decommission())).rejectedWith(
-                ImplementationError,
+                FabricOperationInProgressError,
                 /a decommission attempt is already in progress/,
             );
             await MockTime.resolve(first);
@@ -255,8 +250,8 @@ describe("Decommission", () => {
         const deleting = peer1.delete();
 
         await expect(MockTime.resolve(peer1.decommission())).rejectedWith(
-            ImplementationError,
-            /because it is closed, being deleted or crashed/,
+            DestroyedDependencyError,
+            /is closing or being deleted/,
         );
         await MockTime.resolve(deleting);
     });
@@ -270,8 +265,8 @@ describe("Decommission", () => {
 
         peer1.eventsOf(BasicInformationClient).leave.emit({ fabricIndex }, LocalActorContext.ReadOnly);
         await expect(MockTime.resolve(peer1.decommission())).rejectedWith(
-            ImplementationError,
-            /because it is closed, being deleted or crashed/,
+            DestroyedDependencyError,
+            /is closing or being deleted/,
         );
 
         expect(controller.peers.size).equals(0);
@@ -285,8 +280,8 @@ describe("Decommission", () => {
         await MockTime.resolve(peer1.delete());
 
         await expect(MockTime.resolve(peer1.decommission())).rejectedWith(
-            ImplementationError,
-            /because it is closed, being deleted or crashed/,
+            DestroyedDependencyError,
+            /is closing or being deleted/,
         );
     });
 
@@ -306,7 +301,7 @@ describe("Decommission", () => {
         try {
             const { passcode } = device.state.commissioning;
             await expect(MockTime.resolve(peer1.commission({ passcode }))).rejectedWith(
-                CommissioningError,
+                FabricOperationInProgressError,
                 /a decommission attempt is already in progress/,
             );
         } finally {
@@ -389,7 +384,7 @@ describe("Decommission", () => {
 
         try {
             await expect(MockTime.resolve(peer1.decommission())).rejectedWith(
-                ImplementationError,
+                FabricOperationInProgressError,
                 /a commission attempt is already in progress/,
             );
         } finally {
@@ -409,9 +404,19 @@ describe("Decommission", () => {
 
         const { passcode } = device.state.commissioning;
         await expect(MockTime.resolve(peer1.commission({ passcode }))).rejectedWith(
-            CommissioningError,
-            /because it is closed, being deleted or crashed/,
+            DestroyedDependencyError,
+            /is closing or being deleted/,
         );
+    });
+
+    it("rejects a decommission of a crashed node with its lifecycle error", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        peer1.construction.setStatus(Lifecycle.Status.Crashed);
+
+        await expect(MockTime.resolve(peer1.decommission())).rejectedWith(CrashedDependencyError, /crashed/);
     });
 
     it("does not cull the node while its decommission deletes it", async () => {
@@ -482,7 +487,7 @@ describe("Decommission", () => {
         await MockTime.resolve(peer1.delete());
 
         expect(acted).is.true;
-        expect(actError).instanceOf(ImplementationError);
+        expect(actError).instanceOf(DestroyedDependencyError);
         expect(statuses).not.include(Lifecycle.Status.Initializing);
         expect(controller.peers.size).equals(0);
     });

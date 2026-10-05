@@ -5,7 +5,16 @@
  */
 
 import type { Node } from "#node/Node.js";
-import { AsyncObservable, Diagnostic, ImplementationError, Lifecycle, Logger, Observable } from "@matter/general";
+import {
+    AsyncObservable,
+    CrashedDependencyError,
+    DestroyedDependencyError,
+    Diagnostic,
+    ImplementationError,
+    Lifecycle,
+    Logger,
+    Observable,
+} from "@matter/general";
 import type { Endpoint } from "../Endpoint.js";
 
 const logger = Logger.get("PartLifecycle");
@@ -144,6 +153,21 @@ export class EndpointLifecycle {
             status === Lifecycle.Status.Destroyed ||
             status === Lifecycle.Status.Crashed
         );
+    }
+
+    /**
+     * Throw if the {@link Endpoint} {@link isGone}: {@link DestroyedDependencyError} once it began closing or deleting,
+     * {@link CrashedDependencyError} if its construction crashed.
+     */
+    assertNotGone() {
+        if (!this.isGone) {
+            return;
+        }
+        const what = this.#endpoint.toString();
+        if (!this.#destructionBegun && this.#endpoint.construction.status === Lifecycle.Status.Crashed) {
+            throw new CrashedDependencyError(what, "crashed");
+        }
+        throw new DestroyedDependencyError(what, "is closing or being deleted");
     }
 
     /**
