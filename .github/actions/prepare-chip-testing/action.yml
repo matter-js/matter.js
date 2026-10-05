@@ -81,7 +81,7 @@ runs:
         key: ${{ inputs.runner-os }}-out-${{ env.cache-name }}-${{ inputs.connectedhomeip-tag }}-${{ env.DATE }}
 
     # Only build if cache is not hit or if the commit message contains '[rebuild-chip]'
-    - if: ${{ steps.cache-env.outputs.cache-hit != 'true' || inputs.rebuild-chip-tool == 'true' }}
+    - if: ${{ steps.cache-env.outputs.cache-hit != 'true' || steps.cache-out.outputs.cache-hit != 'true' || inputs.rebuild-chip-tool == 'true' }}
       name: Build python framework
       id: build-python
       shell: bash
