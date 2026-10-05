@@ -45,9 +45,10 @@ export class UdpMulticastServer {
         lifetime: lifetimeOwner,
     }: UdpMulticastServerOptions) {
         const lifetime = (lifetimeOwner || Lifetime.process)?.join("multicast server");
+        let ipv4UdpSocket: UdpSocket | undefined;
+        let ipv6UdpSocket: UdpSocket | undefined;
 
         try {
-            let ipv4UdpSocket: UdpSocket | undefined = undefined;
             if (broadcastAddressIpv4 !== undefined) {
                 try {
                     ipv4UdpSocket = await network.createUdpSocket({
@@ -66,7 +67,6 @@ export class UdpMulticastServer {
                 }
             }
 
-            let ipv6UdpSocket;
             try {
                 ipv6UdpSocket = await network.createUdpSocket({
                     lifetime,
@@ -93,6 +93,14 @@ export class UdpMulticastServer {
                 netInterface,
             );
         } catch (error) {
+            try {
+                await MatterAggregateError.allSettled(
+                    [ipv4UdpSocket?.close(), ipv6UdpSocket?.close()],
+                    "Error closing the sockets of a multicast server that failed to start",
+                );
+            } catch (closeError) {
+                logger.warn(closeError);
+            }
             lifetime[Symbol.dispose]();
             throw error;
         }

@@ -28,14 +28,14 @@ function createEndpoint() {
 
 describe("TimeFormatLocalizationServer", () => {
     it("accepts valid date formats", async () => {
-        const endpoint = await createEndpoint();
+        await using endpoint = await createEndpoint();
         await endpoint.act(agent => {
             agent.timeFormatLocalization.state.activeCalendarType = TimeFormatLocalization.CalendarType.Chinese;
         });
     });
 
     it("rejects invalid date formats", async () => {
-        const endpoint = await createEndpoint();
+        await using endpoint = await createEndpoint();
         expect(() =>
             endpoint.act(agent => {
                 agent.timeFormatLocalization.state.activeCalendarType = TimeFormatLocalization.CalendarType.Gregorian;

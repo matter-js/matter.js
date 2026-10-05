@@ -1257,7 +1257,7 @@ describe("DnssdNames", () => {
             expect([...client.names.get(qname).parameters].map(([key]) => key).sort()).deep.equals(["b", "c"]);
         });
 
-        it("ignores the bit in a query's known-answer list", async () => {
+        it("takes no records from a query's known-answer list", async () => {
             await using site = new MockSite();
             const { client, server } = await discoverName(site);
 

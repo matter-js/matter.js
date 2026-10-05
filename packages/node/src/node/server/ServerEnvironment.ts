@@ -23,6 +23,7 @@ import {
     StorageService,
 } from "@matter/general";
 import {
+    ClientSubscriptions,
     CertificateAuthority,
     FabricAuthority,
     FabricManager,
@@ -71,7 +72,11 @@ export namespace ServerEnvironment {
     export async function eraseCredentials(node: ServerNode) {
         const { env } = node;
 
-        env.delete(FabricAuthority);
+        if (env.owns(FabricAuthority)) {
+            await env.close(FabricAuthority);
+        } else {
+            env.delete(FabricAuthority);
+        }
 
         if (env.owns(CertificateAuthority)) {
             try {
@@ -96,6 +101,9 @@ export namespace ServerEnvironment {
 
         await env.close(FabricManager);
         await env.close(PeerSet);
+        if (env.owns(ClientSubscriptions)) {
+            await env.close(ClientSubscriptions);
+        }
         await env.close(ChangeNotificationService);
         await env.close(SessionManager);
         await env.close(OccurrenceManager);

@@ -7,10 +7,9 @@
 import { ElementTag } from "#common/ElementTag.js";
 import { Specification } from "#common/Specification.js";
 import { MatterElement } from "../elements/index.js";
-import type { ModelIndex } from "../logic/ModelIndex.js";
+import { ModelIndex } from "../logic/ModelIndex.js";
 import { ModelTraversal } from "../logic/ModelTraversal.js";
 import { AttributeModel } from "./AttributeModel.js";
-import type { InternalChildren } from "./Children.js";
 import { ClusterModel } from "./ClusterModel.js";
 import { DatatypeModel } from "./DatatypeModel.js";
 import { DeviceTypeModel } from "./DeviceTypeModel.js";
@@ -28,7 +27,12 @@ import { SemanticNamespaceModel } from "./SemanticNamespaceModel.js";
 export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> implements MatterElement {
     override tag: MatterElement.Tag = MatterElement.Tag;
     revision?: Specification.Revision;
-    #permanentDatatypes?: Record<string, Model>;
+    #permanentDatatypes?: { generation: number; byName: Readonly<Record<string, Model>> };
+    #clusters?: ScopeModel.Members<ClusterModel>;
+    #deviceTypes?: ScopeModel.Members<DeviceTypeModel>;
+    #datatypes?: ScopeModel.Members<DatatypeModel>;
+    #fields?: ScopeModel.Members<FieldModel>;
+    #attributes?: ScopeModel.Members<AttributeModel>;
     #resources?: ResourceBundle;
 
     /**
@@ -42,8 +46,8 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
     /**
      * Clusters.
      */
-    get clusters() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Cluster] }) as ModelIndex<ClusterModel>;
+    get clusters(): ModelIndex<ClusterModel> {
+        return (this.#clusters = this.membersOfType(ClusterModel, this.#clusters)).index;
     }
 
     /**
@@ -71,8 +75,8 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
     /**
      * Device types.
      */
-    get deviceTypes() {
-        return this.scope.membersOf(this, { tags: [ElementTag.DeviceType] }) as ModelIndex<DeviceTypeModel>;
+    get deviceTypes(): ModelIndex<DeviceTypeModel> {
+        return (this.#deviceTypes = this.membersOfType(DeviceTypeModel, this.#deviceTypes)).index;
     }
 
     /**
@@ -85,22 +89,22 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
     /**
      * Global datatypes.
      */
-    get datatypes() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Datatype] }) as ModelIndex<DatatypeModel>;
+    get datatypes(): ModelIndex<DatatypeModel> {
+        return (this.#datatypes = this.membersOfType(DatatypeModel, this.#datatypes)).index;
     }
 
     /**
      * Global fields.
      */
-    get fields() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Field] }) as ModelIndex<FieldModel>;
+    get fields(): ModelIndex<FieldModel> {
+        return (this.#fields = this.membersOfType(FieldModel, this.#fields)).index;
     }
 
     /**
      * Global attributes.
      */
-    get attributes() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Attribute] }) as ModelIndex<AttributeModel>;
+    get attributes(): ModelIndex<AttributeModel> {
+        return (this.#attributes = this.membersOfType(AttributeModel, this.#attributes)).index;
     }
 
     /**
@@ -134,26 +138,18 @@ export class MatterModel extends ScopeModel<MatterElement, MatterModel.Child> im
      * These are datatypes owned by this model with the "isSeed" value set.  For performance reasons we disallow
      * overriding these values.
      */
-    get permanentDatatypes() {
-        if (this.#permanentDatatypes) {
-            return this.#permanentDatatypes;
-        }
-
-        this.#permanentDatatypes = Object.fromEntries(
-            this.children
-                .filter(model => model.tag === ElementTag.Datatype && model.isSeed)
-                .map(model => [model.name, model]),
-        );
-
-        (this.children as InternalChildren<MatterModel.Child>).onNameChanged = (name, model) => {
-            if (model === undefined) {
-                delete this.#permanentDatatypes![name];
-            } else {
-                this.#permanentDatatypes![model.name] = model;
+    get permanentDatatypes(): Readonly<Record<string, Model>> {
+        const generation = Model.childrenGenerationOf(this);
+        if (this.#permanentDatatypes?.generation !== generation) {
+            const byName: Record<string, Model> = Object.create(null);
+            for (const model of this.children) {
+                if (model.tag === ElementTag.Datatype && model.isSeed) {
+                    byName[model.name] = model;
+                }
             }
-        };
-
-        return this.#permanentDatatypes;
+            this.#permanentDatatypes = { generation, byName };
+        }
+        return this.#permanentDatatypes.byName;
     }
 
     /**

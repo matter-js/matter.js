@@ -139,6 +139,7 @@ export class CommissioningClient extends Behavior {
         const node = this.endpoint as ClientNode;
         this.reactTo(node.lifecycle.partsReady, this.#initializeNode);
         this.reactTo(this.events.peerAddress$Changed, this.#peerAddressChanged);
+        this.reactTo(this.events.peerAddress$Changed, this.#deleteFormerPeer, { offline: true });
         this.reactTo(this.events.addresses$Changed, this.#operationalAddressesChanged);
         this.reactTo(this.events.caseAuthenticatedTags$Changed, this.#catsChanged);
     }
@@ -603,8 +604,24 @@ export class CommissioningClient extends Behavior {
             this.#bindPeer(addr);
             node.lifecycle.commissioned.emit(this.context);
         } else if (oldAddr) {
-            this.#unbindPeer(oldAddr, true);
+            this.#unbindPeer(oldAddr);
             node.lifecycle.decommissioned.emit(this.context);
+        }
+    }
+
+    /**
+     * Close and forget the protocol peer of an address the node no longer has.
+     */
+    async #deleteFormerPeer(addr?: ProtocolPeerAddress, oldAddr?: ProtocolPeerAddress) {
+        if (addr !== undefined || oldAddr === undefined || this.state.peerAddress !== undefined) {
+            return;
+        }
+
+        const formerAddress = ProtocolPeerAddress(oldAddr);
+        try {
+            await this.env.maybeGet(PeerSet)?.get(formerAddress)?.delete();
+        } catch (error) {
+            logger.warn(`Error removing peer ${formerAddress} after its address was cleared:`, error);
         }
     }
 
@@ -687,7 +704,7 @@ export class CommissioningClient extends Behavior {
     /**
      * Uncouple my {@link ClientNode} from a {@link Peer}.
      */
-    #unbindPeer(addr: PeerAddress, remove = false) {
+    #unbindPeer(addr: PeerAddress) {
         const node = this.endpoint as ClientNode;
         const peer = node.env.maybeGet(Peer);
         if (!peer || !PeerAddress.is(peer.address, addr)) {
@@ -703,10 +720,6 @@ export class CommissioningClient extends Behavior {
         }
         if (peer.protocol === node.protocol) {
             peer.protocol = undefined;
-        }
-
-        if (remove) {
-            node.env.get(PeerSet).peers.delete(peer);
         }
     }
 }

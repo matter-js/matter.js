@@ -29,7 +29,7 @@ describe("HepaFilterMonitoringServer", () => {
     });
 
     it("instantiates with feature", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const Filter = HepaFilterMonitoringServer.with("Condition");
         const PurifierDevice = AirPurifierDevice.with(Filter);
         const purifier = await node.add(PurifierDevice, {
@@ -45,7 +45,7 @@ describe("HepaFilterMonitoringServer", () => {
     });
 
     it("properly types state", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const Filter = HepaFilterMonitoringServer.with("Condition");
         const PurifierDevice = AirPurifierDevice.with(Filter);
         const purifier = await node.add(PurifierDevice, {

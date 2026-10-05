@@ -392,6 +392,42 @@ describe("PeerAddressMonitor backoff", () => {
         expect(f.probeCalls.length).equal(4);
     });
 
+    it("keeps the probe cooldown across a forward wall-clock step", async () => {
+        const f = makeFixture({ currentIp: "fd00::1", reachable: new Set(["fd00::1"]), ...backoffOpts });
+
+        await f.monitor.verifyReachability({ reason: "address-change" });
+        MockTime.stepWallClock(Hours(1));
+        await MockTime.advance(1000);
+        await f.monitor.verifyReachability({ reason: "address-change" });
+        f.stop();
+
+        expect(f.probeCalls.length).equal(1);
+    });
+
+    it("ends the probe cooldown on schedule across a backward wall-clock step", async () => {
+        const f = makeFixture({ currentIp: "fd00::1", reachable: new Set(["fd00::1"]), ...backoffOpts });
+
+        await f.monitor.verifyReachability({ reason: "address-change" });
+        MockTime.stepWallClock(-3_600_000);
+        await MockTime.advance(2001);
+        await f.monitor.verifyReachability({ reason: "address-change" });
+        f.stop();
+
+        expect(f.probeCalls.length).equal(2);
+    });
+
+    it("keeps the probe cooldown when the clock stepped back before the first probe", async () => {
+        const f = makeFixture({ currentIp: "fd00::1", reachable: new Set(["fd00::1"]), ...backoffOpts });
+
+        MockTime.stepWallClock(-3_600_000);
+        await f.monitor.verifyReachability({ reason: "address-change" });
+        await MockTime.advance(1000);
+        await f.monitor.verifyReachability({ reason: "address-change" });
+        f.stop();
+
+        expect(f.probeCalls.length).equal(1);
+    });
+
     it("a timer-fired address check is tracked exactly once", async () => {
         const f = makeFixture({
             currentIp: "fd00::1",

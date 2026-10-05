@@ -6,7 +6,7 @@
 
 import { delay } from "../../util/async.js";
 import { deansify } from "../../util/text.js";
-import type { LogSource } from "./cert-context.js";
+import type { DeviceFlavor, LogSource } from "./cert-context.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -45,7 +45,7 @@ export interface LogExpectSequences {
 }
 
 export interface LogExpectOptions {
-    flavor: string;
+    flavor: LogFlavor;
     timeoutMs?: number;
     from?: number;
 }
@@ -80,26 +80,53 @@ export class CertLogClosedError extends Error {
     }
 }
 
+/** An implementation family cert plans write expectations for. */
+export type FlavorFamily = "chip" | "matterjs";
+
 /**
- * The variant `flavor`'s implementation family carries, or `undefined` where the caller supplied
- * none for it.
- *
- * Cert plans express expectations per implementation family, not per concrete DeviceFlavor
- * ("chip-docker"/"chip-local" both speak for "chip"), and they express them as single patterns
- * ({@link LogExpectPatterns}) or as sequences ({@link LogExpectSequences}) — hence the generic.
+ * What a log check is told about the format of the log it reads: the device flavor that wrote it, or the family
+ * directly where no device wrote it (a controller's own log).
+ */
+export type LogFlavor = DeviceFlavor | FlavorFamily;
+
+/**
+ * The implementation family `flavor` belongs to, or `undefined` where it belongs to none. Cert plans
+ * express expectations per family, not per concrete DeviceFlavor ("chip-docker"/"chip-local" both
+ * speak for "chip").
  *
  * "python-wrapped" belongs to no family, deliberately: those lines come from the wrapping script's
  * own output rather than from a device this harness started, so a check against them resolves
- * `"unverified"` instead of matching a family whose format nothing here controls.
+ * `"unverified"` instead of matching a family whose format nothing here controls. A caller branching
+ * on the family must give `undefined` that outcome too, never the matterjs or chip one.
  */
-export function forFlavor<T>(variants: { chip?: T; matterjs?: T }, flavor: string): T | undefined {
-    if (flavor.startsWith("chip")) {
-        return variants.chip;
+export function flavorFamily(flavor: LogFlavor | undefined): FlavorFamily | undefined {
+    switch (flavor) {
+        case "chip":
+        case "chip-docker":
+        case "chip-local":
+            return "chip";
+        case "matterjs":
+            return "matterjs";
+        case "python-wrapped":
+        case undefined:
+            return undefined;
+        default: {
+            const unclassified: never = flavor;
+            return unclassified;
+        }
     }
-    if (flavor === "matterjs") {
-        return variants.matterjs;
-    }
-    return undefined;
+}
+
+/**
+ * The variant `flavor`'s implementation family (see {@link flavorFamily}) carries, or `undefined`
+ * where the caller supplied none for it or the flavor belongs to no family.
+ *
+ * Plans express expectations as single patterns ({@link LogExpectPatterns}) or as sequences
+ * ({@link LogExpectSequences}) — hence the generic.
+ */
+export function forFlavor<T>(variants: { [F in FlavorFamily]?: T }, flavor: LogFlavor | undefined): T | undefined {
+    const family = flavorFamily(flavor);
+    return family === undefined ? undefined : variants[family];
 }
 
 // A caller-supplied /g or /y pattern keeps lastIndex between calls; reused as-is across the
@@ -249,10 +276,10 @@ export class LogFollower implements LogSource {
      * The nearest line before `before` matching `pattern`, searching back at most `within` lines,
      * with the match it produced. Skips synthetic lines, as {@link expect} does.
      *
-     * chip logs one message at a time, so the nearest preceding trace line belongs to the message
-     * whose decode dump starts at `before` — which is what makes scanning backward correct however
-     * many raw-frame lines that message's payload produced. `within` bounds it: unbounded, a search
-     * that finds nothing nearby keeps going and attributes a line from minutes earlier.
+     * The nearest match is not necessarily related to the line at `before`; a caller attributing it
+     * to that line has to establish the relation itself.
+     * `within` bounds the search: unbounded, one that finds nothing nearby keeps going and attributes
+     * a line from minutes earlier.
      *
      * The match comes back with the line so a caller reading capture groups does not re-`exec` the
      * pattern it passed: this scans with a `g`/`y`-stripped copy, and a second `exec` of the

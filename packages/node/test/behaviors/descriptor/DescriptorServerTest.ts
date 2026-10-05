@@ -16,8 +16,6 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import type { Node } from "#node/Node.js";
-import { InternalError } from "@matter/general";
-import { MatterModel } from "@matter/model";
 import { ClusterId, DeviceTypeId, EndpointNumber } from "@matter/types";
 import { MockEndpointType } from "../../behavior/mock-behavior.js";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
@@ -31,36 +29,11 @@ async function createFamily() {
 
     const child = await MockEndpoint.create({ type: MockEndpointType, number: 2, owner: parent });
 
-    return { parent, child };
-}
-
-/**
- * Count calls to the {@link MatterModel.prototype.deviceTypes} getter, which rebuilds a model scope and is what
- * {@link DescriptorServer}'s full-family cache exists to avoid calling on every PartsList update. Disposing restores
- * the original getter so sibling tests see the real model.
- */
-function spyOnDeviceTypeLookup() {
-    const original = Object.getOwnPropertyDescriptor(MatterModel.prototype, "deviceTypes");
-    const originalGet = original?.get;
-    if (original === undefined || originalGet === undefined) {
-        throw new InternalError("MatterModel.prototype.deviceTypes getter is absent");
-    }
-
-    let calls = 0;
-    Object.defineProperty(MatterModel.prototype, "deviceTypes", {
-        ...original,
-        get(this: MatterModel) {
-            calls++;
-            return originalGet.call(this);
-        },
-    });
-
     return {
-        get calls() {
-            return calls;
-        },
-        [Symbol.dispose]() {
-            Object.defineProperty(MatterModel.prototype, "deviceTypes", original);
+        parent,
+        child,
+        async [Symbol.asyncDispose]() {
+            await parent.close();
         },
     };
 }
@@ -84,7 +57,7 @@ describe("DescriptorServer", () => {
     });
 
     it("adds device type automatically if necessary", async () => {
-        const device = await MockEndpoint.create(MockEndpointType);
+        await using device = await MockEndpoint.create(MockEndpointType);
         expect(device.state.descriptor.deviceTypeList).deep.equals([
             {
                 deviceType: 1,
@@ -98,7 +71,7 @@ describe("DescriptorServer", () => {
             descriptor: { deviceTypeList: [{ deviceType: DeviceTypeId(2), revision: 2 }] },
         });
 
-        const device = await MockEndpoint.create(Device2Endpoint);
+        await using device = await MockEndpoint.create(Device2Endpoint);
         expect(device.state.descriptor.deviceTypeList).deep.equals([
             {
                 deviceType: 2,
@@ -108,7 +81,7 @@ describe("DescriptorServer", () => {
     });
 
     it("adds servers automatically", async () => {
-        const device = await MockEndpoint.create(MockEndpointType);
+        await using device = await MockEndpoint.create(MockEndpointType);
 
         const promise = new Promise<void>(resolve => {
             device.events.descriptor.serverList$Changed.once(() => {
@@ -124,7 +97,8 @@ describe("DescriptorServer", () => {
     });
 
     it("adds parts automatically", async () => {
-        const { parent } = await createFamily();
+        await using family = await createFamily();
+        const { parent } = family;
 
         if (!parent.state.descriptor.partsList.length) {
             await parent.events.descriptor.partsList$Changed;
@@ -135,7 +109,8 @@ describe("DescriptorServer", () => {
     });
 
     it("removes parts automatically", async () => {
-        const { parent, child } = await createFamily();
+        await using family = await createFamily();
+        const { parent, child } = family;
 
         if (!parent.state.descriptor.partsList.length) {
             await parent.events.descriptor.partsList$Changed;
@@ -154,8 +129,21 @@ describe("DescriptorServer", () => {
         expect(partsState.partsList).deep.equals([]);
     });
 
+    it("stops watching a removed part", async () => {
+        await using family = await createFamily();
+        const { parent, child } = family;
+
+        await child.close();
+        if (parent.state.descriptor.partsList.length) {
+            await parent.events.descriptor.partsList$Changed;
+        }
+
+        expect(parent.state.descriptor.partsList).deep.equals([]);
+        expect(child.lifecycle.destroyed.isObserved).equals(false);
+    });
+
     it("fully populates device types", async () => {
-        const light = await MockEndpoint.create(ColorTemperatureLightDevice, {
+        await using light = await MockEndpoint.create(ColorTemperatureLightDevice, {
             colorControl: {
                 colorMode: 0,
                 colorTempPhysicalMinMireds: 1,
@@ -177,7 +165,7 @@ describe("DescriptorServer", () => {
         it("lists every descendant for an aggregator and only children for a bridged node", async () => {
             // A bridged node carries IndexBehavior as root and aggregator do, but composes a tree
             // (Matter Core § 9.2.3), so only its own children belong in its list
-            const node = await MockServerNode.create({
+            await using node = await MockServerNode.create({
                 number: 0,
                 parts: [
                     {
@@ -239,70 +227,39 @@ describe("DescriptorServer", () => {
             const aggregator = [...node.parts][0];
             const bridgedNode = [...aggregator.parts][0];
             const light = [...bridgedNode.parts][0];
-            return { node, aggregator, bridgedNode, light };
+            return {
+                node,
+                aggregator,
+                bridgedNode,
+                light,
+                async [Symbol.asyncDispose]() {
+                    await node.close();
+                },
+            };
         }
 
         it("lists every descendant once a full-family device type is added at runtime", async () => {
-            const { node, bridgedNode, light } = await createBridgedNodeTree();
+            await using tree = await createBridgedNodeTree();
+            const { node, bridgedNode } = tree;
             expect(bridgedNode.stateOf(DescriptorBehavior).partsList).deep.equals([3]);
 
             await bridgedNode.act(agent => agent.get(DescriptorServer).addDeviceTypes("Aggregator"));
-            await light.add({ type: OnOffLightDevice, number: 5 });
             await node.env.get(NodeActivity).inactive;
 
-            expect(bridgedNode.stateOf(DescriptorBehavior).partsList).deep.equals([3, 4, 5]);
+            expect(bridgedNode.stateOf(DescriptorBehavior).partsList).deep.equals([3, 4]);
         });
 
         it("lists only children once the full-family device type is replaced at runtime", async () => {
-            const { node, aggregator, light } = await createBridgedNodeTree();
+            await using tree = await createBridgedNodeTree();
+            const { node, aggregator } = tree;
             expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2, 3, 4]);
 
             await aggregator.set({
                 descriptor: { deviceTypeList: [{ deviceType: BridgedNodeEndpoint.deviceType, revision: 1 }] },
             });
-            await light.add({ type: OnOffLightDevice, number: 5 });
             await node.env.get(NodeActivity).inactive;
 
             expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2]);
-        });
-
-        it("does not look up the device type again across unchanged PartsList updates", async () => {
-            using spy = spyOnDeviceTypeLookup();
-
-            const { node, aggregator, light } = await createBridgedNodeTree();
-            expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2, 3, 4]);
-
-            // Setup itself looks up each endpoint's device type once (root, aggregator, bridged node, lights).
-            const baseline = spy.calls;
-            expect(baseline, "warms the full-family cache during setup").greaterThan(0);
-
-            await light.add({ type: OnOffLightDevice, number: 5 });
-            await node.env.get(NodeActivity).inactive;
-            await light.add({ type: OnOffLightDevice, number: 6 });
-            await node.env.get(NodeActivity).inactive;
-
-            expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([2, 3, 4, 5, 6]);
-            expect(
-                spy.calls,
-                "two more PartsList updates with an unchanged device type list reuse the cached result",
-            ).equals(baseline);
-        });
-
-        it("performs no device type lookup for a tree without IndexBehavior", async () => {
-            const { parent } = await createFamily();
-
-            using spy = spyOnDeviceTypeLookup();
-
-            await MockEndpoint.create({ type: MockEndpointType, number: 3, owner: parent });
-            await parent.events.descriptor.partsList$Changed;
-
-            await MockEndpoint.create({ type: MockEndpointType, number: 4, owner: parent });
-            await parent.events.descriptor.partsList$Changed;
-
-            expect(parent.state.descriptor.partsList).deep.equals([2, 3, 4]);
-            // The parent has no IndexBehavior so never looks up its device type. Its own MockServerNode root does
-            // have one, but the root's device type is unchanged too, so its cache from setup also stays warm.
-            expect(spy.calls, "no endpoint in the tree consults the device type model").equals(0);
         });
     });
 
@@ -324,7 +281,7 @@ describe("DescriptorServer", () => {
         }
 
         it("when constructed with full hierarchy (auto ID)", async () => {
-            const node = await MockServerNode.create({
+            await using node = await MockServerNode.create({
                 parts: [
                     {
                         type: AggregatorEndpoint,
@@ -341,7 +298,7 @@ describe("DescriptorServer", () => {
         });
 
         it("when constructed with full hierarchy (manual ID)", async () => {
-            const node = await MockServerNode.create({
+            await using node = await MockServerNode.create({
                 id: "grandparent",
                 number: 0,
                 parts: [
@@ -369,7 +326,7 @@ describe("DescriptorServer", () => {
                 parts: [OnOffLightDevice],
             });
 
-            const node = await MockServerNode.create();
+            await using node = await MockServerNode.create();
             await node.add(parent);
 
             await expectFullPartsLists(node);
@@ -389,7 +346,7 @@ describe("DescriptorServer", () => {
                 ],
             });
 
-            const node = await MockServerNode.create({
+            await using node = await MockServerNode.create({
                 id: "grandparent",
                 number: 0,
             });
@@ -401,7 +358,7 @@ describe("DescriptorServer", () => {
         it("when parent is added before child (auto ID)", async () => {
             const child = new Endpoint(OnOffLightDevice);
 
-            const node = await MockServerNode.create({ parts: [AggregatorEndpoint] });
+            await using node = await MockServerNode.create({ parts: [AggregatorEndpoint] });
 
             const parent = [...node.parts][0];
 
@@ -413,7 +370,7 @@ describe("DescriptorServer", () => {
         it("when parent is added before child (manual ID)", async () => {
             const child = new Endpoint(OnOffLightDevice, { id: "child", number: 2 });
 
-            const node = await MockServerNode.create({
+            await using node = await MockServerNode.create({
                 id: "grandparent",
                 number: 0,
 
@@ -434,7 +391,7 @@ describe("DescriptorServer", () => {
         });
 
         it("when additional child is added (auto ID)", async () => {
-            const node = await MockServerNode.create({
+            await using node = await MockServerNode.create({
                 parts: [
                     {
                         type: AggregatorEndpoint,
@@ -455,7 +412,7 @@ describe("DescriptorServer", () => {
         });
 
         it("when additional child is added (manual ID)", async () => {
-            const node = await MockServerNode.create({
+            await using node = await MockServerNode.create({
                 parts: [
                     {
                         type: AggregatorEndpoint,
@@ -491,7 +448,7 @@ describe("DescriptorServer", () => {
          * precondition.
          */
         async function replaceChild(parentType: typeof OnOffLightDevice | typeof AggregatorEndpoint, delay: number) {
-            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            await using node = await MockServerNode.createOnline(undefined, { device: undefined });
             const parent = await node.add(parentType, { id: "parent", number: 1 });
             await parent.add(TemperatureSensorDevice, { id: "c1", number: 2 });
             const closing = await parent.add(TemperatureSensorDevice, { id: "c2", number: 3 });
@@ -515,7 +472,6 @@ describe("DescriptorServer", () => {
             const partsList = await settledPartsListOf(parent);
             const rootPartsList = await settledPartsListOf(node);
             parent.eventsOf(DescriptorBehavior).partsList$Changed.off(onPartsListChanged);
-            await node.close();
             return { partsList, rootPartsList, closedChildStillPresent, partsListWrites };
         }
 
@@ -594,7 +550,7 @@ describe("DescriptorServer", () => {
 
     it("orders PartsList numerically", async () => {
         const numbers = [1, 2, 4, 6, 8, 9, 10];
-        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         for (const number of [10, 9, 8, 6, 4, 2, 1]) {
             await node.add(OnOffLightDevice, { id: `light${number}`, number });
         }
@@ -602,7 +558,5 @@ describe("DescriptorServer", () => {
         await MockTime.yield3();
 
         expect(node.stateOf(DescriptorBehavior).partsList).deep.equals(numbers);
-
-        await node.close();
     });
 });

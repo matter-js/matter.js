@@ -102,7 +102,7 @@ describe("Client startUp event handling", () => {
         // created now has createdAt = T0+1s, simulating the post-reboot session on the device.
         const liveCreatedAt = liveSession!.createdAt;
         await MockTime.advance(Seconds(1));
-        expect(liveCreatedAt).lessThan(MockTime.nowMs);
+        expect(liveCreatedAt).lessThan(MockTime.nowUs);
 
         // Create the "new post-reboot" session (createdAt = T0+1s).
         const peerNodeId = peerAddress.nodeId;
