@@ -218,7 +218,8 @@ export class Peers extends EndpointContainer<ClientNode> {
      * {@link commission} does, so the peer is seeded rather than a blind commissioned node — then registers it.
      * `discoveryData` (from the hand-off) seeds operational discovery; `options` mirror the matching
      * {@link commission} options.  Throws {@link CommissioningError} and removes the peer entry if discovery,
-     * connection, or `CommissioningComplete` fails.
+     * connection, or `CommissioningComplete` fails; rejects as {@link runCommissioning} describes if the node is gone
+     * or busy.
      */
     async completeCommissioning(
         nodeId: NodeId,
@@ -553,9 +554,8 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
      *
-     * Rejects with a {@link DestroyedDependencyError} or {@link CrashedDependencyError} if the node
-     * {@link EndpointLifecycle.isGone is gone}, so the attempt fails fast instead of crashing later when the closed
-     * backing is accessed, and with {@link FabricOperationInProgressError} if a commission or decommission attempt on it
+     * Rejects with `DestroyedDependencyError` or `CrashedDependencyError` if the node is gone (its closing or deletion
+     * began, or it crashed), so the attempt fails fast instead of crashing later when the closed backing is accessed, and with {@link FabricOperationInProgressError} if a commission or decommission attempt on it
      * is already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
      * Calling {@link ClientNode.commission} inside {@link fn} therefore rejects.
      */
@@ -567,7 +567,8 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Run a decommission attempt on {@link node}.  While it runs, the expired-node cull and leave events do not delete
      * the node, and {@link forDescriptor} waits for it to end before handing out a node for the device.
      *
-     * Rejects like {@link runCommissioning}.
+     * Rejects like {@link runCommissioning}: with `DestroyedDependencyError` or `CrashedDependencyError` if the node is
+     * gone, with {@link FabricOperationInProgressError} if a commission or decommission of it is already in progress.
      */
     async runDecommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
         return this.#runFabricOperation(node, "decommission", fn);

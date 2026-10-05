@@ -155,7 +155,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Add this node to a fabric.
      *
-     * Rejects as {@link Peers.runCommissioning} describes if the node is gone or a commission or decommission of it is
+     * Rejects as `Peers.runCommissioning()` describes if the node is gone or a commission or decommission of it is
      * already in progress.
      */
     async commission(options: CommissioningClient.CommissioningOptions) {
@@ -168,7 +168,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
      * Remove this node from the fabric (if commissioned) and locally.
      * This method tries to communicate with the device to decommission it properly and will fail if the device is
      * unreachable.  If the device does not confirm the removal, the node is kept and stays usable.  Rejects as
-     * {@link Peers.runCommissioning} describes if the node is gone or a commission or decommission of it is already in
+     * `Peers.runDecommissioning()` describes if the node is gone or a commission or decommission of it is already in
      * progress.
      * If you cannot reach the device, use {@link delete} instead.
      */

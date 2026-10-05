@@ -156,16 +156,20 @@ export class EndpointLifecycle {
     }
 
     /**
-     * Throw if the {@link Endpoint} {@link isGone}: {@link DestroyedDependencyError} once it began closing or deleting,
-     * {@link CrashedDependencyError} if its construction crashed.
+     * Throw if the {@link Endpoint} {@link isGone}: {@link CrashedDependencyError} if its construction crashed,
+     * {@link DestroyedDependencyError} once it began closing or deleting.
      */
     assertNotGone() {
         if (!this.isGone) {
             return;
         }
         const what = this.#endpoint.toString();
-        if (!this.#destructionBegun && this.#endpoint.construction.status === Lifecycle.Status.Crashed) {
-            throw new CrashedDependencyError(what, "crashed");
+        const { construction } = this.#endpoint;
+        if (construction.status === Lifecycle.Status.Crashed) {
+            const error = new CrashedDependencyError(what, "crashed");
+            error.subject = this.#endpoint;
+            error.cause = construction.error;
+            throw error;
         }
         throw new DestroyedDependencyError(what, "is closing or being deleted");
     }

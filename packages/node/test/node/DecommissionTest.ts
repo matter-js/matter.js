@@ -419,6 +419,35 @@ describe("Decommission", () => {
         await expect(MockTime.resolve(peer1.decommission())).rejectedWith(CrashedDependencyError, /crashed/);
     });
 
+    it("rejects a commission of a crashed node with its lifecycle error", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        peer1.construction.setStatus(Lifecycle.Status.Crashed);
+
+        const { passcode } = device.state.commissioning;
+        await expect(MockTime.resolve(peer1.commission({ passcode }))).rejectedWith(CrashedDependencyError, /crashed/);
+    });
+
+    it("rejects a commission attempt registered for a crashed node", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        peer1.construction.setStatus(Lifecycle.Status.Crashed);
+
+        let ran = false;
+        await expect(
+            MockTime.resolve(
+                controller.peers.runCommissioning(peer1, () => {
+                    ran = true;
+                }),
+            ),
+        ).rejectedWith(CrashedDependencyError, /crashed/);
+        expect(ran).false;
+    });
+
     it("does not cull the node while its decommission deletes it", async () => {
         await using site = new MockSite();
         const { controller } = await site.addCommissionedPair();

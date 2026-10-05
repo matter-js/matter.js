@@ -18,7 +18,15 @@ import { EndpointBehaviorsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { RootEndpoint } from "#endpoints/root";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
-import { ImplementationError, Lifecycle, LogDestination, Logger, LogFormat, LogLevel } from "@matter/general";
+import {
+    CrashedDependencyError,
+    ImplementationError,
+    Lifecycle,
+    LogDestination,
+    Logger,
+    LogFormat,
+    LogLevel,
+} from "@matter/general";
 import { EndpointNumber, FabricIndex } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
@@ -347,6 +355,20 @@ describe("Endpoint", () => {
         ]);
         return { parent, children };
     }
+
+    describe("lifecycle.assertNotGone", () => {
+        it("reports a crashed endpoint with the cause of its crash", async () => {
+            const node = await MockServerNode.createOnline(undefined, { device: undefined });
+            const { parent } = await addCrashedParent(node);
+
+            expect(parent.construction.error).not.undefined;
+            expect(() => parent.lifecycle.assertNotGone())
+                .throws(CrashedDependencyError)
+                .property("cause", parent.construction.error);
+
+            await node.close();
+        });
+    });
 
     describe("close", () => {
         it("closes parts that never received a number, with or without an ID", async () => {

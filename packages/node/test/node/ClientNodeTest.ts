@@ -30,6 +30,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
+import { FabricOperationInProgressError } from "#node/client/Peers.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
@@ -60,7 +61,6 @@ import {
     Specification,
 } from "@matter/model";
 import {
-    CommissioningError,
     ControllerCommissioner,
     FabricAuthority,
     FabricManager,
@@ -2708,7 +2708,7 @@ describe("ClientNode", function () {
                 controller.peers.runCommissioning(peer2, () => {
                     secondRan = true;
                 }),
-            ).rejectedWith(CommissioningError, /already in progress/);
+            ).rejectedWith(FabricOperationInProgressError, /already in progress/);
             expect(secondRan).false;
 
             // Once the first finishes the slot frees and another attempt is permitted.
