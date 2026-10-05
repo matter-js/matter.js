@@ -85,7 +85,7 @@ async function simulateAddressChange(protopeer: Peer, remove: ServerAddressIp[],
     await protopeer.service.changed.emit();
 }
 
-/** Past the subscribed availability window (maxInterval 3600s + report margin) of a peer that sends nothing. */
+/** Past the deadline of the next report (subscription liveness timeout of about an hour) of a peer that sends nothing. */
 const SILENT_PAST_WINDOW = Minutes(70);
 
 describe("IcdClient", () => {
@@ -473,7 +473,7 @@ describe("IcdClient", () => {
             // The device accepted the re-key in place: still exactly one registration for this controller.
             expect(device.stateOf(IcdManagementServer).registeredClients).length(1);
 
-            // Re-key preserved the wakefulness instance (not delete+recreate), so a parked subscription stays valid.
+            // A parked subscription keeps the wakefulness it observes across a re-key.
             expect(fabric.icd.wakefulnessFor(peerNodeId)).equals(wakefulnessBefore);
 
             const checkedInAgain = new Promise<{ counter: number }>(resolve =>
@@ -769,7 +769,7 @@ describe("IcdClient", () => {
 
             const nextExpectedCheckin = await peer1.act(agent => agent.get(IcdClient).nextExpectedCheckin);
             expect(nextExpectedCheckin).not.undefined;
-            expect(nextExpectedCheckin).equals(wakefulnessOf(controller, peer1)!.availableUntil);
+            expect(nextExpectedCheckin).equals(wakefulnessOf(controller, peer1)!.nextSignalDue);
             expect(nextExpectedCheckin! > Time.nowMs).true;
         });
 
@@ -1076,6 +1076,30 @@ describe("IcdClient", () => {
             expect(subscription.active.value).true;
             expect(subscription.subscriptionId).not.equal(timedOutId);
             expect(peer1.stateOf(IcdClient).lastCheckInReceivedAt).equal(checkInBefore);
+        });
+    });
+
+    describe("peer timings", () => {
+        it("takes the peer's ActiveModeDuration from its ICD Management attributes", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair({
+                device: { type: RootWithDslsIcd, icdManagement: { ...LIT_CONFIG, activeModeDuration: 60_000 } },
+            });
+            await device.act(agent => agent.get(DslsIcdServer).setOperatingMode(IcdManagement.OperatingMode.Lit));
+            await commission(controller, device);
+            const peer1 = await subscribedPeer(controller, "peer1");
+            await settleAutoRegistration(peer1);
+            const wakefulness = wakefulnessOf(controller, peer1);
+            if (wakefulness === undefined) {
+                throw new ImplementationError("LIT peer not fed");
+            }
+
+            // Silent from here on: only the ActiveModeDuration of a Check-In keeps the peer awake
+            deviceLink(device).silence();
+            wakefulness.noteCheckIn();
+            await MockTime.advance(Seconds(30));
+
+            expect(wakefulness.awake.value).true;
         });
     });
 

@@ -4,267 +4,277 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { IcdPeerSchedule } from "#icd/IcdPeerSchedule.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
-import { Millis, Seconds } from "@matter/general";
+import { Millis, Seconds, Time } from "@matter/general";
 
-const SUBSCRIPTION = {};
+const TIMINGS: IcdPeerSchedule.Timings = {
+    activeModeThreshold: Seconds(4),
+    activeModeDuration: Millis(0),
+    idleModeDuration: Seconds(30),
+};
 
-/** Idle mode duration + active mode threshold + check-in margin of {@link lit}. */
-const UNSUBSCRIBED_WINDOW = Millis(Seconds(30) + Millis(4000) + IcdPeerWakefulness.CHECK_IN_MARGIN);
+/** Deadline of the next Check-In after activity with {@link TIMINGS}. */
+const CHECK_IN_DUE = Millis(TIMINGS.activeModeThreshold + TIMINGS.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN);
 
 describe("IcdPeerWakefulness", () => {
     before(MockTime.enable);
 
     function lit() {
         const w = new IcdPeerWakefulness();
-        w.setTimings({ activeModeThreshold: Millis(4000), idleModeDuration: Seconds(30) });
+        w.setTimings(TIMINGS);
         w.requiresAwait = true;
-        return w;
+        const missed = { count: 0 };
+        w.checkInMissed.on(() => {
+            missed.count++;
+        });
+        return { w, missed };
     }
 
-    it("non-LIT is always awake and available", () => {
+    it("is always awake and available while the peer needs no awaiting", () => {
         const w = new IcdPeerWakefulness();
         expect(w.awake.value).equals(true);
         expect(w.available.value).equals(true);
+        expect(w.nextSignalDue).undefined;
     });
 
-    it("starts not-awake/not-available for a LIT peer with no signal", () => {
-        const w = lit();
+    it("starts asleep and unavailable for a LIT peer without activity", () => {
+        const { w } = lit();
         expect(w.awake.value).equals(false);
         expect(w.available.value).equals(false);
+        expect(w.nextSignalDue).undefined;
     });
 
-    it("noteSignal makes awake+available true, awake expires after SAT", async () => {
-        const w = lit();
-        w.noteSignal();
+    it("is awake for the Active Mode and available until the next Check-In is due", async () => {
+        const { w, missed } = lit();
+        w.noteActive();
         expect(w.awake.value).equals(true);
-        expect(w.available.value).equals(true);
-        await MockTime.advance(Millis(4001));
+        expect(w.nextSignalDue).equals(Time.nowMs + CHECK_IN_DUE);
+
+        await MockTime.advance(Millis(TIMINGS.activeModeThreshold + 1));
         expect(w.awake.value).equals(false);
         expect(w.available.value).equals(true);
-    });
 
-    it("available expires after idleModeDuration + margin", async () => {
-        const w = lit();
-        w.noteSignal();
-        await MockTime.advance(Millis(UNSUBSCRIBED_WINDOW + 1));
+        await MockTime.advance(Millis(CHECK_IN_DUE - TIMINGS.activeModeThreshold));
         expect(w.available.value).equals(false);
+        expect(missed.count).equals(1);
     });
 
-    it("noteStayActive extends the awake window", async () => {
-        const w = lit();
-        w.noteSignal();
-        w.noteStayActive(Seconds(10));
-        await MockTime.advance(Millis(4001));
+    it("applies the threshold a Check-In carries", async () => {
+        const { w } = lit();
+        w.noteCheckIn(Seconds(20));
+        await MockTime.advance(Seconds(19));
         expect(w.awake.value).equals(true);
-        await MockTime.advance(Seconds(7));
-        expect(w.awake.value).equals(false);
     });
 
-    it("noteStayActive past the idle window keeps available true (awake => available)", async () => {
-        const w = lit();
+    it("stays awake for a StayActive promise", async () => {
+        const { w } = lit();
+        w.noteActive();
         w.noteStayActive(Seconds(60));
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
-        expect(w.awake.value).equals(true);
-        expect(w.available.value).equals(true);
-        await MockTime.advance(Seconds(30));
-        expect(w.awake.value).equals(false);
-        expect(w.available.value).equals(false);
-    });
-
-    it("a LIT->SIT flip forces both true and cancels timers", () => {
-        const w = lit();
-        w.requiresAwait = false;
+        await MockTime.advance(Seconds(59));
         expect(w.awake.value).equals(true);
         expect(w.available.value).equals(true);
     });
 
-    it("operatingModeChanged emits the new value on each requiresAwait flip, not on a no-op set", async () => {
-        const w = new IcdPeerWakefulness();
-        const seen = new Array<boolean>();
-        w.operatingModeChanged.on(value => {
-            seen.push(value);
-        });
-
-        w.requiresAwait = false; // no-op (already false)
-        w.requiresAwait = true; // SIT -> LIT
-        w.requiresAwait = true; // no-op
-        w.requiresAwait = false; // LIT -> SIT
-        await MockTime.yield();
-
-        expect(seen).deep.equals([true, false]);
+    it("lets a message the peer answered shorten a back-off deadline", () => {
+        const { w } = lit();
+        w.setTimings({ ...TIMINGS, maximumCheckInBackoff: Seconds(120) });
+        w.noteCheckIn();
+        const backedOff = w.nextSignalDue;
+        w.noteSent();
+        w.noteActive();
+        expect(w.nextSignalDue).lessThan(backedOff!);
     });
 
-    it("checkInMissed fires once when the availability window lapses", async () => {
-        const w = lit();
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
+    describe("report cadence", () => {
+        it("makes the next report due when the longest held subscription times out", async () => {
+            const { w, missed } = lit();
+            using _long = w.reportCadence(Seconds(120));
+            using _short = w.reportCadence(Seconds(60));
+            w.noteActive();
+            expect(w.nextSignalDue).equals(Time.nowMs + Seconds(120));
+
+            await MockTime.advance(Seconds(119));
+            expect(missed.count).equals(0);
+            await MockTime.advance(Seconds(2));
+            expect(missed.count).equals(1);
         });
-        w.noteSignal();
-        await MockTime.advance(Millis(UNSUBSCRIBED_WINDOW + 1));
-        expect(w.available.value).equals(false);
-        expect(fired).equals(1);
+
+        it("keeps the remaining subscription's cadence when another one is released", () => {
+            const { w } = lit();
+            using _remaining = w.reportCadence(Seconds(120));
+            const released = w.reportCadence(Seconds(60));
+            released[Symbol.dispose]();
+            w.noteActive();
+            expect(w.nextSignalDue).equals(Time.nowMs + Seconds(120));
+        });
+
+        it("keeps a released cadence's deadline until the peer shows activity again", async () => {
+            const { w } = lit();
+            const cadence = w.reportCadence(Seconds(120));
+            w.noteActive();
+            const due = w.nextSignalDue;
+            cadence[Symbol.dispose]();
+            expect(w.nextSignalDue).equals(due);
+
+            await MockTime.advance(Seconds(1));
+            w.noteActive();
+            expect(w.nextSignalDue).equals(Time.nowMs + CHECK_IN_DUE);
+        });
     });
 
-    it("sizes the subscribed window from the report interval plus the injected report margin", async () => {
-        const w = lit();
-        w.setTimings({ reportMargin: Seconds(20) });
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
-        });
-        w.noteSignal(); // idle-based window (30s + 4s threshold + 10s check-in margin)
-        w.setActiveReportInterval(SUBSCRIPTION, Seconds(60)); // subscribed: 60s + 20s report margin = 80s
-
-        // Past the idle-based window (44s) but before report interval + report margin (80s): no spurious lapse.
-        await MockTime.advance(Millis(Seconds(70)));
-        expect(w.available.value).equals(true);
-        expect(fired).equals(0);
-
-        // Past report interval + report margin: the window lapses and reports the miss.
-        await MockTime.advance(Millis(Seconds(11)));
-        expect(w.available.value).equals(false);
-        expect(fired).equals(1);
+    it("has no deadline once it is overdue", async () => {
+        const { w } = lit();
+        w.noteActive();
+        await MockTime.advance(Millis(CHECK_IN_DUE + 1));
+        expect(w.nextSignalDue).undefined;
     });
 
-    it("falls back to the check-in margin for the subscribed window when no report margin is injected", async () => {
-        const w = lit();
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
+    describe("nextSignalWithin", () => {
+        it("includes a Check-In back-off the peer may apply", () => {
+            const { w } = lit();
+            w.setTimings({ ...TIMINGS, maximumCheckInBackoff: Seconds(120) });
+            expect(w.nextSignalWithin).equals(Millis(Seconds(120) + IcdPeerSchedule.CHECK_IN_MARGIN));
         });
-        w.noteSignal();
-        w.setActiveReportInterval(SUBSCRIPTION, Seconds(60)); // 60s + CHECK_IN_MARGIN (10s) = 70s
 
-        await MockTime.advance(Millis(Seconds(65)));
-        expect(w.available.value).equals(true);
-        expect(fired).equals(0);
+        it("is the longest idle period without a deadline", () => {
+            const { w } = lit();
+            expect(w.nextSignalWithin).equals(Millis(TIMINGS.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN));
+        });
 
-        await MockTime.advance(Millis(Seconds(6)));
-        expect(w.available.value).equals(false);
-        expect(fired).equals(1);
+        it("is the time to the deadline when that is longer", () => {
+            const { w } = lit();
+            w.noteActive();
+            w.noteStayActive(Seconds(60));
+            expect(w.nextSignalWithin).equals(
+                Millis(Seconds(60) + TIMINGS.idleModeDuration + IcdPeerSchedule.CHECK_IN_MARGIN),
+            );
+        });
     });
 
-    it("reverts to the idle Check-In cadence when the report interval is cleared", async () => {
-        const w = lit();
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
-        });
-        w.setActiveReportInterval(SUBSCRIPTION, Seconds(60));
-        w.setActiveReportInterval(SUBSCRIPTION, undefined); // subscription lost
-        w.noteSignal(); // fresh Check-In -> idle-based window
+    describe("operating mode", () => {
+        it("forces awake and available when the peer stops requiring await", async () => {
+            const { w, missed } = lit();
+            w.noteActive();
+            w.requiresAwait = false;
+            expect(w.awake.value).equals(true);
+            expect(w.available.value).equals(true);
 
-        await MockTime.advance(Millis(UNSUBSCRIBED_WINDOW + 1));
-        expect(w.available.value).equals(false);
-        expect(fired).equals(1);
+            await MockTime.advance(Millis(CHECK_IN_DUE + 1));
+            expect(missed.count).equals(0);
+        });
+
+        it("resumes from the observed activity when the peer requires await again", () => {
+            const { w } = lit();
+            w.noteActive();
+            w.requiresAwait = false;
+            w.requiresAwait = true;
+            expect(w.awake.value).equals(true);
+        });
+
+        it("emits operatingModeChanged on each requiresAwait flip, not on a no-op set", async () => {
+            const w = new IcdPeerWakefulness();
+            const seen = new Array<boolean>();
+            w.operatingModeChanged.on(value => {
+                seen.push(value);
+            });
+
+            w.requiresAwait = false;
+            w.requiresAwait = true;
+            w.requiresAwait = true;
+            w.requiresAwait = false;
+            await MockTime.yield();
+
+            expect(seen).deep.equals([true, false]);
+        });
+
+        it("does not report a missed Check-In when the peer starts requiring await", async () => {
+            const { w, missed } = lit();
+            await MockTime.yield();
+            expect(w.available.value).equals(false);
+            expect(missed.count).equals(0);
+        });
     });
 
-    it("sizes the subscribed window from the longest report interval of several subscriptions", async () => {
-        const w = lit();
-        const short = {};
-        const long = {};
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
+    describe("suspend", () => {
+        it("releases parked consumers and stops reporting missed Check-Ins", async () => {
+            const { w, missed } = lit();
+            w.noteActive();
+            await MockTime.advance(Millis(TIMINGS.activeModeThreshold + 1));
+            expect(w.awake.value).equals(false);
+
+            w.suspend();
+            expect(w.awake.value).equals(true);
+            expect(w.nextSignalDue).undefined;
+            await MockTime.advance(Millis(CHECK_IN_DUE));
+            expect(missed.count).equals(0);
         });
-        w.setActiveReportInterval(long, Seconds(120));
-        w.setActiveReportInterval(short, Seconds(60));
-        w.noteSignal(); // 120s + CHECK_IN_MARGIN (10s) = 130s, not 60s + 10s
 
-        await MockTime.advance(Millis(Seconds(125)));
-        expect(fired).equals(0);
+        it("keeps the timers stopped when activity is observed while suspended", async () => {
+            const { w, missed } = lit();
+            w.suspend();
+            w.noteActive();
 
-        await MockTime.advance(Millis(Seconds(6)));
-        expect(fired).equals(1);
+            await MockTime.advance(Millis(CHECK_IN_DUE + 1));
+            expect(missed.count).equals(0);
+            expect(w.awake.value).equals(true);
+        });
+
+        it("does not signal a mode change", async () => {
+            const { w } = lit();
+            let changes = 0;
+            w.operatingModeChanged.on(() => {
+                changes++;
+            });
+            w.suspend();
+            await MockTime.yield();
+            expect(changes).equals(0);
+        });
+
+        it("resumes from the observed activity", () => {
+            const { w } = lit();
+            w.noteActive();
+            const due = w.nextSignalDue;
+            w.suspend();
+            w.resume();
+            expect(w.nextSignalDue).equals(due);
+        });
     });
 
-    it("keeps the remaining subscription's report interval when another subscription closes", async () => {
-        const w = lit();
-        const remaining = {};
-        const closing = {};
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
+    describe("close", () => {
+        it("keeps the timers stopped when a report cadence is released afterwards", async () => {
+            const { w, missed } = lit();
+            const cadence = w.reportCadence(Seconds(60));
+            w.noteActive();
+            w.close();
+            cadence[Symbol.dispose]();
+            w.resume();
+
+            await MockTime.advance(Seconds(120));
+            expect(missed.count).equals(0);
+            expect(w.nextSignalDue).undefined;
         });
-        w.setActiveReportInterval(remaining, Seconds(120));
-        w.setActiveReportInterval(closing, Seconds(60));
-        w.setActiveReportInterval(closing, undefined);
-        w.noteSignal(); // 120s + CHECK_IN_MARGIN (10s), not the idle-based 44s
 
-        await MockTime.advance(Millis(Seconds(125)));
-        expect(fired).equals(0);
-
-        await MockTime.advance(Millis(Seconds(6)));
-        expect(fired).equals(1);
-    });
-
-    it("extends the unsubscribed window by the active mode threshold", async () => {
-        const w = lit();
-        w.setTimings({ activeModeThreshold: Seconds(20) });
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
+        it("does not report a missed Check-In", async () => {
+            const { w, missed } = lit();
+            w.noteActive();
+            w.close();
+            await MockTime.advance(Millis(CHECK_IN_DUE + 1));
+            expect(missed.count).equals(0);
         });
-        w.noteSignal(); // 30s idle + 20s threshold + 10s margin = 60s
 
-        await MockTime.advance(Millis(Seconds(55)));
-        expect(fired).equals(0);
-
-        await MockTime.advance(Millis(Seconds(6)));
-        expect(fired).equals(1);
-    });
-
-    it("checkInMissed does not fire on a SIT->LIT requiresAwait flip", async () => {
-        const w = new IcdPeerWakefulness();
-        w.setTimings({ activeModeThreshold: Millis(4000), idleModeDuration: Seconds(30) });
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
+        it("releases a consumer parked on the awake edge", async () => {
+            const { w } = lit();
+            let released = false;
+            w.awake.on(awake => {
+                if (awake) {
+                    released = true;
+                }
+            });
+            w.close();
+            await MockTime.yield();
+            expect(released).equals(true);
+            expect(w.awake.value).equals(true);
         });
-        w.requiresAwait = true;
-        await MockTime.yield();
-        expect(w.available.value).equals(false);
-        expect(fired).equals(0);
-    });
-
-    it("checkInMissed does not fire on close() teardown", async () => {
-        const w = lit();
-        w.noteSignal();
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
-        });
-        w.close();
-        await MockTime.yield();
-        expect(fired).equals(0);
-    });
-
-    it("checkInMissed does not fire on a LIT->SIT flip that cancels the timer", async () => {
-        const w = lit();
-        w.noteSignal();
-        let fired = 0;
-        w.checkInMissed.on(() => {
-            fired++;
-        });
-        w.requiresAwait = false;
-        await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
-        expect(fired).equals(0);
-    });
-
-    it("close() releases a consumer parked on the awake edge", async () => {
-        const w = lit();
-        let released = false;
-        w.awake.on(awake => {
-            if (awake) {
-                released = true;
-            }
-        });
-        expect(w.awake.value).equals(false);
-        w.close();
-        await MockTime.yield();
-        expect(released).equals(true);
-        expect(w.awake.value).equals(true);
     });
 });

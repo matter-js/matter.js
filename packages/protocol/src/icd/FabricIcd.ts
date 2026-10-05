@@ -5,7 +5,7 @@
  */
 
 import type { Crypto } from "@matter/general";
-import { Bytes, ImplementationError, Logger, Observable } from "@matter/general";
+import { Bytes, ImplementationError, Logger, Millis, Observable } from "@matter/general";
 import { type SubjectId, NodeId } from "@matter/types";
 import type { IcdManagement } from "@matter/types/clusters/icd-management";
 import { CheckInMessage } from "./CheckInMessage.js";
@@ -24,10 +24,8 @@ const logger = Logger.get("FabricIcd");
 export class FabricIcd {
     readonly #crypto: Crypto;
     readonly #registrations = new Map<NodeId, FabricIcd.Registration>();
-    readonly #peers = new Map<
-        NodeId,
-        { peer: FabricIcd.Peer; handler: FabricIcd.CheckInHandler; wakefulness: IcdPeerWakefulness }
-    >();
+    readonly #peers = new Map<NodeId, { peer: FabricIcd.Peer; handler: FabricIcd.CheckInHandler }>();
+    readonly #wakefulness = new Map<NodeId, IcdPeerWakefulness>();
     readonly #peerFed = Observable<[NodeId]>();
 
     constructor(crypto: Crypto) {
@@ -35,9 +33,9 @@ export class FabricIcd {
     }
 
     /**
-     * Emits the peer node ID whenever a peer is fed ({@link addPeer}), i.e. a fresh {@link IcdPeerWakefulness} becomes
-     * available.  A sustained subscription races this signal so it moves to the new wakefulness, and recreates itself
-     * when the feed changes the peer's mode.
+     * Emits the peer node ID when a peer's registration starts ({@link addPeer} of an unregistered peer), i.e.
+     * {@link wakefulnessFor} starts returning its {@link IcdPeerWakefulness}.  A sustained subscription running without a
+     * wakefulness races this signal to observe the peer's mode from then on.
      */
     get peerFed() {
         return this.#peerFed;
@@ -61,17 +59,25 @@ export class FabricIcd {
         this.#registrations.clear();
     }
 
+    /**
+     * Register a peer's Check-In key and handler.  The peer keeps one {@link IcdPeerWakefulness} for its lifetime on
+     * this fabric, so a repeated registration updates the key and handler and resumes the wakefulness with its history.
+     */
     addPeer(peer: FabricIcd.Peer, handler: FabricIcd.CheckInHandler): void {
-        this.#peers.get(peer.peerNodeId)?.wakefulness.close();
-        this.#peers.set(peer.peerNodeId, { peer, handler, wakefulness: new IcdPeerWakefulness() });
-        this.#peerFed.emit(peer.peerNodeId);
+        const wasRegistered = this.#peers.has(peer.peerNodeId);
+        this.#peers.set(peer.peerNodeId, { peer, handler });
+        let wakefulness = this.#wakefulness.get(peer.peerNodeId);
+        if (wakefulness === undefined) {
+            wakefulness = new IcdPeerWakefulness();
+            this.#wakefulness.set(peer.peerNodeId, wakefulness);
+        }
+        if (!wasRegistered) {
+            wakefulness.resume();
+            this.#peerFed.emit(peer.peerNodeId);
+        }
     }
 
-    /**
-     * Re-key a registered peer in place (key refresh), preserving its {@link IcdPeerWakefulness} and handler. Recreating
-     * the entry would reset the live wakefulness windows that a parked sustained subscription resolves each loop, so the
-     * rolling-counter baseline is updated without disturbing them.
-     */
+    /** Re-key a registered peer in place (key refresh), keeping its handler. */
     updatePeer(peerNodeId: NodeId, peer: Pick<FabricIcd.Peer, "key" | "counterStart" | "lastOffset">): void {
         const entry = this.#peers.get(peerNodeId);
         if (entry === undefined) {
@@ -86,13 +92,29 @@ export class FabricIcd {
         return this.#peers.get(peerNodeId)?.peer;
     }
 
+    /** The wakefulness of a registered peer. */
     wakefulnessFor(peerNodeId: NodeId): IcdPeerWakefulness | undefined {
-        return this.#peers.get(peerNodeId)?.wakefulness;
+        return this.#peers.has(peerNodeId) ? this.#wakefulness.get(peerNodeId) : undefined;
     }
 
+    /**
+     * Remove a peer's registration.  An unregistered peer sends no Check-Ins, so its wakefulness is suspended until the
+     * peer is registered again.
+     */
     deletePeer(peerNodeId: NodeId): void {
-        this.#peers.get(peerNodeId)?.wakefulness.close();
-        this.#peers.delete(peerNodeId);
+        if (this.#peers.delete(peerNodeId)) {
+            this.#wakefulness.get(peerNodeId)?.suspend();
+        }
+    }
+
+    /** Record a message received from (`received`) or sent to a peer, for its wakefulness. */
+    notePeerActivity(peerNodeId: NodeId, received: boolean): void {
+        const wakefulness = this.#wakefulness.get(peerNodeId);
+        if (received) {
+            wakefulness?.noteActive();
+        } else {
+            wakefulness?.noteSent();
+        }
     }
 
     get hasPeers(): boolean {
@@ -104,9 +126,10 @@ export class FabricIcd {
      * delaying node shutdown).  Does not unpersist registrations.
      */
     close(): void {
-        for (const { wakefulness } of this.#peers.values()) {
+        for (const wakefulness of this.#wakefulness.values()) {
             wakefulness.close();
         }
+        this.#wakefulness.clear();
         this.#peers.clear();
         this.#registrations.clear();
     }
@@ -123,7 +146,7 @@ export class FabricIcd {
      * @see {@link MatterSpecification.v161.Core} § 4.22.4.2
      */
     async processCheckIn(payload: Bytes): Promise<boolean> {
-        for (const { peer, handler, wakefulness } of this.#peers.values()) {
+        for (const [peerNodeId, { peer, handler }] of this.#peers) {
             let decoded: CheckInMessage.DecodedIcdCheckIn;
             try {
                 decoded = await CheckInMessage.decodeIcd(this.#crypto, peer.key, payload);
@@ -139,7 +162,7 @@ export class FabricIcd {
 
             // Advance before the handler: a received counter value is consumed exactly once regardless of handler outcome.
             peer.lastOffset = validation.offset;
-            wakefulness.noteSignal();
+            this.#wakefulness.get(peerNodeId)?.noteCheckIn(Millis(decoded.activeModeThreshold));
             try {
                 handler({
                     peerNodeId: peer.peerNodeId,

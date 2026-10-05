@@ -9,15 +9,24 @@ import { ClientSubscription } from "#action/client/subscription/ClientSubscripti
 import { PeerSubscription } from "#action/client/subscription/PeerSubscription.js";
 import { SustainedSubscription } from "#action/client/subscription/SustainedSubscription.js";
 import { Subscribe } from "#action/request/Subscribe.js";
+import { IcdPeerSchedule } from "#icd/IcdPeerSchedule.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
 import { Entropy, Lifetime, Millis, Observable, RetrySchedule, Seconds, Time, Timestamp } from "@matter/general";
 import { FabricIndex, NodeId } from "@matter/types";
+
+const LIT_TIMINGS: IcdPeerSchedule.Timings = {
+    activeModeThreshold: Seconds(5),
+    activeModeDuration: Millis(0),
+    idleModeDuration: Seconds(30),
+};
 
 function fakePeerSub(onClose?: () => void): PeerSubscription {
     return {
         subscriptionId: 1,
         maxInterval: 60,
+        timeout: Seconds(70),
         interactionModelRevision: 12,
         close: async () => {
             onClose?.();
@@ -32,7 +41,7 @@ function retries() {
 
 function litWakefulness() {
     const wakefulness = new IcdPeerWakefulness();
-    wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+    wakefulness.setTimings(LIT_TIMINGS);
     wakefulness.requiresAwait = true; // start asleep + unavailable
     return wakefulness;
 }
@@ -199,7 +208,7 @@ describe("SustainedSubscription", () => {
 
         it("parks on the next loss once its wakefulness flips to requiresAwait===true", async () => {
             const wakefulness = new IcdPeerWakefulness();
-            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            wakefulness.setTimings(LIT_TIMINGS);
 
             let probeCount = 0;
             let subscribeCount = 0;
@@ -233,7 +242,7 @@ describe("SustainedSubscription", () => {
             expect(subscribeCount).equal(1);
 
             // A fresh check-in wakes the peer and drives the resubscribe.
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscribeCount).equal(2);
 
@@ -303,7 +312,7 @@ describe("SustainedSubscription", () => {
             expect(subscription.active.value).equal(false);
             expect(subscription.inactive.value).equal(true);
 
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
 
             expect(subscribeCount).equal(1);
@@ -322,13 +331,12 @@ describe("SustainedSubscription", () => {
                 subscribe: async () => fakePeerSub(),
             });
 
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscription.active.value).equal(true);
 
-            // Advance past the negotiated report cadence (fakePeerSub maxInterval 60s) + CHECK_IN_MARGIN (10s) so
-            // `available` lapses even though the peer is subscribed.
-            await MockTime.advance(Millis(Seconds(60) + IcdPeerWakefulness.CHECK_IN_MARGIN + Seconds(5)));
+            // Past the subscription's liveness timeout (fakePeerSub, 70s), so `available` lapses although subscribed.
+            await MockTime.advance(Seconds(75));
             await flush();
             expect(wakefulness.available.value).equal(false);
 
@@ -347,16 +355,16 @@ describe("SustainedSubscription", () => {
 
             const subscription = build({
                 wakefulness: () => wakefulness,
-                subscribe: async () => fakePeerSub(), // maxInterval 60s > idleModeDuration + margin
+                subscribe: async () => fakePeerSub(), // liveness timeout 70s > the 45s Check-In deadline
             });
 
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscription.active.value).equal(true);
 
-            // Past idleModeDuration (30s) + margin (5s) but before the negotiated report cadence (60s): a healthy
-            // subscribed peer whose reports arrive up to maxInterval must not blip offline every idle cycle.
-            await MockTime.advance(Millis(Seconds(30) + IcdPeerWakefulness.CHECK_IN_MARGIN + Seconds(5)));
+            // Past the Check-In deadline but before the subscription's liveness timeout: a healthy subscribed peer whose
+            // reports arrive up to maxInterval must not blip offline every idle cycle.
+            await MockTime.advance(Seconds(50));
             await flush();
             expect(wakefulness.available.value).equal(true);
             expect(missed).equal(0);
@@ -379,11 +387,11 @@ describe("SustainedSubscription", () => {
                 },
             });
 
-            wakefulness.noteSignal(); // check-in arms the idle-based window; subscribe fails -> parks with no report cadence
+            wakefulness.noteActive(); // arms the Check-In deadline; subscribe fails, so no report cadence is held
             await flush();
 
             // idleModeDuration (30s) + activeModeThreshold (5s) + CHECK_IN_MARGIN (10s)
-            await MockTime.advance(Millis(Seconds(30) + Seconds(5) + IcdPeerWakefulness.CHECK_IN_MARGIN + 1));
+            await MockTime.advance(Millis(Seconds(30) + Seconds(5) + IcdPeerSchedule.CHECK_IN_MARGIN + 1));
             await flush();
             expect(wakefulness.available.value).equal(false);
             expect(missed).equal(1);
@@ -404,7 +412,7 @@ describe("SustainedSubscription", () => {
                 },
             });
 
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscription.active.value).equal(true);
 
@@ -419,7 +427,7 @@ describe("SustainedSubscription", () => {
             expect(subscription.inactive.value).equal(true);
 
             // A fresh check-in wakes the peer and drives the resubscribe, restoring active.
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscription.active.value).equal(true);
 
@@ -442,7 +450,7 @@ describe("SustainedSubscription", () => {
                 },
             });
 
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscribeCount).equal(1);
 
@@ -451,7 +459,7 @@ describe("SustainedSubscription", () => {
             await flush();
             expect(subscribeCount).equal(1);
 
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscribeCount).equal(2);
             expect(subscription.active.value).equal(true);
@@ -513,7 +521,7 @@ describe("SustainedSubscription", () => {
                 subscribe: async () => fakePeerSub(() => peerSubClosed++),
             });
 
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
 
             subscription.close();
@@ -565,7 +573,7 @@ describe("SustainedSubscription", () => {
                 },
             });
 
-            wakefulness.noteSignal(); // wake -> first subscribe
+            wakefulness.noteActive(); // wake -> first subscribe
             await flush();
             expect(subscribeCount).equal(1);
             expect(subscription.active.value).equal(true);
@@ -585,7 +593,7 @@ describe("SustainedSubscription", () => {
 
         it("recreates after the next check-in on a SIT->LIT runtime flip", async () => {
             const wakefulness = new IcdPeerWakefulness();
-            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            wakefulness.setTimings(LIT_TIMINGS);
             // requiresAwait defaults to false -> starts as a SIT peer (always awake).
 
             let subscribeCount = 0;
@@ -609,7 +617,7 @@ describe("SustainedSubscription", () => {
             expect(subscribeCount).equal(1);
             expect(subscription.active.value).equal(false);
 
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscribeCount).equal(2);
 
@@ -629,7 +637,7 @@ describe("SustainedSubscription", () => {
                 },
             });
 
-            wakefulness.noteSignal(); // wake -> first subscribe
+            wakefulness.noteActive(); // wake -> first subscribe
             await flush();
             expect(subscribeCount).equal(1);
             expect(subscription.active.value).equal(true);
@@ -666,7 +674,7 @@ describe("SustainedSubscription", () => {
                 },
             });
 
-            wakefulness.noteSignal(); // wake -> first (establish) subscribe
+            wakefulness.noteActive(); // wake -> first (establish) subscribe
             await flush();
             // A LIT peer resubscribes off the shared throttle every iteration, so even the first establish is priority.
             expect(networks).deep.equal(["icdLit"]);
@@ -688,7 +696,7 @@ describe("SustainedSubscription", () => {
 
         it("keeps a runtime SIT→LIT peer on icdLit for a post-loss resubscribe, not just the flip recreate", async () => {
             const wakefulness = new IcdPeerWakefulness();
-            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            wakefulness.setTimings(LIT_TIMINGS);
             // Starts SIT (requiresAwait false).
 
             const networks = new Array<string | undefined>();
@@ -708,7 +716,7 @@ describe("SustainedSubscription", () => {
 
             // SIT→LIT flip: the one-shot recreate is priority.
             wakefulness.requiresAwait = true;
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(networks).deep.equal([undefined, "icdLit"]);
 
@@ -724,7 +732,7 @@ describe("SustainedSubscription", () => {
 
         it("keeps active live across a report-driven SIT→LIT flip when the recreate lands in-window", async () => {
             const wakefulness = new IcdPeerWakefulness();
-            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            wakefulness.setTimings(LIT_TIMINGS);
             // requiresAwait defaults to false -> starts as a SIT peer (always awake).
 
             let subscribeCount = 0;
@@ -748,10 +756,10 @@ describe("SustainedSubscription", () => {
             });
 
             // A report-driven SIT→LIT flip in the fixed IcdClient order: the requiresAwait setter force-sleeps the
-            // window, then the live report re-arms it via noteSignal. The recreate re-checks awake at the loop head and
+            // window, then the live report re-arms it via noteActive. The recreate re-checks awake at the loop head and
             // finds it armed, so it re-subscribes in-window with no not-live dip.
             wakefulness.requiresAwait = true;
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
 
             expect(subscribeCount).equal(2);
@@ -765,7 +773,7 @@ describe("SustainedSubscription", () => {
 
         it("drops to not-live when a mode-flip recreate parks for a peer that never wakes", async () => {
             const wakefulness = new IcdPeerWakefulness();
-            wakefulness.setTimings({ activeModeThreshold: Seconds(5), idleModeDuration: Seconds(30) });
+            wakefulness.setTimings(LIT_TIMINGS);
             // requiresAwait defaults to false -> starts as a SIT peer (always awake).
 
             let subscribeCount = 0;
@@ -791,7 +799,7 @@ describe("SustainedSubscription", () => {
             expect(subscription.active.value).equal(false);
 
             // Recovery: a fresh Check-In wakes the peer and restores live.
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             await flush();
             expect(subscribeCount).equal(2);
             expect(subscription.active.value).equal(true);
@@ -828,9 +836,9 @@ describe("SustainedSubscription", () => {
             });
 
             // Registration feeds the peer: mirror FabricIcd.addPeer creating an awake LIT wakefulness (register seeds
-            // noteSignal) plus IcdClient.#feedFabricIcd, then emit the feed signal.
+            // noteActive) plus IcdClient.#feedFabricIcd, then emit the feed signal.
             const wakefulness = litWakefulness();
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             registered = wakefulness;
             peerFed.emit(NodeId(BigInt(1)));
             await flush();
@@ -864,7 +872,7 @@ describe("SustainedSubscription", () => {
             expect(subscribeCount).equal(1);
 
             const wakefulness = litWakefulness();
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
             registered = wakefulness;
             peerFed.emit(NodeId(BigInt(1)));
             await flush();
@@ -885,92 +893,89 @@ describe("SustainedSubscription", () => {
             await MockTime.resolve(subscription.done!, { macrotasks: true });
         });
 
-        describe("re-feed of a subscribed peer", () => {
+        describe("report cadence", () => {
             async function subscribedLitPeer() {
-                const peerFed = Observable<[NodeId]>();
-                let registered = litWakefulness();
-                registered.noteSignal();
-
+                const wakefulness = litWakefulness();
+                wakefulness.noteActive();
+                let lastRequest: SustainedClientSubscribe | undefined;
                 let subscribeCount = 0;
                 const subscription = build({
-                    wakefulness: () => registered,
-                    peerFed: () => peerFed,
-                    subscribe: async () => {
-                        subscribeCount++;
+                    wakefulness: () => wakefulness,
+                    subscribe: async (request: Subscribe) => {
+                        if (subscribeCount++ > 0) {
+                            throw new PeerUnresponsiveError();
+                        }
+                        lastRequest = request as SustainedClientSubscribe;
                         return fakePeerSub();
                     },
                 });
                 await flush();
-                expect(subscribeCount).equal(1);
-
-                return {
-                    subscription,
-                    peerFed,
-                    get subscribeCount() {
-                        return subscribeCount;
-                    },
-                    async refeed(wakefulness: IcdPeerWakefulness) {
-                        registered = wakefulness;
-                        peerFed.emit(NodeId(BigInt(1)));
-                        await flush();
-                    },
-                };
+                expect(subscription.active.value).equal(true);
+                return { wakefulness, subscription, lose: () => lastRequest?.closed?.() };
             }
 
-            it("sizes the new wakefulness's availability from the subscription's report interval", async () => {
-                const peer = await subscribedLitPeer();
+            /** The next Check-In deadline after activity now, without a subscription. */
+            function checkInDue() {
+                return Timestamp(
+                    Time.nowMs +
+                        LIT_TIMINGS.activeModeThreshold +
+                        LIT_TIMINGS.idleModeDuration +
+                        IcdPeerSchedule.CHECK_IN_MARGIN,
+                );
+            }
 
-                const refed = litWakefulness();
-                refed.noteSignal();
-                await peer.refeed(refed);
+            it("makes the next report due when its subscription would time out", async () => {
+                const { wakefulness, subscription } = await subscribedLitPeer();
+                wakefulness.noteActive();
 
-                expect(peer.subscribeCount).equal(1);
-                // maxInterval 60s + CHECK_IN_MARGIN, not idleModeDuration 30s + activeModeThreshold 5s + CHECK_IN_MARGIN.
-                expect(refed.availableUntil).equal(Timestamp(Time.nowMs + Seconds(70)));
+                expect(wakefulness.nextSignalDue).equal(Timestamp(Time.nowMs + Seconds(70)));
 
-                peer.subscription.close();
-                await MockTime.resolve(peer.subscription.done!, { macrotasks: true });
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
             });
 
-            it("recreates on a later mode flip of the new wakefulness", async () => {
-                const peer = await subscribedLitPeer();
+            it("releases the cadence when closed", async () => {
+                const { wakefulness, subscription } = await subscribedLitPeer();
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
 
-                const refed = litWakefulness();
-                refed.noteSignal();
-                await peer.refeed(refed);
-                refed.requiresAwait = false;
+                wakefulness.noteActive();
+                expect(wakefulness.nextSignalDue).equal(checkInDue());
+            });
+
+            it("releases the cadence of a lost subscription", async () => {
+                const { wakefulness, subscription, lose } = await subscribedLitPeer();
+                lose();
                 await flush();
 
-                expect(peer.subscribeCount).equal(2);
+                wakefulness.noteActive();
+                expect(wakefulness.nextSignalDue).equal(checkInDue());
 
-                peer.subscription.close();
-                await MockTime.resolve(peer.subscription.done!, { macrotasks: true });
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
             });
 
-            it("stops observing the feed signal and the watched wakefulness once closed", async () => {
-                const peer = await subscribedLitPeer();
-                const refed = litWakefulness();
-                refed.noteSignal();
-                await peer.refeed(refed);
-                expect(peer.peerFed.isObserved).equal(true);
-                expect(refed.operatingModeChanged.isObserved).equal(true);
+            it("keeps its subscription when the peer's wakefulness is suspended", async () => {
+                const { wakefulness, subscription } = await subscribedLitPeer();
+                const id = subscription.subscriptionId;
+                wakefulness.suspend();
+                await flush();
 
-                peer.subscription.close();
-                await MockTime.resolve(peer.subscription.done!, { macrotasks: true });
+                expect(subscription.active.value).equal(true);
+                expect(subscription.subscriptionId).equal(id);
 
-                expect(peer.peerFed.isObserved).equal(false);
-                expect(refed.operatingModeChanged.isObserved).equal(false);
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
             });
 
-            it("recreates when the peer is re-fed in the other mode", async () => {
-                const peer = await subscribedLitPeer();
+            it("stops observing the peer's mode once closed", async () => {
+                const { wakefulness, subscription } = await subscribedLitPeer();
+                expect(wakefulness.operatingModeChanged.isObserved).equal(true);
 
-                await peer.refeed(new IcdPeerWakefulness());
+                subscription.close();
+                await MockTime.resolve(subscription.done!, { macrotasks: true });
 
-                expect(peer.subscribeCount).equal(2);
-
-                peer.subscription.close();
-                await MockTime.resolve(peer.subscription.done!, { macrotasks: true });
+                expect(wakefulness.operatingModeChanged.isObserved).equal(false);
             });
         });
 
@@ -993,7 +998,7 @@ describe("SustainedSubscription", () => {
 
             // A feed for an unrelated peer must not recreate this subscription.
             registered = litWakefulness();
-            registered.noteSignal();
+            registered.noteActive();
             peerFed.emit(NodeId(BigInt(2)));
             await flush();
             expect(subscribeCount).equal(1);

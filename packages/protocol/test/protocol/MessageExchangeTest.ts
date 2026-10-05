@@ -834,5 +834,24 @@ describe("MessageExchange", () => {
             expect(wakefulness.awake.value).equal(false);
             wakefulness.close();
         });
+
+        it("reports an outbound message to the peer's wakefulness", async () => {
+            const { session, wakefulness } = sessionWithSleepingLitPeer();
+            wakefulness.setTimings({
+                activeModeThreshold: Seconds(5),
+                activeModeDuration: Millis(0),
+                idleModeDuration: Seconds(30),
+                maximumCheckInBackoff: Seconds(3600),
+            });
+            wakefulness.noteCheckIn();
+            const backedOff = wakefulness.nextSignalDue;
+            const { exchange } = createExchange(session);
+
+            await exchange.send(0, Bytes.empty);
+            wakefulness.noteActive(); // the peer answers
+
+            expect(wakefulness.nextSignalDue).lessThan(backedOff!);
+            wakefulness.close();
+        });
     });
 });

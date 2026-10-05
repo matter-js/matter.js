@@ -7,7 +7,6 @@
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { IcdPeerAsleepError } from "#behavior/system/icd/IcdPeerAsleepError.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
-import { IcdManagementClient } from "#behaviors/icd-management";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import {
@@ -20,7 +19,6 @@ import {
     MatterAggregateError,
     Millis,
     ObserverGroup,
-    Seconds,
     Time,
 } from "@matter/general";
 import {
@@ -161,7 +159,8 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             // re-subscribing.
             icdWakefulness: () => this.#icdWakefulness(),
 
-            // A feed replaces the peer's wakefulness, so the subscription needs the feed signal to follow it.
+            // A subscription established before its peer was fed holds no wakefulness to observe the first
+            // registration on; the feed signal lets it recreate then.
             icdPeerFed: () => this.#peerIcd()?.icd.peerFed,
         };
 
@@ -328,21 +327,11 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             return undefined;
         }
 
-        // A sleeping peer wakes on its next (unreliable) Check-In, so the default wait spans the idle Check-In cadence
-        // plus the same fixed jitter slack the availability window uses for that cadence.
-        const idle = this.#node.maybeStateOf(IcdManagementClient)?.idleModeDuration;
-        const effectiveTimeout =
-            timeout ??
-            Millis(
-                (idle === undefined ? IcdPeerWakefulness.DEFAULT_IDLE : Seconds(idle)) +
-                    IcdPeerWakefulness.CHECK_IN_MARGIN,
-            );
-
-        return this.#awaitWake(wakefulness, address, effectiveTimeout);
+        return this.#awaitWake(wakefulness, address, timeout ?? wakefulness.nextSignalWithin);
     }
 
     async #awaitWake(wakefulness: IcdPeerWakefulness, address: PeerAddress, timeout: Duration) {
-        const nextCheckIn = wakefulness.availableUntil;
+        const nextCheckIn = wakefulness.nextSignalDue;
         logger.info(
             "Peer is a LIT ICD in idle mode; holding interaction until it wakes",
             Diagnostic.dict({

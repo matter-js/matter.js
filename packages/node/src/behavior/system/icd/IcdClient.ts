@@ -29,7 +29,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import { bool, field, nonvolatile, octstr, subjectId, systimeMs, uint32, uint8 } from "@matter/model";
-import { FabricManager, PeerAddress, PeerSet, SUBSCRIPTION_PROCESSING_TIME, type FabricIcd } from "@matter/protocol";
+import { FabricManager, IcdPeerSchedule, PeerAddress, type FabricIcd } from "@matter/protocol";
 import { NodeId, SubjectId, VendorId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { IcdMultiAdminError } from "./IcdMultiAdminError.js";
@@ -71,11 +71,11 @@ export class IcdClient extends Behavior {
     }
 
     /**
-     * Deadline by which the next Check-In from a registered LIT peer is expected, or undefined when no Check-In is
-     * scheduled (no fed peer / not registered / not LIT). Derived from the fed peer's wakefulness availability window.
+     * Deadline by which the next Check-In (or report, while subscribed) from a registered LIT peer is expected, or
+     * undefined when none is scheduled (no fed peer / not registered / not LIT).
      */
     get nextExpectedCheckin(): Timestamp | undefined {
-        return this.#fedWakefulness()?.availableUntil;
+        return this.#fedWakefulness()?.nextSignalDue;
     }
 
     get #peerIsLongIdleTimeOperating() {
@@ -126,7 +126,7 @@ export class IcdClient extends Behavior {
      * non-LIT or unfed peer.
      */
     #onPeerOnline() {
-        this.#fedWakefulness()?.noteSignal();
+        this.#fedWakefulness()?.noteActive();
     }
 
     #onSubscriptionStatusChanged(isActive: boolean) {
@@ -140,10 +140,10 @@ export class IcdClient extends Behavior {
         if (wakefulness !== undefined) {
             const litOperating = this.#peerIsLongIdleTimeOperating;
             wakefulness.requiresAwait = litOperating;
-            // A live flip into LIT is proof the peer is awake now; re-arm the window the requiresAwait setter force-slept.
+            // A live flip into LIT is proof the peer is awake now.
             // Gate on online so a stale rehydration of operatingMode cannot arm the window from non-live data.
             if (litOperating && this.endpoint instanceof Node && this.endpoint.lifecycle.isOnline) {
-                wakefulness.noteSignal();
+                wakefulness.noteActive();
             }
         }
         this.#ensureLitRegistration();
@@ -398,7 +398,7 @@ export class IcdClient extends Behavior {
      * Locally drop this controller's Check-In registration without contacting the peer.
      *
      * Escape hatch for an unreachable registered LIT peer: {@link unregister} round-trips to the peer, so it parks on
-     * the same wakefulness deadlock this clears. Dropping the fed peer removes its wakefulness, so subsequent
+     * the same wakefulness deadlock this clears. Dropping the fed peer suspends its wakefulness, so subsequent
      * interactions no longer hold — a later subscribe can re-establish and re-register. The peer keeps a stale
      * registration for us until it prunes it (or a fresh {@link register} mints a new key). A no-op when not registered.
      */
@@ -478,25 +478,29 @@ export class IcdClient extends Behavior {
         }
 
         const icdState = this.endpoint.maybeStateOf(IcdManagementClient);
-        // reportMargin must equal the subscription's own liveness slack (maxPeerResponseTime×2 over
-        // SUBSCRIPTION_PROCESSING_TIME) so availability never lapses before the subscription itself times out.
-        const peer = this.env.get(PeerSet).get(this.internal.fedPeer);
+        const defaults = IcdPeerSchedule.DEFAULT_TIMINGS;
         wakefulness.setTimings({
             activeModeThreshold:
-                icdState?.activeModeThreshold === undefined ? undefined : Millis(icdState.activeModeThreshold),
-            idleModeDuration: icdState?.idleModeDuration === undefined ? undefined : Seconds(icdState.idleModeDuration),
-            reportMargin:
-                peer === undefined
-                    ? undefined
-                    : Millis(peer.exchangeProvider.maximumPeerResponseTime(SUBSCRIPTION_PROCESSING_TIME) * 2),
+                icdState?.activeModeThreshold === undefined
+                    ? defaults.activeModeThreshold
+                    : Millis(icdState.activeModeThreshold),
+            activeModeDuration:
+                icdState?.activeModeDuration === undefined
+                    ? defaults.activeModeDuration
+                    : Millis(icdState.activeModeDuration),
+            idleModeDuration:
+                icdState?.idleModeDuration === undefined
+                    ? defaults.idleModeDuration
+                    : Seconds(icdState.idleModeDuration),
+            maximumCheckInBackoff:
+                icdState?.maximumCheckInBackoff === undefined ? undefined : Seconds(icdState.maximumCheckInBackoff),
         });
         wakefulness.requiresAwait = this.#peerIsLongIdleTimeOperating;
 
         if (seed) {
-            wakefulness.noteSignal();
+            wakefulness.noteActive();
         }
 
-        // addPeer recreates the wakefulness each feed (registration, restore), so re-establish the availability mirror.
         this.#unsubscribeAvailable();
         const listener = this.callback(this.#onAvailableChanged, { offline: true, lock: true });
         wakefulness.available.on(listener);
@@ -632,13 +636,13 @@ export namespace IcdClient {
         /** Address of the peer fed to {@link FabricIcd}; lets decommission drop it after peerAddress is already gone. */
         fedPeer?: PeerAddress;
 
-        /** The fed peer's wakefulness `available` observable we currently mirror; recreated on every feed. */
+        /** The fed peer's wakefulness `available` observable we currently mirror. */
         availableSource?: AsyncObservableValue<[boolean]>;
 
         /** Listener mirroring {@link availableSource} into {@link IcdClient.State.available}; removed on drop and before re-feed. */
         availableListener?: Observer<[boolean]>;
 
-        /** The fed peer's wakefulness `checkInMissed` observable we currently mirror; recreated on every feed. */
+        /** The fed peer's wakefulness `checkInMissed` observable we currently mirror. */
         checkInMissedSource?: AsyncObservable<[]>;
 
         /** Listener mirroring {@link checkInMissedSource} into {@link IcdClient.Events.checkInMissed}; removed on drop and before re-feed. */
