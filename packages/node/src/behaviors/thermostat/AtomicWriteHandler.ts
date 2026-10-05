@@ -33,6 +33,7 @@ import {
     Val,
 } from "@matter/protocol";
 import {
+    AtomicAttributeStatus,
     AttributeId,
     ClusterId,
     type ClusterTyping,
@@ -56,8 +57,9 @@ const logger = Logger.get("AtomicWriteHandler");
  * be thrown back to te emitter. This is not the case for official state events.
  * * `${attributeName}$AtomicChanging` - emitted when an attribute is changed as part of an atomic write, before the value
  *   is actually changed. Receives the new value, the old value and the action context as parameters.
- * * `${attributeName}$AtomicChanged` - emitted when an attribute is changed as part of an atomic write, after the value
- *   is actually changed. Receives the new value, the old value and the action context as parameters.
+ * * `${attributeName}$AtomicChanged` - emitted on commit once every attribute of the atomic write is staged in the
+ *   transaction, so validation spanning attributes sees their pending values. Receives the new value, the old value
+ *   and the action context as parameters.
  *
  * TODO: Move out of thermostat behavior into a more generic behavior handler once used by other clusters too. Then we
  *  also need to adjust how it is handled.
@@ -269,43 +271,80 @@ export class AtomicWriteHandler {
         clusterState: ClusterState.Type<ClusterTyping, B>,
     ): Promise<Thermostat.AtomicResponse> {
         const state = this.#initializeState(request, context, endpoint, cluster);
+        const events = endpoint.eventsOf(cluster.id);
 
-        let commandStatusCode = Status.Success;
-        const attributeStatus = [];
-        for (const [attr, value] of Object.entries(state.pendingAttributeValues)) {
-            let statusCode = Status.Success;
-            try {
-                const attributeName = state.attributeNames.get(AttributeId(Number(attr)))!;
-                endpoint
-                    .eventsOf(cluster.id)
-                    [`${attributeName}$AtomicChanging`]?.emit(value, endpoint.stateOf(cluster.id)[attr], context);
-                endpoint
-                    .eventsOf(cluster.id)
-                    [`${attributeName}$AtomicChanged`]?.emit(value, endpoint.stateOf(cluster.id)[attr], context);
-                (clusterState as any)[attr] = value;
-                await context.transaction?.commit();
-            } catch (error) {
-                await context.transaction?.rollback();
-                logger.info(
-                    `Failed to write attribute ${attr} during atomic write commit:`,
-                    Diagnostic.errorMessage(asError(error)),
-                );
-                statusCode = StatusResponseError.of(error)?.code ?? Status.Failure;
+        // §7.15.6.4.2: the pending writes apply as one unit, so every attribute is staged in this one transaction and
+        // any failure discards all of them
+        const attributeStatus = request.attributeRequests.map((attributeId): AtomicAttributeStatus => ({
+            attributeId,
+            statusCode: Status.Success,
+        }));
+        const staged = new Array<{ status: AtomicAttributeStatus; name: string; value: unknown; oldValue: unknown }>();
 
-                // The command reports a generic failure whatever went wrong; the attribute's own status carries the
-                // reason, and certification reads them that way
-                commandStatusCode = Status.Failure;
+        try {
+            for (const status of attributeStatus) {
+                const value = state.pendingAttributeValues[status.attributeId];
+                if (value === undefined) {
+                    continue;
+                }
+                const name = state.attributeNames.get(status.attributeId)!;
+                const oldValue = endpoint.stateOf(cluster.id)[status.attributeId];
+                try {
+                    events[`${name}$AtomicChanging`]?.emit(value, oldValue, context);
+                    (clusterState as any)[status.attributeId] = value;
+                    staged.push({ status, name, value, oldValue });
+                } catch (error) {
+                    status.statusCode = this.#statusOf(error, `staging attribute ${name}`);
+                }
             }
-            attributeStatus.push({
-                attributeId: AttributeId(Number(attr)),
-                statusCode,
-            });
+
+            for (const { status, name, value, oldValue } of staged) {
+                try {
+                    events[`${name}$AtomicChanged`]?.emit(value, oldValue, context);
+                } catch (error) {
+                    status.statusCode = this.#statusOf(error, `validating attribute ${name}`);
+                }
+            }
+
+            if (attributeStatus.some(({ statusCode }) => statusCode !== Status.Success)) {
+                await context.transaction?.rollback();
+            } else {
+                try {
+                    await context.transaction?.commit();
+                } catch (error) {
+                    // A failure while committing cannot be traced to one attribute, so it stands for each of them
+                    const statusCode = this.#statusOf(error, "committing");
+                    for (const status of attributeStatus) {
+                        status.statusCode = statusCode;
+                    }
+                }
+            }
+        } finally {
+            state.close();
         }
-        state.close(); // Irrelevant of the outcome the state is closed
+
+        // The command reports a generic failure whatever went wrong; the attributes' own statuses carry the reason, and
+        // certification reads them that way
         return {
-            statusCode: commandStatusCode,
+            statusCode: attributeStatus.every(({ statusCode }) => statusCode === Status.Success)
+                ? Status.Success
+                : Status.Failure,
             attributeStatus,
         };
+    }
+
+    /**
+     * The status an attribute reports for an error raised while committing it.  A refused value is routine for the
+     * peer; an error that carries no Matter status is a defect, which fails only this atomic write.
+     */
+    #statusOf(error: unknown, step: string) {
+        const statusCode = StatusResponseError.of(error)?.code;
+        if (statusCode !== undefined) {
+            logger.debug(`Atomic write commit failed ${step}:`, Diagnostic.errorMessage(asError(error)));
+            return statusCode;
+        }
+        logger.warn(`Atomic write commit failed unexpectedly ${step}:`, error);
+        return Status.Failure;
     }
 
     /**
