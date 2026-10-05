@@ -74,6 +74,11 @@ const EXPIRATION_INTERVAL = Minutes.one;
 type FabricOperation = "commission" | "decommission";
 
 /**
+ * Thrown when a commission or decommission of a {@link ClientNode} is requested while one is already in progress.
+ */
+export class FabricOperationInProgressError extends CommissioningError {}
+
+/**
  * Manages the set of known remote nodes.
  *
  * Remote nodes are either peers (commissioned into a fabric we share) or commissionable.
@@ -548,45 +553,37 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Run a commission attempt on {@link node} while protecting the node from the expired-node cull.
      *
-     * Rejects with {@link CommissioningError} if the node is closed, being deleted or crashed, so the attempt fails fast
-     * instead of crashing later when the closed backing is accessed, or if a commission or decommission attempt on it
+     * Rejects with a {@link DestroyedDependencyError} or {@link CrashedDependencyError} if the node
+     * {@link EndpointLifecycle.isGone is gone}, so the attempt fails fast instead of crashing later when the closed
+     * backing is accessed, and with {@link FabricOperationInProgressError} if a commission or decommission attempt on it
      * is already in progress, as parallel attempts on the same {@link ClientNode} would race on device-side state.
+     * Calling {@link ClientNode.commission} inside {@link fn} therefore rejects.
      */
     async runCommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
-        return this.#runFabricOperation(node, "commission", CommissioningError, fn);
+        return this.#runFabricOperation(node, "commission", fn);
     }
 
     /**
      * Run a decommission attempt on {@link node}.  While it runs, the expired-node cull and leave events do not delete
      * the node, and {@link forDescriptor} waits for it to end before handing out a node for the device.
      *
-     * Rejects with {@link ImplementationError} if the node is closed, being deleted or crashed, or if a commission or
-     * decommission attempt on it is already in progress.
+     * Rejects like {@link runCommissioning}.
      */
     async runDecommissioning<T>(node: ClientNode, fn: () => MaybePromise<T>): Promise<T> {
-        return this.#runFabricOperation(node, "decommission", ImplementationError, fn);
+        return this.#runFabricOperation(node, "decommission", fn);
     }
 
     /**
      * Registration runs as a {@link #mutex} task, so no cull or leave handling is in flight for the node once
      * {@link fn} starts, and every later one sees the registration.
      */
-    async #runFabricOperation<T>(
-        node: ClientNode,
-        operation: FabricOperation,
-        errorType: new (message: string) => MatterError,
-        fn: () => MaybePromise<T>,
-    ): Promise<T> {
+    async #runFabricOperation<T>(node: ClientNode, operation: FabricOperation, fn: () => MaybePromise<T>): Promise<T> {
         const { promise: settled, resolver: settle } = createPromise<void>();
         await this.#mutex.produce(async () => {
-            if (node.lifecycle.isGone) {
-                throw new errorType(
-                    `Cannot ${operation} ${node.toString()} because it is closed, being deleted or crashed`,
-                );
-            }
+            node.lifecycle.assertNotGone();
             const running = this.#fabricOperations.get(node);
             if (running !== undefined) {
-                throw new errorType(
+                throw new FabricOperationInProgressError(
                     `Cannot ${operation} ${node.toString()} because a ${running.operation} attempt is already in progress`,
                 );
             }

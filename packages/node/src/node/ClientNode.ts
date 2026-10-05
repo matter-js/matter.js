@@ -30,7 +30,7 @@ import {
     MaybePromise,
 } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
-import { CommissioningError, Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
+import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { ClientNodeLifecycle } from "./ClientNodeLifecycle.js";
@@ -144,16 +144,22 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     }
 
     /**
+     * {@link owner} throws {@link InternalError} once the node is destroyed; a gone node rejects with its lifecycle
+     * error instead.
+     */
+    get #peers() {
+        this.lifecycle.assertNotGone();
+        return this.owner.peers;
+    }
+
+    /**
      * Add this node to a fabric.
      *
-     * Rejects with {@link CommissioningError} if the node is closed, being deleted or crashed, or if a commission or
-     * decommission of it is already in progress.
+     * Rejects as {@link Peers.runCommissioning} describes if the node is gone or a commission or decommission of it is
+     * already in progress.
      */
     async commission(options: CommissioningClient.CommissioningOptions) {
-        if (this.lifecycle.isGone) {
-            throw new CommissioningError(`Cannot commission ${this} because it is closed, being deleted or crashed`);
-        }
-        await this.owner.peers.runCommissioning(this, () =>
+        await this.#peers.runCommissioning(this, () =>
             this.act("commission", agent => agent.commissioning.commission(options)),
         );
     }
@@ -161,16 +167,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     /**
      * Remove this node from the fabric (if commissioned) and locally.
      * This method tries to communicate with the device to decommission it properly and will fail if the device is
-     * unreachable.  If the device does not confirm the removal, the node is kept and stays usable.  Rejects with
-     * {@link ImplementationError} if the node is closed, being deleted or crashed, or if a commission or decommission of
-     * it is already in progress.
+     * unreachable.  If the device does not confirm the removal, the node is kept and stays usable.  Rejects as
+     * {@link Peers.runCommissioning} describes if the node is gone or a commission or decommission of it is already in
+     * progress.
      * If you cannot reach the device, use {@link delete} instead.
      */
     async decommission() {
-        if (this.lifecycle.isGone) {
-            throw new ImplementationError(`Cannot decommission ${this} because it is closed, being deleted or crashed`);
-        }
-        await this.owner.peers.runDecommissioning(this, async () => {
+        await this.#peers.runDecommissioning(this, async () => {
             if (this.lifecycle.isCommissioned) {
                 this.statusUpdate("decommissioning");
 
@@ -312,9 +315,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     ): MaybePromise<R> {
         if (this.construction.status === Lifecycle.Status.Inactive) {
             // Between the reset and the close of a deletion; restarting would revive a node that is going away
-            if (this.lifecycle.isGone) {
-                throw new ImplementationError(`Cannot act on ${this} because it is closing or being deleted`);
-            }
+            this.lifecycle.assertNotGone();
             this.construction.start();
         }
 
