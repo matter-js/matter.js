@@ -43,8 +43,8 @@ export interface SustainedClientSubscribe extends Subscribe, ClientRequest {
 
     /**
      * Live provider of the fabric ICD registry's "peer fed" signal (emits the peer node ID on registration).  A
-     * subscription established before its peer was fed races this so the first registration-induced SIT⇄LIT flip
-     * recreates the subscription for the new mode.  Attached by the node layer alongside {@link icdWakefulness}.
+     * sustained subscription races this so it follows a newly fed wakefulness and recreates when the feed changes the
+     * peer's mode.  Attached by the node layer alongside {@link icdWakefulness}.
      */
     icdPeerFed?: () => Observable<[NodeId]> | undefined;
 }

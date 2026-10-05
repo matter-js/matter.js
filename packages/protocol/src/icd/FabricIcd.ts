@@ -36,8 +36,8 @@ export class FabricIcd {
 
     /**
      * Emits the peer node ID whenever a peer is fed ({@link addPeer}), i.e. a fresh {@link IcdPeerWakefulness} becomes
-     * available.  A sustained subscription established before its peer was registered races this signal so the first
-     * registration-induced SIT⇄LIT flip recreates the subscription for the new mode.
+     * available.  A sustained subscription races this signal so it moves to the new wakefulness, and recreates itself
+     * when the feed changes the peer's mode.
      */
     get peerFed() {
         return this.#peerFed;

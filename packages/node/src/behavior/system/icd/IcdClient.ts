@@ -496,7 +496,7 @@ export class IcdClient extends Behavior {
             wakefulness.noteSignal();
         }
 
-        // addPeer recreates the wakefulness each feed (e.g. key refresh), so re-establish the availability mirror.
+        // addPeer recreates the wakefulness each feed (registration, restore), so re-establish the availability mirror.
         this.#unsubscribeAvailable();
         const listener = this.callback(this.#onAvailableChanged, { offline: true, lock: true });
         wakefulness.available.on(listener);

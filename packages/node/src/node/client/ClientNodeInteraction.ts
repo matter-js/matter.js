@@ -161,8 +161,7 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
             // re-subscribing.
             icdWakefulness: () => this.#icdWakefulness(),
 
-            // A subscription established before its peer was fed holds no wakefulness to observe the first
-            // registration-induced flip on; the feed signal lets it recreate on that flip.
+            // A feed replaces the peer's wakefulness, so the subscription needs the feed signal to follow it.
             icdPeerFed: () => this.#peerIcd()?.icd.peerFed,
         };
 
@@ -313,8 +312,9 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      *
      * Returns `undefined` for the common passthrough cases (non-LIT peer, unregistered peer, or an already-awake LIT
      * peer) so callers add no latency and no microtask boundary on the hot path — important for same-tick invoke
-     * batching.  Returns a promise only when the operation must actually park; it resolves when a Check-In re-arms the
-     * awake window and rejects with {@link IcdPeerAsleepError} if the timeout elapses first.
+     * batching.  Returns a promise only when the operation must actually park; it resolves when a Check-In or any
+     * other message from the peer re-arms the awake window and rejects with {@link IcdPeerAsleepError} if the timeout
+     * elapses first.
      *
      * requiresAwait is read live so a DSLS SIT⇄LIT flip is honored per interaction.
      */

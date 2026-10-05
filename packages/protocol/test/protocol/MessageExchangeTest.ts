@@ -11,7 +11,7 @@ import { MRP } from "#protocol/MRP.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import { Bytes, Duration, MatterFlowError, Millis, NetworkError, Seconds, Semaphore } from "@matter/general";
-import { BDX_PROTOCOL_ID, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
+import { BDX_PROTOCOL_ID, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
 
 /**
  * Creates a NodeSession whose channel send() throws to simulate a hard network failure.
@@ -807,6 +807,43 @@ describe("MessageExchange", () => {
 
             expect(captured.fixedBackoff).equals(Seconds(0.2));
             expect(captured.additionalDelay).equals(Millis(0));
+        });
+    });
+
+    describe("ICD wakefulness", () => {
+        before(() => MockTime.enable());
+
+        function sessionWithSleepingLitPeer() {
+            const fabric = new ProtocolMocks.Fabric();
+            const session = new ProtocolMocks.NodeSession({ fabric });
+            fabric.icd.addPeer(
+                { peerNodeId: NodeId(1), key: Bytes.of(new Uint8Array(16)), counterStart: 0, lastOffset: 0 },
+                () => {},
+            );
+            const wakefulness = fabric.icd.wakefulnessFor(NodeId(1))!;
+            wakefulness.requiresAwait = true;
+            return { session, wakefulness };
+        }
+
+        it("wakes a sleeping LIT peer on any inbound message", async () => {
+            const { session, wakefulness } = sessionWithSleepingLitPeer();
+            const { exchange } = createExchange(session);
+
+            await exchange.onMessageReceived(fakeInboundMessage());
+
+            expect(wakefulness.awake.value).equal(true);
+            expect(wakefulness.available.value).equal(true);
+            wakefulness.close();
+        });
+
+        it("does not wake a sleeping LIT peer on an outbound message", async () => {
+            const { session, wakefulness } = sessionWithSleepingLitPeer();
+            const { exchange } = createExchange(session);
+
+            await exchange.send(0, Bytes.empty);
+
+            expect(wakefulness.awake.value).equal(false);
+            wakefulness.close();
         });
     });
 });

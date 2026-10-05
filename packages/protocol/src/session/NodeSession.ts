@@ -260,6 +260,17 @@ export class NodeSession extends SecureSession {
         return this.#fabric !== undefined;
     }
 
+    /**
+     * A message authenticated on this session proves the peer is awake right now, so it re-arms a registered LIT ICD
+     * peer's wakefulness like a Check-In does.
+     */
+    override notifyActivity(messageReceived: boolean) {
+        super.notifyActivity(messageReceived);
+        if (messageReceived && this.#fabric?.icdActive) {
+            this.#fabric.icd.wakefulnessFor(this.#peerNodeId)?.noteSignal();
+        }
+    }
+
     get associatedFabric(): Fabric {
         if (this.#fabric === undefined) {
             throw new NoAssociatedFabricError(

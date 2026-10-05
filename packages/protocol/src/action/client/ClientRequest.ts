@@ -42,9 +42,10 @@ export interface ClientRequest {
     /**
      * Override the wait applied to a one-shot interaction with an idle LIT (Long Idle Time) ICD peer.
      *
-     * A LIT peer is asleep most of the time, so matter.js holds the operation until the peer wakes (a Check-In re-arms
-     * the awake window) before transmitting. The default wait is the peer's idle window plus margin; set this to bound
-     * it per-call. On expiry the operation rejects with `IcdPeerAsleepError`. Ignored for non-LIT peers.
+     * A LIT peer is asleep most of the time, so matter.js holds the operation until the peer wakes (a Check-In or any
+     * other message from the peer re-arms the awake window) before transmitting. The default wait is the peer's idle
+     * window plus margin; set this to bound it per-call. On expiry the operation rejects with `IcdPeerAsleepError`.
+     * Ignored for non-LIT peers.
      */
     icdAwaitTimeout?: Duration;
 
