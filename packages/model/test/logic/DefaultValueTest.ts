@@ -12,6 +12,9 @@ import {
     bool,
     double,
     list,
+    map32,
+    map64,
+    map8,
     percent100ths,
     single,
     string,
@@ -99,6 +102,57 @@ describe("DefaultValue", () => {
 
         it("is absent when the type it derives from requires an entry", () => {
             expect(listDefaultOf("min 1")).undefined;
+        });
+    });
+
+    describe("bitmap", () => {
+        function bitmapDefaultOf(...members: { constraint: string; default: number | bigint }[]) {
+            const Matter = new MatterModel(
+                {},
+                map8.clone(),
+                map32.clone(),
+                map64.clone(),
+                new ClusterModel(
+                    { name: "Test", id: 0xfff1 },
+                    Datatype(
+                        { name: "Flags", type: "map64" },
+                        ...members.map((member, index) => Field({ name: `Member${index}`, ...member })),
+                    ),
+                    Attribute({ name: "Flags", id: 1, type: "Flags" }),
+                ),
+            );
+            Matter.finalize();
+
+            return DefaultValue(Scope(Matter), Matter.get(ClusterModel, "Test")!.attributes("Flags")!);
+        }
+
+        it("places a single-bit member at its bit", () => {
+            expect(bitmapDefaultOf({ constraint: "0", default: 1 })).equal(0b1);
+        });
+
+        it("places every bit of a multi-bit member, its last bit included", () => {
+            expect(bitmapDefaultOf({ constraint: "0", default: 1 }, { constraint: "1 to 2", default: 3 })).equal(0b111);
+        });
+
+        it("places a member with no upper bound from its lowest bit", () => {
+            expect(bitmapDefaultOf({ constraint: "min 4", default: 3 })).equal(0b110000);
+        });
+
+        it("keeps bit 31 a bit, not a sign", () => {
+            expect(bitmapDefaultOf({ constraint: "0 to 31", default: 2 ** 31 })).equal(2 ** 31);
+        });
+
+        it("places members above bit 31, including one that crosses it", () => {
+            expect(bitmapDefaultOf({ constraint: "32 to 33", default: 3 })).equal(0x3_0000_0000);
+            expect(bitmapDefaultOf({ constraint: "30 to 33", default: 15 })).equal(0x3_c000_0000);
+        });
+
+        it("lets the first member to claim a bit decide it", () => {
+            expect(bitmapDefaultOf({ constraint: "0 to 1", default: 0 }, { constraint: "1", default: 1 })).equal(0);
+        });
+
+        it("places a bigint default and returns a bigint a number cannot hold", () => {
+            expect(bitmapDefaultOf({ constraint: "0 to 63", default: 2n ** 60n + 1n })).equal(2n ** 60n + 1n);
         });
     });
 });
