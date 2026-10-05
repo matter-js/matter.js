@@ -33,6 +33,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `UdpMulticastServer.create()` closes the sockets it already opened when it fails, such as the IPv4 socket when the IPv6 socket cannot be created
 
 - @matter/model
+    - Enhancement: `DecodedBitmap()` takes options to select members by conformance and, with `complete`, to name clear members as `false` or 0
+    - Fix: `EncodedBitmap()`, `DecodedBitmap()` and a bitmap default built from member defaults place every member at its full width, the last bit of a multi-bit member and bits 31 to 63 included, and a member with no upper bound from its lowest bit. `DecodedBitmap` values may be a `bigint` where a number cannot hold a member exactly, and both functions take an optional `Scope` to resolve a bitmap datatype a cluster inherits
     - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
     - Fix: Child lookups (`Model.get()`, `Model.all()`, `children.select()`) follow changes made by `splice()`, so they no longer return a removed child or miss an added one; duplicate IDs resolve in list order and names such as `constructor` match nothing. A child that `splice()` removes and adds back keeps its parent
     - Fix: `MatterModel.permanentDatatypes` lists seed datatypes only and keeps a seed datatype replaced by one of the same name
@@ -64,6 +66,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
 
 - @matter/types
+    - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
     - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
     - Feature: `TlvInvokeRequest` carries the optional `delayReportData` field (`TlvDelayReportData`); matter.js acts on it only behind the `delay-report-data` forward feature. Decoding is not behind the flag: an InvokeRequest whose field 3 is not a structure is now rejected, where it was skipped before, and a missing `delayMinMs` or `delayJitterWindowMs` subfield of a present `delayReportData` decodes as 0
     - Fix: The TLV schema of a field whose constraint states a computed bound, such as the `-2^62 to 2^62` of Electrical Power and Energy Measurement values and the measurement accuracy structs, carries both bounds; it dropped one or both. The runtime validator already enforced them. As for any other bound, a controller drops a reported attribute whose value lies beyond it, and logs a warning. `ModelBounds` derives its bounds from `EncodedConstraint`
@@ -114,6 +117,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
     - Fix: A peer's state drops the value of an attribute its `AttributeList` omits, such as one a firmware update removed, also when the value was cached before the list changed; such a cluster is read again in full after the controller starts. `Datasource.ExternallyMutableStore` has an optional `invalidateVersion()`
     - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
     - Fix: A closed subscription releases its diagnostic lifetime, so a long-running device no longer keeps one per subscription it ever served
