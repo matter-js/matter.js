@@ -58,6 +58,11 @@ const MAX_PENDING_JOBS = 100;
 interface MutateContext {
     enqueue(job: () => Promise<void>): void;
     endpointsWithData: Set<EndpointNumber>;
+    /**
+     * Clusters the peer sent data for in this interaction, which a descriptor later in it must not delete. Scoped to
+     * the interaction because reads run concurrently with the sustained subscription's reports.
+     */
+    clustersWithData: Set<ClusterStructure>;
 }
 
 const DESCRIPTOR_ID = Descriptor.id;
@@ -117,7 +122,6 @@ export class ClientStructure {
     // Keyed by cluster ID; a cluster's schema does not change for the life of the structure
     #attributeIds = new Map<ClusterId, Map<string, number>>();
     #delayedClusterEvents = new Array<ReadResult.EventValue>();
-    #clustersWithDataThisInteraction = new Set<ClusterStructure>();
 
     /**
      * Which endpoints have named each part in a `PartsList`, and what each of those lists contained.
@@ -203,7 +207,7 @@ export class ClientStructure {
             for (const id of knownBehaviors) {
                 const cluster = this.#clusterFor(endpoint, id);
                 this.#checkUnlistedSeedValues(cluster);
-                this.#synchronizeCluster(endpoint, cluster);
+                this.#synchronizeCluster(endpoint, cluster, new Set());
             }
         }
 
@@ -278,10 +282,6 @@ export class ClientStructure {
      * Update the node structure by applying attribute changes from a Matter protocol interaction.
      */
     async *mutate(request: Read, changes: ReadResult) {
-        // Track which clusters the peer sends data for so a descriptor omitting them doesn't delete them.  Reset at the
-        // start so a prior interaction that threw mid-stream can't leave stale entries blocking a legitimate deletion.
-        this.#clustersWithDataThisInteraction.clear();
-
         // We collect updates and only apply when we transition clusters
         let currentUpdates: AttributeUpdates | undefined;
 
@@ -292,6 +292,7 @@ export class ClientStructure {
         let pendingJobs = 0;
         const q: MutateContext = {
             endpointsWithData: new Set<EndpointNumber>(),
+            clustersWithData: new Set<ClusterStructure>(),
             enqueue: job => {
                 pendingJobs++;
                 queue.run(async () => {
@@ -345,7 +346,7 @@ export class ClientStructure {
             // The last cluster still needs its changes applied
             if (currentUpdates) {
                 const toFlush = currentUpdates;
-                q.enqueue(() => this.#updateCluster(toFlush));
+                q.enqueue(() => this.#updateCluster(toFlush, q.clustersWithData));
             }
         } finally {
             // Drain deferred jobs on every exit path (normal completion, consumer break/throw, or a `changes`
@@ -375,7 +376,7 @@ export class ClientStructure {
      * stays name-keyed on the way out.
      */
     async applyWireChanges(changes: StateStream.WireChange[]) {
-        this.#clustersWithDataThisInteraction.clear();
+        const clustersWithData = new Set<ClusterStructure>();
 
         for (const change of changes) {
             switch (change.kind) {
@@ -391,14 +392,14 @@ export class ClientStructure {
                         values.set(DatasourceCache.VERSION_KEY, change.version);
                     }
 
-                    this.#clustersWithDataThisInteraction.add(cluster);
+                    clustersWithData.add(cluster);
                     this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
                     this.#pruneUnlistedAttributes(cluster, values);
                     this.#invalidateOnDefinitionChange(cluster, values);
 
                     await cluster.store.externalSet(values);
-                    this.#synchronizeCluster(endpoint, cluster);
+                    this.#synchronizeCluster(endpoint, cluster, clustersWithData);
                     break;
                 }
 
@@ -475,7 +476,7 @@ export class ClientStructure {
         // If we are building updates to a cluster and the cluster/endpoint changes, apply the current update set
         if (currentUpdates && (currentUpdates.endpointId !== endpointId || currentUpdates.clusterId !== clusterId)) {
             const toFlush = currentUpdates;
-            q.enqueue(() => this.#updateCluster(toFlush));
+            q.enqueue(() => this.#updateCluster(toFlush, q.clustersWithData));
             currentUpdates = undefined;
         }
 
@@ -565,21 +566,21 @@ export class ClientStructure {
      *
      * This is invoked in a batch when we've collected all sequential values for the current endpoint/cluster.
      */
-    async #updateCluster(attrs: AttributeUpdates) {
+    async #updateCluster(attrs: AttributeUpdates, clustersWithData: Set<ClusterStructure>) {
         const endpoint = this.#endpointFor(attrs.endpointId);
         const cluster = this.#clusterFor(endpoint, attrs.clusterId);
 
         // Receiving attribute data for a cluster is authoritative evidence the peer still has it, even when its
         // descriptor server list omits it.  Record this and cancel any deletion already scheduled by a descriptor
         // processed earlier in this same interaction — "Schrödinger's cluster".
-        this.#clustersWithDataThisInteraction.add(cluster);
+        clustersWithData.add(cluster);
         this.#preserveAbsentCluster(endpoint.endpoint, cluster);
 
         this.#pruneUnlistedAttributes(cluster, attrs.values);
         this.#invalidateOnDefinitionChange(cluster, attrs.values);
 
         await cluster.store.externalSet(attrs.values);
-        this.#synchronizeCluster(endpoint, cluster);
+        this.#synchronizeCluster(endpoint, cluster, clustersWithData);
     }
 
     /**
@@ -747,7 +748,11 @@ export class ClientStructure {
      *
      * Invoked once we've loaded all attributes in an interaction.
      */
-    #synchronizeCluster(structure: EndpointStructure, cluster: ClusterStructure) {
+    #synchronizeCluster(
+        structure: EndpointStructure,
+        cluster: ClusterStructure,
+        clustersWithData: ReadonlySet<ClusterStructure>,
+    ) {
         const { endpoint } = structure;
 
         // Generate a behavior if enough information is available
@@ -834,11 +839,15 @@ export class ClientStructure {
             } else {
                 attrs = cluster.store.currentValues ?? {};
             }
-            this.#synchronizeDescriptor(structure, attrs);
+            this.#synchronizeDescriptor(structure, attrs, clustersWithData);
         }
     }
 
-    #synchronizeDescriptor(structure: EndpointStructure, attrs: Record<string | number, unknown>) {
+    #synchronizeDescriptor(
+        structure: EndpointStructure,
+        attrs: Record<string | number, unknown>,
+        clustersWithData: ReadonlySet<ClusterStructure>,
+    ) {
         const { endpoint } = structure;
 
         const deviceTypeList = getStoreValue(attrs, DEVICE_TYPE_LIST_ATTR_ID, DEVICE_TYPE_LIST_ATTR_NAME) as
@@ -913,10 +922,7 @@ export class ClientStructure {
                     // despite it not being in the server list; a device is buggy but we tolerate it by skipping the
                     // deletion, aka "Schrödinger's cluster".  Data arriving later in the interaction cancels the
                     // deletion via #preserveAbsentCluster; data already seen is skipped here.
-                    if (
-                        !clusterStructure.pendingBehavior &&
-                        !this.#clustersWithDataThisInteraction.has(clusterStructure)
-                    ) {
+                    if (!clusterStructure.pendingBehavior && !clustersWithData.has(clusterStructure)) {
                         clusterStructure.pendingDelete = true;
                         anyPendingDelete = true;
                     }

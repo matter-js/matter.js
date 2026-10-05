@@ -36,6 +36,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import {
     b$,
     Bytes,
+    createPromise,
     Crypto,
     deepCopy,
     Entropy,
@@ -3042,6 +3043,49 @@ describe("ClientNode", function () {
             expect(neoBehaviorId(), "NEO must survive a re-interview that serves its data").not.undefined;
         });
 
+        it("survives a read that runs while the report carrying its data is still arriving", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoActive = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return (
+                    endpoint !== undefined &&
+                    Object.values(endpoint.behaviors.supported).some(
+                        type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                    )
+                );
+            };
+
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+            expect(neoActive(), "NEO should be active after the initial interaction").true;
+
+            // NEO's data, then OnOff's so NEO's update starts before the report pauses
+            const neoApplied = createPromise<void>();
+            const reportOpen = createPromise<void>();
+            async function* report(): ReadResult {
+                yield [...neoReports(11), attr(OnOff.id, OnOff.attributes.onOff.id, true, 11)];
+                neoApplied.resolver();
+                await reportOpen.promise;
+                yield descriptorServerListReport(11);
+            }
+
+            const reporting = drain(structure.mutate(request, report()));
+            await MockTime.resolve(neoApplied.promise);
+
+            await drain(structure.mutate(request, readResult([])));
+
+            reportOpen.resolver();
+            await MockTime.resolve(reporting);
+
+            expect(neoActive(), "the report carried NEO's data, so its descriptor must not delete NEO").true;
+        });
+
         it("erases persisted storage when the peer genuinely drops the cluster", async () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
@@ -3171,6 +3215,60 @@ describe("ClientNode", function () {
             const after = neoType();
             expect(after, "behavior must be rebuilt to reflect the new revision").not.equals(before);
             expect(after?.cluster.revision, "NEO must report the new revision").equals(2);
+        });
+
+        it("keeps a cluster a wire batch carries data for though its descriptor omits it", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(10))));
+
+            const levelControlActive = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return (
+                    endpoint !== undefined &&
+                    Object.values(endpoint.behaviors.supported).some(
+                        type => (type as ClusterBehavior.Type).cluster?.id === LevelControl.id,
+                    )
+                );
+            };
+
+            const levelControl = (version: number) => ({
+                kind: "update" as const,
+                node: peer1.id,
+                endpoint: EP1,
+                version,
+                behavior: "levelControl",
+                changes: {
+                    clusterRevision: 5,
+                    featureMap: {},
+                    attributeList: [0, 65528, 65529, 65531, 65532, 65533],
+                    acceptedCommandList: [],
+                    generatedCommandList: [],
+                    currentLevel: 42,
+                },
+            });
+            const descriptor = (version: number) => ({
+                kind: "update" as const,
+                node: peer1.id,
+                endpoint: EP1,
+                version,
+                behavior: "descriptor",
+                changes: { serverList: EP1_SERVER_LIST },
+            });
+
+            await structure.applyWireChanges([levelControl(11)]);
+            expect(levelControlActive(), "the wire change installs LevelControl").true;
+
+            await structure.applyWireChanges([levelControl(12), descriptor(12)]);
+            expect(levelControlActive(), "the batch carried LevelControl's data").true;
+
+            // The same descriptor without the data does delete it, so the batch above kept it for its data
+            await structure.applyWireChanges([descriptor(13)]);
+            expect(levelControlActive(), "a descriptor alone deletes LevelControl").false;
         });
 
         it("rebuilds a cluster when a wire change alters its revision", async () => {
