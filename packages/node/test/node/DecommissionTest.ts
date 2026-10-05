@@ -7,13 +7,21 @@
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
+import { ClientEventEmitter } from "#node/client/ClientEventEmitter.js";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ImplementationError, Lifecycle, Minutes, Seconds } from "@matter/general";
-import { CommissioningError, PeerMessageMissingError, PeerSet, PeerUnresponsiveError } from "@matter/protocol";
-import { FabricIndex } from "@matter/types";
+import {
+    CommissioningError,
+    PeerMessageMissingError,
+    PeerSet,
+    PeerUnresponsiveError,
+    ReadResult,
+} from "@matter/protocol";
+import { EndpointNumber, EventId, EventNumber, FabricIndex, Priority, TlvAny } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { MockSite } from "./mock-site.js";
-import { settled, subscribedPeer } from "./node-helpers.js";
+import { clientStructureOf, settled, subscribedPeer } from "./node-helpers.js";
 
 /**
  * Replace the exact `removeFabric` the decommission path invokes, on the runtime prototype of the peer's
@@ -451,6 +459,41 @@ describe("Decommission", () => {
         expect(acted).is.true;
         expect(actError).instanceOf(ImplementationError);
         expect(statuses).not.include(Lifecycle.Status.Initializing);
+        expect(controller.peers.size).equals(0);
+    });
+
+    it("ignores an event that arrives for a node while it is deleted", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const fabricIndex = peer1.stateOf(OperationalCredentialsClient).currentFabricIndex;
+        const emit = ClientEventEmitter(peer1, clientStructureOf(peer1));
+        const leave: ReadResult.EventValue = {
+            kind: "event-value",
+            path: {
+                endpointId: EndpointNumber(0),
+                clusterId: BasicInformation.id,
+                eventId: EventId(BasicInformation.events.leave.id),
+            },
+            number: EventNumber(1_000),
+            timestamp: 1_000,
+            priority: Priority.Info,
+            value: { fabricIndex },
+            tlv: TlvAny,
+        };
+
+        let delivering: Promise<void> | undefined;
+        peer1.construction.change.on(status => {
+            if (status === Lifecycle.Status.Inactive && delivering === undefined) {
+                delivering = emit(leave);
+            }
+        });
+
+        await MockTime.resolve(peer1.delete());
+
+        expect(delivering).not.undefined;
+        await MockTime.resolve(delivering!);
         expect(controller.peers.size).equals(0);
     });
 });
