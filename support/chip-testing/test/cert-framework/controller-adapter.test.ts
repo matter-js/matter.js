@@ -1286,8 +1286,8 @@ describe("InProcessControllerAdapter ICD client", () => {
         await adapter.node(ref).decommission();
     });
 
-    // The ICD device because its client can stop the controller's subscription, which leaves a read as the
-    // only way an event reaches the controller
+    // The ICD device is used because its client can stop the controller's subscription, leaving a read as the
+    // only way an event reaches the controller.
     it("does not report an event to an observer that only a read brought in", async function () {
         this.timeout(60_000);
 
