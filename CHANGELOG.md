@@ -76,6 +76,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: Ensure that a controller treats any message from a LIT ICD peer as a wake signal and resubscribes at once, instead of waiting for the next Check-In
+    - Breaking: `IcdPeerWakefulness` API renamed (`noteActive()`, `nextCheckInDue`, `holdSubscription()`); ICD timing constants moved to `IcdPeerSchedule`
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status
     - Fix: A node advertises one DNS-SD host name on all its interfaces, so a controller that hears it on several interfaces reports its host name
     - Fix: An `MdnsService` that cannot open its socket removes itself from the environment and the runtime, so a node started afterwards creates a new one instead of failing again, and the runtime can stop
