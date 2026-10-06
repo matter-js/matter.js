@@ -1501,7 +1501,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             const count = presetScenarioCounts.get(preset.presetScenario) ?? 0;
             if (count === presetType.numberOfPresets) {
                 throw new StatusResponse.ResourceExhaustedError(
-                    `Number of presets (${count}) for scenario ${Thermostat.PresetScenario[preset.presetScenario]} exceeds allowed number (${presetType.numberOfPresets})`,
+                    `Number of presets (${count + 1}) for scenario ${Thermostat.PresetScenario[preset.presetScenario]} exceeds allowed number (${presetType.numberOfPresets})`,
                 );
             }
             presetScenarioCounts.set(preset.presetScenario, count + 1);
@@ -1851,7 +1851,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
             const count = scheduleModeCounts.get(schedule.systemMode) ?? 0;
             if (count === scheduleType.numberOfSchedules) {
                 throw new StatusResponse.ResourceExhaustedError(
-                    `Number of schedules (${count}) for systemMode ${Thermostat.SystemMode[schedule.systemMode]} exceeds allowed number (${scheduleType.numberOfSchedules})`,
+                    `Number of schedules (${count + 1}) for systemMode ${Thermostat.SystemMode[schedule.systemMode]} exceeds allowed number (${scheduleType.numberOfSchedules})`,
                 );
             }
             scheduleModeCounts.set(schedule.systemMode, count + 1);

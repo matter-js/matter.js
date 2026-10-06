@@ -295,7 +295,7 @@ describe("Schedules local write", () => {
 
         await expect(writeSchedules(deviceEp, [newSchedule(), newSchedule()])).rejectedWith(
             StatusResponse.ResourceExhaustedError,
-            "exceeds allowed number",
+            "Number of schedules (2) for systemMode Auto exceeds allowed number (1)",
         );
 
         expect(storedSchedules(deviceEp)).deep.equals([]);
