@@ -31,6 +31,7 @@ import { OnboardingPayloadRefusedError } from "../../src/cert/onboarding-payload
 import type { ManualPairingCodeParts, TransitionMark } from "../cert/tc-dd-support.js";
 import {
     checkGeneratedManualCode,
+    chipToolDiscoveryGaveUp,
     checkGeneratedPayload,
     commissionByManualCode,
     commissionByQr,
@@ -1607,6 +1608,35 @@ describe("recordManualParse", () => {
         });
 
         await expect(recordManualParse(fixture.cx, CODE)).rejectedWith(CertCheckFailedError);
+    });
+});
+
+describe("chipToolDiscoveryGaveUp", () => {
+    const COMMAND = "[1791234767.118] [14468:64976200:main] [TOO] Command: pairing code 4099 33331712336";
+    const BROWSING = "[1791234767.121] [14468:64976223:chip] [DIS] Browsing for: _matterc._udp,_S14 on local domain";
+    const PASE = "[1791234767.200] [14468:64976223:chip] [CTL] Attempting PASE connection to UDP:[fe80::1%en0]:5540";
+    const TIMED_OUT = "[1791234797.125] [14468:64976278:chip] [CTL] Discovery timed out";
+
+    async function verdictFor(...lines: string[]) {
+        const source = new LineQueue();
+        const log = new LogFollower(source, "dut");
+        for (const line of lines) {
+            source.push(line);
+        }
+        source.close();
+        return (await chipToolDiscoveryGaveUp(log, 0)).verdict;
+    }
+
+    it("passes when discovery timed out without a PASE attempt", async () => {
+        expect(await verdictFor(COMMAND, BROWSING, TIMED_OUT)).equal("pass");
+    });
+
+    it("fails when chip-tool started PASE, which means it found a device", async () => {
+        expect(await verdictFor(COMMAND, BROWSING, PASE, TIMED_OUT)).equal("fail");
+    });
+
+    it("fails when discovery never timed out", async () => {
+        expect(await verdictFor(COMMAND, BROWSING, PASE)).equal("fail");
     });
 });
 

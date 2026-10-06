@@ -22,6 +22,7 @@ import type {
     CertStepContext,
     CheckRecord,
     CommissioningTarget,
+    LogFollower,
     OnboardingPayloadFields,
 } from "@matter/testing";
 import type { CertDevice } from "@matter/testing";
@@ -732,7 +733,8 @@ export class CommissioningRefusals {
      * The TH is observed advertising first, or the DUT gives up because there was nothing to find at all.
      * And only a give-up counts ({@link isCommissioningGiveUp}), so a controller that failed for an
      * unrelated reason does not pass. A payload refusal is not a give-up: it means the code never reached
-     * discovery.
+     * discovery. chip-tool reports every failure as the same command error, so there its own log has to
+     * show the give-up ({@link chipToolDiscoveryGaveUp}).
      */
     async requireGiveUp(
         cx: CertStepContext,
@@ -745,7 +747,11 @@ export class CommissioningRefusals {
     ): Promise<void> {
         await probeCommissionable(cx);
 
-        const attempt = cx.controllers.dut.commission(target);
+        const dut = cx.controllers.dut;
+        const chipTool = resolveControllerImplementation() === "chip-tool";
+        const from = chipTool ? await dut.log.markSettled() : 0;
+
+        const attempt = dut.commission(target);
         this.track(attempt);
 
         record(
@@ -758,6 +764,10 @@ export class CommissioningRefusals {
             ),
             what,
         );
+
+        if (chipTool) {
+            record(cx, await chipToolDiscoveryGaveUp(dut.log, from), `${what}: chip-tool gave up on discovery`);
+        }
     }
 
     /**
@@ -1089,6 +1099,34 @@ export async function recordCommissionable(
  * before it looked for anything, and these steps generate a well-formed one. It is not a subclass of
  * either accepted error today, and the guard is what keeps that true if it becomes one.
  */
+const CHIP_TOOL_DISCOVERY_TIMED_OUT = /\[CTL\] Discovery timed out/;
+const CHIP_TOOL_PASE_ATTEMPT = /Attempting PASE connection/;
+
+/**
+ * chip-tool's own log showing that an attempt from `from` on ended because discovery found nothing: its
+ * discovery timed out, and it never started PASE before that. A `ChipToolCommandError` alone cannot
+ * tell this apart from a failure later in commissioning.
+ */
+export async function chipToolDiscoveryGaveUp(log: LogFollower, from: number): Promise<CheckRecord> {
+    const timedOut = await expectDeviceLog(log, "chip", { chip: CHIP_TOOL_DISCOVERY_TIMED_OUT }, from, LOG_TIMEOUT);
+    const until = timedOut.check.logLine;
+    if (timedOut.check.verdict !== "pass" || until === undefined) {
+        return timedOut.check;
+    }
+
+    const pase = log.lines.find(
+        line => line.index >= from && line.index < until && CHIP_TOOL_PASE_ATTEMPT.test(line.text),
+    );
+    if (pase !== undefined) {
+        return {
+            type: "device-log",
+            verdict: "fail",
+            detail: `chip-tool started PASE before its discovery timed out, so it found a device: ${pase.text}`,
+        };
+    }
+    return timedOut.check;
+}
+
 export function isCommissioningGiveUp(error: unknown): boolean {
     if (error instanceof OnboardingPayloadRefusedError) {
         return false;
