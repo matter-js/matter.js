@@ -17,7 +17,7 @@ import {
     recordUnpair,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, runCleanups } from "./tc-support.js";
+import { CommissionedRefs, runCleanups, withChecks } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 const refusals = new CommissioningRefusals();
@@ -69,7 +69,7 @@ certTest("TC-DD-3.20", {
             "commissioning process over the TH Commissionee's method of device discovery",
         async cx => {
             const payload = await thQrPayload(cx.devices.th);
-            await commissionByQr(cx, payload, commissioned);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         {
             expected:
@@ -107,7 +107,8 @@ certTest("TC-DD-3.20", {
         async cx => {
             // Read after the unpair, so a chip TH restarted in step 4 is scanned from its own
             // payload rather than from the one the generation that went down had printed
-            await commissionByQr(cx, await thQrPayload(cx.devices.th, unpaired()), commissioned);
+            const payload = await thQrPayload(cx.devices.th, unpaired());
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         {
             expected:

@@ -19,7 +19,7 @@ import {
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, recordAll, runCleanups } from "./tc-support.js";
+import { CommissionedRefs, recordAll, runCleanups, withChecks } from "./tc-support.js";
 
 /** The plan's own substitute for the specification's `000`; any non-zero 3-bit value works. */
 const INVALID_VERSION = 0b010;
@@ -103,7 +103,7 @@ certTest("TC-DD-3.14", {
         "Scan/read the QR code of the TH device using the DUT",
         async cx => {
             const payload = await onNetworkOnlyPayload(cx);
-            await commissionByQr(cx, payload, commissioned);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         {
             pics: "MCORE.DD.DISCOVERY_BLE",
@@ -133,7 +133,8 @@ certTest("TC-DD-3.14", {
         "4.b",
         "Scan/read the QR code of the TH device using the DUT",
         async cx => {
-            await commissionByQr(cx, await onNetworkOnlyPayload(cx), commissioned);
+            const payload = await onNetworkOnlyPayload(cx);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         {
             pics: "MCORE.DD.DISCOVERY_PAF",
