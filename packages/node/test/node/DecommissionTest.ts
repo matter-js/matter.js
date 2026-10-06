@@ -5,15 +5,24 @@
  */
 
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
+import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { ClientEventEmitter } from "#node/client/ClientEventEmitter.js";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { FabricOperationInProgressError } from "#node/client/Peers.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { CrashedDependencyError, DestroyedDependencyError, Lifecycle, Minutes, Seconds } from "@matter/general";
+import {
+    CrashedDependencyError,
+    Crypto,
+    DestroyedDependencyError,
+    Lifecycle,
+    MockCrypto,
+    Minutes,
+    Seconds,
+} from "@matter/general";
 import { clientStructureOf, MockSite, settled, subscribedPeer } from "@matter/node/testing";
-import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError, ReadResult } from "@matter/protocol";
+import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError, Read, ReadResult } from "@matter/protocol";
 import { EndpointNumber, EventId, EventNumber, FabricIndex, Priority, TlvAny } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
@@ -40,6 +49,81 @@ async function patchRemoveFabric(
 describe("Decommission", () => {
     before(() => {
         MockTime.init();
+    });
+
+    describe("of a peer commissioned without a structure read or subscription", () => {
+        async function unstructuredPeer(site: MockSite) {
+            const { controller, device } = await site.addUncommissionedPair();
+
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            await controller.start();
+            const { passcode, discriminator } = device.state.commissioning;
+            await MockTime.resolve(
+                controller.peers.commission({
+                    passcode,
+                    discriminator,
+                    timeout: Seconds(90),
+                    autoSubscribe: false,
+                    autoStateInitialize: false,
+                }),
+                { macrotasks: true },
+            );
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            return { controller, device, peer: controller.peers.get("peer1")! };
+        }
+
+        async function readFabricsOnly(peer: ClientNode) {
+            const fabrics = Read(
+                Read.Attribute({ endpoint: peer, cluster: OperationalCredentials.Cluster, attributes: "fabrics" }),
+            );
+            await MockTime.resolve(
+                (async () => {
+                    for await (const _chunk of peer.interaction.read(fabrics));
+                })(),
+                { macrotasks: true },
+            );
+            expect(peer.behaviors.has(OperationalCredentialsClient)).true;
+            expect(peer.stateOf(OperationalCredentialsClient).currentFabricIndex).equals(FabricIndex.NO_FABRIC);
+        }
+
+        it("removes it although it holds no OperationalCredentials or BasicInformation behavior", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer } = await unstructuredPeer(site);
+            expect(peer.behaviors.has(OperationalCredentialsClient)).false;
+            expect(peer.behaviors.has(BasicInformationClient)).false;
+
+            await MockTime.resolve(peer.decommission(), { macrotasks: true });
+
+            expect(controller.peers.size).equals(0);
+            expect(device.lifecycle.isCommissioned).is.false;
+        });
+
+        it("removes the fabric recorded at commissioning when the peer holds no current fabric index", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer } = await unstructuredPeer(site);
+            await readFabricsOnly(peer);
+
+            await MockTime.resolve(peer.decommission(), { macrotasks: true });
+
+            expect(controller.peers.size).equals(0);
+            expect(device.lifecycle.isCommissioned).is.false;
+        });
+
+        it("reads the current fabric index when none was recorded at commissioning", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer } = await unstructuredPeer(site);
+            await readFabricsOnly(peer);
+            await peer.setStateOf(CommissioningClient, { fabricIndexOnPeer: undefined });
+
+            await MockTime.resolve(peer.decommission(), { macrotasks: true });
+
+            expect(controller.peers.size).equals(0);
+            expect(device.lifecycle.isCommissioned).is.false;
+        });
     });
 
     it("removes the node when removeFabric is delivered but the response is lost", async () => {
