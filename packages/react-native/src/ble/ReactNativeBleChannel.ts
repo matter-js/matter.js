@@ -170,11 +170,11 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         onMatterMessageListener: (socket: Channel<Bytes>, data: Bytes) => void,
         _additionalCommissioningRelatedData?: Bytes,
     ): Promise<ReactNativeBleChannel> {
-        const mtu = MatterBle.btpSegmentSizeFromAttMtu(peripheral.mtu ?? 0);
-        logger.debug(`Using BTP segment size=${mtu} (Peripheral ATT_MTU=${peripheral.mtu})`);
+        const segmentSize = MatterBle.btpSegmentSizeFromAttMtu(peripheral.mtu ?? 0);
+        logger.debug(`Using BTP segment size=${segmentSize} (Peripheral ATT_MTU=${peripheral.mtu})`);
         const btpHandshakeRequest = BtpCodec.encodeBtpHandshakeRequest({
             versions: MatterBle.BTP_SUPPORTED_VERSIONS,
-            attMtu: mtu,
+            attMtu: segmentSize,
             clientWindowSize: MatterBle.BTP_MAXIMUM_WINDOW_SIZE,
         });
         logger.debug(`sending BTP handshake request: ${Diagnostic.json(btpHandshakeRequest)}`);
@@ -222,13 +222,11 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
 
             if (!handshakeReceived) {
                 // 1. waiting for a successful handshake
-                const _data = Bytes.of(data);
-                if (_data[0] === 0x65 && _data[1] === 0x6c && _data.length === 6) {
-                    // Check if the first two bytes and length match the Matter handshake
-                    logger.info(`Received Matter handshake response: ${Bytes.toHex(_data)}.`);
+                if (BtpCodec.isHandshakeResponse(data)) {
+                    logger.info(`Received Matter handshake response: ${Bytes.toHex(data)}.`);
                     btpHandshakeTimeout.stop();
                     handshakeReceived = true;
-                    resolver(_data);
+                    resolver(Bytes.of(data));
                 }
                 return;
             }
@@ -269,6 +267,7 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
                     bleChannel.#pushMessage(data);
                     onMatterMessageListener(bleChannel, data);
                 },
+                segmentSize,
             );
 
             const bleChannel = new ReactNativeBleChannel(peripheral, btpSession);
