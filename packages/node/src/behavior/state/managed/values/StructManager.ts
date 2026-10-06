@@ -6,7 +6,7 @@
 
 import { camelize, deepCopy, GeneratedClass, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { Access, ElementTag, FieldValue, MandatoryDefaultValue, Metatype, ValueModel } from "@matter/model";
+import { ElementTag, FieldValue, MandatoryDefaultValue, Metatype, ValueModel } from "@matter/model";
 import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
@@ -23,6 +23,7 @@ import {
 } from "../MemberKeys.js";
 import { NameResolver } from "../NameResolver.js";
 import type { ValReference } from "../ValReference.js";
+import { isFabricScopedList } from "./ListManager.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 /**
@@ -139,8 +140,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
     const { access, manage, validate } = supervisor.get(schema);
 
-    const isFabricScopedList =
-        schema.effectiveAccess.fabric === Access.Fabric.Scoped && schema.effectiveMetatype === Metatype.array;
+    const fabricScopedList = isFabricScopedList(schema) && schema.effectiveMetatype === Metatype.array;
 
     // We generally do not deal with default values.  If the schema defines a default it is assigned before the manager
     // is created.  The one exception is for field references.  These we must look up dynamically at runtime because the
@@ -211,7 +211,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     if (name in properties) {
                         key = storedKey = name;
                         target = properties;
-                        if (isFabricScopedList || validate) {
+                        if (fabricScopedList || validate) {
                             // A dynamic member's previous value lives in the provider, not the container slot;
                             // read it only when rollback or the fabric-scoped merge check may consume it, as the
                             // provider's getter may be costly.  Unmanage in case the provider serves a managed
@@ -240,7 +240,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 };
 
                 // Modify the value
-                if (isFabricScopedList && Array.isArray(value)) {
+                if (fabricScopedList && Array.isArray(value)) {
                     // The merge must run through the proxy even for an absent member; it is what filters by fabric
                     // and supplies the accessing fabric
                     if (previousValue === undefined) {

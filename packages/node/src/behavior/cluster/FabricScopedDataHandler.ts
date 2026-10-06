@@ -49,7 +49,7 @@ function computeFabricScopedUpdate(
     const schema = Schema(type) as ClusterModel;
     if (schema.tag === "cluster") {
         for (const attr of schema.attributes) {
-            if (attr.effectiveAccess.fabric === Access.Fabric.Scoped) {
+            if (attr.fabricScoped) {
                 fabricScopedAttrs.add(attr.propertyName);
             }
         }

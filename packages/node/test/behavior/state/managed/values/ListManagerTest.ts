@@ -10,7 +10,7 @@ import { MaybePromise } from "@matter/general";
 import { MockExchange } from "@matter/node/testing";
 import { ConformanceError, Val } from "@matter/protocol";
 import { FabricIndex, NodeId } from "@matter/types";
-import { TestStruct, aclEndpoint, listOf, structOf } from "./value-utils.js";
+import { TestCluster, TestStruct, aclEndpoint, fieldOf, listOf, rawValuesOf, structOf } from "./value-utils.js";
 
 export type ValueList = { value: number }[];
 export type ValueSubList = { value: number[] }[];
@@ -236,6 +236,93 @@ describe("ListManager", () => {
                 expect(list2).deep.equals(["hi", "there", "aaaaand goodbye"]);
             },
         );
+    });
+
+    it("does not filter a list in a fabric-sensitive struct field", async () => {
+        const struct = TestStruct(
+            { targets: listOf(structOf({ cluster: "uint32" }), { access: "RW S" }) },
+            { targets: [{ cluster: 6 }, { cluster: 8 }] },
+        );
+
+        await struct.online(
+            {
+                fabricFiltered: true,
+                exchange: new MockExchange({ fabricIndex: FabricIndex(1), nodeId: NodeId(1) }),
+                node: aclEndpoint(),
+            },
+            async (ref, cx) => {
+                expect([...(ref.targets as { cluster: number }[])]).deep.equals([{ cluster: 6 }, { cluster: 8 }]);
+
+                ref.targets = [{ cluster: 9 }];
+                await cx.transaction.commit();
+                expect(rawValuesOf(struct.fields).targets).deep.equals([{ cluster: 9 }]);
+            },
+        );
+    });
+
+    describe("fabric-sensitive list attribute", () => {
+        function sensitiveList() {
+            return TestCluster(
+                {
+                    list: {
+                        type: "list",
+                        access: "RW S",
+                        children: [fieldOf("entry", structOf({ fabricIndex: "fabric-idx", value: "uint8" }))],
+                    },
+                },
+                {
+                    list: [
+                        { fabricIndex: 1, value: 1 },
+                        { fabricIndex: 2, value: 2 },
+                        { fabricIndex: 1, value: 3 },
+                    ],
+                },
+            );
+        }
+
+        function contextFor(index: number, options: { fabricFiltered?: boolean; command?: boolean }) {
+            return {
+                ...options,
+                exchange: new MockExchange({ fabricIndex: FabricIndex(index), nodeId: NodeId(index) }),
+                node: aclEndpoint(),
+            };
+        }
+
+        for (const fabricFiltered of [false, true]) {
+            it(`returns only the accessing fabric's entries on a read with fabricFiltered ${fabricFiltered}`, async () => {
+                await sensitiveList().online2(
+                    contextFor(1, { fabricFiltered }),
+                    contextFor(2, { fabricFiltered }),
+                    ({ ref1, ref2 }) => {
+                        expect([...(ref1.list as ValueList)]).deep.equals([
+                            { fabricIndex: 1, value: 1 },
+                            { fabricIndex: 1, value: 3 },
+                        ]);
+                        expect([...(ref2.list as ValueList)]).deep.equals([{ fabricIndex: 2, value: 2 }]);
+                    },
+                );
+            });
+        }
+
+        it("returns all entries to a command handler", async () => {
+            await sensitiveList().online(contextFor(1, { command: true }), ref => {
+                expect((ref.list as ValueList).length).equals(3);
+            });
+        });
+
+        it("keeps other fabrics' entries when a write context replaces the list", async () => {
+            const struct = sensitiveList();
+            await struct.online(contextFor(1, { fabricFiltered: true }), async (ref, cx) => {
+                ref.list = (ref.list as ValueList).filter(({ value }) => value !== 1);
+                await cx.transaction.commit();
+
+                const stored = [...(rawValuesOf(struct.fields).list as ValueList)];
+                expect(stored.sort((a, b) => a.value - b.value)).deep.equals([
+                    { fabricIndex: 2, value: 2 },
+                    { fabricIndex: 1, value: 3 },
+                ]);
+            });
+        });
     });
 
     it("fabric-scoped get/set", async () => {
