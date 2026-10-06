@@ -355,7 +355,7 @@ export declare namespace ModeBase {
         /**
          * @see {@link MatterSpecification.v161.Cluster} § 1.10.7.2.1
          */
-        status: ModeChangeStatus;
+        status: ModeChangeStatus | number;
 
         statusText: string;
     }
@@ -389,7 +389,7 @@ export declare namespace ModeBase {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.10.5.1.2
          */
-        value: ModeTag;
+        value: ModeTag | number;
     }
 
     export enum ModeChangeStatus {

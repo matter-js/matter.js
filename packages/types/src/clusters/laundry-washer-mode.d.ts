@@ -294,7 +294,7 @@ export declare namespace LaundryWasherMode {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 1.10.5.1.2
          */
-        value: ModeTag | ModeBase.ModeTag;
+        value: ModeTag | ModeBase.ModeTag | number;
     }
 
     /**

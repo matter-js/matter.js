@@ -33,6 +33,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `UdpMulticastServer.create()` closes the sockets it already opened when it fails, such as the IPv4 socket when the IPv6 socket cannot be created
 
 - @matter/model
+    - Feature: An enum member without an ID and with a range constraint stands for a range of values (`FieldModel.isEnumRange`); the standard model defines the manufacturer ranges of Mode Base, Operational State, Closure Control and Illuminance Measurement enums
+    - Fix: Ensure that model validation reports an enum name or an enum ID 0 that appears twice
     - Enhancement: `DecodedBitmap()` takes options to select members by conformance and, with `complete`, to name clear members as `false` or 0
     - Fix: `EncodedBitmap()`, `DecodedBitmap()` and a bitmap default built from member defaults place every member at its full width, the last bit of a multi-bit member and bits 31 to 63 included, and a member with no upper bound from its lowest bit. `DecodedBitmap` values may be a `bigint` where a number cannot hold a member exactly, and both functions take an optional `Scope` to resolve a bitmap datatype a cluster inherits
     - Enhancement: Model lookups (`clusters`, `deviceTypes`, `datatypes`, `fields` and `attributes` of a `MatterModel`; `attributes`, `commands`, `events`, `datatypes` and `fields` of a `ClusterModel`) reuse their index until the children of the model, of a model it derives from or, for attributes, of its root change, instead of rebuilding the model scope on each access. `Matter.clusters(id)` drops from about 180 µs to under 1 µs and `cluster.attributes(id)` from 50–110 µs to about 2 µs
@@ -66,6 +68,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `diff-spec` accepts patch revisions such as `1.6.1`. Without arguments it compares the current revision with the one before it, 1.6.1 with 1.6 instead of 1.5, and names both revisions above the diff
 
 - @matter/types
+    - Breaking: Fields of an enum with a manufacturer range are typed `Enum | number`, and Illuminance Measurement `LightSensorType` is typed `LightSensorType | number`
     - Fix: A bitmap class such as `Groups.NameSupportAttribute` applies the defaults its members state, and one constructed from a number sets a multi-bit member at its full width and members above bit 31. An instance built from the default or a number names every conformant member and no other
     - Fix: `CommissioningOptions.Configuration.advertisementWindow` applies to windows an uncommissioned node opens itself and defaults to 48 hours; a commissioned node's own window stays open for 15 minutes
     - Feature: `TlvInvokeRequest` carries the optional `delayReportData` field (`TlvDelayReportData`); matter.js acts on it only behind the `delay-report-data` forward feature. Decoding is not behind the flag: an InvokeRequest whose field 3 is not a structure is now rejected, where it was skipped before, and a missing `delayMinMs` or `delayJitterWindowMs` subfield of a present `delayReportData` decodes as 0
@@ -124,6 +127,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: Ensure that a value in the manufacturer range of an enum is accepted; Illuminance Measurement `LightSensorType` rejects the reserved values 2 to 63 and 255
     - Fix: Ensure that `DescriptorServer.addTags` does not add a tag that is already listed and only updates its label when one is given
     - Fix: Ensure that `DescriptorServer.addDeviceTypes` does not list a device type a second time with another revision
     - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`

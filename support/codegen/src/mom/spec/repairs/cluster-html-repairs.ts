@@ -82,27 +82,15 @@ export const ClusterHtmlRepairs: Record<string, HtmlRepairs> = {
 
     "Operational State": {
         // 1.2+ use this terminology to define a subset of the values for ErrorStateEnum.  We inject the table into the
-        // previous section so translation picks them up
+        // previous section, after its table of ranges, so translation picks them up
         "ErrorStateEnum GeneralErrors Range"(subref, ownerRef) {
             const { datatypes } = ownerRef as ClusterReference;
             const datatype = datatypes?.[datatypes.length - 1];
             if (datatype?.name !== "ErrorStateEnum" || !datatype.tables || !subref.tables?.length) {
                 throw new InternalError("OperationalState.ErrorStateEnum definition uses unexpected format");
             }
-            datatype.tables[0] = subref.tables?.[0];
+            datatype.tables.push(subref.tables[0]);
             return ScanDirective.IGNORE;
-        },
-
-        // These values are in the correct section but there is another table priori that describes ranges; this
-        // confuses translation unless we skip
-        "OperationalStateEnum Type"(subref) {
-            const tables = subref.tables;
-            if (tables?.length !== 2) {
-                return;
-            }
-            if (tables[0].rows[0]?.value?.match(/ to /)) {
-                tables.splice(0, 1);
-            }
         },
     },
 
@@ -110,6 +98,9 @@ export const ClusterHtmlRepairs: Record<string, HtmlRepairs> = {
         // This is buried too deeply to fix elegantly (in a field in a datatype of the mode base cluster).  So just
         // designate as processing as a namespace
         "Mode Base Status CommonCodes Range": NAMESPACE,
+
+        // The manufacturer range of the status codes
+        "Mode Base Status Code Ranges": NAMESPACE,
 
         // This at a reasonable level but is a one-off.  So easiest to handle here
         "Mode Namespace": NAMESPACE,

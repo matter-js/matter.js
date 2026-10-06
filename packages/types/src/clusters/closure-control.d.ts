@@ -68,7 +68,7 @@ export declare namespace ClosureControl {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 5.4.7.3
          */
-        currentErrorList: ClosureError[];
+        currentErrorList: (ClosureError | number)[];
 
         /**
          * Indicates the current Position, Latch and/or Speed states, whichever are applicable according to the feature
@@ -181,7 +181,7 @@ export declare namespace ClosureControl {
          *
          * @see {@link MatterSpecification.v161.Cluster} § 5.4.7.3
          */
-        currentErrorList: ClosureError[];
+        currentErrorList: (ClosureError | number)[];
 
         /**
          * Indicates the current Position, Latch and/or Speed states, whichever are applicable according to the feature
@@ -864,7 +864,7 @@ export declare namespace ClosureControl {
      */
     export class OperationalErrorEvent {
         constructor(values?: Partial<OperationalErrorEvent>);
-        errorState: ClosureError[];
+        errorState: (ClosureError | number)[];
     }
 
     /**

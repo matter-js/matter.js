@@ -417,7 +417,8 @@ Resource.add(
                     {
                         tag: "field", name: "InternalInterference",
                         description: "An internal element is prohibiting motion, e.g. an integrated door within a bigger garage door is open and prevents motion"
-                    }
+                    },
+                    { tag: "field", name: "ManufacturerError", description: "Vendor specific errors" }
                 ]
             },
 
