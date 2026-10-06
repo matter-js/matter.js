@@ -171,8 +171,7 @@ certTest("TC-SC-4.2", {
                 );
                 checks.push({ what: "TH commissioning", check: () => completed });
 
-                // On chip-tool, where step 0 cannot run, this match is what shows the alias was used; on
-                // matter.js it repeats what step 0 established
+                // Step 0 shows the DUT uses a code's discriminator; this shows it used the alias's
                 const discovered = await expectSequence(
                     dut.log,
                     resolveControllerImplementation() === "chip-tool" ? "chip" : "matterjs",
