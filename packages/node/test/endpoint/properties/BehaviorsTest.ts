@@ -9,7 +9,7 @@ import { OnOffServer } from "#behaviors/on-off";
 import { WindowCoveringServer } from "#behaviors/window-covering";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { causeMessagesOf } from "../../node/node-helpers.js";
+import { causeMessagesOf } from "@matter/node/testing";
 import { MockEndpoint } from "../mock-endpoint.js";
 
 describe("Behaviors", () => {

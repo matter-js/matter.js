@@ -491,7 +491,7 @@ export function clientStructureOf(peer: ClientNode) {
 
 export async function subscribedPeer(controller: ServerNode, id: string) {
     const peer = controller.peers.get(id);
-    expect(peer).not.undefined;
+    expect(peer).to.not.equal(undefined);
 
     // A peer that starts with its node sets activeSubscription only once it has sent its subscribe request
     const network = peer!.behaviors.internalsOf(NetworkClient);
@@ -500,7 +500,7 @@ export async function subscribedPeer(controller: ServerNode, id: string) {
     }
 
     const subscription = network.activeSubscription as SustainedSubscription;
-    expect(subscription).not.undefined;
+    expect(subscription).to.not.equal(undefined);
 
     await MockTime.resolve(subscription.active);
 

@@ -7,9 +7,8 @@
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { Diagnostic, LogDestination, Logger, LogLevel } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { SessionManager } from "@matter/protocol";
-import { MockSite } from "../mock-site.js";
-import { subscribedPeer } from "../node-helpers.js";
 
 describe("Peers#instrumentBasicInformation", () => {
     before(() => {

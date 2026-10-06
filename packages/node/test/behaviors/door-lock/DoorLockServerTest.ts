@@ -9,11 +9,9 @@ import { DoorLockDevice } from "#devices/door-lock";
 import { Endpoint } from "#endpoint/index.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Days, Hours, Minutes, Seconds, Time, Timestamp } from "@matter/general";
+import { interaction, MockServerNode, MockSite, settled } from "@matter/node/testing";
 import { ClusterId, CommandId, EndpointNumber, FabricIndex, Status, TlvOfModel } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
-import { interaction, settled } from "../../node/node-helpers.js";
 
 import CredentialRule = DoorLock.CredentialRule;
 import CredentialType = DoorLock.CredentialType;

@@ -5,9 +5,9 @@
  */
 
 import { ServerNode } from "#node/ServerNode.js";
+import { MockSite } from "@matter/node/testing";
 import { NumberedOccurrence, OccurrenceManager } from "@matter/protocol";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MockSite } from "../../../node/mock-site.js";
 
 async function basicInformationEvents(node: ServerNode, event: "startUp" | "shutDown") {
     const occurrences = new Array<NumberedOccurrence>();

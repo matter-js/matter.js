@@ -22,13 +22,11 @@ import {
     Minutes,
     Seconds,
 } from "@matter/general";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { DeviceCommissioner, PaseClient, PaseServer, SessionManager } from "@matter/protocol";
 import { Status, StatusResponseError } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
-import { MockServerNode } from "../../../node/mock-server-node.js";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 const { WindowNotOpen, BasicWindowOpen, EnhancedWindowOpen } = AdministratorCommissioning.CommissioningWindowStatus;
 
