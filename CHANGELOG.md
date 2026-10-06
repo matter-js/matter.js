@@ -372,6 +372,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
     - Fix: (@lboue) `DoorLockServer` denies a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` outside its schedules, and when it has none
     - Fix: (@lboue) `DoorLockServer` disables a user of type `ExpiringUser` once `ExpiringUserTimeout` minutes have passed since its first use, also across a restart, and emits `LockUserChange`; it denies such a user while `ExpiringUserTimeout` is not set
+    - Breaking: Ensure that `DoorLockServer` refuses remote lock operations in the `Privacy` and `NoRemoteLockUnlock` operating modes, during a wrong-code lockout and for a `NonAccessUser`, and accepts only an `OperatingMode` that `SupportedOperatingModes` marks as supported
+    - Breaking: The `DoorLockServer` lock command handlers are `async`; an override must `await` its `super` call, and hardware belongs in `handleLockOperation`
+    - Fix: Ensure that `DoorLockServer` disables a `DisposableUser` after it unlocks once, reports `ForcedUser` operations with the `ForcedUser` alarm, counts an omitted required PIN as a wrong code and reports `UnboltDoor` as an `Unlock` to `Unlocked`
+    - Fix: Ensure that `DoorLockServer` emits `LockUserChange` for schedule changes and reports the affected user and index in its `LockUserChange` and `LockOperationError` events
+    - Feature: Ensure that a lock implementation can drive its hardware by overriding `DoorLockServer.handleLockOperation` and report a failure reason with `LockOperationFailedError`
 
 - @matter/types
     - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there
