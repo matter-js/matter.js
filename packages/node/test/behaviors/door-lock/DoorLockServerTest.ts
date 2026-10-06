@@ -121,6 +121,7 @@ async function setUpScheduledLock(doorLockState: {
     weekDaySchedules?: LockSchedule.WeekDay[];
     yearDaySchedules?: LockSchedule.YearDay[];
     expiringUserTimeout?: number;
+    autoRelockTime?: number;
 }) {
     const lock = new Endpoint(DoorLockDevice.with(TestScheduledDoorLockServer), {
         id: "lock",
@@ -881,6 +882,32 @@ describe("DoorLockServer", () => {
             it("includes the whole of 23:59 when the window ends there", () => {
                 expect(weekDayAccess([8, 0], [23, 59], [23, 59])).true;
             });
+        });
+    });
+
+    describe("auto relock (spec § 5.2.9.22)", () => {
+        it("relocks once AutoRelockTime has passed since the latest unlock", async () => {
+            const lock = await setUpScheduledLock({
+                autoRelockTime: 5,
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+            });
+            try {
+                await unlockScheduled(lock);
+                expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+
+                await MockTime.advance(Seconds(3));
+                await unlockScheduled(lock);
+
+                await MockTime.advance(Seconds(3));
+                await settled(lock.device);
+                expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+
+                await MockTime.advance(Seconds(3));
+                await settled(lock.device);
+                expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Locked);
+            } finally {
+                await lock.site.close();
+            }
         });
     });
 
