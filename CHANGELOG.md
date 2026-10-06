@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: More global datatypes, such as `bool`, `epoch-us` and `Status`, carry their specification documentation and a precise section reference
 
 - @matter/general
+    - Fix: Supporting Timers with intervals longer than 2^31-1 ms (about 24.8 days)
     - Fix: DNS-SD discovery no longer takes records from the known-answer list of mDNS queries, its own looped-back queries included. A link-local address learned on one interface was stored under every interface such a query arrived on, so a controller could dial a node through the wrong interface and spend its connection attempt waiting for a timeout
     - Fix: `FormattedText` nests list items by their indent, so an item that outdents between two open levels sits beside the deeper level instead of below it, and an indented numbered list nests instead of merging into its parent
     - Feature: `Crypto` creates, signs and verifies ML-DSA-44 and ML-DSA-65 (FIPS 204), the algorithms PQC Phase 1 allows for PAA and PAI certificates. Node.js signs and verifies natively where its crypto supports ML-DSA; key generation and all other runtimes use `@noble/post-quantum`, which loads only when an ML-DSA operation first needs it. `MlDsa` encodes and decodes the RFC 9881 public keys and algorithm identifiers, and `NodeJsCryptoApiLike` gains optional `sign` and `verify` members for the native path
@@ -124,6 +125,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: Ensure that `DescriptorServer.addTags` does not add a tag that is already listed and only updates its label when one is given
+    - Fix: Ensure that `DescriptorServer.addDeviceTypes` does not list a device type a second time with another revision
     - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`
     - Fix: `ClientNode.decommission()` no longer throws for a peer commissioned with `autoSubscribe` and `autoStateInitialize` disabled
     - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
@@ -137,6 +140,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `AdministratorCommissioningServer` leaves the window and its timeout to `DeviceCommissioner`; `Internal.commissioningWindowTimeout` is gone
     - Fix: `OpenCommissioningWindow` and `OpenBasicCommissioningWindow` replace a window the node opened itself, and `RevokeCommissioning` closes it. Previously such an open failed with `Failure` or left the cluster unaware of its window, and every further open was answered with `Busy` until the node restarted. A window an Administrator opened still answers `Busy`
     - Fix: `ArmFailSafe` over CASE answers `BusyWithOtherAdmin` while any commissioning window is open, including one the node opened itself
+    - Fix: `RemoveFabric` while a fail-safe is armed for another fabric, or not yet for any fabric, no longer throws `MatterFlowError` before the commissioned state and `fabricsChanged` are updated. After the last fabric is removed, the factory reset waits until no fail-safe is armed and is skipped if a commissioning added a fabric
     - Fix: `GroupcastServer` LeaveGroup with GroupID 0 and an Endpoints list removes those endpoints from every group of the fabric; it removed all groups with all their endpoints
     - Fix: `GroupKeyManagementServer` accepts a `KeySetWrite` with any `GroupKeyMulticastPolicy` and ignores the field, which has no effect; it rejected every value but PerGroupID with INVALID_COMMAND. `KeySetRead` reports PerGroupID
     - Fix: A `GroupcastTesting` request without `DurationSeconds` ends testing after 60 seconds; testing previously never ended
@@ -276,6 +280,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `NodeJsCrypto.defect` states which primitive Node.js's crypto module cannot offer, `NodeJsCrypto.providerIsRestricted` whether this process restricts its cryptographic provider, and `cryptoFor` chooses an implementation from a reported defect
     - Fix: `NodeJsUdpSocket.create()` closes the bound socket when it cannot configure it, such as for a network interface that does not exist, so the port is not held
 
+- @matter/nodejs-ble
+    - Enhancement: `NobleBleClient` reports how long its radio actually scanned as `BleScannerClient.listeningTime`
+
 - @matter/protocol
     - Breaking: `ClientSubscriptions.lastReportStartedAtFor()` and `PeerSubscription.lastReportStartedAt` are removed; the new `ClientSubscriptions.reportStarted` observable emits the session each inbound report arrives over
     - Fix: A subscription report a peer flushed while shutting down no longer counts as evidence that its subscription survived the reboot, so the controller re-subscribes after the grace window instead of waiting out the full subscription timeout
@@ -287,6 +294,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `ClientRequest.largeMessage` requires a session that permits large payloads for any interaction, not only a command invocation; such an interaction establishes a TCP-backed session or fails rather than falling back to MRP
     - Enhancement: A `BleScannerClient` may state via the new optional `isPeripheralReachable()` whether a peripheral it discovered can still be reached, and the scanner offers only reachable peripherals for commissioning. A transport that routes BLE through remote proxies no longer offers peripherals whose proxy is gone
     - Fix: A running BLE discovery is woken by any advertisement of a device matching its query, not only by an address it has never seen, so a device that becomes a candidate again during the discovery is handed to it. Each device is still offered once per discovery
+    - Fix: A later BLE discovery no longer offers a device that was just commissioned over BLE, via the new optional `Scanner.forgetCommissionedDevice()`
+    - Fix: A later BLE discovery no longer offers a device that was just commissioned through another transport and advertises its vendor, as the commissioner passes the new `CommissionableDeviceIdentity` to `Scanner.forgetCommissionedDevice()`
+    - Fix: A BLE peripheral silent through a minute of listening, as reported by the new optional `BleScannerClient.listeningTime`, is no longer offered for commissioning
+    - Enhancement: New `BleListeningClock` accumulates a BLE client's scan time for `BleScannerClient.listeningTime`
     - Fix: A session or exchange ending because its transport connection dropped reports `TransportClosedError` instead of an untyped error
     - Fix: A CASE pairing failure reaches the caller even when reporting it to the peer fails; the report's own failure is logged instead of replacing the pairing error
 
@@ -571,6 +582,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Giving up on a peripheral reports the last connection failure as cause
     - Fix: A disconnect that never completes no longer leaves the channel request pending forever
     - Fix: Aborting a BLE connection attempt now stops its retries and releases a link the attempt already established
+    - Fix: A peripheral that completes the BTP handshake but then never responds to data is retried once with the minimum BTP segment size instead of failing commissioning
+    - Fix: A pending ATT_MTU exchange is awaited briefly, so a late MTU no longer pins the BTP segment size to the minimum
+    - Fix: Opening a BLE channel no longer waits beyond the handshake timeout or an abort when the handshake write or subscribe never completes
     - Fix: Stopping an advertisement that was still waiting for the Bluetooth adapter retracts it, so the adapter powering on no longer starts an advertisement that was already given up on
     - Fix: Shutdown no longer hangs when Bluetooth is enabled but no adapter is usable; the Bluetooth driver is now always stopped, which releases the handle that kept the process alive
 
@@ -587,6 +601,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: New `CertificateAuthority.erase()` discards the authority's key material, persisted and in memory
     - Enhancement: A discovered commissionable device reports the `hostname` its SRV record names
     - Enhancement: Commissioning accepts `caseConnectionTimeout`, bounding how long it waits for the operational CASE connection that follows it; defaults to the previous fixed 4m15s
+    - Breaking: `BtpSessionHandler.createAsCentral()` requires the segment size offered in the handshake request and rejects an invalid one with `ImplementationError`
+    - Enhancement: `BtpSessionHandler.stalledAfterHandshake` reports a peer that answers the handshake and then nothing else, carrying the messages it never acknowledged
+    - Enhancement: New `BtpSessionHandler.suspend()` ends a BTP session without closing the BLE connection
+    - Enhancement: New `BtpCodec.isHandshakeResponse()` identifies a BTP handshake response without a session to decode against
+    - Fix: A central BTP session never uses a segment size larger than the one it offered
+    - Fix: A failed write to the BLE transport closes the BTP session
     - Fix: Cancelling BLE commissioning aborts the in-flight channel open
     - Fix: A concrete subscription path is reported only when that attribute changed; it was previously reported whenever any other attribute of the same cluster changed
     - Fix: A subscription's `maxIntervalCeiling` is transmitted exactly as requested; jitter now applies only when we derive the ceiling ourselves

@@ -14,14 +14,21 @@ import {
     MaybePromise,
     Millis,
     Seconds,
+    ServerAddress,
     Time,
     Timer,
     Timespan,
+    Timestamp,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { BleError } from "../ble/Ble.js";
 import { BtpCodec } from "../codec/BtpCodec.js";
-import { CommissionableDevice, CommissionableDeviceIdentifiers, Scanner } from "./Scanner.js";
+import {
+    CommissionableDevice,
+    CommissionableDeviceIdentifiers,
+    CommissionableDeviceIdentity,
+    Scanner,
+} from "./Scanner.js";
 
 const logger = Logger.get("BleScanner");
 
@@ -41,6 +48,16 @@ export interface BleScannerClient {
      * stays either way, so a peripheral becomes a candidate again as soon as it is reachable again.
      */
     isPeripheralReachable?(address: string): boolean;
+
+    /**
+     * Time this client spent listening, meaning its radio scanned and it reported every advertisement it received.
+     * A record only states that a device went silent when its age is measured in this time.
+     *
+     * A client that reports a peripheral once per scan, or that cannot tell how long its radio scanned, omits this.
+     * Its records then remain candidates however old they are, and only an address the device rotated away from is
+     * dropped after elapsed time.
+     */
+    readonly listeningTime?: Duration;
 }
 
 export type CommissionableDeviceData = CommissionableDevice & {
@@ -55,11 +72,28 @@ export type DiscoveredBleDevice = {
 
 type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
     serviceDataHex: string;
-    lastSeen: number;
+
+    /** When the peripheral last advertised, for ordering and for recognizing an address it rotated away from. */
+    lastSeen: Timestamp;
+
+    /** The client's listening time when the peripheral last advertised, absent if the client reports none. */
+    seenAt?: Duration;
 };
 
-/** Entries older than this are treated as dead addresses when matching service data arrives from a new address. */
+/**
+ * A record silent for longer than this is dropped once its service data arrives from another address, and is no
+ * longer a candidate if the client reports listening time. Silence is measured in that listening time, otherwise in
+ * elapsed time.
+ */
 const STALE_ENTRY_AGE = Seconds(60);
+
+/** Whether a BLE record's `VendorId+ProductId` matches an identity's, which may name only the VendorId. */
+function matchesVendorProduct(recordVp: string | undefined, identityVp: string) {
+    if (identityVp.includes("+")) {
+        return recordVp === identityVp;
+    }
+    return recordVp?.split("+")[0] === identityVp;
+}
 
 export class BleScanner implements Scanner {
     readonly type = ChannelType.BLE;
@@ -84,6 +118,7 @@ export class BleScanner implements Scanner {
         );
     }
 
+    /** Resolves a peripheral for a channel open, so a record stays resolvable here however old it is. */
     public getDiscoveredDevice(address: string): DiscoveredBleDevice {
         const device = this.#discoveredMatterDevices.get(address);
         if (device === undefined) {
@@ -97,6 +132,52 @@ export class BleScanner implements Scanner {
 
     #isReachable(address: string) {
         return this.#client.isPeripheralReachable?.(address) ?? true;
+    }
+
+    /**
+     * How long the record's device has not advertised. Listening time does not pass while nothing listens, so a record
+     * does not age then; a client that reports none leaves only elapsed time.
+     */
+    #silenceOf(record: StoredDiscoveredBleDevice, listeningTime = this.#client.listeningTime): Duration {
+        if (listeningTime !== undefined && record.seenAt !== undefined) {
+            return Millis(listeningTime - record.seenAt);
+        }
+        return Timestamp.delta(record.lastSeen, Time.nowUs);
+    }
+
+    /**
+     * Whether a record states that the device went silent. Elapsed time cannot tell silence from nobody listening, so
+     * only a client that reports listening time lets its records go stale.
+     */
+    #isStale(record: StoredDiscoveredBleDevice, listeningTime?: Duration) {
+        if (listeningTime === undefined || record.seenAt === undefined) {
+            return false;
+        }
+        return this.#silenceOf(record, listeningTime) > STALE_ENTRY_AGE;
+    }
+
+    /**
+     * Forget the device we commissioned. Its advertisement described a commissioning window that is now closed, so it
+     * must not qualify for a later discovery; a device that advertises again is discovered again.
+     *
+     * A record matching the identity is dropped too. Another device of the same vendor, and product when the identity
+     * names one, sharing the discriminator loses its record until it advertises again.
+     */
+    forgetCommissionedDevice(addresses: readonly ServerAddress[], identity?: CommissionableDeviceIdentity) {
+        for (const address of addresses) {
+            if (!ServerAddress.isBle(address)) continue;
+            if (this.#discoveredMatterDevices.delete(address.peripheralAddress)) {
+                logger.debug(`Forgetting BLE device ${address.peripheralAddress} whose commissioning window is closed`);
+            }
+        }
+        if (identity === undefined) {
+            return;
+        }
+        for (const [address, { deviceData }] of this.#discoveredMatterDevices) {
+            if (deviceData.D !== identity.D || !matchesVendorProduct(deviceData.VP, identity.VP)) continue;
+            this.#discoveredMatterDevices.delete(address);
+            logger.debug(`Forgetting BLE device ${address} that advertises the commissioned device's identity`);
+        }
     }
 
     /**
@@ -169,15 +250,16 @@ export class BleScanner implements Scanner {
             };
             const deviceExisting = this.#discoveredMatterDevices.has(address);
             const serviceDataHex = Bytes.toHex(manufacturerServiceData);
-            const now = Time.nowMs;
+            const now = Time.nowUs;
 
             // Drop stale entries with matching service data — same device likely re-advertising under a rotated address
             for (const [otherAddress, otherEntry] of this.#discoveredMatterDevices) {
                 if (otherAddress === address) continue;
                 if (otherEntry.serviceDataHex !== serviceDataHex) continue;
-                if (now - otherEntry.lastSeen <= STALE_ENTRY_AGE) continue;
+                const silence = this.#silenceOf(otherEntry);
+                if (silence <= STALE_ENTRY_AGE) continue;
                 logger.debug(
-                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and prior entry is ${Duration.format(Millis(now - otherEntry.lastSeen))} old`,
+                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and prior entry is silent for ${Duration.format(silence)}`,
                 );
                 this.#discoveredMatterDevices.delete(otherAddress);
             }
@@ -192,6 +274,7 @@ export class BleScanner implements Scanner {
                 hasAdditionalAdvertisementData,
                 serviceDataHex,
                 lastSeen: now,
+                seenAt: this.#client.listeningTime,
             });
 
             const queryKey = this.#findCommissionableQueryIdentifier(deviceData);
@@ -278,10 +361,15 @@ export class BleScanner implements Scanner {
         } else return "*";
     }
 
-    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnreachable = false) {
+    #getCommissionableDevices(identifier: CommissionableDeviceIdentifiers, includeUnavailable = false) {
+        const listeningTime = this.#client.listeningTime;
         // Newest first so ordered consumers (e.g. parallel PASE discovery) prefer the freshest advertisement
         const storedRecords = Array.from(this.#discoveredMatterDevices.values())
-            .filter(({ peripheral }) => includeUnreachable || this.#isReachable(peripheral.address))
+            .filter(
+                record =>
+                    includeUnavailable ||
+                    (this.#isReachable(record.peripheral.address) && !this.#isStale(record, listeningTime)),
+            )
             .sort((a, b) => b.lastSeen - a.lastSeen);
 
         const foundRecords = new Array<DiscoveredBleDevice>();
@@ -358,7 +446,7 @@ export class BleScanner implements Scanner {
 
         const discoveredDevices = new Set<string>();
 
-        const discoveryEndTime = timeout ? Time.nowMs + timeout : undefined;
+        const discoveryEndTime = timeout ? Timestamp(Time.nowUs + timeout) : undefined;
         await this.#client.startScanning();
 
         let queryResolver: ((value: void) => void) | undefined;
@@ -390,7 +478,7 @@ export class BleScanner implements Scanner {
 
             let remainingTime;
             if (discoveryEndTime !== undefined) {
-                remainingTime = Millis.ceil(Timespan(Time.nowMs, discoveryEndTime).duration);
+                remainingTime = Millis.ceil(Timespan(Time.nowUs, discoveryEndTime).duration);
                 if (remainingTime <= 0) {
                     break;
                 }

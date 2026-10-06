@@ -431,23 +431,15 @@ export class ClientStructure {
             try {
                 const state = this.#node.state as Record<string, unknown>;
                 const network = state?.network as undefined | Record<string, unknown>;
-                const defaultSubscription = network?.defaultSubscription as
-                    | undefined
-                    | { isFabricFiltered?: boolean; fabricFiltered?: boolean };
-                if (defaultSubscription) {
-                    this.#subscribedFabricFiltered =
-                        ("isFabricFiltered" in defaultSubscription
-                            ? defaultSubscription.isFabricFiltered
-                            : "fabricFiltered" in defaultSubscription
-                              ? defaultSubscription.fabricFiltered
-                              : true) ?? true;
-                }
+                this.#subscribedFabricFiltered = ClientStructure.isFabricFiltered(
+                    network?.defaultSubscription as undefined | object,
+                );
 
                 const events = this.#node.events as Record<string, unknown>;
                 const networkEvents = events?.network as undefined | Record<string, unknown>;
                 const changedEvent = networkEvents?.defaultSubscription$Changed as undefined | Observable;
-                changedEvent?.on((newSubscription: undefined | { isFabricFiltered?: boolean }) => {
-                    this.#subscribedFabricFiltered = newSubscription?.isFabricFiltered ?? true;
+                changedEvent?.on((newSubscription: undefined | object) => {
+                    this.#subscribedFabricFiltered = ClientStructure.isFabricFiltered(newSubscription);
                 });
             } catch {
                 // Not a ClientNode or network behavior not available; default to true
@@ -1539,6 +1531,23 @@ export class ClientStructure {
 }
 
 export namespace ClientStructure {
+    /**
+     * Whether the sustained subscription `defaultSubscription` describes is fabric filtered. The cache stores values
+     * only from interactions with the same fabric filter, so a read meant to update it has to use this one.
+     */
+    export function isFabricFiltered(defaultSubscription: undefined | object): boolean {
+        if (defaultSubscription === undefined) {
+            return true;
+        }
+        if ("isFabricFiltered" in defaultSubscription) {
+            return defaultSubscription.isFabricFiltered !== false;
+        }
+        if ("fabricFiltered" in defaultSubscription) {
+            return defaultSubscription.fabricFiltered !== false;
+        }
+        return true;
+    }
+
     /**
      * Creates a {@link Datasource.ExternallyMutableStore} for a behavior on an endpoint.
      */

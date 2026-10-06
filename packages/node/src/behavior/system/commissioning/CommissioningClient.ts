@@ -11,6 +11,7 @@ import { AdministratorCommissioningClient } from "#behaviors/administrator-commi
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
+import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
 import type { ServerNode } from "#node/ServerNode.js";
@@ -351,8 +352,12 @@ export class CommissioningClient extends Behavior {
             (this.state.fabricIndexOnPeer === undefined &&
                 !node.maybeStateOf(OperationalCredentialsClient)?.currentFabricIndex)
         ) {
+            const fabricFilter = ClientStructure.isFabricFiltered(
+                this.agent.get(NetworkClient).state.defaultSubscription,
+            );
             for await (const _chunk of node.interaction.read(
                 Read(
+                    { fabricFilter },
                     Read.Attribute({
                         endpoint: node,
                         cluster: OperationalCredentials.Cluster,

@@ -22,7 +22,7 @@ import {
     Seconds,
 } from "@matter/general";
 import { clientStructureOf, MockSite, settled, subscribedPeer } from "@matter/node/testing";
-import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError, Read, ReadResult } from "@matter/protocol";
+import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError, Read, ReadResult, Subscribe } from "@matter/protocol";
 import { EndpointNumber, EventId, EventNumber, FabricIndex, Priority, TlvAny } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
@@ -52,7 +52,7 @@ describe("Decommission", () => {
     });
 
     describe("of a peer commissioned without a structure read or subscription", () => {
-        async function unstructuredPeer(site: MockSite) {
+        async function unstructuredPeer(site: MockSite, defaultSubscription?: Subscribe) {
             const { controller, device } = await site.addUncommissionedPair();
 
             const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
@@ -68,6 +68,7 @@ describe("Decommission", () => {
                     timeout: Seconds(90),
                     autoSubscribe: false,
                     autoStateInitialize: false,
+                    defaultSubscription,
                 }),
                 { macrotasks: true },
             );
@@ -95,6 +96,19 @@ describe("Decommission", () => {
             const { controller, device, peer } = await unstructuredPeer(site);
             expect(peer.behaviors.has(OperationalCredentialsClient)).false;
             expect(peer.behaviors.has(BasicInformationClient)).false;
+
+            await MockTime.resolve(peer.decommission(), { macrotasks: true });
+
+            expect(controller.peers.size).equals(0);
+            expect(device.lifecycle.isCommissioned).is.false;
+        });
+
+        it("removes it when its default subscription is not fabric filtered", async () => {
+            await using site = new MockSite();
+            const { controller, device, peer } = await unstructuredPeer(
+                site,
+                Subscribe({ fabricFilter: false }, Read.Attribute({})),
+            );
 
             await MockTime.resolve(peer.decommission(), { macrotasks: true });
 
