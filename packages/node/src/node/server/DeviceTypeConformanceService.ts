@@ -512,6 +512,9 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      * A sibling's facts that reach the node scope do not depend on its conditions, so a flipped `Duplicate` condition
      * changes only what the sibling asserts. A missing entry counts as changed. Only the index's
      * {@link NodeScopeIndex.suspectsOf suspects} are compared; every other sibling's entry matches it.
+     *
+     * Of these, an endpoint still under construction is left to the pass of its construction root, which judges the
+     * root's whole tree once it is constructed; only the endpoints an addition adds are judged regardless.
      */
     #affectedBy(change: Change, pass: DeviceTypeValidationPass<Endpoint>, index: NodeScopeIndex): Affected {
         const affected = new Set<Endpoint>();
@@ -552,6 +555,10 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
                 break;
         }
 
+        const added = change.kind === "added" ? new Set(affected) : undefined;
+        const judged = () =>
+            [...affected].filter(endpoint => added?.has(endpoint) || !this.#isUnderConstruction(endpoint));
+
         if (owner !== undefined) {
             const changed = change.kind === "removed" ? undefined : change.endpoint;
             const flipped = new Array<Endpoint>();
@@ -580,29 +587,34 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         }
 
         if (reach === Reach.None) {
-            return { endpoints: [...affected] };
+            return { endpoints: judged() };
         }
 
         const nodeEndpoint = pass.nodeEndpointOf(anchor);
         if (nodeEndpoint === undefined) {
-            return { endpoints: [...affected] };
+            return { endpoints: judged() };
         }
 
         if (reach === Reach.NodeScope) {
             for (const endpoint of pass.nodeScopeOf(nodeEndpoint)) {
                 affected.add(endpoint);
             }
-            return { endpoints: [...affected], readersOf: nodeEndpoint };
+            return { endpoints: judged(), readersOf: nodeEndpoint };
         }
 
         affected.add(nodeEndpoint);
         if (index.readersJudgedUnder(nodeEndpoint) === conditionsKeyOf(nodeEndpoint, pass)) {
-            return { endpoints: [...affected] };
+            return { endpoints: judged() };
         }
         for (const endpoint of pass.nodeConditionReadersOf(nodeEndpoint)) {
             affected.add(endpoint);
         }
-        return { endpoints: [...affected], readersOf: nodeEndpoint };
+        return { endpoints: judged(), readersOf: nodeEndpoint };
+    }
+
+    #isUnderConstruction(endpoint: Endpoint) {
+        const presence = this.#facts.presenceOf(endpoint);
+        return presence === Presence.Pending || presence === Presence.Constructing;
     }
 
     /**

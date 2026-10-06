@@ -32,8 +32,7 @@ export interface Subscribe extends Read {
 
     /**
      * Invoked when an empty keepalive DataReport arrives — one carrying no attribute or event data, so {@link updated}
-     * is not called.  A LIT ICD peer's keepalive is still proof it is awake, so a sustained ICD subscription re-arms
-     * the peer's wake/availability windows from it.
+     * is not called.
      */
     keepaliveReceived?: () => void;
 }

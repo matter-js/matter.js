@@ -5,7 +5,16 @@
  */
 
 import type { Node } from "#node/Node.js";
-import { AsyncObservable, Diagnostic, ImplementationError, Lifecycle, Logger, Observable } from "@matter/general";
+import {
+    AsyncObservable,
+    CrashedDependencyError,
+    DestroyedDependencyError,
+    Diagnostic,
+    ImplementationError,
+    Lifecycle,
+    Logger,
+    Observable,
+} from "@matter/general";
 import type { Endpoint } from "../Endpoint.js";
 
 const logger = Logger.get("PartLifecycle");
@@ -19,6 +28,7 @@ export class EndpointLifecycle {
     #isInstalled = false;
     #isReady = false;
     #isPartsReady = false;
+    #destructionBegun = false;
     #hasId = false;
     #hasNumber = false;
     #installed = Observable<[]>(error => this.emitError("installed", error));
@@ -119,6 +129,52 @@ export class EndpointLifecycle {
     }
 
     /**
+     * Can the {@link Endpoint}'s state be read right now?
+     *
+     * Only between completed construction and the start of a reset or of destruction.  An initializing endpoint has
+     * nothing to answer with yet, and a resetting, crashed or closing one has nothing left.
+     */
+    get isReadable() {
+        return this.#isReady && this.#endpoint.construction.status === Lifecycle.Status.Active;
+    }
+
+    /**
+     * Has the {@link Endpoint} begun closing or deleting, or has its construction crashed?  A closing or deleted endpoint
+     * does not become readable again; a crashed one may be restarted.  Unlike "not {@link isReadable}", this is false
+     * while the endpoint initializes or while a reset runs outside of a deletion.
+     */
+    get isGone() {
+        if (this.#destructionBegun) {
+            return true;
+        }
+        const status = this.#endpoint.construction.status;
+        return (
+            status === Lifecycle.Status.Destroying ||
+            status === Lifecycle.Status.Destroyed ||
+            status === Lifecycle.Status.Crashed
+        );
+    }
+
+    /**
+     * Throw if the {@link Endpoint} {@link isGone}: {@link CrashedDependencyError} if its construction crashed,
+     * {@link DestroyedDependencyError} once it began closing or deleting.
+     */
+    assertNotGone() {
+        if (!this.isGone) {
+            return;
+        }
+        const what = this.#endpoint.toString();
+        const { construction } = this.#endpoint;
+        if (construction.status === Lifecycle.Status.Crashed) {
+            const error = new CrashedDependencyError(what, "crashed");
+            error.subject = this.#endpoint;
+            error.cause = construction.error;
+            throw error;
+        }
+        throw new DestroyedDependencyError(what, "is closing or being deleted");
+    }
+
+    /**
      * @deprecated use {@link isPartsReady}
      */
     get isTreeReady() {
@@ -182,6 +238,7 @@ export class EndpointLifecycle {
 
             case EndpointLifecycle.Change.Destroying:
                 this.#isReady = false;
+                this.#destructionBegun = true;
                 break;
 
             case EndpointLifecycle.Change.Ready:

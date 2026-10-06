@@ -7,6 +7,7 @@
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { Bytes, Diagnostic, InternalError, LogDestination, LogFormat, Logger } from "@matter/general";
 import { Specification } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import {
     InteractionRecipient,
     InteractionServerMessenger,
@@ -35,7 +36,6 @@ import {
     TlvWriteRequest,
 } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MockServerNode } from "../../node/mock-server-node.js";
 import { createDummyMessageExchange } from "./InteractionTestUtils.js";
 
 const NODE_LABEL_WRITE = {

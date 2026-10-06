@@ -7,9 +7,9 @@
 import { EnergyEvseModeServer } from "#behaviors/energy-evse-mode";
 import { OnOffPlugInUnitDevice } from "#devices/on-off-plug-in-unit";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { MockServerNode } from "@matter/node/testing";
 import { EnergyEvseMode } from "@matter/types/clusters/energy-evse-mode";
 import { ModeBase } from "@matter/types/clusters/mode-base";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const DeviceType = OnOffPlugInUnitDevice.with(EnergyEvseModeServer);
 
@@ -58,7 +58,8 @@ describe("EnergyEvseModeServer", () => {
     });
 
     it("supports inherited commands", async () => {
-        const { endpoint } = await createNode();
+        const { node, endpoint } = await createNode();
+        await using _node = node;
         await endpoint.act(agent => {
             const { energyEvseMode } = agent;
             expect(typeof energyEvseMode.changeToMode === "function");

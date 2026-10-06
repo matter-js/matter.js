@@ -285,6 +285,10 @@ export class ExchangeManager implements Transport.Provider {
                 DuplicateMessageError.accept(e);
                 isDuplicate = true;
             }
+
+            // Every decoded message proves the peer is active, also a duplicate or one that no exchange accepts; the
+            // CHIP SDK marks the session active before it drops a duplicate.
+            session.notifyActivity(true);
         } else if (packet.header.sessionType === SessionType.Group) {
             if (this.#isClosing) return;
 
@@ -541,7 +545,7 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     #messageExchangeContextFor(session: Session): MessageExchangeContext {
-        const createdAt = Time.nowMs;
+        const createdAt = Time.nowUs;
         return {
             session,
             localSessionParameters: this.#sessions.sessionParameters,

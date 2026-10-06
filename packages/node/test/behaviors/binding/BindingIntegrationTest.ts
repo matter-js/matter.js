@@ -5,6 +5,7 @@
  */
 
 import { Bytes, Crypto, Diagnostic, LogDestination, LogFormat, Logger, MockCrypto, Seconds } from "@matter/general";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import { ClientInvoke, GroupKeySetMissingError, Invoke, Read, SessionManager, Write } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
@@ -24,8 +25,6 @@ import type { Endpoint } from "../../../src/endpoint/Endpoint.js";
 import { InvalidGroupOperationError } from "../../../src/node/client/ClientGroupInteraction.js";
 import { ClientNodeInteraction } from "../../../src/node/client/ClientNodeInteraction.js";
 import { ClientGroup } from "../../../src/node/ClientGroup.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
 
 describe("Binding integration", () => {
     before(() => {

@@ -21,14 +21,13 @@ const logger = Logger.get("DescriptorServer");
 export class DescriptorServer extends DescriptorBehavior {
     static override dependencies = [IndexBehavior];
 
-    declare protected internal: DescriptorServer.Internal;
-
     override async initialize() {
         // We update PartsList differently if there's an index
         if (this.endpoint.behaviors.has(IndexBehavior)) {
             // Note - do not use lock here because this reactor triggers frequently so it pollutes the logs.  Instead
             // lock manually as necessary
             this.reactTo(this.agent.get(IndexBehavior).events.change, this.#updatePartsList);
+            this.reactTo(this.events.deviceTypeList$Changed, this.#updatePartsList, { offline: true });
         } else if (this.endpoint.hasParts) {
             for (const endpoint of this.endpoint.parts) {
                 this.#monitorDestruction(endpoint);
@@ -84,7 +83,8 @@ export class DescriptorServer extends DescriptorBehavior {
     }
 
     /**
-     * Extend device type metadata.  This is a shortcut for deduped insert into the deviceTypeList cluster attribute.
+     * Extend device type metadata.  This is a shortcut for deduped insert into the deviceTypeList cluster attribute.  A
+     * device type that is already listed keeps its listed revision.
      *
      * @param deviceTypes an array of objects or named device types as defined in {@link Matter}
      */
@@ -102,7 +102,7 @@ export class DescriptorServer extends DescriptorBehavior {
             }
 
             for (const existingDeviceType of list) {
-                if (isDeepEqual(newDeviceType, existingDeviceType)) {
+                if (existingDeviceType.deviceType === newDeviceType.deviceType) {
                     continue nextInput;
                 }
             }
@@ -111,9 +111,13 @@ export class DescriptorServer extends DescriptorBehavior {
     }
 
     /**
-     * Add semantic tags.  This is a shortcut for deduped insert into the tagList cluster attribute.
+     * Add semantic tags.  This is a shortcut for deduped insert into the tagList cluster attribute.  A tag with the
+     * same manufacturer code, namespace and tag as a listed one is not added again; a non-null label given with it
+     * replaces the listed label, a `null` or missing label keeps it.
      *
      * You must enable the "TagList" feature to use this method.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 9.5.6.5
      */
     addTags(...tags: Semtag[]) {
         // TODO - should automatically enable the feature if it's not enabled
@@ -130,10 +134,10 @@ export class DescriptorServer extends DescriptorBehavior {
                     existingTag.namespaceId === newTag.namespaceId &&
                     existingTag.tag === newTag.tag
                 ) {
-                    if (existingTag.label !== newTag.label && newTag.label !== null && newTag.label !== undefined) {
+                    if (newTag.label !== null && newTag.label !== undefined && existingTag.label !== newTag.label) {
                         existingTag.label = newTag.label;
-                        continue nextInput;
                     }
+                    continue nextInput;
                 }
             }
 
@@ -200,7 +204,7 @@ export class DescriptorServer extends DescriptorBehavior {
      * Monitor endpoint for removal.
      */
     #monitorDestruction(endpoint: Endpoint) {
-        this.reactTo(endpoint.lifecycle.destroyed, this.#updatePartsList);
+        this.reactTo(endpoint.lifecycle.destroyed, this.#updatePartsList, { once: true });
     }
 
     /**
@@ -260,17 +264,9 @@ export class DescriptorServer extends DescriptorBehavior {
             ? this.state.deviceTypeList.map(entry => entry.deviceType)
             : [this.endpoint.type.deviceType];
 
-        // The model lookup rebuilds a scope on every call, and this runs on every PartsList update
-        const cached = this.internal.fullFamily;
-        if (cached !== undefined && isDeepEqual(cached.deviceTypes, deviceTypes)) {
-            return cached.composes;
-        }
-
-        const composes = deviceTypes.some(
+        return deviceTypes.some(
             deviceType => Matter.deviceTypes(deviceType)?.effectiveComposition === EndpointComposition.FullFamily,
         );
-        this.internal.fullFamily = { deviceTypes, composes };
-        return composes;
     }
 
     /**
@@ -304,9 +300,4 @@ export class DescriptorServer extends DescriptorBehavior {
 
 export namespace DescriptorServer {
     export type DeviceType = Descriptor.DeviceType;
-
-    export class Internal {
-        /** Full-family composition, with the device types it was derived from. */
-        fullFamily?: { deviceTypes: DeviceTypeId[]; composes: boolean };
-    }
 }

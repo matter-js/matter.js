@@ -10,14 +10,13 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import { ClientNode } from "#node/ClientNode.js";
 import { ServerNode } from "#node/index.js";
 import { Seconds } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import type { Peer } from "@matter/protocol";
 import { NetworkProfiles, Read } from "@matter/protocol";
 import { EndpointNumber, NodeId, SubjectId } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { commission, LIT_CONFIG, wakeDevice, wakefulnessOf } from "../icd-helpers.js";
-import { MockSite } from "../mock-site.js";
-import { subscribedPeer } from "../node-helpers.js";
 
 const DslsIcdServer = IcdManagementServer.with(
     IcdManagement.Feature.CheckInProtocolSupport,
@@ -139,7 +138,7 @@ describe("ClientNodeInteraction ICD hold", () => {
         let caught: unknown;
         const read = drainRead(peer1).catch(e => (caught = e));
 
-        // idleModeDuration (3600s) + CHECK_IN_MARGIN (10s) + slack.
+        // Past the wake deadline: idleModeDuration (3600s) + CHECK_IN_MARGIN (10s) + slack.
         await MockTime.advance(Seconds(3700));
         await MockTime.resolve(read, { macrotasks: true });
 

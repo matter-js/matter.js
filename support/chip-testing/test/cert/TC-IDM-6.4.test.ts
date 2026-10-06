@@ -8,6 +8,7 @@ import { Matter } from "@matter/model";
 import type { EventPathSpec } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import {
+    chipSubscribeRequestEnvelope,
     CommissionedRefs,
     EVENT_PATH_IBS_SEQUENCE,
     eventPathIBSequence,
@@ -22,7 +23,6 @@ import {
     record,
     requireId,
     sameMessageFrom,
-    SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
@@ -53,11 +53,7 @@ function matterjsSubscribeEnvelope(minInterval: number, maxInterval: number): Re
 
 function subscribeEnvelopeSequence(minInterval: number, maxInterval: number) {
     return [
-        SUBSCRIBE_REQUEST_MESSAGE,
-        /\{\s*$/,
-        /KeepSubscriptions = true,\s*$/,
-        new RegExp(`MinIntervalFloorSeconds = 0x${minInterval.toString(16)},\\s*$`),
-        new RegExp(`MaxIntervalCeilingSeconds = 0x${maxInterval.toString(16)},\\s*$`),
+        ...chipSubscribeRequestEnvelope(minInterval, maxInterval),
         ...EVENT_PATH_IBS_SEQUENCE,
         ...eventPathIBSequence(EVENT_PATH),
     ];

@@ -18,6 +18,7 @@ import {
     record,
     recordAll,
     requireId,
+    theTh,
     withChecks,
 } from "./tc-support.js";
 
@@ -145,7 +146,7 @@ export function isGroupEntry(entry: unknown): boolean {
 export function aclAdmitsGroupStep(commissioned: CommissionedRefs, privilege = PRIVILEGE_OPERATE) {
     return async (cx: CertStepContext) => {
         const dut = cx.controllers.dut;
-        const th = cx.devices.th;
+        const th = theTh(cx);
 
         const ref = await dut.commission({
             passcode: th.commissioning.passcode,
@@ -238,7 +239,7 @@ export function keySetWriteStep(commissioned: CommissionedRefs, alsoProvisionSen
 export function groupKeyMapStep(commissioned: CommissionedRefs, groups: number[] = [GROUP.id]) {
     return commissioned.withRef("dut", async (cx: CertStepContext, ref: CertNodeRef) =>
         withChecks(cx, async checks => {
-            const th = cx.devices.th;
+            const th = theTh(cx);
             const from = th.log.mark();
             const path = {
                 endpoint: ROOT_ENDPOINT,

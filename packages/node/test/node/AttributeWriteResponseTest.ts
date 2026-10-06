@@ -5,14 +5,14 @@
  */
 
 import { AccessLevel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { AttributeWriteResponse, Write } from "@matter/protocol";
 import { AttributeId, EndpointNumber, Status, TlvString, WriteRequest } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MockServerNode } from "./mock-server-node.js";
 
 describe("AttributeWriteRequest", () => {
     it("writes concrete attribute", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
@@ -39,7 +39,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes endpoint wildcard attribute", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
@@ -65,7 +65,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes concrete attribute with ACL error", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttr(
             node,
             Write.Attribute({
@@ -95,7 +95,7 @@ describe("AttributeWriteRequest", () => {
     // attribute whose actual write privilege exceeds View resolves to UNSUPPORTED_ATTRIBUTE (existence),
     // not UNSUPPORTED_ACCESS (the View pass grants before the existence check fires).
     it("writes model-known absent high-privilege attribute as unsupported attribute for view-only subject", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         // BasicInformation.localConfigDisabled (id 0x10): optional (absent here), write privilege Manage
         const response = await writeAttrAs(
             node,
@@ -124,7 +124,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes endpoint wildcard attribute with ACL issue", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttr(
             node,
             Write.Attribute({
@@ -139,7 +139,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes non-writable concrete attribute with error", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
@@ -166,7 +166,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes non-writable wildcard attribute with no error returned", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
@@ -181,7 +181,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes version mismatch concrete attribute with error", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
@@ -211,7 +211,7 @@ describe("AttributeWriteRequest", () => {
     // Spec 1.6 §8.9.2.8.1: a DataVersion on a wildcard path is illegal, so our encoder refuses to emit it (see
     // WriteTest). Inbound decoding stays lenient per the §8.9 disposition, so a raw request still ignores it.
     it("writes version mismatch wildcard attribute where mismatch got ignored", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttrRawAsAdmin(node, {
             writeRequests: [
                 {
@@ -241,7 +241,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes concrete attribute with constraint error", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
@@ -268,7 +268,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes wildcard attribute with constraint error", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
@@ -294,7 +294,7 @@ describe("AttributeWriteRequest", () => {
     });
 
     it("writes with invalid wildcard combination", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         await expect(
             writeAttrRaw(node, {
                 writeRequests: [

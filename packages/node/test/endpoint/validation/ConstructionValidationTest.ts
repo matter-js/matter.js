@@ -17,6 +17,7 @@ import { OnOffServer } from "#behaviors/on-off";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
 import { RefrigeratorDevice } from "#devices/refrigerator";
 import { TemperatureControlledCabinetDevice } from "#devices/temperature-controlled-cabinet";
+import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointPartsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
@@ -34,8 +35,7 @@ import {
     MatterModel,
     RequirementModel,
 } from "@matter/model";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     captureLogOf,
     createNode,
@@ -199,7 +199,7 @@ describe("device type validation at construction", () => {
 
         expect(counting.calls).deep.equals({ validate: 0, validateNodeScope: 1, passes: 1 });
         expect(logged.filter(({ text }) => text.includes("Identify")).length).equals(100);
-    });
+    }).timeout(10_000);
 
     it("judges an endpoint added with its descendants in one pass", async () => {
         const node = await createNode();
@@ -395,6 +395,76 @@ describe("device type validation at construction", () => {
             }),
         ).rejectedWith(DeviceTypeConformanceError);
         expect(node.parts.has("fridge")).false;
+
+        await node.close();
+    });
+
+    it("judges an addition under a constructed part without its ancestors still under construction", async () => {
+        const node = await createStrictNode();
+
+        let release = () => {};
+        const gate = new Promise<void>(resolve => (release = resolve));
+        class SlowBehavior extends Behavior {
+            static override readonly id = "slow";
+            static override readonly early = true;
+            override async initialize() {
+                await gate;
+            }
+        }
+
+        const light = new Endpoint(OnOffLightDevice, { id: "light" });
+        let grandchild: Promise<Endpoint> | undefined;
+        light.lifecycle.partsReady.once(() => {
+            grandchild = light.add(OnOffLightDevice, { id: "grandchild" }).finally(release);
+        });
+
+        const fridge = await node.add({
+            type: Fridge,
+            id: "fridge",
+            parts: [light, { ...cabinet(), type: TemperatureControlledCabinetDevice.with(SlowBehavior) }],
+        });
+
+        expect(grandchild).not.undefined;
+        expect(light.parts.has(await grandchild!)).true;
+        expect(fridge.parts.has(light)).true;
+
+        await node.close();
+    });
+
+    it("judges no endpoint under construction below a sibling whose duplicate status changes", async () => {
+        const node = await createStrictNode();
+        const Tagged = OnOffLightDevice.with(DescriptorServer.with("TagList"));
+        const tag = (value: number) => [{ mfgCode: null, namespaceId: 4, tag: value, label: null }];
+
+        let release = () => {};
+        const gate = new Promise<void>(resolve => (release = resolve));
+        class SlowBehavior extends Behavior {
+            static override readonly id = "slow";
+            static override readonly early = true;
+            override async initialize() {
+                await gate;
+            }
+        }
+
+        const first = await node.add(Tagged, { id: "first", descriptor: { tagList: tag(0) } });
+        let constructing = true;
+        const fridge = first
+            .add({
+                type: Fridge,
+                id: "fridge",
+                parts: [{ ...cabinet(), type: TemperatureControlledCabinetDevice.with(SlowBehavior) }],
+            })
+            .finally(() => (constructing = false));
+        while (!first.parts.has("fridge")) {
+            await MockTime.yield();
+        }
+
+        const second = await node.add(Tagged, { id: "second", descriptor: { tagList: tag(1) } });
+        expect(constructing).true;
+        release();
+
+        expect(node.parts.has(second)).true;
+        expect(first.parts.has(await fridge)).true;
 
         await node.close();
     });

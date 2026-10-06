@@ -5,6 +5,7 @@
  */
 
 import { OnOffServer } from "#behaviors/on-off";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import { NodeSession } from "@matter/protocol";
 import {
     AttributeId,
@@ -18,8 +19,6 @@ import {
 } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockServerNode } from "./mock-server-node.js";
-import { interaction } from "./node-helpers.js";
 
 const nodeLabelPath: AttributePath = {
     endpointId: EndpointNumber(0),

@@ -13,6 +13,7 @@ import { Endpoint } from "#endpoint/index.js";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { MatterFlowError } from "@matter/general";
 import { AccessLevel } from "@matter/model";
+import { MockExchange, MockServerNode } from "@matter/node/testing";
 import {
     AccessControl,
     CommandInvokeResponse,
@@ -40,13 +41,11 @@ import { AdministratorCommissioning } from "@matter/types/clusters/administrator
 import { Chime } from "@matter/types/clusters/chime";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { MockExchange } from "./mock-exchange.js";
-import { MockServerNode } from "./mock-server-node.js";
 
 describe("CommandInvokeResponse", () => {
     it("invoke concrete command", async () => {
         const device = new Endpoint(OnOffLightDevice);
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
         const response = await invokeCmd(
             node,
             Invoke.ConcreteCommandRequest({
@@ -70,7 +69,7 @@ describe("CommandInvokeResponse", () => {
 
     it("invokes existing endpoint wildcard commands", async () => {
         const device = new Endpoint(OnOffLightDevice);
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
         await node.add(new Endpoint(OnOffLightDevice));
         const response = await invokeCmd(
             node,
@@ -104,7 +103,7 @@ describe("CommandInvokeResponse", () => {
     // therefore identical to the non-suppressed case.
     it("produces results regardless of suppressResponse", async () => {
         const device = new Endpoint(OnOffLightDevice);
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
         await node.add(new Endpoint(OnOffLightDevice));
         const response = await invokeCmdRaw(node, {
             suppressResponse: true,
@@ -136,7 +135,7 @@ describe("CommandInvokeResponse", () => {
     });
 
     it("invokes non-existing endpoint wildcard command", async () => {
-        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         const response = await invokeCmd(
             node,
             Invoke.WildcardCommandRequest({
@@ -150,7 +149,7 @@ describe("CommandInvokeResponse", () => {
     });
 
     it("invoke non existing concrete command", async () => {
-        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         const response = await invokeCmd(
             node,
             Invoke.ConcreteCommandRequest({
@@ -176,7 +175,7 @@ describe("CommandInvokeResponse", () => {
     // command whose actual invoke privilege exceeds Operate resolves to an existence status (here
     // UNSUPPORTED_CLUSTER), not UNSUPPORTED_ACCESS (the Operate pass grants before the existence check fires).
     it("invokes model-known absent high-privilege command as existence status for operate-only subject", async () => {
-        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         // Groups.AddGroup (cluster 0x4, command 0x0): invoke privilege Manage, cluster absent on the root node
         const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
             invokeRequests: [
@@ -277,7 +276,7 @@ describe("CommandInvokeResponse", () => {
     // the actual-privilege pass.
     it("counts an existing command denied at the actual-privilege ACL pass as existent", async () => {
         const device = new Endpoint(OnOffLightDevice);
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
         const response = await invokeCmdRawAs(node, AccessLevel.Operate, {
             invokeRequests: [
                 {
@@ -312,7 +311,7 @@ describe("CommandInvokeResponse", () => {
             }
         }
         const device = new Endpoint(OnOffLightDevice.with(ClusterErrorOnOffServer));
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
         const response = await invokeCmd(
             node,
             Invoke.ConcreteCommandRequest({
@@ -340,7 +339,7 @@ describe("CommandInvokeResponse", () => {
             }
         }
         const device = new Endpoint(OnOffLightDevice.with(ThrowingOnOffServer));
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
         const response = await invokeCmd(
             node,
             Invoke.ConcreteCommandRequest({
@@ -369,7 +368,7 @@ describe("CommandInvokeResponse", () => {
             }
         }
         const device = new Endpoint(OnOffLightDevice.with(ThrowingOnOffServer));
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
         const response = await invokeCmd(
             node,
             Invoke.ConcreteCommandRequest({
@@ -403,7 +402,7 @@ describe("CommandInvokeResponse", () => {
             }
         }
         const device = new Endpoint(OnOffLightDevice.with(ThrowingOnOffServer));
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
 
         const response = await invokeCmdRaw(node, {
             invokeRequests: [
@@ -453,7 +452,7 @@ describe("CommandInvokeResponse", () => {
         const device = new Endpoint(ChimeDevice, {
             chime: { installedChimeSounds: [{ chimeId: 0, name: "Ding" }], selectedChime: 0 },
         });
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
 
         expect(device.globalsOf("chime").acceptedCommandList).deep.equals([]);
 
@@ -479,7 +478,7 @@ describe("CommandInvokeResponse", () => {
 
     it("reports a payload that does not match the command schema as INVALID_COMMAND", async () => {
         const device = new Endpoint(OnOffLightDevice);
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
 
         // OnWithTimedOff expects a structure; a bare integer cannot decode against it
         const response = await invokeCmdRaw(node, {
@@ -508,7 +507,7 @@ describe("CommandInvokeResponse", () => {
 
     it("refuses a fabric-scoped command over a PASE session with UNSUPPORTED_ACCESS", async () => {
         const device = new Endpoint(OtaRequestorEndpoint);
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
 
         // A NodeSession with no fabric mirrors a PASE session established before commissioning completes. Its
         // peerNodeId must be the unspecified node ID for FabricAccessControl to grant the implicit PASE-commissioning
@@ -564,7 +563,7 @@ describe("CommandInvokeResponse", () => {
         }
 
         const device = new Endpoint(OtaRequestorEndpoint.with(NonSelfGuardingOtaRequestorServer));
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
 
         const session = new ProtocolMocks.NodeSession({ fabric: undefined, peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
         const exchange = new MockExchange(
@@ -607,7 +606,7 @@ describe("CommandInvokeResponse", () => {
 
     it("invokes a command that is not fabric-scoped over the same PASE session", async () => {
         const device = new Endpoint(OnOffLightDevice);
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
 
         const session = new ProtocolMocks.NodeSession({ fabric: undefined, peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
         const exchange = new MockExchange(
@@ -635,7 +634,7 @@ describe("CommandInvokeResponse", () => {
         }
 
         const device = new Endpoint(OtaRequestorEndpoint.with(NonSelfGuardingOtaRequestorServer));
-        const node = await MockServerNode.createOnline(undefined, { device });
+        await using node = await MockServerNode.createOnline(undefined, { device });
 
         const session = new ProtocolMocks.NodeSession({ fabric: undefined, peerNodeId: NodeId.UNSPECIFIED_NODE_ID });
         const exchange = new MockExchange(
@@ -714,7 +713,7 @@ describe("CommandInvokeResponse", () => {
         }
 
         it("names the endpoint of a concrete path", async () => {
-            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+            await using node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
 
             expect(
                 await dispatchedEndpoints(node, {
@@ -724,7 +723,7 @@ describe("CommandInvokeResponse", () => {
         });
 
         it("names every endpoint a wildcard path expands to", async () => {
-            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+            await using node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
             await node.add(new Endpoint(OnOffLightDevice));
 
             expect(
@@ -735,7 +734,7 @@ describe("CommandInvokeResponse", () => {
         });
 
         it("leaves out a concrete path that fails validation", async () => {
-            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+            await using node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
 
             expect(
                 await dispatchedEndpoints(node, {
@@ -746,7 +745,7 @@ describe("CommandInvokeResponse", () => {
         });
 
         it("leaves out a concrete path that needs a timed interaction it lacks", async () => {
-            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+            await using node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
 
             expect(
                 await dispatchedEndpoints(
@@ -767,7 +766,7 @@ describe("CommandInvokeResponse", () => {
 
         it("leaves out a fabric-scoped concrete path on a session without fabric", async () => {
             const device = new Endpoint(OtaRequestorEndpoint);
-            const node = await MockServerNode.createOnline(undefined, { device });
+            await using node = await MockServerNode.createOnline(undefined, { device });
 
             expect(
                 await dispatchedEndpoints(
@@ -794,7 +793,7 @@ describe("CommandInvokeResponse", () => {
         });
 
         it("names only the group's endpoints for a group invoke", async () => {
-            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+            await using node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
             await node.add(new Endpoint(OnOffLightDevice));
 
             let endpoints: number[] | undefined;
@@ -819,7 +818,7 @@ describe("CommandInvokeResponse", () => {
         });
 
         it("leaves out endpoints a wildcard path may not invoke on", async () => {
-            const node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
+            await using node = await MockServerNode.createOnline(undefined, { device: new Endpoint(OnOffLightDevice) });
 
             expect(await dispatchedEndpoints(node, { invokeRequests: [addGroup()] })).deep.equals([]);
         });

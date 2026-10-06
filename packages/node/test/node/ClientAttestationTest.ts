@@ -20,6 +20,7 @@ import {
     X509,
     X962,
 } from "@matter/general";
+import { MockSite } from "@matter/node/testing";
 import {
     AttestationFinding,
     CertificationDeclaration,
@@ -35,7 +36,6 @@ import {
     TestCert_PAA_NoVID_PublicKey,
     TestCert_PAA_NoVID_SKID,
 } from "@matter/protocol";
-import { MockSite } from "./mock-site.js";
 
 /**
  * Build a CRL of the CHIP test PAA without vendor ID with the given revoked serial numbers (hex strings), signed and

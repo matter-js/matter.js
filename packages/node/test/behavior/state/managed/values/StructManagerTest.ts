@@ -18,9 +18,9 @@ import {
     FieldModel,
     FieldValue,
 } from "@matter/model";
+import { MockExchange } from "@matter/node/testing";
 import { ConstraintError, Val } from "@matter/protocol";
 import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
-import { MockExchange } from "../../../../node/mock-exchange.js";
 import { aclEndpoint, rawValuesOf, structOf, TestStruct } from "./value-utils.js";
 
 export type Nested = {

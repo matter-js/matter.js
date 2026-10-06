@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Abort, Hours } from "#index.js";
-import { MockSite } from "./dns-sd-helpers.js";
+import { Abort, DnsMessageType, DnsRecordClass, DnsRecordType, Hours, Seconds } from "#index.js";
+import { MockSite, qnameOf } from "./dns-sd-helpers.js";
 
 describe("IpService link-local zone capture", () => {
     before(() => MockTime.enable());
@@ -55,5 +55,33 @@ describe("IpService link-local zone capture", () => {
         expect(next.value?.address).deep.equals({ ip: "fd29::1", port: 1234 });
 
         abort();
+    });
+
+    it("takes no address from a query's known answers", async () => {
+        await using site = new MockSite();
+        const { client, server } = await site.addPair();
+
+        const service = client.addService();
+        await server.broadcast(1, Hours.one, ["fe80::1"]);
+        await MockTime.advance(Seconds(1));
+        expect([...service.addresses].map(({ ip }) => ip)).include("fe80::1%fake0");
+
+        await server.mdns.send({
+            messageType: DnsMessageType.Query,
+            queries: [{ name: qnameOf(1), recordType: DnsRecordType.SRV, recordClass: DnsRecordClass.IN }],
+            answers: [
+                {
+                    name: server.hostname,
+                    recordType: DnsRecordType.AAAA,
+                    recordClass: DnsRecordClass.IN,
+                    ttl: Hours.one,
+                    value: "fe80::99",
+                },
+            ],
+            additionalRecords: [],
+        });
+        await MockTime.advance(Seconds(1));
+
+        expect([...service.addresses].map(({ ip }) => ip)).not.include("fe80::99%fake0");
     });
 });

@@ -4,9 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Millis, Seconds } from "@matter/main";
+import { Duration, Millis, Seconds, Time } from "@matter/main";
 import { Matter } from "@matter/model";
-import type { CertStepContext, CheckRecord, OtaApplyUpdateExchange, OtaScriptedApplyAnswer } from "@matter/testing";
+import type {
+    CertStepContext,
+    CheckRecord,
+    EventReadEntry,
+    OtaApplyUpdateExchange,
+    OtaScriptedApplyAnswer,
+} from "@matter/testing";
 import { certTest, UnsupportedByControllerError } from "@matter/testing";
 import { REBOOT_AFTER_APPLY_ARG, SPEC_INTERVALS_ARG } from "../../src/OtaRequestorTestInstance.js";
 import type { BdxTransferEvidence } from "./tc-bdx-support.js";
@@ -28,6 +34,19 @@ const SOFTWARE_VERSION_ID = requireId(
     BASIC_INFORMATION.attributes.require("softwareVersion").id,
     "BasicInformation.softwareVersion",
 );
+const START_UP_ID = requireId(BASIC_INFORMATION.events.require("startUp").id, "BasicInformation.StartUp");
+
+/**
+ * How long a step that restarted the DUT waits for the TH to be told of that restart.
+ *
+ * Covers the 30 s from the DUT's return that the controller's `RebootResubscribeArmer` waits before it resubscribes
+ * to a DUT that did not resume the subscription itself. The TH reads the `StartUp` against whatever update it is
+ * serving, so the next step serves only once the restart is known.
+ */
+const RETURN_WAIT = Seconds(45);
+
+/** The DUT's `StartUp` events the TH's sustained subscription delivered during this run. */
+const startUps = new Array<EventReadEntry>();
 
 /** The plan's own deferral, which steps 2 and 4 ask the DUT to wait out. */
 const PLAN_DELAY = 180;
@@ -60,13 +79,40 @@ const REFUSAL_WINDOW = Seconds(15);
 /** Room beyond a wait the step is about, for the exchange around it and the restart that follows. */
 const EXCHANGE_MARGIN = Seconds(90);
 
+/** The `SoftwareVersion` a `StartUp` event reports, or `undefined` for anything else. */
+function startUpVersion(entry: EventReadEntry): unknown {
+    return typeof entry.value === "object" && entry.value !== null && "softwareVersion" in entry.value
+        ? entry.value.softwareVersion
+        : undefined;
+}
+
+/**
+ * A check that the TH was told the DUT restarted into `version`, within {@link RETURN_WAIT}: a `StartUp` reporting it
+ * reached the TH's subscription.
+ */
+async function returnSeen(version: number): Promise<CheckRecord> {
+    const seen = () => startUps.some(entry => startUpVersion(entry) === version);
+    const deadline = Time.nowUs + RETURN_WAIT;
+    while (!seen() && Time.nowUs < deadline) {
+        await Time.sleep("TC-SU-2.5 DUT return", Millis(100));
+    }
+    return {
+        type: "response",
+        verdict: seen() ? "pass" : "fail",
+        detail: seen()
+            ? `the TH's subscription delivered the DUT's StartUp with SoftwareVersion ${version}`
+            : `the TH's subscription delivered no StartUp with SoftwareVersion ${version} within ` +
+              Duration.format(RETURN_WAIT),
+    };
+}
+
 /** Has the TH's provider answer `applyUpdate`, as a step failure rather than an exception. */
 async function script(cx: CertStepContext, applyUpdate: OtaScriptedApplyAnswer[]) {
     try {
         await cx.controllers.th.node(commissioned.require("th", "the DUT")).scriptOtaProvider({ applyUpdate });
     } catch (e) {
         // Before the check, not after: the runner turns this into a skipped step only while the step has
-        // recorded nothing
+        // recorded no check and made no call that may change the device
         if (e instanceof UnsupportedByControllerError) {
             throw e;
         }
@@ -153,6 +199,7 @@ async function recordProceedAtOnce(cx: CertStepContext) {
     });
     const applies = transfer.exchanges.applyUpdate;
     const [applied] = applies;
+    const returned = await returnSeen(transfer.softwareVersion);
     const running = await readSoftwareVersion(cx);
 
     await recordAll(cx, [
@@ -185,6 +232,7 @@ async function recordProceedAtOnce(cx: CertStepContext) {
             what: "the DUT runs the version it downloaded",
             check: runsDownloadedVersion(running, transfer.softwareVersion),
         },
+        { what: "the TH was told of the DUT's restart before the next step", check: () => returned },
     ]);
 }
 
@@ -216,6 +264,7 @@ function recordDeferredApply(answer: OtaScriptedApplyAnswer, asksAgain: boolean)
         const applies = transfer.exchanges.applyUpdate;
         const [deferred, ...later] = applies;
         const notifications = transfer.exchanges.notifyUpdateApplied;
+        const returned = await returnSeen(transfer.softwareVersion);
         const running = await readSoftwareVersion(cx);
 
         // What the DUT did once the delay was up: the second request where it asks again, and otherwise
@@ -282,6 +331,7 @@ function recordDeferredApply(answer: OtaScriptedApplyAnswer, asksAgain: boolean)
                 what: "the DUT runs the version it downloaded",
                 check: runsDownloadedVersion(running, transfer.softwareVersion),
             },
+            { what: "the TH was told of the DUT's restart before the next step", check: () => returned },
         ]);
     };
 }
@@ -289,8 +339,9 @@ function recordDeferredApply(answer: OtaScriptedApplyAnswer, asksAgain: boolean)
 /**
  * Step 3: `AwaitNextAction` naming less than the floor, so the DUT must wait the floor instead.
  *
- * The step is about the spacing rather than the update, so nothing here expects an apply: the second
- * request the DUT sends is answered by the TH's own provider, and the step reads the gap before it.
+ * The step is about the spacing rather than the update: the second request the DUT sends is answered by the
+ * TH's own provider, which allows the apply, and the step reads the gap before it. The DUT then applies and
+ * restarts, which the step waits to see reported before the next one serves.
  */
 async function recordFlooredDeferral(cx: CertStepContext) {
     const { transfer } = await serveWithApplyAnswer(
@@ -314,6 +365,9 @@ async function recordFlooredDeferral(cx: CertStepContext) {
             : transfer.exchanges.notifyUpdateApplied.filter(
                   ({ receivedAtMs }) => receivedAtMs < askedAgain.receivedAtMs,
               );
+
+    // The TH's provider allows the request the DUT asks again with, so the DUT applies and restarts too
+    const returned = await returnSeen(transfer.softwareVersion);
 
     await recordAll(cx, [
         {
@@ -352,6 +406,7 @@ async function recordFlooredDeferral(cx: CertStepContext) {
                     `again, of ${transfer.exchanges.notifyUpdateApplied.length} over the whole step`,
             }),
         },
+        { what: "the TH was told of the DUT's restart before the next step", check: () => returned },
     ]);
 }
 
@@ -454,6 +509,20 @@ certTest("TC-SU-2.5", {
             commissioned.set("th", ref);
 
             await recordRequestorIdle(cx, th.node(ref));
+
+            startUps.length = 0;
+            try {
+                await th.node(ref).observeEvents([{ endpoint: 0, cluster: BASIC_INFORMATION_ID, event: START_UP_ID }], {
+                    onUpdate: event => startUps.push(event),
+                });
+            } catch (e) {
+                // The step already commissioned, so the runner fails the run on a refusal without this check
+                if (e instanceof UnsupportedByControllerError) {
+                    throw e;
+                }
+                cx.recorder.check({ type: "response", verdict: "fail", detail: String(e) });
+                throw e;
+            }
         },
         {
             expected:

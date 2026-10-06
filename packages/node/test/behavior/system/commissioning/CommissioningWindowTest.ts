@@ -11,12 +11,10 @@ import {
 import { BasicInformationClient } from "#behaviors/basic-information";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Bytes, Crypto, ImplementationError, Seconds } from "@matter/general";
+import { MockServerNode, MockSite, subscribedPeer } from "@matter/node/testing";
 import { PaseClient } from "@matter/protocol";
 import { ManualPairingCodeCodec, QrPairingCodeCodec } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
-import { MockServerNode } from "../../../node/mock-server-node.js";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 /**
  * Replace `openCommissioningWindow` on the runtime prototype of the peer's AdministratorCommissioningClient facade,

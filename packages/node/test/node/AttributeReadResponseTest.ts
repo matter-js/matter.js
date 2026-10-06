@@ -6,10 +6,10 @@
 
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { AccessLevel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { Read } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MockServerNode } from "./mock-server-node.js";
 import { countAttrs, readAttr, readAttrRaw } from "./read-helpers.js";
 
 const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
@@ -30,7 +30,7 @@ const ROOT_ENDPOINT_FULL_CLUSTER_LIST_COUNT = Object.values(ROOT_ENDPOINT_FULL_C
 
 describe("AttributeReadResponse", () => {
     it("reads concrete attribute", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readAttr(
             node,
             Read.Attribute({
@@ -59,8 +59,9 @@ describe("AttributeReadResponse", () => {
     });
 
     it("reads endpoint wildcard attribute", async () => {
+        await using node = await MockServerNode.createOnline();
         const response = await readAttr(
-            await MockServerNode.createOnline(),
+            node,
             Read.Attribute({
                 cluster: BasicInformation,
                 attributes: "vendorName",
@@ -86,7 +87,8 @@ describe("AttributeReadResponse", () => {
     });
 
     it("reads concrete attribute with version filter", async () => {
-        const response = await readAttrRaw(await MockServerNode.createOnline(), {
+        await using node = await MockServerNode.createOnline();
+        const response = await readAttrRaw(node, {
             attributeRequests: [
                 {
                     clusterId: ClusterId(40),
@@ -106,8 +108,9 @@ describe("AttributeReadResponse", () => {
     });
 
     it("reads non-existent concrete endpoint", async () => {
+        await using node = await MockServerNode.createOnline();
         const response = await readAttr(
-            await MockServerNode.createOnline(),
+            node,
             Read.Attribute({
                 endpoint: EndpointNumber(2),
                 cluster: BasicInformation,
@@ -132,7 +135,7 @@ describe("AttributeReadResponse", () => {
     });
 
     it("reads non-existent concrete attribute", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readAttr(
             node,
             Read.Attribute({
@@ -162,7 +165,7 @@ describe("AttributeReadResponse", () => {
     // absent attribute whose actual read privilege exceeds View resolves to UNSUPPORTED_ATTRIBUTE (existence),
     // not UNSUPPORTED_ACCESS (the View pass grants before the existence check fires).
     it("reads model-known absent high-privilege attribute as unsupported attribute for view-only subject", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readAttrRaw(
             node,
             {
@@ -195,8 +198,9 @@ describe("AttributeReadResponse", () => {
     });
 
     it("reads wildcard endpoint & attributes", async () => {
+        await using node = await MockServerNode.createOnline();
         const response = await readAttr(
-            await MockServerNode.createOnline(),
+            node,
             Read.Attribute({
                 cluster: BasicInformation,
             }),
@@ -211,17 +215,15 @@ describe("AttributeReadResponse", () => {
     });
 
     it("reads full wildcard", async () => {
-        const response = await readAttr(
-            await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined }),
-            Read.Attribute(),
-        );
+        await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+        const response = await readAttr(node, Read.Attribute());
         expect(await countAttrs(response.data)).deep.equals({
             0: ROOT_ENDPOINT_FULL_CLUSTER_LIST,
         });
     });
 
     it("reads full wildcard with adding and removing endpoint", async () => {
-        const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+        await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
 
         const endpoint = await node.add(OnOffLightDevice);
 
@@ -255,8 +257,9 @@ describe("AttributeReadResponse", () => {
     });
 
     it("reads attributeList global Attribute full wildcard", async () => {
+        await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
         const response = await readAttr(
-            await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined }),
+            node,
             Read.Attribute({
                 attributes: "attributeList",
             }),
@@ -282,7 +285,8 @@ describe("AttributeReadResponse", () => {
     });
 
     it("reads attributeList global Attribute full wildcard excluding attributerList via WildcardPath Filter", async () => {
-        const response = await readAttrRaw(await MockServerNode.createOnline(), {
+        await using node = await MockServerNode.createOnline();
+        const response = await readAttrRaw(node, {
             attributeRequests: [
                 {
                     attributeId: AttributeId(0xfffb),

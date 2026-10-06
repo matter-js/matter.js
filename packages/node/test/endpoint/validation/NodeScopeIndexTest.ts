@@ -24,8 +24,8 @@ import {
     MatterModel,
     RequirementModel,
 } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { NodeId } from "@matter/types";
-import { MockServerNode } from "../../node/mock-server-node.js";
 import {
     addCabinet,
     addRefrigerator,

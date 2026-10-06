@@ -51,9 +51,19 @@ export abstract class Session {
 
     abstract get via(): string;
     #manager?: SessionManager;
-    timestamp = Time.nowMs;
-    readonly createdAt = Time.nowMs;
+
+    /** Last message sent or received, on the clock of {@link Time.nowUs}. */
+    timestamp = Time.nowUs;
+
+    /** Creation time on the clock of {@link Time.nowUs}, like {@link PeerLossContext.asOf}. */
+    readonly createdAt = Time.nowUs;
+
+    /**
+     * Last message received, on the clock of {@link Time.nowUs}.  A session created with `setActiveTimestamp` starts
+     * at its creation time; otherwise 0 until a message arrives.
+     */
     activeTimestamp: Timestamp = 0;
+
     abstract type: SessionType;
 
     #peerMrpMargins?: () => MRP.Margins | undefined;
@@ -129,7 +139,7 @@ export abstract class Session {
     }
 
     notifyActivity(messageReceived: boolean) {
-        this.timestamp = Time.nowMs;
+        this.timestamp = Time.nowUs;
         if (messageReceived) {
             // only update the active timestamp if we received a message
             this.activeTimestamp = this.timestamp;
@@ -137,7 +147,20 @@ export abstract class Session {
     }
 
     get isPeerActive(): boolean {
-        return Timespan(this.activeTimestamp, Time.nowMs).duration < this.activeThreshold;
+        return Timespan(this.activeTimestamp, Time.nowUs).duration < this.activeThreshold;
+    }
+
+    /**
+     * {@link timestamp} and {@link activeTimestamp} as whole-millisecond wall-clock times as the wall clock reads now,
+     * for exposure as absolute times.  An {@link activeTimestamp} of 0 stays 0.
+     */
+    get wallClockActivity() {
+        const monotonic = Time.nowUs;
+        const offset = Time.nowMs - monotonic;
+        return {
+            lastInteractionTimestamp: Timestamp(Math.round(this.timestamp + offset)),
+            lastActiveTimestamp: this.activeTimestamp === 0 ? 0 : Timestamp(Math.round(this.activeTimestamp + offset)),
+        };
     }
 
     getIncrementedMessageCounter() {
@@ -305,6 +328,14 @@ export abstract class Session {
                 await exchange.close(context.cause);
             }
         });
+    }
+
+    /**
+     * Whether a communication failure on the session's exchanges leaves the session open instead of marking the peer
+     * lost.  The session's owner then ends it.
+     */
+    get suppressPeerLoss() {
+        return false;
     }
 
     get isClosed() {

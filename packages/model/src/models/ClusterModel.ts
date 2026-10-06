@@ -18,7 +18,7 @@ import { AttributeModel } from "./AttributeModel.js";
 import { CommandModel } from "./CommandModel.js";
 import { DatatypeModel } from "./DatatypeModel.js";
 import { EventModel } from "./EventModel.js";
-import type { FieldModel } from "./FieldModel.js";
+import { FieldModel } from "./FieldModel.js";
 import { Model } from "./Model.js";
 import { ScopeModel } from "./ScopeModel.js";
 
@@ -27,6 +27,11 @@ export class ClusterModel
     implements ClusterElement, Conformance.FeatureContext
 {
     override tag: ClusterElement.Tag = ClusterElement.Tag;
+    #attributes?: ScopeModel.Members<AttributeModel>;
+    #commands?: ScopeModel.Members<CommandModel>;
+    #events?: ScopeModel.Members<EventModel>;
+    #datatypes?: ScopeModel.Members<DatatypeModel>;
+    #fields?: ScopeModel.Members<FieldModel>;
     classification?: ClusterElement.Classification;
     bindable?: boolean;
 
@@ -77,20 +82,20 @@ export class ClusterModel
         return value;
     }
 
-    get attributes() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Attribute] }) as ModelIndex<AttributeModel>;
+    get attributes(): ModelIndex<AttributeModel> {
+        return (this.#attributes = this.membersOfType(AttributeModel, this.#attributes)).index;
     }
 
-    get commands() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Command] }) as ModelIndex<CommandModel>;
+    get commands(): ModelIndex<CommandModel> {
+        return (this.#commands = this.membersOfType(CommandModel, this.#commands)).index;
     }
 
-    get events() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Event] }) as ModelIndex<EventModel>;
+    get events(): ModelIndex<EventModel> {
+        return (this.#events = this.membersOfType(EventModel, this.#events)).index;
     }
 
-    get datatypes() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Datatype] }) as ModelIndex<DatatypeModel>;
+    get datatypes(): ModelIndex<DatatypeModel> {
+        return (this.#datatypes = this.membersOfType(DatatypeModel, this.#datatypes)).index;
     }
 
     /**
@@ -110,8 +115,8 @@ export class ClusterModel
      * Fields on a cluster are not part of the standard Matter data model.  They are used for internal extensions that
      * should not be served via the Matter protocol.
      */
-    get fields() {
-        return this.scope.membersOf(this, { tags: [ElementTag.Field] }) as ModelIndex<FieldModel>;
+    get fields(): ModelIndex<FieldModel> {
+        return (this.#fields = this.membersOfType(FieldModel, this.#fields)).index;
     }
 
     /**

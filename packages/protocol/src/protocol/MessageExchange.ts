@@ -382,9 +382,9 @@ export class MessageExchange {
         return this.#lastActive;
     }
 
-    #notifyActivity(messageReceived: boolean) {
+    #notifySent() {
         this.#lastActive = Time.nowMs;
-        this.session.notifyActivity(messageReceived);
+        this.session.notifyActivity(false);
     }
 
     /**
@@ -465,7 +465,7 @@ export class MessageExchange {
             );
         }
 
-        this.#notifyActivity(true);
+        this.#lastActive = Time.nowMs;
         this.#onReceive?.(message, duplicate);
 
         if (duplicate) {
@@ -629,7 +629,12 @@ export class MessageExchange {
      * answered earlier was reachable, and peer loss closes every session with it.
      */
     #reportsPeerLoss(suppressedForOperation?: boolean) {
-        return !this.#suppressPeerLoss && suppressedForOperation !== true && this.#messageReceivedCounter === 0;
+        return (
+            !this.#suppressPeerLoss &&
+            !this.session.suppressPeerLoss &&
+            suppressedForOperation !== true &&
+            this.#messageReceivedCounter === 0
+        );
     }
 
     async #send(messageType: number, payload: Bytes, standaloneAckMessageId?: number) {
@@ -669,7 +674,7 @@ export class MessageExchange {
 
         this.#used = true;
         this.#messageSendCounter++;
-        this.#notifyActivity(false);
+        this.#notifySent();
 
         let ackedMessageId = standaloneAckMessageId;
         if (ackedMessageId === undefined && this.session.usesMrp) {
@@ -929,7 +934,7 @@ export class MessageExchange {
         }
 
         this.#messageSendCounter++;
-        this.#notifyActivity(false);
+        this.#notifySent();
         this.#lastTransmissionAt = Time.nowMs;
 
         this.context.retry(this.#retransmissionCounter);

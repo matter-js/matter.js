@@ -73,7 +73,15 @@ export class PaseClient {
         const abort = new Abort({ abort: options?.abort });
 
         try {
-            return await this.#doPair(initiatorSessionParams, messenger, exchange, channel, setupPin, abort);
+            return await this.#doPair(
+                initiatorSessionParams,
+                messenger,
+                exchange,
+                channel,
+                setupPin,
+                abort,
+                options?.suppressPeerLoss,
+            );
         } catch (error) {
             // Unlike CASE, for PASE we send InvalidParam even on abort. This signals the device to reset its
             // pairing state immediately, preventing a 60-second lockdown when cancelling parallel commissioning.
@@ -112,6 +120,7 @@ export class PaseClient {
         channel: Channel<Bytes>,
         setupPin: number,
         abort: Abort,
+        suppressPeerLoss?: boolean,
     ) {
         const { crypto } = this.#sessions;
         const initiatorRandom = crypto.randomBytes(32);
@@ -187,6 +196,7 @@ export class PaseClient {
             isInitiator: true,
             isResumption: false,
             peerSessionParameters,
+            suppressPeerLoss,
         });
         logger.info("Paired successfully", Mark.OUTBOUND, messenger.channelName, exchange.diagnostics);
 
@@ -197,5 +207,8 @@ export class PaseClient {
 export namespace PaseClient {
     export interface PairOptions {
         abort?: AbortSignal;
+
+        /** @see {@link NodeSession.suppressPeerLoss} */
+        suppressPeerLoss?: boolean;
     }
 }

@@ -8,6 +8,7 @@ import {
     Bytes,
     camelize,
     Duration,
+    ImplementationError,
     InternalError,
     MatterAggregateError,
     MatterError,
@@ -20,6 +21,7 @@ import type { ClusterModel } from "@matter/model";
 import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
+    CertDevice,
     CertNodeApi,
     CertNodeRef,
     CertStepContext,
@@ -28,11 +30,18 @@ import type {
     LogExpectPatterns,
     LogExpectResult,
     LogExpectSequences,
+    LogFlavor,
     LogFollower,
     LogLine,
     TimedInteractionOptions,
 } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, forFlavor, UnsupportedByControllerError } from "@matter/testing";
+import {
+    CertLogClosedError,
+    CertLogTimeoutError,
+    flavorFamily,
+    forFlavor,
+    UnsupportedByControllerError,
+} from "@matter/testing";
 
 /**
  * Bounds a device-log check's wait for a line the step has already caused — one the device writes
@@ -52,6 +61,24 @@ export class CertCleanupError extends MatterError {}
 
 /** A check inside a step failed; the evidence record carrying the detail is already recorded. */
 export class CertCheckFailedError extends MatterError {}
+
+/**
+ * The device a shared helper acts on where the plan names only one.
+ *
+ * A plan that declares several devices under names of its own (`devices: { th1, th2 }`) has no `th`
+ * role. Reaching for one is a defect in the calling step, so this says so instead of failing later on
+ * a property of `undefined`.
+ */
+export function theTh(cx: CertStepContext): CertDevice {
+    const th = cx.devices.th;
+    if (th === undefined) {
+        throw new ImplementationError(
+            `This step's plan declares no "th" device (it has ${Object.keys(cx.devices).join(", ") || "none"}); ` +
+                "a helper acting on one device takes it as a parameter when the plan names more than one",
+        );
+    }
+    return th;
+}
 
 /**
  * Records `check` and fails the step on a `"fail"` verdict — `recorder.check()` only records, so a
@@ -293,7 +320,7 @@ export class CommissionedRefs<Role extends string = "dut"> {
  */
 export async function expectAdjacentLines(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     sequences: LogExpectSequences,
     from: number,
     timeout: Duration,
@@ -423,6 +450,21 @@ export const WRITE_REQUEST_MESSAGE = /\[DMG\] WriteRequestMessage =\s*$/;
 export const INVOKE_REQUEST_MESSAGE = /\[DMG\] InvokeRequestMessage =\s*$/;
 export const SUBSCRIBE_REQUEST_MESSAGE = /\[DMG\] SubscribeRequestMessage =\s*$/;
 
+/**
+ * chip's decode dump of a `keepSubscriptions` subscribe request up to its interval bounds, as
+ * consecutive lines (Test_TC_IDM_4_1.yaml's step-1 capture); the caller appends the path list it
+ * expects next.
+ */
+export function chipSubscribeRequestEnvelope(minIntervalSeconds: number, maxIntervalSeconds: number): RegExp[] {
+    return [
+        SUBSCRIBE_REQUEST_MESSAGE,
+        /\{\s*$/,
+        /KeepSubscriptions = true,\s*$/,
+        new RegExp(`MinIntervalFloorSeconds = 0x${minIntervalSeconds.toString(16)},\\s*$`),
+        new RegExp(`MaxIntervalCeilingSeconds = 0x${maxIntervalSeconds.toString(16)},\\s*$`),
+    ];
+}
+
 /** Opens the event-path list of a read or subscribe request (`EventPathIBs::Parser::PrettyPrint`). */
 export const EVENT_PATH_IBS_SEQUENCE = [/EventPathIBs =\s*$/, /\[\s*$/];
 
@@ -518,7 +560,7 @@ export interface LogExpectClaim {
  */
 export async function expectSequence(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     label: string,
     claim: LogExpectClaim,
     from: number,
@@ -562,7 +604,7 @@ export interface DeviceLogCheck {
  */
 export async function expectDeviceLog(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     patterns: LogExpectPatterns,
     from: number,
     timeout: Duration,
@@ -772,13 +814,14 @@ export function matterjsSubscribeTiming(minIntervalSeconds: number, maxIntervalS
  *
  * On matterjs this hands back the step's own mark, which binds the two searches to the same message
  * only as long as the step drove one interaction of that kind. A step driving two would need its
- * checks correlated by the exchange each names instead.
+ * checks correlated by the exchange each names instead. A flavor of no family gets the mark too: it
+ * says nothing about where any message ends, and its next check resolves unverified regardless.
  */
-export function sameMessageFrom(flavor: string, earlier: CheckRecord, mark: number): number {
-    if (!flavor.startsWith("chip")) {
+export function sameMessageFrom(flavor: LogFlavor, earlier: CheckRecord, mark: number): number {
+    if (flavorFamily(flavor) !== "chip" || earlier.logLine === undefined) {
         return mark;
     }
-    return earlier.logLine === undefined ? mark : earlier.logLine + 1;
+    return earlier.logLine + 1;
 }
 
 /**
@@ -866,7 +909,7 @@ const PATH_INTERACTIONS = {
  */
 export async function expectAttributePathIB(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     fields: AttributePathSpec,
     from: number,
     timeout: Duration,
@@ -911,14 +954,14 @@ export async function expectAttributePathIB(
  */
 export async function expectMessageWithPath(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     interaction: PathInteraction,
     fields: AttributePathSpec,
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
     const { chip: message, matterjs } = PATH_INTERACTIONS[interaction];
-    if (!flavor.startsWith("chip")) {
+    if (flavorFamily(flavor) === "matterjs") {
         return (await expectDeviceLog(log, flavor, { matterjs: matterjs(fields) }, from, timeout)).check;
     }
 
@@ -1045,7 +1088,7 @@ export function commandPathIBSequence(endpoint: number, cluster: number, command
  */
 async function matterjsCommandInvoke(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     endpoint: number,
     cluster: number,
     command: number,
@@ -1092,7 +1135,7 @@ async function matterjsCommandInvoke(
  */
 export async function expectCommandInvoke(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     endpoint: number,
     cluster: number,
     command: number,
@@ -1100,7 +1143,7 @@ export async function expectCommandInvoke(
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
-    if (!flavor.startsWith("chip")) {
+    if (flavorFamily(flavor) === "matterjs") {
         return matterjsCommandInvoke(log, flavor, endpoint, cluster, command, fields, from, timeout);
     }
 
@@ -1277,14 +1320,15 @@ export function groupCommandDispatch(
  */
 export async function expectGroupCommandArrival(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     what: string,
     arrival: GroupCommandArrival,
     from: number,
     timeout: Duration,
 ): Promise<CheckRecord> {
     const { group, endpoint, cluster, command, fields = [] } = arrival;
-    if (flavor.startsWith("chip")) {
+    const family = flavorFamily(flavor);
+    if (family === "chip") {
         return expectSequence(
             log,
             flavor,
@@ -1301,7 +1345,7 @@ export async function expectGroupCommandArrival(
             timeout,
         );
     }
-    if (flavor !== "matterjs") {
+    if (family === undefined) {
         return { type: "device-log", verdict: "unverified" };
     }
 
@@ -1354,7 +1398,7 @@ export async function expectGroupCommandArrival(
  */
 export async function expectNoCommandInvoke(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     endpoint: number,
     cluster: number,
     command: number,
@@ -1362,10 +1406,11 @@ export async function expectNoCommandInvoke(
     window: Duration,
     group?: number,
 ): Promise<CheckRecord> {
-    const chip = flavor.startsWith("chip");
-    if (!chip && flavor !== "matterjs") {
+    const family = flavorFamily(flavor);
+    if (family === undefined) {
         return { type: "device-log", verdict: "unverified" };
     }
+    const chip = family === "chip";
 
     await Time.sleep("command absence window", window);
     await log.settled();
@@ -1476,7 +1521,7 @@ export async function invokeCommand(
     const name = `${cluster.name}.${command}`;
     const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
     const commandId = requireId(cluster.commands.require(command).id, name);
-    const th = cx.devices.th;
+    const th = theTh(cx);
     const from = th.log.mark();
 
     const response = await attempt(
@@ -1634,7 +1679,7 @@ interface ChunkedTransferDialect {
  */
 export async function expectChunkedTransfer(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     request: CheckRecord,
     timeout: Duration,
 ): Promise<CheckRecord> {
@@ -1887,7 +1932,7 @@ export type SubscriptionIdLookup =
 
 async function matterjsSubscriptionId(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     from: number,
     timeout: Duration,
 ): Promise<SubscriptionIdLookup> {
@@ -1944,11 +1989,11 @@ async function matterjsSubscriptionId(
  */
 export async function expectSubscriptionId(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     from: number,
     timeout: Duration,
 ): Promise<SubscriptionIdLookup> {
-    if (flavor === "matterjs") {
+    if (flavorFamily(flavor) === "matterjs") {
         return matterjsSubscriptionId(log, flavor, from, timeout);
     }
 
@@ -2037,26 +2082,51 @@ function reportAckedOnExchange(exchange: string): RegExp {
 // forward search for a success line instead finds the next ack in the stream, and a run acks one
 // report per write per live subscription, so a rejected report would be reported as accepted.
 const STATUS_RESPONSE_MESSAGE = /\[DMG\] StatusResponseMessage =\s*$/;
-const OPENING_BRACE = /\{\s*$/;
 // chip renders the status as `0x%02x (%s)` with `StatusName` for the name, and those names are not all
 // SCREAMING_SNAKE_CASE: a deprecated or reserved code is named after its own value (`Deprecated82`) and
 // a code outside chip's list is not named at all (`Unallocated`).
 const ANY_STATUS_LINE = /Status = 0x[\da-fA-F]+ \(\w+\),?\s*$/;
+const ACK_STATUS_SEQUENCE = [STATUS_RESPONSE_MESSAGE, /\{\s*$/, ANY_STATUS_LINE];
 
-// How far back from a matched ReportDataMessage's own decode dump to look for its trace line —
+// How far back from a matched message's own decode dump to look for its trace line —
 // generous relative to the largest gap seen in a real capture (chunked multi-attribute priming
 // reports, tens of lines), so this is a runaway-loop guard, not a tuned bound.
 const EXCHANGE_LOOKBACK_LINES = 1000;
 
-/**
- * The trace line naming a message's own Exchange id is the *nearest* one preceding that message's
- * decode dump: chip logs one message at a time, so no other message's own trace line can land in
- * between. Scanning backward from the decode dump (rather than forward from a fixed cursor) is what
- * makes this correct regardless of how many raw-frame lines chip printed for this particular
- * message's payload size.
- */
+/** The Exchange id on this message's own trace line (see {@link chipHeaderBefore}). */
 function exchangeIdBefore(log: LogFollower, trace: RegExp, beforeIndex: number): string | undefined {
-    return log.lastMatchBefore(trace, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
+    return chipHeaderBefore(log, trace, beforeIndex, EXCHANGE_LOOKBACK_LINES)?.match[1];
+}
+
+/**
+ * The name line every top-level Interaction Model message's decode dump opens with. Each message prints
+ * exactly one only while the TH does not trace-decode inbound messages, as the chip example apps
+ * configure it (`mEnableProtocolInteractionModelResponse = false`).
+ */
+const CHIP_MESSAGE_DUMP = /\[DMG\] \w+Message =\s*$/;
+
+/**
+ * The nearest line matching `header` before `index`, where `index` lies in a message's decode dump at
+ * or after its name line, or `undefined` if that line is not this message's own.
+ *
+ * chip logs one message at a time, its header lines before its dump, so a header with another
+ * message's dump between it and `index` belongs to that earlier message: this message logged no header
+ * of its own, and nothing it carries may be attributed to it.
+ */
+export function chipHeaderBefore(
+    log: LogFollower,
+    header: RegExp,
+    index: number,
+    within: number,
+): { line: LogLine; match: RegExpExecArray } | undefined {
+    const found = log.lastMatchBefore(header, index, within);
+    if (found === undefined) {
+        return undefined;
+    }
+    const dumps = log
+        .window(found.line.index + 1, index - found.line.index)
+        .filter(({ synthetic, text }) => !synthetic && CHIP_MESSAGE_DUMP.test(text)).length;
+    return dumps === 1 ? found : undefined;
 }
 
 // matter.js names the exchange on the report line itself, so a chunk carries its own attribution;
@@ -2073,8 +2143,7 @@ const MATTERJS_MORE_CHUNKS = /Message » for: I\/ReportData [^⇵]*\bmoreChunked
 const MATTERJS_SUPPRESSED_RESPONSE = /Message » for: I\/ReportData [^⇵]*\bsuppressResponse\b/;
 const CHIP_MORE_CHUNKS = /\[DMG\]\s+MoreChunkedMessages = true,\s*$/;
 
-// chip logs one message at a time, each dump preceded by its own trace line, whichever direction it
-// went — the same invariant `exchangeIdBefore` reads backward.
+// chip logs one message at a time, its trace line before its dump, whichever direction it went.
 const CHIP_MESSAGE_TRACE_LINE = /\[DMG\] (?:>> to|<< from) UDP:/;
 const CHIP_SUPPRESSED_RESPONSE = /\[DMG\]\s+SuppressResponse = true,\s*$/;
 
@@ -2113,13 +2182,13 @@ const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: Chunk
         request: {
             exchangeOf: (log, line) => exchangeIdBefore(log, READ_REQUEST_RECEIVED_LINE, line.index),
             attribution: String(READ_REQUEST_RECEIVED_LINE),
-            unattributed: "No inbound Read Request trace line (carrying an Exchange id) found",
+            unattributed: "No inbound Read Request trace line of its own (carrying an Exchange id)",
         },
         chunk: {
             line: REPORT_DATA_MESSAGE,
             exchangeOf: (log, line) => exchangeIdBefore(log, REPORT_SENT_LINE, line.index),
             attribution: String(REPORT_SENT_LINE),
-            unattributed: "No outbound Report Data trace line (carrying an Exchange id) found",
+            unattributed: "No outbound Report Data trace line of its own (carrying an Exchange id)",
         },
         finality: (log, chunk) => chipChunkFinality(log, chunk),
         ack: reportAckedOnExchange,
@@ -2154,7 +2223,7 @@ const CHUNKED_TRANSFER_DIALECTS: { chip: ChunkedTransferDialect; matterjs: Chunk
  */
 async function matterjsReportAck(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     subscriptionId: number,
     from: number,
     timeout: Duration,
@@ -2239,7 +2308,7 @@ async function matterjsReportAck(
  */
 export async function expectReportAck(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     subscription: SubscriptionIdLookup,
     from: number,
     timeout: Duration,
@@ -2253,7 +2322,7 @@ export async function expectReportAck(
     const { subscriptionId } = subscription;
     const { carriesData = true } = options;
 
-    if (flavor === "matterjs") {
+    if (flavorFamily(flavor) === "matterjs") {
         return matterjsReportAck(log, flavor, subscriptionId, from, timeout, carriesData);
     }
 
@@ -2283,7 +2352,7 @@ export async function expectReportAck(
                 type: "device-log",
                 verdict: "fail",
                 pattern,
-                detail: `No outbound Report Data trace line (carrying an Exchange id) found before line ${report.last.index}`,
+                detail: `No outbound Report Data trace line of its own (carrying an Exchange id) before line ${report.last.index}`,
                 logLine: report.last.index,
             };
         }
@@ -2296,52 +2365,39 @@ export async function expectReportAck(
             return { type: "device-log", verdict: "unverified" };
         }
 
-        const messageName = await log.expect(
-            { chip: STATUS_RESPONSE_MESSAGE },
-            { flavor, timeoutMs: remaining(), from: ackHeader.matched.index + 1 },
-        );
-        if (messageName.verdict === "unverified") {
+        const afterHeader = ackHeader.matched.index + 1;
+        const ack = await expectAdjacentLines(log, flavor, { chip: ACK_STATUS_SEQUENCE }, afterHeader, remaining());
+        if (ack.verdict === "unverified") {
             return { type: "device-log", verdict: "unverified" };
         }
+        const status = ack.last;
 
-        const brace = await log.expect(
-            { chip: OPENING_BRACE },
-            { flavor, timeoutMs: remaining(), from: messageName.matched.index + 1 },
-        );
-        if (brace.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
-
-        const status = await log.expect(
-            { chip: ANY_STATUS_LINE },
-            { flavor, timeoutMs: remaining(), from: brace.matched.index + 1 },
-        );
-        if (status.verdict === "unverified") {
-            return { type: "device-log", verdict: "unverified" };
-        }
-
-        // Reading anything but this block's own first two lines means the dump did not have the shape
-        // this check reasons about, so the status found cannot be attributed to our ack.
-        if (brace.matched.index !== messageName.matched.index + 1 || status.matched.index !== brace.matched.index + 1) {
+        // Only the first dump after the trace line is our ack's; a well-formed block past a malformed
+        // one belongs to another message, so its status cannot be attributed to our report.
+        const blockStart = status.index - (ACK_STATUS_SEQUENCE.length - 1);
+        const first = log
+            .window(afterHeader, blockStart - afterHeader)
+            .find(line => !line.synthetic && STATUS_RESPONSE_MESSAGE.test(line.text));
+        if (first !== undefined) {
             return {
                 type: "device-log",
                 verdict: "fail",
                 pattern,
                 detail:
-                    `StatusResponseMessage at line ${messageName.matched.index} is not followed by "{" and a ` +
-                    `status line (found "{" at ${brace.matched.index}, status at ${status.matched.index})`,
-                logLine: messageName.matched.index,
+                    `StatusResponseMessage at line ${first.index} is not followed by "{" and a status line ` +
+                    `(the first such block after it starts at line ${blockStart})`,
+                logLine: first.index,
             };
         }
 
-        if (!STATUS_RESPONSE_SUCCESS.test(status.matched.text)) {
+        if (!STATUS_RESPONSE_SUCCESS.test(status.text)) {
             return {
                 type: "device-log",
                 verdict: "fail",
                 pattern,
-                detail: `The DUT acked our report with ${status.matched.text.trim()}`,
-                matched: status.matched.text,
-                logLine: status.matched.index,
+                detail: `The DUT acked our report with ${status.text.trim()}`,
+                matched: status.text,
+                logLine: status.index,
             };
         }
 
@@ -2349,8 +2405,8 @@ export async function expectReportAck(
             type: "device-log",
             verdict: "pass",
             pattern,
-            matched: status.matched.text,
-            logLine: status.matched.index,
+            matched: status.text,
+            logLine: status.index,
         };
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {

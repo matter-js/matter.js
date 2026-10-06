@@ -431,6 +431,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             await this.#subscriptionsDrained;
         }
 
+        // A blocked ClientSubscriptions never unblocks, so the next start must construct a new one
+        if (env.owns(ClientSubscriptions)) {
+            using _lifetime = this.construction.join("client subscriptions");
+            await env.close(ClientSubscriptions);
+        }
+
         {
             using _lifetime = this.construction.join("commissioner");
             await env.close(DeviceCommissioner);

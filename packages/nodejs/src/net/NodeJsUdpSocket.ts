@@ -131,34 +131,39 @@ export class NodeJsUdpSocket implements UdpSocket {
             socket = await createDgramSocket(listeningAddress, listeningPort, socketOptions);
         }
 
-        socket.setBroadcast(true);
         let netInterfaceZone: string | undefined;
-        if (netInterface === undefined && listeningAddress !== undefined) {
-            netInterfaceZone = NodeJsNetwork.getNetInterfaceForIp(listeningAddress) || undefined;
-        }
-        if (netInterface !== undefined) {
-            netInterfaceZone = NodeJsNetwork.getNetInterfaceZoneIpv6(netInterface);
-            let multicastInterface: string | undefined;
-            if (type === "udp4") {
-                multicastInterface = NodeJsNetwork.getMulticastInterfaceIpv4(netInterface);
-                if (multicastInterface === undefined) {
-                    throw new NoAddressAvailableError(`No IPv4 addresses on interface "${netInterface}"`);
-                }
-            } else {
-                if (netInterfaceZone === undefined) {
-                    throw new NoAddressAvailableError(`No IPv6 addresses on interface "${netInterface}"`);
-                }
-                multicastInterface = `::%${netInterfaceZone}`;
+        try {
+            socket.setBroadcast(true);
+            if (netInterface === undefined && listeningAddress !== undefined) {
+                netInterfaceZone = NodeJsNetwork.getNetInterfaceForIp(listeningAddress) || undefined;
             }
-            logger.debug(
-                "Initialize multicast",
-                Diagnostic.dict({
-                    address: `${multicastInterface}:${listeningPort}`,
-                    interface: netInterface,
-                    type: type,
-                }),
-            );
-            socket.setMulticastInterface(multicastInterface);
+            if (netInterface !== undefined) {
+                netInterfaceZone = NodeJsNetwork.getNetInterfaceZoneIpv6(netInterface);
+                let multicastInterface: string | undefined;
+                if (type === "udp4") {
+                    multicastInterface = NodeJsNetwork.getMulticastInterfaceIpv4(netInterface);
+                    if (multicastInterface === undefined) {
+                        throw new NoAddressAvailableError(`No IPv4 addresses on interface "${netInterface}"`);
+                    }
+                } else {
+                    if (netInterfaceZone === undefined) {
+                        throw new NoAddressAvailableError(`No IPv6 addresses on interface "${netInterface}"`);
+                    }
+                    multicastInterface = `::%${netInterfaceZone}`;
+                }
+                logger.debug(
+                    "Initialize multicast",
+                    Diagnostic.dict({
+                        address: `${multicastInterface}:${listeningPort}`,
+                        interface: netInterface,
+                        type: type,
+                    }),
+                );
+                socket.setMulticastInterface(multicastInterface);
+            }
+        } catch (error) {
+            await new Promise<void>(resolve => socket.close(resolve));
+            throw error;
         }
         return new NodeJsUdpSocket(lifetime, type, socket, netInterfaceZone);
     }

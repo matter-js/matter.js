@@ -7,15 +7,19 @@
 import { ServiceAreaServer } from "#behaviors/service-area";
 import { RoboticVacuumCleanerDevice } from "#devices/robotic-vacuum-cleaner";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { ServerNode } from "#node/ServerNode.js";
 import { CommonAreaNamespaceTag } from "#tags/index.js";
+import { MockServerNode } from "@matter/node/testing";
 import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
 import { RvcRunMode } from "@matter/types/clusters/rvc-run-mode";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const DeviceType = RoboticVacuumCleanerDevice.with(ServiceAreaServer.with("Maps", "SelectWhileRunning"));
 
+const nodes = new Array<ServerNode>();
+
 async function createNode(options?: Endpoint.Options<typeof DeviceType>) {
     const node = await MockServerNode.create();
+    nodes.push(node);
     if (!options) {
         options = {};
     }
@@ -51,6 +55,12 @@ async function createNode(options?: Endpoint.Options<typeof DeviceType>) {
 }
 
 describe("ServiceAreaServer", () => {
+    afterEach(async () => {
+        for (const node of nodes.splice(0)) {
+            await node.close();
+        }
+    });
+
     it("allows undefined estimatedEndTime", async () => {
         await createNode({
             serviceArea: {

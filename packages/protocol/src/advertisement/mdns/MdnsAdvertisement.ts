@@ -148,12 +148,10 @@ export abstract class MdnsAdvertisement<T extends ServiceDescription = ServiceDe
     }
 
     get #recordsGenerator(): MdnsServer.RecordGenerator {
-        return (_intf, addrs) => this.#recordsFor(addrs);
+        return (_intf, addrs, hostname) => this.#recordsFor(addrs, hostname);
     }
 
-    #recordsFor(addrs: NetworkInterfaceDetails) {
-        const hostname = addrs.mac.replace(/:/g, "").toUpperCase() + "0000.local";
-
+    #recordsFor(addrs: NetworkInterfaceDetails, hostname: string) {
         const records: DnsRecord[] = [
             ...this.ptrRecords,
             SrvRecord(this.qname, { priority: 0, weight: 0, port: this.advertiser.port, target: hostname }),
