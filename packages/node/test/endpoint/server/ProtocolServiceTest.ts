@@ -21,7 +21,7 @@ import {
     GeneratedCommandList,
     Specification,
 } from "@matter/model";
-import { MockServerNode, interaction } from "@matter/node/testing";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import { Fabric } from "@matter/protocol";
 import {
     AttributeId,

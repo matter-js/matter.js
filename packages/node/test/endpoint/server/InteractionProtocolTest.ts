@@ -14,7 +14,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { Diagnostic, LogDestination, LogFormat, Logger, MatterFlowError, Observable } from "@matter/general";
 import { Specification } from "@matter/model";
-import { MockServerNode, interaction } from "@matter/node/testing";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     BaseDataReport,
     DataReportPayload,

@@ -5,7 +5,7 @@
  */
 
 import { AsyncObservable, Bytes, DataReadQueue, Lifetime, MAX_UDP_MESSAGE_SIZE } from "@matter/general";
-import { MockServerNode, interaction } from "@matter/node/testing";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     ExchangeSendOptions,
     MATTER_MESSAGE_OVERHEAD,
