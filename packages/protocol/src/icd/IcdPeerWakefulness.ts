@@ -9,54 +9,40 @@ import {
     AsyncObservableValue,
     Duration,
     Millis,
-    Seconds,
     Time,
     Timer,
     Timespan,
     Timestamp,
 } from "@matter/general";
+import { IcdPeerSchedule } from "./IcdPeerSchedule.js";
 
 /**
- * Per-peer wakefulness for a LIT (Long Idle Time) ICD peer.
+ * Per-peer wakefulness for a LIT (Long Idle Time) ICD peer, for the peer's lifetime on a fabric.
  *
- * Tracks two sliding-window boolean signals so a controller knows when it may send and whether a peer is still
- * reachable:
+ * Tracks two boolean signals so a controller knows when it may send and whether a peer is still reachable:
  *
- *   - {@link awake} — send-now. Window length is `activeModeThreshold`. Any inbound signal re-arms it; a StayActive
- *     promise extends it; expiry clears it.
- *   - {@link available} — not-offline. Longer window whose length depends on how the peer currently signals:
- *     unsubscribed it is `idleModeDuration + CHECK_IN_MARGIN` — Check-Ins are unreliable (sessionless, unacknowledged,
- *     no MRP backoff), so only device scheduling jitter needs slack. Subscribed the peer suppresses Check-Ins and
- *     re-arms this window via reports, which are reliable (MRP) and can arrive as late as the subscription's own
- *     liveness timeout, so the window becomes `reportInterval + reportMargin` (injected via {@link setTimings} to
- *     mirror that timeout). Expiry means an expected Check-In (or report) was missed, i.e. the peer is offline.
+ *   - {@link awake} — send-now: the peer is in its estimated Active Mode.  Any message from the peer wakes it like a
+ *     Check-In does, for `activeModeThreshold`.
+ *   - {@link available} — not-offline.  While the controller holds a subscription to the peer, the subscription's own
+ *     liveness decides and the peer counts as available.  Otherwise the peer's next Check-In is due after its Active
+ *     Mode plus `idleModeDuration`; when that passes, {@link checkInMissed} emits.
  *
- * Invariant: `awake` implies `available` — a signal refreshes both. A non-LIT peer (`requiresAwait === false`) is
- * always awake and available with no timers.
+ * {@link IcdPeerSchedule} derives both deadlines; this class holds the timers and observables.  `awake` implies
+ * `available`.  A LIT peer without observed activity starts asleep and unavailable.  A peer that does not require
+ * awaiting (`requiresAwait === false`: not LIT) is always awake and available with no timers.
  */
 export class IcdPeerWakefulness {
-    /**
-     * Slack added to the Check-In cadence before the availability window lapses. A Check-In is an unreliable,
-     * unacknowledged sessionless message (no MRP, no retransmission backoff), so this only covers the device's
-     * scheduling jitter — a small fixed value, not an MRP round-trip.
-     */
-    static readonly CHECK_IN_MARGIN = Seconds(10);
-    static readonly DEFAULT_SAT = Seconds(5);
-    static readonly DEFAULT_IDLE = Seconds(30);
-
     readonly #awake = AsyncObservableValue(true);
     readonly #available = AsyncObservableValue(true);
     readonly #operatingModeChanged = AsyncObservableValue(false);
     readonly #checkInMissed = AsyncObservable<[]>();
 
-    #requiresAwait = false;
-    #activeModeThreshold = IcdPeerWakefulness.DEFAULT_SAT;
-    #idleModeDuration = IcdPeerWakefulness.DEFAULT_IDLE;
-    #reportMargin?: Duration;
-    #activeReportInterval?: Duration;
+    readonly #schedule = new IcdPeerSchedule();
+    readonly #subscriptions = new Set<object>();
 
-    #awakeUntil = Timestamp(0);
-    #availableUntil = Timestamp(0);
+    #requiresAwait = false;
+    #suspended = false;
+    #closed = false;
     #awakeTimer?: Timer;
     #availableTimer?: Timer;
 
@@ -70,23 +56,50 @@ export class IcdPeerWakefulness {
         return this.#available;
     }
 
-    /** Deadline by which the next Check-In is expected, or undefined when the peer needs no awaiting (non-LIT / no baseline). */
-    get availableUntil(): Timestamp | undefined {
-        return this.#requiresAwait && this.#availableUntil > 0 ? this.#availableUntil : undefined;
-    }
-
     /**
-     * Emits the new {@link requiresAwait} value when the peer's operating mode flips (SIT⇄LIT) at runtime. A
-     * sustained subscription recreates itself on this edge so the underlying Matter subscription is renegotiated for
-     * the new mode rather than carried over.
+     * Emits the new {@link requiresAwait} value when the peer's operating mode flips (SIT⇄LIT) at runtime.  A sustained
+     * subscription recreates itself on this edge so the underlying Matter subscription is renegotiated for the new mode
+     * rather than carried over.  {@link suspend} and {@link resume} do not emit it.
      */
     get operatingModeChanged() {
         return this.#operatingModeChanged;
     }
 
-    /** Emits only when an armed availability window lapses — a missed Check-In, never a mode flip or teardown. */
+    /**
+     * Emits when the next Check-In of a peer the controller is awaiting becomes overdue — never while subscribed, on a
+     * mode flip, on resume, or on teardown.
+     */
     get checkInMissed() {
         return this.#checkInMissed;
+    }
+
+    /**
+     * Deadline of the peer's next Check-In, on the {@link Time.nowUs} clock.  Undefined when the peer needs no
+     * awaiting, while the controller holds a subscription to it (the peer then sends reports instead), before any
+     * activity, and once the deadline has passed.
+     */
+    get nextCheckInDue(): Timestamp | undefined {
+        if (!this.#awaiting || this.#subscriptions.size > 0) {
+            return undefined;
+        }
+        const due = this.#schedule.nextCheckInDue;
+        if (due === undefined || due <= Time.nowUs) {
+            return undefined;
+        }
+        return due;
+    }
+
+    /**
+     * How long the controller waits by default for the peer to wake: until {@link nextCheckInDue}, but at least the
+     * longest the peer may idle.
+     */
+    get nextCheckInWithin(): Duration {
+        const idle = this.#schedule.idleWindow;
+        const due = this.nextCheckInDue;
+        if (due === undefined) {
+            return idle;
+        }
+        return Millis(Math.max(Timespan(Time.nowUs, due).duration, idle));
     }
 
     get requiresAwait() {
@@ -99,8 +112,7 @@ export class IcdPeerWakefulness {
         }
         this.#requiresAwait = value;
         if (value) {
-            this.#setAwake(false);
-            this.#setAvailable(false);
+            this.#refresh(false);
         } else {
             this.#cancelTimers();
             // Force-emit (not the change-guarded setter): a consumer parked on the awake/available edge must resume
@@ -111,114 +123,118 @@ export class IcdPeerWakefulness {
         this.#operatingModeChanged.emit(value);
     }
 
-    setTimings(timings: { activeModeThreshold?: Duration; idleModeDuration?: Duration; reportMargin?: Duration }) {
-        if (timings.activeModeThreshold !== undefined) {
-            this.#activeModeThreshold = timings.activeModeThreshold;
-        }
-        if (timings.idleModeDuration !== undefined) {
-            this.#idleModeDuration = timings.idleModeDuration;
-        }
-        if (timings.reportMargin !== undefined) {
-            this.#reportMargin = timings.reportMargin;
-        }
+    /** Replace the peer's timings. */
+    setTimings(timings: IcdPeerSchedule.Timings) {
+        this.#schedule.timings = timings;
+        this.#refresh();
+    }
+
+    /** The peer sent a Check-In, entering Active Mode, with its current `activeModeThreshold`. */
+    noteCheckIn(activeModeThreshold?: Duration) {
+        this.#schedule.noteCheckIn(Time.nowUs, activeModeThreshold);
+        this.#refresh();
+    }
+
+    /** The peer is active: a message from it arrived, or it answered the controller. */
+    noteActive() {
+        this.#schedule.noteActive(Time.nowUs);
+        this.#refresh();
+    }
+
+    /** The peer promised to stay active for `promised`. */
+    noteStayActive(promised: Duration) {
+        this.#schedule.noteStayActive(Time.nowUs, promised);
+        this.#refresh();
     }
 
     /**
-     * Inform the availability window of the active subscription's negotiated report cadence (its `maxInterval`), or
-     * pass `undefined` when no subscription is held so the window reverts to the Check-In cadence. While subscribed the
-     * peer suppresses Check-Ins and re-arms availability via reports instead; those are reliable (MRP), so the window
-     * is sized to mirror the subscription's own liveness timeout (see {@link setTimings} `reportMargin`). A running
-     * window is extended (never truncated) so a report arriving as late as the mirrored timeout does not lapse it;
-     * clearing leaves the running window to expire on its own so a genuine missed report still fires
-     * {@link checkInMissed}.
+     * Register a subscription the controller holds to the peer.  While any is held, the peer reports instead of
+     * sending Check-Ins, so the subscription's own liveness decides availability.
      */
-    setActiveReportInterval(interval: Duration | undefined) {
-        if (interval === this.#activeReportInterval) {
-            return;
-        }
-        this.#activeReportInterval = interval;
-        if (this.#requiresAwait && interval !== undefined && this.#availableTimer !== undefined) {
-            this.#armAvailable(this.#availabilityWindow());
-        }
+    holdSubscription(): Disposable {
+        const subscription = {};
+        this.#subscriptions.add(subscription);
+        this.#refresh();
+        return {
+            [Symbol.dispose]: () => {
+                if (this.#subscriptions.delete(subscription)) {
+                    this.#refresh();
+                }
+            },
+        };
     }
 
-    /** Record an inbound signal: re-arm both windows and mark awake + available. */
-    noteSignal() {
-        if (!this.#requiresAwait) {
-            return;
-        }
-        this.#armAwake(this.#activeModeThreshold);
-        this.#armAvailable(this.#availabilityWindow());
-        this.#setAwake(true);
-        this.#setAvailable(true);
-    }
-
-    /** Extend the awake window to honor a StayActive promise without ever truncating a longer existing window. */
-    noteStayActive(promised: Duration) {
-        if (!this.#requiresAwait) {
-            return;
-        }
-        // A peer promised awake until T is, by definition, available until T (awake ⇒ available).
-        this.#armAwake(promised);
-        this.#armAvailable(promised);
-        this.#setAwake(true);
-        this.#setAvailable(true);
-    }
-
-    close() {
+    /**
+     * Stop awaiting the peer, for example while it is not registered: timers stop and consumers parked on the
+     * awake/available edge are released.  The observed activity is kept for {@link resume}.
+     */
+    suspend() {
+        this.#suspended = true;
         this.#cancelTimers();
-        // Release any consumer parked on the awake/available edge (a sustained subscription or an interaction hold)
-        // when the peer entry is torn down, so it re-evaluates the live wakefulness instead of stranding on signals
-        // that will never re-fire.
+        // Force-emit: a parked consumer must resume even if the value was already true.
         this.#awake.emit(true);
         this.#available.emit(true);
+    }
+
+    /** Await the peer again after {@link suspend}. */
+    resume() {
+        if (!this.#suspended || this.#closed) {
+            return;
+        }
+        this.#suspended = false;
+        this.#refresh(false);
+    }
+
+    /** Suspend for good; later calls cannot arm timers again. */
+    close() {
+        this.#closed = true;
+        this.#subscriptions.clear();
+        this.suspend();
     }
 
     [Symbol.dispose]() {
         this.close();
     }
 
-    // Extend rather than truncate: keep the later of the pending expiry and now + duration.
-    #armAwake(duration: Duration) {
-        const candidate = Timestamp(Time.nowMs + duration);
-        if (candidate <= this.#awakeUntil && this.#awakeTimer !== undefined) {
-            return;
-        }
-        this.#awakeUntil = candidate;
-        const remaining = Timespan(Time.nowMs, this.#awakeUntil).duration;
-        this.#awakeTimer?.stop();
-        this.#awakeTimer = Time.getTimer("icd-peer-awake", remaining, () => {
-            this.#awakeTimer?.stop();
-            this.#awakeTimer = undefined;
-            this.#setAwake(false);
-        }).start();
+    get #awaiting() {
+        return this.#requiresAwait && !this.#suspended;
     }
 
-    #availabilityWindow(): Duration {
-        // Subscribed: size to the subscription's own liveness timeout so availability never lapses before it would.
-        if (this.#activeReportInterval !== undefined) {
-            return Millis(this.#activeReportInterval + (this.#reportMargin ?? IcdPeerWakefulness.CHECK_IN_MARGIN));
-        }
-        return Millis(this.#idleModeDuration + IcdPeerWakefulness.CHECK_IN_MARGIN);
-    }
-
-    #armAvailable(duration: Duration) {
-        const candidate = Timestamp(Time.nowMs + duration);
-        if (candidate <= this.#availableUntil && this.#availableTimer !== undefined) {
+    /**
+     * Rearm the timers from the schedule.  `reportMissed` is false when awaiting starts (mode flip, resume): a deadline
+     * that passed while the peer was not awaited makes it unavailable without counting as a missed Check-In.
+     */
+    #refresh(reportMissed = true) {
+        if (!this.#awaiting) {
             return;
         }
-        this.#availableUntil = candidate;
-        const remaining = Timespan(Time.nowMs, this.#availableUntil).duration;
-        this.#availableTimer?.stop();
-        this.#availableTimer = Time.getTimer("icd-peer-available", remaining, () => {
-            this.#availableTimer?.stop();
-            this.#availableTimer = undefined;
-            // Clear the deadline so availableUntil reports "no Check-In expected" until the next signal re-arms it,
-            // rather than a stale past timestamp.
-            this.#availableUntil = Timestamp(0);
+
+        const now = Time.nowUs;
+        const activeUntil = this.#schedule.activeUntil;
+        const due = this.#subscriptions.size > 0 ? undefined : this.#schedule.nextCheckInDue;
+        this.#awakeTimer = this.#rearm(this.#awakeTimer, "icd-peer-awake", activeUntil, now, () =>
+            this.#setAwake(false),
+        );
+        this.#availableTimer = this.#rearm(this.#availableTimer, "icd-peer-available", due, now, () => {
             this.#setAvailable(false);
             this.#checkInMissed.emit();
-        }).start();
+        });
+        this.#setAwake(activeUntil !== undefined && activeUntil > now);
+        const available = this.#subscriptions.size > 0 || (due !== undefined && due > now);
+        // A deadline that passed while a subscription was held, or that new timings moved into the past, is missed now
+        const missed = reportMissed && !available && due !== undefined && this.#available.value;
+        this.#setAvailable(available);
+        if (missed) {
+            this.#checkInMissed.emit();
+        }
+    }
+
+    #rearm(timer: Timer | undefined, name: string, at: Timestamp | undefined, now: Timestamp, expired: () => void) {
+        timer?.stop();
+        if (at === undefined || at <= now) {
+            return undefined;
+        }
+        return Time.getTimer(name, Timespan(now, at).duration, expired).start();
     }
 
     #cancelTimers() {
@@ -226,8 +242,6 @@ export class IcdPeerWakefulness {
         this.#awakeTimer = undefined;
         this.#availableTimer?.stop();
         this.#availableTimer = undefined;
-        this.#awakeUntil = Timestamp(0);
-        this.#availableUntil = Timestamp(0);
     }
 
     #setAwake(value: boolean) {

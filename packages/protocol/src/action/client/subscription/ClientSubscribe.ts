@@ -42,9 +42,9 @@ export interface SustainedClientSubscribe extends Subscribe, ClientRequest {
     icdWakefulness?: () => IcdPeerWakefulness | undefined;
 
     /**
-     * Live provider of the fabric ICD registry's "peer fed" signal (emits the peer node ID on registration).  A
-     * subscription established before its peer was fed races this so the first registration-induced SIT⇄LIT flip
-     * recreates the subscription for the new mode.  Attached by the node layer alongside {@link icdWakefulness}.
+     * Live provider of the fabric ICD registry's "peer fed" signal (emits the peer node ID whenever its registration
+     * starts).  A subscription running without a wakefulness races this so the registration recreates the subscription
+     * for the peer's mode.  Attached by the node layer alongside {@link icdWakefulness}.
      */
     icdPeerFed?: () => Observable<[NodeId]> | undefined;
 }

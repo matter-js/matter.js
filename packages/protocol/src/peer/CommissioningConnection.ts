@@ -5,7 +5,7 @@
  */
 
 import { CommissionableDevice } from "#common/Scanner.js";
-import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
+import { CommissioningError, PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { NodeSession } from "#session/NodeSession.js";
 import {
     Abort,
@@ -126,7 +126,14 @@ export async function CommissioningConnection(
                     // deviceAc (not the outer abort), so use the composed signal's reason — abort.reason
                     // would be empty and lose the real cause.
                     session
-                        .initiateForceClose({ cause: asError(signal.reason ?? new Error("commissioning race lost")) })
+                        .initiateForceClose({
+                            cause: asError(
+                                signal.reason ??
+                                    new CommissioningError(
+                                        "PASE session lost the race to another commissioning candidate",
+                                    ),
+                            ),
+                        })
                         .catch(e => {
                             logger.warn("Error closing losing PASE session:", asError(e));
                         });

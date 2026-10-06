@@ -7,7 +7,7 @@
 import { CheckInMessage } from "#icd/CheckInMessage.js";
 import { FabricIcd } from "#icd/FabricIcd.js";
 import { IcdPeerWakefulness } from "#icd/IcdPeerWakefulness.js";
-import { Bytes, Seconds, StandardCrypto } from "@matter/general";
+import { Bytes, InternalError, Seconds, StandardCrypto } from "@matter/general";
 import { NodeId } from "@matter/types";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 
@@ -54,6 +54,32 @@ describe("FabricIcd", () => {
     });
 
     describe("controller role — processCheckIn", () => {
+        describe("wakefulness", () => {
+            before(MockTime.enable);
+            after(MockTime.disable);
+
+            it("starts Active Mode of the peer's wakefulness for its ActiveModeDuration", async () => {
+                const icd = fabricIcd();
+                icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+                const wakefulness = icd.wakefulnessFor(NodeId(11));
+                if (wakefulness === undefined) {
+                    throw new InternalError("peer not fed");
+                }
+                wakefulness.requiresAwait = true;
+                wakefulness.setTimings({
+                    activeModeThreshold: Seconds(5),
+                    activeModeDuration: Seconds(20),
+                    idleModeDuration: Seconds(30),
+                });
+
+                await icd.processCheckIn(await CheckInMessage.encodeIcd(crypto, KEY_A, 12, 5000));
+                await MockTime.advance(Seconds(10));
+
+                expect(wakefulness.awake.value).equal(true);
+                wakefulness.close();
+            });
+        });
+
         it("trial-decrypts and routes to the matching peer", async () => {
             const icd = fabricIcd();
             const received = new Array<FabricIcd.ReceivedCheckIn>();
@@ -148,7 +174,7 @@ describe("FabricIcd", () => {
             expect(icd.wakefulnessFor(NodeId(11))).instanceof(IcdPeerWakefulness);
         });
 
-        it("processCheckIn calls noteSignal on the matching peer's wakefulness", async () => {
+        it("processCheckIn wakes the matching peer for the threshold the Check-In carries", async () => {
             const icd = fabricIcd();
             icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
 
@@ -156,19 +182,80 @@ describe("FabricIcd", () => {
             wakefulness.requiresAwait = true;
             expect(wakefulness.awake.value).false;
 
-            const payload = await CheckInMessage.encodeIcd(crypto, KEY_A, 12, 5000);
+            const payload = await CheckInMessage.encodeIcd(crypto, KEY_A, 12, 20_000);
             await icd.processCheckIn(payload);
+            await MockTime.advance(Seconds(15));
 
             expect(wakefulness.awake.value).true;
             wakefulness.close();
         });
 
-        it("wakefulnessFor returns undefined after deletePeer", () => {
+        it("keeps a peer's wakefulness when the peer is registered again", () => {
+            const icd = fabricIcd();
+            const fed = new Array<NodeId>();
+            icd.peerFed.on(nodeId => {
+                fed.push(nodeId);
+            });
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+            const wakefulness = icd.wakefulnessFor(NodeId(11));
+
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_B, counterStart: 20, lastOffset: 0 }, () => {});
+
+            expect(icd.wakefulnessFor(NodeId(11))).equal(wakefulness);
+            expect(icd.peerFor(NodeId(11))?.key).equal(KEY_B);
+            expect(fed).deep.equal([NodeId(11)]);
+        });
+
+        it("suspends the wakefulness of a peer whose registration is deleted", () => {
             const icd = fabricIcd();
             icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+            const wakefulness = icd.wakefulnessFor(NodeId(11));
+            if (wakefulness === undefined) {
+                throw new InternalError("peer not fed");
+            }
+            wakefulness.requiresAwait = true;
+
             icd.deletePeer(NodeId(11));
 
+            expect(icd.peerFor(NodeId(11))).undefined;
             expect(icd.wakefulnessFor(NodeId(11))).undefined;
+            expect(wakefulness.awake.value).true;
+            expect(wakefulness.requiresAwait).true;
+        });
+
+        it("gives a removed peer a fresh wakefulness when its node ID registers again", () => {
+            const icd = fabricIcd();
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+            const removed = icd.wakefulnessFor(NodeId(11));
+            removed!.requiresAwait = true;
+            removed!.noteActive();
+
+            icd.removePeer(NodeId(11));
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_B, counterStart: 0, lastOffset: 0 }, () => {});
+
+            const fresh = icd.wakefulnessFor(NodeId(11));
+            expect(fresh).not.equal(removed);
+            fresh!.requiresAwait = true;
+            expect(fresh!.nextCheckInDue).undefined;
+            expect(removed!.nextCheckInDue).undefined;
+        });
+
+        it("resumes the same wakefulness when a deleted peer registers again, and announces it", () => {
+            const icd = fabricIcd();
+            const fed = new Array<NodeId>();
+            icd.peerFed.on(nodeId => {
+                fed.push(nodeId);
+            });
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+            const wakefulness = icd.wakefulnessFor(NodeId(11));
+            wakefulness!.requiresAwait = true;
+            icd.deletePeer(NodeId(11));
+
+            icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
+
+            expect(icd.wakefulnessFor(NodeId(11))).equal(wakefulness);
+            expect(wakefulness!.awake.value).false;
+            expect(fed).deep.equal([NodeId(11), NodeId(11)]);
         });
 
         it("wakefulnessFor returns undefined for unknown peer", () => {
@@ -181,7 +268,7 @@ describe("FabricIcd", () => {
             icd.addPeer({ peerNodeId: NodeId(11), key: KEY_A, counterStart: 10, lastOffset: 0 }, () => {});
             const wakefulness = icd.wakefulnessFor(NodeId(11))!;
             wakefulness.requiresAwait = true;
-            wakefulness.noteSignal(); // arms the availability-expiry timer
+            wakefulness.noteActive(); // arms the availability-expiry timer
             expect(wakefulness.available.value).true;
 
             icd.close();
