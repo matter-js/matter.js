@@ -537,6 +537,19 @@ export namespace ClusterBehavior {
     export function is(type: Behavior.Type): type is ClusterBehavior.Type {
         return "cluster" in type;
     }
+
+    /**
+     * The cluster behaviors among {@link types}, in order.
+     */
+    export function typesOf(types: Iterable<Behavior.Type>) {
+        const clusters = new Array<ClusterBehavior.Type>();
+        for (const type of types) {
+            if (ClusterBehavior.isType(type)) {
+                clusters.push(type);
+            }
+        }
+        return clusters;
+    }
 }
 
 function assertHostedClusterId(source?: { id?: number; name?: string }) {

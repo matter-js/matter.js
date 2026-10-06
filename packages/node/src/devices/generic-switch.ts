@@ -64,15 +64,15 @@ import { Identity } from "@matter/general";
  *
  *   - endpoint 11 has device type Generic Switch and contains
  *
- *   - cluster Switch (feature flags: LS) exposing the state and events of the left button
+ *     - cluster Switch (feature flags: LS) exposing the state and events of the left button
  *
- *   - cluster Descriptor with its TagList containing two tags: Position.Left and Number.One
+ *     - cluster Descriptor with its TagList containing two tags: Position.Left and Number.One
  *
  *   - endpoint 12 has device type Generic Switch and contains
  *
- *   - cluster Switch (feature flags: LS) exposing the state and events of the right button
+ *     - cluster Switch (feature flags: LS) exposing the state and events of the right button
  *
- *   - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two
+ *     - cluster Descriptor with its TagList containing two tags: Position.Right and Number.Two
  *
  * If this device were to have labeling on the buttons like an "up" and "down" icon, the TagList would have a third tag
  * (from the Switches Namespace) with values Switches.Up and Switches.Down respectively.
@@ -82,33 +82,34 @@ import { Identity } from "@matter/general";
  *
  *   - endpoint 21 has device type Generic Switch and contains
  *
- *   - cluster Switch (feature flags: MS) exposing the events of the top-left button
+ *     - cluster Switch (feature flags: MS) exposing the events of the top-left button
  *
- *   - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Left, Number.One and
- *     (Tag=Switches.Custom, Label="watch tv")
+ *     - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Left, Number.One and
+ *       (Tag=Switches.Custom, Label="watch tv")
  *
- *   - This last tag is a Switches.Custom tag accompanied with a label (the other three tags do not need a Label field).
+ *       - This last tag is a Switches.Custom tag accompanied with a label (the other three tags do not need a Label
+ *         field).
  *
  *   - endpoint 22 has device type Generic Switch and contains
  *
- *   - cluster Switch (feature flags: MS) exposing the events of the top-right button
+ *     - cluster Switch (feature flags: MS) exposing the events of the top-right button
  *
- *   - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Right, Number.Two and
- *     (Tag=Switches.Custom, Label="dinner")
+ *     - cluster Descriptor with its TagList containing four tags: Position.Top, Position.Right, Number.Two and
+ *       (Tag=Switches.Custom, Label="dinner")
  *
  *   - endpoint 23 has device type Generic Switch and contains
  *
- *   - cluster Switch (feature flags: MS) exposing the events of the bottom-left button
+ *     - cluster Switch (feature flags: MS) exposing the events of the bottom-left button
  *
- *   - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Left, Number.Three and
- *     (Tag=Switches.Custom, Label="reading")
+ *     - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Left, Number.Three and
+ *       (Tag=Switches.Custom, Label="reading")
  *
  *   - endpoint 24 has device type Generic Switch and contains
  *
- *   - cluster Switch (feature flags: MS) exposing the events of the bottom-right button
+ *     - cluster Switch (feature flags: MS) exposing the events of the bottom-right button
  *
- *   - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Right, Number.Four and
- *     (Tag=Switches.Custom, Label="nightlight")
+ *     - cluster Descriptor with its TagList containing four tags: Position.Bottom, Position.Right, Number.Four and
+ *       (Tag=Switches.Custom, Label="nightlight")
  *
  * ### Relation with other Switch device types (informative)
  *
@@ -134,11 +135,11 @@ import { Identity } from "@matter/general";
  *
  *   - endpoint 31 with device type On/Off Light Switch which contains
  *
- *   - (client) cluster On/Off exposing the On/Off/Toggle commands
+ *     - (client) cluster On/Off exposing the On/Off/Toggle commands
  *
  *   - endpoint 32 with device type Generic Switch which contains
  *
- *   - (server) cluster Switch (feature flags: LS) exposing the state and events of the switch
+ *     - (server) cluster Switch (feature flags: LS) exposing the state and events of the switch
  *
  * When this device is used in a particular setup, binding tables and subscriptions can be used to determine how it is
  * used:
@@ -154,7 +155,7 @@ import { Identity } from "@matter/general";
  * GenericSwitchDevice requires Switch cluster but Switch is not added by default because you must select the features
  * your device supports. You can add manually using GenericSwitchDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 6.6
+ * @see {@link MatterSpecification.v161.Device} § 6.6
  */
 export interface GenericSwitchDevice extends Identity<typeof GenericSwitchDeviceDefinition> {}
 

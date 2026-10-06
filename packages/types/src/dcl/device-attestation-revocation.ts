@@ -15,7 +15,7 @@ export enum RevocationTypeEnum {
 
 /**
  * Device Attestation PKI Revocation Distribution Points Schema
- * @see {@link MatterSpecification.v16.Core} § 11.23.9.
+ * @see {@link MatterSpecification.v161.Core} § 11.23.11
  * DCL endpoints:
  *   * /dcl/pki/revocation-points
  *   * /dcl/pki/revocation-points/{issuerSubjectKeyId}
@@ -67,15 +67,15 @@ export interface DeviceAttestationPkiRevocationDclSchema {
      * • CRLSignerCertificate is not a PAI.
      * When present, this field SHALL contain the issuer certificate which signed the CRLSignerCertificate,
      * encoded in X.509v3 PEM format.
-     * Additional constraints related to the value of this field are specified in Section 11.23.9.6, “CRLSignerCertificate”.
+     * Additional constraints related to the value of this field are specified in Section 11.23.11.6, “CRLSignerCertificate”.
      */
     crlSignerDelegator?: string;
 
     /**
      * This field SHALL contain the issuer certificate who signed the revocation information that is provided
      * in the distribution point entry, encoded in X.509v3 PEM format.
-     * Additional constraints related to the value of this field are specified in
-     * @see {@link MatterSpecification.v16.Core} §11.23.9.6.
+     * Additional constraints related to the value of this field are specified in Section 11.23.11.6,
+     * “CRLSignerCertificate”.
      */
     crlSignerCertificate: string;
 
@@ -99,8 +99,7 @@ export interface DeviceAttestationPkiRevocationDclSchema {
      * RevocationType field. The syntax of this field SHALL follow the syntax as specified in RFC 1738. The
      * maximum length of this field is 256 ASCII characters. All URLs SHALL use either the http or https
      * scheme.
-     * Additional details of the content by revocation type are specified in
-     * @see {@link MatterSpecification.v16.Core} §11.23.9.8
+     * Additional details of the content by revocation type are specified in Section 11.23.11.8, “DataUrl”.
      */
     dataUrl: string;
 

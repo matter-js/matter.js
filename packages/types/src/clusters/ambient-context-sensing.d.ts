@@ -9,7 +9,7 @@
 import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
-import type { ModeSelect } from "./mode-select.js";
+import type { Semtag } from "../globals/Semtag.js";
 
 /**
  * Definitions for the AmbientContextSensing cluster.
@@ -20,7 +20,7 @@ import type { ModeSelect } from "./mode-select.js";
  *
  * > NOTE: Support for this cluster is provisional.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 2.16
+ * @see {@link MatterSpecification.v161.Cluster} § 2.16
  */
 export declare namespace AmbientContextSensing {
     /**
@@ -34,7 +34,7 @@ export declare namespace AmbientContextSensing {
     export const name: "AmbientContextSensing";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v161.Cluster}.
      */
     export const revision: 1;
 
@@ -57,7 +57,7 @@ export declare namespace AmbientContextSensing {
          * HoldTime duration shall not increase the total number of simultaneous detection events. If simultaneous
          * detection is not supported, then the value shall be set to 1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.9
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.9
          */
         simultaneousDetectionLimit?: number;
 
@@ -70,7 +70,7 @@ export declare namespace AmbientContextSensing {
          * individually. A more detailed HoldTime implementation example for multiple simultaneous ambient context
          * detections can be found in theMultipleAmbientSensingDetection section.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.10
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.10
          */
         holdTime?: number;
 
@@ -79,7 +79,7 @@ export declare namespace AmbientContextSensing {
          * HoldTimeLimits attribute of the Occupancy Sensing Cluster attribute. For further information, refer to the
          * HoldTimeLimits attribute description of the Occupancy Sensing Cluster.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.11
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.11
          */
         holdTimeLimits?: HoldTimeLimits;
     }
@@ -92,7 +92,7 @@ export declare namespace AmbientContextSensing {
          * Indicates the human activity detection in Boolean data. The detected human activity type can be found from
          * the AmbientContextType attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.1
          */
         humanActivityDetected?: boolean;
     }
@@ -105,7 +105,7 @@ export declare namespace AmbientContextSensing {
          * Indicates the occurrence of object identification in Boolean data. The identified object information can be
          * found from the AmbientContextType attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.2
          */
         objectIdentified?: boolean;
     }
@@ -118,7 +118,7 @@ export declare namespace AmbientContextSensing {
          * Indicates the ambient audio context detection in Boolean data. The detected audio context type can be found
          * from the AmbientContextType attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.3
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.3
          */
         audioContextDetected?: boolean;
     }
@@ -134,7 +134,7 @@ export declare namespace AmbientContextSensing {
          * MultipleAmbientSensingDetection section. The total number of simultaneous ambient context detections is
          * constrained by the SimultaneousDetectionLimit attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.4
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.4
          */
         ambientContextType?: AmbientContextType[];
 
@@ -144,9 +144,9 @@ export declare namespace AmbientContextSensing {
          * be represented by a SemanticTagStruct from one of the following StandardNamespaces: Identified Human Activity
          * Namespace, Identified Object Namespace, or Identified Sound Namespace.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.5
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.5
          */
-        ambientContextTypeSupported?: ModeSelect.SemanticTag[];
+        ambientContextTypeSupported?: Semtag[];
     }
 
     /**
@@ -160,7 +160,7 @@ export declare namespace AmbientContextSensing {
          * be identified by the tag ID from the Identified Object namespace, as presented in the
          * AmbientContextTypeSupported attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.6
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.6
          */
         objectCountThresholdReached?: boolean;
 
@@ -169,7 +169,7 @@ export declare namespace AmbientContextSensing {
          * including the identification of the object to be detected and counted, as well as the counting threshold
          * value for the ObjectCountThresholdReached detection.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.7
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.7
          */
         objectCountConfig?: ObjectCountConfig;
 
@@ -177,7 +177,7 @@ export declare namespace AmbientContextSensing {
          * This optional attribute shall indicate the number of objects detected in the area covered by the sensor.
          * ObjectCount shall be exposed only when the ObjectCountThresholdReached attribute is true.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.8
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.8
          */
         objectCount?: number;
     }
@@ -192,7 +192,7 @@ export declare namespace AmbientContextSensing {
          * The value of the StartTimestamp field on each PredictedActivityStruct in this list other than the first shall
          * be greater than the value of the EndTimestamp field on the previous PredictedActivityStruct in this list.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.12
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.12
          */
         predictedActivity?: PredictedActivity[];
     }
@@ -212,7 +212,7 @@ export declare namespace AmbientContextSensing {
          * HoldTime duration shall not increase the total number of simultaneous detection events. If simultaneous
          * detection is not supported, then the value shall be set to 1.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.9
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.9
          */
         simultaneousDetectionLimit: number;
 
@@ -225,7 +225,7 @@ export declare namespace AmbientContextSensing {
          * individually. A more detailed HoldTime implementation example for multiple simultaneous ambient context
          * detections can be found in theMultipleAmbientSensingDetection section.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.10
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.10
          */
         holdTime: number;
 
@@ -234,7 +234,7 @@ export declare namespace AmbientContextSensing {
          * HoldTimeLimits attribute of the Occupancy Sensing Cluster attribute. For further information, refer to the
          * HoldTimeLimits attribute description of the Occupancy Sensing Cluster.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.11
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.11
          */
         holdTimeLimits: HoldTimeLimits;
 
@@ -242,7 +242,7 @@ export declare namespace AmbientContextSensing {
          * Indicates the human activity detection in Boolean data. The detected human activity type can be found from
          * the AmbientContextType attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.1
          */
         humanActivityDetected: boolean;
 
@@ -250,7 +250,7 @@ export declare namespace AmbientContextSensing {
          * Indicates the occurrence of object identification in Boolean data. The identified object information can be
          * found from the AmbientContextType attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.2
          */
         objectIdentified: boolean;
 
@@ -258,7 +258,7 @@ export declare namespace AmbientContextSensing {
          * Indicates the ambient audio context detection in Boolean data. The detected audio context type can be found
          * from the AmbientContextType attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.3
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.3
          */
         audioContextDetected: boolean;
 
@@ -268,7 +268,7 @@ export declare namespace AmbientContextSensing {
          * MultipleAmbientSensingDetection section. The total number of simultaneous ambient context detections is
          * constrained by the SimultaneousDetectionLimit attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.4
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.4
          */
         ambientContextType: AmbientContextType[];
 
@@ -278,9 +278,9 @@ export declare namespace AmbientContextSensing {
          * be represented by a SemanticTagStruct from one of the following StandardNamespaces: Identified Human Activity
          * Namespace, Identified Object Namespace, or Identified Sound Namespace.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.5
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.5
          */
-        ambientContextTypeSupported: ModeSelect.SemanticTag[];
+        ambientContextTypeSupported: Semtag[];
 
         /**
          * Indicates whether the number count of the specified object is greater or equal to the threshold specified by
@@ -288,7 +288,7 @@ export declare namespace AmbientContextSensing {
          * be identified by the tag ID from the Identified Object namespace, as presented in the
          * AmbientContextTypeSupported attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.6
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.6
          */
         objectCountThresholdReached: boolean;
 
@@ -297,7 +297,7 @@ export declare namespace AmbientContextSensing {
          * including the identification of the object to be detected and counted, as well as the counting threshold
          * value for the ObjectCountThresholdReached detection.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.7
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.7
          */
         objectCountConfig: ObjectCountConfig;
 
@@ -305,7 +305,7 @@ export declare namespace AmbientContextSensing {
          * This optional attribute shall indicate the number of objects detected in the area covered by the sensor.
          * ObjectCount shall be exposed only when the ObjectCountThresholdReached attribute is true.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.8
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.8
          */
         objectCount: number;
 
@@ -315,7 +315,7 @@ export declare namespace AmbientContextSensing {
          * The value of the StartTimestamp field on each PredictedActivityStruct in this list other than the first shall
          * be greater than the value of the EndTimestamp field on the previous PredictedActivityStruct in this list.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.7.12
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.7.12
          */
         predictedActivity: PredictedActivity[];
     }
@@ -329,7 +329,7 @@ export declare namespace AmbientContextSensing {
          * This event shall be generated when a new ambient context detection is added to the AmbientContextType
          * attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.1
          */
         ambientContextDetectStarted?: AmbientContextDetectStartedEvent;
 
@@ -345,7 +345,7 @@ export declare namespace AmbientContextSensing {
          * time stamp, a server shall provide the EventStartTimePos data field instead of the EventStartTimeSys data
          * field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.2
          */
         ambientContextDetectEnded?: AmbientContextDetectEndedEvent;
     }
@@ -359,7 +359,7 @@ export declare namespace AmbientContextSensing {
          * This event shall be generated when a new ambient context detection is added to the AmbientContextType
          * attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.1
          */
         ambientContextDetectStarted?: AmbientContextDetectStartedEvent;
 
@@ -375,7 +375,7 @@ export declare namespace AmbientContextSensing {
          * time stamp, a server shall provide the EventStartTimePos data field instead of the EventStartTimeSys data
          * field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.2
          */
         ambientContextDetectEnded?: AmbientContextDetectEndedEvent;
     }
@@ -391,7 +391,7 @@ export declare namespace AmbientContextSensing {
          * This event shall be generated when a new ambient context detection is added to the AmbientContextType
          * attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.1
          */
         ambientContextDetectStarted: AmbientContextDetectStartedEvent;
 
@@ -407,7 +407,7 @@ export declare namespace AmbientContextSensing {
          * time stamp, a server shall provide the EventStartTimePos data field instead of the EventStartTimeSys data
          * field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.2
          */
         ambientContextDetectEnded: AmbientContextDetectEndedEvent;
     }
@@ -445,7 +445,7 @@ export declare namespace AmbientContextSensing {
     /**
      * These are optional features supported by AmbientContextSensingCluster.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.16.5
+     * @see {@link MatterSpecification.v161.Cluster} § 2.16.5
      */
     export enum Feature {
         /**
@@ -487,7 +487,7 @@ export declare namespace AmbientContextSensing {
     /**
      * This structure provides information on the server's supported values for the HoldTime attribute.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.1
+     * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.1
      */
     export class HoldTimeLimits {
         constructor(values?: Partial<HoldTimeLimits>);
@@ -495,7 +495,7 @@ export declare namespace AmbientContextSensing {
         /**
          * This field shall specify the minimum value supported by the server for the HoldTime attribute, in seconds.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.1.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.1.1
          */
         holdTimeMin?: number;
 
@@ -504,7 +504,7 @@ export declare namespace AmbientContextSensing {
          * This field also specifies the maximum duration time that is allowed to be continuously in triggered detection
          * state.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.1.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.1.2
          */
         holdTimeMax?: number;
 
@@ -512,7 +512,7 @@ export declare namespace AmbientContextSensing {
          * This field shall specify the (manufacturer-determined) default value of the server's HoldTime attribute, in
          * seconds. This is the value that a client who wants to reset the settings to a valid default SHOULD use.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.1.3
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.1.3
          */
         holdTimeDefault?: number;
     }
@@ -520,7 +520,7 @@ export declare namespace AmbientContextSensing {
     /**
      * This structure provides information on the server's supported values for the Ambient Context type attribute.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.2
+     * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.2
      */
     export class AmbientContextType {
         constructor(values?: Partial<AmbientContextType>);
@@ -543,15 +543,15 @@ export declare namespace AmbientContextSensing {
          * prevent confusion arising from excessive joint permutations, AmbientContextSensed field shall NOT include
          * more than two ambient context events.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.2.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.2.1
          */
-        ambientContextSensed?: ModeSelect.SemanticTag[];
+        ambientContextSensed?: Semtag[];
     }
 
     /**
      * This structure provides information on the server's supported values for the ObjectCountConfig attribute.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.3
+     * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.3
      */
     export class ObjectCountConfig {
         constructor(values?: Partial<ObjectCountConfig>);
@@ -561,15 +561,15 @@ export declare namespace AmbientContextSensing {
          * NULL, the object shall be specified by ObjectIdentified namespace ID and its tag ID available from the
          * AmbientContextTypeSupported attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.3.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.3.1
          */
-        countingObject?: ModeSelect.SemanticTag;
+        countingObject?: Semtag;
 
         /**
          * This field shall indicate the minimum number of detected objects to render the true Boolean state of
          * CountThresholdReached attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.3.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.3.2
          */
         objectCountThreshold?: number;
     }
@@ -577,7 +577,7 @@ export declare namespace AmbientContextSensing {
     /**
      * This data structure provides information on future predicted activities.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.4
+     * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.4
      */
     export class PredictedActivity {
         constructor(values?: Partial<PredictedActivity>);
@@ -585,14 +585,14 @@ export declare namespace AmbientContextSensing {
         /**
          * This field shall indicate the predicted start time for the predicted activity.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.4.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.4.1
          */
         startTimestamp?: number;
 
         /**
          * This field shall indicate the predicted end time for the predicted activity.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.4.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.4.2
          */
         endTimestamp?: number;
 
@@ -600,21 +600,21 @@ export declare namespace AmbientContextSensing {
          * This field shall indicate the predicted state of the AmbientContextType attribute for the specified time
          * period.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.4.3
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.4.3
          */
-        ambientContextType?: ModeSelect.SemanticTag[];
+        ambientContextType?: Semtag[];
 
         /**
          * This field shall indicate the predicted state of the CrowdDetected attribute for the specified time period.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.4.4
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.4.4
          */
         crowdDetected?: boolean;
 
         /**
          * This field shall indicate the predicted value of the CrowdCount attribute for the specified time period.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.4.5
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.4.5
          */
         crowdCount?: number;
 
@@ -625,7 +625,7 @@ export declare namespace AmbientContextSensing {
          * indicate no certainty. The algorithm to calculate the likelihood of a predicted occupancy state is not
          * specified and is considered manufacturer specific.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.6.4.6
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.6.4.6
          */
         confidence?: number;
     }
@@ -633,7 +633,7 @@ export declare namespace AmbientContextSensing {
     /**
      * This event shall be generated when a new ambient context detection is added to the AmbientContextType attribute.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1
+     * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.1
      */
     export class AmbientContextDetectStartedEvent {
         constructor(values?: Partial<AmbientContextDetectStartedEvent>);
@@ -644,7 +644,7 @@ export declare namespace AmbientContextSensing {
          * from Identified Human Activity, Identified Object, and Identified Sound namespaces in the StandardNamespaces.
          * For the object counting feature, the AmbientContextDetected field shall represent the object being counted.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.1.1
          */
         ambientContextDetected?: AmbientContextType;
 
@@ -652,7 +652,7 @@ export declare namespace AmbientContextSensing {
          * This field shall indicate an ObjectCountThresholdReached attribute value when the event reporting is
          * triggered by the object counting threshold detection.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.1.2
          */
         objectCountThresholdReached?: boolean;
 
@@ -660,7 +660,7 @@ export declare namespace AmbientContextSensing {
          * This field shall indicate the number of objects detected in the area covered by the sensor when
          * ObjectCountThresholdReached attribute is changed to True.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.1.3
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.1.3
          */
         objectCount?: number;
     }
@@ -676,7 +676,7 @@ export declare namespace AmbientContextSensing {
      * server is time-synchronized or capable of supporting both the POSIX time stamp and the system time stamp, a
      * server shall provide the EventStartTimePos data field instead of the EventStartTimeSys data field.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2
+     * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.2
      */
     export class AmbientContextDetectEndedEvent {
         constructor(values?: Partial<AmbientContextDetectEndedEvent>);
@@ -685,7 +685,7 @@ export declare namespace AmbientContextSensing {
          * This field shall indicate the POSIX time stamp when the corresponding AmbientContextDetectStarted Event was
          * generated.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2.1
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.2.1
          */
         eventStartTimePos?: number | bigint;
 
@@ -693,7 +693,7 @@ export declare namespace AmbientContextSensing {
          * This field shall indicate the system time stamp when the corresponding AmbientContextDetectStarted Event was
          * generated.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 2.16.8.2.2
+         * @see {@link MatterSpecification.v161.Cluster} § 2.16.8.2.2
          */
         eventStartTimeSys?: number | bigint;
     }

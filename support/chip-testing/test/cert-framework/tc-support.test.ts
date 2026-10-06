@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Millis, Time, Seconds } from "@matter/main";
+import { ImplementationError, InternalError, Millis, Time, Seconds } from "@matter/main";
+import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import type { ClusterModel } from "@matter/model";
 import { Matter } from "@matter/model";
 import type {
@@ -16,6 +17,7 @@ import type {
     ControllerAdapter,
     DeviceExitInfo,
     LogExpectPatterns,
+    LogFlavor,
 } from "@matter/testing";
 import { LogFollower, PicsFile, UnsupportedByControllerError } from "@matter/testing";
 import {
@@ -31,7 +33,10 @@ import {
     expectChunkedTransfer,
     expectCommandInvoke,
     expectMessageWithPath,
+    expectNoCommandInvoke,
     expectRejection,
+    expectGroupCommandArrival,
+    matterjsGroupInvokeSent,
     expectReportAck,
     expectSequence,
     expectDeviceLog,
@@ -51,6 +56,7 @@ import {
     removeFabricSucceeded,
     requireId,
     runCleanups,
+    sameMessageFrom,
     statedInPrompt,
     WRITE_REQUEST_MESSAGE,
 } from "../cert/tc-support.js";
@@ -166,7 +172,7 @@ const requestCheck = (logLine?: number): CheckRecord =>
 async function checkFrom(
     lines: string[],
     request: CheckRecord,
-    flavor = "chip-docker",
+    flavor: LogFlavor = "chip-docker",
     endSource = false,
     budget = Seconds(1),
 ) {
@@ -178,7 +184,7 @@ async function checkFrom(
 
 // Every case about the reports themselves gets the read request in front of them, anchored where the
 // step's own path check leaves its match: inside the request's decode dump.
-async function check(lines: string[], flavor = "chip-docker", endSource = false, budget = Seconds(1)) {
+async function check(lines: string[], flavor: LogFlavor = "chip-docker", endSource = false, budget = Seconds(1)) {
     return checkFrom([...readLines(), ...lines], requestCheck(1), flavor, endSource, budget);
 }
 
@@ -419,6 +425,13 @@ describe("expectChunkedTransfer", function () {
         expect(record.detail).match(/No outbound Report Data trace line/);
     });
 
+    it("does not count a chunk without a trace line of its own as the previous chunk's exchange", async () => {
+        const record = await check([...chunkLines(), ackLine(), CHUNK, SUPPRESSED]);
+
+        expect(record.verdict).equal("fail");
+        expect(record.detail).match(/No outbound Report Data trace line of its own/);
+    });
+
     it("fails when the read never chunked", async () => {
         const record = await check([...chunkLines(), ackLine()]);
 
@@ -502,7 +515,7 @@ describe("expectChunkedTransfer", function () {
     });
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
-        const record = await check([], "python");
+        const record = await check([], "python-wrapped");
 
         expect(record.verdict).equal("unverified");
     });
@@ -676,7 +689,7 @@ describe("expectMessageWithPath", () => {
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
         const record = await withFollower([WRITE, ...PATH], follower =>
-            expectMessageWithPath(follower, "python", "write", FIELDS, 0, Seconds(1)),
+            expectMessageWithPath(follower, "python-wrapped", "write", FIELDS, 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
@@ -1281,6 +1294,42 @@ describe("expectReportAck against a chip TH", () => {
         expect(check.verdict).equal("fail");
         expect(check.detail).contains("FAILURE");
     });
+
+    it("fails a report that logged no trace line of its own, rather than take an earlier report's exchange", async () => {
+        const otherSubscription = reportLines("9000").map(line =>
+            line.replace(SUBSCRIPTION_ID.toString(16), (SUBSCRIPTION_ID + 1).toString(16)),
+        );
+        const [, ...withoutTrace] = reportLines("9001");
+        const check = await ack([...otherSubscription, ...withoutTrace, ...ackLines("9000", "0x00 (SUCCESS)")]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("No outbound Report Data trace line");
+    });
+
+    // A well-formed block further on is another message's; taking its status would credit our report
+    // with someone else's answer
+    // Characterization: the previous implementation gives the same verdict
+    it("fails when our ack's own dump is malformed, though a later block reads success", async () => {
+        const [header, name] = ackLines("9000", "0x00 (SUCCESS)");
+        const check = await ack([
+            ...reportLines("9000"),
+            header,
+            name,
+            "[DMG] (unexpected)",
+            ...ackLines("9001", "0x00 (SUCCESS)"),
+        ]);
+
+        expect(check.verdict).equal("fail");
+        expect(check.detail).contains("is not followed by");
+    });
+
+    // Characterization: the previous implementation gives the same verdict
+    it("fails when our ack's own dump is malformed and nothing follows", async () => {
+        const [header, name] = ackLines("9000", "0x00 (SUCCESS)");
+        const check = await ack([...reportLines("9000"), header, name, "[DMG] (unexpected)"]);
+
+        expect(check.verdict).equal("fail");
+    });
 });
 
 describe("expectSubscriptionId and expectReportAck against a matter.js TH", () => {
@@ -1472,13 +1521,13 @@ describe("fabric-removal log patterns", () => {
         "2026-08-22 21:48:06.406 INFO ProtocolService Invoke » binford-6100.operationalCredentials.removeFabric @1:9a52bb47a4ee167d•c675⇵68ce✉09f1964b statusCode: 0 fabricIndex: 2";
     const MATTERJS_SESSION_ENDED = "2026-08-22 21:48:06.401 INFO Session @2:1946ee4c0f86d574•c677 Session ended";
 
-    async function check(flavor: string, patterns: LogExpectPatterns, lines: string[]) {
+    async function check(flavor: LogFlavor, patterns: LogExpectPatterns, lines: string[]) {
         return withFollower(lines, async follower => {
             return (await expectDeviceLog(follower, flavor, patterns, 0, Millis(100))).check;
         });
     }
 
-    const removalCheck = (flavor: string, fabricIndex: number, lines: string[]) =>
+    const removalCheck = (flavor: LogFlavor, fabricIndex: number, lines: string[]) =>
         check(flavor, removeFabricSucceeded(fabricIndex), lines);
 
     it("finds the removal of the fabric it asked about", async () => {
@@ -1577,7 +1626,7 @@ describe("expectCommandInvoke", () => {
 
     it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
         const record = await withFollower([...PATH], follower =>
-            expectCommandInvoke(follower, "python", 1, 0x6, 0x1, [], 0, Seconds(1)),
+            expectCommandInvoke(follower, "python-wrapped", 1, 0x6, 0x1, [], 0, Seconds(1)),
         );
 
         expect(record.verdict).equal("unverified");
@@ -1625,6 +1674,194 @@ describe("expectCommandInvoke", () => {
         );
 
         expect(record.verdict).equal("fail");
+    });
+});
+
+describe("expectNoCommandInvoke", () => {
+    const SESSION = "@1:6933d77f2aac19fc•8c2d";
+    const invokeLine = (paths: string) =>
+        `2026-08-22 16:56:18.684 INFO InteractionServer Invoke « ${SESSION}⇵4ef3 invokes: ${paths}`;
+    const CHIP_OFF = [
+        "[DMG] CommandDataIB =",
+        "[DMG] {",
+        "[DMG] CommandPathIB =",
+        "[DMG] {",
+        "[DMG] EndpointId = 0x2,",
+        "[DMG] ClusterId = 0x6,",
+        "[DMG] CommandId = 0x0,",
+        "[DMG] },",
+    ];
+
+    function absent(follower: LogFollower, flavor: LogFlavor = "matterjs", from = 0) {
+        return expectNoCommandInvoke(follower, flavor, 2, 0x6, 0x0, from, Millis(50));
+    }
+
+    it("passes when the TH logged no invoke of the command", async () => {
+        const record = await withFollower([invokeLine("2.onOff.on"), invokeLine("1.onOff.off")], absent);
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails on an invoke of the command", async () => {
+        const record = await withFollower([invokeLine("2.onOff.off")], absent);
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("counts only from the mark it is given", async () => {
+        const record = await withFollower([invokeLine("2.onOff.off"), invokeLine("2.onOff.on")], follower =>
+            absent(follower, "matterjs", 1),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails on an invoke that arrives while the window elapses", async () => {
+        const source = new OpenSource();
+        const follower = new LogFollower(source, "th");
+        try {
+            const pending = expectNoCommandInvoke(follower, "matterjs", 2, 0x6, 0x0, 0, Millis(500));
+            setTimeout(() => source.push(invokeLine("2.onOff.off")), 10);
+
+            expect((await pending).verdict).equal("fail");
+        } finally {
+            await follower.close();
+        }
+    });
+
+    it("fails on chip's CommandDataIB block for the command", async () => {
+        const record = await withFollower(CHIP_OFF, follower => absent(follower, "chip-local"));
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take chip's response echo for a received command", async () => {
+        const record = await withFollower(["[DMG] CommandStatusIB =", ...CHIP_OFF.slice(1)], follower =>
+            absent(follower, "chip-local"),
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails on a group command matter.js dispatched to the endpoint", async () => {
+        const record = await withFollower(
+            [`2026-09-27 22:10:01.100 INFO ProtocolService Invoke « binford-6100.ep2.onOff.off •group#1a2b⇵3c4d✉5e6f`],
+            absent,
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("does not take a group command dispatched to another endpoint", async () => {
+        const record = await withFollower(
+            [`2026-09-27 22:10:01.100 INFO ProtocolService Invoke « binford-6100.ep1.onOff.off •group#1a2b⇵3c4d✉5e6f`],
+            absent,
+        );
+
+        expect(record.verdict).equal("pass");
+    });
+
+    it("fails on a group command matter.js received but did not dispatch", async () => {
+        const record = await withFollower(
+            [
+                "2026-09-28 09:31:58.418 INFO InteractionServer Invoke « •group#4445⇵98d9 suppressResponse group: 1 invokes: *.0x6.0x0",
+            ],
+            absent,
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("fails on a message chip received for the group, when the group is named", async () => {
+        const receipt = ["[EM] Received Groupcast Message with GroupId 0x0001 (1)"];
+
+        expect((await withFollower(receipt, follower => absent(follower, "chip-local"))).verdict).equal("pass");
+        expect(
+            (
+                await withFollower(receipt, follower =>
+                    expectNoCommandInvoke(follower, "chip-local", 2, 0x6, 0x0, 0, Millis(50), 1),
+                )
+            ).verdict,
+        ).equal("fail");
+    });
+
+    it("fails on a group command chip dispatched to the endpoint", async () => {
+        const record = await withFollower(
+            ["[DMG] Processing group command for Endpoint=2 Cluster=0x0000_0006 Command=0x0000_0000"],
+            follower => absent(follower, "chip-local"),
+        );
+
+        expect(record.verdict).equal("fail");
+    });
+
+    it("reports unverified for a flavor neither implementation's patterns speak for", async () => {
+        const record = await withFollower([invokeLine("2.onOff.off")], follower => absent(follower, "python-wrapped"));
+
+        expect(record.verdict).equal("unverified");
+    });
+});
+
+describe("group message patterns", () => {
+    // matter.js's own lines, captured from a TC-BIND-2.3 run
+    const SENT =
+        "2026-09-28 09:31:58.410 INFO ClientInteraction Invoke » •group#4445⇵98d9 group: 1 dest: [ff05::fa]:5540 suppressResponse *.onOff.on with (no payload)";
+    const RECEIVED =
+        "2026-09-28 09:31:58.418 INFO InteractionServer Invoke « •group#4445⇵98d9 suppressResponse group: 1 invokes: *.0x6.0x1";
+    const DISPATCHED =
+        "2026-09-28 09:31:58.418 INFO ProtocolService Invoke « binford-6100-cert.ep1.onOff.on •group#4445⇵98d9✉03de526d (no payload)";
+
+    it("takes the send of a group's command, and captures the address", () => {
+        const match = matterjsGroupInvokeSent(1, 0x6, 0x1).exec(SENT);
+
+        expect(match?.[1]).equal("ff05::fa");
+    });
+
+    it("does not take the send for another group or command", () => {
+        expect(matterjsGroupInvokeSent(11, 0x6, 0x1).test(SENT)).equal(false);
+        expect(matterjsGroupInvokeSent(1, 0x6, 0x0).test(SENT)).equal(false);
+        expect(matterjsGroupInvokeSent(1, 0x6, 0x1).test(SENT.replace("*.onOff.on", "1.onOff.on"))).equal(false);
+    });
+
+    async function arrival(lines: string[], flavor: LogFlavor, group: number, endpoint = 1) {
+        return withFollower(lines, follower =>
+            expectGroupCommandArrival(
+                follower,
+                flavor,
+                "arrival",
+                { group, endpoint, cluster: 0x6, command: 0x1 },
+                0,
+                Millis(100),
+            ),
+        );
+    }
+
+    it("passes on matter.js receiving the group's command and dispatching it to the endpoint", async () => {
+        expect((await arrival([RECEIVED, DISPATCHED], "matterjs", 1)).verdict).equal("pass");
+    });
+
+    it("fails on matter.js receiving another group's command", async () => {
+        expect((await arrival([RECEIVED, DISPATCHED], "matterjs", 11)).verdict).equal("fail");
+    });
+
+    it("fails on matter.js dispatching the group's command to another endpoint", async () => {
+        expect((await arrival([RECEIVED, DISPATCHED], "matterjs", 1, 2)).verdict).equal("fail");
+    });
+
+    it("does not take a dispatch of another message for the one received", async () => {
+        const otherExchange = DISPATCHED.replace("⇵98d9", "⇵98da");
+        expect((await arrival([RECEIVED, otherExchange], "matterjs", 1)).verdict).equal("fail");
+    });
+
+    it("reads chip's group id and ids in the uppercase hex chip prints them in", async () => {
+        const chip = [
+            "[EM] Received Groupcast Message with GroupId 0x00AB (171)",
+            "[DMG] Processing group command for Endpoint=1 Cluster=0x0000_0006 Command=0x0000_0001",
+        ];
+
+        expect((await arrival(chip, "chip-local", 0xab)).verdict).equal("pass");
+        expect((await arrival([chip[0].replace("0x00AB", "0x00ab"), chip[1]], "chip-local", 0xab)).verdict).equal(
+            "fail",
+        );
     });
 });
 
@@ -1740,11 +1977,12 @@ describe("invokeCommand", () => {
         path: string,
         args: object,
         respond: CertNodeApi["invoke"],
+        anyStatus?: boolean,
     ) {
         const th = fakeTh(invokeLine(path));
         const cx = contextFor(th, respond);
         try {
-            const result = await invokeCommand(cx, "ref", { cluster, endpoint, command, args, fields: [] });
+            const result = await invokeCommand(cx, "ref", { cluster, endpoint, command, args, fields: [], anyStatus });
             const checks = await Promise.all(
                 result.checks.map(async ({ what, check }) => ({ what, ...(await check()) })),
             );
@@ -1771,6 +2009,31 @@ describe("invokeCommand", () => {
         ]);
         expect(checks[0].verdict).equal("pass");
         expect(checks[1].verdict).equal("pass");
+    });
+
+    it("refuses a plan that names no th device before the DUT invokes anything", async () => {
+        const th = fakeTh(invokeLine("1.groups.addGroup"));
+        let invoked = false;
+        const cx = {
+            ...contextFor(th, async () => {
+                invoked = true;
+            }),
+            devices: { th1: th, th2: th },
+        };
+        try {
+            await expect(
+                invokeCommand(cx, "ref", {
+                    cluster: GROUPS,
+                    endpoint: GROUPS_ENDPOINT,
+                    command: "addGroup",
+                    args: { groupId: 5, groupName: "g5" },
+                    fields: [],
+                }),
+            ).rejectedWith(ImplementationError, 'declares no "th" device (it has th1, th2)');
+        } finally {
+            await th.log.close();
+        }
+        expect(invoked).equal(false);
     });
 
     it("passes the status check when a response carrying Status answers 0", async () => {
@@ -1840,6 +2103,57 @@ describe("invokeCommand", () => {
         expect(checks[0].verdict).equal("fail");
         expect(checks[0].detail).equal("addGroup: InternalError: group table full");
         expect(checks[1].verdict).equal("pass");
+    });
+
+    it("passes the response check on a refusal with a status under anyStatus, without counting it accepted", async () => {
+        const { result, checks } = await invoke(
+            LEVEL_CONTROL,
+            LEVEL_CONTROL_ENDPOINT,
+            "moveToLevel",
+            "1.levelControl.moveToLevel",
+            { level: 100, transitionTime: 0, optionsMask: 0, optionsOverride: 0 },
+            async () => {
+                throw StatusResponseError.create(Status.InvalidCommand, "refused");
+            },
+            true,
+        );
+
+        expect(result.accepted).equal(false);
+        expect(checks[0].verdict).equal("pass");
+        expect(checks[0].detail).match(/^moveToLevel status=InvalidCommand \(/);
+        expect(checks[1].verdict).equal("pass");
+    });
+
+    it("still fails the response check on a client-side ValidationError under anyStatus", async () => {
+        const { checks } = await invoke(
+            LEVEL_CONTROL,
+            LEVEL_CONTROL_ENDPOINT,
+            "moveToLevel",
+            "1.levelControl.moveToLevel",
+            { level: 100, transitionTime: 0, optionsMask: 0, optionsOverride: 0 },
+            async () => {
+                throw new ValidationError("level out of range", "level");
+            },
+            true,
+        );
+
+        expect(checks[0].verdict).equal("fail");
+    });
+
+    it("still fails the response check on an error without a status under anyStatus", async () => {
+        const { checks } = await invoke(
+            LEVEL_CONTROL,
+            LEVEL_CONTROL_ENDPOINT,
+            "moveToLevel",
+            "1.levelControl.moveToLevel",
+            { level: 100, transitionTime: 0, optionsMask: 0, optionsOverride: 0 },
+            async () => {
+                throw new InternalError("no answer");
+            },
+            true,
+        );
+
+        expect(checks[0].verdict).equal("fail");
     });
 });
 
@@ -2243,5 +2557,44 @@ describe("statedInPrompt()", () => {
             InternalError,
             "a discriminator",
         );
+    });
+});
+
+describe("the flavor-branching checks on a flavor of no family (characterization)", () => {
+    const FLAVOR = "python-wrapped";
+
+    it("hands back the step's own mark from sameMessageFrom", () => {
+        const earlier: CheckRecord = { type: "device-log", verdict: "pass", logLine: 7 };
+
+        expect(sameMessageFrom("chip-local", earlier, 3)).equal(8);
+        expect(sameMessageFrom("matterjs", earlier, 3)).equal(3);
+        expect(sameMessageFrom(FLAVOR, earlier, 3)).equal(3);
+    });
+
+    it("resolves the subscription and group checks unverified without waiting", async () => {
+        const verdicts = await withFollower([], async follower => [
+            (
+                await expectGroupCommandArrival(
+                    follower,
+                    FLAVOR,
+                    "arrival",
+                    { group: 1, endpoint: 1, cluster: 0x6, command: 0x1 },
+                    0,
+                    Millis(5_000),
+                )
+            ).verdict,
+            (await expectSubscriptionId(follower, FLAVOR, 0, Millis(5_000))).check.verdict,
+            (
+                await expectReportAck(
+                    follower,
+                    FLAVOR,
+                    { outcome: "found", subscriptionId: 1, check: { type: "device-log", verdict: "pass" } },
+                    0,
+                    Millis(5_000),
+                )
+            ).verdict,
+        ]);
+
+        expect(verdicts).deep.equal(["unverified", "unverified", "unverified"]);
     });
 });

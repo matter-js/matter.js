@@ -17,13 +17,13 @@ const PirOccupancySensor = OccupancySensorDevice.with(PirOccupancySensing);
 
 describe("OccupancySensingServer", () => {
     it("instantiates", async () => {
-        await MockEndpoint.createWith(
+        await using _endpoint = await MockEndpoint.createWith(
             OccupancySensingServer.with("Radar").set({ occupancySensorType: OccupancySensing.OccupancySensorType.Pir }),
         );
     });
 
     it("chooses correct defaults", async () => {
-        const endpoint = await MockEndpoint.createWith(
+        await using endpoint = await MockEndpoint.createWith(
             OccupancySensingServer.with("Radar").set({ occupancySensorType: OccupancySensing.OccupancySensorType.Pir }),
         );
 
@@ -31,7 +31,7 @@ describe("OccupancySensingServer", () => {
     });
 
     it("emits OccupancyChanged when occupancy changes and the OccupancyEvent feature is enabled", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const ep = await node.add(PirOccupancySensor, {
             occupancySensing: {
                 occupancySensorType: OccupancySensing.OccupancySensorType.Pir,

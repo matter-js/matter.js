@@ -8,4 +8,7 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "amperage-mA", description: "Amperage", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "amperage-mA", description: "Amperage", xref: "core§7.19.2.11",
+    details: "This type represents amperage measured in milliamps."
+});

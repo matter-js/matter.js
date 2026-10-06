@@ -380,21 +380,21 @@ Resource.add(
                             "\n" +
                             "  - A manufacturer contemplating using this flow should realize that" +
                             "\n" +
-                            "  - This flow typically requires internet access to access the URL, and access extension may fail " +
+                            "    - This flow typically requires internet access to access the URL, and access extension may fail " +
                             "when internet connectivity is not available." +
                             "\n" +
-                            "  - If the flow prefers to redirect the user to an app which is available on popular platforms, it " +
+                            "    - If the flow prefers to redirect the user to an app which is available on popular platforms, it " +
                             "SHOULD also provide a fallback option such as a web browser interface to ensure users can " +
                             "complete access extension." +
                             "\n" +
-                            "  - A malicious Administrator could tamper with the URL (including any parameters it contains) in " +
+                            "    - A malicious Administrator could tamper with the URL (including any parameters it contains) in " +
                             "order to reduce restrictions for another Fabric. A well-implemented web service or app SHOULD " +
-                            "validate that the VID in flow URL invocations match recent requests for review by comparing with " +
-                            "VID and token pairs from recent ReviewFabricRestrictions requests." +
+                            "validate that the VID in flow URL invocations match recent requests for review by comparing " +
+                            "with VID and token pairs from recent ReviewFabricRestrictions requests." +
                             "\n" +
                             "  - An Administrator supporting this flow should realize that if the device serving this cluster is " +
                             "malicious, it could send dangerous URLs to the client which could take the user to malicious " +
-                            "    sites. The Administrator SHOULD provide details, such as the VID, to the user about the device " +
+                            "sites. The Administrator SHOULD provide details, such as the VID, to the user about the device " +
                             "sending the event so that the user can make an informed decision about whether to trust the URL."
                     }
                 ]
@@ -591,7 +591,7 @@ Resource.add(
                             "\n" +
                             "> E.g. A Fan Control Cluster may be included in a more industrial device type. To ensure proper " +
                             "operation, this device type may restrict configuration of fan level RPM settings to require Manage " +
-                            "  privilege. Clients granted Manage privilege will have sufficient privilege to configure each " +
+                            "privilege. Clients granted Manage privilege will have sufficient privilege to configure each " +
                             "level's RPM; clients granted Operate privilege will not be able to perform such configuration, but " +
                             "will still be able to change the level. This additional restriction would apply only to the Fan " +
                             "Control Cluster as included in this particular device type; a client granted Operate privilege may " +

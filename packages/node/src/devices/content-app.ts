@@ -42,7 +42,7 @@ import { Identity } from "@matter/general";
  * be provided by having a unique value in the ApplicationName attribute of the Application Basic cluster on each of
  * these endpoints.
  *
- * @see {@link MatterSpecification.v16.Device} § 10.5
+ * @see {@link MatterSpecification.v161.Device} § 10.5
  */
 export interface ContentAppDevice extends Identity<typeof ContentAppDeviceDefinition> {}
 

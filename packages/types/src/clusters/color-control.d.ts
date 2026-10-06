@@ -25,7 +25,7 @@ import type { MaybePromise } from "@matter/general";
  * recommended that the level provided by this cluster be interpreted as representing a proportion of the maximum
  * intensity achievable at the current color.
  *
- * @see {@link MatterSpecification.v16.Cluster} § 3.2
+ * @see {@link MatterSpecification.v161.Cluster} § 3.2
  */
 export declare namespace ColorControl {
     /**
@@ -39,7 +39,7 @@ export declare namespace ColorControl {
     export const name: "ColorControl";
 
     /**
-     * The cluster revision assigned by {@link MatterSpecification.v16.Cluster}.
+     * The cluster revision assigned by {@link MatterSpecification.v161.Cluster}.
      */
     export const revision: 9;
 
@@ -60,7 +60,7 @@ export declare namespace ColorControl {
          * The value of the ColorMode attribute cannot be written directly - it is set upon reception of any command in
          * section Commands to the appropriate mode for that command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.10
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.10
          */
         colorMode: ColorMode;
 
@@ -83,7 +83,7 @@ export declare namespace ColorControl {
          *
          *   - The value of the ExecuteIfOff bit is 0.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.11
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.11
          */
         options: Options;
 
@@ -95,7 +95,7 @@ export declare namespace ColorControl {
          * primaries shall also be implemented for each of the primaries from 1 to NumberOfPrimaries, without leaving
          * gaps. Implementation of the Primary1Intensity attribute and subsequent intensity attributes is optional.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.24
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.24
          */
         numberOfPrimaries: number | null;
 
@@ -108,7 +108,7 @@ export declare namespace ColorControl {
          * the ColorMode attribute shall be the same as the value of the EnhancedCurrentHue attribute. If the ColorMode
          * attribute is changed, its new value shall be copied to the EnhancedColorMode attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.13
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.13
          */
         enhancedColorMode: EnhancedColorMode;
 
@@ -118,7 +118,7 @@ export declare namespace ColorControl {
          * Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of the
          * FeatureMap attribute. All other bits in ColorCapabilities shall be 0.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.19
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.19
          */
         colorCapabilities: ColorCapabilities;
 
@@ -140,14 +140,14 @@ export declare namespace ColorControl {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.4
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.4
          */
         remainingTime?: number;
 
         /**
          * Indicates what mechanism, if any, is in use for compensation for color/intensity drift over time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.7
          */
         driftCompensation?: DriftCompensation;
 
@@ -155,7 +155,7 @@ export declare namespace ColorControl {
          * This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate for
          * color/intensity drift over time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.8
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.8
          */
         compensationText?: string;
 
@@ -166,7 +166,7 @@ export declare namespace ColorControl {
          *
          * x = Primary1X / 65536 (Primary1X in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.25
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.25
          */
         primary1X?: number;
 
@@ -177,7 +177,7 @@ export declare namespace ColorControl {
          *
          * y = Primary1Y / 65536 (Primary1Y in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.26
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.26
          */
         primary1Y?: number;
 
@@ -187,82 +187,82 @@ export declare namespace ColorControl {
          *
          * A value of null shall indicate that this primary is not available.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.27
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.27
          */
         primary1Intensity?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary2X?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary2Y?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary2Intensity?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary3X?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary3Y?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary3Intensity?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary4X?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary4Y?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary4Intensity?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary5X?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary5Y?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary5Intensity?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary6X?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary6Y?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary6Intensity?: number | null;
 
@@ -274,7 +274,7 @@ export declare namespace ColorControl {
          *
          * x = WhitePointX / 65536 (WhitePointX in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.29
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.29
          */
         whitePointX?: number;
 
@@ -286,7 +286,7 @@ export declare namespace ColorControl {
          *
          * y = WhitePointY / 65536 (WhitePointY in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.30
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.30
          */
         whitePointY?: number;
 
@@ -298,7 +298,7 @@ export declare namespace ColorControl {
          *
          * x = ColorPointRX / 65536 (ColorPointRX in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.31
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.31
          */
         colorPointRx?: number;
 
@@ -310,7 +310,7 @@ export declare namespace ColorControl {
          *
          * y = ColorPointRY / 65536 (ColorPointRY in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.32
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.32
          */
         colorPointRy?: number;
 
@@ -321,37 +321,37 @@ export declare namespace ColorControl {
          *
          * A value of null shall indicate an invalid value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.33
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.33
          */
         colorPointRIntensity?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointGx?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointGy?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointGIntensity?: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointBx?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointBy?: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointBIntensity?: number | null;
     }
@@ -374,7 +374,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.2
          */
         currentHue: number;
 
@@ -393,7 +393,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.3
          */
         currentSaturation: number;
     }
@@ -415,7 +415,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.5
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.5
          */
         currentX: number;
 
@@ -432,7 +432,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.6
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.6
          */
         currentY: number;
     }
@@ -458,7 +458,7 @@ export declare namespace ColorControl {
          *
          * If this attribute is implemented then the ColorMode attribute shall also be implemented.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.9
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.9
          */
         colorTemperatureMireds: number;
 
@@ -467,7 +467,7 @@ export declare namespace ColorControl {
          * maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds $<=$
          * ColorTemperatureMireds.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.20
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.20
          */
         colorTempPhysicalMinMireds: number;
 
@@ -476,7 +476,7 @@ export declare namespace ColorControl {
          * minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds $<=$
          * ColorTempPhysicalMaxMireds.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.21
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.21
          */
         colorTempPhysicalMaxMireds: number;
 
@@ -493,9 +493,9 @@ export declare namespace ColorControl {
          * in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the CoupleColorTempToLevelMinMireds attribute
          * corresponds to an upper bound on the value of the color temperature in kelvins supported by the device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.22
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.22
          */
-        coupleColorTempToLevelMinMireds?: number;
+        coupleColorTempToLevelMinMireds: number;
 
         /**
          * Indicates the desired startup color temperature value the light shall use when it is supplied with power and
@@ -503,9 +503,9 @@ export declare namespace ColorControl {
          * EnhancedColorMode attributes shall be set to 2 (ColorTemperatureMireds). The values of the
          * StartUpColorTemperatureMireds attribute are listed in the table below,
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.23
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.23
          */
-        startUpColorTemperatureMireds?: number | null;
+        startUpColorTemperatureMireds: number | null;
     }
 
     /**
@@ -528,7 +528,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.12
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.12
          */
         enhancedCurrentHue: number;
     }
@@ -541,7 +541,7 @@ export declare namespace ColorControl {
          * Indicates the current active status of the color loop. If this attribute has the value 0, the color loop
          * shall NOT be active. If this attribute has the value 1, the color loop shall be active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.14
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.14
          */
         colorLoopActive: ColorLoopActive;
 
@@ -550,7 +550,7 @@ export declare namespace ColorControl {
          * EnhancedCurrentHue attribute shall be decremented. If this attribute has the value Increment, the
          * EnhancedCurrentHue attribute shall be incremented.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.15
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.15
          */
         colorLoopDirection: ColorLoopDirection;
 
@@ -558,14 +558,14 @@ export declare namespace ColorControl {
          * Indicates the number of seconds it shall take to perform a full color loop, i.e., to cycle all values of the
          * EnhancedCurrentHue attribute (between 0 and 65534).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.16
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.16
          */
         colorLoopTime: number;
 
         /**
          * Indicates the value of the EnhancedCurrentHue attribute from which the color loop shall be started.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.17
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.17
          */
         colorLoopStartEnhancedHue: number;
 
@@ -573,7 +573,7 @@ export declare namespace ColorControl {
          * Indicates the value of the EnhancedCurrentHue attribute before the color loop was started. Once the color
          * loop is complete, the EnhancedCurrentHue attribute shall be restored to this value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.18
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.18
          */
         colorLoopStoredEnhancedHue: number;
     }
@@ -591,7 +591,7 @@ export declare namespace ColorControl {
          * The value of the ColorMode attribute cannot be written directly - it is set upon reception of any command in
          * section Commands to the appropriate mode for that command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.10
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.10
          */
         colorMode: ColorMode;
 
@@ -614,7 +614,7 @@ export declare namespace ColorControl {
          *
          *   - The value of the ExecuteIfOff bit is 0.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.11
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.11
          */
         options: Options;
 
@@ -626,7 +626,7 @@ export declare namespace ColorControl {
          * primaries shall also be implemented for each of the primaries from 1 to NumberOfPrimaries, without leaving
          * gaps. Implementation of the Primary1Intensity attribute and subsequent intensity attributes is optional.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.24
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.24
          */
         numberOfPrimaries: number | null;
 
@@ -639,7 +639,7 @@ export declare namespace ColorControl {
          * the ColorMode attribute shall be the same as the value of the EnhancedCurrentHue attribute. If the ColorMode
          * attribute is changed, its new value shall be copied to the EnhancedColorMode attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.13
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.13
          */
         enhancedColorMode: EnhancedColorMode;
 
@@ -649,7 +649,7 @@ export declare namespace ColorControl {
          * Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of the
          * FeatureMap attribute. All other bits in ColorCapabilities shall be 0.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.19
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.19
          */
         colorCapabilities: ColorCapabilities;
 
@@ -671,14 +671,14 @@ export declare namespace ColorControl {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.4
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.4
          */
         remainingTime: number;
 
         /**
          * Indicates what mechanism, if any, is in use for compensation for color/intensity drift over time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.7
          */
         driftCompensation: DriftCompensation;
 
@@ -686,7 +686,7 @@ export declare namespace ColorControl {
          * This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate for
          * color/intensity drift over time.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.8
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.8
          */
         compensationText: string;
 
@@ -697,7 +697,7 @@ export declare namespace ColorControl {
          *
          * x = Primary1X / 65536 (Primary1X in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.25
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.25
          */
         primary1X: number;
 
@@ -708,7 +708,7 @@ export declare namespace ColorControl {
          *
          * y = Primary1Y / 65536 (Primary1Y in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.26
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.26
          */
         primary1Y: number;
 
@@ -718,82 +718,82 @@ export declare namespace ColorControl {
          *
          * A value of null shall indicate that this primary is not available.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.27
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.27
          */
         primary1Intensity: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary2X: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary2Y: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary2Intensity: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary3X: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary3Y: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary3Intensity: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary4X: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary4Y: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary4Intensity: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary5X: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary5Y: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary5Intensity: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary6X: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary6Y: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         primary6Intensity: number | null;
 
@@ -805,7 +805,7 @@ export declare namespace ColorControl {
          *
          * x = WhitePointX / 65536 (WhitePointX in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.29
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.29
          */
         whitePointX: number;
 
@@ -817,7 +817,7 @@ export declare namespace ColorControl {
          *
          * y = WhitePointY / 65536 (WhitePointY in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.30
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.30
          */
         whitePointY: number;
 
@@ -829,7 +829,7 @@ export declare namespace ColorControl {
          *
          * x = ColorPointRX / 65536 (ColorPointRX in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.31
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.31
          */
         colorPointRx: number;
 
@@ -841,7 +841,7 @@ export declare namespace ColorControl {
          *
          * y = ColorPointRY / 65536 (ColorPointRY in the range 0 to 65279 inclusive)
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.32
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.32
          */
         colorPointRy: number;
 
@@ -852,37 +852,37 @@ export declare namespace ColorControl {
          *
          * A value of null shall indicate an invalid value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.33
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.33
          */
         colorPointRIntensity: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointGx: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointGy: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointGIntensity: number | null;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointBx: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointBy: number;
 
         /**
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7
          */
         colorPointBIntensity: number | null;
 
@@ -900,7 +900,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.2
          */
         currentHue: number;
 
@@ -919,7 +919,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.3
          */
         currentSaturation: number;
 
@@ -936,7 +936,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.5
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.5
          */
         currentX: number;
 
@@ -953,7 +953,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.6
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.6
          */
         currentY: number;
 
@@ -974,7 +974,7 @@ export declare namespace ColorControl {
          *
          * If this attribute is implemented then the ColorMode attribute shall also be implemented.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.9
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.9
          */
         colorTemperatureMireds: number;
 
@@ -983,7 +983,7 @@ export declare namespace ColorControl {
          * maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds $<=$
          * ColorTemperatureMireds.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.20
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.20
          */
         colorTempPhysicalMinMireds: number;
 
@@ -992,7 +992,7 @@ export declare namespace ColorControl {
          * minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds $<=$
          * ColorTempPhysicalMaxMireds.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.21
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.21
          */
         colorTempPhysicalMaxMireds: number;
 
@@ -1009,7 +1009,7 @@ export declare namespace ColorControl {
          * in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the CoupleColorTempToLevelMinMireds attribute
          * corresponds to an upper bound on the value of the color temperature in kelvins supported by the device.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.22
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.22
          */
         coupleColorTempToLevelMinMireds: number;
 
@@ -1019,7 +1019,7 @@ export declare namespace ColorControl {
          * EnhancedColorMode attributes shall be set to 2 (ColorTemperatureMireds). The values of the
          * StartUpColorTemperatureMireds attribute are listed in the table below,
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.23
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.23
          */
         startUpColorTemperatureMireds: number | null;
 
@@ -1039,7 +1039,7 @@ export declare namespace ColorControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.12
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.12
          */
         enhancedCurrentHue: number;
 
@@ -1047,7 +1047,7 @@ export declare namespace ColorControl {
          * Indicates the current active status of the color loop. If this attribute has the value 0, the color loop
          * shall NOT be active. If this attribute has the value 1, the color loop shall be active.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.14
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.14
          */
         colorLoopActive: ColorLoopActive;
 
@@ -1056,7 +1056,7 @@ export declare namespace ColorControl {
          * EnhancedCurrentHue attribute shall be decremented. If this attribute has the value Increment, the
          * EnhancedCurrentHue attribute shall be incremented.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.15
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.15
          */
         colorLoopDirection: ColorLoopDirection;
 
@@ -1064,14 +1064,14 @@ export declare namespace ColorControl {
          * Indicates the number of seconds it shall take to perform a full color loop, i.e., to cycle all values of the
          * EnhancedCurrentHue attribute (between 0 and 65534).
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.16
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.16
          */
         colorLoopTime: number;
 
         /**
          * Indicates the value of the EnhancedCurrentHue attribute from which the color loop shall be started.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.17
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.17
          */
         colorLoopStartEnhancedHue: number;
 
@@ -1079,7 +1079,7 @@ export declare namespace ColorControl {
          * Indicates the value of the EnhancedCurrentHue attribute before the color loop was started. Once the color
          * loop is complete, the EnhancedCurrentHue attribute shall be restored to this value.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.18
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.18
          */
         colorLoopStoredEnhancedHue: number;
     }
@@ -1091,49 +1091,49 @@ export declare namespace ColorControl {
         /**
          * This command will move the device to the requested hue using a transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.4
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.4
          */
         moveToHue(request: MoveToHueRequest): MaybePromise;
 
         /**
          * This command will change the hue of the device with a requested rate.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.5
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.5
          */
         moveHue(request: MoveHueRequest): MaybePromise;
 
         /**
          * This command will change the hue of the device using a step and transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.6
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.6
          */
         stepHue(request: StepHueRequest): MaybePromise;
 
         /**
          * This command will move the device to the requested saturation using a transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.7
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.7
          */
         moveToSaturation(request: MoveToSaturationRequest): MaybePromise;
 
         /**
          * This command will change the saturation of the device with a requested rate.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.8
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.8
          */
         moveSaturation(request: MoveSaturationRequest): MaybePromise;
 
         /**
          * This command will change the saturation of the device using a step and transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.9
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.9
          */
         stepSaturation(request: StepSaturationRequest): MaybePromise;
 
         /**
          * This command will move the device to the requested hue and saturation using a transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.10
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.10
          */
         moveToHueAndSaturation(request: MoveToHueAndSaturationRequest): MaybePromise;
     }
@@ -1145,21 +1145,21 @@ export declare namespace ColorControl {
         /**
          * This command will move the device to the requested color using a transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.11
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.11
          */
         moveToColor(request: MoveToColorRequest): MaybePromise;
 
         /**
          * This command will change the color of the device with a requested rate.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.12
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.12
          */
         moveColor(request: MoveColorRequest): MaybePromise;
 
         /**
          * This command will change the color of the device using a step and transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.13
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.13
          */
         stepColor(request: StepColorRequest): MaybePromise;
     }
@@ -1171,21 +1171,21 @@ export declare namespace ColorControl {
         /**
          * This command will move the device to the requested color temperature using a transition.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.14
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.14
          */
         moveToColorTemperature(request: MoveToColorTemperatureRequest): MaybePromise;
 
         /**
          * This command allows the color temperature of the light to be moved at a specified rate.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.21
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.21
          */
         moveColorTemperature(request: MoveColorTemperatureRequest): MaybePromise;
 
         /**
          * This command allows the color temperature of the light to be stepped with a specified step size.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.22
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.22
          */
         stepColorTemperature(request: StepColorTemperatureRequest): MaybePromise;
     }
@@ -1198,21 +1198,21 @@ export declare namespace ColorControl {
          * This command allows the light to be moved in a smooth continuous transition from their current hue to a
          * target hue.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.15
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.15
          */
         enhancedMoveToHue(request: EnhancedMoveToHueRequest): MaybePromise;
 
         /**
          * This command allows the light to start a continuous transition starting from their current hue.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.16
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.16
          */
         enhancedMoveHue(request: EnhancedMoveHueRequest): MaybePromise;
 
         /**
          * This command allows the device to be moved in a stepped transition from their current hue.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.17
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.17
          */
         enhancedStepHue(request: EnhancedStepHueRequest): MaybePromise;
 
@@ -1220,7 +1220,7 @@ export declare namespace ColorControl {
          * This command allows the light to be moved in a smooth continuous transition from their current hue to a
          * target hue and from their current saturation to a target saturation.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.18
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.18
          */
         enhancedMoveToHueAndSaturation(request: EnhancedMoveToHueAndSaturationRequest): MaybePromise;
     }
@@ -1232,7 +1232,7 @@ export declare namespace ColorControl {
         /**
          * This command allows a color loop to be activated such that the color light cycles through its range of hues.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.19
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.19
          */
         colorLoopSet(request: ColorLoopSetRequest): MaybePromise;
     }
@@ -1252,7 +1252,7 @@ export declare namespace ColorControl {
          *
          * > NOTE: The StopMoveStep command has no effect on an active color loop.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.20
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.20
          */
         stopMoveStep(request: StopMoveStepRequest): MaybePromise;
     }
@@ -1290,7 +1290,7 @@ export declare namespace ColorControl {
     /**
      * These are optional features supported by ColorControlCluster.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.4
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.4
      */
     export enum Feature {
         /**
@@ -1330,7 +1330,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.5
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.5
      */
     export enum ColorMode {
         /**
@@ -1350,7 +1350,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.2
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.2
      */
     export class Options {
         constructor(values?: Partial<Options> | number);
@@ -1360,13 +1360,13 @@ export declare namespace ColorControl {
          *
          * This bit shall indicate if this cluster server instance has a dependency with the On/Off cluster.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.2.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.2.1
          */
         executeIfOff?: boolean;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.6
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.6
      */
     export enum EnhancedColorMode {
         /**
@@ -1391,7 +1391,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.1
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.1
      */
     export class ColorCapabilities {
         constructor(values?: Partial<ColorCapabilities> | number);
@@ -1423,7 +1423,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.4
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.4
      */
     export enum DriftCompensation {
         /**
@@ -1456,7 +1456,7 @@ export declare namespace ColorControl {
      * Indicates the current active status of the color loop. If this attribute has the value 0, the color loop shall
      * NOT be active. If this attribute has the value 1, the color loop shall be active.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.7.14
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.7.14
      */
     export enum ColorLoopActive {
         Inactive = 0,
@@ -1464,7 +1464,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.11
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.11
      */
     export enum ColorLoopDirection {
         /**
@@ -1481,7 +1481,7 @@ export declare namespace ColorControl {
     /**
      * This command will move the device to the requested hue using a transition.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.4
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.4
      */
     export class MoveToHueRequest {
         constructor(values?: Partial<MoveToHueRequest>);
@@ -1489,21 +1489,21 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the hue to be moved to.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.4.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.4.1
          */
         hue: number;
 
         /**
          * This field shall indicate the movement direction.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.4.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.4.2
          */
         direction: Direction;
 
         /**
          * This field shall indicate, in 1/10ths of a second, the time that shall be taken to move to the new hue.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.4.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.4.3
          */
         transitionTime: number;
 
@@ -1514,7 +1514,7 @@ export declare namespace ColorControl {
     /**
      * This command will change the hue of the device with a requested rate.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.5
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.5
      */
     export class MoveHueRequest {
         constructor(values?: Partial<MoveHueRequest>);
@@ -1522,7 +1522,7 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the mode of movement.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.5.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.5.1
          */
         moveMode: MoveMode;
 
@@ -1530,7 +1530,7 @@ export declare namespace ColorControl {
          * This field shall indicate the rate of movement in steps per second. A step is a change in the device’s hue of
          * one unit.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.5.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.5.2
          */
         rate: number;
 
@@ -1541,7 +1541,7 @@ export declare namespace ColorControl {
     /**
      * This command will change the hue of the device using a step and transition.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.6
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.6
      */
     export class StepHueRequest {
         constructor(values?: Partial<StepHueRequest>);
@@ -1549,7 +1549,7 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the mode of the step to be performed.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.6.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.6.1
          */
         stepMode: StepMode;
 
@@ -1557,7 +1557,7 @@ export declare namespace ColorControl {
          * This field shall indicate the change to be added to (or subtracted from) the current value of the device’s
          * hue.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.6.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.6.2
          */
         stepSize: number;
 
@@ -1570,7 +1570,7 @@ export declare namespace ColorControl {
          * > NOTE: Here the TransitionTime data field is of data type uint8, where uint16 is more common for
          *   TransitionTime data fields in other clusters / commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.6.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.6.3
          */
         transitionTime: number;
 
@@ -1581,7 +1581,7 @@ export declare namespace ColorControl {
     /**
      * This command will move the device to the requested saturation using a transition.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.7
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.7
      */
     export class MoveToSaturationRequest {
         constructor(values?: Partial<MoveToSaturationRequest>);
@@ -1594,7 +1594,7 @@ export declare namespace ColorControl {
     /**
      * This command will change the saturation of the device with a requested rate.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.8
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.8
      */
     export class MoveSaturationRequest {
         constructor(values?: Partial<MoveSaturationRequest>);
@@ -1602,7 +1602,7 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the mode of movement, as described in the MoveHue command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.8.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.8.1
          */
         moveMode: MoveMode;
 
@@ -1610,7 +1610,7 @@ export declare namespace ColorControl {
          * This field shall indicate the rate of movement in steps per second. A step is a change in the device’s
          * saturation of one unit.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.8.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.8.2
          */
         rate: number;
 
@@ -1621,7 +1621,7 @@ export declare namespace ColorControl {
     /**
      * This command will change the saturation of the device using a step and transition.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.9
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.9
      */
     export class StepSaturationRequest {
         constructor(values?: Partial<StepSaturationRequest>);
@@ -1629,7 +1629,7 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the mode of the step to be performed, as described in the StepHue command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.9.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.9.1
          */
         stepMode: StepMode;
 
@@ -1637,7 +1637,7 @@ export declare namespace ColorControl {
          * This field shall indicate the change to be added to (or subtracted from) the current value of the device’s
          * saturation.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.9.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.9.2
          */
         stepSize: number;
 
@@ -1650,7 +1650,7 @@ export declare namespace ColorControl {
          * > NOTE: Here the TransitionTime data field is of data type uint8, where uint16 is more common for
          *   TransitionTime data fields in other clusters / commands.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.9.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.9.3
          */
         transitionTime: number;
 
@@ -1661,7 +1661,7 @@ export declare namespace ColorControl {
     /**
      * This command will move the device to the requested hue and saturation using a transition.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.10
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.10
      */
     export class MoveToHueAndSaturationRequest {
         constructor(values?: Partial<MoveToHueAndSaturationRequest>);
@@ -1675,7 +1675,7 @@ export declare namespace ColorControl {
     /**
      * This command will move the device to the requested color using a transition.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.11
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.11
      */
     export class MoveToColorRequest {
         constructor(values?: Partial<MoveToColorRequest>);
@@ -1689,7 +1689,7 @@ export declare namespace ColorControl {
     /**
      * This command will change the color of the device with a requested rate.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.12
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.12
      */
     export class MoveColorRequest {
         constructor(values?: Partial<MoveColorRequest>);
@@ -1698,7 +1698,7 @@ export declare namespace ColorControl {
          * This field shall indicate the rate of movement in steps per second. A step is a change in the device’s
          * CurrentX attribute of one unit.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.12.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.12.1
          */
         rateX: number;
 
@@ -1706,7 +1706,7 @@ export declare namespace ColorControl {
          * This field shall indicate the rate of movement in steps per second. A step is a change in the device’s
          * CurrentY attribute of one unit.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.12.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.12.2
          */
         rateY: number;
 
@@ -1717,7 +1717,7 @@ export declare namespace ColorControl {
     /**
      * This command will change the color of the device using a step and transition.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.13
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.13
      */
     export class StepColorRequest {
         constructor(values?: Partial<StepColorRequest>);
@@ -1727,7 +1727,7 @@ export declare namespace ColorControl {
         /**
          * The field shall indicate, in 1/10ths of a second, the time that shall be taken to perform the color change.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.13.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.13.2
          */
         transitionTime: number;
 
@@ -1738,7 +1738,7 @@ export declare namespace ColorControl {
     /**
      * This command will move the device to the requested color temperature using a transition.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.14
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.14
      */
     export class MoveToColorTemperatureRequest {
         constructor(values?: Partial<MoveToColorTemperatureRequest>);
@@ -1751,7 +1751,7 @@ export declare namespace ColorControl {
     /**
      * This command allows the color temperature of the light to be moved at a specified rate.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.21
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.21
      */
     export class MoveColorTemperatureRequest {
         constructor(values?: Partial<MoveColorTemperatureRequest>);
@@ -1759,7 +1759,7 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the mode of movement, as described in the MoveHue command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.21.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.21.1
          */
         moveMode: MoveMode;
 
@@ -1767,7 +1767,7 @@ export declare namespace ColorControl {
          * This field shall indicate the rate of movement in steps per second. A step is a change in the color
          * temperature of a device by one unit.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.21.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.21.2
          */
         rate: number;
 
@@ -1781,7 +1781,7 @@ export declare namespace ColorControl {
          * ColorTemperatureMinimumMireds field is set to 0, ColorTempPhysicalMinMireds shall be used as the lower bound
          * for the ColorTemperatureMireds attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.21.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.21.3
          */
         colorTemperatureMinimumMireds: number;
 
@@ -1795,7 +1795,7 @@ export declare namespace ColorControl {
          * ColorTemperatureMaximumMireds field is set to 0, ColorTempPhysicalMaxMireds shall be used as the upper bound
          * for the ColorTemperatureMireds attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.21.4
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.21.4
          */
         colorTemperatureMaximumMireds: number;
 
@@ -1806,7 +1806,7 @@ export declare namespace ColorControl {
     /**
      * This command allows the color temperature of the light to be stepped with a specified step size.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.22
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.22
      */
     export class StepColorTemperatureRequest {
         constructor(values?: Partial<StepColorTemperatureRequest>);
@@ -1814,7 +1814,7 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the mode of the step to be performed, as described in the StepHue command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.22.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.22.1
          */
         stepMode: StepMode;
 
@@ -1822,7 +1822,7 @@ export declare namespace ColorControl {
          * This field shall indicate the change to be added to (or subtracted from) the current value of the device’s
          * color temperature.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.22.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.22.2
          */
         stepSize: number;
 
@@ -1830,7 +1830,7 @@ export declare namespace ColorControl {
          * This field shall indicate, in units of 1/10ths of a second, the time that shall be taken to perform the step.
          * A step is a change to the device’s color temperature of a magnitude corresponding to the StepSize field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.22.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.22.3
          */
         transitionTime: number;
 
@@ -1844,7 +1844,7 @@ export declare namespace ColorControl {
          * ColorTemperatureMinimumMireds field is set to 0, ColorTempPhysicalMinMireds shall be used as the lower bound
          * for the ColorTemperatureMireds attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.22.4
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.22.4
          */
         colorTemperatureMinimumMireds: number;
 
@@ -1858,7 +1858,7 @@ export declare namespace ColorControl {
          * field is set to 0, ColorTempPhysicalMaxMireds shall be used as the upper bound for the ColorTemperatureMireds
          * attribute.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.22.5
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.22.5
          */
         colorTemperatureMaximumMireds: number;
 
@@ -1870,7 +1870,7 @@ export declare namespace ColorControl {
      * This command allows the light to be moved in a smooth continuous transition from their current hue to a target
      * hue.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.15
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.15
      */
     export class EnhancedMoveToHueRequest {
         constructor(values?: Partial<EnhancedMoveToHueRequest>);
@@ -1878,21 +1878,21 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the target enhanced hue for the light.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.15.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.15.1
          */
         enhancedHue: number;
 
         /**
          * This field shall indicate the movement direction.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.15.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.15.2
          */
         direction: Direction;
 
         /**
          * This field shall indicate the transition time, as described in the MoveToHue command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.15.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.15.3
          */
         transitionTime: number;
 
@@ -1903,7 +1903,7 @@ export declare namespace ColorControl {
     /**
      * This command allows the light to start a continuous transition starting from their current hue.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.16
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.16
      */
     export class EnhancedMoveHueRequest {
         constructor(values?: Partial<EnhancedMoveHueRequest>);
@@ -1911,7 +1911,7 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the mode of movement, as described in the MoveHue command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.16.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.16.1
          */
         moveMode: MoveMode;
 
@@ -1919,7 +1919,7 @@ export declare namespace ColorControl {
          * This field shall indicate the rate of movement in steps per second. A step is a change in the enhanced hue of
          * a device by one unit.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.16.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.16.2
          */
         rate: number;
 
@@ -1930,7 +1930,7 @@ export declare namespace ColorControl {
     /**
      * This command allows the device to be moved in a stepped transition from their current hue.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.17
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.17
      */
     export class EnhancedStepHueRequest {
         constructor(values?: Partial<EnhancedStepHueRequest>);
@@ -1938,7 +1938,7 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the mode of the step to be performed, as described in the StepHue command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.17.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.17.1
          */
         stepMode: StepMode;
 
@@ -1946,7 +1946,7 @@ export declare namespace ColorControl {
          * This field shall indicate the change to be added to (or subtracted from) the current value of the device’s
          * enhanced hue.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.17.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.17.2
          */
         stepSize: number;
 
@@ -1959,7 +1959,7 @@ export declare namespace ColorControl {
          * > NOTE: Here TransitionTime data field is of data type uint16, while the TransitionTime data field of the
          *   StepHue command is of data type uint8.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.17.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.17.3
          */
         transitionTime: number;
 
@@ -1971,7 +1971,7 @@ export declare namespace ColorControl {
      * This command allows the light to be moved in a smooth continuous transition from their current hue to a target
      * hue and from their current saturation to a target saturation.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.18
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.18
      */
     export class EnhancedMoveToHueAndSaturationRequest {
         constructor(values?: Partial<EnhancedMoveToHueAndSaturationRequest>);
@@ -1979,21 +1979,21 @@ export declare namespace ColorControl {
         /**
          * This field shall indicate the target enhanced hue for the light.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.18.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.18.1
          */
         enhancedHue: number;
 
         /**
          * This field shall indicate the saturation, as described in the MoveToHueAndSaturation command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.18.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.18.2
          */
         saturation: number;
 
         /**
          * This field shall indicate the transition time, as described in the MoveToHue command.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.18.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.18.3
          */
         transitionTime: number;
 
@@ -2004,7 +2004,7 @@ export declare namespace ColorControl {
     /**
      * This command allows a color loop to be activated such that the color light cycles through its range of hues.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.19
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.19
      */
     export class ColorLoopSetRequest {
         constructor(values?: Partial<ColorLoopSetRequest>);
@@ -2013,28 +2013,28 @@ export declare namespace ColorControl {
          * This field shall indicate which color loop attributes to update (from the values supplied in the other
          * fields, see field descriptions below) before the color loop is started.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.19.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.19.1
          */
         updateFlags: UpdateFlags;
 
         /**
          * This field shall indicate the action to take for the color loop.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.19.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.19.2
          */
         action: ColorLoopAction;
 
         /**
          * This field shall indicate the direction for the color loop.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.19.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.19.3
          */
         direction: ColorLoopDirection;
 
         /**
          * This field shall indicate the number of seconds over which to perform a full color loop.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.19.4
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.19.4
          */
         time: number;
 
@@ -2054,7 +2054,7 @@ export declare namespace ColorControl {
      *
      * > NOTE: The StopMoveStep command has no effect on an active color loop.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.8.20
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.8.20
      */
     export class StopMoveStepRequest {
         constructor(values?: Partial<StopMoveStepRequest>);
@@ -2065,7 +2065,7 @@ export declare namespace ColorControl {
     /**
      * This data type is derived from map8 and is used in the ColorLoopSet command.
      *
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.3
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.3
      */
     export class UpdateFlags {
         constructor(values?: Partial<UpdateFlags> | number);
@@ -2079,7 +2079,7 @@ export declare namespace ColorControl {
          *
          *   - 1 = Device shall adhere to the Action field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.3.1
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.3.1
          */
         updateAction?: boolean;
 
@@ -2092,7 +2092,7 @@ export declare namespace ColorControl {
          *
          *   - 1 = Device shall update the ColorLoopDirection attribute with the value of the Direction field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.3.2
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.3.2
          */
         updateDirection?: boolean;
 
@@ -2105,7 +2105,7 @@ export declare namespace ColorControl {
          *
          *   - 1 = Device shall update the value of the ColorLoopTime attribute with the value of the Time field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.3.3
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.3.3
          */
         updateTime?: boolean;
 
@@ -2120,13 +2120,13 @@ export declare namespace ColorControl {
          *   - 1 = Device shall update the value of the ColorLoopStartEnhancedHue attribute with the value of the
          *     StartHue field.
          *
-         * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.3.4
+         * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.3.4
          */
         updateStartHue?: boolean;
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.7
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.7
      */
     export enum Direction {
         /**
@@ -2151,7 +2151,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.8
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.8
      */
     export enum MoveMode {
         /**
@@ -2171,7 +2171,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.9
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.9
      */
     export enum StepMode {
         /**
@@ -2186,7 +2186,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v16.Cluster} § 3.2.6.10
+     * @see {@link MatterSpecification.v161.Cluster} § 3.2.6.10
      */
     export enum ColorLoopAction {
         /**

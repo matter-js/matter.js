@@ -19,7 +19,6 @@ import {
 import { MatterModel } from "@matter/model";
 import {
     Ble,
-    ClientSubscriptions,
     CommissionableMdnsScanner,
     Fabric,
     FabricAuthority,
@@ -195,7 +194,11 @@ export class ControllerBehavior extends Behavior {
     override async [Symbol.asyncDispose]() {
         await this.env.close(ActiveDiscoveries);
         await this.internal.scanner?.close();
-        this.env.delete(FabricAuthority);
+        if (this.env.owns(FabricAuthority)) {
+            await this.env.close(FabricAuthority);
+        } else {
+            this.env.delete(FabricAuthority);
+        }
         this.env.delete(ScannerSet);
         await this.internal.services?.close();
     }
@@ -235,8 +238,6 @@ export class ControllerBehavior extends Behavior {
     }
 
     async #nodeGoingOffline() {
-        await this.env.close(ClientSubscriptions);
-
         const netTransports = this.env.get(TransportSet);
         if (this.state.ble) {
             netTransports.delete(this.env.get(Ble).centralInterface);

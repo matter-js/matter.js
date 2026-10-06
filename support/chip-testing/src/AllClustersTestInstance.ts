@@ -6,6 +6,7 @@
 
 import {
     Bytes,
+    Hours,
     ImplementationError,
     InternalError,
     Logger,
@@ -13,7 +14,7 @@ import {
     NotImplementedError,
     Seconds,
 } from "@matter/general";
-import { CommonNumberTag, Endpoint, ServerNode } from "@matter/main";
+import { CommonNumberTag, Endpoint, ServerNode, ServerSubscriptionConfig } from "@matter/main";
 import {
     AccessControlServer,
     AdministratorCommissioningServer,
@@ -38,6 +39,7 @@ import {
     NetworkCommissioningServer,
     NitrogenDioxideConcentrationMeasurementServer,
     OccupancySensingServer,
+    OtaSoftwareUpdateProviderClient,
     OtaSoftwareUpdateRequestorServer,
     OvenModeServer,
     OzoneConcentrationMeasurementServer,
@@ -105,7 +107,7 @@ import { TestOperationalStateServer } from "./cluster/TestOperationalStateServer
 import { TestOvenCavityOperationalStateServer } from "./cluster/TestOvenCavityOperationalStateServer.js";
 import { TestWindowCoveringServer } from "./cluster/TestWindowCoveringServer.js";
 import { DeviceTestInstanceConfig } from "./GenericTestApp.js";
-import { NodeTestInstance } from "./NodeTestInstance.js";
+import { disableEndpointValidation, NodeTestInstance } from "./NodeTestInstance.js";
 import { SwitchSimulator } from "./simulators/SwitchSimulator.js";
 
 const logger = Logger.get("AllClustersTestInstance");
@@ -115,6 +117,9 @@ export class AllClustersTestInstance extends NodeTestInstance {
 
     /** Mount the Groupcast cluster (+ Auxiliary ACL) on the root endpoint. Overridden by the no-groupcast variant. */
     protected readonly groupcast: boolean = true;
+
+    /** Subscription interval limits; undefined keeps the matter.js defaults. Overridden by the full-max-interval variant. */
+    protected readonly subscriptionOptions?: ServerSubscriptionConfig = undefined;
 
     constructor(config: DeviceTestInstanceConfig) {
         super(config);
@@ -317,6 +322,11 @@ export class AllClustersTestInstance extends NodeTestInstance {
                   UserLabelServer,
               );
 
+        if (!this.groupcast) {
+            // Without Groupcast the root cannot meet the 1.6.1 RootNode requirements its light devices assert
+            disableEndpointValidation(this.env);
+        }
+
         const serverNode = await ServerNode.create(rootEndpoint, {
             id: this.id,
             environment: this.env,
@@ -327,6 +337,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 port: this.config.port ?? 5540,
                 tcp: true,
                 transportPreference: process.env.TEST_PREFER_TCP === "1" ? "tcp" : "udp",
+                subscriptionOptions: this.subscriptionOptions,
                 //advertiseOnStartup: false,
             },
             commissioning: {
@@ -489,6 +500,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 OccupancySensingServer.with(OccupancySensing.Feature.PassiveInfrared),
                 TestOperationalStateServer,
                 TestOvenCavityOperationalStateServer,
+                OtaSoftwareUpdateProviderClient,
                 OtaSoftwareUpdateRequestorServer,
                 OvenModeServer,
                 OzoneConcentrationMeasurementServer.with(
@@ -1141,6 +1153,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 },*/
                 windowCovering: {
                     type: WindowCovering.WindowCoveringType.TiltBlindLift,
+                    endProductType: WindowCovering.EndProductType.InteriorVenetianBlind,
                     currentPositionLiftPercent100ths: 0,
                     currentPositionTiltPercent100ths: 0,
                     safetyStatus: {},
@@ -1239,4 +1252,15 @@ export class AllClustersNoGroupcastTestInstance extends AllClustersTestInstance 
     static override id = "binford-6100-no-groupcast";
 
     protected override readonly groupcast: boolean = false;
+}
+
+/**
+ * all-clusters granting a requested MaxIntervalCeiling up to the 60-minute publisher limit, as CHIP's all-clusters app
+ * does, instead of the 3 minutes matter.js grants by default.  For tests that assert the negotiated MaxInterval equals
+ * the requested ceiling.
+ */
+export class AllClustersFullMaxIntervalTestInstance extends AllClustersTestInstance {
+    static override id = "binford-6100-full-max-interval";
+
+    protected override readonly subscriptionOptions = ServerSubscriptionConfig.of({ maxInterval: Hours.one });
 }

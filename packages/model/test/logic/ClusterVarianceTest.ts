@@ -27,6 +27,14 @@ describe("ClusterVariance", () => {
             });
         });
 
+        it("omits disallowed elements (characterization)", () => {
+            expectComponents(attrs({ name: "attr", conformance: "X" }));
+        });
+
+        it("classifies obsolete as optional, as it does deprecated", () => {
+            expectComponents(attrs({ name: "attr", conformance: "Z" }), { optional: ["attr"] });
+        });
+
         it("ignores deprecation", () => {
             expectComponents(attrs({ name: "attr", conformance: "D" }), { optional: ["attr"] });
         });
@@ -173,6 +181,10 @@ describe("ClusterVariance", () => {
             );
         });
 
+        it("parses fieldName > num, O as optional", () => {
+            expectComponents(attrs({ name: "attr", conformance: "FieldRef > 0, O" }), { optional: ["attr"] });
+        });
+
         it("parses [FOO & !fieldRef].x+ ignoring the field reference", () => {
             expectComponents(attrs(["FOO"], { name: "attr", conformance: "[FOO & !FieldRef].b+" }), {
                 optional: ["attr"],
@@ -207,6 +219,19 @@ describe("ClusterVariance", () => {
             expect(
                 illegalCombinations({ name: "FOO", conformance: "D" }, { name: "BAR", conformance: "X" }),
             ).deep.equal([{ FOO: true }, { BAR: true }]);
+        });
+
+        it("disallows an obsolete feature", () => {
+            expect(illegalCombinations({ name: "FOO", conformance: "Z" })).deep.equal([{ FOO: true }]);
+        });
+
+        it("reads a misplaced obsolete entry as it reads a disallowed one", () => {
+            // "Z, BAR" is invalid and model validation reports it; the analysis must still not fail on it
+            expect(
+                illegalCombinations({ name: "BAR", conformance: "O" }, { name: "FOO", conformance: "Z, BAR" }),
+            ).deep.equal(
+                illegalCombinations({ name: "BAR", conformance: "O" }, { name: "FOO", conformance: "X, BAR" }),
+            );
         });
 
         it("requires a feature another feature mandates", () => {
@@ -468,7 +493,7 @@ describe("ClusterVariance", () => {
             ).throws(InternalError);
         });
 
-        it("rejects a choice set whose members close under differing conditions", () => {
+        it("rejects a choice set whose members join under differing conditions", () => {
             expect(() =>
                 illegalCombinations(
                     { name: "FOO", conformance: "O" },
@@ -476,7 +501,7 @@ describe("ClusterVariance", () => {
                     { name: "BAZ", conformance: "[FOO].a" },
                     { name: "QUX", conformance: "[BAR].a" },
                 ),
-            ).throws(InternalError);
+            ).throws(InternalError, /join the set under differing conditions/);
         });
 
         it("distributes a conjunction the disjuncts of an optional if mix in", () => {
@@ -493,7 +518,7 @@ describe("ClusterVariance", () => {
             ]);
         });
 
-        it("rejects a choice set a member joins under a compound condition", () => {
+        it("rejects a choice set a member joins under alternative conditions", () => {
             for (const conformance of ["[A | B].a+", "[!(A & B)].a+"]) {
                 expect(() =>
                     illegalCombinations(
@@ -502,7 +527,7 @@ describe("ClusterVariance", () => {
                         { name: "X", conformance },
                         { name: "Y", conformance },
                     ),
-                ).throws(InternalError);
+                ).throws(InternalError, /joins the set under alternative conditions/);
             }
         });
 
@@ -529,10 +554,36 @@ describe("ClusterVariance", () => {
             ]);
         });
 
-        it("rejects a choice set the specification bounds from above", () => {
+        // DeviceEnergyManagement: PA is "O.a-" and PRA "P, O.a-", so at most one of them
+        it("allows at most one member of a choice set the specification bounds from above", () => {
+            expect(
+                illegalCombinations({ name: "X", conformance: "O.a-" }, { name: "Y", conformance: "P, O.a-" }),
+            ).deep.equal([{ X: true, Y: true }]);
+        });
+
+        it("rejects a choice set whose members state differing bounds", () => {
             expect(() =>
-                illegalCombinations({ name: "X", conformance: "O.a-" }, { name: "Y", conformance: "O.a-" }),
-            ).throws(InternalError);
+                illegalCombinations({ name: "X", conformance: "O.a-" }, { name: "Y", conformance: "O.a" }),
+            ).throws(InternalError, /differing bounds/);
+        });
+
+        // DeviceEnergyManagement: PFR and SFR are "[!PA & !PRA].b"
+        it("keeps a choice set a member joins under a conjunction", () => {
+            expect(
+                illegalCombinations(
+                    { name: "A", conformance: "O" },
+                    { name: "B", conformance: "O" },
+                    { name: "X", conformance: "[!A & !B].a" },
+                    { name: "Y", conformance: "[!A & !B].a" },
+                ),
+            ).deep.equal([
+                { X: true, A: true },
+                { X: true, B: true },
+                { Y: true, A: true },
+                { Y: true, B: true },
+                { X: true, Y: true },
+                { X: false, Y: false, A: false, B: false },
+            ]);
         });
 
         it("rejects a choice set of more than one required member", () => {

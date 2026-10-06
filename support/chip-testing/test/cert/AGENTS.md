@@ -61,6 +61,9 @@ to an app this way:
 | `SU`, `BDX`                         | `ota-provider` / `ota-requestor` | `chip-ota-provider-app` / `chip-ota-requestor-app` | yes (`OtaProviderTestInstance`, `OtaRequestorTestInstance`) |
 | `TBRM`                              | `network-manager` | `matter-network-manager-app` | no — the case declares `flavors: ["chip-local"]`, which skips it before registration |
 | `ICDB`, `ICDM`                      | `lit-icd`    | `lit-icd-app-nopersist` (variant) | yes (`IcdTestInstance`); chip binaries own-built only |
+| `BIND`                              | `light-switch` | `chip-light-switch-app` (not in our image) | yes (`LightSwitchTestInstance`); the cases declare `flavors: ["matterjs"]` |
+| `BIND` (no Groupcast on the root)   | `light-switch-no-groupcast` | none | yes (`LightSwitchNoGroupcastTestInstance`); matterjs only |
+| `BIND` (no Groupcast on the root)   | `all-clusters-no-groupcast` | none under this name; chip-local runs the `nogroupcast` variant of `all-clusters` through `appVariant` | yes (`AllClustersNoGroupcastTestInstance`); matterjs only |
 
 A single TC may name two of these at once through `devices` — see "More than one device in a run".
 
@@ -83,6 +86,11 @@ skips the case before any subject is built (`TC-TBRM-3.1`).
 Three flavors can be selected (`SelectableDeviceFlavor` in `cert-context.ts`): `chip-local`,
 `chip-docker`, `matterjs`. `DeviceFlavor` adds `python-wrapped`, which only ever appears in evidence,
 for a device a wrapped python script spawns for itself.
+Code that branches per flavor asks `flavorFamily()` (or picks a value with `forFlavor()`), never
+`startsWith("chip")` or `=== "matterjs"` on a device flavor. A log check given a flavor of neither family
+resolves `"unverified"` through `forFlavor`; a yes/no question about the family answers as for a flavor that
+is not the one asked about. No run hands `python-wrapped` to these helpers today.
+
 The convention this series has followed, worth stating explicitly for the next TC:
 
 - **At least one chip flavor (`chip-local` or `chip-docker`) passing is the actual certification
@@ -169,10 +177,10 @@ Two independent PICS mechanisms exist, and only one of them is live against toda
 The root `npm test` does **not** cover this package: `support/chip-testing/package.json` sets
 `nacho.test: false`, because the app legs need Docker and chip binaries, and the opt-out is per
 package rather than per spec. The hermetic tests under `test/cert-framework/**` are dropped with
-them. A cert change therefore needs its own command:
+them. A cert change therefore needs its own command, run before the change is declared done:
 
 ```bash
-# what CI runs (esm and cjs legs)
+# what CI runs (the package builds esm only)
 npm --prefix support/chip-testing run test-cert-framework -- --no-pull
 
 # one leg, for iteration
@@ -186,7 +194,10 @@ flag.
 
 Docker is required either way, and no flag avoids it: the specs themselves use fakes, but
 `test/test.config.ts` awaits `chip.initialize()` at module scope, so every leg starts the harness
-containers before any spec runs.
+containers before any spec runs. Moving that start into a before-run hook does not work: `chip("X/*")` resolves its
+descriptor globs and PICS while the spec files load, `RvcTestInstance` loads its PICS at import, `matter-test
+inspect` reads the default PICS without running hooks, and specs such as `TC-SC-3.5` read `chip.container`
+without defining a harness test.
 
 The second form sets `MATTER_TEST_SHUTDOWN_TIMEOUT_MS` by hand because it bypasses the npm script
 that would have set it — without it a run can end in exit 101 during normal cleanup (see
@@ -221,8 +232,8 @@ What a check's `type` should be:
   `"unverified"`, on every flavor including `matterjs`.
 - **`"device-log"`** — a pattern match against the TH's own stdout (via `LogFollower.expect`,
   usually wrapped so a timeout/close error becomes a recorded `"fail"` rather than propagating
-  uncaught — see `TC-ACT-3.2`'s `recordInvokeStatus`/adversarial-review fix below for why an
-  uncaught log-check error is a real evidence gap, not just noise). `"unverified"` means no pattern
+  uncaught: a log-check error that escapes ends the step before its other checks are recorded, which
+  is an evidence gap, not just noise). `"unverified"` means no pattern
   was supplied for the running flavor (see "Flavor policy" above) — an evidence gap that fails the
   run until the pattern is written or the check states why it cannot be settled here, rather than a
   claim about the device.
@@ -510,7 +521,8 @@ This is a framework-level fix (`log-follower.ts`), not something an individual T
   corroboration of it.
 - **Never leave the DUT commissioned.** With ~21 steps sharing one commissioned node, the step engine aborts
   (skips, doesn't run) every step after the one that threw — see `cert-test.ts`'s `invoke()` — except a
-  step that throws `UnsupportedByControllerError`, which is recorded `"skipped"` and lets later steps run.
+  step that throws `UnsupportedByControllerError` before it recorded a check or made a controller call that
+  may change the device, which is recorded `"skipped"` and lets later steps run.
   Either way a decommission written into any single step is unreliable. `.finalize()` owns it instead (see
   "Commission/decommission lifecycle" above).
 
@@ -543,7 +555,10 @@ this reason, matching the `"all-clusters"` registration already there.
 `MATTER_CERT_CONTROLLER=chip-tool` swaps `InProcessControllerAdapter` for
 `ChipToolControllerAdapter`, and the two are not interchangeable in every direction. A step asking for
 something chip-tool cannot express gets `UnsupportedByControllerError` — recorded `"skipped"`, later
-steps still run — rather than a wrong answer, and today that means:
+steps still run — rather than a wrong answer. That holds only while the step has neither recorded a check
+nor made a controller call that may change the device (`step-actions.ts` classifies every controller API member); a
+refusal after either fails the run, so a step that needs such an operation after acting declares it in the
+controller's PICS instead. Today the refusals are:
 
 - **A `writeAttributes` mixing versioned and unversioned entries** — chip-tool takes `--data-version`
   once per command, applying to all its paths or none, so a request where only some entries carry a
@@ -569,12 +584,15 @@ A "DUT issues command X to TH" step (as opposed to a read) has two independent t
 *outgoing* command's shape (what `TC-ACT-3.2` checks via the TH log's `CommandDataIB`/`CommandFields`,
 mirroring `expectAttributePathIB`'s discipline for reads) and the *response status* the TH sent back. Per
 the brief, a non-success response is tolerated evidence, not a step failure, whenever the TH's own
-implementation is the reason (missing command support, an action ID it doesn't recognize, etc.) — only a
-response that never arrives at all (anything that isn't a `StatusResponseError`, e.g. a real timeout) is a
-genuine step failure. `TC-ACT-3.2`'s `recordInvokeStatus` catches exactly `StatusResponseError` and
-records its `.code` as a `"response"` check with verdict `"pass"` either way; anything else rethrows.
-Eleven of this TC's twelve steps come back `UnsupportedCommand` (0x81) against the real chip-bridge-app,
-and that's the expected shape of a passing run, not a bug in the TC.
+implementation is the reason (missing command support, an action ID it doesn't recognize, etc.).
+`invokeCommand`'s `anyStatus` option (used by `TC-ACT-3.2`) passes the response check for exactly a
+`StatusResponseError` that is not a `ValidationError` and records its code. A `ValidationError` is the
+client's own encode-time rejection, so it and every error without a status (e.g. a real timeout) still
+fail the check. The option also passes `NoCommandResponse`, a status the matter.js client sets itself
+when the InvokeResponse has no entry for the command; the CommandDataIB log check still holds the step.
+Eleven of this TC's twelve steps come back refused against the real chip-bridge-app (`InvalidCommand`
+from `ActionsCluster.cpp`, for an action whose SupportedCommands lacks the command), and that's the
+expected shape of a passing run, not a bug in the TC.
 
 ## Async log delivery lag can make a later step's log check match an earlier step's trailing echo
 
@@ -653,10 +671,8 @@ different cluster (`OnOff` vs. `Actions`), a different endpoint constant, and no
 is the same "a second TC needs the same shape" trigger `TC-IDM-2.1`'s `attributePathIBSequence` was
 promoted on (see "Wildcard path idioms" above). Both helpers, plus a shared `requireId` and a renamed
 `CommandFieldValue` (was `FieldValue`), moved to `tc-support.ts`, parameterized on `endpoint`/`cluster`
-instead of reading TC-ACT-3.2's own module-level constants; `TC-ACT-3.2.test.ts` was updated to call the
-promoted versions rather than keep a second copy. Behavior is unchanged for `TC-ACT-3.2` — same sequence,
-same per-field pattern, same returned `CheckRecord` shape — only the call site gained two parameters
-(`endpoint`, `cluster`) it used to read from module scope.
+instead of reading TC-ACT-3.2's own module-level constants. `TC-ACT-3.2` itself now reaches them through
+`invokeCommand`.
 
 ## Multi-controller wiring (`TC-CADMIN-1.17`), first real exercise
 
@@ -1213,8 +1229,9 @@ What the plan asks to verify, and how each part is evidenced:
   CI load, so the TC asks for 2s.
 - **The message was unicast** — chip's own receive line categorises the session: `(S)` secure unicast,
   `(U)` unencrypted unicast, `(G)` secure groupcast (`src/messaging/README.md`). `expectUnicastReceipt`
-  scans *backward* from the decode dump for the nearest `Msg RX from` line, which is this message's own
-  since chip logs one message at a time.
+  scans *backward* from the decode dump for the nearest Interaction Model `Msg RX from` line, and
+  `chipHeaderBefore` accepts it only when exactly one decode dump (this message's) lies between: a
+  message that logged no receive line otherwise borrows the previous message's.
 - **The follow-up is the one this request opened** — matched by the session *and* exchange chip names
   on both messages' receive lines (`[E:<exchange> S:<session> …]`), not by "the next message after the
   timed request". A retry of this interaction, or a second administrator's own timed interaction with
@@ -1415,7 +1432,7 @@ TC has not driven the steps itself:
 
 ```ts
 await cx.controllers.dut.node(ref).decommission();
-if (th.flavor !== "matterjs") {
+if (flavorFamily(th.flavor) === "chip") {
     const from = th.log.mark();
     await th.backchannel({ name: "factoryReset" });
     // wait for the restarted app's own SetupQRCode line before any mDNS check
@@ -1592,7 +1609,8 @@ Two of those printed codes corrected the first implementation, and both are easy
 **"Terminates commissioning" is two different claims, and they need two different checks.** Steps 2,
 3, 5, 7 and 8 are payload refusals — `requireRefusal`, accepting only `OnboardingPayloadRefusedError`.
 Step 4 hands over a well-formed code naming a device that is not there, so the DUT fails for lack of a
-commissionee; `requireNoCommissioning` accepts any failure there and only a *success* fails the step.
+commissionee; `requireGiveUp` first observes the TH advertising, then accepts only a give-up
+(`isCommissioningGiveUp`).
 The evidence keeps them apart: on chip-tool, steps 3/7/8 record `Run command failure:
 src/setup_payload/…` while step 4 records a bare command failure.
 
@@ -1637,10 +1655,22 @@ Two traps behind that, both of which a green run hid at first:
   Do not "fix" a failure there by reverting to the matching id — that restores a step that proves
   nothing.
 
-**`requireNoCommissioning` must refuse a payload refusal.** Without the complementary predicate every
+**`requireGiveUp` must refuse a payload refusal.** Without the complementary predicate every
 outcome that satisfies `requireRefusal` also satisfies it, so a malformed generated code would make
 step 4 pass at ~1ms having never reached discovery. The two checks are only a partition because the
 predicate says so.
+
+## The 11-digit block (`TC-DD-3.15`, `TC-DD-3.16`)
+
+**The 11-digit code is the TH's own artifact.** Both flavors print it for their standard flow (chip
+`Manual pairing code: [<11 digits>]`, matter.js `… manual pairing code: <11 digits>`), and
+`thPrintedManualCode` reads it the way `thQrPayload` reads the QR payload. TC-DD-3.16 builds every
+substitution from `thElevenDigitCodeParts`, and each generating step checks its code against the printed
+code with `unchangedFrom`, which is what ties it to "the manual code from Step 1". TC-DD-3.15's 21-digit
+half has no printed form on the standard flow: matter.js's `ManualPairingCodeCodec` renders the TH's
+identity and step 2.a reads it back with `manualPairingCodeDigits`. TC-DD-3.17 keeps
+`thManualPairingCode`, because its negative codes need values the codec refuses to write. `tc-dd-support.test.ts` asserts all 17
+11-digit codes TC-DD-3.16 prints.
 
 ## A transport the controller has no radio for is not applicable, not skipped (`TC-DD-3.11`)
 
@@ -1672,10 +1702,11 @@ its own) but because recording a PAF-leg scan while the PAF leg is out of scope 
 `pics` takes a full expression (`&`, `|`, `!`, parentheses), and `certTest` parses it at declaration
 time so a typo cannot surface as the step failing.
 
-**A scan step must judge the field that defines its leg.** `recordParse` settles its verdict on the
-discriminator and passcode alone, so every leg's scan step otherwise passes on identical evidence and
-one handed another leg's payload still passes. `recordPayloadOffering` puts the capability and the
-commissioning flow into the verdict, read back through the DUT's own parse.
+**A scan step must judge the field that defines its leg.** `recordParse` alone settles its verdict on
+the discriminator and passcode, so every leg's scan step otherwise passes on identical evidence and one
+handed another leg's payload still passes. Its `offering` option adds a second check on the same parse
+that puts the capability and the commissioning flow into the verdict; both checks are recorded even
+when the first fails.
 
 **The TH's own QR code already satisfies the plan's precondition**, so this TC verifies rather than
 fabricates: both chip builds publish `flowType` 0 — `MT:-24J042C00KA0648G00` from the cert-bins app,
@@ -1891,6 +1922,22 @@ payloads is also not enough — two could differ only in passcode and leave disc
 with the same vendor id, so the attribute value alone cannot tell them apart and swapping the two refs
 would satisfy either step.
 
+## Compressed fabric id comes from the TH, not the DUT (`TC-SC-4.8`)
+
+The plan says "extract the Compressed Fabric ID assigned from DUT to TH" and gives no method.
+`CertNodeApi.operationalMdnsInstanceName()` is not one: the in-process adapter computes it from the
+DUT's own fabric, so it is the same for every node by construction, and the chip-tool adapter derives
+it from the TH's own `Fabrics` attribute. The TC uses it only for the node id the DUT assigned.
+
+The TH states the value in its own log each time it advertises a fabric:
+`Advertise operational node <CFID>-<NODE>` (chip, `app/server/Dnssd.cpp`, both ids fixed-width
+uppercase hex) and `MdnsAdvertisement Publishing kind: operational service: mdns:<CFID>-<NODE>…`
+(matter.js; note the `mdns:` prefix). Each TH's own log is searched from a mark taken before the
+commissioning, for the node id the DUT just assigned.
+
+The compressed fabric id is never taken from the network: a probe cannot witness a transition (see
+"Freshness").
+
 ## What a commissioning step owes its own evidence
 
 A step that commissions from an onboarding code used to record two things: that the commissioning
@@ -1898,9 +1945,10 @@ succeeded, and that the TH logged it completing. Neither says the DUT read the c
 directory used to state — "commissioning from the payload is itself evidence the DUT parsed it" — is
 retired.
 
-**`commissionByTarget` records what the DUT read from the code before it uses it.** All twelve
-`commissionByQr` call sites get it, and `recordParse` compares that reading against the TH's own
-discriminator and passcode rather than merely reporting it. Do not add a second `recordParse` beside a
+**`commissionByTarget` records what the DUT read from the code before it uses it.** Every
+`commissionByQr` and `commissionByManualCode` call gets it. `recordParse` / `recordManualParse` compare
+that reading against the TH's own discriminator and passcode, and `recordManualParse` also against the
+vendor and product id the code carries, rather than merely reporting it. Do not add a second `recordParse` beside a
 `commissionByQr` in the same step — it records the same claim twice. Where a scan step and a
 commissioning step are different steps, both legitimately parse: the scan step's claim is that the
 payload was *scanned*, the commissioning step's is about the code that commissioning used. Their
@@ -1920,9 +1968,9 @@ the run anyway, since that would turn the control into an ordinary commissioning
 
 **Because a refusal is what a pass looks like here, two conditions are established rather than
 assumed.** The TH is observed advertising first, or the DUT gives up because there was nothing to find
-and the check passes on the TH's absence. And only a give-up counts (`isCommissioningGiveUp`), where
-`requireNoCommissioning` takes every failure but a payload refusal — that helper serves a plan with no
-commissionee at all, so a controller that would not start satisfies it.
+and the check passes on the TH's absence. And only a give-up counts (`isCommissioningGiveUp`), so a
+controller that would not start does not pass. `requireGiveUp` makes the same two checks for the
+manual-code plans.
 
 **On chip-tool the control cannot be run at all.** `ChipToolCommandError` covers discovery, PASE,
 attestation, CASE, timeout and argument-parse failures alike, so a give-up is indistinguishable from a
@@ -1935,11 +1983,9 @@ that could not have failed.
 **Budgets.** `ABSENT_DEVICE_GIVE_UP` (20s) is what the DUT is asked to spend; `ABSENT_DEVICE_WAIT`
 (90s) is how long the harness waits for that give-up. They must not be equal: a wait equal to the
 deadline it is waiting on observes the attempt still pending and records the DUT as having neither
-onboarded nor refused. Only matter.js reaches the attempt, and it honors the bound, so the slack
-between the two is for a loaded runner delivering the rejection late rather than for a controller
-that ignores the deadline. Erring long only delays reporting a DUT that hangs; erring short fails a
-working one. If the chip-tool path ever runs the attempt, the wait has to outlast chip-tool's own
-give-up instead — TC-DD-3.17 step 4 documents that as roughly 45 seconds and sets this same pair.
+onboarded nor refused. matter.js honors the bound. chip-tool ignores it and gives up on its own after
+about 30 s (observed in TC-DD-3.16/3.17 step 4.b, which run on chip-tool), so the wait outlasts both.
+Erring long only delays reporting a DUT that hangs; erring short fails a working one.
 
 **Where it goes.** A precondition step numbered `0`, before the first commissioning whose evidence
 rests on it, following the `0.1`/`0.2` precedent in TC-IDM-1.3. The claim is about the commissioner
@@ -1970,7 +2016,7 @@ something the harness can produce. `qrPayloadWith` gained a `flowType` field for
 scan step reads it back through the DUT's own parser — which is what makes the step evidence about the
 flow rather than about the TH.
 
-**`recordPayloadOffering` takes the expected flow as a parameter.** A helper whose verdict names a
+**`recordParse`'s `offering` takes the expected flow from the caller.** A helper whose verdict names a
 property must take that property from the caller; one holding the value itself records a `pass` whose
 text names a flow nobody checked, and the second test case to use it silently asserts the first one's
 value.
@@ -1994,7 +2040,7 @@ ungated `.c` would record a parse pass beside `.b`'s skip — the contradiction 
 rule above exists to prevent. Where a step genuinely re-does the gated operation the fix is the gate,
 not dropping the claim.
 
-**`.c` records the parse and stops there, and the plan's second sentence is why this is worth stating.**
+**`.c` records the parse and the leg's payload offering, as `.b` does, and stops there; the plan's second sentence is why this is worth stating.**
 The plan asks to verify the DUT parsed the code *and* that the TH has not been commissioned. The
 second half looks like the valuable claim and is not testable here: the only thing `.c` asks of the
 DUT is `parseQrPayload`, which is a local decode on both controllers — `singleQrPayload` in-process,
@@ -2328,7 +2374,7 @@ keeps `{ tag, channel, controllerSessionId }` rather than the tag alone.
 
 **A session operation naming a session the controller does not hold is a state error, not a refusal.**
 `UnsupportedByControllerError` means "this controller cannot do this kind of thing" and the step runner
-records it as *skipped*; using it for a runtime state would turn the precise defect step 1 exists to
+records it as *skipped* when the step has not acted yet; using it for a runtime state would turn the precise defect step 1 exists to
 rule out into a clean-looking run. The in-process adapter throws `SessionStateError` for an unknown id,
 a detached channel, or a transport with no connection to sever, so such a step fails.
 
@@ -2554,7 +2600,8 @@ Four things the plan does not say, each of which failed silently until found:
 sender's log carries all four. The multicast address is not shape-matched: the DUT's membership line
 names the group, the fabric and the address together, so the address is recomputed from that fabric id
 and group id and compared byte for byte — which also establishes the destination is GroupID 1. The port
-and address are read from the invoke's `dest:` field, and the session tag renders `•group#…`. That last
+and address are read from the invoke's `dest:` field, which follows the group the message is for
+(`•group#… group: 1 dest: [<address>]:5540`), and the session tag renders `•group#…`. That last
 one is the sender saying which *kind* of session it used, not a read of the packet's own DSIZ field —
 which is what makes it evidence for the claim rather than the claim itself, and the step's expected
 outcome says so.
@@ -2570,11 +2617,14 @@ also the step's synchronisation — an unacknowledged multicast orders nothing a
 that follows it, so without that wait the read races the device.
 
 A group command's path is endpoint-wildcarded on the wire (`invokes: *.0x4.0x0`), so the dispatch is
-identified by the endpoint it *reached*: matter.js names endpoint, cluster, command and fields on its
-`ProtocolService Invoke «` line, and chip prints `Received Groupcast Message with GroupId 0x0001`
-followed by `Processing group command for Endpoint=1 Cluster=0x0000_0004 Command=0x0000_0000`. chip's
-first line is worth knowing about — it names the group id read off the *packet*, which is the
-receiver's own view of the destination, and the only place in this suite where that appears.
+identified by the endpoint it *reached*. Both implementations name the group the packet was sent to on
+a receipt line, and then the dispatch: matter.js's inbound `InteractionServer Invoke « •group#… group: 1
+invokes: *.0x4.0x0`, then its `ProtocolService Invoke «` line with endpoint, cluster, command and fields
+on the same exchange (`⇵…`), which `expectGroupCommandArrival` requires; chip's `Received Groupcast
+Message with GroupId 0x0001`, then `Processing group command for Endpoint=1 Cluster=0x0000_0004
+Command=0x0000_0000`, tied by order alone since neither line names an exchange. The receipt line is the
+receiver's own view of the destination, read off the packet. TC-BIND-2.3 relies on the same lines,
+through the same helpers in `tc-support.ts`.
 
 **A production change came with it.** The group invoke's diagnostic printed the address alone;
 `GroupSession.destination` now renders `[<address>]:<port>` so the log says where a message actually
@@ -2970,11 +3020,17 @@ driven, not skipped.** `CertNodeApi.scriptOtaProvider({ queryImage, applyUpdate 
 provider gives in place of its own, one per command, falling back to its real answer once a queue is
 spent. That is how TC-SU-3.2 step 5 gets a `Busy` with a `DelayedActionTime`, TC-SU-3.4 steps 2 and 3
 an `AwaitNextAction` and a `Discontinue`, and TC-SU-3.3 steps 2 and 3 a `UserConsentNeeded`. A
-scripted *status* or *action* is answered without asking `super` at all: its answer is a side effect
-as much as a value — it stages an in-progress entry, registers the peer for BDX, closes that
-registration on the way to an apply — and writing a status over the top afterwards would leave the
-provider expecting a transfer the requestor was just told not to start. A scripted `UserConsentNeeded`
-does overlay the real answer, because the step is about the field, not about the answer.
+scripted *status*, and a scripted `AwaitNextAction`, is answered without asking `super` at all: its
+answer is a side effect as much as a value — it stages an in-progress entry, registers the peer for
+BDX, closes that registration on the way to an apply — and writing a status over the top afterwards
+would leave the provider expecting a transfer the requestor was just told not to start.
+
+Two scripted answers do overlay the provider's real one, because the step is about a field rather than
+about the answer: `UserConsentNeeded` on a `QueryImageResponse`, and `DelayedActionTime` on an
+`ApplyUpdateResponse` the provider already answered `Proceed` (TC-SU-2.5 step 2, where the plan asks a
+requestor to defer an apply it was allowed). The provider has no path of its own to a deferred
+`Proceed`, and bypassing it would allow an apply it does not know it allowed. The overlay is not
+written over a `Discontinue`: naming a time for something that is not going to happen says nothing.
 
 **A scripted `UpdateAvailable` offers an image the provider does not hold.** The harness fills the
 mandatory fields for a conformant offer unless the script names `softwareVersion` or `imageUri`, and a
@@ -3138,6 +3194,94 @@ under storage context `certOtaRequestor` and sets `BootReason` `SoftwareUpdateCo
 - Without the restart, both steps fail rather than pass: no `NotifyUpdateApplied` arrives, and
   `BootReason` stays `Unspecified`.
 
+**A "vendor specific" consent step still has a checkable half (`TC-SU-2.3` step 1).** The consent itself
+is the vendor's, but § 11.20.7.4.2 gives `DelayedOnUserConsent` for the state a requestor passes through
+while it asks. So a requestor that obtained consent recorded a `StateTransition` into that state with a
+lower event number than the one into `Downloading`, and a case reads the two rather than recording the
+whole step unverified. Scripting `userConsentNeeded: false` instead makes the check fail, with the
+DelayedOnUserConsent transition absent.
+
+**The plan's Max Block Size rule is two rules, one per side.** `MIN_NON_TCP_BLOCK_SIZE` is the floor a
+*provider* must be able to grant (TC-SU-3.3) and `MAX_NON_TCP_BLOCK_SIZE` the ceiling a *requestor* may
+propose (TC-SU-2.3 step 2). Both are 1024, so a case reading the wrong constant states a claim about the
+other side of the transfer and still passes.
+
+**`MCORE.OTA.Resume` is `0` for the matter.js requestor.** `BdxSession` accepts a start offset only where
+it sends, so a resumed download starts from the beginning. The key is declared and not gated on: the resume
+steps are `notApplicable` on every flavor — with no transfer the harness can abort, there is nothing to
+resume — and a step carrying both never evaluates its PICS, as the note on `notApplicable` above says.
+
+**A check reading the TH's own answer is a premise, not evidence about the DUT.** TC-SU-2.3 step 2 first
+recorded the `ImageURI` the TH offered against `bdxImageUriFindings`, which compares matter.js's
+controller-side provider with itself: both the URI and the node id it is checked against come from the same
+`rootNodeId` in the same process. A regression there would have failed the *device's* step. Where the DUT is
+the requestor, the URI is TC-SU-3.2's claim, not this case's.
+
+**Every OTA command the provider answers is stamped with `receivedAtMs`, not just `QueryImage`.** The
+`ApplyUpdateRequest` exchange and the `NotifyUpdateApplied` record carry it too. That is what lets a
+case time a deferral from the side the DUT's own restart does not disturb, and what tells a step
+whether a notification arrived before or after some other command of the same update (`TC-SU-2.5`).
+
+**A requestor's own `StateTransition` events cannot time anything across an apply.** The subject
+restarts into the version it applied, and `NodeTestInstance.restartNode()` discards the occurrences the
+old boot recorded. Numbering continues across the restart, so a mark taken with
+`latestRequestorStateChange` before the step still selects what the new boot reports, but what the old
+boot reported after the mark is gone. Time the wait on the TH instead. A live *attribute* read during
+the wait is fine; it is the event log that does not survive.
+
+**The waits `serveOtaUpdate` offers end on what the provider decided, which is not a window the DUT
+has been watched for.** `applyTimeoutMs` settles as soon as the provider allows an apply *or gives up
+on the update* — and refusing with `Discontinue` withdraws the update's consent, which is giving up, so
+the wait ends before the requestor has reacted to anything. A step whose claim is that the DUT sent
+nothing asks for `observeAfterMs` and checks `OtaBdxTransfer.observedMs` against the window it claims,
+exactly as the query side checks `observedMs` from `announceOtaProvider`. Measuring the step's own
+runtime is how to tell the two apart: raising the window should raise the runtime by the same amount.
+
+**`TC-SU-2.5` is matterjs-only and mostly `longRunning`.** Steps 1, 2 and 4 read `SoftwareVersion`
+after an apply, which needs `REBOOT_AFTER_APPLY_ARG`. Steps 1 to 4 restart the DUT and each waits until the TH's
+subscription delivered the `StartUp` with the applied version, so the next step does not serve while the TH
+still has the restart to learn about; step 3 is about the DUT's own two-minute floor
+under an `AwaitNextAction`, so it needs `SPEC_INTERVALS_ARG` and the run must not shorten it. Where the
+deferral falls decides which budget covers it: an `AwaitNextAction` is allowed only once the DUT asks
+again, so its wait is before the allowance, while a deferred `Proceed` is allowed at once and the DUT
+waits after it. A step that gives its deferral to the wrong budget stops watching before the DUT acts,
+and the failure reads like a device defect.
+
+**`TC-SU-2.7` observes one subscription across three restarts.** Steps 1, 4 and 6 each apply an update,
+and the subject restarts into it. What makes the steps after a restart see anything:
+
+- **One `observeEvents` for the whole case.** Each call adds an observer that lives until the adapter
+  closes, so a call per step reports every state once per earlier step. Clear the collected events per
+  step instead.
+- **The steps after a restart wait 45 s, not 10 s.** The controller ends its sessions on `ShutDown`, the
+  subject deletes the subscription, and `RebootResubscribeArmer` resubscribes only after its 30 s grace
+  from the subject's return, unless the subject restores the subscription itself. Events recorded
+  meanwhile arrive once the subscription is live; that needs the subject's event numbers to keep
+  increasing across the restart, which `NodeTestInstance.restartNode()` does.
+- **Step 6 relies on its `AwaitNextAction` delay outlasting that grace.** It asks for 60 s, and the
+  requestor's own 120 s floor raises it; `SPEC_INTERVALS_ARG` keeps that floor when
+  `MATTER_CERT_OTA_FAST_RETRY` would shorten it. Step 6 starts as the subject returns from step 4's
+  restart; if it applied and restarted again before the resubscription, it would discard DelayedOnApply
+  undelivered.
+- **An observation reports only what the subscription delivered.** A read broadcasts the events it
+  returns to every observer just as a subscription report does; the in-process adapter holds what an
+  observation receives while a read of that peer runs and drops the read's own events
+  (`EventReadGate`), so a seed or `readEvents` call cannot stand in for a delivery the subscription
+  missed. A `subscribeEvents` subscription on the same node is not filtered: its reports reach the
+  observation too, so a case should not combine the two.
+
+## DefaultOTAProviders on two fabrics (`TC-SU-4.1`)
+
+**TC-SU-4.1 step 5's outcome depends on how the list write is encoded.** The plan expects TH4 to remain
+after the refused `[TH4, TH2]` write. That holds only for the encoding the specification requires for a
+non-ACL list: an empty REPLACE, then one ADD per entry, so only the last ADD is refused. A whole-list REPLACE
+in one `AttributeDataIB` is refused as a unit by the matter.js requestor (the list stays `[TH2]`) and applied
+entry by entry by chip's (TH4 stays). `any write-by-id` sends that forbidden form, so the chip-tool adapter
+writes `DefaultOTAProviders` through `TYPED_LIST_WRITES` instead, one attribute per request: a `writeAttributes`
+call that adds another attribute to it is refused as unsupported. A new case whose refusal step writes another
+non-ACL list from chip-tool needs an entry there too. The requestor endpoint differs between the two
+requestors (matter.js 1, chip 0), so step 0 finds it with a wildcard read.
+
 ## The border-router case, where only a chip app can be the TH (`TC-TBRM-3.1`)
 
 Four "DUT sends *command* to TH" steps against chip's network-manager app, the same shape as the
@@ -3205,3 +3349,94 @@ Two more traps:
 
 The TH's active mode came every 10–20 seconds rather than the configured 5, so every wait is 90 seconds.
 
+## The binding block, where the DUT only sends what it was bound to (`TC-BIND-2.1`, `TC-BIND-2.3`)
+
+**TH1 sets up everything between the other devices; the DUT only sends.** TH1 (a helper controller) commissions the
+DUT, TH2 and TH3, writes the ACL entries that let the DUT or its group operate them, writes the DUT's Binding entries
+and, for a group case, gives the DUT and TH2 the group's key and TH2 its membership. The DUT's one action is to send
+along the bindings it holds when the case triggers it. The roles are `controllers: { th1: "helper" }` and `devices`
+naming `dut`, `th2` and, in 2.1, `th3`. The device whose app is `app` is the primary, with `identityFor(0)` and port
+5540, and the rest get the next identities in declaration order. TC-BIND-2.1 makes the DUT primary; TC-BIND-2.3 makes
+TH2 primary (see below). Either way the DUT's PICS come from the app of the device role named `dut`
+(`CertTestDefinition.dutApp`), not from `app`. A binding entry or an ACL subject names a node by the id TH1 assigned
+when commissioning it, which both adapters return as the decimal `CertNodeRef`, so `BigInt(ref)` is that id. The
+shared steps live in `tc-bind-support.ts` (`BindRun`), with one `CommissionedRefs<"th1">` per device, removed DUT
+first in the finalizer.
+
+**TC-BIND-2.2 is not implemented.** Its plan makes the DUT the Group Admin that provisions TH2 itself (steps 5–8:
+key, KeySetWrite, GroupKeyMap, AddGroup). The matter.js light switch is a binding client and does not do that, by the
+maintainer's decision; the mismatch between the plan and a binding-client DUT is recorded in the testplan-feedback
+todo.
+
+**The trigger is `BackchannelCommand.SendOnOffToBindings`.** `LightSwitchTestInstance` sends the command to every
+OnOff entry its Binding attribute holds when the command arrives, and fails the command when a send fails or an entry
+does not resolve within 30 s, so a refused command cannot pass as sent. The attribute is the authority rather than
+the `established`/`removed` events BindingServer emits: those arrive asynchronously after the write that caused them,
+so a trigger right after a write would otherwise reach the targets from before it. An entry naming another cluster is
+not an OnOff target and is left out. A factory reset needs nothing of its own: BindingServer emits `removed` for every
+live binding when the endpoint is disposed, which clears the instance's resolutions. Only matter.js implements the
+command; chip's `light-switch-app` is not in our image, which is why the cases run on the matterjs flavor only.
+
+**The DUT's PICS are its own.** `registerCertAppPics` answers `BIND.C`, `OO.C` and `MCORE.ROLE.CONTROLLER` `1` for
+`light-switch` and `light-switch-no-groupcast`, which the shared files answer `0`; without them the test-level gate
+skips the cases silently. The OnOff command keys and `MCORE.DT_SW_COMP` are stated too, although the shared files
+answer them the same way. `GRPKEY.C`, which TC-BIND-2.3 gates on, comes from the shared file only: the switch has no
+GroupKeyManagement client, because TH1 provisions it.
+
+**"TH3 does not receive Off" is `expectNoCommandInvoke`.** It waits out a window before it counts, because a command
+still on its way arrives after the check. For a unicast command the DUT's trigger returns only after it was answered,
+so the window (5 s) covers log delivery; for a group command nobody answers, so the window is all that bounds its
+arrival. It counts the lines `expectCommandInvoke` waits for, the group dispatch line (`groupCommandDispatch`) and the group
+receipt line (on matter.js always, of the named group or any; on chip only with a group named, since chip's receipt
+line names no command), so a group Off that arrives but is not dispatched still fails it, and so
+the absence is measured with the instruments that see the command in the positive steps. Keeping TH3's entry in step
+9 fails TC-BIND-2.1 step 10 on exactly this check; keeping the group entry in step 15 fails TC-BIND-2.3 step 16a.
+
+**Step 1 is a real factory reset.** The matter.js DUT erases itself (`factoryReset`), and the step records its own
+announcement that it holds no fabric.
+
+**TC-BIND-2.3 runs twice, once per branch of the plan.** The plan branches on whether the Groupcast cluster is
+enabled on the RootNode endpoint. `TC-BIND-2.3-Groupcast` runs `light-switch` and `all-clusters`, whose roots have it;
+`TC-BIND-2.3-NoGroupcast` runs `light-switch-no-groupcast` and `all-clusters-no-groupcast`, whose roots do not. Both
+are one `certTest` each from the same step definitions (`tcBind23`), so each has its own evidence bundle and name.
+Which branch a run takes is read, not declared: step 5 reads the root Descriptor ServerList of the DUT and TH2 and
+decides. It fails when the two disagree, and when the branch is not the one the run's devices were chosen for, so a
+device that lost its Groupcast cluster cannot turn the Groupcast run into a second legacy run. The steps of the other branch throw `CertStepNotApplicableError`, which the engine
+records as skipped with the plan's own reason and counts in `RunRecord.planConditionSkips`; a step that throws it after
+recording a check or making a controller call that may change the device fails the run instead.
+The Groupcast branch needs only the Groupcast cluster (`GroupcastServer` implements the FeatureMap, JoinGroup and, with
+the Sender feature, an empty endpoint list); the provisional GroupKeyManagement Groupcast feature plays no part.
+
+- **Legacy branch:** steps 6–8 give TH2 the key set, the GroupKeyMap entry and the group on endpoint 1. Step 11 gives
+  the DUT the same key set and GroupKeyMap entry and no membership: a sender needs the key, and membership is for
+  receiving (Core § 4.16.2 asks only for the key set when sending). The DUT then sends to the fabric's per-group
+  address, `ff35:…`.
+- **Groupcast branch:** step 9a checks the DUT's Sender feature, step 9b has TH2 join group 1 on endpoint 1 with Key1,
+  and step 12 has the DUT join with no endpoints. JoinGroup is sent without `UseAuxiliaryACL`, so it adds no access
+  entry, and TH2 still needs the Group ACL entry of step 4a. With no multicast policy named, a group uses the IANA
+  address, so the DUT sends to `ff05::fa`.
+- Step 5 generates Key1 in both branches, for each run, although the plan says so only in the legacy one: steps 9b and
+  12 send it.
+- Step 3 is not applicable in both: a group command is admitted by TH2's Group ACL entry, which step 4a writes once
+  TH2 is on the fabric, not by an entry naming the DUT.
+
+**Group bindings needed two matter.js fixes.** `BindingManager` required the binding's source endpoint to be a member
+of the group, which no step of the plan makes it, so the entry never resolved; it now resolves a group entry once the
+fabric holds a key for the group, and resolves it again when the key is provisioned later — the plan writes the binding
+(step 10) before the DUT gets its key (step 11 or 12). Commands on a group endpoint failed with
+`InvalidGroupOperationError`, because their paths named the endpoint; a command method on a group endpoint now builds
+its request without one, and `ClientGroupInteraction` still refuses a group invoke that names an endpoint. Writing state on a group endpoint is
+not supported: an attribute write to a group goes through the group's `interaction.write` with a group path. The
+BIND cases write nothing to a group.
+
+**TH2 is the primary device in TC-BIND-2.3**, so it runs on port 5540. A group message goes to that port (Core
+§ 4.16.2), and a matter.js device joins the group's multicast address on its own operational socket only, so a TH on
+5541 never sees it. That receive-side gap is a matter.js defect outside this case; until it is fixed, a matter.js
+device that must receive a group message in a multi-device case has to be the primary.
+
+**What stands in for a response to the group On.** Nobody answers a group message, so step 14a checks the DUT's own
+line for the send (`matterjsGroupInvokeSent`: a group session, `group: 1`, the address, port 5540 and `*.onOff.on`)
+and TH2's lines receiving it (`expectGroupCommandArrival`: the inbound invoke naming group 1, then the dispatch of
+that same exchange to endpoint 1). matter.js names the group on the send and receipt lines for this reason. The arrival is also what orders step 14b's read after
+the command. The same helpers carry TC-SC-5.3's groupcast evidence, so the two cases cannot drift; chip's lines use
+its own uppercase hex (`0x%04X` for the group, `0x%04X_%04X` for cluster and command).

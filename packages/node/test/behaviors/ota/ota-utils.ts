@@ -7,6 +7,7 @@
 import { OtaUpdateAvailableDetails, SoftwareUpdateManager } from "#behavior/system/software-update/index.js";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestorServer } from "#behaviors/ota-software-update-requestor";
+import type { Agent } from "#endpoint/Agent.js";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
 import { ServerNode } from "#node/ServerNode.js";
@@ -351,23 +352,36 @@ export function InstrumentedOtaRequestorServer(
  * @param expectedCalls - Configuration for which methods are expected to be called
  * @returns Promises for each method and the instrumented server class
  */
-export function InstrumentedOtaProviderServer(expectedCalls: {
-    queryImage?: boolean;
-    applyUpdateRequest?: boolean;
-    notifyUpdateApplied?: boolean;
-    requestUserConsentForUpdate?: boolean;
-    checkUpdateAvailable?: boolean;
-}): {
+export function InstrumentedOtaProviderServer(
+    expectedCalls: {
+        queryImage?: boolean;
+        applyUpdateRequest?: boolean;
+        notifyUpdateApplied?: boolean;
+        requestUserConsentForUpdate?: boolean;
+        checkUpdateAvailable?: boolean;
+    },
+    hooks: {
+        /**
+         * Runs on the provider's own agent before it answers an `ApplyUpdateRequest`.
+         *
+         * State a test arranges here is what the answer is computed from, which is how a test reaches an
+         * answer the provider gives only in a state the flow does not otherwise pass through.
+         */
+        beforeApplyUpdateRequest?: (agent: Agent) => MaybePromise<void>;
+    } = {},
+): {
     queryImagePromise: Promise<void>;
     applyUpdateRequestPromise: Promise<void>;
     notifyUpdateAppliedPromise: Promise<void>;
     requestUserConsentForUpdatePromise: Promise<void>;
     checkUpdateAvailablePromise: Promise<void>;
     queryImageResponses: OtaSoftwareUpdateProvider.QueryImageResponse[];
+    applyUpdateResponses: OtaSoftwareUpdateProvider.ApplyUpdateResponse[];
     notifyUpdateAppliedRequests: OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest[];
     TestOtaProviderServer: typeof OtaSoftwareUpdateProviderServer;
 } {
     const queryImageResponses = new Array<OtaSoftwareUpdateProvider.QueryImageResponse>();
+    const applyUpdateResponses = new Array<OtaSoftwareUpdateProvider.ApplyUpdateResponse>();
     const notifyUpdateAppliedRequests = new Array<OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest>();
     const {
         resolver: queryImageResolver,
@@ -421,7 +435,10 @@ export function InstrumentedOtaProviderServer(expectedCalls: {
                     applyUpdateRequestRejecter(new Error("Unexpected call to applyUpdateRequest"));
                 }
                 applyUpdateRequestResolver();
-                return super.applyUpdateRequest(request);
+                await hooks.beforeApplyUpdateRequest?.(this.agent);
+                const response = await super.applyUpdateRequest(request);
+                applyUpdateResponses.push(response);
+                return response;
             } catch (error) {
                 applyUpdateRequestRejecter(error);
                 throw error;
@@ -483,6 +500,7 @@ export function InstrumentedOtaProviderServer(expectedCalls: {
         requestUserConsentForUpdatePromise,
         checkUpdateAvailablePromise,
         queryImageResponses,
+        applyUpdateResponses,
         notifyUpdateAppliedRequests,
         TestOtaProviderServer,
     };

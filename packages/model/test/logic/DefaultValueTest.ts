@@ -5,7 +5,22 @@
  */
 
 import { FieldValue } from "#common/index.js";
-import { AttributeElement as Attribute, double, percent100ths, single, uint8, uint16 } from "#index.js";
+import {
+    AttributeElement as Attribute,
+    DatatypeElement as Datatype,
+    FieldElement as Field,
+    bool,
+    double,
+    list,
+    map32,
+    map64,
+    map8,
+    percent100ths,
+    single,
+    string,
+    uint8,
+    uint16,
+} from "#index.js";
 import { DefaultValue } from "#logic/DefaultValue.js";
 import { Scope } from "#logic/Scope.js";
 import { ClusterModel, DatatypeModel, MatterModel } from "#models/index.js";
@@ -15,6 +30,8 @@ function defaultOf(type: string, dflt: FieldValue) {
         {},
         uint8.clone(),
         uint16.clone(),
+        bool.clone(),
+        string.clone(),
         percent100ths.clone(),
         single.clone(),
         double.clone(),
@@ -49,5 +66,93 @@ describe("DefaultValue", () => {
 
     it("leaves a value with no unit alone", () => {
         expect(defaultOf("uint8", 5)).equal(5);
+    });
+
+    // A model that was never validated, such as a schema handed to withClusters, still carries the marker
+    describe("the no value marker", () => {
+        for (const type of ["bool", "string"]) {
+            it(`is no default for ${type}`, () => {
+                expect(defaultOf(type, FieldValue.None)).equal(undefined);
+            });
+        }
+    });
+
+    describe("list with no default", () => {
+        function listDefaultOf(constraint?: string) {
+            const Matter = new MatterModel(
+                {},
+                uint8.clone(),
+                list.clone(),
+                new ClusterModel(
+                    { name: "Test", id: 0xfff1 },
+                    Datatype({ name: "Readings", type: "list", constraint }, Field({ name: "entry", type: "uint8" })),
+                    Attribute({ name: "History", id: 1, type: "Readings" }),
+                ),
+            );
+            Matter.finalize();
+
+            const attribute = Matter.get(ClusterModel, "Test")!.attributes("History")!;
+            expect(attribute.constraint.min).undefined;
+            return DefaultValue(Scope(Matter), attribute);
+        }
+
+        it("is empty when its type permits no entries", () => {
+            expect(listDefaultOf()).deep.equal([]);
+        });
+
+        it("is absent when the type it derives from requires an entry", () => {
+            expect(listDefaultOf("min 1")).undefined;
+        });
+    });
+
+    describe("bitmap", () => {
+        function bitmapDefaultOf(...members: { constraint: string; default: number | bigint }[]) {
+            const Matter = new MatterModel(
+                {},
+                map8.clone(),
+                map32.clone(),
+                map64.clone(),
+                new ClusterModel(
+                    { name: "Test", id: 0xfff1 },
+                    Datatype(
+                        { name: "Flags", type: "map64" },
+                        ...members.map((member, index) => Field({ name: `Member${index}`, ...member })),
+                    ),
+                    Attribute({ name: "Flags", id: 1, type: "Flags" }),
+                ),
+            );
+            Matter.finalize();
+
+            return DefaultValue(Scope(Matter), Matter.get(ClusterModel, "Test")!.attributes("Flags")!);
+        }
+
+        it("places a single-bit member at its bit", () => {
+            expect(bitmapDefaultOf({ constraint: "0", default: 1 })).equal(0b1);
+        });
+
+        it("places every bit of a multi-bit member, its last bit included", () => {
+            expect(bitmapDefaultOf({ constraint: "0", default: 1 }, { constraint: "1 to 2", default: 3 })).equal(0b111);
+        });
+
+        it("places a member with no upper bound from its lowest bit", () => {
+            expect(bitmapDefaultOf({ constraint: "min 4", default: 3 })).equal(0b110000);
+        });
+
+        it("keeps bit 31 a bit, not a sign", () => {
+            expect(bitmapDefaultOf({ constraint: "0 to 31", default: 2 ** 31 })).equal(2 ** 31);
+        });
+
+        it("places members above bit 31, including one that crosses it", () => {
+            expect(bitmapDefaultOf({ constraint: "32 to 33", default: 3 })).equal(0x3_0000_0000);
+            expect(bitmapDefaultOf({ constraint: "30 to 33", default: 15 })).equal(0x3_c000_0000);
+        });
+
+        it("lets the first member to claim a bit decide it", () => {
+            expect(bitmapDefaultOf({ constraint: "0 to 1", default: 0 }, { constraint: "1", default: 1 })).equal(0);
+        });
+
+        it("places a bigint default and returns a bigint a number cannot hold", () => {
+            expect(bitmapDefaultOf({ constraint: "0 to 63", default: 2n ** 60n + 1n })).equal(2n ** 60n + 1n);
+        });
     });
 });

@@ -25,20 +25,20 @@ describe("Behaviors", () => {
 
     describe("has", () => {
         it("answers true for a behavior the endpoint supports", async () => {
-            const light = await MockEndpoint.create(OnOffLightDevice);
+            await using light = await MockEndpoint.create(OnOffLightDevice);
 
             expect(light.behaviors.has(OnOffServer)).equals(true);
         });
 
         it("answers false for a behavior the endpoint does not support at all", async () => {
-            const light = await MockEndpoint.create(OnOffLightDevice);
+            await using light = await MockEndpoint.create(OnOffLightDevice);
 
             // Not merely falsy: the declared return type is boolean
             expect(light.behaviors.has(WindowCoveringServer)).equals(false);
         });
 
         it("answers false for a different behavior sharing the id of one it supports", async () => {
-            const light = await MockEndpoint.create(OnOffLightDevice);
+            await using light = await MockEndpoint.create(OnOffLightDevice);
             const Unrelated = OnOffServer.set({}).with();
 
             expect(light.behaviors.has(class extends Unrelated {})).equals(false);
@@ -46,7 +46,7 @@ describe("Behaviors", () => {
     });
 
     it("transplants observers when a behavior is dropped and re-injected", async () => {
-        const light = await MockEndpoint.create(OnOffLightDevice);
+        await using light = await MockEndpoint.create(OnOffLightDevice);
 
         const changes = new Array<boolean>();
         light.eventsOf(OnOffServer).onOff$Changed.on(value => {
@@ -60,12 +60,10 @@ describe("Behaviors", () => {
         await light.set({ onOff: { onOff: true } });
 
         expect(changes).deep.equals([true]);
-
-        await light.close();
     });
 
     it("sets context on transplanted events", async () => {
-        const light = await MockEndpoint.create(OnOffLightDevice);
+        await using light = await MockEndpoint.create(OnOffLightDevice);
 
         light.eventsOf(OnOffServer).onOff$Changed.on(() => {});
 
@@ -74,8 +72,6 @@ describe("Behaviors", () => {
         light.behaviors.inject(installedType);
 
         expect(light.eventsOf(OnOffServer).endpoint).equals(light);
-
-        await light.close();
     });
 
     it("accepts different base class for cluster requirements", () => {

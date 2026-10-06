@@ -23,7 +23,10 @@ import { ExchangeManager, Peer, PeerSet } from "@matter/protocol";
  * The TCP connection management behavior is tested separately in TcpChannelTest and
  * TcpSessionBindingTest.
  */
-describe("ClientNodeTcp", () => {
+describe("ClientNodeTcp", function () {
+    // Commissioning runs real crypto, which a loaded CI runner can stretch past the 2 s wall-clock default
+    this.timeout(10_000);
+
     before(() => {
         MockTime.init();
     });

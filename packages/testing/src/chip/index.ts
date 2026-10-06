@@ -39,7 +39,7 @@ export { subjectFactoryFor } from "./cert/cert-dsl.js";
 export { certPicsFile, unmetTestPics } from "./cert/cert-dsl.js";
 /** @internal Test seam — not API. Production cert tests go through the `certTest()` DSL, not this class directly. */
 export { CertTest } from "./cert/cert-test.js";
-export { PicsUnansweredError } from "./cert/cert-test.js";
+export { CertStepNotApplicableError, PicsUnansweredError } from "./cert/cert-test.js";
 /** @internal Test seam — not API. The wired test a `certTest()` declaration registered. */
 export { createRegisteredCertTest } from "./cert/cert-test.js";
 export { ChipDockerSubject, ChipLocalSubject } from "./cert/chip-app-subject.js";
@@ -92,6 +92,7 @@ export type {
     EventPathSpec,
     EventReadEntry,
     ManualPairingCodeFields,
+    ObserveEventOptions,
     OnboardingPayloadFields,
     OtaAnnouncement,
     OtaAnnouncementRecord,
@@ -117,16 +118,18 @@ export type {
     WebRtcSessionSpec,
     WebRtcSignalRecord,
 } from "./cert/controller-adapter.js";
-export { resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
+export { CertConfigError, resolveControllerImplementation, resolveDeviceFlavor } from "./cert/device-config.js";
 export type { ControllerImplementation } from "./cert/device-config.js";
 export { EvidenceRecorder } from "./cert/evidence.js";
 export type { RunDeviceRecord, RunRecord, StepRecord } from "./cert/evidence.js";
-export { CertLogClosedError, CertLogTimeoutError, forFlavor, LogFollower } from "./cert/log-follower.js";
+export { CertLogClosedError, CertLogTimeoutError, flavorFamily, forFlavor, LogFollower } from "./cert/log-follower.js";
 export type {
+    FlavorFamily,
     LogExpectOptions,
     LogExpectPatterns,
     LogExpectResult,
     LogExpectSequences,
+    LogFlavor,
     LogLine,
 } from "./cert/log-follower.js";
 export { registerMatterJsCertSubject } from "./cert/matterjs-subject-registry.js";
@@ -154,6 +157,9 @@ export type { ChipBinsSource, EnsureChipBinsResult } from "./chip-bins.js";
 export { parseDockerHubTagsResponse, resetChipBinsPrepareCacheForTesting } from "./chip-bins.js";
 /** @internal Test seam — not API. */
 export type { ChipBinsDockerHandle } from "./chip-bins.js";
+export { HarnessBusyError } from "./harness-lock.js";
+/** @internal Test seam — not API. Exported for the Docker-backed lock test in support/chip-testing. */
+export { acquireHarnessLock } from "./harness-lock.js";
 export * from "./chip.js";
 export * from "./command-pipe.js";
 export * from "./pics/index.js";

@@ -94,6 +94,7 @@ export async function createDummyMessageExchange(
     ) => { payload: Bytes; messageType: number } | void,
     clearTimedInteractionCallback?: () => void,
     closeCallback?: () => void,
+    inboundMessages = new Array<Message>(),
 ) {
     const session = await ProtocolMocks.NodeSession.create({
         manager: node.env.get(SessionManager),
@@ -101,12 +102,16 @@ export async function createDummyMessageExchange(
         ...sessionData,
     });
 
-    return new DummyMessageExchange(
+    const exchange = new DummyMessageExchange(
         session,
         hasTimedInteraction,
         timedInteractionExpired,
         writeCallback,
         clearTimedInteractionCallback,
         closeCallback,
-    ) as unknown as MessageExchange;
+    );
+    for (const message of inboundMessages) {
+        exchange.injectMessage(message);
+    }
+    return exchange as unknown as MessageExchange;
 }

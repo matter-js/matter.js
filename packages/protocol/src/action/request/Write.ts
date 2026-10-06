@@ -187,7 +187,11 @@ export function Write(optionsOrData: Write.Options | Write.Attribute, ...data: W
 export namespace Write {
     export interface Options {
         writes?: AttributeData[];
+
+        /** Whether this is sent as a timed request, if no timeout is specified a default is used */
         timed?: boolean;
+
+        /** Timeout when sent as a timed request; a non-zero timeout sets the timed flag automatically */
         timeout?: Duration;
         interactionModelRevision?: number;
         chunkLists?: boolean;

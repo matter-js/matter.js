@@ -33,6 +33,12 @@ describe("scan of a markdown document", () => {
         ).deep.equal([["> [!NOTE]\n> Example: the aggregator exposes several lights."]]);
     });
 
+    it("keeps the indent of a nested list item and of no other line", () => {
+        expect(proseOf("# 1.1. Lists\n\n- outer\n  - inner\n  continued\n")).deep.equal([
+            ["- outer", "  - inner", "continued"],
+        ]);
+    });
+
     it("drops an image that shares a line with prose", () => {
         expect(proseOf("# 1.1. Legend\n\nLegend: ![legendOpen](a.svg) Open\n")).deep.equal([["Legend: Open"]]);
     });

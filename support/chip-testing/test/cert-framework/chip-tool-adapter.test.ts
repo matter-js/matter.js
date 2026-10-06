@@ -46,6 +46,8 @@ const ARM_FAIL_SAFE = GENERAL_COMMISSIONING.commands.require("armFailSafe");
 const START_UP = BASIC_INFORMATION.events.require("startUp");
 const BOOLEAN_STATE = Matter.clusters.require("BooleanState");
 const STATE_CHANGE = BOOLEAN_STATE.events.require("stateChange");
+const OTA_REQUESTOR = Matter.clusters.require("OtaSoftwareUpdateRequestor");
+const DEFAULT_OTA_PROVIDERS = OTA_REQUESTOR.attributes.require("defaultOtaProviders");
 
 /** The node id the first {@link ChipToolControllerAdapter.commission} of an adapter mints. */
 const FIRST_NODE = "4097";
@@ -771,6 +773,75 @@ describe("ChipToolControllerAdapter", function () {
         expect(fake.commands).deep.equal([
             `any write-by-id 0x28,0x8 0x5,0x11 "a-label";3 ${ref} 0,1 --data-version 11,12`,
         ]);
+    });
+
+    describe("a list write the specification requires as an empty REPLACE and one ADD per entry", () => {
+        const path = { endpoint: 0, cluster: OTA_REQUESTOR.id, attribute: DEFAULT_OTA_PROVIDERS.id };
+
+        it("goes through the typed command, with chip-tool's field names and integers as decimal strings", async () => {
+            const { ref, node } = await commissioned();
+
+            fake.reply = () => ({
+                results: [
+                    {
+                        clusterId: OTA_REQUESTOR.id,
+                        endpointId: 0,
+                        attributeId: requireId(DEFAULT_OTA_PROVIDERS.id, "defaultOtaProviders"),
+                        error: Status.ConstraintError,
+                    },
+                ],
+                status: 1,
+            });
+
+            expect(
+                await node.writeAttributes([
+                    {
+                        path,
+                        value: [
+                            { providerNodeId: 0x1234_5678_9abc_def0n, endpoint: 0, fabricIndex: 1 },
+                            { providerNodeId: 1, endpoint: 0 },
+                        ],
+                    },
+                ]),
+            ).deep.equal([{ ...path, status: Status.ConstraintError }]);
+
+            fake.reply = () => ({ results: [] });
+            await node.writeAttribute(path, [], { timedInteractionTimeoutMs: 200 });
+
+            expect(fake.commands).deep.equal([
+                `otasoftwareupdaterequestor write default-otaproviders ` +
+                    `[{"providerNodeID":"1311768467463790320","endpoint":"0","fabricIndex":"1"},` +
+                    `{"providerNodeID":"1","endpoint":"0"}] ${ref} 0`,
+                `otasoftwareupdaterequestor write default-otaproviders [] ${ref} 0 --timedInteractionTimeoutMs 200`,
+            ]);
+        });
+
+        it("is refused as unsupported in a request with other attributes, before anything is sent", async () => {
+            const { node } = await commissioned();
+
+            const failure = await rejectionOf(
+                node.writeAttributes([
+                    { path, value: [] },
+                    { path: { endpoint: 0, cluster: BASIC_INFORMATION.id, attribute: NODE_LABEL.id }, value: "a" },
+                ]),
+            );
+            expect(failure).instanceOf(UnsupportedByControllerError);
+            expect(fake.commands).deep.equal([]);
+        });
+
+        it("refuses a field the typed command has no name for, and a value it cannot parse", async () => {
+            const { node } = await commissioned();
+
+            for (const entry of [
+                { providerNodeID: 1, endpoint: 0 },
+                { providerNodeId: -1, endpoint: 0 },
+                { providerNodeId: 1.5, endpoint: 0 },
+                { providerNodeId: { id: 5n }, endpoint: 0 },
+            ]) {
+                expect(await rejectionOf(node.writeAttribute(path, [entry]))).instanceOf(ImplementationError);
+            }
+            expect(fake.commands).deep.equal([]);
+        });
     });
 
     it("reports the per-path status a write was rejected with instead of throwing", async () => {

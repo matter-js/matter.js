@@ -107,8 +107,8 @@ Resource.add({
         {
             tag: "requirement", name: "FanControl", xref: "device§13.11.6",
             children: [
-                { tag: "requirement", name: "WIND", xref: "device§13.11.7" },
-                { tag: "requirement", name: "AIRFLOWDIRECTION", xref: "device§13.11.7" }
+                { tag: "requirement", name: "WND", xref: "device§13.11.7" },
+                { tag: "requirement", name: "DIR", xref: "device§13.11.7" }
             ]
         },
 

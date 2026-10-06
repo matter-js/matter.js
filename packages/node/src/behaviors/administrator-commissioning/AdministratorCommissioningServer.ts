@@ -5,22 +5,12 @@
  */
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
-import {
-    CRYPTO_PBKDF_ITERATIONS_MAX,
-    CRYPTO_PBKDF_ITERATIONS_MIN,
-    Duration,
-    InternalError,
-    Logger,
-    Seconds,
-    Time,
-    Timer,
-    Worker,
-} from "@matter/general";
+import { CRYPTO_PBKDF_ITERATIONS_MAX, CRYPTO_PBKDF_ITERATIONS_MIN, Duration, Logger, Seconds } from "@matter/general";
 import {
     assertRemoteActor,
     DeviceCommissioner,
+    Fabric,
     FailsafeContext,
-    hasRemoteActor,
     PaseServer,
     SessionManager,
 } from "@matter/protocol";
@@ -91,23 +81,23 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         }
 
         const commissioner = this.env.get(DeviceCommissioner);
-
         const timeout = Seconds(commissioningTimeout);
-
         this.#assertCommissioningWindowRequirements(timeout, commissioner);
+        const adminFabric = this.#adminFabric();
 
-        this.#initializeCommissioningWindow(
-            timeout,
-            AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen,
-        );
-
-        await this.env.get(DeviceCommissioner).allowEnhancedCommissioning(
+        await commissioner.allowEnhancedCommissioning(
             discriminator,
             PaseServer.fromVerificationValue(this.env.get(SessionManager), pakePasscodeVerifier, {
                 iterations,
                 salt,
             }),
-            this.callback(this.#endCommissioning),
+            this.#windowOptions(timeout),
+        );
+
+        this.#windowOpened(
+            timeout,
+            AdministratorCommissioning.CommissioningWindowStatus.EnhancedWindowOpen,
+            adminFabric,
         );
     }
 
@@ -116,17 +106,13 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         commissioningTimeout,
     }: AdministratorCommissioning.OpenBasicCommissioningWindowRequest) {
         const commissioner = this.env.get(DeviceCommissioner);
-
         const timeout = Seconds(commissioningTimeout);
-
         this.#assertCommissioningWindowRequirements(timeout, commissioner);
+        const adminFabric = this.#adminFabric();
 
-        this.#initializeCommissioningWindow(
-            timeout,
-            AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen,
-        );
+        await commissioner.allowBasicCommissioning(this.#windowOptions(timeout));
 
-        await commissioner.allowBasicCommissioning(this.callback(this.#endCommissioning));
+        this.#windowOpened(timeout, AdministratorCommissioning.CommissioningWindowStatus.BasicWindowOpen, adminFabric);
     }
 
     /**
@@ -150,8 +136,11 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
             }
         }
 
-        // Step 2: If window was not open, return error
-        if (this.internal.commissioningWindowTimeout === undefined) {
+        // Step 2: If no window was open, return error.  A window the node opened itself counts as open.
+        if (
+            this.env.get(DeviceCommissioner).windowStatus ===
+            AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen
+        ) {
             throw new AdministratorCommissioning.WindowNotOpenError(
                 "No commissioning window is opened that could be revoked.",
             );
@@ -161,48 +150,49 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
         await this.#closeCommissioningWindow();
     }
 
-    /**
-     * Called whenever a Commissioning/Announcement Window is opened by this cluster. This method starts the timer and
-     * adjusts the needed attributes.
-     */
-    #initializeCommissioningWindow(
-        commissioningTimeout: Duration,
-        windowStatus: AdministratorCommissioning.CommissioningWindowStatus,
-    ) {
-        if (this.internal.commissioningWindowTimeout !== undefined) {
-            // Should never happen, but let's make sure
-            throw new InternalError("Commissioning window already initialized.");
-        }
-        const actor = hasRemoteActor(this.context) ? this.context.session.via : "local actor";
-        logger.debug(`Commissioning window timer started for ${Duration.format(commissioningTimeout)} for ${actor}.`);
-        this.internal.commissioningWindowTimeout = Time.getTimer(
-            "Commissioning timeout",
-            commissioningTimeout,
-            this.callback(this.#commissioningTimeout),
-        ).start();
-
+    #adminFabric() {
         assertRemoteActor(this.context);
+        return this.context.session.associatedFabric;
+    }
 
-        const adminFabric = this.context.session.associatedFabric;
+    #windowOptions(timeout: Duration): DeviceCommissioner.WindowOptions {
+        return {
+            timeout,
+            byAdministrator: true,
+            onClose: (this.internal.onWindowClosed ??= this.callback(this.#windowClosed)),
+        };
+    }
+
+    /**
+     * Reflects a window this cluster opened in its attributes.
+     */
+    #windowOpened(
+        timeout: Duration,
+        windowStatus: AdministratorCommissioning.CommissioningWindowStatus,
+        adminFabric: Fabric,
+    ) {
+        logger.debug(
+            `Commissioning window opened for ${Duration.format(timeout)} by fabric ${adminFabric.fabricIndex}`,
+        );
 
         this.state.windowStatus = windowStatus;
         this.state.adminFabricIndex = adminFabric.fabricIndex;
         this.state.adminVendorId = adminFabric.rootVendorId;
 
-        const removeCallback = this.callback(this.#fabricRemovedCallback);
-
+        const onAdminFabricDeleting = (this.internal.onAdminFabricDeleting ??= this.callback(
+            this.#fabricRemovedCallback,
+        ));
         this.internal.stopMonitoringFabricForRemoval = () => {
-            adminFabric.deleting.off(removeCallback);
+            adminFabric.deleting.off(onAdminFabricDeleting);
         };
-
-        this.context.session.associatedFabric.deleting.on(removeCallback);
+        adminFabric.deleting.on(onAdminFabricDeleting);
     }
 
     /**
      * This method validates if a commissioning window can be opened and throws various exceptions in case of failures.
      */
     #assertCommissioningWindowRequirements(commissioningTimeout: Duration, commissioner: DeviceCommissioner) {
-        if (this.internal.commissioningWindowTimeout !== undefined) {
+        if (commissioner.isAdministratorWindowOpen) {
             throw new AdministratorCommissioning.BusyError("A commissioning window is already opened");
         }
 
@@ -226,17 +216,12 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
     }
 
     /**
-     * This method is used internally when the commissioning window timer expires or the commissioning was completed.
+     * Resets the attributes once a window this cluster opened closes, whatever closed it.
      */
-    #endCommissioning() {
-        logger.debug("Ending commissioning");
-        if (this.internal.commissioningWindowTimeout !== undefined) {
-            this.internal.commissioningWindowTimeout.stop();
-            this.internal.commissioningWindowTimeout = undefined;
-        }
-
+    #windowClosed() {
+        logger.debug("Commissioning window closed");
         this.internal.stopMonitoringFabricForRemoval?.();
-        this.state.adminFabricIndex = null;
+        this.internal.stopMonitoringFabricForRemoval = undefined;
 
         this.state.windowStatus = AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen;
         this.state.adminFabricIndex = null;
@@ -252,40 +237,20 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
     }
 
     /**
-     * Close commissioning window on timeout when there's nobody to await the resulting promise
-     * */
-    #commissioningTimeout() {
-        this.env.runtime.add(
-            Worker({
-                name: "closing commissioning window",
-                done: this.#closeCommissioningWindow(),
-            }),
-        );
-    }
-
-    /**
      * Invoked when fabric is removed.
      */
     #fabricRemovedCallback() {
         this.state.adminFabricIndex = null;
         this.internal.stopMonitoringFabricForRemoval?.();
-    }
-
-    /**
-     * Clean up resources and stop the timer when the behavior is destroyed.
-     */
-    override [Symbol.asyncDispose]() {
-        if (this.internal.commissioningWindowTimeout !== undefined) {
-            this.internal.commissioningWindowTimeout.stop();
-            this.internal.commissioningWindowTimeout = undefined;
-        }
+        this.internal.stopMonitoringFabricForRemoval = undefined;
     }
 }
 
 export namespace AdministratorCommissioningServer {
     export class Internal {
-        commissioningWindowTimeout?: Timer;
         stopMonitoringFabricForRemoval?: () => void;
+        onWindowClosed?: () => void;
+        onAdminFabricDeleting?: () => void;
 
         /**
          * Mandated by spec; should only be modified in testing.

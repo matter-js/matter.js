@@ -26,13 +26,13 @@ export const ColorTemperatureLightDt = DeviceType(
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
+        Requirement({ name: "LT", conformance: "M", element: "feature" })
     ),
 
     Requirement(
         { name: "LevelControl", id: 0x8, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "ONOFF", conformance: "M", element: "feature" }),
-        Requirement({ name: "LIGHTING", conformance: "M", element: "feature" }),
+        Requirement({ name: "OO", conformance: "M", element: "feature" }),
+        Requirement({ name: "LT", conformance: "M", element: "feature" }),
         Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
         Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
         Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
@@ -44,7 +44,7 @@ export const ColorTemperatureLightDt = DeviceType(
     ),
     Requirement(
         { name: "ColorControl", id: 0x300, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "COLORTEMPERATURE", conformance: "M", element: "feature" }),
+        Requirement({ name: "CT", conformance: "M", element: "feature" }),
         Requirement({ name: "RemainingTime", conformance: "M", element: "attribute" })
     ),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster" })

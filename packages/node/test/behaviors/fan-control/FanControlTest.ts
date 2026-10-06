@@ -21,7 +21,7 @@ describe("FanControlServer", () => {
     });
 
     it("has not-off-only commands by default", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const fan = await node.add(AirPurifierDevice.with(AirPurifierDevice.requirements.OnOffServer), {
             fanControl: {
                 fanMode: FanControl.FanMode.Off,

@@ -9,6 +9,6 @@ import { MockServerNode } from "@matter/node/testing";
 
 describe("ThermostatUserInterfaceConfigurationServer", () => {
     it("instantiates", async () => {
-        await MockServerNode.create({ parts: [RoomAirConditionerDevice] });
+        await using _node = await MockServerNode.create({ parts: [RoomAirConditionerDevice] });
     });
 });

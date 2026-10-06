@@ -4,63 +4,61 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ElementTag } from "#common/ElementTag.js";
-import type { FieldModel } from "#models/FieldModel.js";
 import type { ValueModel } from "#models/ValueModel.js";
-import { FeatureMap } from "#standard/elements/feature-map.element.js";
-import { camelize } from "@matter/general";
+import { BitmapMembers } from "./BitmapMembers.js";
+import type { Scope } from "./Scope.js";
 
-export type DecodedBitmap = Record<string, boolean | number>;
+/**
+ * A bitmap as an object: `true` for a set flag, the value of a multi-bit member, as a bigint where a number cannot
+ * hold it exactly.
+ */
+export type DecodedBitmap = Record<string, boolean | number | bigint>;
 
 /**
  * Decode a bitmap value into an object.
+ *
+ * Pass the {@link scope} of the cluster the bitmap belongs to where its datatype may come from a base cluster.
  */
-export function DecodedBitmap(model: ValueModel, value: number | bigint | DecodedBitmap): DecodedBitmap {
+export function DecodedBitmap(
+    model: ValueModel,
+    value: number | bigint | DecodedBitmap,
+    scope?: Scope,
+    options?: DecodedBitmap.Options,
+): DecodedBitmap {
     if (typeof value === "object") {
         return value;
     }
 
-    const fields = new Map<ValueModel, number | boolean>();
-
-    // Value is 0, so no bit set
-    if (value === 0) {
-        return {};
+    const bitmap = BigInt(value);
+    const decoded: DecodedBitmap = {};
+    if (bitmap === 0n && !options?.complete) {
+        return decoded;
     }
 
-    // Test each bit.  If set, install appropriate value into object
-    for (let bit = 0; Math.pow(2, bit) <= value; bit++) {
-        if (typeof value === "bigint") {
-            if (!(value & (1n << BigInt(bit)))) {
-                continue;
-            }
-        } else if (!(value & (1 << bit))) {
+    for (const member of BitmapMembers.of(model, scope, options)) {
+        const range = BitmapMembers.rangeIn(member, bitmap);
+        if (range === undefined) {
             continue;
         }
 
-        const definition = model.bitDefinition(bit);
-        if (!definition) {
+        const memberValue = BitmapMembers.read(bitmap, range);
+        if (memberValue === 0n && !options?.complete) {
             continue;
         }
 
-        const constraint = definition.effectiveConstraint;
-        if (constraint.value !== undefined) {
-            // Bit flag
-            fields.set(definition, true);
-        } else if (constraint.min !== undefined) {
-            // Bit range
-            const fieldBit = 1 << (bit - (constraint.min as number));
-            fields.set(definition, ((fields.get(definition) as number) ?? 0) | fieldBit);
-        }
+        decoded[BitmapMembers.keyOf(model, member)] = range.isFlag
+            ? memberValue !== 0n
+            : BitmapMembers.toNumeric(memberValue);
     }
 
-    let nameGenerator;
-    if (model.tag === ElementTag.Attribute && model.id === FeatureMap.id) {
-        // Special case for feature map; use the long name as the key rather than the name
-        nameGenerator = (model: ValueModel) =>
-            (model as FieldModel).title === undefined ? model.propertyName : camelize((model as FieldModel).title!);
-    } else {
-        nameGenerator = (model: ValueModel) => model.propertyName;
-    }
+    return decoded;
+}
 
-    return Object.fromEntries([...fields.entries()].map(([k, v]) => [nameGenerator(k), v]));
+export namespace DecodedBitmap {
+    export interface Options extends Scope.MemberOptions {
+        /**
+         * Include clear members, as `false` or 0, so the object names every member.
+         */
+        complete?: boolean;
+    }
 }

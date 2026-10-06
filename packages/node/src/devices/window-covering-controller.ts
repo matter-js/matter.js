@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { WindowCoveringClient as BaseWindowCoveringClient } from "../behaviors/window-covering/WindowCoveringClient.js";
 import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
@@ -17,11 +18,18 @@ import { Identity } from "@matter/general";
 /**
  * A Window Covering Controller is a device that controls an automatic window covering.
  *
- * @see {@link MatterSpecification.v16.Device} § 8.4
+ * @see {@link MatterSpecification.v161.Device} § 8.4
  */
 export interface WindowCoveringControllerDevice extends Identity<typeof WindowCoveringControllerDeviceDefinition> {}
 
 export namespace WindowCoveringControllerRequirements {
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
+
     /**
      * The Identify cluster is optional per the Matter specification.
      *
@@ -53,7 +61,7 @@ export namespace WindowCoveringControllerRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { optional: { Identify: IdentifyServer } };
+    export const server = { mandatory: { Binding: BindingServer }, optional: { Identify: IdentifyServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -69,7 +77,7 @@ export const WindowCoveringControllerDeviceDefinition = MutableEndpoint({
     deviceType: 0x203,
     deviceRevision: 5,
     requirements: WindowCoveringControllerRequirements,
-    behaviors: SupportedBehaviors()
+    behaviors: SupportedBehaviors(WindowCoveringControllerRequirements.server.mandatory.Binding)
 });
 
 Object.freeze(WindowCoveringControllerDeviceDefinition);

@@ -18,7 +18,7 @@ export const DoorbellDt = DeviceType(
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement(
         { name: "Switch", id: 0x3b, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature" })
+        Requirement({ name: "MS", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "Chime", id: 0x556, conformance: "M", element: "clientCluster" })
 );

@@ -93,7 +93,7 @@ Resource.add({
                 {
                     tag: "requirement", name: "ElectricalPowerMeasurement",
                     children: [
-                        { tag: "requirement", name: "ALTERNATINGCURRENT", xref: "device§14.4.6.2" },
+                        { tag: "requirement", name: "ALTC", xref: "device§14.4.6.2" },
                         { tag: "requirement", name: "Voltage", xref: "device§14.4.6.2" },
                         { tag: "requirement", name: "ActiveCurrent", xref: "device§14.4.6.2" }
                     ]
@@ -101,7 +101,7 @@ Resource.add({
 
                 {
                     tag: "requirement", name: "ElectricalEnergyMeasurement",
-                    children: [{ tag: "requirement", name: "EXPORTEDENERGY", xref: "device§14.4.6.2" }]
+                    children: [{ tag: "requirement", name: "EXPE", xref: "device§14.4.6.2" }]
                 },
                 {
                     tag: "requirement", name: "Descriptor",
@@ -117,7 +117,7 @@ Resource.add({
                 {
                     tag: "requirement", name: "ElectricalPowerMeasurement",
                     children: [
-                        { tag: "requirement", name: "DIRECTCURRENT", xref: "device§14.4.6.2" },
+                        { tag: "requirement", name: "DIRC", xref: "device§14.4.6.2" },
                         { tag: "requirement", name: "Voltage", xref: "device§14.4.6.2" },
                         { tag: "requirement", name: "ActiveCurrent", xref: "device§14.4.6.2" }
                     ]
@@ -125,7 +125,7 @@ Resource.add({
 
                 {
                     tag: "requirement", name: "ElectricalEnergyMeasurement",
-                    children: [{ tag: "requirement", name: "EXPORTEDENERGY", xref: "device§14.4.6.2" }]
+                    children: [{ tag: "requirement", name: "EXPE", xref: "device§14.4.6.2" }]
                 },
                 {
                     tag: "requirement", name: "Descriptor",
@@ -162,7 +162,7 @@ Resource.add({
                     tag: "requirement", name: "PowerSource",
 
                     children: [
-                        { tag: "requirement", name: "BATTERY", xref: "device§14.4.6.2" },
+                        { tag: "requirement", name: "BAT", xref: "device§14.4.6.2" },
                         { tag: "requirement", name: "BatVoltage", xref: "device§14.4.6.2" },
                         { tag: "requirement", name: "BatPercentRemaining", xref: "device§14.4.6.2" },
                         { tag: "requirement", name: "BatTimeRemaining", xref: "device§14.4.6.2" },
@@ -190,7 +190,7 @@ Resource.add({
             tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.4.6",
             children: [{
                 tag: "requirement", name: "DeviceEnergyManagement",
-                children: [{ tag: "requirement", name: "POWERADJUSTMENT", xref: "device§14.4.6.2" }]
+                children: [{ tag: "requirement", name: "PA", xref: "device§14.4.6.2" }]
             }]
         }
     ]

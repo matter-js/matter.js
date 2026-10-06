@@ -7,7 +7,7 @@
 import { Diagnostic, LogDestination, Logger, LogLevel } from "@matter/general";
 import { MockServerNode } from "@matter/node/testing";
 import { FabricManager, TestFabric } from "@matter/protocol";
-import { EndpointNumber } from "@matter/types";
+import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
 import { BindingResolution } from "../../../src/behaviors/binding/BindingManager.js";
 import { BindingServer } from "../../../src/behaviors/binding/BindingServer.js";
@@ -15,23 +15,21 @@ import { OnOffLightSwitchDevice } from "../../../src/devices/on-off-light-switch
 
 describe("BindingServer", () => {
     it("initialize replays persisted binding entries to the BindingManager", async () => {
-        const node = await MockServerNode.createOnline(undefined, { online: false, device: OnOffLightSwitchDevice });
+        const node = await MockServerNode.createOnline(undefined, { online: false, device: undefined });
 
         const fabric = await TestFabric({ fabrics: node.env.get(FabricManager) });
-
-        const sourceEp = node.parts.get(1)!;
 
         // Self-binding: entry.node === our nodeId so BindingManager resolves to kind="server" without a peer session.
         const entry = new Binding.Target({
             fabricIndex: fabric.fabricIndex,
             node: fabric.nodeId,
-            endpoint: sourceEp.number,
+            endpoint: EndpointNumber(1),
             cluster: undefined,
             group: undefined,
         });
 
-        // Require BindingServer with pre-seeded binding state before the behavior initializes.
-        sourceEp.behaviors.require(BindingServer, { binding: [entry] });
+        // Pre-seed the binding state before the behavior initializes.
+        const sourceEp = await node.add(OnOffLightSwitchDevice, { number: 1, binding: { binding: [entry] } });
 
         const established = new Array<BindingResolution>();
         sourceEp.eventsOf(BindingServer).established.on(r => {
@@ -156,47 +154,70 @@ describe("BindingServer", () => {
         expect(removed).has.length(2);
     });
 
-    it("no-subscriber warn fires when binding is established with client clusters but no subscriber", async () => {
+    it("resolves an entry written while nothing observes once an observer attaches", async () => {
         const node = await MockServerNode.createOnline(undefined, { device: OnOffLightSwitchDevice });
         const fabric = await node.addFabric();
         const sourceEp = node.parts.get(1)!;
-
         sourceEp.behaviors.require(BindingServer);
         await sourceEp.construction;
 
-        // Do NOT subscribe to established — the warn fires when no subscriber is present.
-        const warnings = new Array<string>();
+        const waiting = new Array<string>();
         Logger.destinations.capture = LogDestination({
             add(message: Diagnostic.Message) {
-                if (message.facility === "BindingManager" && message.level >= LogLevel.WARN) {
-                    warnings.push(String(message.values[0]));
+                if (message.facility === "BindingManager" && message.level >= LogLevel.INFO) {
+                    waiting.push(String(message.values[0]));
                 }
             },
         });
 
-        // Self-binding so it resolves synchronously without a remote peer session.
-        const entry = new Binding.Target({
-            fabricIndex: fabric.fabricIndex,
-            node: fabric.nodeId,
-            endpoint: sourceEp.number,
-            cluster: undefined,
-            group: undefined,
-        });
-
         try {
             await sourceEp.act("write", agent => {
-                agent.get(BindingServer).state.binding = [entry];
+                agent.get(BindingServer).state.binding = [selfBinding(fabric.nodeId, sourceEp.number)];
             });
+            await settle(() => waiting.length > 0);
+            expect(waiting).deep.equals(["Binding entry waits until something observes binding.established"]);
 
-            for (let i = 0; i < 10 && warnings.length === 0; i++) {
-                await Promise.resolve();
-            }
+            const established = new Array<BindingResolution>();
+            sourceEp.eventsOf(BindingServer).established.on(r => void established.push(r));
+            await settle(() => established.length > 0);
 
-            expect(warnings).has.length.greaterThan(0);
-            expect(warnings[0]).includes("no subscriber");
+            expect(established.map(({ kind }) => kind)).deep.equals(["server"]);
         } finally {
             delete Logger.destinations.capture;
             await node.close();
         }
     });
+
+    it("resolves a stored entry for a behavior that observes established after the entries registered", async () => {
+        const node = await MockServerNode.createOnline(undefined, { device: undefined });
+        const fabric = await node.addFabric();
+        const established = new Array<BindingResolution>();
+
+        class ObservingBindingServer extends BindingServer {
+            override initialize() {
+                super.initialize();
+                this.reactTo(this.events.established, resolution => void established.push(resolution));
+            }
+        }
+
+        await node.add(OnOffLightSwitchDevice.with(ObservingBindingServer), {
+            number: 1,
+            binding: { binding: [selfBinding(fabric.nodeId, EndpointNumber(1))] },
+        });
+        await settle(() => established.length > 0);
+
+        expect(established.map(({ kind }) => kind)).deep.equals(["server"]);
+
+        await node.close();
+    });
 });
+
+function selfBinding(node: NodeId, endpoint: EndpointNumber) {
+    return new Binding.Target({ fabricIndex: FabricIndex(1), node, endpoint, cluster: undefined, group: undefined });
+}
+
+async function settle(done: () => boolean) {
+    for (let turn = 0; turn < 500 && !done(); turn++) {
+        await Promise.resolve();
+    }
+}

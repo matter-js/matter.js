@@ -41,12 +41,12 @@
 #     chip-all-clusters-app-nlfaultinject, chip-bridge-app, chip-camera-app, the
 #     chip-ota-provider-app/chip-ota-requestor-app pair, matter-network-manager-app and
 #     lit-icd-app-nopersist. Published as a multi-arch manifest, so each leg pulls the variant matching
-#     its runner. Runs when run-own-built is selected
+#     its runner. Runs when binariesSource is own-built or both
 #
 #   * "cert-bins" — project-chip's official connectedhomeip/chip-cert-bins image. Published
 #     linux/arm64 only, so any leg touching it runs on an arm64 runner (ubuntu-24.04-arm) with the
 #     harness "chip" container also running linux/arm64 (chip/state.ts rejects a platform mismatch).
-#     Runs when run-cert-bins is selected
+#     Runs when binariesSource is cert-bins or both
 #
 # chiptool-vs-cert-bins and chiptool-vs-own-built are control legs: CHIP drives CHIP, with no
 # matter.js protocol code in the path. A failure there is a defect in the test step definitions or
@@ -112,8 +112,6 @@ jobs:
     outputs:
       should-run: ${{ steps.resolve.outputs.should-run }}
       ref: ${{ steps.resolve.outputs.ref }}
-      run-cert-bins: ${{ steps.flags.outputs.cert-bins }}
-      run-own-built: ${{ steps.flags.outputs.own-built }}
       chip-bins-tag: ${{ steps.resolve.outputs.chip-bins-tag }}
       long-running: ${{ steps.resolve.outputs.long-running }}
       matrix: ${{ steps.matrix.outputs.matrix }}
@@ -351,7 +349,7 @@ jobs:
     needs: [prepare, test-cert-framework]
     if: needs.prepare.outputs.should-run == 'true'
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       # Legs are independent: one broken combination must not cancel the evidence from the others.
       fail-fast: false

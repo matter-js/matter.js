@@ -25,15 +25,15 @@ Resource.add({
         { tag: "requirement", name: "Groups", xref: "device§4.4.5" },
         {
             tag: "requirement", name: "OnOff", xref: "device§4.4.5",
-            children: [{ tag: "requirement", name: "LIGHTING", xref: "device§4.4.6" }]
+            children: [{ tag: "requirement", name: "LT", xref: "device§4.4.6" }]
         },
 
         {
             tag: "requirement", name: "LevelControl", xref: "device§4.4.5",
 
             children: [
-                { tag: "requirement", name: "ONOFF", xref: "device§4.4.6" },
-                { tag: "requirement", name: "LIGHTING", xref: "device§4.4.6" },
+                { tag: "requirement", name: "OO", xref: "device§4.4.6" },
+                { tag: "requirement", name: "LT", xref: "device§4.4.6" },
                 { tag: "requirement", name: "CurrentLevel", xref: "device§4.4.6" },
                 { tag: "requirement", name: "MinLevel", xref: "device§4.4.6" },
                 { tag: "requirement", name: "MaxLevel", xref: "device§4.4.6" }
@@ -49,11 +49,11 @@ Resource.add({
             tag: "requirement", name: "ColorControl", xref: "device§4.4.5",
 
             children: [
-                { tag: "requirement", name: "HUESATURATION", xref: "device§4.4.6" },
-                { tag: "requirement", name: "ENHANCEDHUE", xref: "device§4.4.6" },
-                { tag: "requirement", name: "COLORLOOP", xref: "device§4.4.6" },
+                { tag: "requirement", name: "HS", xref: "device§4.4.6" },
+                { tag: "requirement", name: "EHUE", xref: "device§4.4.6" },
+                { tag: "requirement", name: "CL", xref: "device§4.4.6" },
                 { tag: "requirement", name: "XY", xref: "device§4.4.6" },
-                { tag: "requirement", name: "COLORTEMPERATURE", xref: "device§4.4.6" },
+                { tag: "requirement", name: "CT", xref: "device§4.4.6" },
                 { tag: "requirement", name: "RemainingTime", xref: "device§4.4.6" }
             ]
         },

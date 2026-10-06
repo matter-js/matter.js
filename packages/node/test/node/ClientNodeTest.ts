@@ -5,6 +5,7 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
+import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
@@ -17,10 +18,11 @@ import {
     BooleanStateConfigurationServer,
 } from "#behaviors/boolean-state-configuration";
 import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
+import { LevelControlClient } from "#behaviors/level-control";
 import { OnOffClient } from "#behaviors/on-off";
 import { WindowCoveringClient, WindowCoveringServer } from "#behaviors/window-covering";
 import { ContactSensorDevice } from "#devices/contact-sensor";
-import { OnOffLightDevice } from "#devices/on-off-light";
+import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
@@ -28,11 +30,14 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
+import { FabricOperationInProgressError } from "#node/client/Peers.js";
+import type { ClientNode } from "#node/ClientNode.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerNode } from "#node/ServerNode.js";
 import {
     b$,
     Bytes,
+    createPromise,
     Crypto,
     deepCopy,
     Entropy,
@@ -55,15 +60,15 @@ import {
     GeneratedCommandList,
     Specification,
 } from "@matter/model";
-import { MockSite, seedPeerCache, subscribedPeer } from "@matter/node/testing";
+import { clientStructureOf, MockSite, seedPeerCache, subscribedPeer } from "@matter/node/testing";
 import {
-    CommissioningError,
     ControllerCommissioner,
     FabricAuthority,
     FabricManager,
     PeerSet,
     Read,
     ReadResult,
+    SessionManager,
     Val,
     ValidateError,
 } from "@matter/protocol";
@@ -80,11 +85,16 @@ import {
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Descriptor } from "@matter/types/clusters/descriptor";
+import { LevelControl } from "@matter/types/clusters/level-control";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
+import { captureErrorsOf } from "../endpoint/validation/validation-helpers.js";
 
-describe("ClientNode", () => {
+describe("ClientNode", function () {
+    // Commissioning runs real crypto, which a loaded CI runner can stretch past the 2 s wall-clock default
+    this.timeout(10_000);
+
     before(() => {
         MockTime.init();
     });
@@ -661,6 +671,25 @@ describe("ClientNode", () => {
         await MockTime.resolve(ep1.commandsOf(OnOffClient).offWithEffect({ effectIdentifier: 0, effectVariant: 0 }));
     });
 
+    it("receives state updates after the controller restarts", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+        await subscribedPeer(controller, "peer1");
+
+        await MockTime.resolve(controller.stop());
+        await MockTime.resolve(controller.start());
+
+        const peer1 = await subscribedPeer(controller, "peer1");
+        const ep1 = peer1.parts.get("ep1")!;
+        const receivedUpdate = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
+
+        const toggledAt = MockTime.nowUs;
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
+
+        await MockTime.resolve(receivedUpdate);
+        expect(MockTime.nowUs - toggledAt).lessThan(Seconds(10));
+    });
+
     it("decommissions", async () => {
         // *** SETUP ***
 
@@ -697,6 +726,51 @@ describe("ClientNode", () => {
 
         const peer1b = controllerB.peers.get("peer1")!;
         expect(peer1b).undefined;
+    });
+
+    it("closes the protocol peer on decommission", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const address = peer1.peerAddress!;
+        const protocolPeer = controller.env.get(PeerSet).get(address)!;
+        const sessions = controller.env.get(SessionManager);
+        expect(protocolPeer.lifetime.isClosed).false;
+        expect(sessions.findResumptionRecordByAddress(address)).not.undefined;
+
+        await MockTime.resolve(peer1.decommission());
+
+        expect(protocolPeer.lifetime.isClosed).true;
+        expect(sessions.findResumptionRecordByAddress(address)).undefined;
+    });
+
+    it("closes the protocol peer when the node's address is cleared", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+        const address = peer1.peerAddress!;
+        const protocolPeer = controller.env.get(PeerSet).get(address)!;
+
+        const errors = await captureErrorsOf(async () => {
+            await MockTime.resolve(
+                peer1.act(agent => {
+                    agent.commissioning.state.peerAddress = undefined;
+                }),
+            );
+
+            // The peer is removed by an offline reaction that settles after the transaction
+            const sessions = controller.env.get(SessionManager);
+            for (let wait = 0; sessions.findResumptionRecordByAddress(address) !== undefined && wait < 50; wait++) {
+                await MockTime.resolve(MockTime.sleep("peer removal", Millis(100)));
+            }
+        });
+
+        expect(errors).deep.equals([]);
+        expect(protocolPeer.lifetime.isClosed).true;
+        expect(controller.env.get(PeerSet).has(protocolPeer)).false;
+        expect(controller.env.get(SessionManager).findResumptionRecordByAddress(address)).undefined;
     });
 
     it("rejects delete after destroyed", async () => {
@@ -1795,6 +1869,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -1872,6 +1947,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -1948,6 +2024,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -2070,6 +2147,7 @@ describe("ClientNode", () => {
 
         const LiftTiltWc = WindowCoveringServer.with("Lift", "PositionAwareLift", "Tilt", "PositionAwareTilt").set({
             type: WindowCovering.WindowCoveringType.Unknown,
+            endProductType: WindowCovering.EndProductType.Unknown,
             currentPositionLiftPercent100ths: 0,
             currentPositionTiltPercent100ths: 0,
         });
@@ -2182,6 +2260,270 @@ describe("ClientNode", () => {
         expect(clientEp1.behaviors.supported["windowCovering"]).to.be.ok;
         expect(clientEp1.stateOf(WindowCoveringClient).currentPositionLiftPercent100ths).equals(0);
         expect(clientEp1.globalsOf(WindowCoveringClient).featureMap.lift).equals(true);
+    });
+
+    describe("drops an optional attribute the device no longer supports", () => {
+        const WithOnOffTransition = OnOffLightRequirements.LevelControlServer.set({
+            onOffTransitionTime: 5,
+            onTransitionTime: 10,
+            offTransitionTime: 20,
+        });
+
+        const WithoutOnOffTransition = OnOffLightRequirements.LevelControlServer.set({
+            onTransitionTime: 10,
+            offTransitionTime: 20,
+        });
+
+        const onOffTransitionTimeId = LevelControl.attributes.onOffTransitionTime.id;
+
+        async function commissionWithOnOffTransition(site: MockSite) {
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: OnOffLightDevice.with(WithOnOffTransition),
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1 = peer1.parts.get("ep1")!;
+            expect(ep1.globalsOf(LevelControlClient).attributeList).contains(onOffTransitionTimeId);
+            expect(ep1.stateOf(LevelControlClient).onOffTransitionTime).equals(5);
+
+            return { controller, device, peer1 };
+        }
+
+        async function replaceDeviceEndpointWithoutOnOffTransition(device: ServerNode) {
+            await device.parts.get("part0")!.erase();
+
+            // Nudge so version number changes, otherwise new endpoint won't sync
+            device.env.set(Entropy, MockCrypto(0x20));
+
+            await device.add({ type: OnOffLightDevice.with(WithoutOnOffTransition), number: 1, id: "part0b" });
+        }
+
+        function levelControlReplaced(peer: ClientNode) {
+            return new Promise<void>(resolve => {
+                const events = peer.env.get(ClientStructureEvents);
+                const observer = (endpoint: Endpoint, type: ClusterBehavior.Type) => {
+                    if (endpoint.number === 1 && type.cluster.id === LevelControl.id) {
+                        events.clusterReplaced.off(observer);
+                        resolve();
+                    }
+                };
+                events.clusterReplaced.on(observer);
+            });
+        }
+
+        /**
+         * Persisted LevelControl keys of the peer's endpoint 1 that address OnOffTransitionTime by its ID.
+         */
+        function storedOnOffTransitionKeys(site: MockSite, controllerId: string) {
+            const contexts = Object.entries(site.storageFor(controllerId)).filter(([context]) =>
+                context.endsWith(`.1.${LevelControl.id}`),
+            );
+            expect(contexts.length, "LevelControl cache of endpoint 1 should be persisted").equals(1);
+
+            return Object.keys(contexts[0][1]).filter(key => key === String(onOffTransitionTimeId));
+        }
+
+        function expectNoOnOffTransition(ep1: Endpoint) {
+            expect(ep1.globalsOf(LevelControlClient).attributeList).not.contains(onOffTransitionTimeId);
+            expect(ep1.stateOf(LevelControlClient).onOffTransitionTime).equals(undefined);
+            expect(ep1.stateOf(LevelControlClient).onTransitionTime).equals(10);
+            expect(ep1.stateOf(LevelControlClient).offTransitionTime).equals(20);
+        }
+
+        it("while the controller stays online", async () => {
+            await using site = new MockSite();
+            const { device, peer1 } = await commissionWithOnOffTransition(site);
+
+            await MockTime.resolve(device.stop());
+            await replaceDeviceEndpointWithoutOnOffTransition(device);
+
+            const replaced = levelControlReplaced(peer1);
+            await MockTime.resolve(device.start());
+            await MockTime.resolve(replaced);
+
+            expectNoOnOffTransition(peer1.parts.get("ep1")!);
+        });
+
+        it("while the controller is offline, and after the controller restarts again", async () => {
+            await using site = new MockSite();
+            const { controller, device } = await commissionWithOnOffTransition(site);
+            const controllerId = controller.id;
+
+            await MockTime.resolve(controller.close());
+            await MockTime.resolve(device.stop());
+            await replaceDeviceEndpointWithoutOnOffTransition(device);
+            await MockTime.resolve(device.start());
+
+            // *** CONTROLLER RESTARTS AND RESUBSCRIBES ***
+
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1, online: false });
+            const peer1b = controllerB.peers.get("peer1")!;
+
+            // Cached state from before the device change loads first
+            expect(peer1b.parts.get("ep1")!.stateOf(LevelControlClient).onOffTransitionTime).equals(5);
+
+            const replaced = levelControlReplaced(peer1b);
+            await MockTime.resolve(controllerB.start());
+            await MockTime.resolve(subscribedPeer(controllerB, "peer1"));
+            await MockTime.resolve(replaced);
+
+            expectNoOnOffTransition(peer1b.parts.get("ep1")!);
+
+            // *** CONTROLLER RESTARTS FROM CACHE ***
+
+            await MockTime.resolve(controllerB.close());
+            const controllerC = await site.addNode(undefined, { id: controllerId, index: 1, online: false });
+
+            expectNoOnOffTransition(controllerC.peers.get("peer1")!.parts.get("ep1")!);
+        });
+
+        it("when the cache already holds the shrunk attribute list next to a stale value", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: OnOffLightDevice.with(WithoutOnOffTransition),
+                },
+            });
+            const controllerId = controller.id;
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1 = peer1.parts.get("ep1")!;
+            expectNoOnOffTransition(ep1);
+
+            // A cache written before the attribute list change was detected; the name key is legacy residue
+            await seedPeerCache(
+                peer1,
+                ep1,
+                LevelControlClient,
+                new Map<string | number, Val>([
+                    [onOffTransitionTimeId, 5],
+                    ["onOffTransitionTime", 5],
+                ]),
+            );
+
+            await MockTime.resolve(controller.close());
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1, online: false });
+
+            // The value stays as last known state until the device confirms or drops it
+            expect(
+                controllerB.peers.get("peer1")!.parts.get("ep1")!.stateOf(LevelControlClient).onOffTransitionTime,
+            ).equals(5);
+            expect(storedOnOffTransitionKeys(site, controllerId)).not.empty;
+
+            // The device's data version is unchanged, so only a forgotten version makes it resend the cluster
+            await MockTime.resolve(controllerB.start());
+            await MockTime.resolve(subscribedPeer(controllerB, "peer1"));
+            expectNoOnOffTransition(controllerB.peers.get("peer1")!.parts.get("ep1")!);
+            expect(storedOnOffTransitionKeys(site, controllerId)).empty;
+
+            // The legacy name key stays in storage; it is hidden again but does not make the device resend
+            await MockTime.resolve(controllerB.close());
+            const controllerC = await site.addNode(undefined, { id: controllerId, index: 1, online: false });
+            const peer1c = controllerC.peers.get("peer1")!;
+            const ep1c = peer1c.parts.get("ep1")!;
+            expectNoOnOffTransition(ep1c);
+            expect(clientStructureOf(peer1c).storeForRemote(ep1c, LevelControlClient).version).not.equals(
+                Datasource.UNKNOWN_VERSION,
+            );
+        });
+
+        /**
+         * Deliver one wildcard report for LevelControl on endpoint 1 with the given attribute list and values.
+         */
+        async function reportLevelControl(peer: ClientNode, attributeList: number[], values: Record<number, unknown>) {
+            const structure = clientStructureOf(peer);
+
+            const reports = [AttributeList.id, ...Object.keys(values).map(Number)].map(
+                (attributeId): ReadResult.Report => ({
+                    kind: "attr-value",
+                    path: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: LevelControl.id,
+                        attributeId: AttributeId(attributeId),
+                    },
+                    value: attributeId === AttributeList.id ? attributeList : values[attributeId],
+                    version: 0x1234,
+                    tlv: TlvAny,
+                }),
+            );
+
+            async function* result(): ReadResult {
+                yield reports;
+            }
+
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+            for await (const _chunk of structure.mutate(request, result())) {
+                // Drain
+            }
+        }
+
+        it("when the peer reports an unchanged attribute list", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    device: OnOffLightDevice.with(WithoutOnOffTransition),
+                },
+            });
+
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const ep1 = peer1.parts.get("ep1")!;
+            await seedPeerCache(peer1, ep1, LevelControlClient, new Map([[onOffTransitionTimeId, 5]]));
+            expect(ep1.stateOf(LevelControlClient).onOffTransitionTime).equals(5);
+
+            const attributeList = [...ep1.globalsOf(LevelControlClient).attributeList];
+            await MockTime.resolve(reportLevelControl(peer1, attributeList, {}));
+
+            expectNoOnOffTransition(ep1);
+            expect(storedOnOffTransitionKeys(site, controller.id)).empty;
+        });
+
+        it("but keeps a value the peer reports alongside a list that omits it", async () => {
+            await using site = new MockSite();
+            const { peer1 } = await commissionWithOnOffTransition(site);
+            const ep1 = peer1.parts.get("ep1")!;
+
+            const onTransitionTimeId = LevelControl.attributes.onTransitionTime.id;
+            const attributeList = ep1
+                .globalsOf(LevelControlClient)
+                .attributeList.filter(id => id !== onOffTransitionTimeId && id !== onTransitionTimeId);
+
+            await MockTime.resolve(reportLevelControl(peer1, attributeList, { [onOffTransitionTimeId]: 7 }));
+
+            expect(ep1.stateOf(LevelControlClient).onOffTransitionTime).equals(7);
+            expect(ep1.stateOf(LevelControlClient).onTransitionTime).equals(undefined);
+        });
+
+        it("but not when the peer reports an empty attribute list", async () => {
+            await using site = new MockSite();
+            const { controller, peer1 } = await commissionWithOnOffTransition(site);
+            const controllerId = controller.id;
+
+            await MockTime.resolve(reportLevelControl(peer1, [], {}));
+            expect(peer1.parts.get("ep1")!.stateOf(LevelControlClient).onOffTransitionTime).equals(5);
+
+            await MockTime.resolve(controller.close());
+            const controllerB = await site.addNode(undefined, { id: controllerId, index: 1, online: false });
+            expect(
+                controllerB.peers.get("peer1")!.parts.get("ep1")!.stateOf(LevelControlClient).onOffTransitionTime,
+            ).equals(5);
+        });
+
+        it("but keeps a global attribute a non-compliant list omits", async () => {
+            await using site = new MockSite();
+            const { peer1 } = await commissionWithOnOffTransition(site);
+            const ep1 = peer1.parts.get("ep1")!;
+
+            const attributeList = ep1.globalsOf(LevelControlClient).attributeList.filter(id => id !== FeatureMap.id);
+
+            await MockTime.resolve(reportLevelControl(peer1, attributeList, {}));
+
+            expect(ep1.globalsOf(LevelControlClient).featureMap.lighting).equals(true);
+        });
     });
 
     it("handles shutdown event and reestablishes connection", () => {
@@ -2365,7 +2707,7 @@ describe("ClientNode", () => {
                 controller.peers.runCommissioning(peer2, () => {
                     secondRan = true;
                 }),
-            ).rejectedWith(CommissioningError, /already in progress/);
+            ).rejectedWith(FabricOperationInProgressError, /already in progress/);
             expect(secondRan).false;
 
             // Once the first finishes the slot frees and another attempt is permitted.
@@ -2700,6 +3042,49 @@ describe("ClientNode", () => {
             expect(neoBehaviorId(), "NEO must survive a re-interview that serves its data").not.undefined;
         });
 
+        it("survives a read that runs while the report carrying its data is still arriving", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+
+            const initializer = peer1.env.get(EndpointInitializer) as ClientEndpointInitializer;
+            const structure = initializer.structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            const neoActive = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return (
+                    endpoint !== undefined &&
+                    Object.values(endpoint.behaviors.supported).some(
+                        type => (type as ClusterBehavior.Type).cluster?.id === NEO,
+                    )
+                );
+            };
+
+            await drain(structure.mutate(request, readResult(neoReports(10), descriptorServerListReport(10))));
+            expect(neoActive(), "NEO should be active after the initial interaction").true;
+
+            // NEO's data, then OnOff's so NEO's update starts before the report pauses
+            const neoApplied = createPromise<void>();
+            const reportOpen = createPromise<void>();
+            async function* report(): ReadResult {
+                yield [...neoReports(11), attr(OnOff.id, OnOff.attributes.onOff.id, true, 11)];
+                neoApplied.resolver();
+                await reportOpen.promise;
+                yield descriptorServerListReport(11);
+            }
+
+            const reporting = drain(structure.mutate(request, report()));
+            await MockTime.resolve(neoApplied.promise);
+
+            await drain(structure.mutate(request, readResult([])));
+
+            reportOpen.resolver();
+            await MockTime.resolve(reporting);
+
+            expect(neoActive(), "the report carried NEO's data, so its descriptor must not delete NEO").true;
+        });
+
         it("erases persisted storage when the peer genuinely drops the cluster", async () => {
             await using site = new MockSite();
             const { controller } = await site.addCommissionedPair();
@@ -2829,6 +3214,60 @@ describe("ClientNode", () => {
             const after = neoType();
             expect(after, "behavior must be rebuilt to reflect the new revision").not.equals(before);
             expect(after?.cluster.revision, "NEO must report the new revision").equals(2);
+        });
+
+        it("keeps a cluster a wire batch carries data for though its descriptor omits it", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+            const peer1 = await subscribedPeer(controller, "peer1");
+            const structure = (peer1.env.get(EndpointInitializer) as ClientEndpointInitializer).structure;
+            const request = Read({ attributes: [{}], fabricFilter: structure.subscribedFabricFiltered });
+
+            await drain(structure.mutate(request, readResult(descriptorServerListReport(10))));
+
+            const levelControlActive = () => {
+                const endpoint = structure.endpointFor(EP1);
+                return (
+                    endpoint !== undefined &&
+                    Object.values(endpoint.behaviors.supported).some(
+                        type => (type as ClusterBehavior.Type).cluster?.id === LevelControl.id,
+                    )
+                );
+            };
+
+            const levelControl = (version: number) => ({
+                kind: "update" as const,
+                node: peer1.id,
+                endpoint: EP1,
+                version,
+                behavior: "levelControl",
+                changes: {
+                    clusterRevision: 5,
+                    featureMap: {},
+                    attributeList: [0, 65528, 65529, 65531, 65532, 65533],
+                    acceptedCommandList: [],
+                    generatedCommandList: [],
+                    currentLevel: 42,
+                },
+            });
+            const descriptor = (version: number) => ({
+                kind: "update" as const,
+                node: peer1.id,
+                endpoint: EP1,
+                version,
+                behavior: "descriptor",
+                changes: { serverList: EP1_SERVER_LIST },
+            });
+
+            await structure.applyWireChanges([levelControl(11)]);
+            expect(levelControlActive(), "the wire change installs LevelControl").true;
+
+            await structure.applyWireChanges([levelControl(12), descriptor(12)]);
+            expect(levelControlActive(), "the batch carried LevelControl's data").true;
+
+            // The same descriptor without the data does delete it, so the batch above kept it for its data
+            await structure.applyWireChanges([descriptor(13)]);
+            expect(levelControlActive(), "a descriptor alone deletes LevelControl").false;
         });
 
         it("rebuilds a cluster when a wire change alters its revision", async () => {

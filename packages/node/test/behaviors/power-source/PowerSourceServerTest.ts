@@ -13,7 +13,7 @@ import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 
 describe("PowerSourceServer", () => {
     it("successfully augments descriptor", async () => {
-        const node = new MockServerNode();
+        await using node = new MockServerNode();
         const sensor = new MockEndpoint(
             HumiditySensorDevice.with(
                 PowerSourceServer.with(PowerSource.Feature.Battery, PowerSource.Feature.Replaceable).set({

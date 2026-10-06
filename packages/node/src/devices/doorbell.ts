@@ -8,6 +8,7 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { SwitchServer as BaseSwitchServer } from "../behaviors/switch/SwitchServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { ChimeClient as BaseChimeClient } from "../behaviors/chime/ChimeClient.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -16,7 +17,7 @@ import { Identity } from "@matter/general";
 /**
  * A Doorbell device is a switch which when pressed usually causes a Chime to activate.
  *
- * @see {@link MatterSpecification.v16.Device} § 16.9
+ * @see {@link MatterSpecification.v161.Device} § 16.9
  */
 export interface DoorbellDevice extends Identity<typeof DoorbellDeviceDefinition> {}
 
@@ -36,6 +37,13 @@ export namespace DoorbellRequirements {
     export const SwitchServer = BaseSwitchServer.with("MomentarySwitch");
 
     /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
+
+    /**
      * The Chime cluster is required by the Matter specification.
      *
      * We provide this alias to the default implementation {@link ChimeClient} for convenience.
@@ -45,7 +53,7 @@ export namespace DoorbellRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { Identify: IdentifyServer, Switch: SwitchServer } };
+    export const server = { mandatory: { Identify: IdentifyServer, Switch: SwitchServer, Binding: BindingServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -60,7 +68,8 @@ export const DoorbellDeviceDefinition = MutableEndpoint({
     requirements: DoorbellRequirements,
     behaviors: SupportedBehaviors(
         DoorbellRequirements.server.mandatory.Identify,
-        DoorbellRequirements.server.mandatory.Switch
+        DoorbellRequirements.server.mandatory.Switch,
+        DoorbellRequirements.server.mandatory.Binding
     )
 });
 

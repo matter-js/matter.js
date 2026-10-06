@@ -7,7 +7,16 @@
 import { IcdManagementServer } from "#behaviors/icd-management";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { ServerSubscription, ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { DataReadQueue, Lifetime, Millis, NoResponseTimeoutError, Seconds } from "@matter/general";
+import {
+    createPromise,
+    DataReadQueue,
+    Duration,
+    Lifetime,
+    Millis,
+    NoResponseTimeoutError,
+    Seconds,
+    Time,
+} from "@matter/general";
 import { Specification } from "@matter/model";
 import { interaction, MockServerNode } from "@matter/node/testing";
 import {
@@ -19,7 +28,7 @@ import {
     ProtocolMocks,
     SessionManager,
 } from "@matter/protocol";
-import { AttributeId, AttributePath, ClusterId, EndpointNumber } from "@matter/types";
+import { AttributeId, AttributePath, ClusterId, EndpointNumber, EventPath } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { LIT_CONFIG } from "./icd-helpers.js";
@@ -57,6 +66,9 @@ describe("ServerSubscription", () => {
             negotiateIntervals?: boolean;
             session?: NodeSession;
             attributeRequests?: AttributePath[];
+            eventRequests?: EventPath[];
+            maxInterval?: Duration;
+            sendInterval?: Duration;
         },
     ): Promise<ServerSubscription> {
         let session = overrides?.session;
@@ -78,12 +90,18 @@ describe("ServerSubscription", () => {
                 maxIntervalCeilingSeconds: overrides?.maxIntervalCeilingSeconds ?? 60,
                 // Without attributeRequests / eventRequests these are keepalive-only sends
                 attributeRequests: overrides?.attributeRequests,
+                eventRequests: overrides?.eventRequests,
                 isFabricFiltered: false,
             },
             subscriptionOptions: ServerSubscriptionConfig.of(),
             // Use fixed short intervals so tests don't depend on randomization, unless a test wants the
             // real #determineSendingIntervals negotiation exercised.
-            ...(overrides?.negotiateIntervals ? {} : { useAsMaxInterval: Millis(200), useAsSendInterval: Millis(100) }),
+            ...(overrides?.negotiateIntervals
+                ? {}
+                : {
+                      useAsMaxInterval: overrides?.maxInterval ?? Millis(200),
+                      useAsSendInterval: overrides?.sendInterval ?? Millis(100),
+                  }),
         });
     }
 
@@ -305,6 +323,659 @@ describe("ServerSubscription", () => {
         await MockTime.resolve(flushingClose!);
 
         expect([...session.subscriptions]).is.empty;
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("holds a report queued behind a report being sent until its deferral ends", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        const emitChange = (version: number) =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                version,
+            );
+
+        // Each report opens an exchange; the first is acknowledged only once the test releases it
+        const sends = new Array<number>();
+        const releaseFirst = new DataReadQueue<void>();
+        const firstDone = createPromise<void>();
+        const subscription = await createSubscription(
+            node,
+            () => {
+                sends.push(Time.nowMs);
+                const isFirst = sends.length === 1;
+                const exchange = new ProtocolMocks.Exchange({
+                    index: sends.length + 1,
+                    context: { session },
+                    maxPayloadSize: 1200,
+                });
+                exchange.send = async () => {
+                    if (isFirst) {
+                        await releaseFirst.read();
+                    }
+                    await exchange.writeStatus();
+                };
+                exchange.close = async () => {
+                    if (isFirst) {
+                        firstDone.resolver();
+                    }
+                };
+                return exchange;
+            },
+            { session, attributeRequests: [changedPath], negotiateIntervals: true },
+        );
+
+        await initialExchange.writeStatus();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        subscription.activate();
+
+        emitChange(2);
+        await MockTime.advance(100);
+        emitChange(3);
+        await MockTime.advance(100);
+        expect(sends).length(1);
+
+        const deferredAt = Time.nowMs;
+        subscription.deferReports(Millis(5000));
+        releaseFirst.write();
+        await MockTime.resolve(firstDone.promise);
+        await MockTime.yield3();
+        await MockTime.advance(100);
+        expect(sends).length(1);
+
+        await MockTime.advance(deferredAt + 5000 + 100 - Time.nowMs);
+        expect(sends).length(2);
+        expect(sends[1] - deferredAt).at.least(5000);
+        await MockTime.advance(1000);
+        expect(sends).length(2);
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("sends the keep-alive queued behind a slow report within the send interval despite a deferral", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        const emitChange = (version: number) =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                version,
+            );
+
+        // The first two reports are acknowledged only once the test releases each of them
+        const sends = new Array<number>();
+        const releases = [new DataReadQueue<void>(), new DataReadQueue<void>()];
+        const done = [createPromise<void>(), createPromise<void>()];
+        const subscription = await createSubscription(
+            node,
+            () => {
+                const index = sends.length;
+                sends.push(Time.nowMs);
+                const exchange = new ProtocolMocks.Exchange({
+                    index: index + 2,
+                    context: { session },
+                    maxPayloadSize: 1200,
+                });
+                exchange.send = async () => {
+                    await releases[index]?.read();
+                    await exchange.writeStatus();
+                };
+                exchange.close = async () => {
+                    done[index]?.resolver();
+                };
+                return exchange;
+            },
+            { session, attributeRequests: [changedPath], maxInterval: Seconds(10), sendInterval: Seconds(8) },
+        );
+
+        await initialExchange.writeStatus();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        subscription.activate();
+        const start = Time.nowMs;
+        const at = (ms: number) => MockTime.advance(start + ms - Time.nowMs);
+
+        // Report A goes out and stays in flight; a change at 1 s queues report B behind it
+        emitChange(2);
+        await at(1000);
+        emitChange(3);
+        await at(1100);
+        expect(sends).length(1);
+
+        // A completes at 5 s, so B goes out and stays in flight
+        await at(5000);
+        releases[0].write();
+        await MockTime.resolve(done[0].promise);
+        await MockTime.yield3();
+        expect(sends).length(2);
+        const bSentAt = sends[1];
+
+        // The send interval queues a keep-alive behind B, then an invoke defers reports
+        await at(9200);
+        subscription.deferReports(Seconds(10));
+
+        // B completes at 9.5 s; the queued keep-alive must still go out within the send interval after B
+        await at(9500);
+        releases[1].write();
+        await MockTime.resolve(done[1].promise);
+        await MockTime.yield3();
+        await MockTime.advance(bSentAt + Seconds(8) + 1 - Time.nowMs);
+        expect(sends).length(3);
+        expect(sends[2] - bSentAt).at.most(Seconds(8));
+
+        await MockTime.resolve(node.close());
+    });
+
+    /**
+     * A subscription to one attribute whose reports, by index in `held`, are acknowledged only once the test
+     * releases them.  `sends` records the time each report opens its exchange, `messages` the time each report
+     * message is sent, both on the monotonic clock.
+     */
+    async function subscribeWithSlowReports(
+        node: MockServerNode,
+        options: {
+            held?: number[];
+            minIntervalFloorSeconds?: number;
+            maxInterval: Duration;
+            sendInterval: Duration;
+            beforeInitialReport?: () => void;
+            beforeActivate?: () => void;
+        },
+    ) {
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        let version = 1;
+        const emitChange = () =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                ++version,
+            );
+        const emitUnselectedChange = () =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [AttributeId(BasicInformation.attributes.nodeLabel.id)],
+                ++version,
+            );
+
+        const sends = new Array<number>();
+        const messages = new Array<number>();
+        const releases = new Map((options.held ?? []).map(index => [index, new DataReadQueue<void>()]));
+        const done = new Array<Promise<void>>();
+        const subscription = await createSubscription(
+            node,
+            () => {
+                const index = sends.length;
+                sends.push(Time.nowUs);
+                const completion = createPromise<void>();
+                done.push(completion.promise);
+                const exchange = new ProtocolMocks.Exchange({
+                    index: index + 2,
+                    context: { session },
+                    maxPayloadSize: 1200,
+                });
+                exchange.send = async () => {
+                    messages.push(Time.nowUs);
+                    await releases.get(index)?.read();
+                    await exchange.writeStatus();
+                };
+                exchange.close = async () => {
+                    completion.resolver();
+                };
+                return exchange;
+            },
+            {
+                session,
+                attributeRequests: [changedPath],
+                minIntervalFloorSeconds: options.minIntervalFloorSeconds,
+                maxInterval: options.maxInterval,
+                sendInterval: options.sendInterval,
+            },
+        );
+
+        await initialExchange.writeStatus();
+        options.beforeInitialReport?.();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        options.beforeActivate?.();
+        subscription.activate();
+        const start = Time.nowUs;
+
+        // A report's message goes out only after its payload iteration has had its turns, so advance in small steps
+        async function at(ms: number) {
+            while (Time.nowUs < start + ms) {
+                await MockTime.advance(Math.min(10, start + ms - Time.nowUs));
+                await MockTime.yield3();
+            }
+        }
+
+        async function completed(index: number) {
+            await MockTime.resolve(done[index]);
+            await MockTime.yield3();
+        }
+
+        return {
+            subscription,
+            sends,
+            messages,
+            emitChange,
+            emitUnselectedChange,
+            at,
+            completed,
+            async release(index: number) {
+                releases.get(index)?.write();
+                await completed(index);
+            },
+        };
+    }
+
+    describe("with a slow report in flight", () => {
+        const intervals = { maxInterval: Seconds(10), sendInterval: Seconds(8) };
+
+        /**
+         * Report A is in flight from 0 s to 5 s; a change at 1 s queues report B, which goes out at 5 s.  The send
+         * interval restarted by that change ends at 9 s.
+         */
+        async function reportQueuedBehindSlowReport(node: MockServerNode, held = [0, 1]) {
+            const reports = await subscribeWithSlowReports(node, { held, ...intervals });
+            reports.emitChange();
+            await reports.at(1000);
+            reports.emitChange();
+            await reports.at(1100);
+            expect(reports.sends).length(1);
+
+            await reports.at(5000);
+            await reports.release(0);
+            expect(reports.sends).length(2);
+            return reports;
+        }
+
+        it("sends the keep-alive that fell due while a report was in flight when that report completes", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, at, release } = await reportQueuedBehindSlowReport(node);
+            const bSentAt = sends[1];
+
+            await at(9500);
+            expect(sends).length(2);
+            await release(1);
+            await at(20_000);
+            expect(sends.length).at.least(3);
+            expect(sends[2] - bSentAt).at.most(Seconds(8));
+
+            await MockTime.resolve(node.close());
+        });
+
+        // Characterization: passes without the owed keep-alive too; guards against sending an empty report
+        // whenever a pass is queued behind a report
+        it("sends nothing for a queued pass with only unselected changes when no keep-alive is owed", async () => {
+            const node = await MockServerNode.createOnline();
+            const { messages, emitChange, emitUnselectedChange, at, release } = await subscribeWithSlowReports(node, {
+                held: [0],
+                ...intervals,
+            });
+
+            emitChange();
+            await at(1000);
+            emitUnselectedChange();
+            await at(5000);
+            await release(0);
+            await at(5500);
+            expect(messages).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("sends nothing for a later queued pass with only unselected changes once the owed keep-alive went out", async () => {
+            const node = await MockServerNode.createOnline();
+            const { messages, emitChange, emitUnselectedChange, at, release } = await reportQueuedBehindSlowReport(
+                node,
+                [0, 1, 3],
+            );
+
+            await at(9500);
+            await release(1);
+            await at(9600);
+            expect(messages).length(3);
+
+            // Report D is in flight from 10 s; a change it does not select queues a pass behind it
+            emitChange();
+            await at(10_200);
+            expect(messages).length(4);
+            emitUnselectedChange();
+            await at(11_000);
+            await release(3);
+            await at(11_500);
+            expect(messages).length(4);
+
+            await MockTime.resolve(node.close());
+        });
+
+        // Characterization: passes without the owed keep-alive too; guards against sending it on a closed subscription
+        it("does not send the keep-alive that fell due while a report was in flight once closed", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, at, release } = await reportQueuedBehindSlowReport(node);
+
+            await at(9200);
+            const closing = subscription.close();
+            await release(1);
+            await MockTime.resolve(closing);
+            await MockTime.advance(1000);
+            expect(sends).length(2);
+
+            await MockTime.resolve(node.close());
+        });
+    });
+
+    describe("after a wall clock step", () => {
+        const intervals = { minIntervalFloorSeconds: 2, maxInterval: Seconds(10), sendInterval: Seconds(8) };
+
+        it("sends a change held by the min interval floor when the floor ends although the wall clock stepped backwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            await at(500);
+            emitChange();
+            MockTime.stepWallClock(-60_000);
+
+            await at(1900);
+            expect(sends).length(0);
+            await at(2100);
+            expect(sends).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("sends the keep-alive at the send interval although the wall clock stepped backwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, at } = await subscribeWithSlowReports(node, intervals);
+
+            await at(1000);
+            MockTime.stepWallClock(-60_000);
+
+            await at(7900);
+            expect(sends).length(0);
+            await at(8100);
+            expect(sends).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("sends a change held by a deferral when the deferral ends although the wall clock stepped backwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            subscription.deferReports(Seconds(3));
+            MockTime.stepWallClock(-60_000);
+            emitChange();
+
+            await at(2900);
+            expect(sends).length(0);
+            await at(3100);
+            expect(sends).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("holds a change inside the min interval floor after the wall clock stepped forwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            await at(300);
+            MockTime.stepWallClock(60_000);
+            await at(500);
+            emitChange();
+
+            await at(1900);
+            expect(sends).length(0);
+            await at(2100);
+            expect(sends).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("holds a change until its deferral ends after the wall clock stepped forwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            await at(1000);
+            subscription.deferReports(Seconds(5));
+            await at(1500);
+            MockTime.stepWallClock(60_000);
+            await at(2000);
+            emitChange();
+
+            await at(5900);
+            expect(sends).length(0);
+            await at(6100);
+            expect(sends).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("holds a report queued behind a report being sent until its deferral ends after the wall clock stepped forwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at, release } = await subscribeWithSlowReports(node, {
+                held: [0],
+                maxInterval: Seconds(10),
+                sendInterval: Seconds(8),
+            });
+
+            emitChange();
+            await at(500);
+            emitChange();
+            await at(1000);
+            subscription.deferReports(Seconds(5));
+            MockTime.stepWallClock(60_000);
+
+            await at(2000);
+            await release(0);
+            await MockTime.advance(100);
+            expect(sends).length(1);
+            await at(6100);
+            expect(sends).length(2);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("keeps the deferral bound set at activation when the wall clock stepped backwards before it", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, {
+                maxInterval: Seconds(10),
+                sendInterval: Seconds(8),
+                beforeActivate: () => MockTime.stepWallClock(-60_000),
+            });
+
+            subscription.deferReports(Seconds(3));
+            emitChange();
+            await at(2900);
+            expect(sends).length(0);
+            await at(3100);
+            expect(sends).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("sends a change at the end of a deferral requested after the wall clock stepped backwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { subscription, sends, emitChange, at } = await subscribeWithSlowReports(node, intervals);
+
+            MockTime.stepWallClock(-60_000);
+            subscription.deferReports(Seconds(3));
+            emitChange();
+
+            await at(2900);
+            expect(sends).length(0);
+            await at(3100);
+            expect(sends).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+
+        // Characterization, this test and the next: both also pass when every computation reads the wall clock; each
+        // guards one computation against reading a different clock than the others
+        it("keeps the keep-alive on time after a report sent after the wall clock stepped forwards", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, messages, emitChange, at, completed } = await subscribeWithSlowReports(node, intervals);
+
+            await at(500);
+            emitChange();
+            MockTime.stepWallClock(60_000);
+            await at(2100);
+            expect(sends).length(1);
+            await completed(0);
+
+            await MockTime.advance(messages[0] + Seconds(8) + 1 - Time.nowUs);
+            expect(sends).length(2);
+
+            await MockTime.resolve(node.close());
+        });
+
+        it("keeps the min interval floor after the initial report when the wall clock stepped forwards before it", async () => {
+            const node = await MockServerNode.createOnline();
+            const { sends, emitChange, at } = await subscribeWithSlowReports(node, {
+                ...intervals,
+                beforeInitialReport: () => MockTime.stepWallClock(60_000),
+            });
+
+            await at(500);
+            emitChange();
+            await at(1900);
+            expect(sends).length(0);
+            await at(2100);
+            expect(sends).length(1);
+
+            await MockTime.resolve(node.close());
+        });
+    });
+
+    it("flushes a report queued behind a report being sent on close despite a deferral", async () => {
+        const node = await MockServerNode.createOnline();
+        const fabric = await node.addFabric();
+        const initialExchange = await node.createExchange({ fabric });
+        const session = initialExchange.session as NodeSession;
+
+        const changedPath = {
+            endpointId: EndpointNumber(0),
+            clusterId: ClusterId(BasicInformation.id),
+            attributeId: AttributeId(BasicInformation.attributes.dataModelRevision.id),
+        };
+        const emitChange = (version: number) =>
+            node.protocol.attrsChanged.emit(
+                changedPath.endpointId,
+                changedPath.clusterId,
+                [changedPath.attributeId],
+                version,
+            );
+
+        // Each report opens an exchange; the first is acknowledged only once the test releases it
+        const sends = new Array<number>();
+        const releaseFirst = new DataReadQueue<void>();
+        const firstDone = createPromise<void>();
+        const subscription = await createSubscription(
+            node,
+            () => {
+                sends.push(Time.nowMs);
+                const isFirst = sends.length === 1;
+                const exchange = new ProtocolMocks.Exchange({
+                    index: sends.length + 1,
+                    context: { session },
+                    maxPayloadSize: 1200,
+                });
+                exchange.send = async () => {
+                    if (isFirst) {
+                        await releaseFirst.read();
+                    }
+                    await exchange.writeStatus();
+                };
+                exchange.close = async () => {
+                    if (isFirst) {
+                        firstDone.resolver();
+                    }
+                };
+                return exchange;
+            },
+            { session, attributeRequests: [changedPath], negotiateIntervals: true },
+        );
+
+        await initialExchange.writeStatus();
+        await MockTime.resolve(
+            subscription.sendInitialReport(new InteractionServerMessenger(initialExchange), {
+                node,
+                exchange: initialExchange,
+                fabricFiltered: false,
+            }),
+        );
+        subscription.activate();
+
+        emitChange(2);
+        await MockTime.advance(100);
+        emitChange(3);
+        await MockTime.advance(100);
+        expect(sends).length(1);
+
+        subscription.deferReports(Millis(5000));
+        const closing = subscription.close(session);
+        releaseFirst.write();
+        await MockTime.resolve(closing);
+        expect(sends).length(2);
+
+        await MockTime.resolve(node.close());
+    });
+
+    it("selects endpoints by its event paths when it has no attribute paths", async () => {
+        const node = await MockServerNode.createOnline();
+
+        const subscription = await createSubscription(node, () => ({}) as any, {
+            eventRequests: [{ endpointId: EndpointNumber(0), clusterId: ClusterId(BasicInformation.id) }],
+        });
+
+        expect(subscription.selectsAnyEndpoint(new Set([EndpointNumber(1)]))).equals(false);
+        expect(subscription.selectsAnyEndpoint(new Set([EndpointNumber(0)]))).equals(true);
 
         await MockTime.resolve(node.close());
     });

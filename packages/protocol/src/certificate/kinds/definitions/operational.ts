@@ -29,7 +29,7 @@ import { ExtensionKeyUsageBitmap } from "./base.js";
 
 /**
  * Matter specific Certificate Sizes
- * @see {@link MatterSpecification.v16.Core} 6.1.3.
+ * @see {@link MatterSpecification.v161.Core} 6.1.3.
  */
 export const MAX_TLV_CERTIFICATE_SIZE = 400;
 

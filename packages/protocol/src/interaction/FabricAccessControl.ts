@@ -63,7 +63,7 @@ export class AccessDeniedError extends StatusResponseError {
 }
 
 /**
- * Implements Access Control Logic For one fabric as per Matter Specification @see {@link MatterSpecification.v16.Core}
+ * Implements Access Control Logic For one fabric as per Matter Specification @see {@link MatterSpecification.v161.Core}
  * § 6.6.6.2.
  */
 export class FabricAccessControl {

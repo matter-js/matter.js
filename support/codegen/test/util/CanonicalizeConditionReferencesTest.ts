@@ -17,7 +17,7 @@ import { canonicalizeConditionReferences } from "#util/canonicalize-condition-re
 
 /**
  * A model shaped as the specification scrape produces it: the conditions a conformance references are declared in
- * another case, and a feature element requirement is named by the feature's title while conformance names its code.
+ * another case.
  */
 function sensorWith(...requirements: RequirementModel[]) {
     const sensor = new DeviceTypeModel(
@@ -99,7 +99,7 @@ describe("canonicalizeConditionReferences", () => {
                 "PowerTopology",
                 0x9c,
                 "M",
-                new RequirementModel({ name: "NODETOPOLOGY", element: "feature", conformance: "M" }),
+                new RequirementModel({ name: "NODE", element: "feature", conformance: "M" }),
                 new RequirementModel({ name: "AvailableEndpoints", element: "attribute", conformance: "NODE" }),
             ),
         );
@@ -107,17 +107,17 @@ describe("canonicalizeConditionReferences", () => {
         expect(conformanceOf(sensor, "PowerTopology", "AvailableEndpoints")).equals("NODE");
     });
 
-    it("spells the condition in a feature requirement the specification names by title", () => {
+    it("spells the condition in a feature requirement's conformance", () => {
         const sensor = sensorWith(
             cluster(
                 "IcdManagement",
                 0x46,
                 "M",
-                new RequirementModel({ name: "LONGIDLETIMESUPPORT", element: "feature", conformance: "LIT" }),
+                new RequirementModel({ name: "LITS", element: "feature", conformance: "LIT" }),
             ),
         );
 
-        expect(conformanceOf(sensor, "IcdManagement", "LONGIDLETIMESUPPORT")).equals("Lit");
+        expect(conformanceOf(sensor, "IcdManagement", "LITS")).equals("Lit");
     });
 
     describe("a qualified name", () => {

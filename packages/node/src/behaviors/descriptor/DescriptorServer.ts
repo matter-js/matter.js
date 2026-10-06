@@ -27,6 +27,7 @@ export class DescriptorServer extends DescriptorBehavior {
             // Note - do not use lock here because this reactor triggers frequently so it pollutes the logs.  Instead
             // lock manually as necessary
             this.reactTo(this.agent.get(IndexBehavior).events.change, this.#updatePartsList);
+            this.reactTo(this.events.deviceTypeList$Changed, this.#updatePartsList, { offline: true });
         } else if (this.endpoint.hasParts) {
             for (const endpoint of this.endpoint.parts) {
                 this.#monitorDestruction(endpoint);
@@ -198,7 +199,7 @@ export class DescriptorServer extends DescriptorBehavior {
      * Monitor endpoint for removal.
      */
     #monitorDestruction(endpoint: Endpoint) {
-        this.reactTo(endpoint.lifecycle.destroyed, this.#updatePartsList);
+        this.reactTo(endpoint.lifecycle.destroyed, this.#updatePartsList, { once: true });
     }
 
     /**
@@ -223,7 +224,7 @@ export class DescriptorServer extends DescriptorBehavior {
 
         let numbers: number[];
 
-        if (this.#composesFullFamily && this.agent.has(IndexBehavior)) {
+        if (this.agent.has(IndexBehavior) && this.#composesFullFamily) {
             const index = this.agent.get(IndexBehavior);
             numbers = Object.keys(index.partsByNumber).map(n => Number.parseInt(n));
 

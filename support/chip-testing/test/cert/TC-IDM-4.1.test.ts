@@ -9,6 +9,7 @@ import type { AttributePathSpec } from "@matter/testing";
 import { certTest } from "@matter/testing";
 import { MAX_INTERVAL_CEILING_SECONDS, MIN_INTERVAL_FLOOR_SECONDS, subscribeAndModify } from "./tc-idm-4.1-support.js";
 import {
+    chipSubscribeRequestEnvelope,
     CommissionedRefs,
     expectMessageWithPath,
     expectReportAck,
@@ -20,7 +21,6 @@ import {
     record,
     recordAll,
     requireId,
-    SUBSCRIBE_REQUEST_MESSAGE,
 } from "./tc-support.js";
 
 const ON_OFF = Matter.clusters.require("OnOff");
@@ -45,17 +45,12 @@ const ON_OFF_TRANSITION_TIME = requireId(
 const ENDPOINT_0 = 0;
 const ENDPOINT_1 = 1;
 
-// chip's own decode dump for the request's top-level fields, verified against Test_TC_IDM_4_1.yaml's
-// step-1 capture (--keepSubscriptions true). Both intervals are pinned to the exact values this test
-// requests: PhysicalDeviceProperties.subscriptionIntervalBoundsFor (packages/protocol/src/peer/)
-// jitters only a ceiling it derived itself, so a caller-supplied one reaches the wire unchanged —
-// pinning it here is what keeps that guarantee under test.
+// Both intervals are pinned to the exact values this test requests:
+// PhysicalDeviceProperties.subscriptionIntervalBoundsFor (packages/protocol/src/peer/) jitters only a
+// ceiling it derived itself, so a caller-supplied one reaches the wire unchanged — pinning it here is
+// what keeps that guarantee under test.
 const SUBSCRIBE_ENVELOPE_SEQUENCE = [
-    SUBSCRIBE_REQUEST_MESSAGE,
-    /\{\s*$/,
-    /KeepSubscriptions = true,\s*$/,
-    new RegExp(`MinIntervalFloorSeconds = 0x${MIN_INTERVAL_FLOOR_SECONDS.toString(16)},\\s*$`),
-    new RegExp(`MaxIntervalCeilingSeconds = 0x${MAX_INTERVAL_CEILING_SECONDS.toString(16)},\\s*$`),
+    ...chipSubscribeRequestEnvelope(MIN_INTERVAL_FLOOR_SECONDS, MAX_INTERVAL_CEILING_SECONDS),
     /AttributePathIBs =\s*$/,
 ];
 

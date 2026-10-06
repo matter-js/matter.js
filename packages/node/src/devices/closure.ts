@@ -6,6 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { DescriptorServer as BaseDescriptorServer } from "../behaviors/descriptor/DescriptorServer.js";
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { ClosureControlServer as BaseClosureControlServer } from "../behaviors/closure-control/ClosureControlServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
@@ -77,11 +78,18 @@ import { Identity } from "@matter/general";
  * ClosureDevice requires ClosureControl cluster but ClosureControl is not added by default because you must select the
  * features your device supports. You can add manually using ClosureDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 8.5
+ * @see {@link MatterSpecification.v161.Device} § 8.5
  */
 export interface ClosureDevice extends Identity<typeof ClosureDeviceDefinition> {}
 
 export namespace ClosureRequirements {
+    /**
+     * The Descriptor cluster is required by the Matter specification.
+     *
+     * This version of {@link DescriptorServer} is specialized per the specification.
+     */
+    export const DescriptorServer = BaseDescriptorServer.with("TagList");
+
     /**
      * The Identify cluster is required by the Matter specification.
      *
@@ -99,7 +107,9 @@ export namespace ClosureRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { Identify: IdentifyServer, ClosureControl: ClosureControlServer } };
+    export const server = {
+        mandatory: { Descriptor: DescriptorServer, Identify: IdentifyServer, ClosureControl: ClosureControlServer }
+    };
 }
 
 export const ClosureDeviceDefinition = MutableEndpoint({
@@ -107,7 +117,10 @@ export const ClosureDeviceDefinition = MutableEndpoint({
     deviceType: 0x230,
     deviceRevision: 1,
     requirements: ClosureRequirements,
-    behaviors: SupportedBehaviors(ClosureRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(
+        ClosureRequirements.server.mandatory.Descriptor,
+        ClosureRequirements.server.mandatory.Identify
+    )
 });
 
 Object.freeze(ClosureDeviceDefinition);

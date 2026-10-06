@@ -150,6 +150,14 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
+    // fieldName > num, O (optional, unconditional).  Ignores field expression
+    {
+        pattern: pattern(FIELD, " > ", "\\d+", ", ", "O"),
+        processor(add) {
+            add(true);
+        },
+    },
+
     // fieldName, O (optional, unconditional).  Ignores field reference
     {
         pattern: pattern(FIELD, ", ", "O"),
@@ -363,11 +371,11 @@ function addElement(components: InferredComponents, element: ValueModel) {
         return;
     }
 
-    let text = element.conformance.toString();
-
-    if (text === "X") {
+    if (element.conformance.isDisallowed) {
         return;
     }
+
+    let text = element.conformance.toString();
 
     // The intended conformance of a provisional element contributes its condition but may not make it mandatory
     let provisional = false;
@@ -382,7 +390,7 @@ function addElement(components: InferredComponents, element: ValueModel) {
         }
     }
 
-    if (text === "D") {
+    if (text === "D" || text === "Z") {
         text = "O";
     } else if (text === "M, D") {
         text = "M";

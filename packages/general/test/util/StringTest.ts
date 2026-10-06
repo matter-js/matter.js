@@ -5,6 +5,7 @@
  */
 
 import { camelize, capitalize } from "#util/identifier-case.js";
+import { serializeToJs } from "#util/String.js";
 
 const CAMELIZE_TESTS = {
     foo: "Foo",
@@ -51,5 +52,10 @@ describe("String", () => {
                 expect(camelize(k)).equal(v[0].toLowerCase() + v.slice(1));
             });
         }
+    });
+    describe("serializeToJs", () => {
+        it("writes a date as the instant it holds", () => {
+            expect(serializeToJs(new Date("2026-09-29T12:00:00.000Z"))).equals('new Date("2026-09-29T12:00:00.000Z")');
+        });
     });
 });

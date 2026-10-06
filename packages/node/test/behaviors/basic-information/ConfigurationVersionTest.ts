@@ -22,7 +22,7 @@ function configVersion(node: MockServerNode) {
 
 describe("ConfigurationVersion", () => {
     it("runs the change callback and increments afterwards", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const before = configVersion(node);
 
         let ran = false;
@@ -37,7 +37,7 @@ describe("ConfigurationVersion", () => {
     });
 
     it("rejects a decrease of configurationVersion", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         await node.act(agent => agent.get(BasicInformationServer).increaseConfigurationVersion());
 
         let error: Error | undefined;

@@ -49,10 +49,10 @@ import { Identity } from "@matter/general";
  *     server, SHOULD be translated into a Thermostat Suggestion and SHOULD NOT be directly applied, in order to let the
  *     thermostat evaluate the change in state with any other suggestion provided by other clients.
  *
- *   - If the resulting action from the context provided by the Ambient Context Sensing client can not be translated
- *     into a supported Thermostat Suggestion, the Thermostat may apply the change directly, but should be aware that it
- *     might impact the evaluation of any current suggestions and the behavior related to conflict resolution between
- *     the current suggestions and the input from the Ambient Context Sensing client is manufacturer specific.
+ *     - If the resulting action from the context provided by the Ambient Context Sensing client can not be translated
+ *       into a supported Thermostat Suggestion, the Thermostat may apply the change directly, but should be aware that
+ *       it might impact the evaluation of any current suggestions and the behavior related to conflict resolution
+ *       between the current suggestions and the input from the Ambient Context Sensing client is manufacturer specific.
  *
  *   - The thermostat may prioritize the data provided by the Ambient Context Sensing server, in case there are multiple
  *     suggestions present, and use this as input when deciding which suggestion to apply.
@@ -60,7 +60,7 @@ import { Identity } from "@matter/general";
  * ThermostatDevice requires Thermostat cluster but Thermostat is not added by default because you must select the
  * features your device supports. You can add manually using ThermostatDevice.with().
  *
- * @see {@link MatterSpecification.v16.Device} § 9.1
+ * @see {@link MatterSpecification.v161.Device} § 9.1
  */
 export interface ThermostatDevice extends Identity<typeof ThermostatDeviceDefinition> {}
 

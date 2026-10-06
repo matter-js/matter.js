@@ -14,8 +14,9 @@ import INTERACTION_MODEL_REVISION = Specification.INTERACTION_MODEL_REVISION;
 
 describe("AttributeSubscriptionResponse", () => {
     it("reads wildcard endpoint attribute when in filter", async () => {
+        await using node = await MockServerNode.createOnline();
         const response = await readAttrSub(
-            await MockServerNode.createOnline(),
+            node,
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(1)]) } },
             Read.Attribute({
                 cluster: BasicInformation,
@@ -42,8 +43,9 @@ describe("AttributeSubscriptionResponse", () => {
     });
 
     it("reads no wildcard endpoint attribute when not in filter", async () => {
+        await using node = await MockServerNode.createOnline();
         const response = await readAttrSub(
-            await MockServerNode.createOnline(),
+            node,
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(2)]) } },
             Read.Attribute({
                 cluster: BasicInformation,
@@ -56,7 +58,7 @@ describe("AttributeSubscriptionResponse", () => {
     });
 
     it("reads concrete path when attribute is dirty", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readAttrSub(
             node,
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(1)]) } },
@@ -86,7 +88,7 @@ describe("AttributeSubscriptionResponse", () => {
     });
 
     it("ignores concrete path when only a sibling attribute of the same cluster is dirty", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readAttrSub(
             node,
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(2)]) } },
@@ -102,7 +104,7 @@ describe("AttributeSubscriptionResponse", () => {
     });
 
     it("ignores concrete path when the cluster has no dirty attributes", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readAttrSub(
             node,
             { [EndpointNumber(0)]: { [ClusterId(41)]: new Set([AttributeId(1)]) } },
@@ -118,7 +120,7 @@ describe("AttributeSubscriptionResponse", () => {
     });
 
     it("reads only the dirty attributes of a cluster with several concrete paths", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readAttrSub(
             node,
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(3)]) } },
@@ -153,8 +155,9 @@ describe("AttributeSubscriptionResponse", () => {
     });
 
     it("reads wildcard endpoint & attributes with 5 in Filter", async () => {
+        await using node = await MockServerNode.createOnline();
         const response = await readAttrSub(
-            await MockServerNode.createOnline(),
+            node,
             {
                 [EndpointNumber(0)]: {
                     [ClusterId(40)]: new Set([

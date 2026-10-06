@@ -34,8 +34,9 @@ describe("EventReadResponse", () => {
     [true, false].map(fabricScoped =>
         describe(`Read Event ${fabricScoped ? "as fabricScoped" : ""}`, () => {
             it(`reads non-fabric-scoped concrete event with payload`, async () => {
+                await using node = await MockServerNode.createOnline();
                 const response = await readEv(
-                    await MockServerNode.createOnline(),
+                    node,
                     fabricScoped,
                     Read.Event({
                         cluster: BasicInformation,
@@ -65,7 +66,7 @@ describe("EventReadResponse", () => {
 
             // This event has a fabricIndex field in its payload, but is not fabric-sensitive!
             it(`reads non-fabric-scoped concrete event with a payload that has a fabricIndex field`, async () => {
-                const node = await MockServerNode.createOnline();
+                await using node = await MockServerNode.createOnline();
                 await node.act(agent =>
                     node.events.basicInformation.leave.emit({ fabricIndex: FabricIndex(4) }, agent.context),
                 );
@@ -100,7 +101,7 @@ describe("EventReadResponse", () => {
             });
 
             it(`reads non-fabric-scoped concrete event without payload`, async () => {
-                const node = await MockServerNode.createOnline();
+                await using node = await MockServerNode.createOnline();
                 await node.act(agent => node.events.basicInformation.shutDown.emit(undefined, agent.context));
 
                 const response = await readEv(
@@ -136,7 +137,7 @@ describe("EventReadResponse", () => {
             // the accessing fabric regardless of the FabricFiltered request flag.  The read session is on NO_FABRIC
             // here, so an event owned by fabric 5 is always filtered out.
             it(`filters fabric-sensitive concrete event not owned by the accessing fabric`, async () => {
-                const node = await MockServerNode.createOnline(
+                await using node = await MockServerNode.createOnline(
                     MockServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
                 );
                 await node.act(agent =>
@@ -166,7 +167,7 @@ describe("EventReadResponse", () => {
             // Counterpart to the above: when the accessing fabric owns the record it is reported in both
             // FabricFiltered and non-FabricFiltered reads.
             it(`reads fabric-sensitive concrete event owned by the accessing fabric`, async () => {
-                const node = await MockServerNode.createOnline(
+                await using node = await MockServerNode.createOnline(
                     MockServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
                 );
                 await node.act(agent =>
@@ -216,8 +217,9 @@ describe("EventReadResponse", () => {
     );
 
     it("reads concrete event as fabric scoped", async () => {
+        await using node = await MockServerNode.createOnline();
         const response = await readEv(
-            await MockServerNode.createOnline(),
+            node,
             true,
             Read.Event({
                 cluster: BasicInformation,
@@ -246,7 +248,8 @@ describe("EventReadResponse", () => {
     });
 
     it("reads concrete event with version filter", async () => {
-        const response = await readEvRaw(await MockServerNode.createOnline(), {
+        await using node = await MockServerNode.createOnline();
+        const response = await readEvRaw(node, {
             eventRequests: [
                 {
                     clusterId: ClusterId(40),
@@ -261,8 +264,9 @@ describe("EventReadResponse", () => {
     });
 
     it("reads non-existent concrete endpoint", async () => {
+        await using node = await MockServerNode.createOnline(undefined, { device: undefined });
         const response = await readEv(
-            await MockServerNode.createOnline(undefined, { device: undefined }),
+            node,
             false,
             Read.Event({
                 endpoint: new Endpoint(OnOffLightDevice, { id: "test", number: 1 }),
@@ -288,7 +292,7 @@ describe("EventReadResponse", () => {
     });
 
     it("reads non-existent concrete event", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readEv(
             node,
             false,
@@ -316,7 +320,7 @@ describe("EventReadResponse", () => {
     });
 
     it("reads wildcard endpoint & events with default events", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const response = await readEv(
             node,
             false,
@@ -335,7 +339,7 @@ describe("EventReadResponse", () => {
     });
 
     it("reads wildcard endpoint & events with extra emitted events", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         await node.act(agent => node.events.basicInformation.startUp.emit({ softwareVersion: 2 }, agent.context));
 
         const response = await readEv(
@@ -356,7 +360,7 @@ describe("EventReadResponse", () => {
     });
 
     it("reads full wildcard", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         await node.act(agent => node.events.basicInformation.startUp.emit({ softwareVersion: 2 }, agent.context));
         const response = await readEv(node, false, Read.Event({}));
         expect(await countEvents(response.data)).deep.equals({

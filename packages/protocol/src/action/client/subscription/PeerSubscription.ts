@@ -18,10 +18,8 @@ export class PeerSubscription extends ClientSubscription {
     readonly #maxPeerResponseTime: Duration;
     isReading = false;
 
+    /** Liveness deadline on the clock of `Time.nowUs`. */
     timeoutAt?: Timestamp;
-
-    /** Wall-clock time the most recent inbound report (data or keepalive) started arriving on this subscription. */
-    lastReportStartedAt?: Timestamp;
 
     constructor(config: PeerSubscription.Configuration) {
         const {

@@ -39,6 +39,7 @@ import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Peers } from "./client/Peers.js";
 import { Node } from "./Node.js";
 import { Plugins } from "./Plugins.js";
+import { DeviceTypeConformanceService } from "./server/DeviceTypeConformanceService.js";
 import { IdentityService } from "./server/IdentityService.js";
 import { ServerEnvironment } from "./server/ServerEnvironment.js";
 
@@ -226,7 +227,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      * If this is inappropriate for your application, you may override to alter the behavior.  Matter requires that all
      * "security- and privacy-related data and key material" is removed on factory reset.
      *
-     * @see {@link MatterSpecification.v16.Core} § 13.4
+     * @see {@link MatterSpecification.v161.Core} § 13.4
      */
     protected async resetStorage() {
         await MatterAggregateError.settleSeries(
@@ -249,6 +250,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
      */
     private async resetServiceState() {
         this.env.get(IdentityService).releaseReservedPeerAddresses();
+        this.env.get(DeviceTypeConformanceService).reset();
         this.env.get(EndpointInitializer).variableService?.invalidate();
     }
 
@@ -280,7 +282,7 @@ export namespace ServerNode {
     /**
      * The default root endpoint of a server node.
      *
-     * @see {@link MatterSpecification.v16.Device} § 2.1
+     * @see {@link MatterSpecification.v161.Device} § 2.1
      */
     export const RootEndpoint: RootEndpoint = RootEndpointWithoutGroupcast.with(
         // Groupcast Listener requires the Auxiliary ACL feature

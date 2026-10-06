@@ -194,7 +194,7 @@ const GROUP_DATA_COUNTER_KEY = "groupDataCounter";
 /**
  * Reserve block size for the persisted group data counter; matches CHIP `GROUP_MSG_COUNTER_MIN_INCREMENT`. The counter
  * is persisted this far ahead so an unclean restart never rolls it back.
- * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+ * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
  */
 const GROUP_DATA_COUNTER_RESERVE = 1000;
 
@@ -323,7 +323,7 @@ export class SessionManager {
 
     /**
      * The single node-global Group Encrypted Data Message Counter shared by all group sessions.
-     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
      */
     get groupDataMessageCounter() {
         this.#construction.assert();
@@ -526,8 +526,8 @@ export class SessionManager {
      * Allocates a local ID for a new secure unicast session, PASE or CASE.  The ID is never 0 because 0 identifies the
      * unsecured session.
      *
-     * @see {@link MatterSpecification.v16.Core} § 4.4.1.3.4
-     * @see {@link MatterSpecification.v16.Core} § 4.13.2.4
+     * @see {@link MatterSpecification.v161.Core} § 4.4.1.3.4
+     * @see {@link MatterSpecification.v161.Core} § 4.13.2.4
      */
     async getNextAvailableSessionId() {
         await this.#construction;
@@ -617,12 +617,15 @@ export class SessionManager {
     /**
      * Removes all Peer sessions but keeps subscriptions intact because they could be refreshed on restart when the
      * device supports persistent subscriptions.
+     *
+     * @param asOf sessions created at or after this instant are kept; on the clock of {@link Time.nowUs} like
+     * {@link Session.createdAt}, not a wall-clock time.  Defaults to now.
      */
     handlePeerShutdown(address: PeerAddress, asOf?: Timestamp) {
         return this.#handlePeerLoss({
             address,
             cause: new PeerShutdownError(),
-            asOf: asOf ?? Time.nowMs,
+            asOf: asOf ?? Time.nowUs,
             keepSubscriptions: true,
         });
     }
@@ -631,7 +634,7 @@ export class SessionManager {
      * Removes all Peer sessions and closes subscriptions.
      */
     async handlePeerLoss(address: PeerAddress, context: PeerLossContext) {
-        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowMs });
+        return await this.#handlePeerLoss({ ...context, address, asOf: context.asOf ?? Time.nowUs });
     }
 
     /**
@@ -973,7 +976,7 @@ export class SessionManager {
      * Build the node-global group data message counter. On the first run after upgrading from the legacy per-key
      * model, seed it above every value any per-key counter could already have used so it never rolls back below a
      * value already sent with a surviving key; then clear the legacy entries.
-     * @see {@link MatterSpecification.v16.Core} § 4.6.1.3
+     * @see {@link MatterSpecification.v161.Core} § 4.6.1.3
      */
     async #createGroupDataMessageCounter() {
         const storage = this.#context.storage;
@@ -1007,23 +1010,30 @@ export class SessionManager {
         this.#construction.assert();
         return [...this.#sessions]
             .filter(session => session.isSecure && !session.isPase)
-            .map(session => ({
-                name: `${session.via}`,
-                nodeId: session.nodeId,
-                peerNodeId: session.peerNodeId,
-                fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,
-                isPeerActive: session.isPeerActive,
-                secure: session.isSecure,
-                lastInteractionTimestamp: session instanceof SecureSession ? session.timestamp : undefined,
-                lastActiveTimestamp: session instanceof SecureSession ? session.activeTimestamp : undefined,
-                numberOfActiveSubscriptions: session instanceof SecureSession ? session.subscriptions.size : 0,
-            }));
+            .map(session => {
+                const activity = session instanceof SecureSession ? session.wallClockActivity : undefined;
+                return {
+                    name: `${session.via}`,
+                    nodeId: session.nodeId,
+                    peerNodeId: session.peerNodeId,
+                    fabric: session instanceof SecureSession ? session.fabric?.externalInformation : undefined,
+                    isPeerActive: session.isPeerActive,
+                    secure: session.isSecure,
+                    lastInteractionTimestamp: activity?.lastInteractionTimestamp,
+                    lastActiveTimestamp: activity?.lastActiveTimestamp,
+                    numberOfActiveSubscriptions: session instanceof SecureSession ? session.subscriptions.size : 0,
+                };
+            });
     }
 
     async close() {
         await this.#construction.close(async () => {
             this.#observers.close();
-            await this.closeAllSessions();
+            try {
+                await this.closeAllSessions();
+            } finally {
+                await this.#groupDataMessageCounter?.close();
+            }
         });
     }
 
@@ -1035,6 +1045,7 @@ export class SessionManager {
         await this.closeAllSessions();
         await this.#context.storage.clearAll();
         this.#resumptionRecords.clear();
+        await this.#groupDataMessageCounter?.close();
         this.#groupDataMessageCounter = await this.#createGroupDataMessageCounter();
     }
 

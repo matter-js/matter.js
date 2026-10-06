@@ -19,7 +19,7 @@ const fanControl = {
 
 describe("ConcentrationMeasurementServer", () => {
     it("supports numeric measurement mode", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const Co2MeasurementServer = CarbonDioxideConcentrationMeasurementServer.with("NumericMeasurement");
 
         const PurifierDevice = AirPurifierDevice.with(Co2MeasurementServer);
@@ -41,7 +41,7 @@ describe("ConcentrationMeasurementServer", () => {
     });
 
     it("supports level indication mode", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const CoMeasurementServer = CarbonDioxideConcentrationMeasurementServer.with("LevelIndication");
 
         const PurifierDevice = AirPurifierDevice.with(CoMeasurementServer);
@@ -63,7 +63,7 @@ describe("ConcentrationMeasurementServer", () => {
     });
 
     it("supports one value mode with sibling with different value mode", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const Co2MeasurementServer = CarbonDioxideConcentrationMeasurementServer.with("NumericMeasurement");
         const CoMeasurementServer = CarbonMonoxideConcentrationMeasurementServer.with("LevelIndication");
 
