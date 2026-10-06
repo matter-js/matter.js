@@ -990,6 +990,21 @@ describe("DoorLockServer", () => {
         });
     });
 
+    describe("auto relock with the largest AutoRelockTime", () => {
+        it("unlocks and stays unlocked", async () => {
+            await using lock = await setUpScheduledLock({
+                autoRelockTime: 0xffffffff,
+                users: [scheduledUser(UserType.UnrestrictedUser)],
+            });
+            await unlockScheduled(lock);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+
+            await MockTime.advance(Hours(1));
+            await settled(lock.device);
+            expect(lock.lock.state.doorLock.lockState).equals(DoorLock.LockState.Unlocked);
+        });
+    });
+
     describe("ExpiringUser timeout (spec § 5.2.6.18.8)", () => {
         it("keeps granting access before the timeout elapses", async () => {
             await using lock = await setUpScheduledLock({
