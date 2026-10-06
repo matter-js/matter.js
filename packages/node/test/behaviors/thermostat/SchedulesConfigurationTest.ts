@@ -40,6 +40,42 @@ describe("Schedules configuration", () => {
         );
     });
 
+    describe("refuses to start with ScheduleTypes that", () => {
+        const autoType = { systemMode: Thermostat.SystemMode.Auto, numberOfSchedules: 5 };
+        const cases: [string, Thermostat.ScheduleType[]][] = [
+            [
+                "name a systemMode twice",
+                [
+                    { ...autoType, scheduleTypeFeatures: { supportsSetpoints: true } },
+                    { ...autoType, scheduleTypeFeatures: { supportsPresets: true } },
+                ],
+            ],
+            [
+                "name a systemMode other than Auto, Heat or Cool",
+                [
+                    {
+                        ...autoType,
+                        systemMode: Thermostat.SystemMode.Off,
+                        scheduleTypeFeatures: { supportsSetpoints: true },
+                    },
+                ],
+            ],
+            ["support neither presets nor setpoints", [{ ...autoType, scheduleTypeFeatures: { supportsNames: true } }]],
+        ];
+
+        for (const [name, scheduleTypes] of cases) {
+            it(name, async () => {
+                const device = new Endpoint(SchedulesThermostat, {
+                    id: "thermostat",
+                    number: 1,
+                    thermostat: { ...thermostatConfig(), scheduleTypes },
+                });
+
+                await expect(MockServerNode.createOnline(undefined, { device })).rejectedWith("Behaviors have errors");
+            });
+        }
+    });
+
     it("starts with configured schedules the write rules accept", async () => {
         const node = await MockServerNode.createOnline(undefined, { device: schedulesEndpoint(5, [newSchedule()]) });
         await node.close();

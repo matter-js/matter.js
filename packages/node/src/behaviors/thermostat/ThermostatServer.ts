@@ -184,6 +184,8 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
 
         if (this.features.matterScheduleConfiguration) {
+            this.#assertScheduleTypes();
+
             // Every later write resends the whole list, so a configured schedule the rules refuse would block them all
             const schedules = this.state.persistedSchedules ?? [];
             try {
@@ -1735,6 +1737,35 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
 
         return schedules;
+    }
+
+    /**
+     * Refuses a ScheduleTypes configuration the schedule rules cannot resolve.
+     *
+     * @see {@link MatterSpecification.v161.Cluster} § 4.3.10.28, § 4.3.11.43
+     */
+    #assertScheduleTypes() {
+        const modes = new Set<Thermostat.SystemMode>();
+        for (const { systemMode, scheduleTypeFeatures } of this.state.scheduleTypes) {
+            const mode = Thermostat.SystemMode[systemMode];
+            switch (systemMode) {
+                case Thermostat.SystemMode.Auto:
+                case Thermostat.SystemMode.Heat:
+                case Thermostat.SystemMode.Cool:
+                    break;
+                default:
+                    throw new ImplementationError(`ScheduleTypes may only name Auto, Heat or Cool, not ${mode}`);
+            }
+            if (modes.has(systemMode)) {
+                throw new ImplementationError(`ScheduleTypes names systemMode ${mode} more than once`);
+            }
+            modes.add(systemMode);
+            if (!scheduleTypeFeatures.supportsPresets && !scheduleTypeFeatures.supportsSetpoints) {
+                throw new ImplementationError(
+                    `ScheduleTypes entry for systemMode ${mode} supports neither presets nor setpoints`,
+                );
+            }
+        }
     }
 
     /**
