@@ -670,7 +670,7 @@ export class CommissioningClient extends Behavior {
         peer.interaction = node.interaction as ClientInteraction;
         peer.protocol = node.protocol;
 
-        this.internal.peerObserver = peer.updated.use(this.callback(this.#update));
+        this.internal.peerObserver = peer.updated.use((this.internal.peerUpdated ??= this.callback(this.#update)));
 
         this.env.set(Peer, peer);
     }
@@ -865,6 +865,7 @@ export namespace CommissioningClient {
 
     export class Internal {
         peerObserver?: Disposable;
+        peerUpdated?: (peer: Peer) => void;
     }
 
     export class State {

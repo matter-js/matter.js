@@ -363,10 +363,12 @@ export class GeneralDiagnosticsServer extends Base {
         this.internal.onlineAtMs = Time.nowMs;
         this.internal.upTimeHighWaterMark = 0;
 
-        this.internal.lastTotalOperationalHoursTimer = Time.getPeriodicTimer(
+        this.internal.lastTotalOperationalHoursTimer?.stop();
+        this.internal.lastTotalOperationalHoursTimer = this.periodicTimer(
             "GeneralDiagnostics.operationalHours",
             Minutes(5),
-            this.callback(this.#updateTotalOperationalHoursCounter, { lock: true }),
+            this.#updateTotalOperationalHoursCounter,
+            { lock: true },
         ).start();
 
         await this.#updateNetworkList();

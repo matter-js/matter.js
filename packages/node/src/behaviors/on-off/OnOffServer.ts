@@ -281,17 +281,15 @@ export class OnOffBaseServer extends OnOffLogicBase {
             return this.off();
         }
         this.internal.applyScenePendingOnOff = onOff;
-        this.internal.applySceneDelayTimer = Time.getTimer(
+        this.internal.applySceneDelayTimer = this.timer(
             "delayed scene apply",
             Millis(transitionTime),
-            this.callback(this.#applyDelayedSceneOnOffValue),
+            this.#applyDelayedSceneOnOffValue,
         ).start();
     }
 
     #clearDelayedSceneApplyData() {
-        if (this.internal.applySceneDelayTimer?.isRunning) {
-            this.internal.applySceneDelayTimer.stop();
-        }
+        this.internal.applySceneDelayTimer?.stop();
         this.internal.applySceneDelayTimer = undefined;
         this.internal.applyScenePendingOnOff = undefined;
     }

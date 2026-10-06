@@ -189,28 +189,34 @@ export class CommissioningServer extends Behavior {
     }
 
     #monitorFailsafe(failsafe: FailsafeContext) {
-        if (this.internal.unregisterFailsafeListener) {
+        if (this.internal.monitoredFailsafe) {
             return;
         }
 
-        // Callback that listens to the failsafe for destruction and triggers commissioning status update
-        const listener = this.callback(function (this: CommissioningServer, status: Lifecycle.Status) {
-            if (status === Lifecycle.Status.Destroyed) {
-                if (failsafe.fabricIndex !== undefined) {
-                    this.handleFabricChange(failsafe.fabricIndex, failsafe.forUpdateNoc ? "updated" : "added");
-                }
-                this.internal.unregisterFailsafeListener?.();
-            }
-        });
-
-        // Callback that removes above listener
-        this.internal.unregisterFailsafeListener = this.callback(function (this: CommissioningServer) {
-            failsafe.construction.change.off(listener);
-            this.internal.unregisterFailsafeListener = undefined;
-        });
-
-        // Register the listener
+        const listener = (this.internal.failsafeListener ??= this.callback(this.#failsafeChanged));
+        this.internal.monitoredFailsafe = failsafe;
         failsafe.construction.change.on(listener);
+    }
+
+    /** Updates the commissioning status once the monitored failsafe ends */
+    #failsafeChanged(status: Lifecycle.Status) {
+        const failsafe = this.internal.monitoredFailsafe;
+        if (status !== Lifecycle.Status.Destroyed || failsafe === undefined) {
+            return;
+        }
+
+        if (failsafe.fabricIndex !== undefined) {
+            this.handleFabricChange(failsafe.fabricIndex, failsafe.forUpdateNoc ? "updated" : "added");
+        }
+        this.#stopMonitoringFailsafe();
+    }
+
+    #stopMonitoringFailsafe() {
+        const { monitoredFailsafe, failsafeListener } = this.internal;
+        if (monitoredFailsafe !== undefined && failsafeListener !== undefined) {
+            monitoredFailsafe.construction.change.off(failsafeListener);
+        }
+        this.internal.monitoredFailsafe = undefined;
     }
 
     async #enterOnlineMode() {
@@ -255,7 +261,7 @@ export class CommissioningServer extends Behavior {
     #enterOfflineMode() {
         this.internal.mutex.run(async () => {
             await this.env.close(DeviceCommissioner);
-            this.internal.unregisterFailsafeListener?.();
+            this.#stopMonitoringFailsafe();
             await this.env.close(FailsafeContext);
         });
     }
@@ -351,7 +357,10 @@ export namespace CommissioningServer {
     }
 
     export class Internal {
-        unregisterFailsafeListener?: () => void = undefined;
+        /** The failsafe whose end updates the commissioning status */
+        monitoredFailsafe?: FailsafeContext = undefined;
+
+        failsafeListener?: (status: Lifecycle.Status) => void = undefined;
 
         /**
          * We use this to synchronize internal state transitions that would otherwise have race conditions due to the

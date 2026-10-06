@@ -14,6 +14,7 @@ import { ChangeNotificationService } from "#node/integration/ChangeNotificationS
 import { ProtocolService } from "#node/integration/ProtocolService.js";
 import {
     Construction,
+    Duration,
     Entropy,
     EventEmitter,
     ImplementationError,
@@ -23,12 +24,14 @@ import {
     Logger,
     MaybePromise,
     Observable,
+    Timer,
 } from "@matter/general";
 import type { ClusterId } from "@matter/types";
 import type { Behavior } from "../Behavior.js";
 import { Reactor } from "../Reactor.js";
 import { Datasource } from "../state/managed/Datasource.js";
 import { BackingEvents } from "./BackingEvents.js";
+import { BehaviorTimer } from "./BehaviorTimer.js";
 import { Reactors } from "./Reactors.js";
 
 const logger = Logger.get("BehaviorBacking");
@@ -46,6 +49,8 @@ export abstract class BehaviorBacking {
     #options?: Behavior.Options;
     #datasource?: Datasource;
     #reactors?: Reactors;
+    #timers = new Set<BehaviorTimer>();
+    #closing = false;
     #construction: Construction<BehaviorBacking>;
 
     get construction() {
@@ -135,6 +140,11 @@ export abstract class BehaviorBacking {
         }
 
         return this.construction.close(() => {
+            this.#closing = true;
+            for (const timer of this.#timers) {
+                timer.stop();
+            }
+
             let result = MaybePromise.then(
                 () => this.#reactors?.close(),
                 () => {
@@ -323,6 +333,43 @@ export abstract class BehaviorBacking {
             this.#reactors = new Reactors(this);
         }
         this.#reactors.add(observable, reactor, options);
+    }
+
+    /**
+     * Create a timer that reacts like a reactor of this behavior; see {@link Behavior.timer}.
+     */
+    createTimer(
+        name: string,
+        interval: Duration,
+        periodic: boolean,
+        reactor: Reactor<[], unknown>,
+        options?: Behavior.TimerOptions,
+    ): Timer {
+        return new BehaviorTimer(this, name, interval, periodic, reactor, options);
+    }
+
+    /**
+     * Track a timer that starts so {@link close} stops it.
+     *
+     * @returns false once the backing closes, in which case the timer must not start
+     */
+    addRunningTimer(timer: BehaviorTimer) {
+        if (this.#closing) {
+            return false;
+        }
+        this.#timers.add(timer);
+        return true;
+    }
+
+    deleteRunningTimer(timer: BehaviorTimer) {
+        this.#timers.delete(timer);
+    }
+
+    /**
+     * Stop reactors of {@link observable} from receiving further emissions without waiting for an ongoing reaction.
+     */
+    detachReactors(observable: Observable<any[], any>) {
+        this.#reactors?.detach({ observable });
     }
 
     /**

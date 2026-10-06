@@ -18,7 +18,6 @@ import {
     ObservableValue,
     Seconds,
     SynchronousTransactionConflictError,
-    Time,
     Timer,
 } from "@matter/general";
 import { AccessLevel, DataModelPath, DatatypeElement, FieldElement } from "@matter/model";
@@ -115,9 +114,6 @@ export class GroupcastServer extends GroupcastBase {
     declare internal: GroupcastServer.Internal;
     declare readonly state: GroupcastServer.State;
     static override readonly schema = schema;
-
-    /** Timer for GroupcastTesting auto-disable. */
-    #testingTimer?: Timer;
 
     override initialize() {
         const lifecycle = this.endpoint.lifecycle as NodeLifecycle;
@@ -411,11 +407,8 @@ export class GroupcastServer extends GroupcastBase {
         const fabricIndex = this.context.session.associatedFabric.fabricIndex;
         const { testOperation, durationSeconds = DEFAULT_TESTING_DURATION_SECONDS } = request;
 
-        // Cancel any running auto-disable timer
-        if (this.#testingTimer) {
-            this.#testingTimer.stop();
-            this.#testingTimer = undefined;
-        }
+        this.internal.testingTimer?.stop();
+        this.internal.testingTimer = undefined;
 
         if (testOperation === Groupcast.GroupcastTesting.DisableTesting) {
             this.state.fabricUnderTest = FabricIndex.NO_FABRIC;
@@ -425,16 +418,15 @@ export class GroupcastServer extends GroupcastBase {
         // Enable testing: set FabricUnderTest to the current fabric index
         this.state.fabricUnderTest = fabricIndex;
 
-        this.#testingTimer = Time.getTimer(
+        this.internal.testingTimer = this.timer(
             `groupcast-testing-${fabricIndex}`,
             Seconds(durationSeconds),
-            this.callback(this.#testingTimerExpired),
-        );
-        this.#testingTimer.start();
+            this.#testingTimerExpired,
+        ).start();
     }
 
     #testingTimerExpired() {
-        this.#testingTimer = undefined;
+        this.internal.testingTimer = undefined;
         this.state.fabricUnderTest = FabricIndex.NO_FABRIC;
     }
 
@@ -447,24 +439,20 @@ export class GroupcastServer extends GroupcastBase {
     }
 
     #attachGroupMessageListener() {
-        if (this.internal.groupMessageHandler !== undefined) {
-            return;
-        }
-        const sessions = this.env.get(SessionManager);
+        const { onGroupMessage } = this.env.get(SessionManager);
         // SessionManager.onGroupMessage fires after the dispatching action's context has exited, so
         // wrap the handler with this.callback to acquire a fresh context for state/event access.
-        const handler = this.callback(this.#onGroupMessage);
-        sessions.onGroupMessage.on(handler);
-        this.internal.groupMessageHandler = handler;
+        const handler = (this.internal.groupMessageHandler ??= this.callback(this.#onGroupMessage));
+        if (!onGroupMessage.isObservedBy(handler)) {
+            onGroupMessage.on(handler);
+        }
     }
 
     #detachGroupMessageListener() {
-        if (this.internal.groupMessageHandler === undefined) {
-            return;
+        const handler = this.internal.groupMessageHandler;
+        if (handler !== undefined) {
+            this.env.get(SessionManager).onGroupMessage.off(handler);
         }
-        const sessions = this.env.get(SessionManager);
-        sessions.onGroupMessage.off(this.internal.groupMessageHandler);
-        this.internal.groupMessageHandler = undefined;
     }
 
     #onGroupMessage(info: GroupMessageEventInfo) {
@@ -886,8 +874,6 @@ export class GroupcastServer extends GroupcastBase {
     }
 
     override async [Symbol.asyncDispose]() {
-        this.#testingTimer?.stop();
-        this.#testingTimer = undefined;
         this.#detachGroupMessageListener();
         await super[Symbol.asyncDispose]?.();
     }
@@ -902,7 +888,10 @@ export namespace GroupcastServer {
          */
         auxAcl: AccessControlServer.AuxAclObservable = ObservableValue([]);
 
-        /** Active subscription handler on SessionManager.groupMessage while fabricUnderTest is set. */
+        /** Ends GroupcastTesting once its duration elapses. */
+        testingTimer?: Timer;
+
+        /** Handler for SessionManager.onGroupMessage, attached while fabricUnderTest is set. */
         groupMessageHandler?: (info: GroupMessageEventInfo) => void;
 
         /**

@@ -77,12 +77,11 @@ export class TestWindowCoveringServer extends TestWindowCoveringServerBase {
             targetPercent100ths,
             increment,
             counter: 0,
-            timer: Time.getPeriodicTimer(
+            timer: this.periodicTimer(
                 typeName,
                 Millis(950),
-                MovementType.Lift === type
-                    ? this.callback(this.#handleLiftMovementTick, { lock: true })
-                    : this.callback(this.#handleTiltMovementTick, { lock: true }),
+                MovementType.Lift === type ? this.#handleLiftMovementTick : this.#handleTiltMovementTick,
+                { lock: true },
             ),
         };
         this.internal.moveData[typeName]?.timer.start();
