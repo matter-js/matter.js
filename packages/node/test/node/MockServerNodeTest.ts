@@ -18,4 +18,14 @@ describe("MockServerNode", () => {
         const bytes2 = Bytes.toHex(node2.env.get(Crypto).randomBytes(16));
         expect(bytes1).not.equals(bytes2);
     });
+
+    it("leaves the node offline for online: false in a single configuration", async () => {
+        await using node = await MockServerNode.createOnline({
+            type: MockServerNode.RootEndpoint,
+            device: undefined,
+            online: false,
+        });
+
+        expect(node.lifecycle.isOnline).equals(false);
+    });
 });

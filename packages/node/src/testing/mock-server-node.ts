@@ -221,7 +221,7 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
                 await node.add(device);
             }
 
-            if (options?.online === false) {
+            if (config.online === false) {
                 await node.construction;
                 return node;
             }
