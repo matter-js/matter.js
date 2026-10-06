@@ -93,7 +93,7 @@ export class MockSite {
             await node.add(config.device);
         }
 
-        if (options?.online !== false) {
+        if (config.online !== false) {
             await node.start();
         } else {
             await node.construction;
