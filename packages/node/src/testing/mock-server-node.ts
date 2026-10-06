@@ -104,7 +104,7 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
     #matter?: MatterModel;
 
     /**
-     * Creates the node without starting it.  Initializes {@link MockTime}, seeds mock crypto from `options.index` and sets up
+     * Creates the node without starting it.  Initializes {@link MockTime}, seeds mock crypto from the network index and sets up
      * the environment, storage and simulated network host.
      */
     constructor(type?: T, options?: MockServerNode.Options<T>);
@@ -127,7 +127,7 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
         }
 
         // Stabilize random numbers
-        const crypto = MockCrypto(options?.index);
+        const crypto = MockCrypto(config.index);
         environment.set(Entropy, crypto);
         environment.set(Crypto, crypto);
 
@@ -221,7 +221,7 @@ export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNo
                 await node.add(device);
             }
 
-            if (options?.online === false) {
+            if (config.online === false) {
                 await node.construction;
                 return node;
             }
