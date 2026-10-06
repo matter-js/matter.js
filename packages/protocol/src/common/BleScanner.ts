@@ -19,6 +19,7 @@ import {
     Timer,
     Timespan,
     Timestamp,
+    withTimeout,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { BleError } from "../ble/Ble.js";
@@ -67,8 +68,8 @@ export type DiscoveredBleDevice = {
 
 type RecordWaiter = {
     resolver: () => void;
+    rejecter: (error: unknown) => void;
     timer?: Timer;
-    resolveOnUpdatedRecords: boolean;
     cancelResolver?: (value: void) => void;
 };
 
@@ -88,6 +89,12 @@ type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
  * elapsed time.
  */
 const STALE_ENTRY_AGE = Seconds(60);
+
+/**
+ * A client call that starts or stops the scan and has not settled after this long counts as failed. noble settles
+ * these calls only on its own scan events, which an adapter that powers off may never send.
+ */
+const SCAN_TRANSITION_TIMEOUT = Seconds(10);
 
 export class BleScanner implements Scanner {
     readonly type = ChannelType.BLE;
@@ -127,7 +134,7 @@ export class BleScanner implements Scanner {
     /**
      * Runs a transition of the client's scan after every transition queued before it. A client that learns its scan
      * state from its radio cannot answer a start issued while its stop is still in flight, so no two transitions may
-     * overlap. The caller awaits the transition it queued and learns that outcome, not one another caller started.
+     * overlap.
      */
     #enqueueScanTransition(transition: () => Promise<void>) {
         const result = this.#scanTransitions.then(transition);
@@ -138,18 +145,38 @@ export class BleScanner implements Scanner {
         return result;
     }
 
-    /** Drives the client to the scan the discoveries present at the time the transition runs need. */
-    #reconcileScan() {
+    /**
+     * Drives the client to the scan the discoveries present at the time the transition runs need. A failure while a
+     * scan is wanted fails every discovery waiting for an advertisement, as none will arrive. Only a caller that starts
+     * discovering learns of a failure; a failed stop costs no discovery its result.
+     */
+    #reconcileScan(starting: boolean) {
         return this.#enqueueScanTransition(async () => {
             const wanted = this.#activeDiscoveries > 0 && !this.#closed;
-            if (wanted) {
-                // Asked again on every transition: a radio that stopped on its own, as one does when its adapter
-                // power-cycles, hears from the client only that we still want the scan it no longer runs
-                await this.#client.startScanning();
-            } else if (this.#scanning) {
-                await this.#client.stopScanning();
+            try {
+                if (wanted) {
+                    // Asked on every transition, also while we believe the scan runs: a radio that stopped on its
+                    // own resumes only when asked again
+                    await withTimeout(SCAN_TRANSITION_TIMEOUT, this.#client.startScanning());
+                } else if (this.#scanning) {
+                    await withTimeout(SCAN_TRANSITION_TIMEOUT, this.#client.stopScanning());
+                }
+                this.#scanning = wanted;
+            } catch (error) {
+                // The client may scan or not after a failed call, so a later stop must still be sent
+                this.#scanning = true;
+                if (wanted) {
+                    this.#failWaiters(error);
+                } else {
+                    logger.warn("Stopping the BLE scan failed:", error);
+                }
+                if (starting) {
+                    throw error;
+                }
+                if (wanted) {
+                    logger.debug("Restarting the BLE scan for the remaining discoveries failed", error);
+                }
             }
-            this.#scanning = wanted;
         });
     }
 
@@ -160,20 +187,30 @@ export class BleScanner implements Scanner {
     async #startDiscovering() {
         this.#activeDiscoveries++;
         try {
-            await this.#reconcileScan();
+            await this.#reconcileScan(true);
         } catch (error) {
             this.#activeDiscoveries--;
+            if (this.#activeDiscoveries === 0) {
+                // The failed start may have left the radio scanning, and no discovery remains to stop it later
+                await this.#reconcileScan(false);
+            }
             throw error;
         }
     }
 
     async #stopDiscovering() {
-        if (this.#activeDiscoveries === 0) {
-            // close() stopped the client already
-            return;
-        }
         this.#activeDiscoveries--;
-        await this.#reconcileScan();
+        await this.#reconcileScan(false);
+    }
+
+    #failWaiters(error: unknown) {
+        for (const [queryId, waiters] of [...this.#recordWaiters]) {
+            for (const waiter of [...waiters]) {
+                waiter.timer?.stop();
+                waiter.rejecter(error);
+            }
+            this.#recordWaiters.delete(queryId);
+        }
     }
 
     /**
@@ -212,17 +249,12 @@ export class BleScanner implements Scanner {
     }
 
     /**
-     * Registers a deferred promise for a specific queryId together with a timeout and return the promise.
-     * The promise will be resolved when the timer runs out latest.
+     * Registers a waiter of one discovery for a query. Its promise resolves when an advertisement answers the query,
+     * the discovery is canceled or its timeout runs out, and rejects when the scan it depends on fails.
      */
-    #createRecordWaiter(
-        queryId: string,
-        timeout?: Duration,
-        resolveOnUpdatedRecords = true,
-        cancelResolver?: (value: void) => void,
-    ) {
-        const { promise, resolver } = createPromise<void>();
-        const waiter: RecordWaiter = { resolver, resolveOnUpdatedRecords, cancelResolver };
+    #createRecordWaiter(queryId: string, timeout?: Duration, cancelResolver?: (value: void) => void) {
+        const { promise, resolver, rejecter } = createPromise<void>();
+        const waiter: RecordWaiter = { resolver, rejecter, cancelResolver };
         if (timeout) {
             // The timeout belongs to this discovery alone, so it ends this waiter and leaves the others waiting
             waiter.timer = Time.getTimer("BLE query timeout", timeout, () => {
@@ -239,23 +271,17 @@ export class BleScanner implements Scanner {
         waiters.add(waiter);
 
         logger.debug(
-            `Registered waiter ${waiters.size} for query ${queryId} with timeout ${timeout === undefined ? "(none)" : Duration.format(timeout)}${
-                resolveOnUpdatedRecords ? "" : " (not resolving on updated records)"
-            }`,
+            `Registered waiter ${waiters.size} for query ${queryId} with timeout ${timeout === undefined ? "(none)" : Duration.format(timeout)}`,
         );
 
         return { waiter, promise };
     }
 
-    /**
-     * Remove a waiter promise for a specific queryId and stop the connected timer. If required also resolve the
-     * promise.
-     */
-    #finishWaiter(queryId: string, waiter: RecordWaiter, resolvePromise: boolean, isUpdatedRecord = false) {
+    /** Removes one discovery's waiter and stops its timer, resolving its promise if asked to. */
+    #finishWaiter(queryId: string, waiter: RecordWaiter, resolvePromise: boolean) {
         const waiters = this.#recordWaiters.get(queryId);
         if (waiters?.has(waiter) !== true) return;
-        const { timer, resolver, resolveOnUpdatedRecords } = waiter;
-        if (isUpdatedRecord && !resolveOnUpdatedRecords) return;
+        const { timer, resolver } = waiter;
         logger.debug(`Finishing waiter for query ${queryId}, resolving: ${resolvePromise}`);
         timer?.stop();
         waiters.delete(waiter);
@@ -268,9 +294,9 @@ export class BleScanner implements Scanner {
     }
 
     /** Every discovery waiting for a query learns of the record that arrived for it, not only the newest one. */
-    #finishWaiters(queryId: string, resolvePromise: boolean, isUpdatedRecord = false) {
+    #finishWaiters(queryId: string, resolvePromise: boolean) {
         for (const waiter of [...(this.#recordWaiters.get(queryId) ?? [])]) {
-            this.#finishWaiter(queryId, waiter, resolvePromise, isUpdatedRecord);
+            this.#finishWaiter(queryId, waiter, resolvePromise);
         }
     }
 
@@ -331,7 +357,7 @@ export class BleScanner implements Scanner {
             // An unreachable peripheral is no candidate, so its advertisement must not end a discovery's wait.
             if (this.#isReachable(address)) {
                 for (const queryId of this.#findCommissionableQueryIdentifiers(deviceData)) {
-                    this.#finishWaiters(queryId, true, deviceExisting);
+                    this.#finishWaiters(queryId, true);
                 }
             }
         } catch (error) {
@@ -461,8 +487,12 @@ export class BleScanner implements Scanner {
         if (storedRecords.length === 0) {
             await this.#startDiscovering();
             try {
-                await this.#createRecordWaiter(queryKey, timeout).promise;
+                // An advertisement may have arrived while the scan started, before a waiter could hear of it
                 storedRecords = this.#getCommissionableDevices(identifier);
+                if (storedRecords.length === 0) {
+                    await this.#createRecordWaiter(queryKey, timeout).promise;
+                    storedRecords = this.#getCommissionableDevices(identifier);
+                }
             } finally {
                 await this.#stopDiscovering();
             }
@@ -529,7 +559,7 @@ export class BleScanner implements Scanner {
                 // Wake on any advertisement of a candidate, not only an address never seen: the loop's own set decides
                 // what is news, so a peripheral that becomes a candidate again is delivered without the scanner
                 // tracking why it was not one before.
-                const { waiter, promise } = this.#createRecordWaiter(queryKey, remainingTime, true, queryResolver);
+                const { waiter, promise } = this.#createRecordWaiter(queryKey, remainingTime, queryResolver);
                 currentWaiter = waiter;
                 await promise;
                 currentWaiter = undefined;
@@ -552,12 +582,15 @@ export class BleScanner implements Scanner {
         // A continuous-discovery loop is driven by an external cancelSignal, so it has no cancelResolver we can
         // trigger here; #closed makes the loop exit instead of re-registering after we resolve its awaiter.
         this.#closed = true;
-        this.#activeDiscoveries = 0;
         try {
             // Shutdown queues like any other transition, so a scan still starting cannot outlive the scanner
             await this.#enqueueScanTransition(async () => {
-                await this.closeClient();
-                this.#scanning = false;
+                try {
+                    await withTimeout(SCAN_TRANSITION_TIMEOUT, Promise.resolve(this.closeClient()));
+                } finally {
+                    // No stop is sent after close
+                    this.#scanning = false;
+                }
             });
         } finally {
             for (const queryId of [...this.#recordWaiters.keys()]) {

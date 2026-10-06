@@ -91,13 +91,13 @@ export class NobleBleClient implements BleScannerClient {
                                     logger.notice("Bluetooth adapter is powered on, BLE discovery started");
                                 }
                             },
-                            error => logger.error("Cannot start BLE discovery after the adapter powered on:", error),
+                            error => logger.warn("Cannot start BLE discovery after the adapter powered on:", error),
                         );
                     }
                 } else {
-                    // noble's Linux HCI bindings emit no scanStop when the adapter powers off
+                    // The wish to scan survives the outage, so noble is asked to scan again once the adapter powers
+                    // on. noble's Linux HCI bindings emit no scanStop when the adapter powers off.
                     this.#radioStopped();
-                    this.stopScanning().catch(error => logger.error("Cannot stop BLE discovery:", error));
                 }
             },
 
