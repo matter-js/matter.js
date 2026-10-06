@@ -1977,6 +1977,14 @@ commissioning step are different steps, both legitimately parse: the scan step's
 payload was *scanned*, the commissioning step's is about the code that commissioning used. Their
 verdicts sit under different labels for that reason.
 
+**The commissioning response and the TH's completion line go into the caller's `checks`.**
+`commissionByQr` and `commissionByManualCode` take the `checks` list of the step's `withChecks`, so the
+checks a step makes after the commissioning (TC-SC-4.8's operational advertisement and fabric id
+comparison, TC-DD-3.18's `recordNotCommissioned`) still reach the evidence when that line is missing.
+Both are taken even when the DUT's commissioning throws; its error then fails the step. A helper that
+checks more after commissioning takes the step's list too, so a value it extracts still reaches the
+step's comparison when a check inside the helper fails.
+
 **What that still does not prove, and what does.** A commissioning that succeeds proves the passcode
 by itself: SPAKE2+ cannot complete on a wrong one. It proves nothing about the discriminator. On a
 network holding one commissionable device — which is every run of this harness — a commissioner that
