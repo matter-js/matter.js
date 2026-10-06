@@ -691,7 +691,7 @@ export class ControllerCommissioner {
         let fabricIndexOnPeer: FabricIndex | undefined;
         try {
             await commissioner.executeCommissioning();
-            // The device closed its commissioning window here, and the cleanup below may still fail
+            // The device's commissioning window is closed now, whatever fails after this point
             this.#forgetCommissionedDevice(options.addresses);
             const captured = commissioner.fabricIndexOnPeer;
             // Treat the spec-invalid NO_FABRIC (0) as "unknown" so callers don't have to filter it again.

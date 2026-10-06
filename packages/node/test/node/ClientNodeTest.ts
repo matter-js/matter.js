@@ -42,6 +42,7 @@ import {
     Crypto,
     deepCopy,
     Entropy,
+    ImplementationError,
     MatterAggregateError,
     Millis,
     Minutes,
@@ -64,7 +65,9 @@ import {
 import { clientStructureOf, MockSite, seedPeerCache, subscribedPeer } from "@matter/node/testing";
 import {
     CommissionableDevice,
+    CommissioningError,
     ControllerCommissioner,
+    ControllerCommissioningFlow,
     FabricAuthority,
     FabricManager,
     PeerSet,
@@ -115,6 +118,19 @@ class ForgetRecordingScanner implements Scanner {
     }
 
     async close() {}
+}
+
+class ForgetFailingScanner extends ForgetRecordingScanner {
+    override forgetCommissionedDevice(): void {
+        throw new ImplementationError("Scanner cannot forget");
+    }
+}
+
+/** Fails once PASE is established, so the device never closes its commissioning window. */
+class FailingCommissioningFlow extends ControllerCommissioningFlow {
+    override async executeCommissioning(): Promise<void> {
+        throw new CommissioningError("Commissioning step failed");
+    }
 }
 
 describe("ClientNode", function () {
@@ -699,6 +715,72 @@ describe("ClientNode", function () {
 
         expect(device.state.commissioning.commissioned).equals(false);
         expect(scanner.forgotten).deep.equals([]);
+    });
+
+    it("leaves a device the scanners know when the commissioning steps fail", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addDevice({ commissioning: { discriminator: 1234, passcode: 22223333 } });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        await controller.act(agent => agent.load(ControllerBehavior));
+        const fabricConfig = await controller.act(agent => agent.get(ControllerBehavior).fabricAuthorityConfig);
+        const fabric = await controller.env.get(FabricAuthority).defaultFabric(fabricConfig);
+
+        const scanner = new ForgetRecordingScanner();
+        controller.env.get(ScannerSet).add(scanner);
+        const commissioner = controller.env.get(ControllerCommissioner);
+
+        await MockTime.resolve(
+            expect(
+                commissioner.commission({
+                    fabric,
+                    passcode: 22223333,
+                    addresses: [{ ip: "abcd::2", port: 5540 }],
+                    commissioningFlowImpl: FailingCommissioningFlow,
+                }),
+            ).rejectedWith("Commissioning step failed"),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(scanner.forgotten).deep.equals([]);
+    });
+
+    it("commissions a device and tells the other scanners when one scanner fails to forget it", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addDevice({ commissioning: { discriminator: 1234, passcode: 22223333 } });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        await controller.start();
+        await controller.act(agent => agent.load(ControllerBehavior));
+        const fabricConfig = await controller.act(agent => agent.get(ControllerBehavior).fabricAuthorityConfig);
+        const fabric = await controller.env.get(FabricAuthority).defaultFabric(fabricConfig);
+
+        const scanners = controller.env.get(ScannerSet);
+        scanners.add(new ForgetFailingScanner());
+        const recording = new ForgetRecordingScanner();
+        scanners.add(recording);
+        const commissioner = controller.env.get(ControllerCommissioner);
+
+        const addresses = [{ ip: "abcd::2", port: 5540 }];
+        await MockTime.resolve(commissioner.commission({ fabric, passcode: 22223333, addresses }), {
+            macrotasks: true,
+        });
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(device.state.commissioning.commissioned).equals(true);
+        expect(recording.forgotten).deep.equals([addresses]);
     });
 
     it("commissions via known-address flow even when first address has invalid credentials", async () => {
