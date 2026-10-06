@@ -112,8 +112,8 @@ export class DescriptorServer extends DescriptorBehavior {
 
     /**
      * Add semantic tags.  This is a shortcut for deduped insert into the tagList cluster attribute.  A tag with the
-     * same manufacturer code, namespace and tag as a listed one is not added again; a label given with it replaces
-     * the listed label.
+     * same manufacturer code, namespace and tag as a listed one is not added again; a non-null label given with it
+     * replaces the listed label, a `null` or missing label keeps it.
      *
      * You must enable the "TagList" feature to use this method.
      *
