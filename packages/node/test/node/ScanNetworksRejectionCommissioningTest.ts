@@ -7,24 +7,26 @@
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { ServerNode } from "#node/ServerNode.js";
+import { asError, Bytes, ChannelType, Crypto, MatterError, MockCrypto, Seconds, Time } from "@matter/general";
 import {
-    asError,
-    Bytes,
-    ChannelType,
-    Crypto,
-    MatterError,
-    MockCrypto,
-    NoResponseTimeoutError,
-    Seconds,
-} from "@matter/general";
-import { ClientInteraction, ControllerCommissioningFlow, ControllerCommissioningFlowOptions } from "@matter/protocol";
+    ClientInteraction,
+    ControllerCommissioningFlow,
+    ControllerCommissioningFlowOptions,
+    NodeSession,
+    PeerUnresponsiveError,
+    SessionManager,
+} from "@matter/protocol";
 import { StatusResponse } from "@matter/types";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 
 const networkCalls = new Array<string>();
-let scanTimesOut = false;
+
+/**
+ * Replaces sending ScanNetworks; what it throws is what the flow sees.
+ */
+let interceptScan: ((interaction: ClientInteraction) => Promise<void>) | undefined;
 
 class RejectingWifiServer extends NetworkCommissioningServer.with("WiFiNetworkInterface") {
     override initialize() {
@@ -55,6 +57,29 @@ class RejectingWifiServerFailingAdd extends RejectingWifiServer {
     }
 }
 
+class SlowWifiServer extends NetworkCommissioningServer.with("WiFiNetworkInterface") {
+    override initialize() {
+        this.state.maxNetworks = 1;
+        this.state.scanMaxTimeSeconds = 20;
+        this.state.connectMaxTimeSeconds = 40;
+        this.state.supportedWiFiBands = [NetworkCommissioning.WiFiBand["2G4"]];
+    }
+
+    override async scanNetworks(): Promise<NetworkCommissioning.ScanNetworksResponse> {
+        networkCalls.push("wifi");
+        await Time.sleep("slow scan", Seconds(90));
+        return { networkingStatus: NetworkCommissioning.NetworkCommissioningStatus.Success, wiFiScanResults: [] };
+    }
+
+    override addOrUpdateWiFiNetwork({
+        ssid,
+    }: NetworkCommissioning.AddOrUpdateWiFiNetworkRequest): NetworkCommissioning.NetworkConfigResponse {
+        networkCalls.push("add");
+        this.state.networks = [{ networkId: ssid, connected: true }];
+        return { networkingStatus: NetworkCommissioning.NetworkCommissioningStatus.Success, networkIndex: 0 };
+    }
+}
+
 class RejectingThreadServer extends NetworkCommissioningServer.with("ThreadNetworkInterface") {
     override initialize() {
         this.state.maxNetworks = 1;
@@ -78,9 +103,18 @@ class RejectingThreadServer extends NetworkCommissioningServer.with("ThreadNetwo
 
 class NetworkStepPassed extends MatterError {}
 
+class FlowConstructionFailed extends MatterError {}
+
+class UnconstructableFlow extends ControllerCommissioningFlow {
+    constructor(...args: ConstructorParameters<typeof ControllerCommissioningFlow>) {
+        super(...args);
+        throw new FlowConstructionFailed();
+    }
+}
+
 /**
  * Presents the PASE channel as BLE, because the flow only configures the operational network on a BLE commissioning
- * channel.  With {@link scanTimesOut} set, ScanNetworks fails as if the device never answered.
+ * channel.  Applies {@link interceptScan} to ScanNetworks.
  */
 function asBleChannel(interaction: ClientInteraction) {
     return new Proxy(interaction, {
@@ -88,17 +122,19 @@ function asBleChannel(interaction: ClientInteraction) {
             if (property === "channelType") {
                 return ChannelType.BLE;
             }
-            if (property === "invoke" && scanTimesOut) {
-                return (...args: Parameters<ClientInteraction["invoke"]>) => {
+            if (property === "invoke" && interceptScan !== undefined) {
+                const intercept = interceptScan;
+                return async function* (...args: Parameters<ClientInteraction["invoke"]>) {
                     const isScan = args[0].invokeRequests.some(
                         ({ commandPath: { clusterId, commandId } }) =>
                             clusterId === NetworkCommissioning.id &&
                             commandId === NetworkCommissioning.commands.scanNetworks.id,
                     );
                     if (isScan) {
-                        throw new NoResponseTimeoutError("ScanNetworks timed out");
+                        await intercept(target);
+                        return;
                     }
-                    return target.invoke(...args);
+                    yield* target.invoke(...args);
                 };
             }
             const value = Reflect.get(target, property, target);
@@ -141,7 +177,7 @@ describe("ScanNetworks rejection during commissioning", () => {
 
     beforeEach(() => {
         networkCalls.length = 0;
-        scanTimesOut = false;
+        interceptScan = undefined;
     });
 
     function enableEntropy(controller: ServerNode, device: ServerNode) {
@@ -152,7 +188,10 @@ describe("ScanNetworks rejection during commissioning", () => {
 
     async function commissionAndCaptureError(
         addDevice: (site: MockSite) => Promise<ServerNode>,
-        network: Pick<ControllerCommissioningFlowOptions, "wifiNetwork" | "threadNetwork">,
+        options: Pick<ControllerCommissioningFlowOptions, "wifiNetwork" | "threadNetwork"> & {
+            commissioningFlowImpl?: typeof ControllerCommissioningFlow;
+        },
+        afterCommission?: (controller: ServerNode) => void,
     ) {
         const site = new MockSite();
         try {
@@ -173,7 +212,7 @@ describe("ScanNetworks rejection during commissioning", () => {
                         discriminator,
                         commissioningFlowImpl: StopAfterNetworkFlow,
                         timeout: Seconds(90),
-                        ...network,
+                        ...options,
                     })
                     .catch(error => {
                         caught = asError(error);
@@ -181,6 +220,7 @@ describe("ScanNetworks rejection during commissioning", () => {
                 { macrotasks: true },
             );
 
+            afterCommission?.(controller);
             return caught;
         } finally {
             await site.close();
@@ -227,8 +267,22 @@ describe("ScanNetworks rejection during commissioning", () => {
         expect(error?.message).contains("scan failed: Failure (code 1)");
     });
 
-    it("still ends commissioning when the scan gets no answer", async () => {
-        scanTimesOut = true;
+    it("continues WiFi setup when the device answers the scan too late", async () => {
+        const error = await commissionAndCaptureError(
+            site => site.addNode(MockServerNode.RootEndpoint.with(SlowWifiServer), { device: OnOffLightDevice }),
+            {
+                wifiNetwork: { wifiSsid: "TestNet", wifiCredentials: "secret" },
+            },
+        );
+
+        expect(networkCalls).deep.equals(["wifi", "add"]);
+        expect(error).instanceOf(NetworkStepPassed);
+    });
+
+    it("ends commissioning when the device does not acknowledge the scan", async () => {
+        interceptScan = async () => {
+            throw new PeerUnresponsiveError();
+        };
         const error = await commissionAndCaptureError(
             site => site.addNode(MockServerNode.RootEndpoint.with(RejectingWifiServer), { device: OnOffLightDevice }),
             {
@@ -237,6 +291,40 @@ describe("ScanNetworks rejection during commissioning", () => {
         );
 
         expect(networkCalls).deep.equals([]);
-        expect(NoResponseTimeoutError.of(error)).instanceOf(NoResponseTimeoutError);
+        expect(PeerUnresponsiveError.of(error)).instanceOf(PeerUnresponsiveError);
+    });
+
+    it("runs the network setup on a PASE session that communication failures do not close", async () => {
+        const closesOnPeerLoss = new Array<boolean | undefined>();
+        interceptScan = async interaction => {
+            const { session } = interaction;
+            closesOnPeerLoss.push(NodeSession.is(session) ? session.closesOnPeerLoss : undefined);
+            throw new StatusResponse.FailureError();
+        };
+        await commissionAndCaptureError(
+            site => site.addNode(MockServerNode.RootEndpoint.with(RejectingWifiServer), { device: OnOffLightDevice }),
+            {
+                wifiNetwork: { wifiSsid: "TestNet", wifiCredentials: "secret" },
+            },
+        );
+
+        expect(closesOnPeerLoss).deep.equals([false]);
+    });
+
+    it("closes the PASE session when the commissioning flow cannot be created", async () => {
+        let paseSessionLeft: NodeSession | undefined;
+        const error = await commissionAndCaptureError(
+            site => site.addNode(MockServerNode.RootEndpoint.with(RejectingWifiServer), { device: OnOffLightDevice }),
+            {
+                wifiNetwork: { wifiSsid: "TestNet", wifiCredentials: "secret" },
+                commissioningFlowImpl: UnconstructableFlow,
+            },
+            controller => {
+                paseSessionLeft = controller.env.get(SessionManager).getPaseSession();
+            },
+        );
+
+        expect(error).instanceOf(FlowConstructionFailed);
+        expect(paseSessionLeft).undefined;
     });
 });

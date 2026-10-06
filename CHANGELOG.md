@@ -76,7 +76,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
-    - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status
+    - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time, and the commissioning PASE session is no longer closed by a missing response but at the end of commissioning, also when the commissioning flow cannot be created
+    - Fix: The periodic failsafe re-arm during BLE commissioning no longer shortens a longer failsafe armed for a network scan or connect
     - Fix: A node advertises one DNS-SD host name on all its interfaces, so a controller that hears it on several interfaces reports its host name
     - Fix: An `MdnsService` that cannot open its socket removes itself from the environment and the runtime, so a node started afterwards creates a new one instead of failing again, and the runtime can stop
     - Fix: A closed `MdnsService` no longer stays registered as a runtime worker, so the runtime can go inactive after its nodes close

@@ -58,6 +58,14 @@ export class NodeSession extends SecureSession {
     #caseAuthenticatedTags: readonly CaseAuthenticatedTag[];
     readonly supportsMRP = true;
     readonly type = SessionType.Unicast;
+
+    /**
+     * Whether a communication failure on one of the session's exchanges marks the peer lost and closes the session.
+     *
+     * An owner that ends the session itself, such as the commissioner for its PASE session, turns this off so a missing
+     * response does not close the session under it.
+     */
+    closesOnPeerLoss = true;
     readonly #closedByPeer = AsyncObservableValue();
     #rolloverCloseTimer?: Timer;
     readonly #rolloverClose = new Mutex(this);

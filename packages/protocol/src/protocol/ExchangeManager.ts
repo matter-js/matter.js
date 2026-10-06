@@ -549,7 +549,7 @@ export class ExchangeManager implements Transport.Provider {
             localFixedMrpBackoff: this.#sessions.localFixedMrpBackoff,
 
             peerLost: async (exchange: MessageExchange, cause: Error) => {
-                if (!(session instanceof NodeSession)) {
+                if (!(session instanceof NodeSession) || !session.closesOnPeerLoss) {
                     return;
                 }
 

@@ -160,6 +160,18 @@ describe("ExchangeManager", () => {
             expect(peer.session.isPeerLost).is.false;
         });
 
+        it("leaves a session alone whose owner closes it itself", async () => {
+            await using peer = await failingPeer();
+            peer.session.closesOnPeerLoss = false;
+
+            const exchange = peer.exchanges.initiateExchangeForSession(peer.session, SECURE_CHANNEL_PROTOCOL_ID);
+            await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
+
+            expect(peer.closedWith).is.empty;
+            expect(peer.session.isClosing).is.false;
+            expect(peer.session.isPeerLost).is.false;
+        });
+
         it("reports the session lost when the clock stepped back since the session was created", async () => {
             await using peer = await failingPeer();
             MockTime.stepWallClock(-3_600_000);
