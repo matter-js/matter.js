@@ -93,7 +93,7 @@ interface RecordedStep {
  * Replaces `setTimeout` and `clearTimeout` with stubs that record each step instead of scheduling it, so a test can run
  * the steps of a long timer without waiting.  A step's handle is its index in `steps`.
  */
-function withRecordedTimeouts(test: (steps: RecordedStep[], cleared: unknown[]) => void) {
+async function withRecordedTimeouts(test: (steps: RecordedStep[], cleared: unknown[]) => Promise<void>) {
     const steps = new Array<RecordedStep>();
     const cleared = new Array<unknown>();
     const original = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout };
@@ -111,7 +111,7 @@ function withRecordedTimeouts(test: (steps: RecordedStep[], cleared: unknown[]) 
         cleared.push(handle?.index);
     }) as unknown as typeof clearTimeout;
     try {
-        test(steps, cleared);
+        await test(steps, cleared);
     } finally {
         globalThis.setTimeout = original.setTimeout;
         globalThis.clearTimeout = original.clearTimeout;
@@ -122,42 +122,58 @@ const MAX_STEP_MS = INT32_MAX;
 
 describe("StandardTimer", () => {
     describe("intervals beyond the setTimeout maximum", () => {
-        it("runs an interval of exactly the maximum as one step", () => {
-            withRecordedTimeouts(steps => {
+        before(() => MockTime.enable());
+        /** Lets the step's delay plus `lateBy` pass on the mock clock, then runs the step, as a timer firing that late would. */
+        async function runAfter(step: RecordedStep, lateBy = 0) {
+            await MockTime.advance(step.delay + lateBy);
+            step.run();
+        }
+
+        it("runs an interval of exactly the maximum as one step", async () => {
+            await withRecordedTimeouts(async steps => {
                 let fired = 0;
                 new StandardTimer("t", Millis(MAX_STEP_MS), () => fired++, false).start();
 
-                steps[0].run();
+                await runAfter(steps[0]);
                 expect(steps.map(({ delay }) => delay)).deep.equals([MAX_STEP_MS]);
                 expect(fired).equals(1);
             });
         });
 
-        it("fires a one-shot timer only after the full interval", () => {
-            withRecordedTimeouts(steps => {
+        it("fires a one-shot timer only after the full interval", async () => {
+            await withRecordedTimeouts(async steps => {
                 let fired = 0;
                 const timer = new StandardTimer("t", Millis(2 * MAX_STEP_MS + 5), () => fired++, false).start();
 
-                steps[0].run();
-                steps[1].run();
+                await runAfter(steps[0]);
+                await runAfter(steps[1]);
                 expect(steps.map(({ delay }) => delay)).deep.equals([MAX_STEP_MS, MAX_STEP_MS, 5]);
                 expect(fired).equals(0);
                 expect(timer.isRunning).true;
 
-                steps[2].run();
+                await runAfter(steps[2]);
                 expect(fired).equals(1);
                 expect(timer.isRunning).false;
             });
         });
 
-        it("re-arms a periodic timer with the interval it started with", () => {
-            withRecordedTimeouts(steps => {
+        it("shortens the next step by the time a late step lost", async () => {
+            await withRecordedTimeouts(async steps => {
+                new StandardTimer("t", Millis(2 * MAX_STEP_MS + 5), () => {}, false).start();
+
+                await runAfter(steps[0], 1000);
+                expect(steps.map(({ delay }) => delay)).deep.equals([MAX_STEP_MS, MAX_STEP_MS - 995]);
+            });
+        });
+
+        it("re-arms a periodic timer with the interval it started with", async () => {
+            await withRecordedTimeouts(async steps => {
                 let fired = 0;
                 const timer = new StandardTimer("t", Millis(MAX_STEP_MS + 1), () => fired++, true).start();
                 timer.interval = Millis(10);
 
-                steps[0].run();
-                steps[1].run();
+                await runAfter(steps[0]);
+                await runAfter(steps[1]);
                 expect(fired).equals(1);
                 expect(timer.isRunning).true;
                 expect(steps.map(({ delay }) => delay)).deep.equals([MAX_STEP_MS, 1, MAX_STEP_MS]);
@@ -166,11 +182,11 @@ describe("StandardTimer", () => {
             });
         });
 
-        it("clears the pending step on stop", () => {
-            withRecordedTimeouts((steps, cleared) => {
+        it("clears the pending step on stop", async () => {
+            await withRecordedTimeouts(async (steps, cleared) => {
                 const timer = new StandardTimer("t", Millis(2 * MAX_STEP_MS), () => {}, false).start();
 
-                steps[0].run();
+                await runAfter(steps[0]);
                 timer.stop();
 
                 expect(cleared).deep.equals([1]);
@@ -178,8 +194,8 @@ describe("StandardTimer", () => {
             });
         });
 
-        it("stays stopped when a periodic callback stops it", () => {
-            withRecordedTimeouts((steps, cleared) => {
+        it("stays stopped when a periodic callback stops it", async () => {
+            await withRecordedTimeouts(async (steps, cleared) => {
                 const timer: StandardTimer = new StandardTimer(
                     "t",
                     Millis(MAX_STEP_MS + 1),
@@ -187,22 +203,22 @@ describe("StandardTimer", () => {
                     true,
                 ).start();
 
-                steps[0].run();
-                steps[1].run();
+                await runAfter(steps[0]);
+                await runAfter(steps[1]);
 
                 expect(cleared).deep.equals([2]);
                 expect(timer.isRunning).false;
             });
         });
 
-        it("unrefs every step of a utility timer", () => {
-            withRecordedTimeouts(steps => {
+        it("unrefs every step of a utility timer", async () => {
+            await withRecordedTimeouts(async steps => {
                 const timer = new StandardTimer("t", Millis(2 * MAX_STEP_MS + 5), () => {}, false);
                 timer.utility = true;
                 timer.start();
 
-                steps[0].run();
-                steps[1].run();
+                await runAfter(steps[0]);
+                await runAfter(steps[1]);
 
                 expect(steps.map(({ unrefs }) => unrefs)).deep.equals([1, 1, 1]);
             });

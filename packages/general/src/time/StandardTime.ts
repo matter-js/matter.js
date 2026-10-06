@@ -60,6 +60,7 @@ export class StandardTimer implements Timer {
     #timerId: unknown;
     #usesInterval = false;
     #armedInterval = Instant;
+    #deadline = 0;
     #utility = false;
     #interval = Instant; // Real value installed in constructor
     isRunning = false;
@@ -128,21 +129,21 @@ export class StandardTimer implements Timer {
             this.#applyUtility();
         } else {
             this.#usesInterval = false;
+            this.#deadline = Time.nowUs + this.#armedInterval;
             this.#arm(this.#armedInterval);
         }
         return this;
     }
 
+    /**
+     * Intermediate steps re-measure the remaining time against the monotonic deadline, so a late step does not delay the
+     * fire.
+     */
     #arm(remaining: number) {
+        const final = remaining <= MAX_STEP_MS;
         this.#timerId = setTimeout(
-            () => {
-                if (remaining > MAX_STEP_MS) {
-                    this.#arm(remaining - MAX_STEP_MS);
-                } else {
-                    this.#fire();
-                }
-            },
-            Math.min(remaining, MAX_STEP_MS),
+            () => (final ? this.#fire() : this.#arm(this.#deadline - Time.nowUs)),
+            final ? Math.max(remaining, 0) : MAX_STEP_MS,
         );
         this.#applyUtility();
     }
@@ -153,7 +154,8 @@ export class StandardTimer implements Timer {
             Time.unregister(this);
             this.isRunning = false;
         } else if (!this.#usesInterval) {
-            this.#arm(this.#armedInterval);
+            this.#deadline += this.#armedInterval;
+            this.#arm(this.#deadline - Time.nowUs);
         }
         this.callback(lifetime);
     }
