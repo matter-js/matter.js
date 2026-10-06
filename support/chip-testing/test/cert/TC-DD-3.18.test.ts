@@ -19,7 +19,7 @@ import {
     recordParse,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { attempt, CommissionedRefs, record, recordAll, requireId, runCleanups } from "./tc-support.js";
+import { attempt, CommissionedRefs, record, recordAll, requireId, runCleanups, withChecks } from "./tc-support.js";
 
 const BASIC_INFORMATION = Matter.clusters.require("BasicInformation");
 const BASIC_INFORMATION_ID = requireId(BASIC_INFORMATION.id, "BasicInformation cluster");
@@ -148,7 +148,7 @@ certTest("TC-DD-3.18", {
         "Scan TH1's QR code using the DUT Commissioner.",
         async cx => {
             const { th1 } = await distinctSubjects(cx);
-            await recordParse(cx, await thQrPayload(th1), th1);
+            await recordParse(cx, await thQrPayload(th1), { th: th1 });
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )
@@ -161,12 +161,14 @@ certTest("TC-DD-3.18", {
             const th2From = await th2.log.markSettled();
 
             const payload = await thQrPayload(th1);
-            await commissionByQr(cx, payload, th1Commissioned, th1);
+            await withChecks(cx, async checks => {
+                await commissionByQr(cx, payload, th1Commissioned, checks, th1);
 
-            // "Only TH1" is a claim about TH2, and TH2's own log is what states it. A commissionable
-            // probe cannot: it is answered out of the shared DNS-SD cache, which still holds the
-            // record step 1.b installed whether or not TH2 has since joined a fabric.
-            await recordNotCommissioned(cx, th2, th2From, "TH2 was not commissioned");
+                // "Only TH1" is a claim about TH2, and TH2's own log is what states it. A commissionable
+                // probe cannot: it is answered out of the shared DNS-SD cache, which still holds the
+                // record step 1.b installed whether or not TH2 has since joined a fabric.
+                await recordNotCommissioned(cx, th2, th2From, "TH2 was not commissioned");
+            });
         },
         {
             expected:
@@ -179,7 +181,7 @@ certTest("TC-DD-3.18", {
         "Scan TH2's QR code using the DUT Commissioner.",
         async cx => {
             const { th2 } = await distinctSubjects(cx);
-            await recordParse(cx, await thQrPayload(th2), th2);
+            await recordParse(cx, await thQrPayload(th2), { th: th2 });
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )
@@ -191,11 +193,14 @@ certTest("TC-DD-3.18", {
             const { th1, th2 } = await distinctSubjects(cx);
             const th1From = await th1.log.markSettled();
 
-            await commissionByQr(cx, await thQrPayload(th2), th2Commissioned, th2);
+            const payload = await thQrPayload(th2);
+            await withChecks(cx, async checks => {
+                await commissionByQr(cx, payload, th2Commissioned, checks, th2);
 
-            // The plan asks the same of this step, the other way round: TH1 is already commissioned,
-            // so what must not happen is a second commissioning of it.
-            await recordNotCommissioned(cx, th1, th1From, "TH1 was not commissioned again");
+                // The plan asks the same of this step, the other way round: TH1 is already commissioned,
+                // so what must not happen is a second commissioning of it.
+                await recordNotCommissioned(cx, th1, th1From, "TH1 was not commissioned again");
+            });
         },
         {
             expected:

@@ -156,6 +156,8 @@ export class ServerSubscription implements Subscription {
     readonly #peerAddress: PeerAddress;
 
     #sendNextUpdateImmediately = false;
+    /** The send interval timer fired since the last pass started, so the next pass sends even without data. */
+    #keepAliveOwed = false;
     #sendUpdateErrorCounter = 0;
     #currentUpdatePromise?: Promise<void>;
     #currentSendExchange?: MessageExchange;
@@ -436,7 +438,7 @@ export class ServerSubscription implements Subscription {
         // Clear temporary data from seeding
         this.#latestSeededEventNumber = undefined;
         this.#seededClusterDetails = undefined;
-        this.#reportDueAt = Timestamp(Time.nowMs + this.#sendInterval);
+        this.#reportDueAt = Timestamp(Time.nowUs + this.#sendInterval);
 
         if (this.#outstandingAttributeUpdates !== undefined || this.#outstandingEventsMinNumber !== undefined) {
             this.#triggerSendUpdate();
@@ -460,7 +462,7 @@ export class ServerSubscription implements Subscription {
         }
 
         this.#updateTimer.stop();
-        const now = Time.nowMs;
+        const now = Time.nowUs;
         const earliest = Math.max(this.#lastUpdateTime + this.minIntervalFloor, this.#deferredUntil);
         this.#holdingForEarliest = now < earliest;
         if (this.#holdingForEarliest) {
@@ -476,9 +478,10 @@ export class ServerSubscription implements Subscription {
     }
 
     #startSendInterval() {
-        this.#updateTimer = Time.getTimer(`Subscription update ${this.idStr}`, this.#sendInterval, () =>
-            this.#prepareDataUpdate(),
-        ).start();
+        this.#updateTimer = Time.getTimer(`Subscription update ${this.idStr}`, this.#sendInterval, () => {
+            this.#keepAliveOwed = true;
+            this.#prepareDataUpdate();
+        }).start();
     }
 
     /**
@@ -499,7 +502,7 @@ export class ServerSubscription implements Subscription {
      * report already being sent is not held; one queued behind it is.
      */
     deferReports(delay: Duration) {
-        const now = Time.nowMs;
+        const now = Time.nowUs;
         let until = Math.min(now + delay, this.#reportDueAt - SEND_DELAY);
         if (this.#deferredUntil > now) {
             until = Math.min(until, this.#deferredUntil);
@@ -543,7 +546,8 @@ export class ServerSubscription implements Subscription {
                 break;
             }
 
-            this.#lastUpdateTime = Time.nowMs;
+            this.#keepAliveOwed = false;
+            this.#lastUpdateTime = Time.nowUs;
             this.#reportDueAt = Timestamp(this.#lastUpdateTime + this.#sendInterval);
 
             try {
@@ -610,13 +614,13 @@ export class ServerSubscription implements Subscription {
             this.#sendNextUpdateImmediately = false;
 
             // Once closed (a flush, or giving up after a failed send) the deferral no longer applies
-            if (!this.#isClosed && Time.nowMs < this.#deferredUntil) {
+            if (!this.#isClosed && Time.nowUs < this.#deferredUntil) {
                 this.#prepareDataUpdate();
                 break;
             }
 
             logger.debug("Sending delayed update immediately after last one was sent");
-            onlyWithData = true; // In subsequent iterations only send if non-empty
+            onlyWithData = this.#isClosed || !this.#keepAliveOwed;
         }
     }
 
@@ -715,7 +719,7 @@ export class ServerSubscription implements Subscription {
         } finally {
             session[Symbol.dispose]();
         }
-        this.#lastUpdateTime = Time.nowMs;
+        this.#lastUpdateTime = Time.nowUs;
     }
 
     async sendInitialReport(
@@ -767,6 +771,7 @@ export class ServerSubscription implements Subscription {
             return;
         }
         this.#isClosed = true;
+        using _closing = this.#lifetime?.closing();
 
         await this.#cancel(flushViaSession, currentExchange);
 
@@ -782,6 +787,7 @@ export class ServerSubscription implements Subscription {
             return;
         }
         this.#isClosed = true;
+        using _closing = this.#lifetime?.closing();
         await this.#cancel();
     }
 

@@ -7,10 +7,10 @@
 import { WindowCoveringServer } from "#behaviors/window-covering";
 import { WindowCoveringDevice } from "#devices/window-covering";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
+import { MockServerNode } from "@matter/node/testing";
 import { AttributeWriteResponse, Write } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, Status, TlvUInt8, WriteRequest } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
-import { MockServerNode } from "./mock-server-node.js";
 
 const TestWindowCoveringDevice = WindowCoveringDevice.with(
     WindowCoveringServer.with("Lift", "Tilt", "PositionAwareLift", "PositionAwareTilt").set({
@@ -59,10 +59,10 @@ describe("bitmap reserved-bit write validation", () => {
 });
 
 async function writeMode(value: number, device: EndpointType = TestWindowCoveringDevice) {
-    const node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
+    await using node = await MockServerNode.createOnline(MockServerNode.RootEndpoint, { device: undefined });
     await node.add(device);
 
-    return writeAttrRawAsAdmin(node, {
+    return await writeAttrRawAsAdmin(node, {
         writeRequests: [{ path: MODE_PATH, data: TlvUInt8.encodeTlv(value) }],
     });
 }

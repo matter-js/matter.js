@@ -8,4 +8,7 @@
 
 import { Resource } from "#models/Resource.js";
 
-Resource.add({ tag: "datatype", name: "energy-mVARh", description: "Reactive Energy", xref: "core§7.19.2" });
+Resource.add({
+    tag: "datatype", name: "energy-mVARh", description: "Reactive Energy", xref: "core§7.19.2.17",
+    details: "This type represents reactive energy measured in millivolt-amp-hours reactive."
+});

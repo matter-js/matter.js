@@ -40,6 +40,12 @@ const RESOLUTION_TIMEOUT = Seconds(30);
 
 const RESOLUTION_POLL = Millis(50);
 
+/**
+ * The switch reaches its binding targets only through operational mDNS. On a host with many interfaces the first
+ * address it tries may never answer, and the default 45 s before the next address exceeds {@link RESOLUTION_TIMEOUT}.
+ */
+const BINDING_PEER_TIMING = { delayBeforeNextAddress: Seconds(1) };
+
 const LightSwitchRootEndpoint = ServerNode.RootEndpoint.with(
     NetworkCommissioningServer.with("EthernetNetworkInterface"),
 );
@@ -95,6 +101,7 @@ export class LightSwitchTestInstance extends NodeTestInstance {
                 environment: this.env,
                 network: {
                     port: this.config.port ?? 5540,
+                    timing: BINDING_PEER_TIMING,
                 },
                 commissioning: {
                     passcode: this.config.passcode ?? 20202021,

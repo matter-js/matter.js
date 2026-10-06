@@ -14,7 +14,7 @@ import {
     MatterError,
     UnexpectedDataError,
 } from "@matter/main";
-import { OperationalCredentials } from "@matter/main/clusters";
+import { OperationalCredentials, OtaSoftwareUpdateRequestor } from "@matter/main/clusters";
 import { getOperationalDeviceQname } from "@matter/main/protocol";
 import { FabricId, GlobalFabricId, NodeId, statedIdentifier, Status, StatusResponseError } from "@matter/main/types";
 import { ClusterModel, CommandModel, ValueModel } from "@matter/model";
@@ -258,6 +258,82 @@ function groupDestination(groupId: number): string {
 function timedArg(options?: TimedInteractionOptions) {
     const timeout = timedInteractionTimeoutOf(options);
     return timeout === undefined ? "" : ` --timedInteractionTimeoutMs ${timeout}`;
+}
+
+/**
+ * List attributes written through chip-tool's typed cluster command rather than `any write-by-id`.
+ *
+ * `write-by-id` sends a list as one REPLACE `AttributeDataIB`. Matter Core (Encoding Specification, list encoding)
+ * allows that only for AccessControl's ACL and Extension: any other list is an empty REPLACE followed by one ADD
+ * per entry, and a server may apply those entries one by one. The typed command encodes through
+ * `WriteClient::EncodeAttribute`, which follows that rule, but it takes chip-tool's own command and field names, so
+ * each attribute that needs it is listed here with them.
+ */
+const TYPED_LIST_WRITES: readonly TypedListWrite[] = [
+    {
+        cluster: OtaSoftwareUpdateRequestor.id,
+        attribute: OtaSoftwareUpdateRequestor.attributes.defaultOtaProviders.id,
+        command: "otasoftwareupdaterequestor write default-otaproviders",
+        fields: { providerNodeId: "providerNodeID", endpoint: "endpoint", fabricIndex: "fabricIndex" },
+    },
+];
+
+interface TypedListWrite {
+    cluster: number;
+    attribute: number;
+    command: string;
+
+    /** Each entry field as matter.js names it, mapped to the name chip-tool's `ComplexArgumentParser` requires. */
+    fields: Record<string, string>;
+}
+
+function typedListWriteFor(path: AttributePathSpec) {
+    return TYPED_LIST_WRITES.find(({ cluster, attribute }) => cluster === path.cluster && attribute === path.attribute);
+}
+
+/**
+ * The value of a {@link TypedListWrite} as its typed command parses it. Integers go as decimal strings: chip-tool's
+ * `ComplexArgumentParser` reads a string at the field's full width for an unsigned field, which keeps a 64-bit node
+ * id exact where a JSON number above 2^53 would not. It accepts a string for no signed field, so every field of a
+ * {@link TypedListWrite} must be unsigned.
+ */
+function encodeTypedList(write: TypedListWrite, value: unknown) {
+    if (!Array.isArray(value)) {
+        throw new ImplementationError(`${write.command} needs a list, got ${describeValue(value)}`);
+    }
+    return JSON.stringify(
+        value.map(entry => {
+            if (!isObject(entry)) {
+                throw new ImplementationError(`${write.command} needs struct entries, got ${describeValue(entry)}`);
+            }
+            const encoded: Record<string, string> = {};
+            for (const [field, fieldValue] of Object.entries(entry)) {
+                const chipName = write.fields[field];
+                if (chipName === undefined) {
+                    throw new ImplementationError(
+                        `${write.command} has no field ${field}; it takes ${Object.keys(write.fields).join(", ")}`,
+                    );
+                }
+                if (fieldValue === undefined) {
+                    continue;
+                }
+                if (
+                    !(typeof fieldValue === "bigint" && fieldValue >= 0n) &&
+                    !(typeof fieldValue === "number" && Number.isSafeInteger(fieldValue) && fieldValue >= 0)
+                ) {
+                    throw new ImplementationError(
+                        `${write.command} needs an unsigned integer for ${field}, got ${describeValue(fieldValue)}`,
+                    );
+                }
+                encoded[chipName] = fieldValue.toString();
+            }
+            return encoded;
+        }),
+    );
+}
+
+function describeValue(value: unknown) {
+    return JSON.stringify(value, (_key, item: unknown) => (typeof item === "bigint" ? `${item}n` : item));
 }
 
 function clusterArg(path: AttributePathSpec) {
@@ -1312,6 +1388,22 @@ class ChipToolCertNodeApi implements CertNodeApi {
     }
 
     #write(entries: AttributeWriteEntry[], operation: string, options?: TimedInteractionOptions) {
+        for (const entry of entries) {
+            const typed = typedListWriteFor(entry.path);
+            if (typed === undefined) {
+                continue;
+            }
+            if (entries.length !== 1) {
+                throw new UnsupportedByControllerError(
+                    operation,
+                    CONTROLLER,
+                    `${typed.command} writes one attribute per request, so it cannot carry ` +
+                        `${entries.length - 1} other entries alongside it`,
+                );
+            }
+            return this.#writeTypedList(typed, entry, options);
+        }
+
         const values = entries.map(({ path: { cluster, endpoint, attribute }, value }) => {
             if (cluster === undefined || attribute === undefined) {
                 throw new ImplementationError(`${operation} requires a concrete cluster and attribute`);
@@ -1341,6 +1433,19 @@ class ChipToolCertNodeApi implements CertNodeApi {
         command += largePayloadArg(this.#adapter.transport);
 
         return this.#adapter.execute(command, { attributes: entries.map(({ path }) => path) });
+    }
+
+    #writeTypedList(
+        typed: TypedListWrite,
+        { path, value, dataVersion }: AttributeWriteEntry,
+        options?: TimedInteractionOptions,
+    ) {
+        const command =
+            `${typed.command} ${quoteArg(encodeTypedList(typed, value))} ${this.#node} ${endpointArg(path)}` +
+            (dataVersion === undefined ? "" : ` --data-version ${dataVersion}`) +
+            timedArg(options) +
+            largePayloadArg(this.#adapter.transport);
+        return this.#adapter.execute(command, { attributes: [path] });
     }
 }
 
@@ -1880,8 +1985,9 @@ export class ChipToolControllerAdapter implements ControllerAdapter {
 
     /**
      * A discriminator for an enhanced commissioning window, within § 5.1.1.1's 12-bit range. Successive
-     * windows of one adapter differ, and different adapters start in different ranges; both wrap after
-     * 256 windows, which no cert test comes close to.
+     * windows of one adapter differ, and different adapters start in different ranges. After 256 windows,
+     * alpha and beta enter the next adapter's starting range while gamma enters an unassigned range; the
+     * value wraps at 4096, and no cert test comes close to either.
      */
     mintDiscriminator() {
         return (this.#nextDiscriminator++ + DISCRIMINATOR_RANGES[this.#commissionerName] * 0x100) & 0xfff;

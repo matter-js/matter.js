@@ -42,8 +42,16 @@ export function translateDatatype(definition: SpecReference): DatatypeElement | 
 
     const text = definition.prose?.[0];
 
-    // Up through 1.1 prose was informal but remarkably consistent; "derived from" always matches
-    let match = text?.match(/derived from ([\w-]+)/i);
+    // The base type is not always stated in the first paragraph
+    let match: RegExpMatchArray | null | undefined = definition.prose
+        ?.map(paragraph => paragraph.match(/data type is derived from ([\w-]+)\s*\.?\s*$/i))
+        .find(found => found !== null);
+
+    // Up through 1.1 prose was informal but remarkably consistent; "derived from" always matches.  A document named
+    // after "derived from" is followed by its number ("IEEE 802.11") and is not a base type
+    if (!match) {
+        match = text?.match(/derived from ([\w-]+)(?![\w-]| \d)/i);
+    }
 
     // This now applies to cluster 1.2 § 1.14.15.1, because consistency is overrated
     if (!match) {
@@ -102,9 +110,9 @@ export function translateDatatype(definition: SpecReference): DatatypeElement | 
         }
     }
 
-    if (!type && name.match(/\s/)) {
-        // This isn't actually a datatype
-        if (!text) {
+    // Without a base type, a multi-word name or a missing definition table marks prose that sits among datatypes
+    if (!type && (name.match(/\s/) || !definition.tables?.length)) {
+        if (!text || !name.match(/\s/)) {
             logger.warn(`${definition.xref.document} § ${definition.xref.section} does not appear to be a datatype`);
         }
         return;

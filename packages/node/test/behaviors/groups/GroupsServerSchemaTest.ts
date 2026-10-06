@@ -6,6 +6,7 @@
 
 import { GroupsServer } from "#behaviors/groups";
 import { CommandModel } from "@matter/model";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     ClusterId,
     CommandId,
@@ -20,8 +21,6 @@ import {
     TypeFromSchema,
 } from "@matter/types";
 import { Groups } from "@matter/types/clusters/groups";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 
 const TlvAddGroupRequest = TlvObject({
     groupId: TlvField(0, TlvUInt16),

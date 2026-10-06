@@ -16,11 +16,10 @@ import {
     recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
-    recordPayloadOffering,
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, runCleanups } from "./tc-support.js";
+import { CommissionedRefs, runCleanups, theTh, withChecks } from "./tc-support.js";
 
 const BLE_ONLY = DiscoveryCapabilitiesSchema.encode({ ble: true });
 const WIFI_PAF_ONLY = DiscoveryCapabilitiesSchema.encode({ wifiPublicActionFrame: true });
@@ -59,7 +58,8 @@ const NOT_COMMISSIONABLE_UNAVAILABLE =
  * `.a` records the gap, and says what its own leg does instead, rather than leaving the bundle to imply
  * otherwise.
  *
- * **`.c` records the parse alone, not the plan's second sentence.** The plan also asks to verify the TH
+ * **`.c` records the parse and the leg's payload offering, as `.b` does, not the plan's second
+ * sentence.** The plan also asks to verify the TH
  * was not commissioned, but the only thing `.c` asks of the DUT is `parseQrPayload`, which decodes
  * locally on both controllers and reaches no network — so a check that the TH was not commissioned by
  * it examines a window nothing could have written to, and would record a pass for a claim nobody
@@ -116,7 +116,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
         const scanGate = leg.pics === undefined ? "MCORE.DD.SCAN_QR_CODE" : `MCORE.DD.SCAN_QR_CODE & ${leg.pics}`;
 
         const payloadFor = async (cx: CertStepContext) =>
-            qrPayloadWith(await thQrPayload(cx.devices.th), { discoveryCapabilities: leg.bitmask, flowType });
+            qrPayloadWith(await thQrPayload(theTh(cx)), { discoveryCapabilities: leg.bitmask, flowType });
 
         builder
             .step(
@@ -126,7 +126,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                     "is NOT in commissioning mode. Ensure the Version bit string follows the current Matter spec. " +
                     "documentation.",
                 async cx => {
-                    const source = await thQrPayload(cx.devices.th);
+                    const source = await thQrPayload(theTh(cx));
                     recordGeneratedPayload(
                         cx,
                         qrPayloadWith(source, { discoveryCapabilities: leg.bitmask, flowType }),
@@ -155,8 +155,7 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                 "Scan the QR code from the previous step using the DUT.",
                 async cx => {
                     const payload = await payloadFor(cx);
-                    await recordParse(cx, payload);
-                    await recordPayloadOffering(cx, payload, leg.capability, flowType);
+                    await recordParse(cx, payload, { offering: { capability: leg.capability, flowType } });
                 },
                 {
                     pics: scanGate,
@@ -167,7 +166,8 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                 `${leg.n}.c`,
                 "DUT parses QR code.",
                 async cx => {
-                    await recordParse(cx, await payloadFor(cx));
+                    const payload = await payloadFor(cx);
+                    await recordParse(cx, payload, { offering: { capability: leg.capability, flowType } });
                 },
                 {
                     pics: scanGate,
@@ -183,7 +183,8 @@ export function defineFlowQrTest(builder: CertTestBuilder, flowType: number): Ce
                 leg.capability === "onIpNetwork"
                     ? async cx => {
                           await recordCommissionable(cx);
-                          await commissionByQr(cx, await payloadFor(cx), commissioned);
+                          const payload = await payloadFor(cx);
+                          await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
                       }
                     : async () => {},
                 leg.capability === "onIpNetwork"

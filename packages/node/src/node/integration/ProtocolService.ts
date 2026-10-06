@@ -447,9 +447,9 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             continue;
         }
 
-        // Deprecated and disallowed elements are excluded from the protocol layer and treated like unknown
-        // elements — invisible on both server and client side.  Some deprecated/disallowed members in the
-        // standard model also lack type information; including those would cause TLV generation to fail.
+        // Deprecated and disallowed elements are excluded and treated like unknown elements.  A client node's peer
+        // schema marks a deprecated element the device reports as optional, so it passes here.  Obsolete elements
+        // pass: a server never supports them, and a client may still see them.
         if (member.isDeprecated || member.isDisallowed) {
             continue;
         }

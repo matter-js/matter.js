@@ -21,6 +21,7 @@ import {
     GeneratedCommandList,
     Specification,
 } from "@matter/model";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import { Fabric } from "@matter/protocol";
 import {
     AttributeId,
@@ -50,8 +51,6 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 import { readAllAttrs } from "../../node/read-helpers.js";
 
 const FABRICS_PATH = {
@@ -260,7 +259,7 @@ describe("ProtocolServiceTest", () => {
 
         const MyDevice = OnOffLightDevice.with(MyServer);
 
-        const node = await MockServerNode.createOnline(undefined, { device: MyDevice });
+        await using node = await MockServerNode.createOnline(undefined, { device: MyDevice });
 
         const fabric = await node.addFabric();
 
@@ -286,7 +285,7 @@ describe("ProtocolServiceTest", () => {
 
         const MyDevice = OnOffLightDevice.with(MyServer);
 
-        const node = await MockServerNode.createOnline(undefined, { device: MyDevice });
+        await using node = await MockServerNode.createOnline(undefined, { device: MyDevice });
 
         const featureMap = await interaction.read(node, await node.addFabric(), false, {
             endpointId: EndpointNumber(1),
@@ -317,7 +316,7 @@ describe("ProtocolServiceTest", () => {
 
         const MyDevice = OnOffLightDevice.with(MyServer);
 
-        const node = await MockServerNode.createOnline(undefined, { device: MyDevice });
+        await using node = await MockServerNode.createOnline(undefined, { device: MyDevice });
 
         await interaction.invoke(
             node,

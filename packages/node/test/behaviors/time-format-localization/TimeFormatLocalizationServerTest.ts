@@ -6,9 +6,9 @@
 
 import { TimeFormatLocalizationServer } from "#behaviors/time-format-localization";
 import { ServerNode } from "#node/ServerNode.js";
+import { MockServerNode } from "@matter/node/testing";
 import { ConstraintError } from "@matter/protocol";
 import { TimeFormatLocalization } from "@matter/types/clusters/time-format-localization";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 function createEndpoint() {
     return MockServerNode.create(
@@ -28,14 +28,14 @@ function createEndpoint() {
 
 describe("TimeFormatLocalizationServer", () => {
     it("accepts valid date formats", async () => {
-        const endpoint = await createEndpoint();
+        await using endpoint = await createEndpoint();
         await endpoint.act(agent => {
             agent.timeFormatLocalization.state.activeCalendarType = TimeFormatLocalization.CalendarType.Chinese;
         });
     });
 
     it("rejects invalid date formats", async () => {
-        const endpoint = await createEndpoint();
+        await using endpoint = await createEndpoint();
         expect(() =>
             endpoint.act(agent => {
                 agent.timeFormatLocalization.state.activeCalendarType = TimeFormatLocalization.CalendarType.Gregorian;

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { Behavior } from "#behavior/Behavior.js";
+import { BindingServer } from "#behaviors/binding";
 import { DescriptorServer } from "#behaviors/descriptor";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
@@ -115,6 +117,10 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
     /**
      * Prepare {@link endpoint}, a server endpoint about to initialize its behaviors.
      *
+     * Add the default server for each server cluster the Base device type mandates that the endpoint lacks, judged
+     * as {@link validate} judges it, whatever the mode, unless the endpoint already supports a behavior with that
+     * server's id. Only Binding has one; Descriptor is added to every endpoint before.
+     *
      * For an endpoint constructed on its own rather than with its owner's tree, refuse it when it or a descendant
      * carries a server cluster that a device type of an endpoint above it in the same node scope declares a
      * singleton. This runs before their behaviors initialize, because a behavior that works only on the node endpoint
@@ -128,6 +134,7 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      * @internal
      */
     constructing(endpoint: Endpoint) {
+        this.#addBaseServers(endpoint);
         if (isConstructionRoot(endpoint)) {
             this.#assertPlacement(endpoint);
         }
@@ -350,6 +357,16 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         }
     }
 
+    #addBaseServers(endpoint: Endpoint) {
+        const pass = new DeviceTypeValidationPass(new ServerEndpointFacts(endpoint), this.#model ?? this.#node.matter);
+        for (const requirement of DeviceTypeConformance.missingBaseServersOf(endpoint, pass)) {
+            const server = baseServerOf(requirement.id);
+            if (server !== undefined && !endpoint.behaviors.has(server.id)) {
+                endpoint.behaviors.inject(server, undefined, false);
+            }
+        }
+    }
+
     #assertPlacement(endpoint: Endpoint) {
         const [first] = DeviceTypeConformance.misplacedSingletons(endpoint, this.#pass());
         if (first === undefined) {
@@ -495,6 +512,9 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
      * A sibling's facts that reach the node scope do not depend on its conditions, so a flipped `Duplicate` condition
      * changes only what the sibling asserts. A missing entry counts as changed. Only the index's
      * {@link NodeScopeIndex.suspectsOf suspects} are compared; every other sibling's entry matches it.
+     *
+     * Of these, an endpoint still under construction is left to the pass of its construction root, which judges the
+     * root's whole tree once it is constructed; only the endpoints an addition adds are judged regardless.
      */
     #affectedBy(change: Change, pass: DeviceTypeValidationPass<Endpoint>, index: NodeScopeIndex): Affected {
         const affected = new Set<Endpoint>();
@@ -535,6 +555,10 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
                 break;
         }
 
+        const added = change.kind === "added" ? new Set(affected) : undefined;
+        const judged = () =>
+            [...affected].filter(endpoint => added?.has(endpoint) || !this.#isUnderConstruction(endpoint));
+
         if (owner !== undefined) {
             const changed = change.kind === "removed" ? undefined : change.endpoint;
             const flipped = new Array<Endpoint>();
@@ -563,29 +587,34 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
         }
 
         if (reach === Reach.None) {
-            return { endpoints: [...affected] };
+            return { endpoints: judged() };
         }
 
         const nodeEndpoint = pass.nodeEndpointOf(anchor);
         if (nodeEndpoint === undefined) {
-            return { endpoints: [...affected] };
+            return { endpoints: judged() };
         }
 
         if (reach === Reach.NodeScope) {
             for (const endpoint of pass.nodeScopeOf(nodeEndpoint)) {
                 affected.add(endpoint);
             }
-            return { endpoints: [...affected], readersOf: nodeEndpoint };
+            return { endpoints: judged(), readersOf: nodeEndpoint };
         }
 
         affected.add(nodeEndpoint);
         if (index.readersJudgedUnder(nodeEndpoint) === conditionsKeyOf(nodeEndpoint, pass)) {
-            return { endpoints: [...affected] };
+            return { endpoints: judged() };
         }
         for (const endpoint of pass.nodeConditionReadersOf(nodeEndpoint)) {
             affected.add(endpoint);
         }
-        return { endpoints: [...affected], readersOf: nodeEndpoint };
+        return { endpoints: judged(), readersOf: nodeEndpoint };
+    }
+
+    #isUnderConstruction(endpoint: Endpoint) {
+        const presence = this.#facts.presenceOf(endpoint);
+        return presence === Presence.Pending || presence === Presence.Constructing;
     }
 
     /**
@@ -628,6 +657,13 @@ export class DeviceTypeConformanceService implements DeviceTypeValidation {
 }
 
 const modes: readonly DeviceTypeValidation.Mode[] = ["off", "warn", "strict"];
+
+/**
+ * The default server of {@link clusterId}, a cluster the Base device type may mandate, if matter.js has one to add.
+ */
+function baseServerOf(clusterId: number | undefined): Behavior.Type | undefined {
+    return clusterId === BindingServer.cluster.id ? BindingServer : undefined;
+}
 
 function modeOf(environment: Environment): DeviceTypeValidation.Mode {
     const value = environment.vars.string("endpoint.validation") ?? "warn";

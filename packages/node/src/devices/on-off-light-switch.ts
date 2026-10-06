@@ -7,6 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
+import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { IdentifyClient as BaseIdentifyClient } from "../behaviors/identify/IdentifyClient.js";
 import { OnOffClient as BaseOnOffClient } from "../behaviors/on-off/OnOffClient.js";
 import { GroupsClient as BaseGroupsClient } from "../behaviors/groups/GroupsClient.js";
@@ -32,6 +33,13 @@ export namespace OnOffLightSwitchRequirements {
      * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
      */
     export const IdentifyServer = BaseIdentifyServer;
+
+    /**
+     * The Binding cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link BindingServer} for convenience.
+     */
+    export const BindingServer = BaseBindingServer;
 
     /**
      * The Identify cluster is required by the Matter specification.
@@ -64,7 +72,7 @@ export namespace OnOffLightSwitchRequirements {
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { Identify: IdentifyServer } };
+    export const server = { mandatory: { Identify: IdentifyServer, Binding: BindingServer } };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.
@@ -80,7 +88,10 @@ export const OnOffLightSwitchDeviceDefinition = MutableEndpoint({
     deviceType: 0x103,
     deviceRevision: 4,
     requirements: OnOffLightSwitchRequirements,
-    behaviors: SupportedBehaviors(OnOffLightSwitchRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(
+        OnOffLightSwitchRequirements.server.mandatory.Identify,
+        OnOffLightSwitchRequirements.server.mandatory.Binding
+    )
 });
 
 Object.freeze(OnOffLightSwitchDeviceDefinition);

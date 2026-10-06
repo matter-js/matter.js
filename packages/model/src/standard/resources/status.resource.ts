@@ -9,7 +9,15 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "datatype", name: "status", description: "Status Code", xref: "core§7.19.2",
+    tag: "datatype", name: "status", description: "Status Code", xref: "core§7.19.2.21",
+
+    details: "An enumeration value that indicates the success or error status in response to an action in an " +
+        "interaction." +
+        "\n" +
+        "See Chapter 8, Interaction Model Specification for details of the interaction model." +
+        "\n" +
+        "See Section 8.10, \"Interaction Model Status Codes\" for the defined set of status codes as well as " +
+        "defined ranges.",
 
     children: [
         { tag: "field", name: "Success", description: "Operation was successful", xref: "core§8.10.1" },

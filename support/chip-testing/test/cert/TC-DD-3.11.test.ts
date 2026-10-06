@@ -15,12 +15,11 @@ import {
     recordDiscriminatorHonored,
     recordGeneratedPayload,
     recordParse,
-    recordPayloadOffering,
     STANDARD_FLOW,
     STANDARD_VERSION,
     thQrPayload,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, runCleanups } from "./tc-support.js";
+import { CommissionedRefs, runCleanups, withChecks } from "./tc-support.js";
 
 /**
  * Why the two transport-specific commissioning steps cannot be run rather than skipped.
@@ -85,8 +84,7 @@ certTest("TC-DD-3.11", {
         "Scan the QR code from the previous step using the DUT.",
         async cx => {
             const payload = qrPayloadWith(await thQrPayload(cx.devices.th), { discoveryCapabilities: BLE_ONLY });
-            await recordParse(cx, payload);
-            await recordPayloadOffering(cx, payload, "ble");
+            await recordParse(cx, payload, { offering: { capability: "ble" } });
         },
         {
             // A leg's steps stand or fall together: this one scans "the QR code from the previous
@@ -133,8 +131,7 @@ certTest("TC-DD-3.11", {
             const payload = qrPayloadWith(await thQrPayload(cx.devices.th), {
                 discoveryCapabilities: WIFI_PAF_ONLY,
             });
-            await recordParse(cx, payload);
-            await recordPayloadOffering(cx, payload, "wifiPublicActionFrame");
+            await recordParse(cx, payload, { offering: { capability: "wifiPublicActionFrame" } });
         },
         {
             pics: "MCORE.DD.SCAN_QR_CODE & MCORE.DD.DISCOVERY_PAF",
@@ -179,8 +176,7 @@ certTest("TC-DD-3.11", {
             const payload = qrPayloadWith(await thQrPayload(cx.devices.th), {
                 discoveryCapabilities: ON_NETWORK_ONLY,
             });
-            await recordParse(cx, payload);
-            await recordPayloadOffering(cx, payload, "onIpNetwork");
+            await recordParse(cx, payload, { offering: { capability: "onIpNetwork" } });
         },
         { pics: "MCORE.DD.SCAN_QR_CODE", expected: "Verify the QR code has been scanned successfully." },
     )
@@ -196,7 +192,7 @@ certTest("TC-DD-3.11", {
                 discoveryCapabilities: ON_NETWORK_ONLY,
             });
             await recordCommissionable(cx);
-            await commissionByQr(cx, payload, commissioned);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         { expected: "DUT parses QR code and DUT commissions TH to the Matter network" },
     )

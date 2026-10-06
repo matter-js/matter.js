@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Duration, Instant, Logger, Millis, Time, Timestamp } from "@matter/general";
+import { Bytes, Diagnostic, Duration, Logger } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
-import { BleScannerClient, MatterBle } from "@matter/protocol";
+import { BleListeningClock, BleScannerClient, MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { BleOptions } from "./NodeJsBle.js";
 
@@ -48,8 +48,7 @@ interface NobleListeners {
 }
 
 export class NobleBleClient implements BleScannerClient {
-    #listeningSince?: Timestamp;
-    #listenedTime = Instant;
+    readonly #listening = new BleListeningClock();
 
     private readonly discoveredPeripherals = new Map<string, { peripheral: Peripheral; matterServiceData: Bytes }>();
     private shouldScan = false;
@@ -96,6 +95,8 @@ export class NobleBleClient implements BleScannerClient {
                         );
                     }
                 } else {
+                    // noble's Linux HCI bindings emit no scanStop when the adapter powers off
+                    this.#radioStopped();
                     this.stopScanning().catch(error => logger.error("Cannot stop BLE discovery:", error));
                 }
             },
@@ -109,16 +110,10 @@ export class NobleBleClient implements BleScannerClient {
                     return;
                 }
                 this.isScanning = true;
-                this.#listeningSince ??= Time.nowUs;
+                this.#listening.start();
             },
 
-            scanStop: () => {
-                this.isScanning = false;
-                if (this.#listeningSince !== undefined) {
-                    this.#listenedTime = Millis(this.#listenedTime + Timestamp.delta(this.#listeningSince, Time.nowUs));
-                    this.#listeningSince = undefined;
-                }
-            },
+            scanStop: () => this.#radioStopped(),
         };
 
         noble.on("stateChange", this.#listeners.stateChange);
@@ -128,14 +123,16 @@ export class NobleBleClient implements BleScannerClient {
     }
 
     /**
-     * Time noble's radio scanned, which noble reports through its own scan events rather than our requests: a scan we
-     * asked for may wait for the adapter, and one we have does not survive the adapter powering off.
+     * Time noble's radio scanned, taken from noble's scan events and adapter state rather than our requests: a scan we
+     * asked for may wait for the adapter, and none survives the adapter powering off.
      */
+    #radioStopped() {
+        this.isScanning = false;
+        this.#listening.stop();
+    }
+
     get listeningTime(): Duration {
-        if (this.#listeningSince === undefined) {
-            return this.#listenedTime;
-        }
-        return Millis(this.#listenedTime + Timestamp.delta(this.#listeningSince, Time.nowUs));
+        return this.#listening.total;
     }
 
     public setDiscoveryCallback(callback: (peripheral: Peripheral, manufacturerData: Bytes) => void) {

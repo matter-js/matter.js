@@ -5,9 +5,15 @@
  */
 
 import { Duration, InternalError, Millis, Seconds, Time } from "@matter/main";
-import type { CheckRecord, LogFollower, LogLine } from "@matter/testing";
-import { CertLogClosedError, CertLogTimeoutError, forFlavor } from "@matter/testing";
-import { expectAdjacentLines, INVOKE_REQUEST_MESSAGE, literally, WRITE_REQUEST_MESSAGE } from "./tc-support.js";
+import type { CheckRecord, LogFlavor, LogFollower, LogLine } from "@matter/testing";
+import { CertLogClosedError, CertLogTimeoutError, flavorFamily } from "@matter/testing";
+import {
+    chipHeaderBefore,
+    expectAdjacentLines,
+    INVOKE_REQUEST_MESSAGE,
+    literally,
+    WRITE_REQUEST_MESSAGE,
+} from "./tc-support.js";
 
 // TC-IDM-5.1's own checks live beside the test case rather than inside it because a `TC-*.test.ts`
 // registers a device-driven mocha test at import time, so the cert-framework spec set cannot import
@@ -23,11 +29,13 @@ export function timedRequestSequence(timeout: Duration): RegExp[] {
 const TIMED_REQUEST_FLAG = /timedRequest = true,\s*$/;
 
 /**
- * chip's own receive line, which names both the exchange the message arrived on and the category of
- * the session it came over: `(S)` secure unicast, `(U)` unencrypted unicast, `(G)` secure groupcast
- * (`src/messaging/README.md`).
+ * chip's own receive line for an Interaction Model message, which names both the exchange the message
+ * arrived on and the category of the session it came over: `(S)` secure unicast, `(U)` unencrypted
+ * unicast, `(G)` secure groupcast (`src/messaging/README.md`). Limited to protocol 0001 because a
+ * standalone ack on the same exchange logs a receive line and no decode dump, so
+ * {@link chipHeaderBefore} cannot tell it from the message's own.
  */
-const RECEIPT_LINE = /\[E:(\d+[ir])(?: S:(\d+))?[^\]]*\] \((S|U|G)\) Msg RX from/;
+const RECEIPT_LINE = /\[E:(\d+[ir])(?: S:(\d+))?[^\]]*\] \((S|U|G)\) Msg RX from .* --- Type 0001:/;
 
 // How far back from a message's decode dump its own receive line may sit. chip prints the two a
 // handful of lines apart; the bound is what stops a search that finds nothing nearby from
@@ -88,9 +96,9 @@ export interface Receipt {
     pattern: string;
 }
 
-/** The receive line for the message whose decode dump starts at `index`, as {@link LogFollower.lastMatchBefore} finds it. */
+/** The receive line of the message whose decode dump `index` lies in, as {@link chipHeaderBefore} finds it. */
 function receiptBefore(log: LogFollower, index: number): Receipt | undefined {
-    const found = log.lastMatchBefore(RECEIPT_LINE, index, RECEIPT_LOOKBACK_LINES);
+    const found = chipHeaderBefore(log, RECEIPT_LINE, index, RECEIPT_LOOKBACK_LINES);
     if (found === undefined) {
         return undefined;
     }
@@ -112,7 +120,7 @@ function receiptBefore(log: LogFollower, index: number): Receipt | undefined {
  * TH produces it.
  */
 export type TimedRequestLookup =
-    /** The message was found; `receipt` is absent when no receive line precedes it, which is a failure. */
+    /** The message was found; `receipt` is absent when it logged no receive line of its own, which is a failure. */
     | { outcome: "found"; line: LogLine; receipt?: Receipt; check: CheckRecord }
     /** This flavor's log names no timed request (see AGENTS.md's flavor-pattern policy). */
     | { outcome: "unnamed"; check: CheckRecord }
@@ -195,17 +203,13 @@ async function matterjsTimedRequest(
  */
 export async function expectTimedRequest(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     timeout: Duration,
     from: number,
     wait: Duration,
 ): Promise<TimedRequestLookup> {
-    if (!flavor.startsWith("chip")) {
-        const matterjs = forFlavor({ matterjs: matterjsTimedRequestPattern(timeout) }, flavor);
-        if (matterjs === undefined) {
-            return { outcome: "unnamed", check: { type: "device-log", verdict: "unverified" } };
-        }
-        return matterjsTimedRequest(log, matterjs, from, wait);
+    if (flavorFamily(flavor) === "matterjs") {
+        return matterjsTimedRequest(log, matterjsTimedRequestPattern(timeout), from, wait);
     }
 
     const pattern = `TimedRequestMessage(TimeoutMs = 0x${timeout.toString(16)})`;
@@ -251,7 +255,7 @@ export function expectUnicastReceipt(timed: TimedRequestLookup): CheckRecord {
             type: "device-log",
             verdict: "fail",
             pattern: String(RECEIPT_LINE),
-            detail: `No receive line precedes the timed request at log line ${timed.line.index}`,
+            detail: `The timed request at log line ${timed.line.index} has no receive line of its own`,
             logLine: timed.line.index,
         };
     }
@@ -362,7 +366,7 @@ async function matterjsTimedFollowUp(
  */
 export async function expectTimedFollowUp(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     interaction: TimedInteraction,
     timed: TimedRequestLookup,
     budget: Duration,
@@ -373,10 +377,11 @@ export async function expectTimedFollowUp(
     }
     const { line: timedLine, receipt } = timed;
 
-    if (!flavor.startsWith("chip")) {
-        if (forFlavor({ matterjs: interaction }, flavor) === undefined) {
-            return { type: "device-log", verdict: "unverified" };
-        }
+    const family = flavorFamily(flavor);
+    if (family === undefined) {
+        return { type: "device-log", verdict: "unverified" };
+    }
+    if (family === "matterjs") {
         if (receipt?.session === undefined) {
             throw new InternalError("A matter.js timed request always names its own session and exchange");
         }
@@ -390,7 +395,7 @@ export async function expectTimedFollowUp(
             type: "device-log",
             verdict: "fail",
             pattern,
-            detail: `The timed request at log line ${timedLine.index} has no receive line to take an exchange from`,
+            detail: `The timed request at log line ${timedLine.index} has no receive line of its own to take an exchange from`,
             logLine: timedLine.index,
         };
     }
@@ -398,6 +403,7 @@ export async function expectTimedFollowUp(
     const deadline = Time.nowUs + wait;
     const remaining = () => Millis(Math.max(1, deadline - Time.nowUs));
     let cursor = timedLine.index + 1;
+    let unattributed: LogLine | undefined;
 
     try {
         for (;;) {
@@ -410,9 +416,13 @@ export async function expectTimedFollowUp(
             // An exchange id is unique only within its session, so a follow-up is this timed request's
             // only when both agree — and a receive line naming no session cannot establish that
             const candidate = receiptBefore(log, block.last.index);
+            if (candidate === undefined) {
+                unattributed ??= block.last;
+                continue;
+            }
             if (
                 receipt.session === undefined ||
-                candidate?.session === undefined ||
+                candidate.session === undefined ||
                 candidate.exchange !== receipt.exchange ||
                 candidate.session !== receipt.session
             ) {
@@ -468,6 +478,17 @@ export async function expectTimedFollowUp(
         }
     } catch (e) {
         if (e instanceof CertLogTimeoutError || e instanceof CertLogClosedError) {
+            if (unattributed !== undefined) {
+                return {
+                    type: "device-log",
+                    verdict: "fail",
+                    pattern,
+                    detail:
+                        `The message at log line ${unattributed.index - 1} has no receive line of its own, so ` +
+                        `nothing attributes it to the timed request's exchange (${e.message})`,
+                    logLine: unattributed.index - 1,
+                };
+            }
             return { type: "device-log", verdict: "fail", pattern, detail: e.message, logLine: timedLine.index };
         }
         throw e;
@@ -480,7 +501,7 @@ export async function expectTimedFollowUp(
  */
 async function waitForLaggingFlag(
     log: LogFollower,
-    flavor: string,
+    flavor: LogFlavor,
     braceIndex: number,
     remaining: Duration,
 ): Promise<boolean | "unverified"> {

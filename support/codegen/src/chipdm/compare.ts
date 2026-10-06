@@ -127,8 +127,8 @@ class Comparison {
                 path,
                 "classification",
                 chip.classification,
-                resolvedClassification(cluster),
-                resolvedClassification(shadow),
+                cluster.effectiveClassification,
+                shadow?.effectiveClassification,
             );
 
             this.#members(path, this.#effectiveChildren(chip), cluster, shadow);
@@ -910,15 +910,6 @@ function resolvedDefault(model?: Model, depth = 0): FieldValue | undefined {
     }
 
     return resolvedDefault(model.shadow, depth + 1);
-}
-
-/** Classification is a property of the cluster family, stated once on the base cluster */
-function resolvedClassification(cluster?: ClusterModel, depth = 0): string | undefined {
-    if (cluster === undefined || depth > 8) {
-        return;
-    }
-
-    return cluster.classification ?? resolvedClassification(cluster.base as ClusterModel | undefined, depth + 1);
 }
 
 /** Only value models resolve aspects through inheritance; others carry the aspect directly */

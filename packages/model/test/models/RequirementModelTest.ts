@@ -8,6 +8,12 @@ import { RequirementElement } from "#elements/index.js";
 import { RequirementModel } from "#models/index.js";
 
 describe("RequirementModel", () => {
+    it("reads an obsolete requirement as obsolete but not disallowed", () => {
+        const model = new RequirementModel({ name: "Legacy", element: "attribute", conformance: "Z" });
+        expect(model.isObsolete).true;
+        expect(model.isDisallowed).false;
+    });
+
     describe("location", () => {
         it("survives a toElement round trip", () => {
             const model = new RequirementModel({

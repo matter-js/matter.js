@@ -4,17 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { BindingServer } from "#behaviors/binding";
 import { BooleanStateBehavior, BooleanStateServer } from "#behaviors/boolean-state";
+import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
 import { GroupKeyManagementBehavior } from "#behaviors/group-key-management";
 import { GroupsServer } from "#behaviors/groups";
 import { IdentifyClient, IdentifyServer } from "#behaviors/identify";
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
+import { CameraControllerDevice } from "#devices/camera-controller";
 import { DoorLockDevice } from "#devices/door-lock";
 import { OnOffLightDevice, OnOffLightRequirements } from "#devices/on-off-light";
-import { OnOffLightSwitchDevice } from "#devices/on-off-light-switch";
+import { OnOffLightSwitchDevice, OnOffLightSwitchRequirements } from "#devices/on-off-light-switch";
 import { RainSensorDevice } from "#devices/rain-sensor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
@@ -22,13 +25,16 @@ import { SupportedClientClusters } from "#endpoint/properties/SupportedClientClu
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
+import { PowerSourceEndpoint } from "#endpoints/power-source";
 import { DeviceTypeConformanceError, DeviceTypeViolationError } from "#node/server/DeviceTypeConformanceError.js";
-import { ImplementationError, MatterAggregateError } from "@matter/general";
+import { DeviceTypeConformanceService } from "#node/server/DeviceTypeConformanceService.js";
+import { Environment, ImplementationError, MatterAggregateError } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
     CommandModel,
     ConditionModel,
+    DeviceClassification,
     DeviceTypeConformance,
     DeviceTypeModel,
     DeviceTypeViolation,
@@ -39,8 +45,8 @@ import {
     RequirementModel,
     RequirementResolver,
 } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { DoorLock } from "@matter/types/clusters/door-lock";
-import { MockServerNode } from "../../node/mock-server-node.js";
 import {
     createBleNode,
     createNode,
@@ -91,7 +97,7 @@ function switchWith(servers: SupportedBehaviors.List, clients: SupportedClientCl
         name: "OnOffLightSwitch",
         deviceType: OnOffLightSwitchDevice.deviceType,
         deviceRevision: OnOffLightSwitchDevice.deviceRevision,
-        behaviors: SupportedBehaviors(...Object.values(OnOffLightSwitchDevice.behaviors), ...servers),
+        behaviors: SupportedBehaviors(OnOffLightSwitchRequirements.server.mandatory.Identify, ...servers),
         clientClusters: SupportedClientClusters(...clients),
     });
 }
@@ -111,6 +117,16 @@ const switchWithoutIdentify = MutableEndpoint({
 
 // Lacks the Binding server that Base requires of a simple device type with an application client
 const switchWithoutBinding = switchWith([], [IdentifyClient, OnOffClient]);
+
+// A simple device type the model does not define, with an application client
+const customSimpleWithOnOffClient = MutableEndpoint({
+    name: "CustomSwitch",
+    deviceType: 0xfff1_0040,
+    deviceRevision: 1,
+    deviceClass: DeviceClassification.Simple,
+    behaviors: SupportedBehaviors(),
+    clientClusters: SupportedClientClusters(OnOffClient),
+});
 
 // Stand-in base for a device type that cannot start without implementations; only its Descriptor names the device type
 const DescribedLight = OnOffLightDevice.with(DescriptorServer);
@@ -500,11 +516,172 @@ describe("DeviceTypeConformance", () => {
 
     describe("Base requirements", () => {
         it("requires Binding of a simple device type with an application client", async () => {
-            const node = await createNode();
+            // The node's model does not define the switch's device type, so the node adds no Binding server
+            const node = await createUnjudgedNode();
             const endpoint = await node.add(switchWithoutBinding, { id: "switch" });
 
             expect(violationsOf(endpoint).map(v => [v.deviceType, v.kind, v.requirement])).deep.equals([
                 ["Base", "missing", "Binding"],
+            ]);
+
+            await node.close();
+        });
+
+        describe("a missing Binding server", () => {
+            it("is added to an endpoint of a simple device type with a mandatory application client", async () => {
+                const node = await createNode();
+                const endpoint = await node.add(switchWithoutBinding, { id: "switch" });
+
+                expect(endpoint.behaviors.supported.binding).equals(BindingServer);
+                expect(violationsOf(endpoint)).deep.equals([]);
+
+                await node.close();
+            });
+
+            it("is not added over a behavior with the Binding server's id", async () => {
+                class NotBinding extends Behavior {
+                    static override readonly id = "binding";
+                }
+                const node = await createNode();
+                const endpoint = await node.add(switchWith([NotBinding], [IdentifyClient, OnOffClient]), {
+                    id: "switch",
+                });
+
+                expect(endpoint.behaviors.supported.binding).equals(NotBinding);
+                expect(violationsOf(endpoint).map(v => [v.deviceType, v.kind, v.requirement])).deep.equals([
+                    ["Base", "missing", "Binding"],
+                ]);
+
+                await node.close();
+            });
+
+            it("is added for an application client the developer adds", async () => {
+                const node = await createNode();
+                const endpoint = await node.add(OnOffLightDevice.withClientClusters(OnOffClient), { id: "light" });
+
+                expect(endpoint.behaviors.supported.binding).equals(BindingServer);
+                expect(violationsOf(endpoint)).deep.equals([]);
+
+                await node.close();
+            });
+
+            it("is not added to an endpoint without an application client", async () => {
+                // Characterization: passes without the Binding injection too
+                const node = await createNode();
+                const endpoint = await node.add(OnOffLightDevice.withClientClusters(IdentifyClient), { id: "light" });
+
+                expect(endpoint.behaviors.supported.binding).undefined;
+
+                await node.close();
+            });
+
+            it("is neither added nor required where every application client is one a binding never directs", async () => {
+                const node = await createNode();
+                const endpoint = await node.add(CameraControllerDevice, { id: "controller" });
+
+                expect(endpoint.behaviors.supported.binding).undefined;
+                expect(violationsOf(endpoint).filter(({ requirement }) => requirement === "Binding")).deep.equals([]);
+
+                await node.close();
+            });
+
+            it("is not added to a utility endpoint with an application client", async () => {
+                // Characterization: passes without the Binding injection too
+                const node = await createNode();
+                const endpoint = await node.add(PowerSourceEndpoint.withClientClusters(OnOffClient), { id: "power" });
+
+                expect(endpoint.behaviors.supported.binding).undefined;
+                expect(violationsOf(endpoint).filter(({ requirement }) => requirement === "Binding")).deep.equals([]);
+
+                await node.close();
+            });
+
+            it("is not added to a node endpoint with an application client", async () => {
+                // Characterization: passes without the Binding injection too
+                const node = await MockServerNode.createOnline(
+                    MockServerNode.RootEndpoint.withClientClusters(OnOffClient),
+                    { device: undefined },
+                );
+
+                expect(node.behaviors.supported.binding).undefined;
+
+                await node.close();
+            });
+
+            it("keeps the Binding server the developer declares", async () => {
+                // Characterization: passes without the Binding injection too
+                class CustomBindingServer extends BindingServer {}
+                const node = await createNode();
+                const endpoint = await node.add(switchWith([CustomBindingServer], [IdentifyClient, OnOffClient]), {
+                    id: "switch",
+                });
+
+                expect(endpoint.behaviors.supported.binding).equals(CustomBindingServer);
+
+                await node.close();
+            });
+
+            it("is not added to an endpoint of a device type the model does not define, which is not judged", async () => {
+                // Characterization: passes without the Binding injection too
+                const node = await createNode();
+                const endpoint = await node.add(customSimpleWithOnOffClient, { id: "custom" });
+
+                expect(endpoint.behaviors.supported.binding).undefined;
+                expect(violationsOf(endpoint)).deep.equals([]);
+
+                await node.close();
+            });
+
+            it("is added where the DeviceTypeList states a simple device type the endpoint type does not", async () => {
+                const node = await createNode();
+                const endpoint = await node.add(customSimpleWithOnOffClient.with(DescriptorServer), {
+                    id: "custom",
+                    descriptor: { deviceTypeList: deviceTypeList("OnOffLightSwitch") },
+                });
+
+                expect(endpoint.behaviors.supported.binding).equals(BindingServer);
+                expect(violationsOf(endpoint).filter(({ requirement }) => requirement === "Binding")).deep.equals([]);
+
+                await node.close();
+            });
+
+            it("is added with validation off", async () => {
+                const environment = new Environment("test");
+                environment.vars.set("endpoint.validation", "off");
+                const node = await MockServerNode.createOnline(undefined, { environment, device: undefined });
+                expect(node.env.get(DeviceTypeConformanceService).mode).equals("off");
+                const endpoint = await node.add(switchWithoutBinding, { id: "switch" });
+
+                expect(endpoint.behaviors.supported.binding).equals(BindingServer);
+
+                await node.close();
+            });
+        });
+
+        it("counts an extended application server for the Server condition", async () => {
+            const model = new MatterModel(
+                {},
+                new DeviceTypeModel(
+                    { name: "Base", classification: "base" },
+                    new ConditionModel({ name: "Server" }),
+                    new RequirementModel({
+                        name: "Marker",
+                        id: 0x7ff3,
+                        element: "serverCluster",
+                        conformance: "Server",
+                    }),
+                ),
+                new DeviceTypeModel({ name: "OnOffLight", id: OnOffLightDevice.deviceType, classification: "simple" }),
+                new ClusterModel({ name: "Marker", id: 0x7ff3 }),
+            );
+            model.finalize();
+            const ExtendedOnOffServer = OnOffServer.with("Lighting").enable({ attributes: { onTime: true } });
+            expect(ExtendedOnOffServer.schema.classification).undefined;
+            const node = await createUnjudgedNode();
+            const endpoint = await node.add(lightWith(ExtendedOnOffServer), { id: "light" });
+
+            expect(violationsOf(endpoint, model).map(v => [v.deviceType, v.kind, v.requirement])).deep.equals([
+                ["Base", "missing", "Marker"],
             ]);
 
             await node.close();
@@ -533,12 +710,21 @@ describe("DeviceTypeConformance", () => {
             await node.close();
         });
 
-        it("requires no TagList of an aggregator's children, which disambiguate by NodeLabel", async () => {
+        it("requires no TagList of an aggregator's bridged devices, which disambiguate by NodeLabel", async () => {
             const node = await createNode();
             const aggregator = await node.add(AggregatorEndpoint, { id: "aggregator" });
-            const bridged = [
-                await aggregator.add(OnOffLightDevice, { id: "first" }),
-                await aggregator.add(OnOffLightDevice, { id: "second" }),
+            const bridged = new Array<Endpoint>();
+            for (const id of ["first", "second"]) {
+                bridged.push(
+                    await aggregator.add(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
+                        id,
+                        bridgedDeviceBasicInformation: { nodeLabel: id },
+                    }),
+                );
+            }
+            const plain = [
+                await aggregator.add(OnOffLightDevice, { id: "third" }),
+                await aggregator.add(OnOffLightDevice, { id: "fourth" }),
             ];
             const parent = await node.add(DescribedLight, { id: "parent" });
             const composed = [
@@ -554,7 +740,7 @@ describe("DeviceTypeConformance", () => {
                 expect(serverPass().isDuplicate(endpoint)).true;
                 expect(tagList(endpoint)).deep.equals([]);
             }
-            for (const endpoint of composed) {
+            for (const endpoint of [...plain, ...composed]) {
                 expect(tagList(endpoint)).deep.equals(["Base"]);
             }
 

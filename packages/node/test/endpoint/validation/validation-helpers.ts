@@ -26,10 +26,10 @@ import {
     Transport,
 } from "@matter/general";
 import { DeviceTypeConformance, DeviceTypeModel, DeviceTypeValidationPass, Matter, MatterModel } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { Ble, BlePeripheralInterface, Scanner } from "@matter/protocol";
 import { DeviceTypeId } from "@matter/types";
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 const { Groups, OnOff, ScenesManagement } = OnOffLightRequirements.server.mandatory;
 

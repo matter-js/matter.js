@@ -14,6 +14,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import { Diagnostic, LogDestination, LogFormat, Logger, MatterFlowError, Observable } from "@matter/general";
 import { Specification } from "@matter/model";
+import { interaction, MockServerNode } from "@matter/node/testing";
 import {
     BaseDataReport,
     DataReportPayload,
@@ -63,8 +64,6 @@ import { AdministratorCommissioning } from "@matter/types/clusters/administrator
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { interaction } from "../../node/node-helpers.js";
 import { createDummyMessageExchange } from "./InteractionTestUtils.js";
 
 const TlvStartUpEvent = TlvOfModel(BasicInformation.events.startUp);
@@ -1148,6 +1147,7 @@ namespace EventedOnOffServer {
 describe("InteractionProtocol", () => {
     let interactionProtocol: InteractionServer;
     let node: MockServerNode;
+    const createdNodes = new Array<MockServerNode>();
 
     async function createNode(maxPathsPerInvoke = 100) {
         node = await MockServerNode.createOnline({
@@ -1176,11 +1176,18 @@ describe("InteractionProtocol", () => {
             device: undefined,
         });
 
+        createdNodes.push(node);
         interactionProtocol = node.env.get(InteractionServer);
     }
 
     beforeEach(async () => {
         await createNode();
+    });
+
+    afterEach(async () => {
+        for (const created of createdNodes.splice(0)) {
+            await created.close();
+        }
     });
 
     describe("handleReadRequest", () => {

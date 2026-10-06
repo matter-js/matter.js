@@ -479,6 +479,14 @@ export declare namespace IcdManagement {
         monitoredSubject: SubjectId;
 
         /**
+         * This field is deprecated. Use the RegisterClient command to set the ICDToken.
+         *
+         * @see {@link MatterSpecification.v161.Core} § 9.16.5.3.3
+         * @deprecated
+         */
+        key?: Bytes;
+
+        /**
          * This field shall indicate the client's type to inform the ICD of the availability for communication of the
          * client.
          *

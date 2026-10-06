@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { asJson, Bytes } from "@matter/general";
 import { DataModelPath } from "@matter/model";
@@ -32,13 +31,13 @@ export class Envelope<T = unknown> {
     /**
      * Validate against the schema.  Casts to appropriate types if necessary.
      */
-    validate(path?: DataModelPath) {
+    validate(session: ValueSupervisor.Session, path?: DataModelPath) {
         if (!path) {
             path = new DataModelPath(this.#supervisor.schema.path);
         }
 
         this.#js = this.#supervisor.cast(this.#js) as T;
-        this.#supervisor.validate?.(this.js, LocalActorContext.ReadOnly, { path });
+        this.#supervisor.validate?.(this.js, session, { path });
     }
 
     /**

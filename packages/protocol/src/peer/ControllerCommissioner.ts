@@ -17,7 +17,6 @@ import {
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
 } from "#peer/ControllerCommissioningFlow.js";
-import { SessionClosedError } from "#protocol/errors.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
@@ -120,6 +119,7 @@ export const DEFAULT_CASE_CONNECTION_TIMEOUT = Seconds(255);
  * Configuration for commissioning a previously discovered node.
  */
 export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
+    /** Addresses of the one node to commission, which are raced against each other. */
     addresses: ServerAddress[];
     discoveryData?: DiscoveryData;
 
@@ -256,35 +256,47 @@ export class ControllerCommissioner {
             passcode,
             retryFailureAsPeerCommunication: "Could not connect to device",
             abort,
+            // This method ends the PASE session on every path
+            suppressPeerLoss: true,
         });
 
-        // Claim the operational identity only after PASE; undefined means another candidate already won the race.
-        // We own the ephemeral session until #commissionConnectedNode takes over and force-closes it, so on any
-        // early exit here (lost race, or a claim error such as a node ID conflict) close it ourselves.
-        let assignedNodeId = nodeId;
-        if (claimNodeIdAfterPase !== undefined) {
-            try {
+        try {
+            // Claim the operational identity only after PASE; undefined means another candidate already won the race
+            let assignedNodeId = nodeId;
+            if (claimNodeIdAfterPase !== undefined) {
                 assignedNodeId = await claimNodeIdAfterPase();
-            } catch (error) {
-                // Close the ephemeral session but let the original claim error surface, not a close failure.
-                await session
-                    .initiateForceClose({ cause: new CommissioningError("Claiming the node ID failed after PASE") })
-                    .catch(closeError =>
-                        logger.info("Error closing PASE session after failed node ID claim:", closeError),
+                if (assignedNodeId === undefined) {
+                    throw new CommissioningError(
+                        "Commissioning cancelled: another device was already successfully connected",
                     );
-                throw error;
+                }
             }
-            if (assignedNodeId === undefined) {
-                await session.initiateForceClose({
-                    cause: new CommissioningError("PASE established but other device connected faster"),
-                });
-                throw new CommissioningError(
-                    "Commissioning cancelled: another device was already successfully connected",
-                );
-            }
-        }
 
-        return await this.#commissionConnectedNode(session, { ...options, nodeId: assignedNodeId }, discoveryData);
+            const result = await this.#commissionConnectedNode(
+                session,
+                { ...options, nodeId: assignedNodeId },
+                discoveryData,
+            );
+            await this.#closePaseSession(
+                session,
+                new CommissioningTransitionError("Commissioning over PASE completed"),
+            );
+            return result;
+        } catch (error) {
+            await this.#closePaseSession(session, asError(error));
+            throw error;
+        }
+    }
+
+    /**
+     * Ends the PASE session without masking the error that ended commissioning.
+     */
+    async #closePaseSession(session: NodeSession, cause: Error) {
+        try {
+            await session.initiateForceClose({ cause });
+        } catch (error) {
+            logger.warn("Error closing PASE session", error);
+        }
     }
 
     /**
@@ -345,6 +357,7 @@ export class ControllerCommissioner {
         passcode: number;
         retryFailureAsPeerCommunication?: string;
         abort?: AbortSignal;
+        suppressPeerLoss?: boolean;
     }) {
         try {
             return await CommissioningConnection({
@@ -352,7 +365,13 @@ export class ControllerCommissioner {
                 timeout: options.timeout,
                 externalAbort: options.abort,
                 establishSession: (address, device, signal) =>
-                    this.#establishEphemeralNodeSession(address, options.passcode, device, signal),
+                    this.#establishEphemeralNodeSession(
+                        address,
+                        options.passcode,
+                        device,
+                        signal,
+                        options.suppressPeerLoss,
+                    ),
             });
         } catch (error) {
             if (
@@ -375,6 +394,7 @@ export class ControllerCommissioner {
         passcode: number,
         device?: DiscoveryData,
         signal?: AbortSignal,
+        suppressPeerLoss?: boolean,
     ): Promise<NodeSession> {
         let paseChannel: Channel<Bytes>;
         if (device !== undefined) {
@@ -430,7 +450,7 @@ export class ControllerCommissioner {
                 paseExchange,
                 paseChannel,
                 passcode,
-                { abort: signal },
+                { abort: signal, suppressPeerLoss },
             );
             await unsecuredSession.detachChannel()?.release();
             return caseSession;
@@ -462,7 +482,15 @@ export class ControllerCommissioner {
         }
     }
 
-    #validateCommissioningOptions(options: Partial<ControllerCommissioningFlowOptions>) {
+    #validateCommissioningOptions(options: CommissioningOptions) {
+        // Nothing else bounds the post-PASE flow, and the device's failsafe expires regardless, so an unbounded budget
+        // could only wait for a commissioning the device has already rolled back.
+        const { caseConnectionTimeout } = options;
+        if (caseConnectionTimeout !== undefined && !Number.isFinite(caseConnectionTimeout)) {
+            throw new ImplementationError(
+                `caseConnectionTimeout must be finite, not ${Duration.format(caseConnectionTimeout)}`,
+            );
+        }
         if (options.threadNetwork !== undefined) {
             const { operationalDataset } = options.threadNetwork;
             if (operationalDataset.length === 0) {
@@ -536,14 +564,6 @@ export class ControllerCommissioner {
             caseConnectionTimeout = DEFAULT_CASE_CONNECTION_TIMEOUT,
         } = options;
 
-        // Nothing else bounds the post-PASE flow, and the device's failsafe expires regardless, so an unbounded budget
-        // could only wait for a commissioning the device has already rolled back.
-        if (!Number.isFinite(caseConnectionTimeout)) {
-            throw new ImplementationError(
-                `caseConnectionTimeout must be finite, not ${Duration.format(caseConnectionTimeout)}`,
-            );
-        }
-
         const commissioningOptions = {
             ...options,
             regulatoryLocation: options.regulatoryLocation ?? GeneralCommissioning.RegulatoryLocationType.Outdoor,
@@ -597,12 +617,7 @@ export class ControllerCommissioner {
                         .initiateForceClose({
                             cause: new BleChannelClosedError(`BLE transport closed on ${ephemeralSession.via}`),
                         })
-                        .catch(error => {
-                            // Already-closed races with our force-close — the session shut down
-                            // via another path, no action needed.  Anything else is a real bug.
-                            if (error instanceof SessionClosedError) return;
-                            logger.warn("Error while force-closing PASE session on BLE close", error);
-                        });
+                        .catch(error => logger.warn("Error while force-closing PASE session on BLE close", error));
                 });
             }
         }
@@ -633,11 +648,12 @@ export class ControllerCommissioner {
                         joining of operational network at Commissionee).
                      */
                     // We've reconnected using CASE so close the ephemeral node ID session
-                    await ephemeralSession.initiateForceClose({
-                        cause: new CommissioningTransitionError(
+                    await this.#closePaseSession(
+                        ephemeralSession,
+                        new CommissioningTransitionError(
                             "Commissioning session closed because node has now joined fabric",
                         ),
-                    });
+                    );
                 }
 
                 if (performCaseCommissioning !== undefined) {
@@ -675,7 +691,7 @@ export class ControllerCommissioner {
         let fabricIndexOnPeer: FabricIndex | undefined;
         try {
             await commissioner.executeCommissioning();
-            // The device closed its commissioning window here, and the cleanup below may still fail
+            // The device's commissioning window is closed now, whatever fails after this point
             this.#forgetCommissionedDevice(options.addresses);
             const captured = commissioner.fabricIndexOnPeer;
             // Treat the spec-invalid NO_FABRIC (0) as "unknown" so callers don't have to filter it again.
@@ -686,17 +702,6 @@ export class ControllerCommissioner {
             throw error;
         } finally {
             commissioner.close();
-            /*
-                In concurrent connection commissioning flow the commissioning channel SHALL terminate after
-                successful step 15 (CommissioningComplete command invocation).
-            */
-            // If the ephemeral session is not already closed, we are in concurrent connection commissioning flow.
-            // Close it now
-            await ephemeralSession.initiateForceClose({
-                cause: new CommissioningTransitionError(
-                    "Commissioning session closed because node has now joined fabric",
-                ),
-            });
         }
 
         return { address, fabricIndexOnPeer };

@@ -158,6 +158,8 @@ import { LineQueue, LogFollower } from "@matter/testing";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { OTA_TEST_PAYLOAD_SIZE, otaTestPayload, otaTestSoftwareVersionString } from "../OtaTestIdentity.js";
 import { certClusterModelFor, findCertCluster } from "./custom-clusters.js";
+import type { GatedObservation } from "./event-read-gate.js";
+import { EventReadGate } from "./event-read-gate.js";
 import { OriginDestination, registerLogOrigin } from "./log-origins.js";
 import { refusalOf, singleQrPayload } from "./onboarding-payload.js";
 import { timedInteractionTimeoutOf } from "./timed-interaction.js";
@@ -592,17 +594,22 @@ class RecordingOtaProviderServer extends OtaSoftwareUpdateProviderServer {
                 const peerAddress = this.#commandPeerAddress;
                 await this.agent.get(SoftwareUpdateManager).removeConsent(peerAddress, request.newVersion);
             }
-            response = await super.applyUpdateRequest(request);
-
-            // Only over the answer the script named, and only where the provider allowed the apply: the
-            // delay tells the requestor when it may apply, so laying it over a Discontinue would name a
-            // time for something that is not going to happen.
-            if (
-                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed &&
-                scripted?.delayedActionTime !== undefined &&
-                response.action === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
-            ) {
-                response = { ...response, delayedActionTime: scripted.delayedActionTime };
+            // Only for the answer the script named: the base provider sends its delay only where it allows the apply,
+            // so a Discontinue never names a time for something that is not going to happen
+            const scriptedDelay =
+                scriptedAction === OtaSoftwareUpdateProvider.ApplyUpdateAction.Proceed
+                    ? scripted?.delayedActionTime
+                    : undefined;
+            const configuredDelay = this.state.applyDelay;
+            if (scriptedDelay !== undefined) {
+                this.state.applyDelay = Seconds(scriptedDelay);
+            }
+            try {
+                response = await super.applyUpdateRequest(request);
+            } finally {
+                if (scriptedDelay !== undefined) {
+                    this.state.applyDelay = configuredDelay;
+                }
             }
         }
 
@@ -1253,6 +1260,7 @@ class InProcessCertNodeApi implements CertNodeApi {
 
     /** The adapter's own collection, because that is where an observation's lifetime ends. */
     readonly #eventObservers: ObserverGroup[];
+    readonly #eventReads: EventReadGate<ClientNode>;
 
     constructor(
         adapterId: string,
@@ -1261,6 +1269,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         ref: CertNodeRef,
         icdClients: Map<NodeId, InProcessIcdClient>,
         eventObservers: ObserverGroup[],
+        eventReads: EventReadGate<ClientNode>,
     ) {
         this.#adapterId = adapterId;
         this.#controller = controller;
@@ -1268,6 +1277,7 @@ class InProcessCertNodeApi implements CertNodeApi {
         this.#nodeId = NodeId(ref);
         this.#icdClients = icdClients;
         this.#eventObservers = eventObservers;
+        this.#eventReads = eventReads;
     }
 
     icdClient(): CertIcdClientApi {
@@ -1409,7 +1419,11 @@ class InProcessCertNodeApi implements CertNodeApi {
             }
             if (isConcretePath(path)) {
                 if (statuses.length) {
-                    throw new StatusResponseError(`readAttribute ${JSON.stringify(path)} failed`, statuses[0].status);
+                    throw new StatusResponseError(
+                        `readAttribute ${JSON.stringify(path)} failed`,
+                        statuses[0].status,
+                        statuses[0].clusterStatus,
+                    );
                 }
                 if (values.length === 0) {
                     throw new InternalError(`readAttribute ${JSON.stringify(path)} returned no data`);
@@ -2074,15 +2088,18 @@ class InProcessCertNodeApi implements CertNodeApi {
                 eventFilters: eventFiltersFor(options),
                 fabricFilter: options?.fabricFiltered,
             });
-            for await (const chunk of this.#peer.interaction.read(request)) {
-                for await (const report of chunk) {
-                    if (report.kind === "event-value") {
-                        values.push(report);
-                    } else if (report.kind === "event-status") {
-                        statuses.push(report);
+            const peer = this.#peer;
+            await this.#eventReads.reading(peer, values, async () => {
+                for await (const chunk of peer.interaction.read(request)) {
+                    for await (const report of chunk) {
+                        if (report.kind === "event-value") {
+                            values.push(report);
+                        } else if (report.kind === "event-status") {
+                            statuses.push(report);
+                        }
                     }
                 }
-            }
+            });
             assertNoConcreteEventStatus(paths, statuses, "readEvents");
             return toWireEvents(values);
         });
@@ -2167,9 +2184,8 @@ class InProcessCertNodeApi implements CertNodeApi {
             // reach `onUpdate` as well, and which those are is not known until the read returns.
             let pending: EventReadEntry[] | undefined = [];
 
-            // A read re-broadcasts the events it answers with, so a later read over any of these paths
-            // would otherwise replay history as though it were live. An observation ends with the peer
-            // it watches, so within one an event number identifies an event.
+            // A peer keeps numbering its events across a restart, so within one observation an event
+            // number identifies an event.
             const delivered = new Set<bigint>();
 
             const report = (entry: EventReadEntry) => {
@@ -2190,6 +2206,13 @@ class InProcessCertNodeApi implements CertNodeApi {
                 }
             };
 
+            const gated: GatedObservation<ClientNode> = {
+                peer,
+                held: new Array<EventReadEntry>(),
+                release: entries => entries.forEach(report),
+            };
+            const detach = this.#eventReads.attach(gated);
+
             // Its own group, so a seed read that rejects takes the observer with it rather than leaving
             // it buffering reports for a call that never returned
             const observers = new ObserverGroup();
@@ -2208,7 +2231,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 if (!matches || cluster === undefined) {
                     return;
                 }
-                report({
+                this.#eventReads.admit(gated, {
                     endpoint,
                     cluster,
                     event: change.event.id,
@@ -2222,6 +2245,7 @@ class InProcessCertNodeApi implements CertNodeApi {
                 seed = await this.readEvents(paths);
             } catch (e) {
                 observers.close();
+                detach();
                 throw e;
             }
             this.#eventObservers.push(observers);
@@ -2579,6 +2603,9 @@ export class InProcessControllerAdapter implements ControllerAdapter {
      */
     readonly #eventObservers = new Array<ObserverGroup>();
 
+    /** Shared by every `node()` handle for the same reason as {@link #eventObservers}. */
+    readonly #eventReads = new EventReadGate<ClientNode>();
+
     constructor(id: string, options?: ControllerAdapterOptions) {
         if (adapterStreams.has(id)) {
             throw new InternalError(
@@ -2678,6 +2705,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
                     observers.close();
                 }
                 this.#eventObservers.length = 0;
+                this.#eventReads.close();
                 this.#webRtcRequestor?.close();
                 await this.#controller?.close();
                 await this.#attestation?.close();
@@ -2770,6 +2798,7 @@ export class InProcessControllerAdapter implements ControllerAdapter {
             ref,
             this.#icdClients,
             this.#eventObservers,
+            this.#eventReads,
         );
     }
 

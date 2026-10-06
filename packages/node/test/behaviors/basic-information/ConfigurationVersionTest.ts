@@ -8,8 +8,8 @@ import { BasicInformationServer } from "#behaviors/basic-information";
 import { BridgedDeviceBasicInformationServer } from "#behaviors/bridged-device-basic-information";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { MockServerNode } from "@matter/node/testing";
 import { BridgedLightDevice, createBridge } from "../../endpoints/bridge-helpers.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 // A bridged device that enables the optional ConfigurationVersion attribute by seeding an initial value.
 const VersionedBridgedLightDevice = OnOffLightDevice.with(
@@ -22,7 +22,7 @@ function configVersion(node: MockServerNode) {
 
 describe("ConfigurationVersion", () => {
     it("runs the change callback and increments afterwards", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const before = configVersion(node);
 
         let ran = false;
@@ -37,7 +37,7 @@ describe("ConfigurationVersion", () => {
     });
 
     it("rejects a decrease of configurationVersion", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         await node.act(agent => agent.get(BasicInformationServer).increaseConfigurationVersion());
 
         let error: Error | undefined;

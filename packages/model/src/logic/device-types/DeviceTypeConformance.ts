@@ -91,6 +91,66 @@ export namespace DeviceTypeConformance {
     }
 
     /**
+     * The server cluster requirements of Base that {@link endpoint} violates by lacking the cluster, as {@link check}
+     * reports them `missing`, judged under the same conditions.
+     *
+     * Reads the endpoint's device types, clusters and conditions but not what its servers implement, so it judges an
+     * endpoint whose behaviors are not initialized when the facts of {@link pass} count the endpoint present. Reads
+     * other endpoints than the endpoint and its ancestors only for a requirement whose conformance names a condition
+     * other endpoints may decide, so judging each endpoint of a node scope as it is added stays linear.
+     *
+     * @see {@link MatterSpecification.v161.Device} § 1.1.7
+     */
+    export function missingBaseServersOf<E>(endpoint: E, pass: DeviceTypeValidationPass<E>): RequirementModel[] {
+        const facts = ResolvedEndpoint.of(endpoint, pass);
+        if (!facts.deviceTypes.length) {
+            return [];
+        }
+
+        const scope = ConditionAssertions.nodeEndpointOf(endpoint, pass) ?? treeRootOf(endpoint, pass);
+        const own = ConditionAssertions.isInScope(endpoint, scope, pass)
+            ? ConditionAssertions.ownConditionsOf(endpoint, pass)
+            : undefined;
+        let all: Set<string> | undefined;
+        const lookups = lookupsFor(pass.model);
+        const waived = baseWaiversOf(facts, pass);
+        const missing = new Array<RequirementModel>();
+
+        for (const deviceType of lookups.baseDeviceTypes) {
+            for (const requirement of lookups.requirementsOf(deviceType)) {
+                if (requirement.element !== RequirementElement.ElementType.ServerCluster) {
+                    continue;
+                }
+
+                let conditions = own;
+                if (
+                    conditions === undefined ||
+                    [...lookups.conformanceNamesOf(requirement)].some(name =>
+                        ConditionAssertions.isUndecided(name, pass),
+                    )
+                ) {
+                    all ??= ConditionAssertions.collect(scope, pass).conditionsOf(endpoint);
+                    conditions = all;
+                }
+
+                const context = {
+                    violations: new Array<DeviceTypeViolation>(),
+                    facts,
+                    deviceType,
+                    conditions,
+                    pass,
+                    waived,
+                };
+                if (judgeCluster(context, requirement, "server")?.departure === "missing") {
+                    missing.push(requirement);
+                }
+            }
+        }
+
+        return missing;
+    }
+
+    /**
      * The server clusters of {@link endpoint} and its descendants that a device type of an endpoint above them in the
      * same node scope declares a singleton, as {@link check} reports them, by endpoint in tree order. An endpoint with none
      * is absent.
@@ -244,29 +304,14 @@ function checkClusters<E>(context: Context<E>, requirements: readonly Requiremen
 }
 
 function checkCluster<E>(context: Context<E>, requirement: RequirementModel, side: "server" | "client") {
+    const judged = judgeCluster(context, requirement, side);
+    if (judged === undefined || judged.departure !== undefined || judged.name === undefined || side === "client") {
+        return;
+    }
+
     const { pass } = context;
     const lookups = lookupsFor(pass.model);
-    const cluster = lookups.clusterOf(requirement);
-    if (cluster?.id === undefined) {
-        return;
-    }
-
-    const name = context.facts.clusterName(side, cluster.id);
-    const path = side === "client" ? `client:${cluster.name}` : cluster.name;
-    const applicability = applicabilityOf(requirement, context.conditions, pass);
-    const departed = judge(
-        context,
-        applicability,
-        name !== undefined,
-        cluster,
-        path,
-        `${side} cluster ${cluster.name}`,
-    );
-
-    if (departed || name === undefined || side === "client") {
-        return;
-    }
-
+    const { cluster, name, path } = judged;
     const features = context.facts.features(name);
     const trueNames = new Set([...context.conditions, ...features]);
 
@@ -307,8 +352,36 @@ function checkCluster<E>(context: Context<E>, requirement: RequirementModel, sid
 }
 
 /**
+ * Judge whether the endpoint of the context carries the cluster {@link requirement} names on {@link side}. Undefined
+ * when the cluster does not resolve in the model.
+ *
+ * @returns the cluster, the name the endpoint's cluster goes by if present, the requirement path and the kind of the
+ * violation recorded, if any
+ */
+function judgeCluster<E>(context: Context<E>, requirement: RequirementModel, side: "server" | "client") {
+    const { pass } = context;
+    const cluster = lookupsFor(pass.model).clusterOf(requirement);
+    if (cluster?.id === undefined) {
+        return;
+    }
+
+    const name = context.facts.clusterName(side, cluster.id);
+    const path = side === "client" ? `client:${cluster.name}` : cluster.name;
+    const departure = judge(
+        context,
+        applicabilityOf(requirement, context.conditions, pass),
+        name !== undefined,
+        cluster,
+        path,
+        `${side} cluster ${cluster.name}`,
+    );
+
+    return { cluster, name, path, departure };
+}
+
+/**
  * Record the violation {@link applicability} and {@link present} amount to for {@link definition}, the model of the
- * required cluster or element, and answer whether there is one.
+ * required cluster or element, and answer its kind, undefined when there is none.
  */
 function judge<E>(
     { violations, deviceType, waived }: Context<E>,
@@ -317,9 +390,9 @@ function judge<E>(
     definition: Model,
     requirement: string,
     subject: string,
-) {
+): DeviceTypeViolation.Kind | undefined {
     if (waived.has(requirement)) {
-        return false;
+        return;
     }
 
     let kind: DeviceTypeViolation.Kind;
@@ -336,11 +409,11 @@ function judge<E>(
         kind = "disallowed";
         detail = `Disallowed ${subject} is present`;
     } else {
-        return false;
+        return;
     }
 
     violations.push({ deviceType: deviceType.name, requirement, kind, detail });
-    return true;
+    return kind;
 }
 
 /**
@@ -1044,15 +1117,20 @@ const AGGREGATED: ReadonlySet<string> = new Set(["Descriptor.TAGLIST"]);
  * The paths of Base requirements not judged on the endpoint of {@link facts}.
  *
  * Base requires a TagList of an endpoint that duplicates a sibling unless its device types define another way to
- * disambiguate. Aggregator defines one for its children, the bridged devices' NodeLabel, which the model cannot express.
+ * disambiguate. Aggregator defines one for its children that represent bridged devices, their NodeLabel, which the
+ * model cannot express.
  *
  * @see {@link MatterSpecification.v161.Core} § 9.2.9
  * @see {@link MatterSpecification.v161.Device} § 11.2.6
  */
 function baseWaiversOf<E>(facts: ResolvedEndpoint<E>, pass: DeviceTypeValidationPass<E>) {
     const owner = pass.facts.parentOf(facts.endpoint);
-    const aggregator = lookupsFor(pass.model).aggregator;
-    if (owner === undefined || aggregator === undefined) {
+    const { aggregator, bridgedNode } = lookupsFor(pass.model);
+    if (owner === undefined || aggregator === undefined || bridgedNode === undefined) {
+        return NONE;
+    }
+
+    if (!facts.deviceTypes.some(({ id }) => id === bridgedNode.id)) {
         return NONE;
     }
 

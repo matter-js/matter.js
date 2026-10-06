@@ -7,10 +7,10 @@
 import { HepaFilterMonitoringServer } from "#behaviors/hepa-filter-monitoring";
 import { AirPurifierDevice } from "#devices/air-purifier";
 import { MatterAggregateError } from "@matter/general";
+import { MockServerNode } from "@matter/node/testing";
 import { ConstraintError } from "@matter/protocol";
 import { FanControl } from "@matter/types/clusters/fan-control";
 import { ResourceMonitoring } from "@matter/types/clusters/resource-monitoring";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("HepaFilterMonitoringServer", () => {
     it("instantiates", async () => {
@@ -29,7 +29,7 @@ describe("HepaFilterMonitoringServer", () => {
     });
 
     it("instantiates with feature", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const Filter = HepaFilterMonitoringServer.with("Condition");
         const PurifierDevice = AirPurifierDevice.with(Filter);
         const purifier = await node.add(PurifierDevice, {
@@ -45,7 +45,7 @@ describe("HepaFilterMonitoringServer", () => {
     });
 
     it("properly types state", async () => {
-        const node = await MockServerNode.create();
+        await using node = await MockServerNode.create();
         const Filter = HepaFilterMonitoringServer.with("Condition");
         const PurifierDevice = AirPurifierDevice.with(Filter);
         const purifier = await node.add(PurifierDevice, {

@@ -906,8 +906,8 @@ export interface CertNodeApi {
      * A concrete path the device answers with a status **rejects**: the step asked to be notified about
      * that attribute and never will be, so resolving would only defer the failure until the step's own
      * report budget ran out. A wildcard path is different — the subscription exists, and a per-path
-     * status is one item of its expansion rather than the subscription failing — so those statuses are
-     * reported through the entries and do not reject.
+     * status is one item of its expansion rather than the subscription failing — so those statuses do
+     * not reject; the entries carry only the values.
      *
      * Every adapter must agree on this: a step that fails under one controller and passes under another
      * is supposed to mean an interop finding, so a difference between adapters manufactures that signal
@@ -942,9 +942,10 @@ export interface CertNodeApi {
      * A subscription of its own is a second session, and a controller drops every session to a peer the
      * moment that peer reports `ShutDown` — so what the peer is still flushing arrives on a session its
      * controller has forgotten and is discarded. Observing through the sustained subscription is what
-     * lets a case still see what a peer reports on its way down, which is as far as this goes: an
-     * observation does not span the restart that follows, because the subscription resubscribes with a
-     * minimum event number the peer's own renumbering falls below.
+     * lets a case still see what a peer reports on its way down. An observation spans the restart that
+     * follows for a peer that keeps numbering its events across it, as the specification requires, but
+     * reports nothing until the controller's subscription is live again: the controller resubscribes, or
+     * the peer resumes the subscription itself.
      *
      * A case whose subject is the subscribe request itself uses {@link subscribeEvents} instead.
      *
@@ -955,6 +956,8 @@ export interface CertNodeApi {
      * while the later ones reach the controller's own client first, which drops an event it cannot name
      * in its model or whose cluster the endpoint does not carry. A path the model does not describe can
      * therefore appear in the answer and never again — {@link subscribeEvents} reports such a path.
+     *
+     * @see {@link MatterSpecification.v161.Core} § 7.14.1.1
      */
     observeEvents(paths: EventPathSpec[], opts: ObserveEventOptions): Promise<EventReadEntry[]>;
 
@@ -1070,10 +1073,10 @@ export interface CertNodeApi {
  * request chip-tool has no single command for.
  *
  * Raise this before the operation has any observable effect (a commission, a write, a recorded
- * check). The step runner enforces that: a refusal reaching it before the step recorded anything is
- * a `skipped` step, counted as a coverage gap in the run summary; a refusal arriving after the step
- * recorded evidence fails and aborts the run, because the step did act and no later step can rest on
- * a device state the bundle cannot describe.
+ * check). The step runner enforces that: a refusal reaching it before the step recorded a check or made
+ * a controller call that may change the device is a `skipped` step, counted as a coverage gap in the run
+ * summary; a refusal arriving after either fails and aborts the run, because the step did act and no
+ * later step can rest on a device state the bundle cannot describe.
  *
  * A controller that cannot do something at all should say so in its own PICS
  * (see {@link controllerPicsOverridesFor}), which gates the step before it runs and keeps the rest of

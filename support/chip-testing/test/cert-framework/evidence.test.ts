@@ -94,6 +94,19 @@ describe("deviceRecordsFor", () => {
         expect(chip[0].appArgs).equal(undefined);
     });
 
+    it("names no keyed arguments for a flavor of neither family", async () => {
+        const perImplementation = { th_server: { chip: ["--trace_decode", "1"], matterjs: ["--specIntervals"] } };
+
+        const records = await deviceRecordsFor(
+            "python-wrapped",
+            { th_server: "/opt/th/chip-th-server" },
+            { th_server: {} },
+            perImplementation,
+        );
+
+        expect(records[0].appArgs).equal(undefined);
+    });
+
     // The harness adds what an app cannot start without — a chip ota-provider dies with no image
     // argument — so a bundle naming only the declaration would omit an argument that changed the
     // app's behaviour

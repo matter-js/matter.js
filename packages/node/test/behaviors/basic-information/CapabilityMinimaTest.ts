@@ -5,7 +5,7 @@
  */
 
 import { BasicInformationServer } from "#behaviors/basic-information";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 function capabilityMinima(node: MockServerNode) {
     return node.stateOf(BasicInformationServer).capabilityMinima;
@@ -13,7 +13,7 @@ function capabilityMinima(node: MockServerNode) {
 
 describe("CapabilityMinima", () => {
     it("seeds the four 1.6 fields with the advertised defaults", async () => {
-        const node = await MockServerNode.createOnline();
+        await using node = await MockServerNode.createOnline();
         const cm = capabilityMinima(node);
 
         expect(cm.readPathsSupported).equals(20);
@@ -23,7 +23,7 @@ describe("CapabilityMinima", () => {
     });
 
     it("preserves caller-provided values over the derived defaults", async () => {
-        const node = await MockServerNode.createOnline({
+        await using node = await MockServerNode.createOnline({
             type: MockServerNode.RootEndpoint,
             basicInformation: {
                 capabilityMinima: {

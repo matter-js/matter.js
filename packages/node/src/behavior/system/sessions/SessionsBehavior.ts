@@ -41,8 +41,7 @@ export class SessionsBehavior extends Behavior {
             peerNodeId: session.peerNodeId,
             fabric: session.fabric?.externalInformation,
             isPeerActive: session.isPeerActive,
-            lastInteractionTimestamp: session.timestamp,
-            lastActiveTimestamp: session.activeTimestamp,
+            ...session.wallClockActivity,
             numberOfActiveSubscriptions: session.subscriptions.size,
         };
     }

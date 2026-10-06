@@ -7,13 +7,13 @@
 import { PowerSourceServer } from "#behaviors/power-source";
 import { HumiditySensorDevice } from "#devices/humidity-sensor";
 import { PowerSourceDt } from "@matter/model";
+import { MockServerNode } from "@matter/node/testing";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
-import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("PowerSourceServer", () => {
     it("successfully augments descriptor", async () => {
-        const node = new MockServerNode();
+        await using node = new MockServerNode();
         const sensor = new MockEndpoint(
             HumiditySensorDevice.with(
                 PowerSourceServer.with(PowerSource.Feature.Battery, PowerSource.Feature.Replaceable).set({

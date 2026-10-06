@@ -49,7 +49,8 @@ export interface BleScannerClient {
      * A record only states that a device went silent when its age is measured in this time.
      *
      * A client that reports a peripheral once per scan, or that cannot tell how long its radio scanned, omits this.
-     * Its records then remain candidates however old they are.
+     * Its records then remain candidates however old they are, and only an address the device rotated away from is
+     * dropped after elapsed time.
      */
     readonly listeningTime?: Duration;
 }
@@ -82,9 +83,9 @@ type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
 };
 
 /**
- * A record not refreshed within this much time no longer describes a device we can commission: it is dropped when
- * matching service data arrives from a new address, and, measured in the client's listening time, it is no longer a
- * candidate.
+ * A record silent for longer than this is dropped once its service data arrives from another address, and is no
+ * longer a candidate if the client reports listening time. Silence is measured in that listening time, otherwise in
+ * elapsed time.
  */
 const STALE_ENTRY_AGE = Seconds(60);
 
@@ -176,14 +177,25 @@ export class BleScanner implements Scanner {
     }
 
     /**
-     * Whether a record states that the device went silent. Only the client knows how long it listened, so a client
-     * that reports no listening time keeps every record it discovered.
+     * How long the record's device has not advertised. Listening time does not pass while nothing listens, so a record
+     * does not age then; a client that reports none leaves only elapsed time.
+     */
+    #silenceOf(record: StoredDiscoveredBleDevice, listeningTime = this.#client.listeningTime): Duration {
+        if (listeningTime !== undefined && record.seenAt !== undefined) {
+            return Millis(listeningTime - record.seenAt);
+        }
+        return Timestamp.delta(record.lastSeen, Time.nowUs);
+    }
+
+    /**
+     * Whether a record states that the device went silent. Elapsed time cannot tell silence from nobody listening, so
+     * only a client that reports listening time lets its records go stale.
      */
     #isStale(record: StoredDiscoveredBleDevice, listeningTime?: Duration) {
         if (listeningTime === undefined || record.seenAt === undefined) {
             return false;
         }
-        return listeningTime - record.seenAt > STALE_ENTRY_AGE;
+        return this.#silenceOf(record, listeningTime) > STALE_ENTRY_AGE;
     }
 
     /**
@@ -295,10 +307,10 @@ export class BleScanner implements Scanner {
             for (const [otherAddress, otherEntry] of this.#discoveredMatterDevices) {
                 if (otherAddress === address) continue;
                 if (otherEntry.serviceDataHex !== serviceDataHex) continue;
-                const age = Timestamp.delta(otherEntry.lastSeen, now);
-                if (age <= STALE_ENTRY_AGE) continue;
+                const silence = this.#silenceOf(otherEntry);
+                if (silence <= STALE_ENTRY_AGE) continue;
                 logger.debug(
-                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and prior entry is ${Duration.format(age)} old`,
+                    `Dropping stale BLE entry ${otherAddress} — matching service data arrived from ${address} and prior entry is silent for ${Duration.format(silence)}`,
                 );
                 this.#discoveredMatterDevices.delete(otherAddress);
             }

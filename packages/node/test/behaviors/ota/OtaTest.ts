@@ -6,17 +6,21 @@
 
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { OtaUpdateStatus, SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
+import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { BasicInformationClient, BasicInformationServer } from "#behaviors/basic-information";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import {
     OtaSoftwareUpdateRequestorClient,
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
+import { Endpoint } from "#endpoint/Endpoint.js";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     createPromise,
+    Duration,
+    Hours,
     ImplementationError,
     Millis,
     Minutes,
@@ -25,6 +29,7 @@ import {
     Seconds,
     Timestamp,
 } from "@matter/general";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import {
     BdxProtocol,
     BdxSession,
@@ -32,6 +37,7 @@ import {
     FabricAuthority,
     PeerAddress,
     PersistedFileDesignator,
+    RebootResubscribeArmer,
     SecureSession,
     SessionManager,
     SustainedSubscription,
@@ -39,8 +45,6 @@ import {
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { MockSite } from "../../node/mock-site.js";
-import { subscribedPeer } from "../../node/node-helpers.js";
 import {
     addTestOtaImage,
     initOtaSite,
@@ -168,7 +172,9 @@ describe("Ota", () => {
         // This should resolve when update is applied and data match
         await MockTime.resolve(applyUpdatePromise);
 
-        // Shutdown node because our test node does not restart automatically and simulate update applied
+        // Shutdown node because our test node does not restart automatically and simulate update applied.  The harness
+        // reports Applying→Idle before this restart, so a subscription the device re-establishes would report it twice
+        await device.setStateOf(SubscriptionsServer, { persistenceEnabled: false });
         await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: 1 });
 
@@ -505,6 +511,131 @@ describe("Ota", () => {
         await MockTime.resolve(idlePromise);
     }).timeout(10_000);
 
+    describe("with a provider that answers Busy", () => {
+        /** A provider answering every query Busy, recording the virtual time of each answer. */
+        function BusyOtaProviderServer() {
+            const answeredAt = new Array<number>();
+
+            class TestOtaProviderServer extends OtaSoftwareUpdateProviderServer {
+                override async queryImage(): Promise<OtaSoftwareUpdateProvider.QueryImageResponse> {
+                    answeredAt.push(MockTime.nowUs);
+                    return { status: OtaSoftwareUpdateProvider.Status.Busy, delayedActionTime: 60 };
+                }
+            }
+
+            return { TestOtaProviderServer, answeredAt };
+        }
+
+        /**
+         * The requestor's state transitions, which a test can wait on by the number of transitions into a state.  Waits
+         * on the requestor's own events, so they do not depend on how far mock network delivery lags virtual time.
+         */
+        function stateTransitionsOf(otaRequestor: Endpoint) {
+            const transitions = new Array<OtaSoftwareUpdateRequestor.StateTransitionEvent>();
+            const waiters = new Array<{
+                state: OtaSoftwareUpdateRequestor.UpdateState;
+                count: number;
+                resolver: () => void;
+            }>();
+
+            const reached = (state: OtaSoftwareUpdateRequestor.UpdateState, count: number) =>
+                transitions.filter(({ newState }) => newState === state).length >= count;
+
+            otaRequestor.eventsOf(OtaSoftwareUpdateRequestorServer).stateTransition.on(event => {
+                transitions.push(event);
+                for (const waiter of [...waiters]) {
+                    if (reached(waiter.state, waiter.count)) {
+                        waiters.splice(waiters.indexOf(waiter), 1);
+                        waiter.resolver();
+                    }
+                }
+            });
+
+            return {
+                transitions,
+                into(state: OtaSoftwareUpdateRequestor.UpdateState, count = 1) {
+                    const { promise, resolver } = createPromise<void>();
+                    if (reached(state, count)) {
+                        resolver();
+                    } else {
+                        waiters.push({ state, count, resolver });
+                    }
+                    return promise;
+                },
+            };
+        }
+
+        it("waits in DelayedOnQuery while the retry is armed, and queries again when it is due", async () => {
+            const busy = BusyOtaProviderServer();
+            const { site, otaRequestor } = await initOtaSite(
+                busy.TestOtaProviderServer,
+                OtaSoftwareUpdateRequestorServer,
+            );
+            await using _localSite = site;
+            const states = stateTransitionsOf(otaRequestor);
+
+            await MockTime.resolve(states.into(OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery));
+            await MockTime.resolve(states.into(OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery, 2));
+
+            const { Querying, DelayedOnQuery } = OtaSoftwareUpdateRequestor.UpdateState;
+            expect(states.transitions.map(({ newState }) => newState)).deep.equals([
+                Querying,
+                DelayedOnQuery,
+                Querying,
+                DelayedOnQuery,
+            ]);
+
+            expect(busy.answeredAt.length).equals(2);
+
+            // The provider asked for 60 s, and the requestor's minimum query interval of 120 s is longer
+            const [first, second] = busy.answeredAt;
+            expect(second - first).within(Seconds(120), Seconds(130));
+        });
+
+        it("gives up on the provider after three Busy retries", async () => {
+            const busy = BusyOtaProviderServer();
+            const { site, otaRequestor } = await initOtaSite(
+                busy.TestOtaProviderServer,
+                OtaSoftwareUpdateRequestorServer,
+            );
+            await using _localSite = site;
+            const states = stateTransitionsOf(otaRequestor);
+
+            await MockTime.resolve(states.into(OtaSoftwareUpdateRequestor.UpdateState.Idle));
+            expect(busy.answeredAt.length).equals(4);
+
+            const transitions = states.transitions.length;
+            await MockTime.advance(Minutes(10));
+            await MockTime.macrotasks;
+            expect(states.transitions.length).equals(transitions);
+            expect(busy.answeredAt.length).equals(4);
+        });
+
+        it("returns to Idle when updates are disabled while it waits", async () => {
+            const busy = BusyOtaProviderServer();
+            const { site, otaRequestor } = await initOtaSite(
+                busy.TestOtaProviderServer,
+                OtaSoftwareUpdateRequestorServer,
+            );
+            await using _localSite = site;
+            const states = stateTransitionsOf(otaRequestor);
+            await MockTime.resolve(states.into(OtaSoftwareUpdateRequestor.UpdateState.DelayedOnQuery));
+
+            await MockTime.resolve(
+                otaRequestor.setStateOf(OtaSoftwareUpdateRequestorServer, { updatePossible: false }),
+            );
+
+            expect(otaRequestor.stateOf(OtaSoftwareUpdateRequestorServer).updateState).equals(
+                OtaSoftwareUpdateRequestor.UpdateState.Idle,
+            );
+            const transitions = states.transitions.length;
+            await MockTime.advance(Minutes(10));
+            await MockTime.macrotasks;
+            expect(states.transitions.length).equals(transitions);
+            expect(busy.answeredAt.length).equals(1);
+        });
+    });
+
     it("OTA reboot: closes older sessions and does not re-subscribe a device that feeds its subscription", async () => {
         const data = { expectedOtaImage: Bytes.fromHex("") };
 
@@ -580,25 +711,13 @@ describe("Ota", () => {
 
         await MockTime.resolve(applyUpdatePromise);
 
-        // Simulate reboot with the new version — CASE resumes quickly, but the pre-reboot subscription was
-        // deleted server-side by the restart, so this harness's device never reports again. A persistent device
-        // would keep feeding its subscription; simulate that below rather than waiting out the real timeout, so
-        // the test verifies the armer's grace-window decision deterministically.
+        // Simulate reboot with the new version.  The device re-establishes its persisted subscription over the session
+        // it opens, so it keeps feeding the subscription.  The sibling Mechanism B test proves the grace window reaches
+        // closeForPeer in this harness, so the keep asserted below is a decision and not an absence of one.
         await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
         await MockTime.resolve(device.start());
         await MockTime.resolve(notifyUpdateAppliedPromise);
-
-        // Model a persistent device that keeps feeding its subscription: report over the session the returning
-        // device opened, which is the only session it still holds once Mechanism A has closed the pre-reboot ones.
-        // The sibling Mechanism B test proves the grace window reaches closeForPeer in this harness, so the keep
-        // asserted below is a decision and not an absence of one.
-        await otaProvider.act(agent => {
-            const sessions = agent.env.get(SessionManager);
-            const live = sessions.sessions.filter(session => PeerAddress.is(session.peerAddress, peerAddress));
-            expect(live.length).equals(1);
-            agent.env.get(ClientSubscriptions).reportStarted.emit(live[0]);
-        });
 
         // Let the grace window elapse.
         await MockTime.advance(Seconds(30));
@@ -618,6 +737,10 @@ describe("Ota", () => {
 
         // …and because the subscription was fed, the armer chose KEEP: no force re-subscribe.
         expect(closeForPeerCalls.some(a => PeerAddress.is(a, peerAddress))).equals(false);
+
+        // The armer watches the ClientSubscriptions of one run; the next run must not reuse it
+        await MockTime.resolve(controller.stop());
+        expect(otaProvider.behaviors.internalsOf(SoftwareUpdateManager).rebootResubscribeArmer).undefined;
 
         await site[Symbol.asyncDispose]();
     }).timeout(10_000);
@@ -679,7 +802,8 @@ describe("Ota", () => {
 
         await MockTime.resolve(applyUpdatePromise);
 
-        // Simulate reboot with the new version.
+        // Simulate reboot with the new version of a device that does not persist subscriptions
+        await device.setStateOf(SubscriptionsServer, { persistenceEnabled: false });
         await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
         await MockTime.resolve(device.start());
@@ -1291,6 +1415,116 @@ describe("Ota", () => {
         expect(applyUpdateResponses[0].delayedActionTime).equals(120);
 
         await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    /** Drives one update to its apply with a provider whose `applyDelay` is `delay`. */
+    async function applyWithDelay(delay: Duration) {
+        const data = { expectedOtaImage: Bytes.fromHex("") };
+        const { announceOtaProviderPromise, TestOtaRequestorServer } = InstrumentedOtaRequestorServer(
+            { requestUserConsent: false },
+            data,
+        );
+        const { queryImagePromise, applyUpdateRequestPromise, checkUpdateAvailablePromise, TestOtaProviderServer } =
+            InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+
+        const sent = new Array<number>();
+        class DelayingProviderServer extends TestOtaProviderServer {
+            override initialize() {
+                this.state.applyDelay = delay;
+                return super.initialize();
+            }
+
+            override async applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest) {
+                const response = await super.applyUpdateRequest(request);
+                sent.push(response.delayedActionTime);
+                return response;
+            }
+        }
+
+        const armed = new Array<Duration | undefined>();
+        const originalArm = RebootResubscribeArmer.prototype.arm;
+        RebootResubscribeArmer.prototype.arm = function (this: RebootResubscribeArmer, peer, applyDelay) {
+            armed.push(applyDelay);
+            return originalArm.call(this, peer, applyDelay);
+        };
+        try {
+            const { site, device, controller, otaProvider } = await initOtaSite(
+                DelayingProviderServer,
+                TestOtaRequestorServer,
+            );
+            await using _localSite = site;
+
+            const { otaImage, vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+            data.expectedOtaImage = Bytes.of(otaImage.image);
+            const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+
+            await otaProvider.act(agent =>
+                agent
+                    .get(SoftwareUpdateManager)
+                    .forceUpdate(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+            );
+            await MockTime.resolve(announceOtaProviderPromise);
+            await MockTime.resolve(queryImagePromise);
+            await MockTime.resolve(checkUpdateAvailablePromise);
+            await MockTime.resolve(applyUpdateRequestPromise);
+        } finally {
+            RebootResubscribeArmer.prototype.arm = originalArm;
+        }
+        return { sent, armed };
+    }
+
+    it("expects the device's return only after the delay it was allowed to apply with", async () => {
+        const { sent, armed } = await applyWithDelay(Seconds(180));
+
+        expect(sent).deep.equal([180]);
+        expect(armed).deep.equal([Seconds(180)]);
+    }).timeout(10_000);
+
+    it("rounds an apply delay up to whole seconds, since it is a minimum wait", async () => {
+        const { sent, armed } = await applyWithDelay(Millis(1500));
+
+        expect(sent).deep.equal([2]);
+        expect(armed).deep.equal([Seconds(2)]);
+    }).timeout(10_000);
+
+    it("sends at most a day of apply delay, which a requestor may treat a longer one as", async () => {
+        const { sent, armed } = await applyWithDelay(Hours(48));
+
+        expect(sent).deep.equal([86_400]);
+        expect(armed).deep.equal([Seconds(86_400)]);
+    }).timeout(10_000);
+
+    it("does not count an update as stalled while the device waits out its apply delay", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peerAddress = controller.peers.get("peer1")!.state.commissioning.peerAddress!;
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, { vendorId: VendorId(vendorId), productId, targetSoftwareVersion }),
+        );
+        await otaProvider.act(agent =>
+            agent
+                .get(SoftwareUpdateManager)
+                .onOtaStatusChange(peerAddress, OtaUpdateStatus.Applying, targetSoftwareVersion, Minutes(30)),
+        );
+
+        const statusOf = async () =>
+            (await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates))[0]?.status;
+
+        await MockTime.advance(Minutes(40));
+        expect(await statusOf()).equals("in-progress");
+
+        // Past the delay and the progress timeout, the queue gives up on the attempt, by status or by its reset
+        await MockTime.advance(Minutes(10));
+        expect(await statusOf()).oneOf(["stalled", "queued"]);
     }).timeout(10_000);
 
     it("Apply failure detected when startUp fires after Applying state", async () => {
@@ -1916,10 +2150,6 @@ describe("Ota", () => {
         // OLDER session. The real queryImage session will have a newer activeTimestamp, and a
         // different sessionId → triggers Case B.
         //
-        // IMPORTANT: Use MockTime.nowMs (not Date.now()) for the fake BDX session's
-        // sessionActiveTimestamp so that it is older than session.activeTimestamp, which also uses
-        // MockTime-based timestamps. A timestamp of 0 is always older than any live session.
-        //
         // BDX_FAKE_SESSION_ID uses a high value (0xDEAD) to avoid colliding with real session IDs
         // assigned by the protocol stack in these tests.
         const BDX_FAKE_SESSION_ID = 0xdead;
@@ -2024,7 +2254,7 @@ describe("Ota", () => {
                         peerAddress,
                         session: {
                             id: 42,
-                            activeTimestamp: (MockTime.nowMs + 10000) as Timestamp, // newer than any live session → Case C
+                            activeTimestamp: (MockTime.nowUs + 10000) as Timestamp, // newer than any live session → Case C
                         },
                     } as any;
                 }

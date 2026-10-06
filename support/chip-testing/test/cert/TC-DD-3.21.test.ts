@@ -115,7 +115,7 @@ certTest("TC-DD-3.21", {
             "commissioning process over the TH Commissionee's method of device discovery",
         async cx => {
             const payload = await thQrPayload(cx.devices.th);
-            await commissionByQr(cx, payload, commissioned);
+            await withChecks(cx, checks => commissionByQr(cx, payload, commissioned, checks));
         },
         {
             expected:
