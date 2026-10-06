@@ -23,7 +23,12 @@ import {
 import { VendorId } from "@matter/types";
 import { BleError } from "../ble/Ble.js";
 import { BtpCodec } from "../codec/BtpCodec.js";
-import { CommissionableDevice, CommissionableDeviceIdentifiers, Scanner } from "./Scanner.js";
+import {
+    CommissionableDevice,
+    CommissionableDeviceIdentifiers,
+    CommissionableDeviceIdentity,
+    Scanner,
+} from "./Scanner.js";
 
 const logger = Logger.get("BleScanner");
 
@@ -81,6 +86,14 @@ type StoredDiscoveredBleDevice = DiscoveredBleDevice & {
  * elapsed time.
  */
 const STALE_ENTRY_AGE = Seconds(60);
+
+/** Whether a BLE record's `VendorId+ProductId` matches an identity's, which may name only the VendorId. */
+function matchesVendorProduct(recordVp: string | undefined, identityVp: string) {
+    if (identityVp.includes("+")) {
+        return recordVp === identityVp;
+    }
+    return recordVp?.split("+")[0] === identityVp;
+}
 
 export class BleScanner implements Scanner {
     readonly type = ChannelType.BLE;
@@ -146,13 +159,24 @@ export class BleScanner implements Scanner {
     /**
      * Forget the device we commissioned. Its advertisement described a commissioning window that is now closed, so it
      * must not qualify for a later discovery; a device that advertises again is discovered again.
+     *
+     * A record matching the identity is dropped too. Another device of the same vendor, and product when the identity
+     * names one, sharing the discriminator loses its record until it advertises again.
      */
-    forgetCommissionedDevice(addresses: readonly ServerAddress[]) {
+    forgetCommissionedDevice(addresses: readonly ServerAddress[], identity?: CommissionableDeviceIdentity) {
         for (const address of addresses) {
             if (!ServerAddress.isBle(address)) continue;
             if (this.#discoveredMatterDevices.delete(address.peripheralAddress)) {
                 logger.debug(`Forgetting BLE device ${address.peripheralAddress} whose commissioning window is closed`);
             }
+        }
+        if (identity === undefined) {
+            return;
+        }
+        for (const [address, { deviceData }] of this.#discoveredMatterDevices) {
+            if (deviceData.D !== identity.D || !matchesVendorProduct(deviceData.VP, identity.VP)) continue;
+            this.#discoveredMatterDevices.delete(address);
+            logger.debug(`Forgetting BLE device ${address} that advertises the commissioned device's identity`);
         }
     }
 
