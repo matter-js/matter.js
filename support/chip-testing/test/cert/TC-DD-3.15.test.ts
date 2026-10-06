@@ -14,7 +14,7 @@ import {
     thCodeParts,
     thPrintedManualCode,
 } from "./tc-dd-support.js";
-import { CommissionedRefs, record, runCleanups, theTh } from "./tc-support.js";
+import { CommissionedRefs, record, runCleanups, theTh, withChecks } from "./tc-support.js";
 
 const commissioned = new CommissionedRefs();
 
@@ -67,7 +67,8 @@ certTest("TC-DD-3.15", {
         "1.b",
         PROVIDE,
         async cx => {
-            await commissionByManualCode(cx, await thPrintedManualCode(theTh(cx)), commissioned);
+            const code = await thPrintedManualCode(theTh(cx));
+            await withChecks(cx, checks => commissionByManualCode(cx, code, commissioned, checks));
         },
         { pics: "MCORE.DD.11_MANUAL_PC", expected: COMMISSIONED },
     )
@@ -100,7 +101,8 @@ certTest("TC-DD-3.15", {
         "2.b",
         PROVIDE,
         async cx => {
-            await commissionByManualCode(cx, (await twentyOneDigitCode(cx)).code, commissioned);
+            const { code } = await twentyOneDigitCode(cx);
+            await withChecks(cx, checks => commissionByManualCode(cx, code, commissioned, checks));
         },
         { pics: "MCORE.DD.21_MANUAL_PC", expected: COMMISSIONED },
     )

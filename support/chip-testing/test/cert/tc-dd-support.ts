@@ -1408,18 +1408,23 @@ export async function commissionByManualCode(
     cx: CertStepContext,
     code: string,
     commissioned: CommissionedRefs,
+    checks: RecordedCheck[],
 ): Promise<void> {
-    await commissionByTarget(cx, { manualPairingCode: code }, commissioned);
+    await commissionByTarget(cx, { manualPairingCode: code }, commissioned, checks);
 }
 
 /**
  * Onboards the TH from `payload`, first returning it to a factory-new state if an earlier step
  * commissioned it (see {@link restoreCommissioningMode}).
+ *
+ * The TH's own completion line is added to `checks`, so a step that checks more after the
+ * commissioning still records those checks when that line is missing (see {@link withChecks}).
  */
 export async function commissionByQr(
     cx: CertStepContext,
     payload: string,
     commissioned: CommissionedRefs,
+    checks: RecordedCheck[],
     /**
      * The device being onboarded, where the plan names more than one. Its node ref is still filed
      * under the `dut` role, because `CommissionedRefs.decommissionAll` removes a fabric through
@@ -1428,13 +1433,14 @@ export async function commissionByQr(
      */
     th?: CertDevice,
 ): Promise<void> {
-    await commissionByTarget(cx, { qrPairingCode: payload }, commissioned, th);
+    await commissionByTarget(cx, { qrPairingCode: payload }, commissioned, checks, th);
 }
 
 async function commissionByTarget(
     cx: CertStepContext,
     target: CommissioningTarget,
     commissioned: CommissionedRefs,
+    checks: RecordedCheck[],
     subject?: CertDevice,
 ): Promise<void> {
     const dut = cx.controllers.dut;
@@ -1453,32 +1459,35 @@ async function commissionByTarget(
     // Settled, because the line this waits for names no fabric on either flavor: a completion still
     // in flight from an earlier commissioning would otherwise satisfy this one
     const from = await th.log.markSettled();
-    let ref;
-    try {
-        ref = await dut.commission(target);
-    } catch (e) {
-        cx.recorder.check({
-            type: "response",
-            verdict: "fail",
-            detail: `commissioning from ${describeTarget(target)} failed: ${e}`,
-        });
-        throw e;
-    }
-    commissioned.set("dut", ref);
-    cx.recorder.check({ type: "response", verdict: "pass", detail: `commissioned as node ${ref}` });
-
-    record(
-        cx,
-        await expectSequence(
-            th.log,
-            th.flavor,
-            "commissioning complete",
-            { chip: [COMMISSIONING_COMPLETE], matterjs: [MATTERJS_COMMISSIONED_FABRIC] },
-            from,
-            COMMISSIONING_LOG_TIMEOUT,
-        ),
-        `${th.id} commissioning`,
+    const commissioning = await attempt(
+        () => dut.commission(target),
+        ref => `commissioned as node ${ref}`,
     );
+    if (commissioning.ok) {
+        commissioned.set("dut", commissioning.value);
+    }
+    const what = `commissioning from ${describeTarget(target)}`;
+    checks.push({
+        what,
+        check: () =>
+            commissioning.ok
+                ? commissioning.check
+                : { ...commissioning.check, detail: `${what} failed: ${commissioning.check.detail}` },
+    });
+
+    const completed = await expectSequence(
+        th.log,
+        th.flavor,
+        "commissioning complete",
+        { chip: [COMMISSIONING_COMPLETE], matterjs: [MATTERJS_COMMISSIONED_FABRIC] },
+        from,
+        COMMISSIONING_LOG_TIMEOUT,
+    );
+    checks.push({ what: `${th.id} commissioning`, check: () => completed });
+
+    if (!commissioning.ok) {
+        throw commissioning.error;
+    }
 }
 
 /**

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger } from "@matter/general";
+import { Bytes, Diagnostic, Duration, Logger } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
-import { MatterBle } from "@matter/protocol";
+import { BleListeningClock, BleScannerClient, MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { BleOptions } from "./NodeJsBle.js";
 
@@ -47,7 +47,9 @@ interface NobleListeners {
     scanStop: () => void;
 }
 
-export class NobleBleClient {
+export class NobleBleClient implements BleScannerClient {
+    readonly #listening = new BleListeningClock();
+
     private readonly discoveredPeripherals = new Map<string, { peripheral: Peripheral; matterServiceData: Bytes }>();
     private shouldScan = false;
     private isScanning = false;
@@ -93,6 +95,8 @@ export class NobleBleClient {
                         );
                     }
                 } else {
+                    // noble's Linux HCI bindings emit no scanStop when the adapter powers off
+                    this.#radioStopped();
                     this.stopScanning().catch(error => logger.error("Cannot stop BLE discovery:", error));
                 }
             },
@@ -106,15 +110,29 @@ export class NobleBleClient {
                     return;
                 }
                 this.isScanning = true;
+                this.#listening.start();
             },
 
-            scanStop: () => (this.isScanning = false),
+            scanStop: () => this.#radioStopped(),
         };
 
         noble.on("stateChange", this.#listeners.stateChange);
         noble.on("discover", this.#listeners.discover);
         noble.on("scanStart", this.#listeners.scanStart);
         noble.on("scanStop", this.#listeners.scanStop);
+    }
+
+    /**
+     * Time noble's radio scanned, taken from noble's scan events and adapter state rather than our requests: a scan we
+     * asked for may wait for the adapter, and none survives the adapter powering off.
+     */
+    #radioStopped() {
+        this.isScanning = false;
+        this.#listening.stop();
+    }
+
+    get listeningTime(): Duration {
+        return this.#listening.total;
     }
 
     public setDiscoveryCallback(callback: (peripheral: Peripheral, manufacturerData: Bytes) => void) {
