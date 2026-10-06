@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Millis, Time, Seconds } from "@matter/main";
+import { ImplementationError, InternalError, Millis, Time, Seconds } from "@matter/main";
 import { Status, StatusResponseError, ValidationError } from "@matter/main/types";
 import type { ClusterModel } from "@matter/model";
 import { Matter } from "@matter/model";
@@ -2009,6 +2009,31 @@ describe("invokeCommand", () => {
         ]);
         expect(checks[0].verdict).equal("pass");
         expect(checks[1].verdict).equal("pass");
+    });
+
+    it("refuses a plan that names no th device before the DUT invokes anything", async () => {
+        const th = fakeTh(invokeLine("1.groups.addGroup"));
+        let invoked = false;
+        const cx = {
+            ...contextFor(th, async () => {
+                invoked = true;
+            }),
+            devices: { th1: th, th2: th },
+        };
+        try {
+            await expect(
+                invokeCommand(cx, "ref", {
+                    cluster: GROUPS,
+                    endpoint: GROUPS_ENDPOINT,
+                    command: "addGroup",
+                    args: { groupId: 5, groupName: "g5" },
+                    fields: [],
+                }),
+            ).rejectedWith(ImplementationError, 'declares no "th" device (it has th1, th2)');
+        } finally {
+            await th.log.close();
+        }
+        expect(invoked).equal(false);
     });
 
     it("passes the status check when a response carrying Status answers 0", async () => {

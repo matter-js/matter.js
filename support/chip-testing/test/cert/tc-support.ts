@@ -8,6 +8,7 @@ import {
     Bytes,
     camelize,
     Duration,
+    ImplementationError,
     InternalError,
     MatterAggregateError,
     MatterError,
@@ -20,6 +21,7 @@ import type { ClusterModel } from "@matter/model";
 import { Matter } from "@matter/model";
 import type {
     AttributePathSpec,
+    CertDevice,
     CertNodeApi,
     CertNodeRef,
     CertStepContext,
@@ -59,6 +61,24 @@ export class CertCleanupError extends MatterError {}
 
 /** A check inside a step failed; the evidence record carrying the detail is already recorded. */
 export class CertCheckFailedError extends MatterError {}
+
+/**
+ * The device a shared helper acts on where the plan names only one.
+ *
+ * A plan that declares several devices under names of its own (`devices: { th1, th2 }`) has no `th`
+ * role. Reaching for one is a defect in the calling step, so this says so instead of failing later on
+ * a property of `undefined`.
+ */
+export function theTh(cx: CertStepContext): CertDevice {
+    const th = cx.devices.th;
+    if (th === undefined) {
+        throw new ImplementationError(
+            `This step's plan declares no "th" device (it has ${Object.keys(cx.devices).join(", ") || "none"}); ` +
+                "a helper acting on one device takes it as a parameter when the plan names more than one",
+        );
+    }
+    return th;
+}
 
 /**
  * Records `check` and fails the step on a `"fail"` verdict — `recorder.check()` only records, so a
@@ -1501,7 +1521,7 @@ export async function invokeCommand(
     const name = `${cluster.name}.${command}`;
     const clusterId = requireId(cluster.id, `${cluster.name} cluster`);
     const commandId = requireId(cluster.commands.require(command).id, name);
-    const th = cx.devices.th;
+    const th = theTh(cx);
     const from = th.log.mark();
 
     const response = await attempt(
