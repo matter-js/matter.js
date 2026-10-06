@@ -35,8 +35,7 @@ import {
     MatterModel,
     RequirementModel,
 } from "@matter/model";
-import { MockServerNode } from "../../node/mock-server-node.js";
-import { MockSite } from "../../node/mock-site.js";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import {
     captureLogOf,
     createNode,

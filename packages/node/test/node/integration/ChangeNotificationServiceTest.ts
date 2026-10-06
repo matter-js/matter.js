@@ -8,9 +8,8 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import type { ServerNode } from "#node/ServerNode.js";
+import { MockServerNode, MockSite } from "@matter/node/testing";
 import type { CommissionableDevice } from "@matter/protocol";
-import { MockServerNode } from "../mock-server-node.js";
-import { MockSite } from "../mock-site.js";
 
 const DEVICE: CommissionableDevice = {
     deviceIdentifier: "device-a",

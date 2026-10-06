@@ -7,10 +7,10 @@
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { ScenesManagementClient } from "#behaviors/scenes-management";
 import { ServerNode } from "#node/index.js";
+import { MockSite } from "@matter/node/testing";
 import { Read } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, GroupId } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
-import { MockSite } from "../../node/mock-site.js";
 
 describe("ScenesManagementServer", () => {
     before(() => {

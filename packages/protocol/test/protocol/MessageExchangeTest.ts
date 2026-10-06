@@ -11,7 +11,7 @@ import { MRP } from "#protocol/MRP.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import { Bytes, Duration, MatterFlowError, Millis, NetworkError, Seconds, Semaphore } from "@matter/general";
-import { BDX_PROTOCOL_ID, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
+import { BDX_PROTOCOL_ID, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
 
 /**
  * Creates a NodeSession whose channel send() throws to simulate a hard network failure.
@@ -19,8 +19,8 @@ import { BDX_PROTOCOL_ID, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "
  * We override send on the channel instance rather than subclassing because the Session
  * setter guards against channel replacement after construction.
  */
-function makeThrowingSession(): ProtocolMocks.NodeSession {
-    const session = new ProtocolMocks.NodeSession();
+function makeThrowingSession(config?: ProtocolMocks.NodeSession.Config): ProtocolMocks.NodeSession {
+    const session = new ProtocolMocks.NodeSession(config);
     (session.channel as any).send = async (_message: Message): Promise<void> => {
         throw new NetworkError("Simulated network failure");
     };
@@ -116,6 +116,26 @@ describe("MessageExchange", () => {
                 await exchange.nextMessage({ timeout: Millis(0) }); // drains the queued message
 
                 // Subsequent timeout with an empty queue should not declare peer lost
+                await expect(exchange.nextMessage({ timeout: Millis(0) })).to.be.rejected;
+
+                expect(peerLostCalled.value).to.be.false;
+            });
+        });
+
+        describe("on a session that suppresses peer loss", () => {
+            it("does not declare peer lost when a send fails", async () => {
+                const { exchange, peerLostCalled } = createExchange(makeThrowingSession({ suppressPeerLoss: true }));
+
+                await expect(exchange.send(0, Bytes.empty)).to.be.rejectedWith(NetworkError);
+
+                expect(peerLostCalled.value).to.be.false;
+            });
+
+            it("does not declare peer lost when no response arrives", async () => {
+                const { exchange, peerLostCalled } = createExchange(
+                    new ProtocolMocks.NodeSession({ suppressPeerLoss: true }),
+                );
+
                 await expect(exchange.nextMessage({ timeout: Millis(0) })).to.be.rejected;
 
                 expect(peerLostCalled.value).to.be.false;
@@ -807,6 +827,32 @@ describe("MessageExchange", () => {
 
             expect(captured.fixedBackoff).equals(Seconds(0.2));
             expect(captured.additionalDelay).equals(Millis(0));
+        });
+    });
+
+    describe("ICD wakefulness", () => {
+        before(() => MockTime.enable());
+
+        function sessionWithSleepingLitPeer() {
+            const fabric = new ProtocolMocks.Fabric();
+            const session = new ProtocolMocks.NodeSession({ fabric });
+            fabric.icd.addPeer(
+                { peerNodeId: NodeId(1), key: Bytes.of(new Uint8Array(16)), counterStart: 0, lastOffset: 0 },
+                () => {},
+            );
+            const wakefulness = fabric.icd.wakefulnessFor(NodeId(1))!;
+            wakefulness.requiresAwait = true;
+            return { session, wakefulness };
+        }
+
+        it("does not wake a sleeping LIT peer on an outbound message", async () => {
+            const { session, wakefulness } = sessionWithSleepingLitPeer();
+            const { exchange } = createExchange(session);
+
+            await exchange.send(0, Bytes.empty);
+
+            expect(wakefulness.awake.value).equal(false);
+            wakefulness.close();
         });
     });
 });

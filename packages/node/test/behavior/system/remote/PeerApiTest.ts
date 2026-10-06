@@ -11,9 +11,8 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { Environment } from "@matter/general";
 import { ClusterModel, Matter, MatterModel } from "@matter/model";
+import { MockSite, subscribedPeer } from "@matter/node/testing";
 import { ClusterType } from "@matter/types";
-import { MockSite } from "../../../node/mock-site.js";
-import { subscribedPeer } from "../../../node/node-helpers.js";
 
 const CLUSTER_ID = 0xfff1_fc20;
 

@@ -76,6 +76,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status or does not answer it in time
+    - Fix: A missing response no longer closes the commissioning PASE session; commissioning closes it on every exit
+    - Feature: A `NodeSession` created with `suppressPeerLoss` stays open on communication failures of its exchanges; its owner closes it
+    - Fix: The periodic failsafe re-arm during BLE commissioning no longer shortens a longer failsafe armed for a network scan or connect
+    - Fix: Ensure that a controller treats any message from a LIT ICD peer as a wake signal and resubscribes at once, instead of waiting for the next Check-In
+    - Breaking: `IcdPeerWakefulness` API renamed (`noteActive()`, `nextCheckInDue`, `holdSubscription()`); ICD timing constants moved to `IcdPeerSchedule`
     - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status
     - Fix: A node advertises one DNS-SD host name on all its interfaces, so a controller that hears it on several interfaces reports its host name
     - Fix: An `MdnsService` that cannot open its socket removes itself from the environment and the runtime, so a node started afterwards creates a new one instead of failing again, and the runtime can stop
@@ -118,6 +124,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: The cooldown between reachability probes of a peer whose address left the mDNS results is timed on the monotonic clock instead of the wall clock, where the platform provides `performance.now()` and `performance.timeOrigin`. A wall-clock step shortened or lengthened the backoff between probes
 
 - @matter/node
+    - Fix: Ensure that `DescriptorServer.addTags` does not add a tag that is already listed and only updates its label when one is given
+    - Fix: Ensure that `DescriptorServer.addDeviceTypes` does not list a device type a second time with another revision
+    - Enhancement: The commissioning test harness (`MockSite`, `MockServerNode`, `MockExchange` and the node helpers) is exported at `@matter/node/testing`, for tests that run under `@matter/testing`
     - Fix: A read that runs while a data report is still arriving no longer lets a descriptor in that report delete a cluster whose data came earlier in the same report
     - Fix: A peer's state drops the value of an attribute its `AttributeList` omits, such as one a firmware update removed, also when the value was cached before the list changed; such a cluster is read again in full after the controller starts. `Datasource.ExternallyMutableStore` has an optional `invalidateVersion()`
     - Fix: After a node restarts, the data reports of the client subscriptions it sets up again are no longer rejected, so changes arrive right away instead of only when a subscription times out and is re-established
@@ -363,6 +372,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
     - Fix: (@lboue) `DoorLockServer` denies a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` outside its schedules, and when it has none
     - Fix: (@lboue) `DoorLockServer` disables a user of type `ExpiringUser` once `ExpiringUserTimeout` minutes have passed since its first use, also across a restart, and emits `LockUserChange`; it denies such a user while `ExpiringUserTimeout` is not set
+    - Breaking: Ensure that `DoorLockServer` refuses remote lock operations in the `Privacy` and `NoRemoteLockUnlock` operating modes, during a wrong-code lockout and for a `NonAccessUser`, and accepts only an `OperatingMode` that `SupportedOperatingModes` marks as supported
+    - Breaking: The `DoorLockServer` lock command handlers are `async`; an override must `await` its `super` call, and hardware belongs in `handleLockOperation`
+    - Fix: Ensure that `DoorLockServer` disables a `DisposableUser` after it unlocks once, reports `ForcedUser` operations with the `ForcedUser` alarm, counts an omitted required PIN as a wrong code and reports `UnboltDoor` as an `Unlock` to `Unlocked`
+    - Fix: Ensure that `DoorLockServer` emits `LockUserChange` for schedule changes and reports the affected user and index in its `LockUserChange` and `LockOperationError` events
+    - Feature: Ensure that a lock implementation can drive its hardware by overriding `DoorLockServer.handleLockOperation` and report a failure reason with `LockOperationFailedError`
 
 - @matter/types
     - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there

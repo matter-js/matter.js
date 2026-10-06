@@ -6,7 +6,7 @@
 
 import { GeneralDiagnosticsServer } from "#behaviors/general-diagnostics";
 import { Time } from "@matter/general";
-import { MockServerNode } from "../../node/mock-server-node.js";
+import { MockServerNode } from "@matter/node/testing";
 
 describe("GeneralDiagnosticsServer operational hours", () => {
     beforeEach(() => {

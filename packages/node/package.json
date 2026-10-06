@@ -82,6 +82,16 @@
                 "default": "./dist/cjs/loader/load.cjs"
             }
         },
+        "./testing": {
+            "import": {
+                "types": "./dist/esm/testing/index.d.ts",
+                "default": "./dist/esm/testing/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/testing/index.d.ts",
+                "default": "./dist/cjs/testing/index.js"
+            }
+        },
         "./behaviors": {
             "import": {
                 "types": "./dist/esm/behaviors/index.d.ts",

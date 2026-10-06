@@ -12,12 +12,11 @@ import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { FabricOperationInProgressError } from "#node/client/Peers.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { CrashedDependencyError, DestroyedDependencyError, Lifecycle, Minutes, Seconds } from "@matter/general";
+import { clientStructureOf, MockSite, settled, subscribedPeer } from "@matter/node/testing";
 import { PeerMessageMissingError, PeerSet, PeerUnresponsiveError, ReadResult } from "@matter/protocol";
 import { EndpointNumber, EventId, EventNumber, FabricIndex, Priority, TlvAny } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
-import { MockSite } from "./mock-site.js";
-import { clientStructureOf, settled, subscribedPeer } from "./node-helpers.js";
 
 /**
  * Replace the exact `removeFabric` the decommission path invokes, on the runtime prototype of the peer's

@@ -14,10 +14,10 @@ import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
 import type { ClientEndpointInitializer } from "#node/client/ClientEndpointInitializer.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap, GeneratedCommandList } from "@matter/model";
+import { MockSite } from "@matter/node/testing";
 import { Read, ReadResult } from "@matter/protocol";
 import { AttributeId, EndpointNumber, TlvAny } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
-import { MockSite } from "./mock-site.js";
 
 const BridgedLightDevice = OnOffLightDevice.with(BridgedDeviceBasicInformationServer);
 
