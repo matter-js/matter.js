@@ -1114,5 +1114,25 @@ describe("NobleBleChannel.create", () => {
         // No virtual time passes, so the ATT_MTU wait cannot have ended on its own
         expect(await creating).instanceOf(AbortedError);
         expect(peer.handshakeSegmentSizes).deep.equal([]);
+        expect(MockTime.timerCountFor("BLE ATT_MTU exchange")).equal(0);
+        expect(peripheral.listenerCount("mtu")).equal(0);
+        expect(peripheral.listenerCount("disconnect")).equal(0);
+    });
+
+    it("raises an abort that happened before the ATT_MTU wait started", async () => {
+        MockTime.reset();
+        const peripheral = new FakePeripheral(() => {});
+        peripheral.state = "connected";
+        peripheral.mtu = null;
+        const peer = handshakeOnlyMatterService();
+        const { c1, c2 } = await characteristicsOf(peer.service);
+        const aborter = new AbortController();
+        aborter.abort();
+
+        await expect(
+            NobleBleChannel.create(peripheral.asNoble, c1, c2, () => {}, undefined, aborter.signal),
+        ).rejectedWith(AbortedError);
+        expect(MockTime.timerCountFor("BLE ATT_MTU exchange")).equal(0);
+        expect(peripheral.listenerCount("mtu")).equal(0);
     });
 });

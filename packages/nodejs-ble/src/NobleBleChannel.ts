@@ -521,31 +521,47 @@ export class NobleBleCentralInterface implements Transport {
  *
  * noble reports the negotiated MTU through an event and leaves `Peripheral.mtu` null until it arrives, which can be
  * after the interview completes. Deriving the BTP segment size from an unknown MTU would pin the session to the 20-byte
- * minimum for its whole life, so give the exchange a moment to land.
+ * minimum for its whole life, so give the exchange a moment to land. Fails with {@link AbortedError} on abort.
  */
-async function attMtuOf(peripheral: Peripheral) {
+async function attMtuOf(peripheral: Peripheral, abort?: AbortSignal) {
     if (peripheral.mtu !== null) {
         return peripheral.mtu;
     }
+    const abortedError = () => new AbortedError(`Peripheral ${peripheral.address}: ATT_MTU wait was aborted`);
+    if (abort?.aborted) {
+        throw abortedError();
+    }
 
-    const { promise, resolver } = createPromise<number | undefined>();
+    const { promise, resolver, rejecter } = createPromise<number | undefined>();
     let settled = false;
-    const settle = (mtu?: number) => {
+    const release = () => {
         if (settled) {
-            return;
+            return false;
         }
         settled = true;
         settleTimeout.stop();
         peripheral.removeListener("mtu", onMtu);
         peripheral.removeListener("disconnect", onDisconnect);
-        resolver(mtu);
+        abort?.removeEventListener("abort", onAbort);
+        return true;
+    };
+    const settle = (mtu?: number) => {
+        if (release()) {
+            resolver(mtu);
+        }
     };
     const onMtu = (mtu: number) => settle(mtu);
     const onDisconnect = () => settle();
+    const onAbort = () => {
+        if (release()) {
+            rejecter(abortedError());
+        }
+    };
     const settleTimeout = Time.getTimer("BLE ATT_MTU exchange", ATT_MTU_SETTLE_TIMEOUT, () => settle()).start();
 
     peripheral.on("mtu", onMtu);
     peripheral.on("disconnect", onDisconnect);
+    abort?.addEventListener("abort", onAbort, { once: true });
 
     return await promise;
 }
@@ -660,7 +676,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         _additionalCommissioningRelatedData?: Bytes,
         abort?: AbortSignal,
     ): Promise<NobleBleChannel> {
-        const attMtu = (await Abort.race(abort, attMtuOf(peripheral))) ?? undefined;
+        const attMtu = await attMtuOf(peripheral, abort);
         const segmentSize =
             attMtu === undefined ? MatterBle.MINIMUM_ATT_MTU : MatterBle.btpSegmentSizeFromAttMtu(attMtu);
         if (attMtu === undefined) {
