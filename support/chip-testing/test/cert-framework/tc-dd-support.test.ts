@@ -61,7 +61,7 @@ import {
     thPrintedManualCode,
     USER_INTENT_FLOW,
 } from "../cert/tc-dd-support.js";
-import { CertCheckFailedError, CertCleanupError, CommissionedRefs } from "../cert/tc-support.js";
+import { CertCheckFailedError, CertCleanupError, CommissionedRefs, record, withChecks } from "../cert/tc-support.js";
 import { fakeCertNode } from "./fake-cert-node.js";
 
 /**
@@ -1499,11 +1499,77 @@ describe("commissionByQr's own causal boundary", () => {
         // mark() cannot distinguish from a line this commissioning caused
         fixture.push(completion("aaaaaaaaaaaaaaaa"));
 
-        await commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs());
+        await withChecks(fixture.cx, checks =>
+            commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs(), checks),
+        );
 
         const matched = fixture.checks.find(check => check.type === "device-log")?.matched ?? "";
         expect(matched).contains("bbbbbbbbbbbbbbbb");
         expect(matched).not.contains("aaaaaaaaaaaaaaaa");
+    });
+});
+
+describe("the commissioning helpers' TH completion check", () => {
+    const completion =
+        "2026-08-27 19:31:27.056 NOTICE GeneralCommissioningClusterHandler Commissioned fabric: bb (#1) node: 1";
+    const callersCheck: CheckRecord = { type: "response", verdict: "fail", detail: "caller's own check" };
+
+    function fixtureWithoutCompletion() {
+        const fixture: UnpairFixture = new UnpairFixture("matterjs", {
+            commission: async () => {
+                fixture.close();
+                return "peer1";
+            },
+        });
+        return fixture;
+    }
+
+    it("leaves a QR caller's later checks recorded when the TH logs no completion", async () => {
+        const fixture = fixtureWithoutCompletion();
+
+        await expect(
+            withChecks(fixture.cx, async checks => {
+                await commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs(), checks);
+                record(fixture.cx, callersCheck, "caller's own check");
+            }),
+        ).rejectedWith(CertCheckFailedError, /caller's own check/);
+
+        expect(fixture.checks.map(check => check.detail)).contains("caller's own check");
+        expect(fixture.checks.find(check => check.type === "device-log")?.verdict).equal("fail");
+    });
+
+    it("leaves a manual code caller's later checks recorded when the TH logs no completion", async () => {
+        const fixture = fixtureWithoutCompletion();
+
+        await expect(
+            withChecks(fixture.cx, async checks => {
+                await commissionByManualCode(fixture.cx, "34970112332", new CommissionedRefs(), checks);
+                record(fixture.cx, callersCheck, "caller's own check");
+            }),
+        ).rejectedWith(CertCheckFailedError, /caller's own check/);
+
+        expect(fixture.checks.map(check => check.detail)).contains("caller's own check");
+        expect(fixture.checks.find(check => check.type === "device-log")?.verdict).equal("fail");
+    });
+
+    it("takes the TH's completion line when the DUT's commissioning fails", async () => {
+        const fixture: UnpairFixture = new UnpairFixture("matterjs", {
+            commission: async () => {
+                fixture.push(completion);
+                throw new ChipToolCommandError("chip-tool commissioning failed");
+            },
+        });
+
+        await expect(
+            withChecks(fixture.cx, checks =>
+                commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs(), checks),
+            ),
+        ).rejectedWith(ChipToolCommandError);
+
+        const response = fixture.checks.find(check => check.detail?.startsWith("commissioning from"));
+        expect(response?.verdict).equal("fail");
+        expect(response?.detail).contains("MT:-24J042C00KA0648G00");
+        expect(fixture.checks.find(check => check.type === "device-log")?.verdict).equal("pass");
     });
 });
 
@@ -1526,7 +1592,9 @@ describe("commissionByQr's payload evidence", () => {
     it("records what the DUT read from the code it commissions with", async () => {
         const fixture = fixtureThatCommissions();
 
-        await commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs());
+        await withChecks(fixture.cx, checks =>
+            commissionByQr(fixture.cx, "MT:-24J042C00KA0648G00", new CommissionedRefs(), checks),
+        );
 
         expect(fixture.checks[0]?.detail).contains("discriminator=3840 passcode=20202021");
     });
@@ -1539,6 +1607,7 @@ describe("commissionByQr's payload evidence", () => {
                 fixture.cx,
                 qrPayloadWith("MT:-24J042C00KA0648G00", { passcode: 12345678 }),
                 new CommissionedRefs(),
+                [],
             ),
         ).rejectedWith(CertCheckFailedError, /Onboarding payload parse/);
     });
@@ -1561,7 +1630,9 @@ describe("commissionByManualCode's code evidence", () => {
     it("records what the DUT read from the code it commissions with", async () => {
         const fixture = fixtureThatCommissions();
 
-        await commissionByManualCode(fixture.cx, "34970112332", new CommissionedRefs());
+        await withChecks(fixture.cx, checks =>
+            commissionByManualCode(fixture.cx, "34970112332", new CommissionedRefs(), checks),
+        );
 
         expect(fixture.checks[0]?.detail).contains("shortDiscriminator=15 passcode=20202021");
     });
@@ -1570,7 +1641,7 @@ describe("commissionByManualCode's code evidence", () => {
         const fixture = fixtureThatCommissions();
         const code = manualPairingCode({ vidPidPresent: false, discriminator: 0xf00, passcode: 12345678 });
 
-        await expect(commissionByManualCode(fixture.cx, code, new CommissionedRefs())).rejectedWith(
+        await expect(commissionByManualCode(fixture.cx, code, new CommissionedRefs(), [])).rejectedWith(
             CertCheckFailedError,
             /Manual pairing code parse/,
         );
