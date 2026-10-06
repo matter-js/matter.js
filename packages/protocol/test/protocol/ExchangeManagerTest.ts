@@ -14,6 +14,7 @@ import type { MessageExchange } from "#protocol/MessageExchange.js";
 import type { ProtocolHandler } from "#protocol/ProtocolHandler.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { GroupSession } from "#session/GroupSession.js";
+import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { UNICAST_UNSECURE_SESSION_ID } from "#session/UnsecuredSession.js";
 import {
@@ -22,8 +23,10 @@ import {
     ChannelType,
     UdpNetworkChannel,
     Environment,
+    InternalError,
     Key,
     MemoryStorageDriver,
+    MockCrypto,
     NetworkError,
     Observable,
     PrivateKey,
@@ -324,6 +327,152 @@ describe("ExchangeManager", () => {
             }
 
             expect(messages.map(message => message.receivedFrom)).deep.equals(["fd00::1", "fd00::2"]);
+        });
+    });
+
+    describe("inbound secure messages", () => {
+        const PEER = NodeId(1);
+
+        /** A manager holding a CASE session with {@link PEER}, a sleeping registered LIT peer, and the peer's side. */
+        async function sessionWithSleepingLitPeer() {
+            const environment = new Environment("test");
+            const crypto = MockCrypto();
+            const storage = new MemoryStorageDriver();
+            storage.initialize();
+
+            const fabric = new ProtocolMocks.Fabric({}, crypto);
+            fabric.icd.addPeer(
+                { peerNodeId: PEER, key: Bytes.of(new Uint8Array(16)), counterStart: 0, lastOffset: 0 },
+                () => {},
+            );
+            const wakefulness = fabric.icd.wakefulnessFor(PEER);
+            if (wakefulness === undefined) {
+                throw new InternalError("LIT peer not registered");
+            }
+            wakefulness.requiresAwait = true;
+
+            const sessions = new SessionManager({
+                parameters: {} as SessionParameters,
+                fabrics: new FabricManager(crypto),
+                storage: new StorageContext(storage, ["context"]),
+            });
+            await sessions.construction.ready;
+            const keys = { sharedSecret: Bytes.of(new Uint8Array(32)), salt: Bytes.empty, isResumption: false };
+            const session = await sessions.createSecureSession({
+                id: 100,
+                fabric,
+                peerNodeId: PEER,
+                peerSessionId: 200,
+                isInitiator: false,
+                ...keys,
+            });
+            const peerSession = await NodeSession.create({
+                crypto,
+                id: 200,
+                fabric: new ProtocolMocks.Fabric({ nodeId: PEER }, crypto),
+                peerNodeId: fabric.nodeId,
+                peerSessionId: 100,
+                isInitiator: true,
+                ...keys,
+            });
+
+            const transports = new TransportSet();
+            const exchanges = new ExchangeManager({ lifetime: environment, entropy: crypto, transports, sessions });
+            const transport = new MockTransport();
+            transports.add(transport);
+
+            return {
+                session,
+                wakefulness,
+                exchanges,
+                transport,
+                /** A datagram the peer sends on its session. */
+                datagram(message: Pick<Message, "payloadHeader">) {
+                    return MessageCodec.encodePacket(
+                        peerSession.encode({
+                            packetHeader: {
+                                sessionId: 100,
+                                sessionType: SessionType.Unicast,
+                                messageId: 1,
+                                isControlMessage: false,
+                                hasMessageExtensions: false,
+                                hasPrivacyEnhancements: false,
+                            },
+                            payload: Bytes.empty,
+                            ...message,
+                        }),
+                    );
+                },
+                async [Symbol.asyncDispose]() {
+                    wakefulness.close();
+                    await exchanges.close();
+                    await sessions.close();
+                },
+            };
+        }
+
+        it("counts a duplicate message as peer activity", async () => {
+            await using peer = await sessionWithSleepingLitPeer();
+            peer.exchanges.addProtocolHandler({
+                id: SECURE_CHANNEL_PROTOCOL_ID,
+                requiresSecureSession: true,
+                async onNewExchange() {},
+                async close() {},
+            });
+            const ack = peer.datagram({
+                payloadHeader: {
+                    isInitiatorMessage: false,
+                    requiresAck: false,
+                    messageType: SecureMessageType.StandaloneAck,
+                    exchangeId: 0x1234,
+                    protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                    ackedMessageId: 0x5678,
+                    hasSecuredExtension: false,
+                },
+            });
+            peer.transport.receive(ack);
+            for (let i = 0; i < 20; i++) {
+                await MockTime.yield();
+            }
+            const first = peer.session.activeTimestamp;
+
+            await MockTime.advance(1000);
+            peer.transport.receive(ack);
+            for (let i = 0; i < 20; i++) {
+                await MockTime.yield();
+            }
+
+            expect(peer.session.activeTimestamp).greaterThan(first);
+        });
+
+        it("wakes a sleeping LIT peer on a message no exchange accepts", async () => {
+            await using peer = await sessionWithSleepingLitPeer();
+            peer.exchanges.addProtocolHandler({
+                id: SECURE_CHANNEL_PROTOCOL_ID,
+                requiresSecureSession: true,
+                async onNewExchange() {},
+                async close() {},
+            });
+
+            peer.transport.receive(
+                peer.datagram({
+                    payloadHeader: {
+                        isInitiatorMessage: false,
+                        requiresAck: false,
+                        messageType: SecureMessageType.StandaloneAck,
+                        exchangeId: 0x1234,
+                        protocolId: SECURE_CHANNEL_PROTOCOL_ID,
+                        ackedMessageId: 0x5678,
+                        hasSecuredExtension: false,
+                    },
+                }),
+            );
+            for (let i = 0; i < 20; i++) {
+                await MockTime.yield();
+            }
+
+            expect(peer.wakefulness.awake.value).equal(true);
+            expect(peer.wakefulness.available.value).equal(true);
         });
     });
 

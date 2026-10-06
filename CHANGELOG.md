@@ -76,6 +76,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: TLV decoding reads the fully qualified tag with a 4-octet tag number, which the encoder already wrote, and rejects implicit profile tags with an `UnexpectedDataError` instead of a `NotImplementedError`
 
 - @matter/protocol
+    - Fix: Ensure that a controller treats any message from a LIT ICD peer as a wake signal and resubscribes at once, instead of waiting for the next Check-In
+    - Breaking: `IcdPeerWakefulness` API renamed (`noteActive()`, `nextCheckInDue`, `holdSubscription()`); ICD timing constants moved to `IcdPeerSchedule`
+    - Fix: Commissioning continues to network setup when the device rejects ScanNetworks with an Interaction Model status
     - Fix: A node advertises one DNS-SD host name on all its interfaces, so a controller that hears it on several interfaces reports its host name
     - Fix: An `MdnsService` that cannot open its socket removes itself from the environment and the runtime, so a node started afterwards creates a new one instead of failing again, and the runtime can stop
     - Fix: A closed `MdnsService` no longer stays registered as a runtime worker, so the runtime can go inactive after its nodes close
@@ -191,6 +194,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: `SwitchServer` decides position changes and debounce, long press and multi-press timer expiries when they occur, not when their reactions run. A move between two pressed positions does not count as a further press and, after a reported LongPress, generates no InitialPress. MultiPressOngoing stops at `MultiPressMax` with MultiPressComplete(0) at the end of the aborted sequence, whose further presses report no InitialPress and no ShortRelease. `resetState()` returns a promise while it waits for the switch state lock, then drops pending debounced positions, timers and events. The server no longer leaks a reactor per press
     - Fix: Discovery and `Peers.forDescriptor()` return the `ClientNode` still under construction for a device instead of creating a second node for it, so concurrent discoveries no longer create duplicate peers
     - Fix: A Thermostat atomic write's CommitWrite reports a status for every attribute the request names, in the request's order, and stores the attributes of one atomic write together or not at all
+    - Breaking: `ChangeNotificationService.Change` has a new kind `"readable"`, emitted when an endpoint's state becomes readable after its construction completes; a `switch` that requires every kind must handle it
+    - Feature: `EndpointLifecycle.isReadable` and `isGone` tell whether an endpoint's state is readable and whether it is going away
+    - Fix: MQTT and remote change streams keep running when an endpoint crashes, closes or resets, or a peer fails to load, resend the state they skipped once the endpoint is readable, deliver the initial state under a node filter, and report deletes only for endpoints and peers they reported or the consumer named in `versions`. `ChangeNotificationService` reports deletes and readability for peers restored from storage too, and discovery and `Peers.forDescriptor()` no longer reuse a peer whose deletion has begun
+    - Fix: Ensure that a failed `ClientNode.decommission()` keeps the node usable and that a node being deleted is not revived by a late interaction or event
+    - Breaking: Ensure that commissioning or decommissioning a node that is gone rejects with `DestroyedDependencyError` or `CrashedDependencyError` instead of `CommissioningError`, and a concurrent attempt with the new `FabricOperationInProgressError`
 
 - @matter/testing
     - Breaking: `forFlavor()` and `LogExpectOptions.flavor` take a `LogFlavor` (a `DeviceFlavor`, or `"chip"`/`"matterjs"`) instead of a string; `flavorFamily()` answers which family a flavor belongs to, and a flavor of neither family, such as `python-wrapped`, selects no variant
@@ -355,6 +363,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: A `ConformanceError` names the conformance the decision was made on rather than the element's own
     - Fix: A mandatory command a cluster leaves unimplemented is no longer dispatched; an invoke answers `UNSUPPORTED_COMMAND`, matching what the cluster advertises in `AcceptedCommandList`
     - Fix: A discovered peer cluster records the `ClusterRevision` the peer reports rather than the standard cluster's, and peers differing only in revision no longer share a behavior
+    - Fix: (@lboue) `DoorLockServer` denies a `WeekDayScheduleUser`, `YearDayScheduleUser` or `ScheduleRestrictedUser` outside its schedules, and when it has none
+    - Fix: (@lboue) `DoorLockServer` disables a user of type `ExpiringUser` once `ExpiringUserTimeout` minutes have passed since its first use, also across a restart, and emits `LockUserChange`; it denies such a user while `ExpiringUserTimeout` is not set
 
 - @matter/types
     - Enhancement: `hasNumberTlvMapping()` states whether a model's integer or bitmap width has a TLV codec. Generation uses it to refuse a model that declares a width with none, rather than letting the width reach an invoke or write and throw there

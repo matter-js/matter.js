@@ -295,6 +295,11 @@ export class Fabric {
         return this.#icd?.hasPeers === true;
     }
 
+    /** Record a message received from a peer, for its ICD wakefulness. */
+    notePeerActive(peerNodeId: NodeId) {
+        this.#icd?.notePeerActive(peerNodeId);
+    }
+
     get accessControl() {
         return this.#accessControl;
     }
