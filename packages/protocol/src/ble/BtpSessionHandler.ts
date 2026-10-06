@@ -5,6 +5,7 @@
  */
 
 import {
+    asError,
     Bytes,
     DataReader,
     Diagnostic,
@@ -66,17 +67,17 @@ export class BtpSessionHandler {
     /**
      * Emitted instead of {@link closed} when the peer completed the handshake and then sent no BTP packet at all before
      * the acknowledgement timeout, although we sent it at least one Matter message. Carries the Matter messages the peer
-     * never acknowledged in submission order. Only a central session above the minimum segment size reports this, as a
-     * smaller segment size is the only remedy.
+     * never acknowledged in submission order. Only a central session above the minimum segment size reports this, as the
+     * remedy is a smaller segment size.
      *
-     * A peripheral whose link layer cannot carry a BTP segment spanning several link-layer packets fails exactly this
-     * way. Recovering from it is an interop workaround with no basis in the specification: the transport may establish
-     * a fresh session with a smaller segment size and resend the messages, which the specification neither describes
-     * nor forbids.
+     * Some peripherals were observed to behave this way with large segments on Bluetooth 4.1 adapters and to work with
+     * the minimum segment size; the cause is not established. Recovering is an interop workaround with no basis in the
+     * specification: the transport may establish a fresh session with a smaller segment size and resend the messages,
+     * which the specification neither describes nor forbids.
      *
      * The session is suspended when this fires: it no longer touches the transport, and the transport owns what happens
-     * next. A session nobody observes closes on the acknowledgement timeout as it always did, so a transport that
-     * cannot renegotiate needs no changes.
+     * next. A session nobody observes closes on the acknowledgement timeout, so a transport that cannot renegotiate
+     * need not observe this.
      */
     get stalledAfterHandshake() {
         return this.#stalledAfterHandshake;
@@ -476,12 +477,7 @@ export class BtpSessionHandler {
                 // session cannot continue without the peer seeing a gap or a partial message
                 this.queuedOutgoingMatterMessages.length = 0;
                 this.sendInProgress = false;
-                await this.#closeAfterFailedWrite();
-                BleDisconnectedError.accept(error);
-                logger.debug(
-                    `BTP packet (seq ${btpPacket.payload.sequenceNumber}) send failed because BLE is disconnected`,
-                    Diagnostic.errorMessage(error),
-                );
+                await this.#handleFailedWrite(error, `BTP packet (seq ${btpPacket.payload.sequenceNumber})`);
                 return;
             }
 
@@ -535,13 +531,26 @@ export class BtpSessionHandler {
         }
     }
 
-    /** A failure while closing must not replace the write error the caller sees. */
-    async #closeAfterFailedWrite() {
+    /**
+     * Ends the session after a failed write and re-raises the error unless it is a disconnect. A write that fails after
+     * the session already ended is only logged: that end was reported through {@link closed} or
+     * {@link stalledAfterHandshake}, and after a stall the message belongs to the replay.
+     */
+    async #handleFailedWrite(error: unknown, packetDescription: string) {
+        if (!this.isActive) {
+            logger.debug(
+                `${packetDescription} failed after the BTP session ended`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return;
+        }
         try {
             await this.close();
-        } catch (error) {
-            logger.debug(`Error closing the BTP session after a failed write`, error);
+        } catch (closeError) {
+            logger.debug(`Error closing the BTP session after a failed write`, closeError);
         }
+        BleDisconnectedError.accept(error);
+        logger.debug(`${packetDescription} send failed because BLE is disconnected`, Diagnostic.errorMessage(error));
     }
 
     /**
@@ -610,11 +619,9 @@ export class BtpSessionHandler {
             try {
                 await this.writeBleCallback(packet);
             } catch (error) {
-                await this.#closeAfterFailedWrite();
-                BleDisconnectedError.accept(error);
-                logger.debug(
-                    `BTP ACK (seq ${btpPacket.payload.sequenceNumber}, ack ${ackNumberToSend}) send failed because BLE is disconnected`,
-                    Diagnostic.errorMessage(error),
+                await this.#handleFailedWrite(
+                    error,
+                    `BTP ACK (seq ${btpPacket.payload.sequenceNumber}, ack ${ackNumberToSend})`,
                 );
                 return;
             }

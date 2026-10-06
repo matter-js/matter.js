@@ -896,7 +896,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         );
 
         // §4.19.4.10: unsubscribing from C2 closes the BTP session for the peripheral; the BLE connection is unaffected.
-        // A failure here means the peer still holds the old session, so the new handshake would be rejected anyway
+        // A failure here may leave the peer holding the old session, so a new handshake is not attempted
         await unsubscribeC2(this.peripheral, this.characteristicC2ForSubscribe, "throw");
         this.#assertRenegotiable();
 
@@ -1002,12 +1002,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     }
 
     async close() {
-        // Connectivity is decided up front: the flags below make a parked send see the channel as gone, which would
-        // otherwise also suppress the disconnect this method owes the peripheral
+        // Must be read before #connected is cleared, or a connected peripheral is never disconnected
         const wasConnected = this.connected;
         this.#closing = true;
         this.#connected = false;
-        // Ends a pending renegotiation, which every send waits for
         this.#lifetime.abort();
         this.#detachDataHandler();
         this.#terminateIterator();

@@ -207,7 +207,7 @@ function respondingMatterService(onSubscribe?: () => void) {
 
 /**
  * Matter service that completes every handshake with the segment size it was offered but never answers a data packet,
- * which is how a peripheral behaves whose link layer cannot carry a segment spread over several link-layer packets.
+ * as the stalled peripherals this workaround targets do.
  */
 function handshakeOnlyMatterService(onUnsubscribe?: () => void) {
     const c2 = new EventEmitter();

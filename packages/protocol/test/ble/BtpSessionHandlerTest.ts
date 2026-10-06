@@ -1335,7 +1335,6 @@ describe("BtpSessionHandler", () => {
 
             await MockTime.advance(MatterBle.BTP_SEND_ACK_TIMEOUT);
             await ackWriting;
-            // Queued behind the in-flight ack
             await central.sendMatterMessage(Bytes.fromHex("0102030405"));
             await central.close();
 
@@ -1454,6 +1453,38 @@ describe("BtpSessionHandler", () => {
             await sending;
 
             expect(written.length).equal(2);
+        });
+
+        it("does not fail a send whose write fails after the stall handed its message to the replay", async () => {
+            const written = new Array<Bytes>();
+            let failWrite: ((error: Error) => void) | undefined;
+            const central = await BtpSessionHandler.createAsCentral(
+                BtpCodec.encodeBtpHandshakeResponse({ version: 4, attMtu: 244, windowSize: 8 }),
+                async data => {
+                    written.push(data);
+                    if (written.length === 2) {
+                        await new Promise<void>((_resolve, reject) => (failWrite = reject));
+                    }
+                },
+                async () => {},
+                async () => {},
+                MatterBle.MAXIMUM_BTP_MTU,
+            );
+
+            let replayed: readonly Bytes[] | undefined;
+            central.stalledAfterHandshake.on(messagesToReplay => {
+                replayed = messagesToReplay;
+            });
+
+            const pending = Bytes.fromHex("bb".repeat(500));
+            await central.sendMatterMessage(Bytes.fromHex("0102030405"));
+            const sending = central.sendMatterMessage(pending);
+
+            await MockTime.advance(15000);
+            expect(replayed).deep.equal([Bytes.fromHex("0102030405"), pending]);
+
+            failWrite?.(new Error("late failure"));
+            await sending;
         });
 
         it("keeps the segment size we offered when the peer answers with a larger one", async () => {
