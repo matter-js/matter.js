@@ -195,8 +195,10 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Discovery and `Peers.forDescriptor()` return the `ClientNode` still under construction for a device instead of creating a second node for it, so concurrent discoveries no longer create duplicate peers
     - Fix: A Thermostat atomic write's CommitWrite reports a status for every attribute the request names, in the request's order, and stores the attributes of one atomic write together or not at all
     - Breaking: `ChangeNotificationService.Change` has a new kind `"readable"`, emitted when an endpoint's state becomes readable after its construction completes; a `switch` that requires every kind must handle it
-    - Feature: `EndpointLifecycle.isReadable` and `isGone` tell whether an endpoint's state can be read now and whether its construction crashed or began closing
+    - Feature: `EndpointLifecycle.isReadable` and `isGone` tell whether an endpoint's state is readable and whether it is going away
     - Fix: MQTT and remote change streams keep running when an endpoint crashes, closes or resets, or a peer fails to load, resend the state they skipped once the endpoint is readable, deliver the initial state under a node filter, and report deletes only for endpoints and peers they reported or the consumer named in `versions`. `ChangeNotificationService` reports deletes and readability for peers restored from storage too, and discovery and `Peers.forDescriptor()` no longer reuse a peer whose deletion has begun
+    - Fix: Ensure that a failed `ClientNode.decommission()` keeps the node usable and that a node being deleted is not revived by a late interaction or event
+    - Breaking: Ensure that commissioning or decommissioning a node that is gone rejects with `DestroyedDependencyError` or `CrashedDependencyError` instead of `CommissioningError`, and a concurrent attempt with the new `FabricOperationInProgressError`
 
 - @matter/testing
     - Breaking: `forFlavor()` and `LogExpectOptions.flavor` take a `LogFlavor` (a `DeviceFlavor`, or `"chip"`/`"matterjs"`) instead of a string; `flavorFamily()` answers which family a flavor belongs to, and a flavor of neither family, such as `python-wrapped`, selects no variant

@@ -1094,6 +1094,7 @@ class UnpairFixture {
     readonly calls = new Array<string>();
     readonly cx: CertStepContext;
     readonly commissioned = new CommissionedRefs();
+    readonly device: CertDevice;
     readonly #source = new LineQueue();
     readonly #log: LogFollower;
 
@@ -1105,9 +1106,11 @@ class UnpairFixture {
             onDecommission?: () => void;
             commission?: (target: CommissioningTarget) => Promise<CertNodeRef>;
             qrPairingCode?: string;
+            /** The role the plan names the device under. */
+            role?: string;
         } = {},
     ) {
-        const { fabricIndex = 1, backchannel = () => {}, onDecommission = () => {} } = options;
+        const { fabricIndex = 1, backchannel = () => {}, onDecommission = () => {}, role = "th" } = options;
         const log = new LogFollower(this.#source, "th");
         this.#log = log;
         const unused = () => Promise.reject(new InternalError("not used by these tests"));
@@ -1124,7 +1127,7 @@ class UnpairFixture {
         });
 
         const device: CertDevice = {
-            id: "th",
+            id: role,
             app: "all-clusters",
             commissioning: {
                 kind: "on-network",
@@ -1149,6 +1152,7 @@ class UnpairFixture {
             log,
             exit: new Promise<DeviceExitInfo>(() => {}),
         };
+        this.device = device;
 
         const controller: ControllerAdapter = {
             id: "dut",
@@ -1166,7 +1170,7 @@ class UnpairFixture {
         };
 
         this.cx = {
-            devices: { th: device },
+            devices: { [role]: device },
             controllers: { dut: controller },
             picsMet: () => {
                 throw new InternalError("not used by these tests");
@@ -1236,6 +1240,21 @@ describe("recordUnpair", () => {
         await recordUnpair(fixture.cx, fixture.commissioned);
 
         expect(fixture.calls).deep.equal(["readFabricIndex", "decommission"]);
+    });
+
+    it("acts on the device it is given where the plan names no th", async () => {
+        const fixture = new UnpairFixture("chip-local", {
+            role: "th1",
+            onDecommission: () => fixture.push(CHIP_FABRIC_REMOVED, CHIP_SESSIONS_EXPIRED),
+        });
+
+        await recordUnpair(fixture.cx, fixture.commissioned, fixture.device);
+
+        expect(fixture.checks.map(check => `${check.type}:${check.verdict}`)).deep.equal([
+            "response:pass",
+            "device-log:pass",
+            "device-log:pass",
+        ]);
     });
 
     it("judges both lines against the fabric index the device assigned", async () => {
@@ -1350,7 +1369,7 @@ describe("restoreCommissioningMode, through recordVendorOutcome", () => {
 
         // The restore's own probe, and no second one: a restore that ran has already proven the TH
         // is there, so the attempt does not probe again
-        expect(probed).deep.equal(["TH advertising as commissionable again"]);
+        expect(probed).deep.equal(["th advertising as commissionable again"]);
     });
 
     // The fabric is off the TH once decommission() resolves, whatever the reset that follows does, so

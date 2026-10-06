@@ -15,6 +15,7 @@ import {
     expectSubscriptionId,
     LOG_TIMEOUT,
     record,
+    theTh,
 } from "./tc-support.js";
 
 // TC-IDM-4.1's subscription machinery lives beside the test case rather than inside it because a
@@ -118,7 +119,7 @@ export async function subscribeAndModify<Value>(
         );
     }
 
-    const th = cx.devices.th;
+    const th = theTh(cx);
     const node = cx.controllers.dut.node(ref);
     const establish = timeouts.establish ?? LOG_TIMEOUT;
     const report = timeouts.report ?? REPORT_WAIT_TIMEOUT;
