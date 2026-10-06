@@ -26,6 +26,7 @@ import {
     InteractionServerMessenger,
     InvokeResponseForSend,
     Message,
+    ProtocolMocks,
     Val,
     MessageType,
     SessionType,
@@ -180,9 +181,10 @@ export function CommissioningHelper() {
         /**
          * Runs the commissioning sequence up to and including AddNOC, leaving the fail-safe armed.  Creates the node with
          * {@link MockServerNode.createOnline} if none is given.  Returns the node, the exchange context used and the controller's
-         * fabric.  `index` selects the fabric index and the test authority.
+         * fabric.  `index` selects the fabric index and the test authority.  `exchange` continues a session that already
+         * exists, such as one that armed the fail-safe; by default a new one is created.
          */
-        async almostCommission(node?: MockServerNode, index = 1) {
+        async almostCommission(node?: MockServerNode, index = 1, exchange?: ProtocolMocks.Exchange) {
             const authority = await TestFabric.Authority({ index });
 
             // This is the controller's version of the fabric
@@ -199,9 +201,7 @@ export function CommissioningHelper() {
 
             this.fabricNumber = index;
 
-            const exchange = await node.createExchange();
-
-            const context = { exchange, command: true };
+            const context = { exchange: exchange ?? (await node.createExchange()), command: true };
 
             await node.online(context, async agent => {
                 await agent.generalCommissioning.armFailSafe({
@@ -268,10 +268,11 @@ export function CommissioningHelper() {
 
         /**
          * Runs {@link almostCommission}, then sends CommissioningComplete on a new session in the new fabric and waits until the node
-         * is commissioned.  Returns the node, the context options for further calls and the device's fabric.
+         * is commissioned.  `exchange` is passed to {@link almostCommission}.  Returns the node, the context options for further calls
+         * and the device's fabric.
          */
-        async commission(existingNode?: MockServerNode, index = 1) {
-            const { node, controllerFabric } = await this.almostCommission(existingNode, index);
+        async commission(existingNode?: MockServerNode, index = 1, exchange?: ProtocolMocks.Exchange) {
+            const { node, controllerFabric } = await this.almostCommission(existingNode, index, exchange);
 
             const deviceFabric = node.env
                 .get(FabricManager)
