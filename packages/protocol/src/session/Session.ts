@@ -330,6 +330,14 @@ export abstract class Session {
         });
     }
 
+    /**
+     * Whether a communication failure on the session's exchanges leaves the session open instead of marking the peer
+     * lost.  The session's owner then ends it.
+     */
+    get suppressPeerLoss() {
+        return false;
+    }
+
     get isClosed() {
         return !this.#channel;
     }
