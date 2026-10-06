@@ -221,7 +221,7 @@ export class SoftwareUpdateManager extends Behavior {
         const delay = Millis(Seconds(Math.floor(Math.random() * 300)) + Minutes(5));
         logger.info(`Scheduling first OTA update check in ${Duration.format(delay)}`);
         this.internal.checkForUpdateTimer?.stop();
-        this.internal.checkForUpdateTimer = this.timer(
+        this.internal.checkForUpdateTimer = this.reactorTimer(
             "initializeUpdateCheck",
             delay,
             this.#initializeUpdateCheck,
@@ -265,7 +265,7 @@ export class SoftwareUpdateManager extends Behavior {
         }
 
         this.internal.checkForUpdateTimer.stop();
-        this.internal.checkForUpdateTimer = this.periodicTimer(
+        this.internal.checkForUpdateTimer = this.periodicReactorTimer(
             "checkAvailableUpdates",
             this.state.updateCheckInterval,
             this.checkForUpdates,
@@ -920,7 +920,7 @@ export class SoftwareUpdateManager extends Behavior {
             });
             if (!this.internal.updateQueueTimer?.isRunning) {
                 // Start a periodic timer to check for stalled updates
-                this.internal.updateQueueTimer = this.periodicTimer(
+                this.internal.updateQueueTimer = this.periodicReactorTimer(
                     "checkQueuedUpdates",
                     Minutes(5),
                     this.#triggerQueuedUpdate,

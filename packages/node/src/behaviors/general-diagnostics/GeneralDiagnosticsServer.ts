@@ -364,7 +364,7 @@ export class GeneralDiagnosticsServer extends Base {
         this.internal.upTimeHighWaterMark = 0;
 
         this.internal.lastTotalOperationalHoursTimer?.stop();
-        this.internal.lastTotalOperationalHoursTimer = this.periodicTimer(
+        this.internal.lastTotalOperationalHoursTimer = this.periodicReactorTimer(
             "GeneralDiagnostics.operationalHours",
             Minutes(5),
             this.#updateTotalOperationalHoursCounter,

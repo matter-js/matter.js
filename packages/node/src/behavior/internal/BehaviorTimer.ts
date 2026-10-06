@@ -10,7 +10,7 @@ import type { Reactor } from "../Reactor.js";
 import type { BehaviorBacking } from "./BehaviorBacking.js";
 
 /**
- * A {@link Timer} owned by a behavior; see {@link Behavior.timer}.
+ * A {@link Timer} owned by a behavior; see {@link Behavior.reactorTimer}.
  *
  * Each start installs a reactor for that run only.  Stopping releases it, as does the end of the reaction to the expiry
  * of a one-shot timer, so restarting or replacing the timer does not accumulate reactors.  A timer does not start once
@@ -20,7 +20,7 @@ export class BehaviorTimer implements Timer {
     readonly #backing: BehaviorBacking;
     readonly #timer: Timer;
     readonly #reactor: Reactor<[], unknown>;
-    readonly #options?: Behavior.TimerOptions;
+    readonly #options?: Behavior.ReactorTimerOptions;
     #run?: Observable<[], unknown>;
 
     constructor(
@@ -29,7 +29,7 @@ export class BehaviorTimer implements Timer {
         interval: Duration,
         periodic: boolean,
         reactor: Reactor<[], unknown>,
-        options?: Behavior.TimerOptions,
+        options?: Behavior.ReactorTimerOptions,
     ) {
         this.#backing = backing;
         this.#reactor = reactor;

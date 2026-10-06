@@ -336,14 +336,14 @@ export abstract class BehaviorBacking {
     }
 
     /**
-     * Create a timer that reacts like a reactor of this behavior; see {@link Behavior.timer}.
+     * Create a timer that reacts like a reactor of this behavior; see {@link Behavior.reactorTimer}.
      */
     createTimer(
         name: string,
         interval: Duration,
         periodic: boolean,
         reactor: Reactor<[], unknown>,
-        options?: Behavior.TimerOptions,
+        options?: Behavior.ReactorTimerOptions,
     ): Timer {
         return new BehaviorTimer(this, name, interval, periodic, reactor, options);
     }

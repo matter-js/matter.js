@@ -281,7 +281,7 @@ export class OnOffBaseServer extends OnOffLogicBase {
             return this.off();
         }
         this.internal.applyScenePendingOnOff = onOff;
-        this.internal.applySceneDelayTimer = this.timer(
+        this.internal.applySceneDelayTimer = this.reactorTimer(
             "delayed scene apply",
             Millis(transitionTime),
             this.#applyDelayedSceneOnOffValue,

@@ -418,7 +418,7 @@ export class GroupcastServer extends GroupcastBase {
         // Enable testing: set FabricUnderTest to the current fabric index
         this.state.fabricUnderTest = fabricIndex;
 
-        this.internal.testingTimer = this.timer(
+        this.internal.testingTimer = this.reactorTimer(
             `groupcast-testing-${fabricIndex}`,
             Seconds(durationSeconds),
             this.#testingTimerExpired,

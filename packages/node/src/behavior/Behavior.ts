@@ -253,7 +253,7 @@ export abstract class Behavior {
      * Because of this: The reactor MUST be a real JS function - arrow functions will not work!
      *
      * Each call installs a reactor that remains until the behavior closes.  Create the callback once rather than each
-     * time it is passed on; for a timer use {@link timer} or {@link periodicTimer}.
+     * time it is passed on; for a timer use {@link reactorTimer} or {@link periodicReactorTimer}.
      */
     protected callback<A extends any[], R>(reactor: Reactor<A, R>, options?: Reactor.Options) {
         const observable = Observable<A, R>();
@@ -273,20 +273,25 @@ export abstract class Behavior {
      *
      * As with {@link reactTo}, the reactor MUST be a real JS function so "this" binds to an active Behavior instance.
      */
-    protected timer(name: string, duration: Duration, reactor: Reactor<[], unknown>, options?: Behavior.TimerOptions) {
+    protected reactorTimer(
+        name: string,
+        duration: Duration,
+        reactor: Reactor<[], unknown>,
+        options?: Behavior.ReactorTimerOptions,
+    ) {
         return (this as unknown as Internal)[BACKING].createTimer(name, duration, false, reactor, options);
     }
 
     /**
      * Create a periodic timer that runs {@link reactor} like a reactor of this behavior at each interval.
      *
-     * @see {@link timer}
+     * @see {@link reactorTimer}
      */
-    protected periodicTimer(
+    protected periodicReactorTimer(
         name: string,
         interval: Duration,
         reactor: Reactor<[], unknown>,
-        options?: Behavior.TimerOptions,
+        options?: Behavior.ReactorTimerOptions,
     ) {
         return (this as unknown as Internal)[BACKING].createTimer(name, interval, true, reactor, options);
     }
@@ -466,9 +471,9 @@ function isBehaviorType(value: unknown): value is Behavior.Type {
 
 export namespace Behavior {
     /**
-     * Reactor options of a timer created by {@link Behavior.timer} or {@link Behavior.periodicTimer}.
+     * Reactor options of a timer created by {@link Behavior.reactorTimer} or {@link Behavior.periodicReactorTimer}.
      */
-    export type TimerOptions = Omit<Reactor.Options, "once">;
+    export type ReactorTimerOptions = Omit<Reactor.Options, "once">;
 
     /**
      * Static properties supported by all behaviors.

@@ -89,7 +89,7 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
     #armActiveWindow() {
         this.#stopTimers();
         const icd = this.agent.get(IcdManagementServer);
-        this.internal.activeTimer = this.timer(
+        this.internal.activeTimer = this.reactorTimer(
             "icd-test-active-window",
             Millis(icd.state.activeModeDuration),
             this.#onActiveWindowDone,
@@ -109,7 +109,7 @@ export class IcdTestEventServer extends TestGeneralDiagnosticsServer {
     #onIdleEntered() {
         this.#stopTimers();
         const icd = this.agent.get(IcdManagementServer);
-        this.internal.idleTimer = this.timer(
+        this.internal.idleTimer = this.reactorTimer(
             "icd-test-idle-window",
             Seconds(icd.state.idleModeDuration),
             this.#onIdleWindowDone,

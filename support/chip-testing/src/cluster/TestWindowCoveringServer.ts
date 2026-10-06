@@ -77,7 +77,7 @@ export class TestWindowCoveringServer extends TestWindowCoveringServerBase {
             targetPercent100ths,
             increment,
             counter: 0,
-            timer: this.periodicTimer(
+            timer: this.periodicReactorTimer(
                 typeName,
                 Millis(950),
                 MovementType.Lift === type ? this.#handleLiftMovementTick : this.#handleTiltMovementTick,

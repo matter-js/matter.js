@@ -15,12 +15,12 @@ class TimerBehavior extends Behavior {
     static override readonly id = "timerTest";
     declare state: TimerBehavior.State;
 
-    createTimer(reactor: Reactor<[], unknown>, options?: Behavior.TimerOptions) {
-        return this.timer("test", Millis(1000), reactor, options);
+    createTimer(reactor: Reactor<[], unknown>, options?: Behavior.ReactorTimerOptions) {
+        return this.reactorTimer("test", Millis(1000), reactor, options);
     }
 
     createPeriodicTimer(reactor: Reactor<[], unknown>) {
-        return this.periodicTimer("test periodic", Millis(1000), reactor);
+        return this.periodicReactorTimer("test periodic", Millis(1000), reactor);
     }
 
     react() {
@@ -55,7 +55,7 @@ function gate() {
     return { promise, release };
 }
 
-describe("Behavior timers", () => {
+describe("Behavior reactor timers", () => {
     before(() => {
         MockTime.init();
     });
@@ -226,7 +226,7 @@ describe("Behavior timers", () => {
 
         timer.start();
         await MockTime.advance(1000);
-        // The backing waits for the running reaction before it completes the close
+        // Endpoint close waits for timer reactions before it closes behaviors, so close the backing to start during its drain
         const closed = endpoint.behaviors.backingFor(TimerBehavior).close();
         reaction.release();
         await MockTime.resolve(closed);

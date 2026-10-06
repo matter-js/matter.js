@@ -517,7 +517,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         }
 
         logger.info(`Scheduling OTA update query in ${delay} (reason "${ScheduleReason[reason]}")`);
-        this.internal.updateQueryTimer = this.timer("OTA Request", delay, this.#performUpdateQuery).start();
+        this.internal.updateQueryTimer = this.reactorTimer("OTA Request", delay, this.#performUpdateQuery).start();
         return true;
     }
 
